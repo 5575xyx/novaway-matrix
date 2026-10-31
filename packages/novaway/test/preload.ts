@@ -42,6 +42,9 @@ process.env["NOVAWAY_EXPERIMENTAL_WORKSPACES"] = "true"
 // Tests must never reach the network for plugin installs (the default global
 // plugin is a git dependency). Individual tests opt in by building their own layer.
 process.env["NOVAWAY_DISABLE_DEFAULT_PLUGINS"] = "1"
+// Same reason: the server provisions built-in extensions (ppt-master) in the
+// background after `Server.listen()`. Tests must stay offline and hermetic.
+process.env["NOVAWAY_DISABLE_AUTOPROVISION"] = "1"
 
 // Set test home directory to isolate tests from user's actual home directory
 // This prevents tests from picking up real user configs/skills from ~/.claude/skills
@@ -65,7 +68,10 @@ await fs.writeFile(path.join(cacheDir, "version"), "14")
 if (process.platform === "win32") {
   const bundled = path.join(import.meta.dir, "..", "..", "desktop", "resources", "ripgrep", "rg.exe")
   const target = path.join(dir, "cache", "novaway", "bin", "rg.exe")
-  const available = await fs.stat(bundled).then(() => true).catch(() => false)
+  const available = await fs
+    .stat(bundled)
+    .then(() => true)
+    .catch(() => false)
   if (available) {
     await fs.mkdir(path.dirname(target), { recursive: true })
     await fs.copyFile(bundled, target)

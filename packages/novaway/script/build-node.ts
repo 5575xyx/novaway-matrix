@@ -177,4 +177,34 @@ await Bun.build({
   },
 })
 
+/**
+ * 产物里不允许出现静态 `bun:` import。
+ *
+ * 这份 bundle 由桌面端 Electron 的 utilityProcess(Node)加载,而 Node 只认
+ * node:/file:/data:/https: 这几种 scheme;一旦某个模块顶层写了
+ * `import { Database } from "bun:sqlite"`,sidecar 会在链接阶段直接崩:
+ * `ERR_UNSUPPORTED_ESM_URL_SCHEME: Received protocol 'bun:'`,整个应用起不来。
+ * 需要 Bun 专有 API 的地方一律走 `#db` / `#pty` 这类按运行时切分的入口,
+ * 或像 database/drivers/sqlite.ts 那样在 `typeof Bun` 判断后用动态 import。
+ */
+const BUN_SCHEME = /"bun:[^"]*"/g
+const offenders: string[] = []
+for (const file of fs.readdirSync(path.join(dir, "dist/node"))) {
+  if (!file.endsWith(".js")) continue
+  const source = fs.readFileSync(path.join(dir, "dist/node", file), "utf-8")
+  for (const match of source.matchAll(BUN_SCHEME)) {
+    const before = source.slice(Math.max(0, match.index - 40), match.index)
+    // `import("bun:sqlite")` 是动态 import,运行时才求值,Node 下永远不会走到;放行。
+    if (/import\(\s*$/.test(before)) continue
+    offenders.push(`${file}: ${match[0]}`)
+  }
+}
+if (offenders.length > 0) {
+  throw new Error(
+    "node 构建产物里出现了静态 bun: import(Electron sidecar 无法加载):\n  " +
+      offenders.join("\n  ") +
+      "\n请改用能按运行时切分的入口(如 #db)或 typeof Bun 判断 + 动态 import。",
+  )
+}
+
 console.log("Build complete")

@@ -204,9 +204,9 @@ export function createPlatform(): Platform {
       window.api.relaunch()
     },
 
-    notify: async (title, description, href, metadata) => {
+    notify: async (title, description, href) => {
       const focused = await window.api.getWindowFocused().catch(() => document.hasFocus())
-      window.api.showNotification(title, description, href, !focused, metadata)
+      window.api.showNotification(title, description, href, !focused)
     },
 
     fetch: (input, init) => {

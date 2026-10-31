@@ -10,8 +10,10 @@ import { permissionForAgent } from "@/context/agent-permission"
 import { usePrompt } from "@/context/prompt"
 import { PromptInput } from "@/components/prompt-input"
 import { createPromptVeil, PromptInputLoading } from "@/components/prompt-input/loading"
+import { DraftEmptyState } from "@/components/session/draft-empty-state"
+import { OfficeSuggestedPrompts } from "@/components/office-suggested-prompts"
 import { useOfficeAgent } from "@/pages/session/office-agent-context"
-import { greetingMessageId } from "@/utils/greeting"
+import { useSettings } from "@/context/settings"
 
 const ROOT_CLASS = "size-full flex flex-col"
 
@@ -31,9 +33,10 @@ export function NewSessionView(props: NewSessionViewProps) {
   const local = useLocal()
   const permission = usePermission()
   const sdk = useSDK()
-  const office = useOfficeAgent()
 
   const prompt = usePrompt()
+  const office = useOfficeAgent()
+  const settings = useSettings()
 
   /**
    * 加载遮罩的显隐。
@@ -56,22 +59,11 @@ export function NewSessionView(props: NewSessionViewProps) {
   return (
     <div class={ROOT_CLASS}>
       <div class="flex-1 flex flex-col items-center justify-center text-center">
-        <div class="w-full max-w-xl flex flex-col items-center text-center gap-8 px-6">
+        <div class="w-full max-w-2xl flex flex-col items-center text-center gap-8 px-6">
           {/* 问候语：对齐 ZCode 草稿态空位（`ConversationDraftEmptyState`）——
-              按时段换一句问候、居中、大字；不再用品牌 logo + 呼吸动画 + 渐变文字，
-              那套 Aurora 装饰在 B8 已清掉（这条引用一度成了断链，本次一并修正）。 */}
-          <div class="flex flex-col items-center gap-3">
-            <p class="text-ui-xl font-semibold leading-tight text-foreground">
-              {isOffice()
-                ? office.activeAction().title
-                : language.t(greetingMessageId() as Parameters<typeof language.t>[0])}
-            </p>
-            <Show when={isOffice()}>
-              <p class="max-w-md text-ui-base leading-relaxed text-foreground-subtle">
-                {office.activeAction().description}
-              </p>
-            </Show>
-          </div>
+              按时段换一句问候、居中、大字，办公模式换成「今天有什么工作，交给我吧」。
+              组件里自带那枚巨大的品牌水印，和 ZCode 一样只是氛围，不参与布局。 */}
+          <DraftEmptyState />
           <Show when={sync.project}>
             {(project) => (
               <div class="flex items-start justify-center gap-3 min-h-5">
@@ -143,6 +135,23 @@ export function NewSessionView(props: NewSessionViewProps) {
                 <PromptInputLoading fading={prompt.ready()()} />
               </Show>
             </div>
+            {/* 办公模式的推荐提示词：ZCode 把它放在**输入框正下方**（草稿态才出现）。
+                点一条等于「选好插件 + 写好开场白」；插件没启用时先问一句再启用。
+                这里写入的是真正的输入框（PromptInput 的 reconcile 会把 store 同步回 DOM），
+                不是另起一个假 textarea。 */}
+            <Show when={isOffice() && settings.office.showSuggestions()}>
+              <OfficeSuggestedPrompts
+                class="mt-1 px-1"
+                onSelect={(item) => {
+                  // 场景跟着提示词走，否则办公上下文还是上一次选的场景。
+                  if (item.scene && item.scene !== office.activeID()) office.select(item.scene)
+                  prompt.set(
+                    [{ type: "text", content: item.prompt, start: 0, end: item.prompt.length }],
+                    item.prompt.length,
+                  )
+                }}
+              />
+            </Show>
           </div>
         </div>
       </div>

@@ -1026,12 +1026,18 @@
   overflow: visible !important;
 }
 
-[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] > [data-slot="basic-tool-tool-title"] {
+[data-slot="session-turn-assistant-content"]
+  [data-slot="basic-tool-tool-info-main"]
+  > [data-slot="basic-tool-tool-title"] {
   flex: 0 0 auto;
 }
 
-[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] > [data-slot="basic-tool-tool-subtitle"],
-[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] > [data-slot="basic-tool-tool-arg"] {
+[data-slot="session-turn-assistant-content"]
+  [data-slot="basic-tool-tool-info-main"]
+  > [data-slot="basic-tool-tool-subtitle"],
+[data-slot="session-turn-assistant-content"]
+  [data-slot="basic-tool-tool-info-main"]
+  > [data-slot="basic-tool-tool-arg"] {
   flex: 0 1 auto;
   min-width: 0;
 }

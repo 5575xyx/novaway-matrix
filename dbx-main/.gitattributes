@@ -1,3 +1,0 @@
-# Keep formatter-sensitive source files consistent across platforms.
-apps/desktop/src/**/*.ts text eol=lf
-apps/desktop/src/**/*.vue text eol=lf

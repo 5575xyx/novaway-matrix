@@ -49,7 +49,7 @@ export const messageHandlers = HttpApiBuilder.group(InstanceHttpApi, "v2.message
         const first = messages[0]
         const last = messages.at(-1)
         return {
-          items: messages,
+          data: messages,
           cursor: {
             previous: first ? cursor.encode(first, order, "previous") : undefined,
             next: last ? cursor.encode(last, order, "next") : undefined,

@@ -1,57 +1,27 @@
-import type { Config, McpStatus } from "@novaway/sdk/v2/client"
+import type { Config } from "@novaway/sdk/v2/client"
 import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
-import { useQuery } from "@tanstack/solid-query"
-import { createMemo, Show, type Component } from "solid-js"
-import { useGlobalSDK } from "@/context/global-sdk"
+import { createMemo, type Component } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { SettingsGroup, SettingsRow } from "./settings-parts"
-
-const statusLabels = {
-  connected: "mcp.status.connected",
-  failed: "mcp.status.failed",
-  needs_auth: "mcp.status.needs_auth",
-  needs_client_registration: "mcp.status.needs_client_registration",
-  disabled: "mcp.status.disabled",
-} as const
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value)
 
 /**
- * 浏览器控制（对齐 ZCode 的 Browser 设置区）。
+ * 浏览器控制。
  *
- * 我们的浏览器能力由内置的 Playwright MCP 提供（`browser` 服务），
- * 所以这一页只做两件事：开关它、显示它的连接状态。
- * 不再重复 MCP 页的那套增删改 —— 那是"管理任意 MCP 服务"，
- * 这里是"浏览器这个能力现在能不能用"。
+ * 能力由内核自带（`browser_*` 工具直接说 Chrome DevTools 协议，拉起的是本机
+ * 已安装的 Chrome / Edge 的 headless 模式），不经过任何 MCP 服务 —— 所以这一页
+ * 只留一个开关，加上「它到底怎么跑」的说明，不再显示一个跟能力无关的 MCP 连接状态。
  */
 export const SettingsBrowser: Component = () => {
   const language = useLanguage()
-  const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
 
-  const status = useQuery(() => ({
-    queryKey: ["settings", "mcp"],
-    queryFn: () => globalSDK.client.mcp.status().then((response) => response.data ?? {}),
-    staleTime: 10_000,
-    refetchOnWindowFocus: false,
-  }))
-
-  const browser = createMemo<McpStatus | undefined>(() => {
-    const data = status.data
-    if (!isRecord(data)) return undefined
-    return data.browser as McpStatus | undefined
-  })
-
-  const configured = createMemo(() => {
-    const mcp = globalSync.data.config.mcp
-    return isRecord(mcp) ? mcp : {}
-  })
-
   const entry = createMemo<Record<string, unknown>>(() => {
-    const value = configured().browser
+    const value = globalSync.data.config.browser
     return isRecord(value) ? value : {}
   })
 
@@ -59,13 +29,8 @@ export const SettingsBrowser: Component = () => {
 
   const update = (value: boolean) =>
     globalSync.updateConfig({
-      mcp: { ...configured(), browser: { ...entry(), enabled: value } },
+      browser: { ...entry(), enabled: value },
     } as Config)
-
-  const label = createMemo(() => {
-    const current = browser()?.status
-    return current ? language.t(statusLabels[current] as never) : language.t("settings.browser.status.unknown" as never)
-  })
 
   return (
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
@@ -88,16 +53,25 @@ export const SettingsBrowser: Component = () => {
             }
           />
           <SettingsRow
-            label={language.t("settings.browser.status.title" as never)}
-            description={language.t("settings.browser.status.description" as never)}
-            control={<Tag>{label()}</Tag>}
-            detail={
-              <Show when={browser()?.status === "failed" ? (browser() as { error?: string }).error : undefined}>
-                {(error) => <p class="text-12-regular text-foreground-subtle">{error()}</p>}
-              </Show>
-            }
+            label={language.t("settings.browser.runtime.title" as never)}
+            description={language.t("settings.browser.runtime.description" as never)}
+            control={<Tag>{language.t("settings.browser.runtime.tag" as never)}</Tag>}
+          />
+          <SettingsRow
+            label={language.t("settings.browser.permission.title" as never)}
+            description={language.t("settings.browser.permission.description" as never)}
+            control={<Tag>{language.t("settings.browser.permission.tag" as never)}</Tag>}
           />
         </SettingsGroup>
+
+        <div class="rounded-xl border border-border bg-surface px-4 py-3">
+          <div class="text-13-medium text-foreground">{language.t("settings.browser.usage.title" as never)}</div>
+          <ul class="mt-1.5 flex flex-col gap-1 text-12-regular text-foreground-subtle">
+            <li>{language.t("settings.browser.usage.1" as never)}</li>
+            <li>{language.t("settings.browser.usage.2" as never)}</li>
+            <li>{language.t("settings.browser.usage.3" as never)}</li>
+          </ul>
+        </div>
       </div>
     </div>
   )

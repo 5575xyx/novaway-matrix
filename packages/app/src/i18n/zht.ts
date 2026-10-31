@@ -665,7 +665,6 @@ export const dict = {
   "settings.section.server": "伺服器",
   "settings.tab.general": "一般",
   "settings.tab.shortcuts": "快速鍵",
-  "settings.tabs.pet": "桌面上的寵物",
   "settings.tabs.notifications": "訊息通知",
   "settings.desktop.section.wsl": "WSL",
   "settings.desktop.wsl.title": "WSL 整合",

@@ -633,7 +633,9 @@ describe("tool.read loaded instructions", () => {
 })
 
 const LF_CHAR = String.fromCharCode(10)
-const minimalPdf = () => ["%PDF-1.4", "1 0 obj", "<< /Type /Catalog >>", "endobj", "trailer", "<< /Root 1 0 R >>", "%%EOF"].join(LF_CHAR) + LF_CHAR
+const minimalPdf = () =>
+  ["%PDF-1.4", "1 0 obj", "<< /Type /Catalog >>", "endobj", "trailer", "<< /Root 1 0 R >>", "%%EOF"].join(LF_CHAR) +
+  LF_CHAR
 
 describe("tool.read PDF handling", () => {
   it.instance("inlines a small PDF as a document attachment", () =>
@@ -783,7 +785,10 @@ describe("tool.read dedupe", () => {
       const info = yield* fs.stat(file)
       yield* readState.record(ctx.sessionID, file, {
         timestamp: Date.now(),
-        mtime: info.mtime.pipe(Option.map((date) => date.getTime()), Option.getOrElse(() => 0)),
+        mtime: info.mtime.pipe(
+          Option.map((date) => date.getTime()),
+          Option.getOrElse(() => 0),
+        ),
         size: Number(info.size),
         partial: false,
       })

@@ -48,6 +48,8 @@ const DB_TYPES = [
   "clickhouse",
   "starrocks",
   "doris",
+  "sqlserver",
+  "oracle",
 ] as const
 type DbType = (typeof DB_TYPES)[number]
 
@@ -62,6 +64,8 @@ const DEFAULT_PORTS: Record<DbType, string> = {
   clickhouse: "8123",
   starrocks: "9030",
   doris: "9030",
+  sqlserver: "1433",
+  oracle: "1521",
 }
 
 const MYSQL_TYPES: ReadonlySet<DbType> = new Set(["mysql", "mariadb", "starrocks", "doris"])
@@ -77,10 +81,25 @@ function targetDatabase(type: DbType, database?: string) {
   return database
 }
 
+/**
+ * 需要时才给表名加引号：MySQL 系列用反引号，SQL Server 用方括号，其余用双引号。
+ * 带空格的表名（如 SQLite 里 `my table`）只能加引号才能查。
+ */
+function quoteTable(type: DbType, table: string) {
+  if (!table.includes(" ")) return table
+  if (MYSQL_TYPES.has(type) || type === "clickhouse") return "`" + table.replaceAll("`", "``") + "`"
+  if (type === "sqlserver") return "[" + table.replaceAll("]", "]]") + "]"
+  return '"' + table.replaceAll('"', '""') + '"'
+}
+
 function defaultQueryFor(type: DbType, table: string) {
   if (type === "mongodb") return `db.${table}.find({}).limit(100)`
   if (type === "redis") return `GET ${table}`
-  return `SELECT * FROM ${table.includes(" ") ? `\`${table.replace(/`/g, "``")}\`` : table} LIMIT 100`
+  const name = quoteTable(type, table)
+  // SQL Server / Oracle 没有 LIMIT 语法。
+  if (type === "sqlserver") return `SELECT TOP 100 * FROM ${name}`
+  if (type === "oracle") return `SELECT * FROM ${name} FETCH FIRST 100 ROWS ONLY`
+  return `SELECT * FROM ${name} LIMIT 100`
 }
 
 /** 直接用 SDK 生成的结果类型，避免手写类型与 schema 漂移。 */

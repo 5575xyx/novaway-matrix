@@ -1,0 +1,120 @@
+# 此文件由 script/sync-pnpm-workspace.mjs 生成，请勿手改。
+#
+# 真源是根 package.json 的 workspaces / trustedDependencies / patchedDependencies
+# 以及 bunfig.toml 的 exact / minimumReleaseAge。改完跑：
+#   node script/sync-pnpm-workspace.mjs
+
+packages:
+  - "packages/*"
+  - "packages/console/*"
+  - "packages/sdk/js"
+  - "packages/slack"
+
+# 与 package.json 的 workspaces.catalog 一一对应（依赖里写 catalog: 就是查这张表）。
+catalog:
+  "@effect/opentelemetry": "4.0.0-beta.65"
+  "@effect/platform-node": "4.0.0-beta.65"
+  "@effect/platform-node-shared": "4.0.0-beta.65"
+  "@npmcli/arborist": "9.4.0"
+  "@types/bun": "1.3.13"
+  "@types/cross-spawn": "6.0.6"
+  "@octokit/rest": "22.0.0"
+  "@hono/zod-validator": "0.4.2"
+  "@opentui/core": "0.4.5"
+  "@opentui/keymap": "0.4.5"
+  "@opentui/solid": "0.4.5"
+  "ulid": "3.0.1"
+  "@kobalte/core": "0.13.11"
+  "@types/luxon": "3.7.1"
+  "@types/node": "24.12.2"
+  "@types/semver": "7.7.1"
+  "@tsconfig/node22": "22.0.2"
+  "@tsconfig/bun": "1.0.9"
+  "@cloudflare/workers-types": "4.20251008.0"
+  "@openauthjs/openauth": "0.0.0-20250322224806"
+  "@pierre/diffs": "1.1.0-beta.18"
+  "opentui-spinner": "0.0.7"
+  "@solid-primitives/storage": "4.3.3"
+  "@tailwindcss/vite": "4.1.11"
+  "diff": "8.0.2"
+  "dompurify": "3.3.1"
+  "drizzle-kit": "1.0.0-beta.19-d95b7a4"
+  "drizzle-orm": "1.0.0-beta.19-d95b7a4"
+  "effect": "4.0.0-beta.65"
+  "ai": "6.0.168"
+  "cross-spawn": "7.0.6"
+  "hono": "4.10.7"
+  "hono-openapi": "1.1.2"
+  "fuzzysort": "3.1.0"
+  "jszip": "3.10.1"
+  "pptxgenjs": "3.12.0"
+  "luxon": "3.6.1"
+  "marked": "17.0.1"
+  "marked-shiki": "1.2.1"
+  "remend": "1.3.0"
+  "@playwright/test": "1.59.1"
+  "semver": "7.7.4"
+  "typescript": "5.8.2"
+  "@typescript/native-preview": "7.0.0-dev.20251207.1"
+  "zod": "4.1.8"
+  "remeda": "2.26.0"
+  "shiki": "3.20.0"
+  "solid-list": "0.3.0"
+  "tailwindcss": "4.1.11"
+  "virtua": "0.49.1"
+  "vite": "7.1.4"
+  "@solidjs/meta": "0.29.4"
+  "@solidjs/router": "0.15.4"
+  "@solidjs/start": "https://pkg.pr.new/@solidjs/start@dfb2020"
+  "@sentry/solid": "10.36.0"
+  "@sentry/vite-plugin": "4.6.0"
+  "solid-js": "1.9.10"
+  "vite-plugin-solid": "2.11.10"
+  "@lydell/node-pty": "1.2.0-beta.10"
+  "ffmpeg-static": "5.3.0"
+  "ffprobe-static": "3.1.0"
+
+# package.json 的 overrides（catalog: 已展开成具体版本）。
+overrides:
+  "@effect/platform-node-shared": "4.0.0-beta.65"
+  "@opentui/core": "0.4.5"
+  "@opentui/keymap": "0.4.5"
+  "@opentui/solid": "0.4.5"
+  "@types/bun": "1.3.13"
+  "@types/node": "24.12.2"
+  "@npmcli/agent": "4.0.0"
+  "@standard-community/standard-openapi": "0.2.9"
+
+# bun 的 trustedDependencies：只有这些包允许跑安装脚本（pnpm 默认全部拒绝）。
+onlyBuiltDependencies:
+  - "esbuild"
+  - "node-pty"
+  - "protobufjs"
+  - "tree-sitter"
+  - "tree-sitter-bash"
+  - "tree-sitter-powershell"
+  - "web-tree-sitter"
+  - "electron"
+  - "ffmpeg-static"
+  - "ffprobe-static"
+
+# 与 package.json 的 patchedDependencies 相同，补丁文件两边共用一份。
+patchedDependencies:
+  "@npmcli/agent@4.0.0": "patches/@npmcli%2Fagent@4.0.0.patch"
+  "@silvia-odwyer/photon-node@0.3.4": "patches/@silvia-odwyer%2Fphoton-node@0.3.4.patch"
+  "@standard-community/standard-openapi@0.2.9": "patches/@standard-community%2Fstandard-openapi@0.2.9.patch"
+  "solid-js@1.9.10": "patches/solid-js@1.9.10.patch"
+  "ssh2@1.17.0": "patches/ssh2@1.17.0.patch"
+
+# bunfig.toml 的 minimumReleaseAge（秒换算成分钟）：新版本要发布满这么久才会被解析到。
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  - "@opentui/core"
+  - "@opentui/core-darwin-arm64"
+  - "@opentui/core-darwin-x64"
+  - "@opentui/core-linux-arm64"
+  - "@opentui/core-linux-x64"
+  - "@opentui/core-win32-arm64"
+  - "@opentui/core-win32-x64"
+  - "@opentui/keymap"
+  - "@opentui/solid"

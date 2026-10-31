@@ -89,6 +89,7 @@ import {
 } from "./layout/deep-links"
 import { SidebarFiles } from "./layout/sidebar-files"
 import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-project"
+import { ProjectGitInit } from "./layout/sidebar-project-git"
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import {
@@ -605,20 +606,6 @@ export default function Layout(props: ParentProps) {
         ) {
           const props = e.details.properties as { sessionID: string; requestID?: string }
           const sessionKey = `${e.name}:${props.sessionID}`
-          if (e.details.type === "question.replied" && props.requestID) {
-            void window.api?.resolveFloatingNotification?.({
-              sessionID: props.sessionID,
-              requestID: props.requestID,
-              status: "replied",
-            })
-          }
-          if (e.details.type === "question.rejected" && props.requestID) {
-            void window.api?.resolveFloatingNotification?.({
-              sessionID: props.sessionID,
-              requestID: props.requestID,
-              status: "dismissed",
-            })
-          }
           dismissSessionAlert(sessionKey)
           return
         }
@@ -2792,6 +2779,10 @@ export default function Layout(props: ParentProps) {
                             </Show>
                             <span class="flex-1 min-w-0" />
                           </button>
+                          {/* 还不是 Git 仓库的项目：名字旁边给一个 branch 图标（悬停出现），
+                              点开是「初始化 Git 仓库」的小浮层。以前这个入口是会话右上角
+                              一张常驻的空卡，既占位置又跟会话无关。 */}
+                          <ProjectGitInit project={proj} />
                           <IconButton
                             icon="plus-small"
                             variant="ghost"
@@ -2918,29 +2909,11 @@ export default function Layout(props: ParentProps) {
     )
   }
 
-  // 模式与页面的一致性：运营模式在首页打开「运营工作台」，切走后自动收起；
-  // 在会话里切到运营模式则什么都不做 —— 所有模式共用同一套聊天界面。
-  createEffect(
-    on(
-      () => layout.mode.current(),
-      (mode, prev) => {
-        if (mode === "pulse") {
-          if (untrack(() => location.pathname === "/")) openPulsePage()
-          return
-        }
-        if (prev === "pulse" && state.pulsePage.open) closePulsePage()
-      },
-      { defer: true },
-    ),
-  )
-
   const projects = () => layout.projects.list()
   // 所有工作模式共用同一套外壳（侧栏 + 图标条 + 会话区）：模式只决定 agent / 技能 /
   // MCP 这些能力面。以前运营模式整块不显示侧栏、还会把路由顶到 `/pulse`，
   // 切过去时图标条一起消失，和"模式只是换能力"的预期不符。
   const showSidebar = createMemo(() => true)
-  // 运营工作台（账号 / 发布）作为主帧内的页面入口，只在运营模式下出现。
-  const isPulseMode = createMemo(() => layout.mode.current() === "pulse")
 
   // 应用内前进/后退历史。原来由全局标题栏承载的两个导航按钮随标题栏移除，逻辑挪到外壳层，
   // 只保留命令入口（command.register 里的 common.goBack / common.goForward）。
@@ -3043,18 +3016,17 @@ export default function Layout(props: ParentProps) {
         active: state.kernelPage.open,
         onClick: openKernelPage,
       },
-    )
-    // 运营工作台只在运营模式下出现（账号 / 发布 / 数据），聊天仍走标准会话。
-    if (isPulseMode()) {
-      items.push({
+      // 运营工作台（账号 / 发布 / 数据）**常驻**图标条，不再挂在「运营模式」下。
+      // 它本来就是一个整帧页面，和数据库、知识库同级；作为工作模式反而要先进模式才看得见入口。
+      {
         id: "pulse",
         icon: "globe",
         label: language.t("sidebar.pulseWorkspace"),
         tone: "#ff6b6b",
         active: state.pulsePage.open,
         onClick: openPulsePage,
-      })
-    }
+      },
+    )
     return items
   }
 

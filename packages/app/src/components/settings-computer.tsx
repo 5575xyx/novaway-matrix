@@ -123,6 +123,19 @@ export const SettingsComputer: Component = () => {
             </div>
           </Show>
         </SettingsGroup>
+
+        {/* 「怎么用」比开关更重要：这一页只有三个开关时，用户根本不知道开完该说什么。 */}
+        <div class="rounded-xl border border-border bg-surface px-4 py-3">
+          <div class="text-13-medium text-foreground">{language.t("settings.computer.usage.title" as never)}</div>
+          <ol class="mt-1.5 flex list-decimal flex-col gap-1 pl-4 text-12-regular text-foreground-subtle">
+            <li>{language.t("settings.computer.usage.1" as never)}</li>
+            <li>{language.t("settings.computer.usage.2" as never)}</li>
+            <li>{language.t("settings.computer.usage.3" as never)}</li>
+          </ol>
+          <div class="mt-2 text-12-regular text-foreground-subtlest">
+            {language.t("settings.computer.usage.note" as never)}
+          </div>
+        </div>
       </div>
     </div>
   )

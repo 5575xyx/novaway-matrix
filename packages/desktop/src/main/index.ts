@@ -13,14 +13,13 @@ import contextMenu from "electron-context-menu"
 
 import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
-import { CHANNEL, FLOATING_WIDGET_ENABLED, UPDATER_ENABLED } from "./constants"
+import { CHANNEL, UPDATER_ENABLED } from "./constants"
 import {
   registerIpcHandlers,
   sendDeepLinks,
   sendMenuCommand,
   sendSqliteMigrationProgress,
   sendUpdateAvailable,
-  setFloatingWindow,
   setMainWindow,
 } from "./ipc"
 import { initLogging } from "./logging"
@@ -36,7 +35,6 @@ import {
   type SidecarListener,
 } from "./server"
 import {
-  createFloatingWindow,
   createLoadingWindow,
   createMainWindow,
   loadAppIcon,
@@ -63,7 +61,6 @@ const TEST_ONBOARDING = process.env.NovaWay_TEST_ONBOARDING === "1"
 
 let logger: ReturnType<typeof initLogging>
 let mainWindow: BrowserWindow | null = null
-let floatingWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let server: SidecarListener | null = null
 // sidecar 意外退出（Windows 上常见 0xC0000005 访问违例）时自动重启，
@@ -430,19 +427,22 @@ const main = Effect.gen(function* () {
     ensureLoopbackNoProxy()
     useEnvProxy()
 
-    const dbxMcpDir = app.isPackaged
-      ? join(process.resourcesPath, "dbx-mcp")
-      : join(app.getAppPath(), "resources", "dbx-mcp")
-    process.env.DBX_DATA_DIR = join(app.getPath("userData"), "dbx")
-    process.env.DBX_MCP_SERVER_PATH = join(dbxMcpDir, "dist", "index.js")
-    // 开发环境使用系统 Node.js；打包环境使用应用内置的独立 Node.js，
-    // 避免 Electron ABI 与 better-sqlite3/keytar 原生模块不匹配。
+    // 数据库由 sidecar 内置的驱动直接访问（见 src/database），不再需要随包的 dbx MCP server。
+    // 旧的 dbx 连接库路径仍传给 sidecar：首次启动时会导入到数据库页面，避免用户重配。
+    process.env.NOVAWAY_DBX_LEGACY_DB = join(app.getPath("userData"), "dbx", "dbx.db")
+    // 开发环境使用系统 Node.js；打包环境使用应用内置的独立 Node.js。
+    // 目前只有随包的 Playwright MCP 与插件 CLI 会用它当解释器。
     const bundledNode =
       process.platform === "win32"
         ? join(process.resourcesPath, "node", "node.exe")
         : join(process.resourcesPath, "node", "bin", "node")
-    process.env.DBX_NODE_PATH = app.isPackaged ? bundledNode : "node"
-    // 浏览器 MCP 与 DBX 一样随安装包分发，打包环境使用内置 Node 和系统 Chrome/Edge，
+    process.env.NOVAWAY_NODE_PATH = app.isPackaged ? bundledNode : "node"
+    // 随包的 ripgrep：优先于联网下载，离线环境下搜索工具也能用。
+    const bundledRg = app.isPackaged
+      ? join(process.resourcesPath, "ripgrep", process.platform === "win32" ? "rg.exe" : "rg")
+      : join(app.getAppPath(), "resources", "ripgrep", process.platform === "win32" ? "rg.exe" : "rg")
+    if (existsSync(bundledRg)) process.env.NOVAWAY_RG_PATH = bundledRg
+    // 浏览器 MCP 随安装包分发，打包环境使用内置 Node 和系统 Chrome/Edge，
     // 避免依赖用户机器上的 npx、Node.js 或联网拉取。
     const playwrightMcpDir = app.isPackaged
       ? join(process.resourcesPath, "playwright-mcp")
@@ -454,8 +454,14 @@ const main = Effect.gen(function* () {
       process.env.PLAYWRIGHT_MCP_BROWSER =
         process.env.PLAYWRIGHT_MCP_BROWSER ?? (process.platform === "win32" ? "msedge" : "chrome")
     }
+    // 内置浏览器工具（browser_*）自己拉起的是无窗口 Chrome/Edge，不会盖住用户桌面。
+    // 之前启动器里没有这条开关，工具会直接报「未允许启动隔离浏览器」，模型于是退回
+    // shell 去起一个**可见**的外部 Chrome（还常配着同名外部技能）—— 那个窗口覆盖整个
+    // NovaWay 且应用里关不掉。这里显式放行；想连用户自己开着的浏览器时用 BROWSER_CDP_URL，
+    // 想完全禁止则设 BROWSER_ALLOW_LAUNCH=0。
+    process.env.BROWSER_ALLOW_LAUNCH = process.env.BROWSER_ALLOW_LAUNCH ?? "1"
     // 默认全局插件 PowersNexus 从 Gitee 安装；其 CLI 需要 Node（复用内置 Node）
-    process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.DBX_NODE_PATH
+    process.env.POWERSNEXUS_NODE_PATH = process.env.POWERSNEXUS_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH
 
     logger.log("spawning sidecar", { url })
 
@@ -558,9 +564,6 @@ const main = Effect.gen(function* () {
     })
 
     mainWindow.on("closed", () => {
-      if (floatingWindow && !floatingWindow.isDestroyed()) {
-        floatingWindow.close()
-      }
       mainWindow = null
       setMainWindow(null)
     })
@@ -569,16 +572,6 @@ const main = Effect.gen(function* () {
       if (isQuitting) return
       event.preventDefault()
       hideMainWindow()
-    })
-  }
-
-  // 悬浮窗暂时下线(FLOATING_WIDGET_ENABLED=false):不创建,主窗口关闭后也不需要带走它。
-  if (FLOATING_WIDGET_ENABLED) {
-    floatingWindow = createFloatingWindow()
-    setFloatingWindow(floatingWindow)
-    floatingWindow.on("closed", () => {
-      floatingWindow = null
-      setFloatingWindow(null)
     })
   }
 

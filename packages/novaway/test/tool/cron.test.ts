@@ -15,7 +15,9 @@ afterEach(async () => {
   await disposeAllInstances()
 })
 
-const it = testEffect(Layer.mergeAll(CronLayer, CrossSpawnSpawner.defaultLayer, Truncate.defaultLayer, Agent.defaultLayer))
+const it = testEffect(
+  Layer.mergeAll(CronLayer, CrossSpawnSpawner.defaultLayer, Truncate.defaultLayer, Agent.defaultLayer),
+)
 
 const ctx = {
   sessionID: SessionID.make("ses_cron_tool"),
@@ -65,9 +67,7 @@ describe("tool.cron", () => {
   it.instance("cron_create rejects a malformed expression", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped()
-      const exit = yield* provideInstance(dir)(
-        create({ cron: "every 5 minutes", prompt: "x" }).pipe(Effect.exit),
-      )
+      const exit = yield* provideInstance(dir)(create({ cron: "every 5 minutes", prompt: "x" }).pipe(Effect.exit))
       expect(Exit.isFailure(exit)).toBe(true)
       expect(Tasks.all()).toHaveLength(0)
     }),
@@ -76,9 +76,7 @@ describe("tool.cron", () => {
   it.instance("durable jobs are written to the project's scheduled_tasks.json", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped()
-      const result = yield* provideInstance(dir)(
-        create({ cron: "7 * * * *", prompt: "hourly", durable: true }),
-      )
+      const result = yield* provideInstance(dir)(create({ cron: "7 * * * *", prompt: "hourly", durable: true }))
       expect(result.output).toContain("Durable")
       const file = yield* Effect.promise(() => import("node:fs/promises")).pipe(
         Effect.flatMap((fs) => Effect.promise(() => fs.readFile(`${dir}/.claude/scheduled_tasks.json`, "utf8"))),

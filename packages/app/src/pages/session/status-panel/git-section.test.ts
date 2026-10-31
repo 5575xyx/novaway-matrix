@@ -17,11 +17,7 @@ const change = (over: Partial<Change> = {}): Change => ({
   ...over,
 })
 
-const makeSnapshot = (
-  branch?: string,
-  changes: Change[] = [],
-  log: Snapshot["log"] = [],
-): Snapshot =>
+const makeSnapshot = (branch?: string, changes: Change[] = [], log: Snapshot["log"] = []): Snapshot =>
   ({
     branch: { branch, ahead: 0, behind: 0 },
     changes,

@@ -24,6 +24,14 @@ export interface PreviewTarget {
   subtitle: string
 }
 
+export interface EvidenceImage {
+  /** 可直接给 `<img src>` 用的地址(data URL 或 file:// 路径)。 */
+  url: string
+  name?: string
+  /** 产生这张图的工具名,用来在卡片上标注来源(browser_screenshot 等)。 */
+  tool: string
+}
+
 export type TimelineRowMap = {
   CommentStrip: {
     userMessageID: string
@@ -57,6 +65,8 @@ export type TimelineRowMap = {
    * 或写了 HTML 原型时,回复末尾给一张可点的小卡,点开在右侧面板预览。
    */
   PreviewCard: { userMessageID: string; targets: PreviewTarget[] }
+  /** 工具产出的图片证据(浏览器截图):贴在轮尾,当作"验证结果"给用户看。 */
+  ToolEvidence: { userMessageID: string; images: EvidenceImage[] }
   /**
    * 会话错误。
    *
@@ -128,6 +138,15 @@ export namespace TimelineRow {
     userMessageID: string
     targets: PreviewTarget[]
   }> {}
+  /**
+   * 验证结果卡:工具(目前是浏览器截图)产出的图片证据,固定在轮尾。
+   * 过程行会被折进 TurnFold,截图若只挂在工具行上,用户就永远看不到验证结果 ——
+   * 所以单独成行,留在折叠之外。
+   */
+  export class ToolEvidence extends Data.TaggedClass("ToolEvidence")<{
+    userMessageID: string
+    images: EvidenceImage[]
+  }> {}
   export class Error extends Data.TaggedClass("Error")<{
     userMessageID: string
     kind: ErrorKind
@@ -185,6 +204,7 @@ export namespace TimelineRow {
     | Thinking
     | DiffSummary
     | PreviewCard
+    | ToolEvidence
     | Error
     | Retry
     | BottomSpacer
@@ -209,6 +229,8 @@ export namespace TimelineRow {
         return `diff-summary:${row.userMessageID}`
       case "PreviewCard":
         return `preview-card:${row.userMessageID}`
+      case "ToolEvidence":
+        return `tool-evidence:${row.userMessageID}`
       case "Error":
         return `error:${row.userMessageID}`
       case "Retry":
@@ -489,7 +511,7 @@ export namespace TurnFold {
   /** 属于"过程"的行:可被折进 TurnFold 卡。 */
   const PROCESS_TAGS = new Set(["AssistantPart", "Thinking", "Retry", "TodoOverview"])
   /** 永远留在折叠卡之外的行:产物卡与兜底件。 */
-  const TAIL_TAGS = new Set(["DiffSummary", "PreviewCard", "Error", "BottomSpacer", "TurnActions"])
+  const TAIL_TAGS = new Set(["DiffSummary", "PreviewCard", "ToolEvidence", "Error", "BottomSpacer", "TurnActions"])
 
   const partsOf = (group: PartGroup, options: FoldOptions): Part[] => {
     const refs = group.type === "part" ? [group.ref] : group.refs
@@ -781,7 +803,7 @@ export namespace TodoGrouping {
       }
       // 中断/报错面板也必须留在区间外:它是对整轮的提示(还要点「继续」),
       // 收进待办区间里会被折叠、还排在清单卡中间,用户根本看不出来任务断了。
-      if (row._tag === "Error") {
+      if (row._tag === "Error" || row._tag === "ToolEvidence") {
         flush()
         out.push(row)
         continue

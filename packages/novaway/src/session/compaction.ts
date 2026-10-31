@@ -717,8 +717,7 @@ export const layer = Layer.effect(
       )
       const context = compacting.context
       const nextPrompt =
-        compacting.prompt ??
-        buildPrompt({ previousSummary, context, instructions: compactionPart?.instructions })
+        compacting.prompt ?? buildPrompt({ previousSummary, context, instructions: compactionPart?.instructions })
       let head = smPlan ? smPlan.head : selected.head
       let tailStartID = smPlan?.tail ?? selected.tail_start_id
       let result: "continue" | "stop" | "compact" = smPlan ? "continue" : "compact"
@@ -733,7 +732,10 @@ export const layer = Layer.effect(
           "",
           smPlan.summary,
           ...(smPlan.truncated
-            ? ["", `Some session memory sections were truncated for length. The full session memory can be viewed at: ${notesPath}`]
+            ? [
+                "",
+                `Some session memory sections were truncated for length. The full session memory can be viewed at: ${notesPath}`,
+              ]
             : []),
           "",
           "Recent messages are preserved verbatim.",
@@ -778,7 +780,10 @@ export const layer = Layer.effect(
           time: { start: Date.now(), end: Date.now() },
         })
         summaryMessage = msg
-        log.info("compacted with session memory", { kept: visible.length - smPlan.head.length, truncated: smPlan.truncated })
+        log.info("compacted with session memory", {
+          kept: visible.length - smPlan.head.length,
+          truncated: smPlan.truncated,
+        })
       }
 
       // 压缩请求自己也可能是 prompt-too-long（会话太大 / 工具输出太多）。
@@ -901,9 +906,7 @@ export const layer = Layer.effect(
       // truncated). Forgetting the entries makes the next read return the file.
       if (readState) {
         const tailIndex = tailStartID ? messages.findIndex((message) => message.info.id === tailStartID) : -1
-        const kept = new Set(
-          tailIndex === -1 ? [] : touchedPaths(messages.slice(tailIndex), instance.directory),
-        )
+        const kept = new Set(tailIndex === -1 ? [] : touchedPaths(messages.slice(tailIndex), instance.directory))
         const paths = touchedPaths(head, instance.directory).filter((file) => !kept.has(file))
         yield* Effect.forEach(paths, (file) => readState.forget(input.sessionID, file), { discard: true }).pipe(
           Effect.ignore,

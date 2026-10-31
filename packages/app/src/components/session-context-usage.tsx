@@ -28,9 +28,7 @@ export function SessionContextUsage() {
   )
 
   const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
-  const metrics = createMemo(() =>
-    getSessionContextMetrics(messages(), providers.all(), sync.data.config?.compaction),
-  )
+  const metrics = createMemo(() => getSessionContextMetrics(messages(), providers.all(), sync.data.config?.compaction))
   const context = createMemo(() => metrics().context)
   const cost = () => usd().format(metrics().totalCost)
 
@@ -40,12 +38,14 @@ export function SessionContextUsage() {
         placement="top-end"
         gutter={8}
         triggerAs="button"
-        triggerProps={{
-          type: "button",
-          "data-action": "prompt-context-usage",
-          class: "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-hover",
-          "aria-label": language.t("context.usage.view"),
-        } as Record<string, unknown>}
+        triggerProps={
+          {
+            type: "button",
+            "data-action": "prompt-context-usage",
+            class: "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-hover",
+            "aria-label": language.t("context.usage.view"),
+          } as Record<string, unknown>
+        }
         trigger={
           <div class="flex items-center justify-center">
             <ProgressCircle size={16} strokeWidth={2} percentage={context()?.usage ?? 0} />
@@ -57,7 +57,10 @@ export function SessionContextUsage() {
             <Show when={context()}>
               {(ctx) => (
                 <>
-                  <StatRow label={language.t("context.usage.tokens")} value={ctx().total.toLocaleString(language.intl())} />
+                  <StatRow
+                    label={language.t("context.usage.tokens")}
+                    value={ctx().total.toLocaleString(language.intl())}
+                  />
                   <StatRow label={language.t("context.usage.usage")} value={`${ctx().usage ?? 0}%`} />
                   <Show when={ctx().budget}>
                     {(budget) => (
@@ -68,7 +71,9 @@ export function SessionContextUsage() {
                   </Show>
                   <Show when={ctx().budget && ctx().budget!.status !== "normal"}>
                     <span class="text-12-regular text-warning">
-                      {language.t(ctx().budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning")}
+                      {language.t(
+                        ctx().budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning",
+                      )}
                     </span>
                   </Show>
                 </>

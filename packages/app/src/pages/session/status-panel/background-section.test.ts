@@ -33,9 +33,7 @@ describe("background section model", () => {
   })
 
   test("summary counts running jobs only", () => {
-    expect(backgroundJobStat([job({ id: "a" }), job({ id: "b", status: "completed", completed_at: 9_500 })])).toBe(
-      "1",
-    )
+    expect(backgroundJobStat([job({ id: "a" }), job({ id: "b", status: "completed", completed_at: 9_500 })])).toBe("1")
     expect(backgroundJobStat([job({ id: "done", status: "error", completed_at: 9_500 })])).toBe("0")
   })
 

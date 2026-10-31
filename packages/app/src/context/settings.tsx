@@ -26,6 +26,8 @@ export interface SoundSettings {
   errors: string
 }
 
+export type OfficeOccupation = "general" | "finance"
+
 export interface Settings {
   general: {
     autoSave: boolean
@@ -48,6 +50,18 @@ export interface Settings {
     mono: string
     sans: string
     terminal: string
+  }
+  /**
+   * 办公模式的偏好。
+   *
+   * - `occupation`：和 ZCode 的 `getRecommendedPromptPool(isOfficeMode, occupation)` 同一套语义 ——
+   *   只有财务会单独拎出一组提示词先展示，其余一律按「办公文档」优先。
+   * - `showSuggestions`：草稿态那排推荐提示词是否展示。用户点「关闭」后要真的记住，
+   *   否则每次新建任务又冒出来，等于没关。
+   */
+  office: {
+    occupation: OfficeOccupation
+    showSuggestions: boolean
   }
   keybinds: Record<string, string>
   notifications: NotificationSettings
@@ -142,6 +156,10 @@ const defaultSettings: Settings = {
     mono: "",
     sans: "",
     terminal: "",
+  },
+  office: {
+    occupation: "general",
+    showSuggestions: true,
   },
   keybinds: {},
   notifications: {
@@ -283,6 +301,16 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         ),
         setShowSessionProgressBar(value: boolean) {
           setStore("general", "showSessionProgressBar", value)
+        },
+      },
+      office: {
+        occupation: withFallback(() => store.office?.occupation, defaultSettings.office.occupation),
+        setOccupation(value: OfficeOccupation) {
+          setStore("office", "occupation", value)
+        },
+        showSuggestions: withFallback(() => store.office?.showSuggestions, defaultSettings.office.showSuggestions),
+        setShowSuggestions(value: boolean) {
+          setStore("office", "showSuggestions", value)
         },
       },
       updates: {

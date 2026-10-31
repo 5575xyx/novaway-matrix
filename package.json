@@ -14,7 +14,9 @@
     "lint": "oxlint",
     "typecheck": "bun turbo typecheck",
     "upgrade-opentui": "bun run script/upgrade-opentui.ts",
-    "postinstall": "bun run --cwd packages/novaway fix-node-pty",
+    "sync:pnpm": "node script/sync-pnpm-workspace.mjs",
+    "check:pnpm": "node script/sync-pnpm-workspace.mjs --check",
+    "postinstall": "node script/fix-node-pty.mjs",
     "prepare": "husky",
     "random": "echo 'Random script'",
     "hello": "echo 'Hello World!'",
@@ -146,7 +148,9 @@
     "@opentui/keymap": "catalog:",
     "@opentui/solid": "catalog:",
     "@types/bun": "catalog:",
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "@npmcli/agent": "4.0.0",
+    "@standard-community/standard-openapi": "0.2.9"
   },
   "patchedDependencies": {
     "@npmcli/agent@4.0.0": "patches/@npmcli%2Fagent@4.0.0.patch",

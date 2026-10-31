@@ -91,9 +91,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
           <Show when={hasPrevious() || Number.isFinite(props.model.limit.context)}>
             <span class="text-foreground-subtle">·</span>
           </Show>
-          <span class="text-amber-700 dark:text-amber-200">
-            输出上限 {props.model.limit.output!.toLocaleString()}
-          </span>
+          <span class="text-amber-700 dark:text-amber-200">输出上限 {props.model.limit.output!.toLocaleString()}</span>
         </span>
       </Show>
     </div>

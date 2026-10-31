@@ -26,7 +26,7 @@ export const ComputerScreenshotTool = Tool.define(
   Effect.gen(function* () {
     return {
       description:
-        "Capture the whole screen and return it as an image. Use it before and after desktop actions to verify the result.",
+        "Capture the whole screen and return it as an image. Use it before and after desktop actions to verify the result. For web pages (including local HTML) use browser_screenshot instead — it captures only the page, not the user's desktop.",
       parameters: Schema.Struct({}),
       execute: (_params: {}, ctx: Tool.Context) =>
         Effect.gen(function* () {

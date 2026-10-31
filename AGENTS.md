@@ -2,6 +2,7 @@
 
 Default branch is `main` (`origin` → Gitee `gitee.com/stalkerno1/novaway-matrix`; `github` → `github.com/5575xyx/novaway-matrix`). Use `origin/main` for diffs.
 Bun 1.3+ monorepo with Turborepo v2.8. Package manager: `bun` (exact versions via catalog in root `package.json`).
+装依赖也可以用 pnpm（`pnpm install`），但测试 / 打包 / TUI 仍然要 bun —— 见 `docs/pnpm-install.md`。
 
 ## Commands
 
@@ -120,7 +121,9 @@ See `packages/novaway/AGENTS.md` for full reference. Non-obvious:
 ## Misc
 
 - `bun dev serve` warns and runs unsecured if `NOVAWAY_SERVER_PASSWORD` is unset; set it (and optionally `NOVAWAY_SERVER_USERNAME`, default `novaway`) before exposing the port.
-- `bun install` runs `postinstall` hook (`fix-node-pty` in `packages/novaway`) and `husky` (`prepare`).
+- `bun install` runs `postinstall` hook (`script/fix-node-pty.mjs`) and `husky` (`prepare`).
+- pnpm 的配置是从 bun 的配置生成的：改了依赖版本后跑 `node script/sync-pnpm-workspace.mjs`（`--check` 用于 CI）。
+  `patches/*.patch` 必须保持 LF（`.gitattributes` 已钉住），否则 pnpm 打不上补丁。
 - `.husky/pre-push` enforces the `packageManager` bun version and runs `bun typecheck` before every push.
 - `packages/novaway/src/index.ts` has `#db` and `#pty` as conditional subpath imports (bun vs node).
 - Oxlint ignore: `**/node_modules`, `**/dist`, `**/.build`, `**/.sst`, `**/*.d.ts`, `**/sdk.gen.ts`.

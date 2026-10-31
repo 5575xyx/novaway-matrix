@@ -7,6 +7,8 @@ import { Process } from "@/util/process"
 import { isRecord } from "@/util/record"
 import { Npm } from "@novaway/core/npm"
 import { InstallationVersion } from "@novaway/core/installation/version"
+import { hasGit } from "@/util/git"
+import { materializeGitSpec } from "./git-archive"
 
 // Old npm package names for plugins that are now built-in
 export const DEPRECATED_PLUGIN_PACKAGES = ["opencode-openai-codex-auth", "opencode-copilot-auth"]
@@ -422,6 +424,14 @@ export async function resolvePluginTarget(spec: string) {
   if (isPathPluginSpec(spec)) return resolvePathPluginTarget(spec)
   const primary = parse(spec)
   const pkg = primary?.name && primary.raw === primary.name ? `${primary.name}@latest` : spec
+
+  // git 协议的插件在干净机器上装不了（arborist 内部要起 git 子进程）。
+  // 没有 git 时先落成归档目录，再按 `file:` spec 走正常的依赖解析。
+  if (isGitPluginSpec(spec) && !(await hasGit())) {
+    const dir = await materializeGitSpec(spec)
+    const result = await Npm.add("file:" + dir)
+    return result.directory
+  }
 
   try {
     const result = await Npm.add(pkg)

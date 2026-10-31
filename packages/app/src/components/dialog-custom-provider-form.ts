@@ -109,7 +109,8 @@ export function validateCustomProvider(input: ValidateArgs) {
                 seenModels.add(id)
                 return undefined
               })()
-    const nameError = scope === "basic" ? undefined : !m.name.trim() ? input.t("provider.custom.error.required") : undefined
+    const nameError =
+      scope === "basic" ? undefined : !m.name.trim() ? input.t("provider.custom.error.required") : undefined
     return { id: idError, name: nameError }
   })
   const modelsValid = scope === "basic" || (rows.length > 0 && models.every((m) => !m.id && !m.name))

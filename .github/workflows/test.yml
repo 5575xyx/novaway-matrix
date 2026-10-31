@@ -93,6 +93,48 @@ jobs:
           retention-days: 7
           path: packages/*/.artifacts/unit/junit.xml
 
+  # 装依赖这一步额外支持 pnpm（bun 仍是测试/打包/运行时的唯一选择）。
+  # 这个 job 只验证「用 pnpm 装出来的树能用」：锁文件自洽、补丁能打上、
+  # 生成的 pnpm-workspace.yaml 没过期、装完 pnpm 与 bun 都能跑一个包的 typecheck。
+  # 细节见 docs/pnpm-install.md。
+  pnpm:
+    name: pnpm install
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      # 不用 pnpm/action-setup：它会去读 packageManager 字段，而那里写的是 bun。
+      - name: Install pnpm
+        run: npm install --global pnpm@10.34.9
+
+      - name: Setup Bun (runtime only, no install)
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      - name: Verify generated pnpm config matches bun config
+        run: node script/sync-pnpm-workspace.mjs --check
+
+      - name: Install with pnpm
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Smoke test on pnpm-installed tree
+        run: pnpm --filter @novaway/core typecheck
+
+      - name: Smoke test with bun on the same tree
+        run: bun run --cwd packages/core typecheck
+
   e2e:
     name: e2e (${{ matrix.settings.name }})
     strategy:

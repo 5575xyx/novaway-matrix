@@ -63,7 +63,6 @@ export const MAX_TOTAL_TOKENS = 12_000
 /** 单段预算：一段占满会让整份笔记只剩一段有用的内容。 */
 export const MAX_SECTION_TOKENS = 2_000
 
-
 export type State = {
   /** 上次抽取时记下的上下文 token 数。 */
   tokens: number

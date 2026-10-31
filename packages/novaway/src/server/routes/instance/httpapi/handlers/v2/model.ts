@@ -3,16 +3,18 @@ import { PluginBoot } from "@novaway/core/plugin/boot"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../../api"
+import { resolveLocation } from "./location"
 
 export const modelHandlers = HttpApiBuilder.group(InstanceHttpApi, "v2.model", (handlers) =>
   Effect.gen(function* () {
     return handlers.handle(
       "models",
-      Effect.fn(function* () {
+      Effect.fn("V2ModelHttpApi.list")(function* () {
         const catalog = yield* Catalog.Service
         const pluginBoot = yield* PluginBoot.Service
         yield* pluginBoot.wait()
-        return yield* catalog.model.available()
+        const [location, data] = yield* Effect.all([resolveLocation(), catalog.model.available()])
+        return { location, data }
       }),
     )
   }),

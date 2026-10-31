@@ -3,10 +3,8 @@ import { randomUUID } from "node:crypto"
 import { InstanceState } from "@/effect/instance-state"
 import { NodeFileSystem } from "@effect/platform-node"
 import { Context, Effect, FileSystem, Layer, Schema } from "effect"
-import type { Browser, BrowserContext, ElementHandle, Page } from "playwright-core"
+import { connect, type CdpSession } from "./cdp"
 import { redactSecrets, redactUrl } from "./redact"
-
-type SnapshotElement = HTMLElement | SVGElement
 
 export type SnapshotRef = {
   ref: string
@@ -16,13 +14,9 @@ export type SnapshotRef = {
 }
 
 type State = {
-  browser?: Browser
-  context?: BrowserContext
-  page?: Page
-  owned: boolean
+  session?: CdpSession
   console: string[]
   network: Array<{ method: string; url: string; status?: number }>
-  refs: Map<string, ElementHandle<SnapshotElement>>
 }
 
 export class BrowserError extends Schema.TaggedErrorClass<BrowserError>()("BrowserError", {
@@ -48,7 +42,13 @@ export interface Interface {
   readonly click: (ref: string) => Effect.Effect<void, BrowserError>
   readonly fill: (ref: string, value: string) => Effect.Effect<void, BrowserError>
   readonly press: (key: string, ref?: string) => Effect.Effect<void, BrowserError>
-  readonly screenshot: (fullPage: boolean) => Effect.Effect<{ path: string }, BrowserError>
+  readonly screenshot: (fullPage: boolean) => Effect.Effect<{ path: string; dataURL: string }, BrowserError>
+  readonly printToPdf: (input: {
+    target: string
+    html?: string
+    landscape?: boolean
+    printBackground?: boolean
+  }) => Effect.Effect<Uint8Array, BrowserError>
   readonly console: () => Effect.Effect<string[], BrowserError>
   readonly network: () => Effect.Effect<Array<{ method: string; url: string; status?: number }>, BrowserError>
   readonly accessibility: () => Effect.Effect<string, BrowserError>
@@ -62,75 +62,105 @@ function browserError(code: string, message: string) {
   return new BrowserError({ code, message: redactSecrets(message) })
 }
 
+/**
+ * 生成页面快照。
+ *
+ * 元素用 `data-nv-ref` 标在 DOM 上而不是留句柄：一次导航/刷新后旧句柄就失效了，
+ * 而属性会随页面一起消失，天然不会指错元素。
+ */
+const SNAPSHOT_SCRIPT = `(() => {
+  document.querySelectorAll("[data-nv-ref]").forEach((el) => el.removeAttribute("data-nv-ref"))
+  const nodes = document.querySelectorAll('a[href],button,input,textarea,select,summary,[role],[tabindex]:not([tabindex="-1"]),[contenteditable="true"]')
+  const refs = []
+  let index = 0
+  for (const el of nodes) {
+    const rect = el.getBoundingClientRect()
+    const style = getComputedStyle(el)
+    if (rect.width <= 0 || rect.height <= 0) continue
+    if (style.visibility === "hidden" || style.display === "none") continue
+    const ref = "e" + ++index
+    el.setAttribute("data-nv-ref", ref)
+    const name = (
+      el.getAttribute("aria-label") ||
+      el.getAttribute("placeholder") ||
+      el.getAttribute("title") ||
+      (el.textContent || "").replace(/\s+/g, " ").trim()
+    ).slice(0, 120)
+    refs.push({ ref, tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || el.tagName.toLowerCase(), name })
+  }
+  const active = document.activeElement
+  const focusVisible =
+    !active || active === document.body
+      ? true
+      : (() => {
+          const rect = active.getBoundingClientRect()
+          const style = getComputedStyle(active)
+          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none"
+        })()
+  return {
+    text: (document.body ? document.body.innerText : "").slice(0, 2000000),
+    overflow: document.documentElement.scrollWidth > window.innerWidth,
+    focusVisible,
+    refs,
+  }
+})()`
+
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const state = yield* InstanceState.make<State>(
       Effect.fn("Browser.state")(function* () {
-        const value: State = { owned: false, console: [], network: [], refs: new Map() }
+        const value: State = { console: [], network: [] }
         yield* Effect.addFinalizer(() => closeState(value))
         return value
       }),
     )
 
-    const getPage = Effect.fnUntraced(function* () {
+    const getSession = Effect.fnUntraced(function* () {
       const current = yield* InstanceState.get(state)
-      if (current.page && !current.page.isClosed()) return current.page
-      const connected = yield* Effect.tryPromise({
-        try: async () => {
-          const { chromium } = await import("playwright-core").catch(() => {
-            throw browserError(
-              "BROWSER_UNAVAILABLE",
-              "原生浏览器工具在打包二进制中不可用；请设置 BROWSER_CDP_URL 连接外部 Chrome，或改用 @playwright/mcp 浏览器",
-            )
-          })
-          const endpoint = process.env.BROWSER_CDP_URL
-          const browser = endpoint
-            ? await chromium.connectOverCDP(endpoint)
-            : process.env.BROWSER_ALLOW_LAUNCH === "1"
-              ? await (async () => {
-                  const channel = process.env.BROWSER_CHANNEL || "chrome"
-                  try {
-                    return await chromium.launch({ headless: true, channel })
-                  } catch {
-                    return await chromium.launch({ headless: true })
-                  }
-                })()
-              : undefined
-          if (!browser) throw browserError("BROWSER_UNAVAILABLE", "未配置 Browser CDP 端点，且未允许启动隔离浏览器")
-          const owned = !endpoint
-          const context = await browser.newContext({ viewport: null })
-          const page = await context.newPage()
-          return { browser, context, page, owned }
-        },
+      if (current.session) return current.session
+      const session = yield* Effect.tryPromise({
+        try: () =>
+          connect({
+            endpoint: process.env.BROWSER_CDP_URL || undefined,
+          }),
         catch: (cause) =>
-          cause instanceof BrowserError
-            ? cause
-            : browserError("BROWSER_UNAVAILABLE", cause instanceof Error ? cause.message : "Browser 初始化失败"),
+          browserError("BROWSER_UNAVAILABLE", cause instanceof Error ? cause.message : "Browser 初始化失败"),
       })
-      current.browser = connected.browser
-      current.context = connected.context
-      current.page = connected.page
-      current.owned = connected.owned
-      connected.page.on("console", (message) => {
-        current.console.push(redactSecrets(`[${message.type()}] ${message.text()}`))
+      current.session = session
+      session.page.on("Runtime.consoleAPICalled", (params: any) => {
+        const text = (params?.args ?? [])
+          .map((arg: any) => arg?.value ?? arg?.description ?? "")
+          .filter((value: unknown) => value !== "")
+          .join(" ")
+        if (!text) return
+        current.console.push(redactSecrets("[" + (params?.type ?? "log") + "] " + text))
         if (current.console.length > 1000) current.console.shift()
       })
-      connected.page.on("request", (request) => {
-        current.network.push({ method: request.method(), url: redactUrl(request.url()) })
+      session.page.on("Runtime.exceptionThrown", (params: any) => {
+        const detail = params?.exceptionDetails
+        const text = detail?.exception?.description ?? detail?.text ?? "未捕获异常"
+        current.console.push(redactSecrets("[error] " + text))
+        if (current.console.length > 1000) current.console.shift()
+      })
+      session.page.on("Network.requestWillBeSent", (params: any) => {
+        current.network.push({ method: params?.request?.method ?? "GET", url: redactUrl(params?.request?.url ?? "") })
         if (current.network.length > 2000) current.network.shift()
       })
-      connected.page.on("response", (response) => {
-        const item = current.network.findLast(
-          (entry) => entry.url === redactUrl(response.url()) && entry.status === undefined,
-        )
-        if (item) item.status = response.status()
+      session.page.on("Network.responseReceived", (params: any) => {
+        const url = redactUrl(params?.response?.url ?? "")
+        const item = current.network.findLast((entry) => entry.url === url && entry.status === undefined)
+        if (item) item.status = params?.response?.status
       })
-      return connected.page
+      return session
     })
 
-    const usePage = <A>(run: (page: Page) => Promise<A>, message: string) =>
+    const getPage = Effect.fnUntraced(function* () {
+      return (yield* getSession()).page
+    })
+
+    const usePage = <A>(run: (page: CdpSession["page"]) => Promise<A>, message: string) =>
       Effect.gen(function* () {
         const page = yield* getPage()
         return yield* Effect.tryPromise({
@@ -139,37 +169,10 @@ export const layer = Layer.effect(
         })
       })
 
-    const clearSnapshotRefs = Effect.fnUntraced(function* () {
-      const current = yield* InstanceState.get(state)
-      yield* Effect.promise(() =>
-        Promise.all([...current.refs.values()].map((handle) => handle.dispose().catch(() => undefined))),
-      )
-      current.refs.clear()
-    })
-
     const clearTelemetry = Effect.fnUntraced(function* () {
       const current = yield* InstanceState.get(state)
       current.console.length = 0
       current.network.length = 0
-    })
-
-    const resolveRef = Effect.fnUntraced(function* (ref: string) {
-      const current = yield* InstanceState.get(state)
-      const normalized = ref.replace(/^ref=/, "")
-      if (!/^e\d+$/.test(normalized))
-        return yield* browserError("SNAPSHOT_REF_REQUIRED", "Browser 元素操作必须使用 snapshot ref")
-      const handle = current.refs.get(normalized)
-      if (!handle) return yield* browserError("SNAPSHOT_REF_INVALID", `Browser snapshot ref 不存在：${normalized}`)
-      return handle
-    })
-
-    const setViewport = Effect.fn("Browser.setViewport")(function* (width: number, height: number) {
-      if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
-        return yield* browserError("BROWSER_ACTION_FAILED", "Browser viewport 必须是正整数")
-      }
-      yield* clearSnapshotRefs()
-      yield* clearTelemetry()
-      yield* usePage((page) => page.setViewportSize({ width, height }), "Browser viewport 设置失败")
     })
 
     // 本地产物验证不必先起 dev server：绝对路径 / file:// 直接交给浏览器打开。
@@ -177,28 +180,35 @@ export const layer = Layer.effect(
     const targetUrl = (input: string): string | undefined => {
       const normalized = input.trim().replace(/\\/g, "/")
       if (!normalized) return undefined
-      if (/^[a-zA-Z]:\//.test(normalized)) return new URL(`file:///${normalized}`).toString()
+      if (/^[a-zA-Z]:\//.test(normalized)) return new URL("file:///" + normalized).toString()
       try {
         const parsed = new URL(normalized)
         if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString()
         if (parsed.protocol === "file:" && parsed.pathname.length > 1) return parsed.toString()
         return undefined
       } catch {
-        if (normalized.startsWith("/")) return new URL(`file://${normalized}`).toString()
+        if (normalized.startsWith("/")) return new URL("file://" + normalized).toString()
         return undefined
       }
     }
+
+    const setViewport = Effect.fn("Browser.setViewport")(function* (width: number, height: number) {
+      if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
+        return yield* browserError("BROWSER_ACTION_FAILED", "Browser viewport 必须是正整数")
+      }
+      yield* clearTelemetry()
+      yield* usePage((page) => page.setViewport(width, height), "Browser viewport 设置失败")
+    })
 
     const navigate = Effect.fn("Browser.navigate")(function* (url: string) {
       const target = targetUrl(url)
       if (!target) {
         return yield* browserError("BROWSER_ACTION_FAILED", "Browser 仅允许 http/https 或本地 file:// URL")
       }
-      yield* clearSnapshotRefs()
       yield* clearTelemetry()
       return yield* usePage(async (page) => {
-        await page.goto(target, { waitUntil: "domcontentloaded" })
-        return { url: page.url(), title: await page.title() }
+        await page.navigate(target)
+        return { url: await page.currentUrl(), title: await page.title() }
       }, "Browser 导航失败")
     })
 
@@ -206,120 +216,110 @@ export const layer = Layer.effect(
       yield* closeState(yield* InstanceState.get(state))
     })
 
+    /**
+     * HTML / URL → PDF。
+     *
+     * 走 Chromium 自带的 `Page.printToPDF`，不需要额外的 PDF 引擎；用独立标签页，
+     * 不打断当前的验证页面。`html` 存在时先落到临时文件再打开，这样相对资源
+     * （图片、字体）仍能按所在目录解析。
+     */
+    const printToPdf = Effect.fn("Browser.printToPdf")(function* (input: {
+      target: string
+      html?: string
+      landscape?: boolean
+      printBackground?: boolean
+    }) {
+      const session = yield* getSession()
+      const target = input.html ? undefined : targetUrl(input.target)
+      if (!input.html && !target) {
+        return yield* browserError("BROWSER_ACTION_FAILED", "PDF 仅支持 http/https、本地 file:// 或直接给 HTML")
+      }
+      return yield* Effect.acquireUseRelease(
+        Effect.tryPromise({
+          try: () => session.newPage({ width: 1280, height: 900 }),
+          catch: (cause) => browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "打印失败"),
+        }),
+        (tab) =>
+          Effect.tryPromise({
+            try: async () => {
+              if (input.html) {
+                await tab.page.navigate("about:blank")
+                await tab.page.evaluate(
+                  `document.open();document.write(${JSON.stringify(input.html)});document.close();`,
+                )
+                // document.write 之后等一帧，让内联脚本与样式先跑起来。
+                await tab.page.evaluate(
+                  "new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 80)))",
+                )
+              } else {
+                await tab.page.navigate(target!)
+              }
+              return await tab.page.printToPdf({
+                landscape: input.landscape,
+                printBackground: input.printBackground,
+              })
+            },
+            catch: (cause) =>
+              browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "打印失败"),
+          }),
+        (tab) => Effect.promise(() => tab.dispose().catch(() => undefined)),
+      )
+    })
+
     const status = Effect.fn("Browser.status")(function* () {
       const current = yield* InstanceState.get(state)
-      return { active: Boolean(current.page && !current.page.isClosed()) }
+      return { active: Boolean(current.session) }
     })
 
     const snapshot = Effect.fn("Browser.snapshot")(function* () {
-      yield* clearSnapshotRefs()
-      const page = yield* getPage()
-      const data = yield* Effect.tryPromise({
-        try: () =>
-          page.evaluate(() => ({
-            text: (document.body?.innerText ?? "").slice(0, 2_000_000),
-            overflow: document.documentElement.scrollWidth > window.innerWidth,
-            focusVisible: (() => {
-              const active = document.activeElement
-              if (!active || active === document.body) return true
-              const rect = active.getBoundingClientRect()
-              const style = getComputedStyle(active)
-              return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none"
-            })(),
-          })),
-        catch: (cause) =>
-          browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "Browser 快照失败"),
-      })
-      const handles = yield* Effect.tryPromise({
-        try: () =>
-          page
-            .locator(
-              'a[href],button,input,textarea,select,summary,[role],[tabindex]:not([tabindex="-1"]),[contenteditable="true"]',
-            )
-            .elementHandles() as unknown as Promise<ElementHandle<SnapshotElement>[]>,
-        catch: (cause) =>
-          browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "Browser 元素快照失败"),
-      })
-      const refs: SnapshotRef[] = []
-      const current = yield* InstanceState.get(state)
-      for (const [index, handle] of handles.entries()) {
-        const visible = yield* Effect.tryPromise({
-          try: () => handle.isVisible(),
-          catch: () => browserError("BROWSER_ACTION_FAILED", "Browser 元素可见性读取失败"),
-        }).pipe(Effect.orElseSucceed(() => false))
-        if (!visible) continue
-        const details = yield* Effect.tryPromise({
-          try: () =>
-            handle.evaluate((element) => {
-              const node = element as SnapshotElement
-              return {
-                tag: node.tagName.toLowerCase(),
-                role: node.getAttribute("role") ?? node.tagName.toLowerCase(),
-                name:
-                  node.getAttribute("aria-label") ??
-                  node.getAttribute("placeholder") ??
-                  node.getAttribute("title") ??
-                  (node.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120),
-              }
-            }),
-          catch: (cause) =>
-            browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "Browser 元素解析失败"),
-        })
-        const ref = `e${index + 1}`
-        current.refs.set(ref, handle)
-        refs.push({ ref, ...details })
-      }
-      const lines = refs.map((item) => `[${item.ref}] ${item.role}${item.name ? ` "${item.name}"` : ""}`)
-      return {
-        url: page.url(),
-        title: yield* Effect.tryPromise({
-          try: () => page.title(),
-          catch: (cause) =>
-            browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "Browser 标题读取失败"),
-        }),
-        text: `${data.text}\n${lines.join("\n")}`,
-        bodyText: data.text,
-        refs,
-        overflow: data.overflow,
-        focusVisible: data.focusVisible,
-      }
+      return yield* usePage(async (page) => {
+        const data = await page.evaluate<{
+          text: string
+          overflow: boolean
+          focusVisible: boolean
+          refs: SnapshotRef[]
+        }>(SNAPSHOT_SCRIPT)
+        const refs = data?.refs ?? []
+        const lines = refs.map((item) => "[" + item.ref + "] " + item.role + (item.name ? ' "' + item.name + '"' : ""))
+        return {
+          url: await page.currentUrl(),
+          title: await page.title(),
+          text: data.text + String.fromCharCode(10) + lines.join(String.fromCharCode(10)),
+          bodyText: data.text,
+          refs,
+          overflow: data.overflow,
+          focusVisible: data.focusVisible,
+        }
+      }, "Browser 快照失败")
     })
-
-    const withRef = <A>(ref: string, run: (handle: ElementHandle<SnapshotElement>) => Promise<A>, message: string) =>
-      Effect.gen(function* () {
-        const handle = yield* resolveRef(ref)
-        return yield* Effect.tryPromise({
-          try: () => run(handle),
-          catch: (cause) => browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : message),
-        })
-      })
 
     return Service.of({
       navigate,
       setViewport,
       snapshot,
-      click: (ref) => withRef(ref, (handle) => handle.click(), "Browser 点击失败"),
-      fill: (ref, value) => withRef(ref, (handle) => handle.fill(value), "Browser 填写失败"),
-      press: (key, ref) =>
-        ref
-          ? withRef(ref, (handle) => handle.press(key), "Browser 按键失败")
-          : usePage((page) => page.keyboard.press(key), "Browser 按键失败"),
+      printToPdf,
+      click: (ref) => usePage((page) => page.clickRef(ref), "Browser 点击失败"),
+      fill: (ref, value) => usePage((page) => page.fillRef(ref, value), "Browser 填写失败"),
+      press: (key, ref) => usePage((page) => page.press(key, ref), "Browser 按键失败"),
       screenshot: (fullPage) =>
         Effect.gen(function* () {
+          const bytes = yield* usePage((page) => page.screenshot(fullPage), "Browser 截图失败")
           const ctx = yield* InstanceState.context
           const directory = path.join(ctx.worktree, ".novaway", "browser", "evidence")
-          const file = path.join(directory, `${randomUUID()}.png`)
+          const file = path.join(directory, randomUUID() + ".png")
           yield* fs
             .makeDirectory(directory, { recursive: true })
             .pipe(Effect.mapError((cause) => browserError("BROWSER_ACTION_FAILED", cause.message)))
-          return yield* usePage(async (page) => {
-            await page.screenshot({ path: file, fullPage })
-            return { path: file }
-          }, "Browser 截图失败")
+          yield* fs
+            .writeFile(file, bytes)
+            .pipe(Effect.mapError((cause) => browserError("BROWSER_ACTION_FAILED", cause.message)))
+          // 同时给出 data URL：界面直接用它在消息流里展示"验证结果截图"，
+          // 不依赖渲染进程能否读本地文件。
+          return { path: file, dataURL: "data:image/png;base64," + Buffer.from(bytes).toString("base64") }
         }),
       console: () => InstanceState.get(state).pipe(Effect.map((value) => [...value.console])),
       network: () => InstanceState.get(state).pipe(Effect.map((value) => value.network.map((entry) => ({ ...entry })))),
-      accessibility: () => usePage((page) => page.locator("body").ariaSnapshot(), "Browser 无障碍快照失败"),
+      accessibility: () => usePage((page) => page.accessibility(), "Browser 无障碍快照失败"),
       status,
       close,
     })
@@ -328,17 +328,15 @@ export const layer = Layer.effect(
 
 function closeState(state: State) {
   return Effect.promise(async () => {
-    await Promise.all([...state.refs.values()].map((handle) => handle.dispose().catch(() => undefined)))
-    state.refs.clear()
-    if (state.context) await state.context.close().catch(() => undefined)
-    if (state.owned && state.browser) await state.browser.close().catch(() => undefined)
-    state.page = undefined
-    state.context = undefined
-    state.browser = undefined
-    state.owned = false
+    const session = state.session
+    state.session = undefined
+    state.console.length = 0
+    state.network.length = 0
+    if (session) await session.close().catch(() => undefined)
   })
 }
 
 export const defaultLayer = layer.pipe(Layer.provide(NodeFileSystem.layer))
 
 export * as BrowserService from "./browser"
+export const Browser = { Service, layer }

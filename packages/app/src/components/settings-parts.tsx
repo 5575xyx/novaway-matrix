@@ -6,16 +6,7 @@ import { type Component, type JSX } from "solid-js"
  * 之前所有这些行统一是「浅底 + 灰图标」，一屏十几行看起来像表格、几乎没法扫读。
  * 现在按名字哈希取一个稳定色：同一个条目永远同色，不同条目一眼能分开。
  */
-const rowAccentPalette = [
-  "#60a5fa",
-  "#a78bfa",
-  "#34d399",
-  "#fbbf24",
-  "#f472b6",
-  "#22d3ee",
-  "#fb923c",
-  "#818cf8",
-]
+const rowAccentPalette = ["#60a5fa", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#22d3ee", "#fb923c", "#818cf8"]
 
 export function rowAccent(seed: string) {
   let hash = 0

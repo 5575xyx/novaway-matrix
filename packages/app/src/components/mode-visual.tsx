@@ -81,28 +81,7 @@ export const ModeGlyph: Component<{ mode: AppModeConfig; class?: string }> = (pr
     )
   }
 
-  if (props.mode.id === "pulse") {
-    return (
-      <svg {...common}>
-        <path
-          d="M4 17H9L12 9L17 24L21 13L23 17H28"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-        <path
-          d="M7 23C11 27 21 27 25 23"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          opacity="0.55"
-        />
-        <path d="M7 9C11 5 21 5 25 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.55" />
-      </svg>
-    )
-  }
-
+  // 其余未知/未来的模式统一用「探索」的罗盘造型兜底。
   return (
     <svg {...common}>
       <path d="M16 4L24 28L16 24L8 28L16 4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />

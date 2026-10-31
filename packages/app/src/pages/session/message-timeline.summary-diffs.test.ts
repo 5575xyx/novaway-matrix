@@ -40,3 +40,14 @@ describe("uniqueSummaryDiffs", () => {
     expect(result[2]).toBe(newBeta)
   })
 })
+
+describe("uniqueSummaryDiffs 忽略应用自己的产物", () => {
+  test("证据截图不算本次调整", () => {
+    const shot = diff(".novaway/browser/evidence/a.png", 0)
+    const shotWindows = diff([".novaway", "browser", "evidence", "b.png"].join(String.fromCharCode(92)), 0)
+    const page = diff("page.html", 12)
+
+    expect(uniqueSummaryDiffs([shot, shotWindows, page])).toEqual([page])
+    expect(uniqueSummaryDiffs([shot, shotWindows])).toEqual([])
+  })
+})

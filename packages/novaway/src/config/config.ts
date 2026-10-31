@@ -84,6 +84,16 @@ const browserCommand = process.env.PLAYWRIGHT_MCP_SERVER_PATH
   : process.platform === "win32"
     ? ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
     : ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
+/**
+ * `npx -y <pkg>` 的平台写法。
+ *
+ * Windows 上 npx 是 `.cmd`，必须经 `cmd /c` 才能 spawn；macOS/Linux 上写成
+ * `cmd /c` 反而会找不到 `cmd`（默认配置以前就是这么写的，非 Windows 用户
+ * 一启动就会有一条 MCP 连接失败）。
+ */
+const npxCommand = (pkg: string) =>
+  process.platform === "win32" ? ["cmd", "/c", "npx", "-y", pkg] : ["npx", "-y", pkg]
+
 export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
   browser: {
     command: browserCommand,
@@ -101,22 +111,19 @@ export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
     enabled: true,
   },
   context7: {
-    command: ["cmd", "/c", "npx", "-y", "@upstash/context7-mcp"],
+    command: npxCommand("@upstash/context7-mcp"),
     enabled: true,
     type: "local",
   },
-  fetch: {
-    command: ["uvx", "mcp-server-fetch"],
-    enabled: true,
-    type: "local",
-  },
+  // 默认不再塞 `uvx mcp-server-fetch`：干净机器上没有 uv/Python 时它会直接失败，
+  // 而网页抓取已经由内置的 webfetch 工具覆盖。需要时用户可以自己加回配置。
   memory: {
-    command: ["cmd", "/c", "npx", "-y", "@modelcontextprotocol/server-memory"],
+    command: npxCommand("@modelcontextprotocol/server-memory"),
     enabled: true,
     type: "local",
   },
   "sequential-thinking": {
-    command: ["cmd", "/c", "npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+    command: npxCommand("@modelcontextprotocol/server-sequential-thinking"),
     enabled: true,
     type: "local",
   },

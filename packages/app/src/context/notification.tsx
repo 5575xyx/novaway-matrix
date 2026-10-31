@@ -361,10 +361,12 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       // 跟踪每个会话"是否真的在跑"，供下面按边沿去重。
       if (event.type === "session.status") {
         const props = event.properties as { sessionID: string; status: { type: string } }
-        const busy = props.status.type !== "idle"
-        running.set(props.sessionID, busy)
-        // 重新开跑：允许下一轮结束时再提醒一次，并把这一轮的报错去重键复位。
-        if (busy) {
+        // 只在这里记"开始了"。"结束"必须由 session.idle 来判定：服务端在收尾时
+        // 先发 status=idle 再发 session.idle，若这里就把状态置回空闲，
+        // 后面那条 idle 会被当成重复而吞掉，用户就永远收不到完成提醒。
+        if (props.status.type !== "idle") {
+          running.set(props.sessionID, true)
+          // 重新开跑：允许下一轮结束时再提醒一次，并把这一轮的报错去重键复位。
           notified.delete(props.sessionID)
           notified.delete(`error:${props.sessionID}`)
         }

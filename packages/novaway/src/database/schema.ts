@@ -11,7 +11,8 @@ import { Schema } from "effect"
  *
  * `mariadb` / `starrocks` / `doris` 走 MySQL 协议（共用 mysql2 驱动），
  * `rqlite` 是基于 HTTP 的 SQLite，`clickhouse` 走 HTTP 接口，
- * `mongodb` 用官方驱动 + shell 风格命令。
+ * `mongodb` 用官方驱动 + shell 风格命令，
+ * `sqlserver` 用 tedious（纯 JS TDS），`oracle` 用 oracledb Thin 模式（纯 JS）。
  */
 export const DbType = Schema.Literals([
   "postgres",
@@ -24,6 +25,8 @@ export const DbType = Schema.Literals([
   "clickhouse",
   "starrocks",
   "doris",
+  "sqlserver",
+  "oracle",
 ]).annotate({ identifier: "DatabaseType" })
 export type DbType = Schema.Schema.Type<typeof DbType>
 

@@ -323,12 +323,7 @@ function profile(name: string, platform: NodeJS.Platform, limits: Limits, dedica
   }
 }
 
-export function render(
-  name: string,
-  platform: NodeJS.Platform,
-  limits: Limits,
-  opts?: { dedicated?: boolean },
-) {
+export function render(name: string, platform: NodeJS.Platform, limits: Limits, opts?: { dedicated?: boolean }) {
   const selected = profile(name, platform, limits, opts?.dedicated === true)
   return {
     description: renderPrompt(DESCRIPTION, {

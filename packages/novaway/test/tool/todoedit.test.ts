@@ -231,10 +231,7 @@ describe("todoedit", () => {
   it.instance("drops the list when the last item completes", () =>
     Effect.gen(function* () {
       const sessionID = freshSession()
-      yield* seed(sessionID, [
-        { content: "a", status: "completed" },
-        { content: "b" },
-      ])
+      yield* seed(sessionID, [{ content: "a", status: "completed" }, { content: "b" }])
 
       const result = yield* call({ action: "complete", position: 1 }, sessionID)
 

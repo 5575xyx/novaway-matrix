@@ -131,7 +131,7 @@ const officeAgentPrompt = (input: {
     ...input.checks.map((item) => `- ${item}`),
   ].join("\n")
 
-const officeSkillPermission = (skillName: string) =>
+const officeSkillPermission = (skillName: string, extra: string[] = []) =>
   Permission.fromConfig({
     question: "allow",
     skill: {
@@ -139,6 +139,7 @@ const officeSkillPermission = (skillName: string) =>
       [skillName]: "allow",
       "office-knowledge": "allow",
       "office-data": "allow",
+      ...Object.fromEntries(extra.map((name) => [name, "allow" as const])),
     },
   })
 
@@ -292,14 +293,17 @@ export const layer = Layer.effect(
               skill: "office-ppt",
               workflow: [
                 "确认受众、页数和汇报目标",
+                "调用 skill 工具加载 office-ppt；按输出里的 <ppt_engine> 段选择渲染链（装了 ppt-master 就用它，否则用内置 HTML → PPTX）",
                 "设计叙事主线和页面顺序",
                 "拆分每页核心观点、正文和图表建议",
                 "补充演讲备注和风险问题",
+                "交付前核对产物是原生可编辑形状与文本框，不是一个扁平化空壳",
               ],
               output: ["逐页标题", "每页一个核心观点", "页面正文可直接复制", "备注和视觉建议分开"],
-              checks: ["故事线是否连贯", "页数是否合理", "是否能支撑汇报目标"],
+              checks: ["故事线是否连贯", "页数是否合理", "是否能支撑汇报目标", "PPTX 能否逐页编辑"],
             }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-ppt"), user),
+            // ppt-master 是可插拔扩展：装了就用，没装也不影响内置链路。
+            permission: Permission.merge(defaults, officeSkillPermission("office-ppt", ["ppt-master"]), user),
             options: officeAgentOptions({ displayName: "PPT生成", scene: "ppt", skill: "office-ppt" }),
             mode: "primary",
             native: true,

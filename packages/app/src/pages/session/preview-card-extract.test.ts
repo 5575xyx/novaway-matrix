@@ -34,11 +34,16 @@ describe("extractAnswerFileReferences", () => {
 
   test("引号定界路径(中英文引号)", () => {
     const refs = extractAnswerFileReferences("产物是 `.claude/demo.pptx` 和 “.claude/b.xlsx”", WS)
-    expect(refs.map((r) => r.kind).sort().join(",")).toBe("pptx,xlsx")
+    expect(
+      refs
+        .map((r) => r.kind)
+        .sort()
+        .join(","),
+    ).toBe("pptx,xlsx")
   })
 
   test("引号错配不提取", () => {
-    const refs = extractAnswerFileReferences('这是 ".claude/broken.docx\' 不是引用', WS)
+    const refs = extractAnswerFileReferences("这是 \".claude/broken.docx' 不是引用", WS)
     expect(refs).toHaveLength(0)
   })
 
@@ -64,10 +69,7 @@ describe("extractAnswerFileReferences", () => {
   })
 
   test("反斜杠路径 + 全角括号边界", () => {
-    const refs = extractAnswerFileReferences(
-      "已生成：.claude\\order-demo\\deck.pptx（35.6 KB，5 页）",
-      WS,
-    )
+    const refs = extractAnswerFileReferences("已生成：.claude\\order-demo\\deck.pptx（35.6 KB，5 页）", WS)
     expect(refs).toHaveLength(1)
     expect(refs[0]?.kind).toBe("pptx")
     expect(refs[0]?.raw).toBe(".claude\\order-demo\\deck.pptx")

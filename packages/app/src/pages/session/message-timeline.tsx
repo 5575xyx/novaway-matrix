@@ -19,11 +19,9 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { SelectionActionMenu } from "@/pages/session/selection-action-menu"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import "@/components/session/knowledge-tool"
-import { Dynamic } from "solid-js/web"
 import { useNavigate } from "@solidjs/router"
 import { useMutation, useQueryClient } from "@tanstack/solid-query"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
-import { Accordion } from "@novaway/ui/accordion"
 import { Button } from "@novaway/ui/button"
 import { Card } from "@novaway/ui/card"
 import { SessionErrorCard } from "@/components/session/session-error-card"
@@ -40,13 +38,13 @@ import { DiffChanges } from "@novaway/ui/diff-changes"
 import { FileIcon } from "@novaway/ui/file-icon"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
+import { ImagePreview } from "@novaway/ui/image-preview"
 import { Tooltip } from "@novaway/ui/tooltip"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Dialog } from "@novaway/ui/dialog"
 import { InlineInput } from "@novaway/ui/inline-input"
 import { SessionRetry } from "@novaway/ui/session-retry"
 import { ScrollView } from "@novaway/ui/scroll-view"
-import { StickyAccordionHeader } from "@novaway/ui/sticky-accordion-header"
 import { TextReveal } from "@novaway/ui/text-reveal"
 import { TextShimmer } from "@novaway/ui/text-shimmer"
 import type {
@@ -61,8 +59,6 @@ import { showToast } from "@novaway/ui/toast"
 import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { Binary } from "@novaway/core/util/binary"
 import { getDirectory, getFilename } from "@novaway/core/util/path"
-import { normalize } from "@novaway/ui/session-diff"
-import { useFileComponent } from "@novaway/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
@@ -100,7 +96,7 @@ import {
   TimelineRow,
   TimelineRowMap,
 } from "./message-timeline.data"
-import type { PreviewTarget } from "./message-timeline.data"
+import type { EvidenceImage, PreviewTarget } from "./message-timeline.data"
 import { useOfficeAgent } from "./office-agent-context"
 import { isTodoDone } from "./status-panel/todo-section"
 import { extractOfficeArtifact, visibleOfficeMessage, type OfficeArtifact, type OfficeSlide } from "./office-artifact"
@@ -320,12 +316,15 @@ function TimelineThinkingRow(props: {
   )
 }
 
-function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[]; fallback: boolean }) {
+function TimelineDiffSummaryRow(props: {
+  diffs: SummaryDiff[]
+  fallback: boolean
+  onOpen?: (path: string) => void
+}): JSX.Element {
   const language = useLanguage()
   const maxFiles = 10
   const [state, setState] = createStore({
     showAll: false,
-    expanded: [] as string[],
     // 会话级兜底卡默认只显示标题行,点击可展开文件清单;轮次卡保持常展开。
     collapsed: props.fallback,
   })
@@ -342,9 +341,10 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[]; fallback: boolean
     ),
   )
   const showAll = () => state.showAll
-  const expanded = () => state.expanded
-  const overflow = createMemo(() => Math.max(0, props.diffs.length - maxFiles))
-  const visible = createMemo(() => (showAll() ? props.diffs : props.diffs.slice(0, maxFiles)))
+  // 列出来的文件已经在数据层滤过应用自己的产物（见 uniqueSummaryDiffs）。
+  const files = () => props.diffs
+  const overflow = createMemo(() => Math.max(0, files().length - maxFiles))
+  const visible = createMemo(() => (showAll() ? files() : files().slice(0, maxFiles)))
 
   return (
     <div
@@ -363,7 +363,7 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[]; fallback: boolean
         </span>
         <span data-slot="session-turn-diffs-label">
           {language.t(props.fallback ? "ui.sessionTurn.diffs.session" : "ui.sessionTurn.diffs.thisTurn", {
-            count: String(props.diffs.length),
+            count: String(files().length),
           })}
         </span>
         <Show when={totalChanges().additions > 0 || totalChanges().deletions > 0}>
@@ -380,48 +380,37 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[]; fallback: boolean
       </div>
       <Show when={!state.collapsed}>
         <div data-component="session-turn-diffs-content">
-          <Accordion
-            multiple
-            style={{ "--sticky-accordion-offset": "44px" }}
-            value={expanded()}
-            onChange={(value) => setState("expanded", Array.isArray(value) ? value : value ? [value] : [])}
-          >
-            <For each={visible()}>
-              {(diff) => {
-                const opened = createMemo(() => expanded().includes(diff.file))
-
-                return (
-                  <Accordion.Item value={diff.file}>
-                    <StickyAccordionHeader>
-                      <Accordion.Trigger>
-                        <div data-slot="session-turn-diff-trigger">
-                          <span data-slot="session-turn-diff-path">
-                            <Show when={diff.file.includes("/")}>
-                              <span data-slot="session-turn-diff-directory">{`\u202A${getDirectory(diff.file)}\u202C`}</span>
-                            </Show>
-                            <span data-slot="session-turn-diff-filename">{getFilename(diff.file)}</span>
-                          </span>
-                          <div data-slot="session-turn-diff-meta">
-                            <span data-slot="session-turn-diff-changes">
-                              <DiffChanges changes={diff} />
-                            </span>
-                            <span data-slot="session-turn-diff-chevron">
-                              <Icon name="chevron-down" size="small" />
-                            </span>
-                          </div>
-                        </div>
-                      </Accordion.Trigger>
-                    </StickyAccordionHeader>
-                    <Accordion.Content>
-                      <Show when={opened()}>
-                        <TimelineDiffView diff={diff} />
-                      </Show>
-                    </Accordion.Content>
-                  </Accordion.Item>
-                )
-              }}
-            </For>
-          </Accordion>
+          {/* 每一行是一个"入口"，不是折叠面板：点开去右侧面板看这个文件的改动
+              （和用户在编辑器/IDE 里的习惯一致）。之前是在聊天流里就地展开整段 diff，
+              一条长改动会把对话顶上去几百行，而且和右侧审查面板显示的是两套东西。 */}
+          <For each={visible()}>
+            {(diff) => (
+              <button
+                type="button"
+                data-slot="session-turn-diff-trigger"
+                data-file={diff.file}
+                class="w-full text-left transition-colors hover:bg-hover"
+                onClick={() => props.onOpen?.(diff.file)}
+              >
+                <span data-slot="session-turn-diff-path">
+                  <Show when={diff.file.includes("/")}>
+                    <span data-slot="session-turn-diff-directory">{`‪${getDirectory(diff.file)}‬`}</span>
+                  </Show>
+                  <span data-slot="session-turn-diff-filename">{getFilename(diff.file)}</span>
+                </span>
+                <div data-slot="session-turn-diff-meta">
+                  <span data-slot="session-turn-diff-changes">
+                    <DiffChanges changes={diff} />
+                  </span>
+                  <span data-slot="session-turn-diff-chevron">
+                    {/* 这一行不再就地展开，箭头只表示"点开去别处看"：
+                        CSS 把 chevron-down 旋转 -90°，落成朝右。 */}
+                    <Icon name="chevron-down" size="small" />
+                  </span>
+                </div>
+              </button>
+            )}
+          </For>
           <Show when={!showAll() && overflow() > 0}>
             <div data-slot="session-turn-diffs-more" onClick={() => setState("showAll", true)}>
               {language.t("ui.sessionTurn.diffs.more", { count: String(overflow()) })}
@@ -429,17 +418,6 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[]; fallback: boolean
           </Show>
         </div>
       </Show>
-    </div>
-  )
-}
-
-function TimelineDiffView(props: { diff: SummaryDiff }) {
-  const fileComponent = useFileComponent()
-  const view = normalize(props.diff)
-
-  return (
-    <div data-slot="session-turn-diff-view" data-scrollable>
-      <Dynamic component={fileComponent} mode="diff" fileDiff={view.fileDiff} />
     </div>
   )
 }
@@ -550,7 +528,10 @@ function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
             class="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border bg-surface p-3 pr-3.5 text-foreground transition-all duration-150 hover:-translate-y-px hover:border-border-hover"
             onClick={() => open(target)}
           >
-            <span data-slot="preview-card-icon" class="flex size-11 shrink-0 items-center justify-center rounded-[10px]">
+            <span
+              data-slot="preview-card-icon"
+              class="flex size-11 shrink-0 items-center justify-center rounded-[10px]"
+            >
               <Show
                 when={target.kind === "server"}
                 fallback={
@@ -632,6 +613,91 @@ function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
           </div>
         )}
       </For>
+    </div>
+  )
+}
+
+/**
+ * 验证结果行:工具产出的图片证据(浏览器截图)贴在轮尾。
+ *
+ * 过程行会被折进「已工作 X」的折叠卡里,截图若只挂在工具行内部,用户看到的
+ * 永远只有一句"已验证"。这里把截图直接铺在回复最下面(对齐 ZCode),点开可放大。
+ *
+ * 展示上只占一张:一次修改往往会产生好几张(改前/改后/交互后),平铺会变成图墙。
+ * 默认第一张,左右箭头切换,切换时有短暂淡入过渡;数量与序号写在标题行里。
+ *
+ * 尺寸固定成缩略图(320×180,约为聊天列的四分之一)并靠左:
+ * 1. 截图原尺寸铺满整行时,一条回复里半屏都是图,正文被挤得看不见;
+ * 2. 之前每张图按自身比例撑高,切换时行高变化 → 虚拟列表重新量高 → 整段聊天区闪一下。
+ *    外框固定后高度不再随图变化,过渡动画只发生在框内。
+ */
+function TimelineToolEvidenceRow(props: { images: EvidenceImage[] }) {
+  const language = useLanguage()
+  const dialog = useDialog()
+  const [index, setIndex] = createSignal(0)
+
+  // 附件可能是 data URL(截图走这条)或本地路径;后者在桌面端要换成受信任的协议地址。
+  const source = (url: string) => {
+    if (/^(data:|blob:|https?:)/i.test(url)) return url
+    const absolute = url.startsWith("file:") ? url : `file:///${url.replace(/\\/g, "/").replace(/^\/+/, "")}`
+    return window.api?.toPreviewUrl?.(absolute) ?? absolute
+  }
+
+  const total = () => props.images.length
+  const current = () => props.images[Math.min(index(), total() - 1)]
+  const step = (delta: number) => setIndex((value) => (value + delta + total()) % total())
+
+  return (
+    <div data-component="tool-evidence" class="flex w-full min-w-0 flex-col items-start gap-2">
+      <div class="flex min-w-0 items-center gap-1.5 text-12-medium text-foreground-subtle">
+        <Icon name="lu-image" size="small" class="text-foreground-subtlest" />
+        <span>{language.t("session.evidence.title")}</span>
+        <Show when={total() > 1}>
+          <span class="ml-1 tabular-nums text-foreground-subtlest">
+            {index() + 1}/{total()}
+          </span>
+          <IconButton
+            icon="chevron-left"
+            variant="ghost"
+            size="small"
+            class="ml-1"
+            onClick={() => step(-1)}
+            aria-label={language.t("session.evidence.previous")}
+            title={language.t("session.evidence.previous")}
+          />
+          <IconButton
+            icon="chevron-right"
+            variant="ghost"
+            size="small"
+            onClick={() => step(1)}
+            aria-label={language.t("session.evidence.next")}
+            title={language.t("session.evidence.next")}
+          />
+        </Show>
+      </div>
+      <Show when={current()}>
+        {(image) => (
+          <div class="relative h-[180px] w-[320px] max-w-full overflow-hidden rounded-xl border border-border bg-surface">
+            <Show keyed when={{ url: source(image().url), name: image().name, tool: image().tool, index: index() }}>
+              {(frame) => (
+                <button
+                  type="button"
+                  class="evidence-in absolute inset-0 block h-full w-full cursor-zoom-in"
+                  title={frame.name ?? frame.tool}
+                  onClick={() => dialog.show(() => <ImagePreview src={frame.url} alt={frame.name} />)}
+                >
+                  <img
+                    src={frame.url}
+                    alt={frame.name ?? frame.tool}
+                    class="block h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </button>
+              )}
+            </Show>
+          </div>
+        )}
+      </Show>
     </div>
   )
 }
@@ -914,7 +980,9 @@ export function MessageTimeline(props: {
         continue
       }
       if (previewStatInflight.has(entry.signature)) continue
-      const paths = [...new Set(entry.candidates.map((candidate) => candidate.path).filter((path): path is string => !!path))]
+      const paths = [
+        ...new Set(entry.candidates.map((candidate) => candidate.path).filter((path): path is string => !!path)),
+      ]
       if (paths.length === 0) {
         previewStatCache.set(entry.signature, new Set())
         resolved[id] = []
@@ -944,9 +1012,7 @@ export function MessageTimeline(props: {
           if (!names) {
             try {
               const response = await sdk.client.file.list({ path: dir })
-              names = new Set(
-                (response.data ?? []).map((node) => normalizePathForCompare(node.absolute || node.path)),
-              )
+              names = new Set((response.data ?? []).map((node) => normalizePathForCompare(node.absolute || node.path)))
             } catch {
               // 目录读不到(工作区外/已删除)按不存在处理,对应的卡直接不出
               names = new Set()
@@ -1037,12 +1103,57 @@ export function MessageTimeline(props: {
     return result
   })
 
+  /**
+   * 每轮的工具图片证据(浏览器截图):挂在轮尾当作"验证结果"。
+   *
+   * 之前这类附件只写进 part.state.attachments,界面上完全不渲染 —— 模型说"已验证",
+   * 用户却看不到任何画面。这里按轮收集,轮尾单独成行(不折进过程卡),对齐 ZCode
+   * 的"验证完把截图贴在回复最下面"。只留最近几张,避免长会话底部堆成图墙。
+   */
+  const toolEvidenceByUserMessage = createMemo(() => {
+    // 单轮上限放宽到 12：一组验证可能是「改前 / 改后 / 交互后」几张，
+    // 界面上只展示一张（轮播），所以不需要再用 3 张强行截断。
+    const limit = 12
+    const result = new Map<string, EvidenceImage[]>()
+    for (const [userMessageID, messages] of assistantMessagesByParent()) {
+      const images: EvidenceImage[] = []
+      for (const message of messages) {
+        for (const part of getMsgParts(message.id)) {
+          if (part.type !== "tool") continue
+          const attachments = (part.state as { attachments?: unknown }).attachments
+          if (!Array.isArray(attachments)) continue
+          for (const item of attachments) {
+            if (!item || typeof item !== "object") continue
+            const file = item as { mime?: unknown; url?: unknown; filename?: unknown }
+            if (typeof file.mime !== "string" || !file.mime.startsWith("image/")) continue
+            if (typeof file.url !== "string" || !file.url) continue
+            images.push({
+              url: file.url,
+              name: typeof file.filename === "string" ? file.filename : undefined,
+              tool: part.tool,
+            })
+          }
+        }
+      }
+      if (images.length > 0) result.set(userMessageID, images.slice(-limit))
+    }
+    return result
+  })
+
   const timelineRows = createMemo((previous: TimelineRow.TimelineRow[] | undefined) => {
     const rows = messageRowMemos().flatMap((memo, index) => {
       const turnRows = memo()
-      const targets = previewTargetsByUserMessage().get(props.userMessages[index]?.id ?? "")
-      if (!targets) return turnRows
-      return [...turnRows, new TimelineRow.PreviewCard({ userMessageID: props.userMessages[index].id, targets })]
+      const id = props.userMessages[index]?.id
+      if (!id) return turnRows
+      const targets = previewTargetsByUserMessage().get(id)
+      const images = toolEvidenceByUserMessage().get(id)
+      if (!targets && !images) return turnRows
+      return [
+        ...turnRows,
+        ...(targets ? [new TimelineRow.PreviewCard({ userMessageID: id, targets })] : []),
+        // 验证截图放在最后:用户看到的是"回复 → 产物 → 验证结果",与 ZCode 一致。
+        ...(images ? [new TimelineRow.ToolEvidence({ userMessageID: id, images })] : []),
+      ]
     })
     const last = props.userMessages.at(-1)
     const fallback = sessionDiffFallback()
@@ -1870,6 +1981,22 @@ export function MessageTimeline(props: {
       tabs().setActive(tab)
       layout.sidePane.add("preview")
     })
+  }
+
+  /**
+   * 在右侧面板打开某个文件的**改动**。
+   *
+   * 和 `openOutputFile` 的区别：这里不等文件读成功。被删掉的文件读一定失败，
+   * 但"整段删除"恰恰是最该看的；预览面板的 diff 来自会话快照，不依赖当前文件内容。
+   */
+  const openDiffFile = (path: string) => {
+    const normalized = file.normalize(path)
+    if (!normalized) return
+    void file.load(normalized)
+    const tab = file.tab(normalized)
+    void tabs().open(tab)
+    tabs().setActive(tab)
+    layout.sidePane.add("preview")
   }
 
   const renderAssistantPartGroup = (row: Accessor<TimelineRowMap["AssistantPart"]>) => {
@@ -2766,7 +2893,21 @@ export function MessageTimeline(props: {
         return (
           <TimelineRowFrame row={diffSummaryRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
-              <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} fallback={!!diffSummaryRow().fallback} />
+              <TimelineDiffSummaryRow
+                diffs={diffSummaryRow().diffs}
+                fallback={!!diffSummaryRow().fallback}
+                onOpen={openDiffFile}
+              />
+            </div>
+          </TimelineRowFrame>
+        )
+      }
+      case "ToolEvidence": {
+        const evidenceRow = row as Accessor<TimelineRowByTag<"ToolEvidence">>
+        return (
+          <TimelineRowFrame row={evidenceRow}>
+            <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+              <TimelineToolEvidenceRow images={evidenceRow().images} />
             </div>
           </TimelineRowFrame>
         )
@@ -2783,10 +2924,12 @@ export function MessageTimeline(props: {
       }
       case "Error": {
         const errorRow = row as Accessor<TimelineRowByTag<"Error">>
-        // 最后一轮的意外中断由输入框上方的琥珀色提示条承担（SessionInterruptedBar），
-        // 时间线里再画一遍就成了会话底部的大块报错，和 ZCode 的形态不一致。
-        // 历史轮次的报错仍然保留中性卡片，避免过去发生过的失败凭空消失。
-        if (errorRow().resumable) return null
+        // 意外中断也要把报错原样留在聊天区：输入框上方的琥珀色提示条只说"中断了 + 继续"，
+        // 用户还需要看到**到底报了什么错**（可展开原始详情、可复制排查）。
+        // 两者职责不同，同时出现是有意的。
+        //
+        // 清掉是自动的：续跑会新建一条 assistant 消息，而 error 只取**最后一次尝试**，
+        // 新消息没有 error，这张卡自然消失；正在续跑时上层也已经不再产出行。
         return (
           <TimelineRowFrame row={errorRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
@@ -2853,6 +2996,17 @@ export function MessageTimeline(props: {
     const seconds = Math.round(ms / 1000)
     if (seconds < 60) return `${seconds}s`
     return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`
+  }
+
+  /** 最近的可滚动祖先：聊天区是 ScrollView 的 viewport，别的容器（如折叠卡）不是。 */
+  const scrollParentOf = (element: HTMLElement) => {
+    let node = element.parentElement
+    while (node) {
+      const overflow = getComputedStyle(node).overflowY
+      if (overflow === "auto" || overflow === "scroll") return node
+      node = node.parentElement
+    }
+    return undefined
   }
 
   function TimelineTodoOverview(props: { row: Accessor<TimelineRowByTag<"TodoOverview">> }) {
@@ -2974,15 +3128,42 @@ export function MessageTimeline(props: {
         onCleanup(() => clearInterval(timer))
       }),
     )
+    /**
+     * 展开某一项后把它顶到可视区上部。
+     *
+     * 清单卡的明细是整段长在点击行下面的：最后一项展开后，明细全部落在视口之外
+     * （往往还被输入框挡住），滚动条却还没变长，看起来就像「点了没反应 / 展不开」。
+     * 第一项在卡片上部，明细正好落在可见区域，所以只有「最后一条展不开」。
+     * 这里等 grid 过渡（300ms）把行高撑开后再校正一次位置：过渡中途 scrollHeight
+     * 还是旧值，会把 scrollTop 钳住。
+     */
+    let revealTimer: number | undefined
+    onCleanup(() => window.clearTimeout(revealTimer))
+    const revealItem = (element: HTMLElement | undefined) => {
+      if (!element) return
+      const container = scrollParentOf(element)
+      if (!container) return
+      const headerOffset = 56 // 顶部 sticky 会话标题，别让明细盖住它
+      const target = () =>
+        element.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - headerOffset
+      const apply = () => {
+        if (!element.isConnected) return
+        const max = Math.max(0, container.scrollHeight - container.clientHeight)
+        container.scrollTop = Math.min(Math.max(0, target()), max)
+      }
+      apply()
+      requestAnimationFrame(apply)
+      // 过渡中途 scrollHeight 还是旧值，会把 scrollTop 钳住；等行高撑开后再校正一次。
+      window.clearTimeout(revealTimer)
+      revealTimer = window.setTimeout(apply, 340)
+    }
     const totalDuration = createMemo(() => {
       const start = props.row().startedAt
       if (start === undefined) return undefined
       if (live()) return Math.max(0, now() - start)
       // 已结束：取所有分区里最晚的结束时间；有分区没跑完（被中断）就宁可不出数字，
       // 也不要用"现在"把等待时间算进去。
-      const ends = props.row().sections.flatMap((section) =>
-        section.endedAt === undefined ? [] : [section.endedAt],
-      )
+      const ends = props.row().sections.flatMap((section) => (section.endedAt === undefined ? [] : [section.endedAt]))
       if (ends.length === 0) return undefined
       return Math.max(0, Math.max(...ends) - start)
     })
@@ -3016,7 +3197,8 @@ export function MessageTimeline(props: {
                     <span
                       class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-12-medium tabular-nums"
                       classList={{
-                        "bg-[color-mix(in_srgb,var(--icon-blue)_12%,var(--background))] text-[var(--icon-blue)]": live(),
+                        "bg-[color-mix(in_srgb,var(--icon-blue)_12%,var(--background))] text-[var(--icon-blue)]":
+                          live(),
                         "bg-surface text-foreground-subtle": !live(),
                       }}
                     >
@@ -3064,6 +3246,7 @@ export function MessageTimeline(props: {
                   now={now}
                   live={live()}
                   stoppedAt={stoppedAt()}
+                  reveal={revealItem}
                   detail={sectionByTitle().get(item.content)}
                 />
               )}
@@ -3284,6 +3467,8 @@ export function MessageTimeline(props: {
     live?: boolean
     /** 会话停下来的时刻(最后一条 assistant 完成时间)；中断时用来定格进行中的项。 */
     stoppedAt?: number
+    /** 展开后把这一项滚进可视区；最后一项的明细整段长在视口之外，不滚就等于没展开。 */
+    reveal?: (element: HTMLElement | undefined) => void
     detail?: {
       rows: TimelineRow.TimelineRow[]
       durationMs?: number
@@ -3294,6 +3479,7 @@ export function MessageTimeline(props: {
     }
   }) {
     const started = createMemo(() => !!props.detail && props.detail.rows.length > 0)
+    let root: HTMLDivElement | undefined
     const openKey = createMemo(() => `${props.status}:${props.id}`)
     const open = createMemo(() => {
       if (todoSectionTouched[openKey()]) return todoSectionOpen[openKey()] ?? false
@@ -3378,7 +3564,7 @@ export function MessageTimeline(props: {
       </>
     )
     return (
-      <div data-component="todo-grouped-item" data-status={props.status} class="min-w-0">
+      <div ref={(el) => (root = el)} data-component="todo-grouped-item" data-status={props.status} class="min-w-0">
         <Show
           when={started()}
           fallback={<div class="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1.5">{body}</div>}
@@ -3389,8 +3575,10 @@ export function MessageTimeline(props: {
             aria-expanded={open()}
             onClick={() => {
               // 手动点击优先生效(此后不被自动规则覆盖)。
+              const next = !open()
               setTodoSectionTouched(openKey(), true)
-              setTodoSectionOpen(openKey(), !open())
+              setTodoSectionOpen(openKey(), next)
+              if (next) props.reveal?.(root)
             }}
           >
             {body}

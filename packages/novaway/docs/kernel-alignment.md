@@ -1141,11 +1141,11 @@ CC 的实现是 `services/mcp/elicitationHandler.ts`：MCP 服务器在工具调
 `elicitation/create` 反过来向用户要输入（表单字段或一个待打开的链接）。对齐后的
 流程分三段，任何一段失败都不会让工具调用挂死：
 
-| 阶段 | 行为 | 代码 |
-| --- | --- | --- |
-| 1. `Elicitation` 钩子 | 能代答就直接返回（本地脚本知道该填什么），`deny` 视为 `decline` | `src/mcp/elicitation.ts` `ask()` |
-| 2. 界面 | 没有钩子回答时入队并广播 `elicitation.asked`，等 `reply` / `reject` | `src/mcp/elicitation.ts` + HTTP `elicitation.*` |
-| 3. `ElicitationResult` 钩子 | 用户回答后可以改写或拦截（拦截 → `decline`） | `ask()` 里的 `finalize()` |
+| 阶段                        | 行为                                                                | 代码                                            |
+| --------------------------- | ------------------------------------------------------------------- | ----------------------------------------------- |
+| 1. `Elicitation` 钩子       | 能代答就直接返回（本地脚本知道该填什么），`deny` 视为 `decline`     | `src/mcp/elicitation.ts` `ask()`                |
+| 2. 界面                     | 没有钩子回答时入队并广播 `elicitation.asked`，等 `reply` / `reject` | `src/mcp/elicitation.ts` + HTTP `elicitation.*` |
+| 3. `ElicitationResult` 钩子 | 用户回答后可以改写或拦截（拦截 → `decline`）                        | `ask()` 里的 `finalize()`                       |
 
 客户端能力声明为 `elicitation: {}`（空对象）。CC 也这么做：写成
 `{ form: {}, url: {} }` 会让部分 Java 服务端（Spring AI）在解析能力时直接断开。

@@ -1737,7 +1737,12 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
 
   /** 运行中折叠态的实时预览：最后一行有内容的思考文本，浅色单行。 */
   const preview = createMemo(() => {
-    const value = text().split(/[\r\n]+/).map((line) => line.trim()).filter(Boolean).at(-1) ?? ""
+    const value =
+      text()
+        .split(/[\r\n]+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .at(-1) ?? ""
     return value.length > 220 ? `${value.slice(0, 220)}…` : value
   })
 
@@ -1761,7 +1766,10 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
               </span>
             </Show>
             <Show when={streaming() && !open() && preview()}>
-              <span data-slot="reasoning-part-live" class="min-w-0 flex-1 truncate text-11-regular italic text-foreground-subtlest">
+              <span
+                data-slot="reasoning-part-live"
+                class="min-w-0 flex-1 truncate text-11-regular italic text-foreground-subtlest"
+              >
                 {preview()}
               </span>
             </Show>

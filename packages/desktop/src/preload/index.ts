@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
 import { toLocalFileUrl } from "../shared/protocol"
-import type { ElectronAPI, FloatingAgentState, FloatingPanelTab, InitStep, SqliteMigrationProgress } from "./types"
+import type { ElectronAPI, InitStep, SqliteMigrationProgress } from "./types"
 
 const api: ElectronAPI = {
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
@@ -63,68 +63,6 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener("notification-click", handler)
   },
 
-  getFloatingAgentState: () => ipcRenderer.invoke("get-floating-agent-state"),
-  getFloatingPetManagementState: () => ipcRenderer.invoke("get-floating-pet-management-state"),
-  updateFloatingPetProfile: (input) => ipcRenderer.invoke("update-floating-pet-profile", input),
-  resetFloatingPetProgress: () => ipcRenderer.invoke("reset-floating-pet-progress"),
-  setFloatingAgent: (name) => ipcRenderer.invoke("set-floating-agent", name),
-  setFloatingPetSkin: (skin) => ipcRenderer.invoke("set-floating-pet-skin", skin),
-  setFloatingPetReaction: (reaction) => ipcRenderer.invoke("set-floating-pet-reaction", reaction),
-  petAction: (action) => ipcRenderer.invoke("floating-pet-action", action),
-  playFloatingPetRps: (choice) => ipcRenderer.invoke("floating-pet-rps", choice),
-  claimFloatingPetGameReward: (game, score) => ipcRenderer.invoke("floating-pet-game-reward", game, score),
-  markFloatingNotificationsRead: (ids) => ipcRenderer.invoke("mark-floating-notifications-read", ids),
-  clearFloatingNotifications: () => ipcRenderer.invoke("clear-floating-notifications"),
-  openFloatingNotification: (id) => ipcRenderer.invoke("open-floating-notification", id),
-  resolveFloatingNotification: (input) => ipcRenderer.invoke("resolve-floating-notification", input),
-  onFloatingAgentChange: (cb) => {
-    const handler = (_: unknown, state: FloatingAgentState) => cb(state)
-    ipcRenderer.on("floating-agent-change", handler)
-    return () => ipcRenderer.removeListener("floating-agent-change", handler)
-  },
-  onFloatingExpandedChange: (cb) => {
-    const handler = (_: unknown, expanded: boolean) => cb(expanded)
-    ipcRenderer.on("floating-expanded-change", handler)
-    return () => ipcRenderer.removeListener("floating-expanded-change", handler)
-  },
-  onFloatingPanelTabChange: (cb) => {
-    const handler = (_: unknown, tab: FloatingPanelTab) => cb(tab)
-    ipcRenderer.on("floating-panel-tab-change", handler)
-    return () => ipcRenderer.removeListener("floating-panel-tab-change", handler)
-  },
-  onFloatingSkinMenuChange: (cb) => {
-    const handler = (_: unknown, visible: boolean) => cb(visible)
-    ipcRenderer.on("floating-skin-menu-change", handler)
-    return () => ipcRenderer.removeListener("floating-skin-menu-change", handler)
-  },
-  floatingWidgetReady: () => ipcRenderer.send("floating-widget-ready"),
-  showFloatingWidget: () => ipcRenderer.invoke("show-floating-widget"),
-  setFloatingWidgetVisible: (visible: boolean) => ipcRenderer.invoke("set-floating-widget-visible", visible),
-  getFloatingWidgetVisible: () => ipcRenderer.invoke("get-floating-widget-visible"),
-  restoreFloatingWidget: () => ipcRenderer.invoke("restore-floating-widget"),
-  onFloatingModeChange: (cb) => {
-    const handler = (_: unknown, mode: string) => cb(mode as "full" | "minimal")
-    ipcRenderer.on("floating-mode-change", handler)
-    return () => ipcRenderer.removeListener("floating-mode-change", handler)
-  },
-  onFloatingVisibilityChange: (cb) => {
-    const handler = (_: unknown, visible: boolean) => cb(visible)
-    ipcRenderer.on("floating-visibility-change", handler)
-    return () => ipcRenderer.removeListener("floating-visibility-change", handler)
-  },
-  onFloatingCursorActive: (cb) => {
-    const handler = (_: unknown, active: boolean) => cb(active)
-    ipcRenderer.on("floating-cursor-active", handler)
-    return () => ipcRenderer.removeListener("floating-cursor-active", handler)
-  },
-  updateFloatingAgentState: (state) => ipcRenderer.invoke("update-floating-agent-state", state),
-  setFloatingMousePassthrough: (ignore) => ipcRenderer.send("set-floating-mouse-passthrough", ignore),
-  beginFloatingWidgetDrag: (pointerX, pointerY) => ipcRenderer.send("begin-floating-widget-drag", pointerX, pointerY),
-  moveFloatingWidget: (pointerX, pointerY) => ipcRenderer.send("move-floating-widget", pointerX, pointerY),
-  saveFloatingWidgetBounds: () => ipcRenderer.invoke("save-floating-widget-bounds"),
-  setFloatingExpanded: (expanded, tab) => ipcRenderer.invoke("set-floating-expanded", expanded, tab),
-  toggleFloatingSkinMenu: () => ipcRenderer.invoke("toggle-floating-skin-menu"),
-
   createDirectory: (parentPath, dirName) => ipcRenderer.invoke("create-directory", parentPath, dirName),
   openDirectoryPicker: (opts) => ipcRenderer.invoke("open-directory-picker", opts),
   openFilePicker: (opts) => ipcRenderer.invoke("open-file-picker", opts),
@@ -139,8 +77,8 @@ const api: ElectronAPI = {
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
   showItemInFolder: (path) => ipcRenderer.invoke("show-item-in-folder", path),
   readClipboardImage: () => ipcRenderer.invoke("read-clipboard-image"),
-  showNotification: (title, body, href, showSystem, context) =>
-    ipcRenderer.send("show-notification", title, body, href, showSystem, context),
+  showNotification: (title, body, href, showSystem) =>
+    ipcRenderer.send("show-notification", title, body, href, showSystem),
   getWindowFocused: () => ipcRenderer.invoke("get-window-focused"),
   setWindowFocus: () => ipcRenderer.invoke("set-window-focus"),
   showWindow: () => ipcRenderer.invoke("show-window"),

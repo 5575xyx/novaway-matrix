@@ -213,7 +213,10 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
     const gitError = Effect.fnUntraced(function* (args: string[], result: Git.Result) {
       const timedOut = result.timedOut ? `git ${args[0]} 执行超时,已终止` : ""
       // 去掉 "fatal:" 前缀：这句原文会直接进 toast 描述，带前缀像在报错栈。
-      const stderr = result.stderr.toString("utf8").trim().replace(/^fatal:\s*/i, "")
+      const stderr = result.stderr
+        .toString("utf8")
+        .trim()
+        .replace(/^fatal:\s*/i, "")
       return yield* badRequest(stderr || timedOut || `git ${args[0]} 执行失败`)
     })
 
@@ -382,7 +385,7 @@ export const gitHandlers = HttpApiBuilder.group(InstanceHttpApi, "git", (handler
         // 该做什么。翻译成一句可操作的提示。
         if (/Please tell me who you are|empty ident name|unable to auto-detect email|not configured/i.test(stderr)) {
           return yield* badRequest(
-            "还没有配置 Git 提交身份：请先执行 git config --global user.name \"你的名字\" 和 git config --global user.email \"you@example.com\"",
+            '还没有配置 Git 提交身份：请先执行 git config --global user.name "你的名字" 和 git config --global user.email "you@example.com"',
           )
         }
         if (/nothing (?:added )?to commit|no changes added to commit|no changes added/i.test(stderr)) {

@@ -11,6 +11,10 @@ export type InstalledPackage = {
   kind: "zip" | "git"
   version?: string
   source: string
+  /** 安装时用的 git ref / 子目录 / 校验和：升级时按原样重放安装。 */
+  ref?: string
+  subdir?: string
+  sha256?: string
   root: string
   files: number
   bytes: number

@@ -58,6 +58,47 @@ const limit = 2 * 1024 * 1024
 const core = ["-c", "core.longpaths=true", "-c", "core.symlinks=true"]
 const cfg = ["-c", "core.autocrlf=false", ...core]
 const quote = [...cfg, "-c", "core.quotepath=false"]
+
+/**
+ * 非 Git 目录用的默认排除项。
+ *
+ * 快照仓库是独立于项目的 `--git-dir`，所以没有仓库的目录也能做快照 —— 但那种目录里
+ * 没有 `.gitignore` 可依，`add()` 会把 `node_modules`、构建产物、虚拟环境整棵树
+ * stage 进来：一次 track 就要几十秒，快照仓库还会膨胀到 GB 级。这里写一份最保守的
+ * 清单（只含公认的生成物目录），让「没有 Git 的项目也能看改动 / 能回滚」成立。
+ */
+const DEFAULT_EXCLUDES = [
+  "/.git/",
+  "/node_modules/",
+  "/.pnpm-store/",
+  "/dist/",
+  "/build/",
+  "/out/",
+  "/target/",
+  "/coverage/",
+  "/.next/",
+  "/.nuxt/",
+  "/.svelte-kit/",
+  "/.turbo/",
+  "/.cache/",
+  "/.venv/",
+  "/venv/",
+  "/__pycache__/",
+  "/.gradle/",
+  "/.idea/",
+  "/vendor/",
+  "/.DS_Store",
+  "/Thumbs.db",
+]
+
+/**
+ * 单次快照允许收录的文件上限。
+ *
+ * 兜底用：万一用户把家目录之类的大目录当项目打开，`status` 一次就会列出上万条。
+ * 超过就直接放弃这个实例的快照（改动面板与回滚退回"不可用"），
+ * 而不是让每一步都去列一遍整棵树。
+ */
+const MAX_FILES = 20_000
 interface GitResult {
   readonly code: ChildProcessSpawner.ExitCode
   readonly text: string
@@ -104,10 +145,14 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
 
       const state = yield* InstanceState.make<State>(
         Effect.fn("Snapshot.state")(function* (ctx) {
+          // 非 Git 项目的 project.worktree 会被记成 "/"（没有仓库根，见
+          // instance-context 里的注释）。直接拿它当快照的 --work-tree 等于把整个盘
+          // 都纳入快照，所以这种项目要退回「用户打开的那个目录」。
+          const worktree = ctx.project.vcs === "git" ? ctx.worktree : ctx.directory
           const state = {
             directory: ctx.directory,
-            worktree: ctx.worktree,
-            gitdir: path.join(Global.Path.data, "snapshot", ctx.project.id, Hash.fast(ctx.worktree)),
+            worktree,
+            gitdir: path.join(Global.Path.data, "snapshot", ctx.project.id, Hash.fast(worktree)),
             vcs: ctx.project.vcs,
           }
 
@@ -200,9 +245,15 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
           const locked = <A, E, R>(fx: Effect.Effect<A, E, R>) => lock(state.gitdir).withPermits(1)(fx)
 
           const enabled = Effect.fnUntraced(function* () {
-            if (state.vcs !== "git") return false
+            // 快照仓库是独立的（--git-dir 落在全局数据目录），不依赖项目本身是不是
+            // Git 仓库：没有初始化 Git 的目录，用户一样希望"改了哪些文件""能不能撤回"
+            // 是准的（此前后者在非 Git 目录整体不可用）。只在用户显式关掉 snapshot 时停用。
             return (yield* config.get()).snapshot !== false
           })
+
+          // 某个实例的文件数超过 MAX_FILES 后放弃快照（见常量注释），
+          // 避免每一步都去列一遍整棵大树。
+          let oversized = false
 
           // `sync` runs on every add(). Spawning `git rev-parse` to locate the
           // project's exclude file is the expensive part and never changes for
@@ -235,6 +286,8 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             const file = yield* excludes()
             const target = path.join(state.gitdir, "info", "exclude")
             const text = [
+              // 非 Git 目录没有 .gitignore 可依，先垫一份内置排除清单。
+              state.vcs === "git" ? "" : DEFAULT_EXCLUDES.join("\n"),
               file ? (yield* read(file)).trimEnd() : "",
               ...list.map((item) => `/${item.replaceAll("\\", "/")}`),
             ]
@@ -247,6 +300,8 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
 
           /** Stage every change since the previous snapshot. Returns whether the index moved. */
           const add = Effect.fnUntraced(function* () {
+            // 已经判定过大的目录不再重复列树（见 MAX_FILES）。
+            if (oversized) return false
             yield* sync()
             // One `status` call gives us both modified-tracked and untracked
             // files, halving the process spawns compared to diff-files +
@@ -287,6 +342,13 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
 
             const all = Array.from(new Set([...tracked, ...untracked]))
             if (!all.length) return false
+            if (all.length > MAX_FILES) {
+              // 目录大到不该进快照（家目录 / 巨量生成物）：整个实例放弃快照，
+              // 后续 track() 直接返回 undefined，不再每一步都列一遍树。
+              oversized = true
+              log.warn("snapshot disabled: too many files", { count: all.length, directory: state.directory })
+              return false
+            }
 
             const ignored = yield* ignore(all)
 
@@ -337,7 +399,6 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             tree = undefined
           }
 
-
           const cleanup = Effect.fnUntraced(function* () {
             return yield* locked(
               Effect.gen(function* () {
@@ -373,6 +434,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
                   log.info("initialized")
                 }
                 yield* writeTree()
+                if (oversized) return
                 const hash = tree ?? ""
                 log.info("tracking", { hash, cwd: state.directory, git: state.gitdir })
                 return hash
@@ -791,6 +853,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
 
           const capture = Effect.fn("Snapshot.capture")(function* () {
             if (!(yield* enabled())) return undefined
+            if (oversized) return undefined
             return yield* Effect.gen(function* () {
               const existed = yield* exists(state.gitdir)
               yield* fs.ensureDir(state.gitdir).pipe(Effect.orDie)

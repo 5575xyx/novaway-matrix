@@ -42,16 +42,16 @@
 
 ### 1.1 什么叫“生产级”
 
-| 维度 | 生产级标准 |
-| --- | --- |
-| 功能完整 | 主路径、异常路径、取消路径、恢复路径都能走通 |
+| 维度     | 生产级标准                                                        |
+| -------- | ----------------------------------------------------------------- |
+| 功能完整 | 主路径、异常路径、取消路径、恢复路径都能走通                      |
 | 行为一致 | 同一操作在 TUI / Web / Desktop / SDK 语义一致，不因入口不同而分叉 |
-| 可验证 | 每个关键行为有单测 / 集成测试 / e2e / golden trace，而不是靠手点 |
-| 可观测 | 结构化日志、trace id、turn 级指标、错误分类；默认不外发 |
-| 可恢复 | 进程崩溃、断网、模型 5xx、权限挂起后能恢复或安全失败 |
-| 性能 | 首屏、流式、万行时间线、内存、包体有预算并纳入 CI |
-| 安全 | 路径包含、命令执行、MCP 信任、凭据脱敏、权限审计 |
-| 可维护 | 单一写入口、契约文档、无重复状态源、可回滚迁移 |
+| 可验证   | 每个关键行为有单测 / 集成测试 / e2e / golden trace，而不是靠手点  |
+| 可观测   | 结构化日志、trace id、turn 级指标、错误分类；默认不外发           |
+| 可恢复   | 进程崩溃、断网、模型 5xx、权限挂起后能恢复或安全失败              |
+| 性能     | 首屏、流式、万行时间线、内存、包体有预算并纳入 CI                 |
+| 安全     | 路径包含、命令执行、MCP 信任、凭据脱敏、权限审计                  |
+| 可维护   | 单一写入口、契约文档、无重复状态源、可回滚迁移                    |
 
 ### 1.2 法务与 clean-room
 
@@ -66,58 +66,57 @@
 3. 是否已有 60% 骨架？有，则做“补齐”而不是“新建”。
 4. 是否能用一个测试锁住？不能，则先补契约与观测点。
 
-
 ---
 
 ## 2. 三方基线
 
 ### 2.1 NovaWay 当前基线
 
-| 层 | 现状 | 证据 |
-| --- | --- | --- |
-| 内核 | Effect v4 + Drizzle/SQLite；session / tool / permission / hook / compaction / task / team 均有实现 | `packages/novaway/src/{session,tool,permission,hook,team}` |
-| 工具 | 约 80 个工具目录；`Tool.Capabilities` 已定义 readOnly / concurrencySafe / destructive / maxResultBytes / validateInput / checkPermissions / interrupt / deferLoading | `packages/novaway/src/tool/tool.ts` |
-| 权限 | 4 种模式；规则 last-match；bash arity；plan 白名单；pending Deferred；PermissionDenied hook | `packages/novaway/src/permission/*` |
-| Hooks | 23 个 cc 兼容事件；command / http / prompt / agent 四类 hook；插件桥接 | `packages/novaway/src/hook/schema.ts`、`hook/service.ts` |
-| 压缩 | 自动压缩、预算、保留最近轮次、压缩重试、post-compact 文件回挂 | `packages/novaway/src/session/compaction.ts` |
-| 子 Agent | task / task_status / task_stop / team / mailbox；后台任务与 worktree 隔离 | `packages/novaway/src/tool/agent_task.ts`、`team/*` |
-| 对外接口 | HttpApi 300+ 端点 / 42 组；ACP；headless server；JS SDK | `server/routes/instance/httpapi/groups/*`、`acp/*`、`cli/cmd/serve.ts`、`packages/sdk/js` |
-| 桌面端 | SolidJS + Vite；会话时间线、Side Pane、状态面板、Composer、Git、终端、Office 预览 | `packages/app/src/pages/session/*` |
-| 设计系统 | `text-ui-*` 字号、语义色、A1 卡片、ZCode 风格圆角与面板 | `packages/app/src/index.css`、`utils/workspace-chrome.ts`、`packages/ui` |
-| 测试 | 后端 366 文件；前端 124 文件；Playwright e2e | `packages/novaway/test`、`packages/app` |
+| 层       | 现状                                                                                                                                                                 | 证据                                                                                      |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 内核     | Effect v4 + Drizzle/SQLite；session / tool / permission / hook / compaction / task / team 均有实现                                                                   | `packages/novaway/src/{session,tool,permission,hook,team}`                                |
+| 工具     | 约 80 个工具目录；`Tool.Capabilities` 已定义 readOnly / concurrencySafe / destructive / maxResultBytes / validateInput / checkPermissions / interrupt / deferLoading | `packages/novaway/src/tool/tool.ts`                                                       |
+| 权限     | 4 种模式；规则 last-match；bash arity；plan 白名单；pending Deferred；PermissionDenied hook                                                                          | `packages/novaway/src/permission/*`                                                       |
+| Hooks    | 23 个 cc 兼容事件；command / http / prompt / agent 四类 hook；插件桥接                                                                                               | `packages/novaway/src/hook/schema.ts`、`hook/service.ts`                                  |
+| 压缩     | 自动压缩、预算、保留最近轮次、压缩重试、post-compact 文件回挂                                                                                                        | `packages/novaway/src/session/compaction.ts`                                              |
+| 子 Agent | task / task_status / task_stop / team / mailbox；后台任务与 worktree 隔离                                                                                            | `packages/novaway/src/tool/agent_task.ts`、`team/*`                                       |
+| 对外接口 | HttpApi 300+ 端点 / 42 组；ACP；headless server；JS SDK                                                                                                              | `server/routes/instance/httpapi/groups/*`、`acp/*`、`cli/cmd/serve.ts`、`packages/sdk/js` |
+| 桌面端   | SolidJS + Vite；会话时间线、Side Pane、状态面板、Composer、Git、终端、Office 预览                                                                                    | `packages/app/src/pages/session/*`                                                        |
+| 设计系统 | `text-ui-*` 字号、语义色、A1 卡片、ZCode 风格圆角与面板                                                                                                              | `packages/app/src/index.css`、`utils/workspace-chrome.ts`、`packages/ui`                  |
+| 测试     | 后端 366 文件；前端 124 文件；Playwright e2e                                                                                                                         | `packages/novaway/test`、`packages/app`                                                   |
 
 ### 2.2 cc 内核的强项
 
-| 强项 | 具体表现 | 决策 |
-| --- | --- | --- |
-| 流式工具循环 | 单轮内多 step、流式工具执行、并发只读 / 串行写入、孤儿消息 tombstone | 要 |
-| Tool 契约 | `isConcurrencySafe` / `isReadOnly` / `isDestructive` / `checkPermissions` / `validateInput` / `maxResultSizeChars` / `interruptBehavior` | 要，且要全量落地 |
-| 权限体系 | 模式矩阵、规则来源分层、bash AST 分类、拒绝追踪、shadowed rule、plan 模式、异步审批 | 要 |
-| Hooks | 生命周期完整、可阻断、可改输入、可追加上下文、超时与失败语义清楚 | 已有大半，补强制点 |
-| 压缩 | auto / micro / reactive、compact boundary、预算、后置文件回挂、摘要模板 | 已有大半，补边界与 UI |
-| 子 Agent / 任务 | 父会话、后台任务、邮箱、取消、结果投递、teammate | 已有工具，补统一注册表 |
-| 会话生命周期 | resume / fork / revert / checkpoint / 归档 / 分享 | 已有，补崩溃恢复 |
-| 无头 / SDK | `--print`、stream-json、SDK、ACP、权限回调 | 已有 ACP/SDK，补 headless 等价面 |
-| 错误与重试 | 错误分类、Retry-After、fallback model、thinking block 清理 | 已有骨架，补 fallback 与分类 |
-| 测试 | cassette、golden、权限矩阵、跨平台 | 学方法，不抄实现 |
+| 强项            | 具体表现                                                                                                                                 | 决策                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| 流式工具循环    | 单轮内多 step、流式工具执行、并发只读 / 串行写入、孤儿消息 tombstone                                                                     | 要                               |
+| Tool 契约       | `isConcurrencySafe` / `isReadOnly` / `isDestructive` / `checkPermissions` / `validateInput` / `maxResultSizeChars` / `interruptBehavior` | 要，且要全量落地                 |
+| 权限体系        | 模式矩阵、规则来源分层、bash AST 分类、拒绝追踪、shadowed rule、plan 模式、异步审批                                                      | 要                               |
+| Hooks           | 生命周期完整、可阻断、可改输入、可追加上下文、超时与失败语义清楚                                                                         | 已有大半，补强制点               |
+| 压缩            | auto / micro / reactive、compact boundary、预算、后置文件回挂、摘要模板                                                                  | 已有大半，补边界与 UI            |
+| 子 Agent / 任务 | 父会话、后台任务、邮箱、取消、结果投递、teammate                                                                                         | 已有工具，补统一注册表           |
+| 会话生命周期    | resume / fork / revert / checkpoint / 归档 / 分享                                                                                        | 已有，补崩溃恢复                 |
+| 无头 / SDK      | `--print`、stream-json、SDK、ACP、权限回调                                                                                               | 已有 ACP/SDK，补 headless 等价面 |
+| 错误与重试      | 错误分类、Retry-After、fallback model、thinking block 清理                                                                               | 已有骨架，补 fallback 与分类     |
+| 测试            | cassette、golden、权限矩阵、跨平台                                                                                                       | 学方法，不抄实现                 |
 
 ### 2.3 ZCode 桌面端的强项
 
-| 强项 | 具体表现 | 决策 |
-| --- | --- | --- |
-| 工作区壳层 | 侧栏 + Header + 会话/Browser + 底部终端；4px 可拖拽间隙；自动收起阈值 | 要 |
-| 侧栏信息架构 | workspace → task 两级；projects / grouped / timeline 三视图；running-layer 排序；未读；置顶 / 归档 / 移动 | 要 |
-| Composer | 左模型/思考/用量，右停止/发送；底部模式切换 + CUA + 后台任务；按优先级渐进折叠 | 要 |
-| 时间线 | 行 → 轮次渲染单元；work segment；“已工作 N 秒”折叠；运行/中断/失败强制展开 | 已有 TurnFold，补统一模型 |
-| 工具渲染 | 按工具家族注册渲染器；内联 diff；execute 分组；changes 分组；子 Agent 下钻 | 要 |
-| 状态面板 | 分区、`hasContent`、首次自动展开、todo 聚焦窗口、运行中取消 | 已有，补契约 |
-| Side Pane | tabs + activeTabId；单例 diff；多 Browser；Code Viewer；最近关闭；完整视图 | 部分已有，补 Full View |
-| Command Center | `Cmd+K`；All / Actions / Tasks / Files 范围；最近变更 / 最近任务；`> # @` 前缀 | 要 |
-| 快捷键内核 | IME / repeat 过滤、`event.code`、精确修饰键、录制、冲突检测、可自定义 | 要 |
-| 设计系统 | `text-ui-*` 动态字号、语义 token、圆角层级、4px 间距、克制动效 | 已部分采用，补治理 |
-| 运行时边界 | `workspaceIdentity` vs `workspacePath`；continuous vs replayable；CommandInbox | 要，形成文档与类型 |
-| 设置 IA | 侧栏导航 + 搜索 + 两栏 provider + 分区 | 要 |
-| 性能 | 虚拟滚动、行高缓存、底部钉住、prepend 锚点、滚动记忆 | 已有 virtua，补策略 |
+| 强项           | 具体表现                                                                                                  | 决策                      |
+| -------------- | --------------------------------------------------------------------------------------------------------- | ------------------------- |
+| 工作区壳层     | 侧栏 + Header + 会话/Browser + 底部终端；4px 可拖拽间隙；自动收起阈值                                     | 要                        |
+| 侧栏信息架构   | workspace → task 两级；projects / grouped / timeline 三视图；running-layer 排序；未读；置顶 / 归档 / 移动 | 要                        |
+| Composer       | 左模型/思考/用量，右停止/发送；底部模式切换 + CUA + 后台任务；按优先级渐进折叠                            | 要                        |
+| 时间线         | 行 → 轮次渲染单元；work segment；“已工作 N 秒”折叠；运行/中断/失败强制展开                                | 已有 TurnFold，补统一模型 |
+| 工具渲染       | 按工具家族注册渲染器；内联 diff；execute 分组；changes 分组；子 Agent 下钻                                | 要                        |
+| 状态面板       | 分区、`hasContent`、首次自动展开、todo 聚焦窗口、运行中取消                                               | 已有，补契约              |
+| Side Pane      | tabs + activeTabId；单例 diff；多 Browser；Code Viewer；最近关闭；完整视图                                | 部分已有，补 Full View    |
+| Command Center | `Cmd+K`；All / Actions / Tasks / Files 范围；最近变更 / 最近任务；`> # @` 前缀                            | 要                        |
+| 快捷键内核     | IME / repeat 过滤、`event.code`、精确修饰键、录制、冲突检测、可自定义                                     | 要                        |
+| 设计系统       | `text-ui-*` 动态字号、语义 token、圆角层级、4px 间距、克制动效                                            | 已部分采用，补治理        |
+| 运行时边界     | `workspaceIdentity` vs `workspacePath`；continuous vs replayable；CommandInbox                            | 要，形成文档与类型        |
+| 设置 IA        | 侧栏导航 + 搜索 + 两栏 provider + 分区                                                                    | 要                        |
+| 性能           | 虚拟滚动、行高缓存、底部钉住、prepend 锚点、滚动记忆                                                      | 已有 virtua，补策略       |
 
 ### 2.4 我们的差异化，不能被“对齐”弄丢
 
@@ -129,7 +128,6 @@
 
 > 对齐策略：**内核语义向 cc 收敛，桌面交互向 ZCode 收敛，产品能力保持 NovaWay 自己的路线。** 不把 NovaWay 变成 Claude Code 或 ZCode 的皮肤。
 
-
 ---
 
 ## 3. 优势对比矩阵
@@ -138,40 +136,40 @@
 
 评分：● 强 / ◐ 有但欠闭环 / ○ 缺。
 
-| 能力 | cc | NovaWay | 差距 | 决策 |
-| --- | --- | --- | --- | --- |
-| 流式工具循环 | ● 多 step、并发、tombstone | ◐ `processor.ts` 有流式与 step，但并发策略粗 | 中 | 补齐 |
-| Tool 契约 | ● 字段全、执行器强制 | ◐ 字段全，但仅约 13 个工具文件声明；多数能力未强制 | 大 | P0 |
-| 工具调度 | ● 只读并发 / 写入串行 / 中断行为 | ◐ 只有 read/write 锁；`interrupt` 基本未用 | 大 | P0 |
-| 权限模式 | ● 6 种 + 规则来源 | ◐ 4 种 + last-match | 中 | 补来源与审计 |
-| bash 安全 | ● AST 分类 + arity | ◐ arity + 正则白名单 | 中 | 补 AST / 拒绝追踪 |
-| Hooks | ● 全生命周期 | ● 23 事件 + 四类 hook | 小 | 补强制点与测试 |
-| 压缩 | ● auto/micro/reactive + boundary | ◐ auto + 预算 + 后置文件 | 中 | 补 micro/reactive/boundary |
-| 子 Agent | ● 多种 task + mailbox | ◐ task/team/mailbox 有，缺统一 registry | 中 | P1 |
-| 会话恢复 | ● resume/fork/revert/checkpoint | ◐ 有，崩溃恢复需验证 | 中 | 补测试 |
-| 无头 / SDK | ● print/stream-json/SDK/ACP | ◐ ACP + SDK + serve，缺 `--print` 等价面 | 中 | 补 |
-| 错误 / 重试 | ● 分类 + fallback | ◐ retry 有，fallback 不完整 | 中 | 补 |
-| 可观测 | ● 但含大量远程遥测 | ◐ 本地日志 + span，缺 turn 指标 | 小 | 做本地版 |
-| 测试 | ● cassette/golden | ◐ 单测多，缺 golden turn | 中 | P0 |
+| 能力         | cc                               | NovaWay                                            | 差距 | 决策                       |
+| ------------ | -------------------------------- | -------------------------------------------------- | ---- | -------------------------- |
+| 流式工具循环 | ● 多 step、并发、tombstone       | ◐ `processor.ts` 有流式与 step，但并发策略粗       | 中   | 补齐                       |
+| Tool 契约    | ● 字段全、执行器强制             | ◐ 字段全，但仅约 13 个工具文件声明；多数能力未强制 | 大   | P0                         |
+| 工具调度     | ● 只读并发 / 写入串行 / 中断行为 | ◐ 只有 read/write 锁；`interrupt` 基本未用         | 大   | P0                         |
+| 权限模式     | ● 6 种 + 规则来源                | ◐ 4 种 + last-match                                | 中   | 补来源与审计               |
+| bash 安全    | ● AST 分类 + arity               | ◐ arity + 正则白名单                               | 中   | 补 AST / 拒绝追踪          |
+| Hooks        | ● 全生命周期                     | ● 23 事件 + 四类 hook                              | 小   | 补强制点与测试             |
+| 压缩         | ● auto/micro/reactive + boundary | ◐ auto + 预算 + 后置文件                           | 中   | 补 micro/reactive/boundary |
+| 子 Agent     | ● 多种 task + mailbox            | ◐ task/team/mailbox 有，缺统一 registry            | 中   | P1                         |
+| 会话恢复     | ● resume/fork/revert/checkpoint  | ◐ 有，崩溃恢复需验证                               | 中   | 补测试                     |
+| 无头 / SDK   | ● print/stream-json/SDK/ACP      | ◐ ACP + SDK + serve，缺 `--print` 等价面           | 中   | 补                         |
+| 错误 / 重试  | ● 分类 + fallback                | ◐ retry 有，fallback 不完整                        | 中   | 补                         |
+| 可观测       | ● 但含大量远程遥测               | ◐ 本地日志 + span，缺 turn 指标                    | 小   | 做本地版                   |
+| 测试         | ● cassette/golden                | ◐ 单测多，缺 golden turn                           | 中   | P0                         |
 
 ### 3.2 桌面端对比
 
-| 能力 | ZCode | NovaWay | 差距 | 决策 |
-| --- | --- | --- | --- | --- |
-| 壳层 | ● 三段式 + 可拖拽 + 自动收起 | ◐ 三段式 + ResizeHandle，自动收起不全 | 小 | 补 |
-| 侧栏 | ● 三视图 + running-layer + 未读 + 分页 | ◐ tasks/tree 两视图 + 置顶/归档/重命名 | 中 | P1 |
-| Composer | ● 分区工具条 + 渐进折叠 + 模式菜单 | ◐ 模型/权限/思考/停止/发送已有，折叠策略弱 | 中 | P1 |
-| 时间线 | ● 轮次单元 + work segment + 虚拟滚动 | ◐ TurnFold + virtua + TurnNavigator | 小 | 补统一模型 |
-| 工具渲染 | ● 家族注册表 + 分组 + 内联 diff | ◐ switch + BasicTool + 上下文分组 | 中 | P1 |
-| 状态面板 | ● section 契约 + hasContent + 聚焦 | ◐ 已有 section 与自动展开 | 小 | 补契约 |
-| Side Pane | ● tabs + full view + 最近关闭 | ◐ tabs + 动态 tab + 拖拽；缺 full view | 中 | P1 |
-| Command Center | ● Cmd+K + 范围 + 最近变更 | ◐ 命令/文件/会话混合，默认 `mod+shift+p` | 大 | P0 |
-| 快捷键 | ● 事件码 + IME + 录制 + 冲突 | ◐ `event.key` + 自定义 + 冲突告警弱 | 大 | P0 |
-| 设计系统 | ● token + 字号 + 圆角 + 动效 | ◐ `text-ui-*` 已用，仍有任意值 | 小 | 治理 |
-| 设置 | ● 侧栏 + 搜索 | ◐ Tabs + 卡片网格，无搜索 | 中 | P2 |
-| 运行时边界 | ● 身份/路径/交付模式文档化 | ◐ 有 pathKey/sessionKey，缺统一契约 | 中 | P1 |
-| 性能 | ● 测量缓存 + 钉底 + 锚点 | ◐ virtua + 部分 rAF | 中 | P1 |
-| i18n / a11y | ● 完整 | ◐ 18 locale，键盘/对比度需审计 | 小 | 持续 |
+| 能力           | ZCode                                  | NovaWay                                    | 差距 | 决策       |
+| -------------- | -------------------------------------- | ------------------------------------------ | ---- | ---------- |
+| 壳层           | ● 三段式 + 可拖拽 + 自动收起           | ◐ 三段式 + ResizeHandle，自动收起不全      | 小   | 补         |
+| 侧栏           | ● 三视图 + running-layer + 未读 + 分页 | ◐ tasks/tree 两视图 + 置顶/归档/重命名     | 中   | P1         |
+| Composer       | ● 分区工具条 + 渐进折叠 + 模式菜单     | ◐ 模型/权限/思考/停止/发送已有，折叠策略弱 | 中   | P1         |
+| 时间线         | ● 轮次单元 + work segment + 虚拟滚动   | ◐ TurnFold + virtua + TurnNavigator        | 小   | 补统一模型 |
+| 工具渲染       | ● 家族注册表 + 分组 + 内联 diff        | ◐ switch + BasicTool + 上下文分组          | 中   | P1         |
+| 状态面板       | ● section 契约 + hasContent + 聚焦     | ◐ 已有 section 与自动展开                  | 小   | 补契约     |
+| Side Pane      | ● tabs + full view + 最近关闭          | ◐ tabs + 动态 tab + 拖拽；缺 full view     | 中   | P1         |
+| Command Center | ● Cmd+K + 范围 + 最近变更              | ◐ 命令/文件/会话混合，默认 `mod+shift+p`   | 大   | P0         |
+| 快捷键         | ● 事件码 + IME + 录制 + 冲突           | ◐ `event.key` + 自定义 + 冲突告警弱        | 大   | P0         |
+| 设计系统       | ● token + 字号 + 圆角 + 动效           | ◐ `text-ui-*` 已用，仍有任意值             | 小   | 治理       |
+| 设置           | ● 侧栏 + 搜索                          | ◐ Tabs + 卡片网格，无搜索                  | 中   | P2         |
+| 运行时边界     | ● 身份/路径/交付模式文档化             | ◐ 有 pathKey/sessionKey，缺统一契约        | 中   | P1         |
+| 性能           | ● 测量缓存 + 钉底 + 锚点               | ◐ virtua + 部分 rAF                        | 中   | P1         |
+| i18n / a11y    | ● 完整                                 | ◐ 18 locale，键盘/对比度需审计             | 小   | 持续       |
 
 ### 3.3 两边都不值得照搬的东西
 
@@ -191,7 +189,6 @@
 - 6k 行单组件；保持可维护拆分，但以行为为单位，不以“层数”为单位。
 - 全量 React / Zustand / Radix 技术栈；我们继续 SolidJS。
 - 所有插件 surface、gen-ui、plugin-ui 的完整生态；先做内置能力。
-
 
 ---
 
@@ -273,7 +270,6 @@
 - 调度测试：只读并发、写入串行、破坏性必问。
 - UI 测试：每种 `display.kind` 都有稳定渲染；未知 kind 有 fallback。
 
-
 ---
 
 ### A3. 权限管线：规则来源、拒绝追踪、审计、异步审批
@@ -353,7 +349,6 @@
 - 超时测试：hook 超时后主流程继续或按声明失败，不悬挂。
 - UI 测试：状态条显示 hook 状态，结束后消失。
 
-
 ---
 
 ### A5. 上下文与压缩：边界、microcompact、reactive compact
@@ -422,7 +417,6 @@
 - 级联测试：取消父任务，子任务全部取消。
 - 恢复测试：模拟进程重启，未完成任务标记 `lost`，UI 可读。
 - UI 测试：状态面板能取消运行中的子 Agent。
-
 
 ---
 
@@ -514,7 +508,6 @@
 - 预算测试：超限裁剪顺序正确，关键安全提示不被裁掉。
 - 缓存测试：同一会话连续两轮前缀字节一致（除时间戳等显式变化）。
 
-
 ---
 
 ### A10. 错误分类、重试与 fallback
@@ -601,7 +594,6 @@
 
 - 每个场景至少一条 golden；CI 稳定通过。
 - 故障注入用例可在本地复现并修复。
-
 
 ---
 
@@ -719,7 +711,6 @@
 - 分页测试：每项目 5 条，展开独立。
 - 右键测试：每个动作生效且不误触打开会话。
 - 信任测试：新根目录未确认前不读取文件。
-
 
 ---
 
@@ -845,7 +836,6 @@
 - 单测：每个 kind 的渲染快照。
 - 交互：未知工具 fallback、长输出折叠、diff 展开。
 - 性能：100 个工具调用的时间线渲染 < 200ms 增量。
-
 
 ---
 
@@ -977,7 +967,6 @@
 - 身份测试：同工作区重名任务可独立选中。
 - 性能测试：输入 200ms 内出结果（本地索引）。
 
-
 ---
 
 ### B10. 快捷键内核：事件码、IME、冲突检测、录制
@@ -1094,7 +1083,6 @@
 - Git 测试：暂存 / 提交 / 撤销 / 推送主路径。
 - 安全测试：symlink 越界被拒绝。
 
-
 ---
 
 ### B13. 运行时边界：身份、路径、交付模式、单一写入口
@@ -1207,33 +1195,32 @@
 - 引导测试：只出现一次，可跳过。
 - 空态测试：每个空态有明确 CTA。
 
-
 ---
 
 ## 6. 反向清单：明确不做什么
 
 ### 6.1 不引入 cc 的远程耦合
 
-| 模块 | 为什么不做 |
-| --- | --- |
-| OAuth / 账户 / 组织 / 订阅 | 我们走 provider key / 本地配置，不需要 Anthropic 账户体系 |
-| remote session / teleport / bridge / CCR | 产品不是云端 IDE；桌面端已用 sidecar |
-| Datadog / first-party analytics / GrowthBook / OTEL 外发 | 隐私与合规风险；只做本地可观测 |
-| BigQuery metrics / usage / referral / overage | 无对应商业模型 |
-| official marketplace / plugin autoupdate / release notes 后端 | 我们有自己的扩展与更新机制 |
-| native installer 下载后端 | 走 npm / 桌面安装包 |
-| cc 的品牌、提示词、帮助文案 | 授权不明 + 品牌冲突 |
+| 模块                                                          | 为什么不做                                                |
+| ------------------------------------------------------------- | --------------------------------------------------------- |
+| OAuth / 账户 / 组织 / 订阅                                    | 我们走 provider key / 本地配置，不需要 Anthropic 账户体系 |
+| remote session / teleport / bridge / CCR                      | 产品不是云端 IDE；桌面端已用 sidecar                      |
+| Datadog / first-party analytics / GrowthBook / OTEL 外发      | 隐私与合规风险；只做本地可观测                            |
+| BigQuery metrics / usage / referral / overage                 | 无对应商业模型                                            |
+| official marketplace / plugin autoupdate / release notes 后端 | 我们有自己的扩展与更新机制                                |
+| native installer 下载后端                                     | 走 npm / 桌面安装包                                       |
+| cc 的品牌、提示词、帮助文案                                   | 授权不明 + 品牌冲突                                       |
 
 ### 6.2 不引入 ZCode 的产品面
 
-| 模块 | 为什么不做 |
-| --- | --- |
-| 云端 coding plan / 套餐 / 额度 | 与 NovaWay 商业模式不同 |
+| 模块                                               | 为什么不做                              |
+| -------------------------------------------------- | --------------------------------------- |
+| 云端 coding plan / 套餐 / 额度                     | 与 NovaWay 商业模式不同                 |
 | 手机远控 / remote device / SSH / WSL / Docker 全套 | 先做好本机 + 桌面 Sidecar；远控另立项目 |
-| bot / 社区 / 官方市场 | 不是当前差异化 |
-| 每个功能一份 CONTRACT.md | 只对跨进程 / 跨入口 / 单一写入口建契约 |
-| 6k 行单组件 | 保持可维护拆分 |
-| React / Zustand / Radix 迁移 | 不换技术栈 |
+| bot / 社区 / 官方市场                              | 不是当前差异化                          |
+| 每个功能一份 CONTRACT.md                           | 只对跨进程 / 跨入口 / 单一写入口建契约  |
+| 6k 行单组件                                        | 保持可维护拆分                          |
+| React / Zustand / Radix 迁移                       | 不换技术栈                              |
 
 ### 6.3 不做的“架构表演”
 
@@ -1260,27 +1247,27 @@
 
 ### 7.2 测试门禁
 
-| 层 | 要求 |
-| --- | --- |
-| 单测 | 核心纯函数、状态机、权限矩阵、压缩账本 |
-| 集成 | 会话循环、工具调度、hooks、任务注册表 |
-| golden | 至少 9 条整轮 transcript（见 A12） |
-| e2e | 桌面端启动、发消息、权限、Side Pane、Command Center |
-| 跨平台 | Windows / macOS / Linux 各一条 CI |
-| 迁移 | 旧 DB 升级 + 回滚 |
-| 故障注入 | stream 断、工具超时、DB 失败、kill 进程 |
+| 层       | 要求                                                |
+| -------- | --------------------------------------------------- |
+| 单测     | 核心纯函数、状态机、权限矩阵、压缩账本              |
+| 集成     | 会话循环、工具调度、hooks、任务注册表               |
+| golden   | 至少 9 条整轮 transcript（见 A12）                  |
+| e2e      | 桌面端启动、发消息、权限、Side Pane、Command Center |
+| 跨平台   | Windows / macOS / Linux 各一条 CI                   |
+| 迁移     | 旧 DB 升级 + 回滚                                   |
+| 故障注入 | stream 断、工具超时、DB 失败、kill 进程             |
 
 ### 7.3 性能门禁
 
-| 指标 | 预算 |
-| --- | --- |
-| 首屏可交互 | < 1.5s（本地） |
-| 流式首 token 展示 | < 100ms（收到后） |
-| 时间线 10k 行滚动 | 60fps，无长任务 > 50ms |
-| 工具调用增量渲染 | < 200ms |
-| 命令中心搜索 | < 200ms（本地索引） |
-| 内存 | 1 小时会话增长 < 200MB |
-| 包体 | 桌面安装包不显著回退（相对当前基线） |
+| 指标              | 预算                                 |
+| ----------------- | ------------------------------------ |
+| 首屏可交互        | < 1.5s（本地）                       |
+| 流式首 token 展示 | < 100ms（收到后）                    |
+| 时间线 10k 行滚动 | 60fps，无长任务 > 50ms               |
+| 工具调用增量渲染  | < 200ms                              |
+| 命令中心搜索      | < 200ms（本地索引）                  |
+| 内存              | 1 小时会话增长 < 200MB               |
+| 包体              | 桌面安装包不显著回退（相对当前基线） |
 
 ### 7.4 可靠性门禁
 
@@ -1316,21 +1303,20 @@
 - 空态有说明与 CTA。
 - 错误提示说人话。
 
-
 ---
 
 ## 8. 实施路线图
 
 ### 8.1 阶段划分
 
-| 阶段 | 时间 | 目标 | 交付 |
-| --- | --- | --- | --- |
-| P0 基线 | 第 1–2 周 | 建门禁与证据 | golden harness、权限矩阵骨架、turn trace、性能基线；eval harness 骨架、威胁模型、诊断包骨架、签名 CI |
-| P1 快赢 | 第 3–4 周 | 用户可感知的桌面升级 | Command Center、快捷键内核、Composer 折叠 / 模式菜单、TurnFold 统一、状态面板契约 |
-| P2 内核硬化 | 第 4–6 周 | 工具 / 权限 / hooks 闭环 | Capabilities 全量、调度器、权限来源 / 审计、hook 事件表；凭据迁移、SSRF、untrusted 标记 |
-| P3 上下文与任务 | 第 6–8 周 | 长会话与多 Agent 可用 | micro/reactive compact、Task Registry、崩溃恢复、fallback；迁移回滚 |
-| P4 完整视图与生产化 | 第 8–10 周 | 桌面完整形态 | Side Pane Full View、工具渲染器注册表、设置搜索、e2e / 性能；插件隔离、更新灰度、Office / 发布冒烟 |
-| P5 发布准备 | 第 10–12 周 | 达到 L2、可外发 | 三平台 smoke、迁移 / 回滚演练、诊断包、文档、发布检查表 |
+| 阶段                | 时间        | 目标                     | 交付                                                                                                 |
+| ------------------- | ----------- | ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| P0 基线             | 第 1–2 周   | 建门禁与证据             | golden harness、权限矩阵骨架、turn trace、性能基线；eval harness 骨架、威胁模型、诊断包骨架、签名 CI |
+| P1 快赢             | 第 3–4 周   | 用户可感知的桌面升级     | Command Center、快捷键内核、Composer 折叠 / 模式菜单、TurnFold 统一、状态面板契约                    |
+| P2 内核硬化         | 第 4–6 周   | 工具 / 权限 / hooks 闭环 | Capabilities 全量、调度器、权限来源 / 审计、hook 事件表；凭据迁移、SSRF、untrusted 标记              |
+| P3 上下文与任务     | 第 6–8 周   | 长会话与多 Agent 可用    | micro/reactive compact、Task Registry、崩溃恢复、fallback；迁移回滚                                  |
+| P4 完整视图与生产化 | 第 8–10 周  | 桌面完整形态             | Side Pane Full View、工具渲染器注册表、设置搜索、e2e / 性能；插件隔离、更新灰度、Office / 发布冒烟   |
+| P5 发布准备         | 第 10–12 周 | 达到 L2、可外发          | 三平台 smoke、迁移 / 回滚演练、诊断包、文档、发布检查表                                              |
 
 > 时间按 3 人并行估算。C 类项目的详细拆分见 `docs/production-readiness-gates.md`。
 
@@ -1349,12 +1335,12 @@ P4 e2e / 性能 ─────> P5 发布
 
 ### 8.3 优先级
 
-| 优先级 | 内容 | 理由 |
-| --- | --- | --- |
-| P0 | Capabilities 全量、调度器、权限矩阵、golden、Command Center、快捷键内核 | 直接影响正确性 / 安全 / 可验证性 |
-| P1 | compact 边界、Task Registry、Side Pane Full View、Composer 折叠、Sidebar 三视图 | 用户强感知，且能形成差异化 |
-| P2 | 工具渲染器注册表、设置搜索、文件树 / 终端 / Git 补齐、a11y | 体验完整度 |
-| P3 | headless `--print`、ACP 文档、SDK 示例、性能优化 | 生态与长期维护 |
+| 优先级 | 内容                                                                            | 理由                             |
+| ------ | ------------------------------------------------------------------------------- | -------------------------------- |
+| P0     | Capabilities 全量、调度器、权限矩阵、golden、Command Center、快捷键内核         | 直接影响正确性 / 安全 / 可验证性 |
+| P1     | compact 边界、Task Registry、Side Pane Full View、Composer 折叠、Sidebar 三视图 | 用户强感知，且能形成差异化       |
+| P2     | 工具渲染器注册表、设置搜索、文件树 / 终端 / Git 补齐、a11y                      | 体验完整度                       |
+| P3     | headless `--print`、ACP 文档、SDK 示例、性能优化                                | 生态与长期维护                   |
 
 ### 8.4 人力与排期
 
@@ -1378,7 +1364,6 @@ P4 e2e / 性能 ─────> P5 发布
 - 如果 Command Center 改造成本超过 2 人周，先保留现有混合列表，只加 `Cmd+K` 与范围 tabs。
 - 如果 Side Pane Full View 导致 Browser webview 重建或内存显著上升，先做“放大面板”而不是完整浮层。
 - 如果 microcompact 导致模型回答质量下降，默认关闭，只保留 reactive compact。
-
 
 ### 8.7 前两周冲刺清单
 
@@ -1412,63 +1397,62 @@ P4 e2e / 性能 ─────> P5 发布
 
 ### 9.1 内核
 
-| 能力 | 现有文件 | 目标文件 | 变更 | 测试 |
-| --- | --- | --- | --- | --- |
-| 单轮状态机 | `session/processor.ts`、`session/run-state.ts` | 新增 `session/turn-state.ts` | 抽状态机，接 processor / runner | `test/session/turn-state.test.ts` |
-| 工具调度 | `session/prompt.ts` | 新增 `session/tool-scheduler.ts` | 只读并发 / 写入串行 / interrupt | `test/session/tool-scheduler.test.ts` |
-| Tool 能力 | `tool/tool.ts`、`tool/registry.ts` | `tool/*.ts` | 全量声明 + 启动校验 | `test/tool/capabilities.test.ts` |
-| 工具 display | `tool/tool.ts`、`sdk` schema | `tool/schema.ts`、UI `message-part` | 增加 `display` 元数据 | `test/tool/display.test.ts` |
-| 权限来源 | `permission/index.ts` | 新增 `permission/sources.ts` | 分层规则 + shadowed | `test/permission/sources.test.ts` |
-| 权限审计 | 无 | 新增 `permission/audit.ts` | 本地审计事件 | `test/permission/audit.test.ts` |
-| bash 分类 | `permission/arity.ts`、`permission/plan.ts` | 新增 `permission/bash-classifier.ts` | AST / 分词 / 危险命令 | `test/permission/bash.test.ts` |
-| 审批动作 | `permission/index.ts`、`permission/schema.ts` | `session-permission-dock.tsx` | allow once / always / modify | `test/permission/approval.test.ts` |
-| Hooks 事件 | `hook/schema.ts`、`hook/service.ts` | `session/{prompt,compaction}.ts` | 触发点清单 + 超时 | `test/hook/events.test.ts` |
-| 压缩边界 | `session/compaction.ts`、`message-v2.ts` | `message-timeline.data.ts` | boundary + UI | `test/session/compaction-boundary.test.ts` |
-| microcompact | 无 | `session/compaction.ts` | 裁剪旧工具输出 | `test/session/microcompact.test.ts` |
-| reactive compact | `overflow.ts`、`retry.ts` | `compaction.ts` | overflow → micro → auto | `test/session/reactive-compact.test.ts` |
-| Task Registry | `tool/agent_task.ts`、`background/job.ts` | 新增 `task/registry.ts` | 统一 TaskRecord / 状态机 | `test/task/registry.test.ts` |
-| 崩溃恢复 | `session/projectors.ts`、`storage/db.ts` | `session/recovery.ts` | 扫描 running → interrupted | `test/session/recovery.test.ts` |
-| headless | `cli/cmd/serve.ts`、`run.ts` | `cli/cmd/run.ts` | `--print` / stream-json | `test/cli/print.test.ts` |
-| 错误分类 | `session/retry.ts`、`message-error.ts` | `session/error.ts` | 分类 + fallback | `test/session/error.test.ts` |
-| turn trace | `util/log.ts`、`run/trace.ts` | 新增 `observability/turn-trace.ts` | 本地事件链 | `test/observability/trace.test.ts` |
-| golden | `test/lib/effect.ts` | `test/golden/*` | cassette + diff | CI |
+| 能力             | 现有文件                                       | 目标文件                             | 变更                            | 测试                                       |
+| ---------------- | ---------------------------------------------- | ------------------------------------ | ------------------------------- | ------------------------------------------ |
+| 单轮状态机       | `session/processor.ts`、`session/run-state.ts` | 新增 `session/turn-state.ts`         | 抽状态机，接 processor / runner | `test/session/turn-state.test.ts`          |
+| 工具调度         | `session/prompt.ts`                            | 新增 `session/tool-scheduler.ts`     | 只读并发 / 写入串行 / interrupt | `test/session/tool-scheduler.test.ts`      |
+| Tool 能力        | `tool/tool.ts`、`tool/registry.ts`             | `tool/*.ts`                          | 全量声明 + 启动校验             | `test/tool/capabilities.test.ts`           |
+| 工具 display     | `tool/tool.ts`、`sdk` schema                   | `tool/schema.ts`、UI `message-part`  | 增加 `display` 元数据           | `test/tool/display.test.ts`                |
+| 权限来源         | `permission/index.ts`                          | 新增 `permission/sources.ts`         | 分层规则 + shadowed             | `test/permission/sources.test.ts`          |
+| 权限审计         | 无                                             | 新增 `permission/audit.ts`           | 本地审计事件                    | `test/permission/audit.test.ts`            |
+| bash 分类        | `permission/arity.ts`、`permission/plan.ts`    | 新增 `permission/bash-classifier.ts` | AST / 分词 / 危险命令           | `test/permission/bash.test.ts`             |
+| 审批动作         | `permission/index.ts`、`permission/schema.ts`  | `session-permission-dock.tsx`        | allow once / always / modify    | `test/permission/approval.test.ts`         |
+| Hooks 事件       | `hook/schema.ts`、`hook/service.ts`            | `session/{prompt,compaction}.ts`     | 触发点清单 + 超时               | `test/hook/events.test.ts`                 |
+| 压缩边界         | `session/compaction.ts`、`message-v2.ts`       | `message-timeline.data.ts`           | boundary + UI                   | `test/session/compaction-boundary.test.ts` |
+| microcompact     | 无                                             | `session/compaction.ts`              | 裁剪旧工具输出                  | `test/session/microcompact.test.ts`        |
+| reactive compact | `overflow.ts`、`retry.ts`                      | `compaction.ts`                      | overflow → micro → auto         | `test/session/reactive-compact.test.ts`    |
+| Task Registry    | `tool/agent_task.ts`、`background/job.ts`      | 新增 `task/registry.ts`              | 统一 TaskRecord / 状态机        | `test/task/registry.test.ts`               |
+| 崩溃恢复         | `session/projectors.ts`、`storage/db.ts`       | `session/recovery.ts`                | 扫描 running → interrupted      | `test/session/recovery.test.ts`            |
+| headless         | `cli/cmd/serve.ts`、`run.ts`                   | `cli/cmd/run.ts`                     | `--print` / stream-json         | `test/cli/print.test.ts`                   |
+| 错误分类         | `session/retry.ts`、`message-error.ts`         | `session/error.ts`                   | 分类 + fallback                 | `test/session/error.test.ts`               |
+| turn trace       | `util/log.ts`、`run/trace.ts`                  | 新增 `observability/turn-trace.ts`   | 本地事件链                      | `test/observability/trace.test.ts`         |
+| golden           | `test/lib/effect.ts`                           | `test/golden/*`                      | cassette + diff                 | CI                                         |
 
 ### 9.2 桌面端
 
-| 能力 | 现有文件 | 目标文件 | 变更 | 测试 |
-| --- | --- | --- | --- | --- |
-| token 治理 | `app/src/index.css`、`ui/components/*` | `ui/theme/*` | 统一 token / 圆角 / 间距 | Storybook 截图 |
-| 壳层 | `pages/layout.tsx`、`session.tsx` | `layout.tsx`、`resize-handle.tsx` | 自动收起 / 键盘拖拽 | Playwright |
-| 侧栏三视图 | `sidebar-tasks.tsx`、`sidebar-items.tsx` | `context/layout.tsx` | projects / grouped / timeline | 单测 + e2e |
-| Task row | `components/session/task-row.tsx` | 同左 | 工作流活动 / 未读 / 右键 | 单测 |
-| Composer | `components/prompt-input.tsx` | `prompt-input/*` | 折叠 / 模式菜单 / 占位符 | 交互测试 |
-| 时间线 | `message-timeline.data.ts`、`message-timeline.tsx` | 同左 | turn unit / work segment | 单测 + 性能 |
-| 工具渲染 | `ui/components/message-part.tsx` | 新增 `ui/components/tool-renderers/*` | 注册表 + fallback | 快照 |
-| 状态面板 | `status-panel/*` | 同左 | section 契约 / todo 聚焦 | 单测 |
-| Side Pane | `session-side-panel.tsx` | 新增 `side-pane-full-view.tsx` | full view / 最近关闭 | e2e |
-| Command Center | `dialog-select-file.tsx` | 同左 + `context/command.tsx` | Cmd+K / 范围 / 最近变更 | 单测 + e2e |
-| 快捷键 | `context/command.tsx` | 新增 `context/keybind/*` | 事件码 / IME / 冲突 | 单测 |
-| 设置 | `dialog-settings.tsx` | `settings-*.tsx` | 侧栏 + 搜索 | e2e |
-| 文件树 | `sidebar-files.tsx` | 同左 | Git 状态 / 搜索 worker | 性能 |
-| 终端 | `terminal-panel.tsx` | 同左 | workspace 保活 | e2e |
-| Git | `git-panel.tsx`、`git-graph.tsx` | 同左 | 自动刷新 / 分支 | e2e |
-| 运行时边界 | `context/layout.tsx` | 新增 `docs/runtime-boundaries.md` | 身份 / owner / 交付 | 单测 |
-| i18n / a11y | `i18n/*`、`components/*` | 同左 | 长文案 / 键盘 / 对比度 | axe + e2e |
-
+| 能力           | 现有文件                                           | 目标文件                              | 变更                          | 测试           |
+| -------------- | -------------------------------------------------- | ------------------------------------- | ----------------------------- | -------------- |
+| token 治理     | `app/src/index.css`、`ui/components/*`             | `ui/theme/*`                          | 统一 token / 圆角 / 间距      | Storybook 截图 |
+| 壳层           | `pages/layout.tsx`、`session.tsx`                  | `layout.tsx`、`resize-handle.tsx`     | 自动收起 / 键盘拖拽           | Playwright     |
+| 侧栏三视图     | `sidebar-tasks.tsx`、`sidebar-items.tsx`           | `context/layout.tsx`                  | projects / grouped / timeline | 单测 + e2e     |
+| Task row       | `components/session/task-row.tsx`                  | 同左                                  | 工作流活动 / 未读 / 右键      | 单测           |
+| Composer       | `components/prompt-input.tsx`                      | `prompt-input/*`                      | 折叠 / 模式菜单 / 占位符      | 交互测试       |
+| 时间线         | `message-timeline.data.ts`、`message-timeline.tsx` | 同左                                  | turn unit / work segment      | 单测 + 性能    |
+| 工具渲染       | `ui/components/message-part.tsx`                   | 新增 `ui/components/tool-renderers/*` | 注册表 + fallback             | 快照           |
+| 状态面板       | `status-panel/*`                                   | 同左                                  | section 契约 / todo 聚焦      | 单测           |
+| Side Pane      | `session-side-panel.tsx`                           | 新增 `side-pane-full-view.tsx`        | full view / 最近关闭          | e2e            |
+| Command Center | `dialog-select-file.tsx`                           | 同左 + `context/command.tsx`          | Cmd+K / 范围 / 最近变更       | 单测 + e2e     |
+| 快捷键         | `context/command.tsx`                              | 新增 `context/keybind/*`              | 事件码 / IME / 冲突           | 单测           |
+| 设置           | `dialog-settings.tsx`                              | `settings-*.tsx`                      | 侧栏 + 搜索                   | e2e            |
+| 文件树         | `sidebar-files.tsx`                                | 同左                                  | Git 状态 / 搜索 worker        | 性能           |
+| 终端           | `terminal-panel.tsx`                               | 同左                                  | workspace 保活                | e2e            |
+| Git            | `git-panel.tsx`、`git-graph.tsx`                   | 同左                                  | 自动刷新 / 分支               | e2e            |
+| 运行时边界     | `context/layout.tsx`                               | 新增 `docs/runtime-boundaries.md`     | 身份 / owner / 交付           | 单测           |
+| i18n / a11y    | `i18n/*`、`components/*`                           | 同左                                  | 长文案 / 键盘 / 对比度        | axe + e2e      |
 
 ---
 
 ## 10. 新增 ADR
 
-| ADR | 决策 | 理由 |
-| --- | --- | --- |
-| ADR-011 | cc 按 clean-room 行为规格吸收，不复制源码 / 提示词 / 常量 | 授权不明确；避免法律与维护风险 |
-| ADR-012 | `Tool.Capabilities` 是执行器与 UI 的共同契约 | 单一事实源；避免工具名 switch 分叉 |
-| ADR-013 | 桌面端只通过语义 token 与 `@novaway/ui` 原语写 UI | 主题 / 字号 / 平台一致性 |
-| ADR-014 | 每个会话单一 runner；跨入口共享 `WorkspaceKey` 与 owner 规则 | 避免并发写与状态串台 |
-| ADR-015 | 只做本地可观测，不引入远程遥测 | 隐私 / 合规 / 产品定位 |
-| ADR-016 | TaskRegistry 是子 Agent / 后台任务 / 终端任务的唯一状态源 | 避免三套状态与 UI 适配分裂 |
-| ADR-017 | 不做 Rust 全量重写，按需评估内核局部替换 | 见 `docs/rust-rewrite-assessment.md` |
+| ADR     | 决策                                                         | 理由                                 |
+| ------- | ------------------------------------------------------------ | ------------------------------------ |
+| ADR-011 | cc 按 clean-room 行为规格吸收，不复制源码 / 提示词 / 常量    | 授权不明确；避免法律与维护风险       |
+| ADR-012 | `Tool.Capabilities` 是执行器与 UI 的共同契约                 | 单一事实源；避免工具名 switch 分叉   |
+| ADR-013 | 桌面端只通过语义 token 与 `@novaway/ui` 原语写 UI            | 主题 / 字号 / 平台一致性             |
+| ADR-014 | 每个会话单一 runner；跨入口共享 `WorkspaceKey` 与 owner 规则 | 避免并发写与状态串台                 |
+| ADR-015 | 只做本地可观测，不引入远程遥测                               | 隐私 / 合规 / 产品定位               |
+| ADR-016 | TaskRegistry 是子 Agent / 后台任务 / 终端任务的唯一状态源    | 避免三套状态与 UI 适配分裂           |
+| ADR-017 | 不做 Rust 全量重写，按需评估内核局部替换                     | 见 `docs/rust-rewrite-assessment.md` |
 
 ---
 
@@ -1589,34 +1573,33 @@ NovaWay 已经具备“生产级 Agent”的大部分骨架，缺的不是大件
 
 完整内容见 **`docs/production-readiness-gates.md`**。这里只放索引，避免两份文档重复。
 
-| 编号 | 类别 | 核心问题 | 现状（证据） | 人周 |
-| --- | --- | --- | --- | --- |
-| C1 | Agent eval | 模型在真实任务上的成功率、工具准确率、成本没有度量 | 只有 RAG / 记忆 eval；无任务级 eval | 3–5 |
-| C2 | 安全 | 凭据、注入、插件、SSRF、MCP | `auth.json` 明文 0600；插件 in-process；webfetch 无 SSRF 防护；无 untrusted 标记 | 5–8 |
-| C3 | 分发 | 签名、更新校验、灰度、回滚、安装恢复 | `verifyUpdateCodeSignature: false`；`allowDowngrade: true`；无灰度 / 回滚 | 3–5 |
-| C4 | 诊断 | 出了事能不能查 | 有日志 / export / debug，但无统一诊断包与反馈入口 | 2–3 |
-| C5 | 差异化管道 | Office、发布、OCR、知识库可靠性 | 能跑；缺模板矩阵、幂等发布、压测 | 4–6 |
-| C6 | 数据耐久 | 迁移、备份、多实例、保留 | 36 个迁移无 down；无自动备份；多实例未限制 | 3–4 |
-| C7 | 多入口运维 | TUI / CLI / SDK / ACP / Web / Desktop 一致性 | TUI 139 测试文件；缺能力矩阵与六入口 smoke | 2–3 |
+| 编号 | 类别       | 核心问题                                           | 现状（证据）                                                                     | 人周 |
+| ---- | ---------- | -------------------------------------------------- | -------------------------------------------------------------------------------- | ---- |
+| C1   | Agent eval | 模型在真实任务上的成功率、工具准确率、成本没有度量 | 只有 RAG / 记忆 eval；无任务级 eval                                              | 3–5  |
+| C2   | 安全       | 凭据、注入、插件、SSRF、MCP                        | `auth.json` 明文 0600；插件 in-process；webfetch 无 SSRF 防护；无 untrusted 标记 | 5–8  |
+| C3   | 分发       | 签名、更新校验、灰度、回滚、安装恢复               | `verifyUpdateCodeSignature: false`；`allowDowngrade: true`；无灰度 / 回滚        | 3–5  |
+| C4   | 诊断       | 出了事能不能查                                     | 有日志 / export / debug，但无统一诊断包与反馈入口                                | 2–3  |
+| C5   | 差异化管道 | Office、发布、OCR、知识库可靠性                    | 能跑；缺模板矩阵、幂等发布、压测                                                 | 4–6  |
+| C6   | 数据耐久   | 迁移、备份、多实例、保留                           | 36 个迁移无 down；无自动备份；多实例未限制                                       | 3–4  |
+| C7   | 多入口运维 | TUI / CLI / SDK / ACP / Web / Desktop 一致性       | TUI 139 测试文件；缺能力矩阵与六入口 smoke                                       | 2–3  |
 
 ### 14.1 发布分级
 
-| 级别 | 含义 | 需要 | 累计人周（A/B + C） |
-| --- | --- | --- | --- |
-| L1 | 内部日用 | A/B 的 P0/P1 + C1 基线 + C4 日志 | 6–9 |
-| L2 | 100 人内测 | + C1 3 provider、C2 凭据 / SSRF / MCP、C3 Windows 签名、C4 诊断包、C6 迁移演练 | 20–28 |
-| L3 | 公开测试 | + C2 插件隔离 / 注入、C3 公证 / 灰度 / 回滚、C5 模板矩阵 / 平台 e2e、C7 三平台 CI | 42–58 |
-| L4 | 商业 GA | + 50 条 eval、外部渗透、在线迁移、支持流程、SBOM | 62–87 |
+| 级别 | 含义       | 需要                                                                              | 累计人周（A/B + C） |
+| ---- | ---------- | --------------------------------------------------------------------------------- | ------------------- |
+| L1   | 内部日用   | A/B 的 P0/P1 + C1 基线 + C4 日志                                                  | 6–9                 |
+| L2   | 100 人内测 | + C1 3 provider、C2 凭据 / SSRF / MCP、C3 Windows 签名、C4 诊断包、C6 迁移演练    | 20–28               |
+| L3   | 公开测试   | + C2 插件隔离 / 注入、C3 公证 / 灰度 / 回滚、C5 模板矩阵 / 平台 e2e、C7 三平台 CI | 42–58               |
+| L4   | 商业 GA    | + 50 条 eval、外部渗透、在线迁移、支持流程、SBOM                                  | 62–87               |
 
 ### 14.2 对原路线图的修正
 
-| 原阶段 | 修正 |
-| --- | --- |
-| P0 基线 | 增加 eval harness 骨架、威胁模型、诊断包骨架、签名 CI |
-| P2 内核硬化 | 增加凭据迁移、SSRF、untrusted 标记 |
-| P3 上下文与任务 | 增加迁移回滚、崩溃恢复 |
-| P4 生产化 | 增加插件隔离、更新灰度、Office / 发布冒烟 |
-| P5 发布 | 增加三平台构建、发布检查表、支持流程 |
+| 原阶段          | 修正                                                  |
+| --------------- | ----------------------------------------------------- |
+| P0 基线         | 增加 eval harness 骨架、威胁模型、诊断包骨架、签名 CI |
+| P2 内核硬化     | 增加凭据迁移、SSRF、untrusted 标记                    |
+| P3 上下文与任务 | 增加迁移回滚、崩溃恢复                                |
+| P4 生产化       | 增加插件隔离、更新灰度、Office / 发布冒烟             |
+| P5 发布         | 增加三平台构建、发布检查表、支持流程                  |
 
 结论重述：**A/B 完成 ≈ L1；C1–C7 完成 ≈ L3；L4 需再一轮以稳定性与支持为中心的迭代。**
-

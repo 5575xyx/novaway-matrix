@@ -26,7 +26,16 @@ export function classifyError(message: string, name?: string): ErrorKind {
   }
   if (/overload|503|502|500|upstream|service unavailable|server_error/.test(haystack)) return "upstream"
   if (/model.*not found|no such model|unknown model/.test(haystack)) return "model"
-  if (/fetch failed|econnrefused|econnreset|etimedout|network|socket hang up|dns/.test(haystack)) return "network"
+  // 连接/流被掐断:上游代理超时、socket 被重置、SSE 中途 EOF。
+  // 这类错误在别的 agent 里通常表现为"自动重连",所以归到 network 而不是 unknown ——
+  // 用户看到的是"连不上模型服务,检查网络/代理",比"出了点问题"有用得多。
+  if (
+    /fetch failed|econnrefused|econnreset|etimedout|network|socket hang up|dns|unexpected eof|premature close|other side closed|connection (reset|closed)|stream (ended|closed|reset)|timed out|timeout/.test(
+      haystack,
+    )
+  ) {
+    return "network"
+  }
   if (/context.*(length|window)|too long|token.*limit/.test(haystack)) return "context"
   return "unknown"
 }

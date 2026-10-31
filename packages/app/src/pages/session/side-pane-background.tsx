@@ -107,11 +107,7 @@ export function SidePaneBackgroundOutput(props: { tab: SidePaneSessionTab }) {
               {language.t(statusKey(current().status))}
             </span>
           </div>
-          <div
-            ref={(el) => (viewport = el)}
-            class="flex-1 min-h-0 overflow-y-auto"
-            onScroll={handleScroll}
-          >
+          <div ref={(el) => (viewport = el)} class="flex-1 min-h-0 overflow-y-auto" onScroll={handleScroll}>
             <pre class="whitespace-pre-wrap break-words px-3 py-2 font-mono text-ui-xs leading-5 text-foreground-subtle">
               <Show when={outputTail().truncated}>
                 <span class="text-foreground-subtlest">

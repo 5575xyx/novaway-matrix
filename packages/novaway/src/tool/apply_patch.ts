@@ -33,8 +33,7 @@ export const ApplyPatchTool = Tool.define(
     const bus = yield* Bus.Service
     const readState = yield* ReadState.Service
 
-    const mtimeOf = (info: { mtime: Option.Option<Date> }) =>
-      Option.getOrElse(info.mtime, () => new Date(0)).getTime()
+    const mtimeOf = (info: { mtime: Option.Option<Date> }) => Option.getOrElse(info.mtime, () => new Date(0)).getTime()
 
     const run = Effect.fn("ApplyPatchTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,

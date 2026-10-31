@@ -1,6 +1,7 @@
 import { Config } from "@/config/config"
 import type { ConfigMCP } from "@/config/mcp"
 import { MCP } from "@/mcp"
+import { planLocalCommandForHost } from "@/mcp/runtime"
 import { formatSetupReport, setupFailure, type SetupReport, type SetupStepView } from "@/setup/report"
 import { which } from "@/util/which"
 import { Effect, Schema } from "effect"
@@ -56,7 +57,11 @@ export function localCommandProblem(entry: ConfigMCP.Info) {
   if (entry.type !== "local") return undefined
   const [cmd, ...rest] = entry.command
   if (!cmd) return "配置里没有 command"
-  if (!which(cmd)) return "找不到可执行文件 " + cmd + "（可能没装或不在 PATH）"
+  // 先按宿主实际解析：npx/npm/node/uvx 缺失时可能由内置运行时补上，
+  // 这种情况不算问题，否则诊断会把能连上的服务器报成「找不到命令」。
+  const planned = planLocalCommandForHost(entry.command)
+  if ("error" in planned) return planned.error
+  if (!which(cmd) && !planned.fallback) return "找不到可执行文件 " + cmd + "（可能没装或不在 PATH）"
   if ((cmd === "npx" || cmd === "bunx") && rest.length === 0) return "npx/bunx 后面缺少包名"
   return undefined
 }
@@ -195,7 +200,7 @@ export const McpSetupTool = Tool.define(
                   error:
                     status && "error" in status
                       ? status.error
-                      : (result as { status?: string } | undefined)?.status ?? (status?.status ?? "unknown"),
+                      : ((result as { status?: string } | undefined)?.status ?? status?.status ?? "unknown"),
                   next: "在打开的浏览器页面完成授权后重试；若浏览器未打开，把 status 输出里的授权链接交给用户手动打开。",
                 }),
               )

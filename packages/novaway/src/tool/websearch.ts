@@ -66,14 +66,15 @@ export function webSearchModelName(extra: Tool.Context["extra"]) {
  * whereas passing include/exclude arrays only works on one of them — and an
  * unknown argument makes the MCP call fail instead of filtering.
  */
-export function applyDomainFilters(
-  query: string,
-  allowed?: readonly string[],
-  blocked?: readonly string[],
-) {
+export function applyDomainFilters(query: string, allowed?: readonly string[], blocked?: readonly string[]) {
   const clean = (values?: readonly string[]) =>
     (values ?? [])
-      .map((value) => value.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, ""))
+      .map((value) =>
+        value
+          .trim()
+          .replace(/^https?:\/\//i, "")
+          .replace(/\/.*$/, ""),
+      )
       .filter((value) => value.length > 0)
   const only = clean(allowed)
   const never = clean(blocked)

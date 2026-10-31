@@ -39,9 +39,7 @@ export function SessionInterruptedBar() {
     const messages = sync.data.message[id] ?? []
     const user = messages.findLast((message) => message.role === "user")
     if (!user) return
-    const attempts = messages.filter(
-      (message) => message.role === "assistant" && message.parentID === user.id,
-    )
+    const attempts = messages.filter((message) => message.role === "assistant" && message.parentID === user.id)
     const last = attempts.at(-1)
     if (!last || last.role !== "assistant") return
     // 用户主动停止：这是用户的决定，不给「继续」。
@@ -134,7 +132,12 @@ export function SessionInterruptedBar() {
             <Icon name="copy" size="small" />
           </button>
         </Show>
-        <Tooltip value={language.t("session.error.resume.tooltip")} placement="top" gutter={6} class="relative z-10 shrink-0">
+        <Tooltip
+          value={language.t("session.error.resume.tooltip")}
+          placement="top"
+          gutter={6}
+          class="relative z-10 shrink-0"
+        >
           <Button
             variant="secondary"
             size="small"

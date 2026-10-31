@@ -14,6 +14,7 @@ import { PublicApi } from "./routes/instance/httpapi/public"
 import type { CorsOptions } from "./cors"
 import { lazy } from "@/util/lazy"
 import { waitForGitPluginRefresh } from "@/plugin/shared"
+import { startProvisioning } from "@/extension/provision"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -75,6 +76,9 @@ export let url: URL
 
 export async function listen(opts: ListenOptions): Promise<Listener> {
   const listener = await Effect.runPromise(listenEffect(opts))
+  // 内置扩展（ppt-master 等）在监听之后后台装：联网即可用，不阻塞首屏。
+  // 测试与离线部署用 NOVAWAY_DISABLE_AUTOPROVISION=1 关掉（见 test/preload.ts）。
+  void startProvisioning()
   return {
     hostname: listener.hostname,
     port: listener.port,

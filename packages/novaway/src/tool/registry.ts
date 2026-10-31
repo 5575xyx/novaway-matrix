@@ -32,6 +32,7 @@ import { InstallationDoctorTool } from "./installation-doctor"
 import { McpSetupTool } from "./mcp-setup"
 import { ListMcpResourcesTool, ReadMcpResourceTool } from "./mcp-resources"
 import { SkillInstallTool } from "./skill-install"
+import { SkillPythonTool } from "./skill-python"
 import { PluginInstallTool } from "./plugin-install"
 import { ProviderSetupTool } from "./provider-setup"
 import { LspSetupTool } from "./lsp-setup"
@@ -341,6 +342,11 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
     readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "install",
     concurrencySafe: false,
   },
+  // 准备环境会跑 pip：既不是只读，也不适合和别的工具并发。
+  skill_python: {
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "prepare",
+    concurrencySafe: false,
+  },
   plugin_install: {
     readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action === "status",
     concurrencySafe: false,
@@ -510,6 +516,7 @@ export const layer: Layer.Layer<
       Effect.flatMap((effect) => effect),
     )
     const skillInstall = yield* SkillInstallTool
+    const skillPython = yield* SkillPythonTool
     const pluginInstall = yield* PluginInstallTool
     const tempFilesTool = yield* TempFilesTool
     const verifyTool = yield* VerifyTool
@@ -723,6 +730,7 @@ export const layer: Layer.Layer<
           // 这里把它当作无依赖工具注册。
           office_setup: Tool.init(officeSetup as any),
           skill_install: Tool.init(skillInstall),
+          skill_python: Tool.init(skillPython),
           plugin_install: Tool.init(pluginInstall),
           cleanup_temp_files: Tool.init(tempFilesTool),
           run_verification: Tool.init(verifyTool),
@@ -846,6 +854,7 @@ export const layer: Layer.Layer<
           tool.provider_setup,
           tool.office_setup,
           tool.skill_install,
+          tool.skill_python,
           tool.plugin_install,
           tool.cleanup_temp_files,
           tool.run_verification,

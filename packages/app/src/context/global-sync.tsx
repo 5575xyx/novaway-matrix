@@ -435,6 +435,15 @@ function createGlobalSync() {
 
   const projectApi = {
     loadSessions,
+    /**
+     * 重新拉一次项目元数据（`bootstrap` 是 `data.project` 的唯一来源）。
+     *
+     * Git 初始化之类的操作会改掉 project.vcs，但服务端只广播 `project.updated` 里那一条
+     * 项目记录 —— 侧栏读的是「按目录匹配到的项目元数据」，需要整体刷新才会跟着变。
+     */
+    refresh() {
+      bootstrap.refetch()
+    },
     meta(directory: string, patch: ProjectMeta) {
       children.projectMeta(directory, patch)
     },

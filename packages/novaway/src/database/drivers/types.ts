@@ -25,6 +25,8 @@ export type ResolvedConnection = {
     | "clickhouse"
     | "starrocks"
     | "doris"
+    | "sqlserver"
+    | "oracle"
   host?: string
   port?: number
   database?: string

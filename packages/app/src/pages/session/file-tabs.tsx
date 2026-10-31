@@ -1046,10 +1046,14 @@ export function FileTabContent(props: { tab: string }) {
                 渲染器被塞进 diff 的数据，pierre 内部拿到 undefined 就崩
                 （`setLineAnnotations` 读 undefined 的索引）。
                 用 keyed 的 `<Show>`：模式变了就销毁重建，内容变化则原样保留（不丢滚动位置）。
+
+                key 里带上「左右/上下」的排布：pierre 的渲染器实例在创建时就按
+                `diffStyle` 定好了行结构，只更新 prop 有一部分版本不会重排，
+                表现就是点了「上下」界面纹丝不动。进 key 保证切换一定重建。
               */}
-              <Show when={showDiff() && diff() ? "diff" : "file"} keyed>
+              <Show when={showDiff() && diff() ? `diff:${sessionDiff.style()}` : "file"} keyed>
                 {(mode) =>
-                  mode === "diff" && diff() ? (
+                  mode !== "file" && diff() ? (
                     renderDiff(diff()!)
                   ) : (
                     <Switch>

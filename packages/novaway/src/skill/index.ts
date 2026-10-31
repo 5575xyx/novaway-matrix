@@ -33,6 +33,7 @@ import XIAOHONGSHU_OPS_BODY from "./prompt/xiaohongshu-ops/SKILL.md" with { type
 import { isRecord } from "@/util/record"
 import { ensureSkillExtracted } from "./skill-assets"
 import * as ExtensionLoader from "@/extension/loader"
+import * as Generation from "@/extension/generation"
 import { contributions as extensionContributions } from "@/extension/schema"
 
 const log = Log.create({ service: "skill" })
@@ -219,6 +220,8 @@ export const NameMismatchError = NamedError.create("SkillNameMismatchError", {
 type State = {
   skills: Record<string, Info>
   dirs: Set<string>
+  /** 加载时扩展目录的代数，见 `@/extension/generation`。 */
+  revision: number
 }
 
 type DiscoveryState = {
@@ -468,7 +471,7 @@ export const layer = Layer.effect(
     )
     const state = yield* InstanceState.make(
       Effect.fn("Skill.state")(function* () {
-        const s: State = { skills: {}, dirs: new Set() }
+        const s: State = { skills: {}, dirs: new Set(), revision: Generation.current() }
         // Register the built-in skill BEFORE disk discovery so a user-disk
         // skill with the same name can override it.
         for (const skill of BUILT_IN_SKILLS) {
@@ -487,23 +490,39 @@ export const layer = Layer.effect(
       return new Set(cfg.skills?.disabled ?? [])
     })
 
+    /**
+     * 后台自动安装扩展（`@/extension/provision`）完成后，磁盘上多了新技能，
+     * 但这个实例可能已经缓存过旧快照。代数变了就整体作废重扫，别让用户
+     * 装完 ppt-master 还要重启才能用。
+     */
+    const refreshIfStale = Effect.fnUntraced(function* () {
+      const s = yield* InstanceState.get(state)
+      if (s.revision === Generation.current()) return
+      yield* InstanceState.invalidate(discovered)
+      yield* InstanceState.invalidate(state)
+    })
+
     const get = Effect.fn("Skill.get")(function* (name: string) {
+      yield* refreshIfStale()
       const s = yield* InstanceState.get(state)
       if (yield* Effect.map(disabledNames(), (names) => names.has(name))) return undefined
       return s.skills[name]
     })
 
     const all = Effect.fn("Skill.all")(function* () {
+      yield* refreshIfStale()
       const s = yield* InstanceState.get(state)
       const disabled = yield* disabledNames()
       return Object.values(s.skills).filter((skill) => !disabled.has(skill.name))
     })
 
     const dirs = Effect.fn("Skill.dirs")(function* () {
+      yield* refreshIfStale()
       return (yield* InstanceState.get(discovered)).dirs
     })
 
     const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info, activatedPaths?: string[]) {
+      yield* refreshIfStale()
       const s = yield* InstanceState.get(state)
       const disabled = yield* disabledNames()
       let list = Object.values(s.skills)

@@ -1,15 +1,17 @@
-控制隔离浏览器进行导航、页面快照、交互、截图与诊断。
+控制无窗口浏览器（本机 Chrome/Edge）进行导航、页面快照、交互、截图与诊断。
 
-使用顺序建议：
-1. browser_navigate 打开目标 URL
-2. browser_snapshot 获取页面结构
-3. 用最近一次快照返回的 snapshot ref 执行 click/fill/press
-4. browser_screenshot 保存证据
-5. 需要时读取 console/network/accessibility
-6. browser_close 释放浏览器上下文
+核心顺序：navigate → snapshot（读结构/找元素）→ click/fill/press → snapshot 确认状态
+→ 需要看画面时 screenshot → close。
+
+验证纪律：
+- snapshot 是主要观察手段；只有要判断布局/样式/渲染、用户要求截图、或目标是 canvas
+  这类 snapshot 看不到的内容时才截图
+- 不要在同一个回合里既 snapshot 又 screenshot（多花 token，也重复）
+- 一个验证点最多 1 张截图；截图是证据，不是操作日志
+- 只验证本次对话改动涉及的页面与功能，不做全站全量回归
 
 约束：
-- 允许 http/https 与本地 file://（绝对路径也可）。验证刚生成的 HTML 时直接用 file://，不必先起 dev server；需要真实服务（接口/路由）时才起本地端口再访问 http://127.0.0.1:<port>
-- 导航到的本地地址会同步到应用右侧的内置浏览器预览，用户能直接看到正在验证的页面
-- 未配置 POWERSNEXUS_BROWSER_CDP_URL 时，需 POWERSNEXUS_BROWSER_ALLOW_LAUNCH=1 才可启动隔离浏览器
-- 截图写入当前 Worktree 的 .novaway/powersnexus/evidence/browser/
+- 允许 http/https 与本地 file://（绝对路径也可）。验证刚生成的 HTML 直接用 file://，不必先起 dev server
+- 导航到的本地地址会同步到应用右侧的内置浏览器预览
+- 默认使用本机已安装的 Chrome/Edge 以无窗口方式启动（无需环境变量）；想让工具连你自己开着的浏览器时，设置 BROWSER_CDP_URL
+- 截图写入当前 Worktree 的 .novaway/browser/evidence/，并作为验证结果直接显示在回复末尾

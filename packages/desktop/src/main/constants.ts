@@ -12,7 +12,4 @@ export const CHANNEL: Channel = resolveChannel(import.meta.env.NOVAWAY_CHANNEL)
 export const SETTINGS_STORE = "novaway.settings"
 export const DEFAULT_SERVER_URL_KEY = "defaultServerUrl"
 export const WSL_ENABLED_KEY = "wslEnabled"
-export const PET_VISIBLE_KEY = "petVisible"
-/** 悬浮窗(宠物/助手球)与悬浮面板暂时整体下线:不创建窗口、忽略显示请求。 */
-export const FLOATING_WIDGET_ENABLED = false
 export const UPDATER_ENABLED = app.isPackaged && CHANNEL !== "dev"

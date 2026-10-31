@@ -147,6 +147,9 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     const [state, setState] = createStore({
       active: props.defaultServer,
       healthy: undefined as boolean | undefined,
+      // 服务端版本：开发构建里形如 `0.0.0-<分支名>-<时间戳>`。
+      // 界面用它判断"当前跑的是分支构建"，从而提示分支独立会话库（见 utils/session-library）。
+      version: undefined as string | undefined,
     })
 
     const healthy = () => state.healthy
@@ -158,10 +161,11 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       const run = () => {
         if (busy) return
         busy = true
-        void check(conn)
+        void checkServerHealth(conn.http)
           .then((next) => {
             if (!alive) return
-            setState("healthy", next)
+            setState("healthy", next.healthy)
+            setState("version", next.version)
           })
           .finally(() => {
             busy = false
@@ -209,8 +213,6 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
 
     const isReady = createMemo(() => ready() && !!state.active)
 
-    const check = (conn: ServerConnection.Any) => checkServerHealth(conn.http).then((x) => x.healthy)
-
     createEffect(() => {
       const current_ = current()
       if (!current_) return
@@ -236,6 +238,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     return {
       ready: isReady,
       healthy,
+      version: () => state.version,
       isLocal,
       get key() {
         return state.active

@@ -12,7 +12,7 @@ import { readFileSync, readdirSync, existsSync } from "fs"
 import { Flag } from "@novaway/core/flag/flag"
 import { InstallationChannel } from "@novaway/core/installation/version"
 import { EffectBridge } from "@/effect/bridge"
-import { init } from "#db"
+import { countSessions, init } from "#db"
 import { Effect, Schema } from "effect"
 
 declare const NOVAWAY_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
@@ -40,6 +40,43 @@ export const getPath = (flags?: Pick<DatabaseFlags, "disableChannelDb">) => {
     return path.join(Global.Path.data, Flag.NOVAWAY_DB)
   }
   return getChannelPath(flags)
+}
+
+/**
+ * 其他分支的会话库。
+ *
+ * 开发构建的库名带分支（`novaway-<分支>.db`），换分支就等于换库 —— 界面里
+ * 看起来像"历史会话全没了"。数据其实都还在，只是各在各的库里。
+ * 这里把同目录下其他库的会话数读出来，启动时打印一句，避免下次再被当成数据丢失。
+ *
+ * 只读、尽力而为：任何异常都吞掉，绝不影响启动。
+ */
+export function siblingLibraries(): Array<{ channel: string; file: string; sessions: number }> {
+  try {
+    const dir = Global.Path.data
+    const current = path.basename(getPath())
+    const files = readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /^novaway.*\.db$/.test(entry.name) && entry.name !== current)
+      .map((entry) => entry.name)
+    const out: Array<{ channel: string; file: string; sessions: number }> = []
+    for (const file of files) {
+      try {
+        // 计数走 #db 的运行时实现(bun 用 bun:sqlite,node 用 node:sqlite):
+        // `bun:` 前缀的静态 import 会让桌面端的 node 构建直接起不来
+        // (ERR_UNSUPPORTED_ESM_URL_SCHEME)。
+        out.push({
+          channel: file.replace(/^novaway-/, "").replace(/\.db$/, ""),
+          file,
+          sessions: countSessions(path.join(dir, file)),
+        })
+      } catch {
+        continue
+      }
+    }
+    return out.filter((item) => item.sessions > 0).sort((a, b) => b.sessions - a.sessions)
+  } catch {
+    return []
+  }
 }
 
 export type Transaction = SQLiteTransaction<"sync", void>

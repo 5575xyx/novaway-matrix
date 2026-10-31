@@ -4,7 +4,11 @@ import { LocationServiceMap } from "@novaway/core/location-layer"
 import { PluginBoot } from "@novaway/core/plugin/boot"
 import { Effect, Layer, Schema } from "effect"
 import { HttpServerRequest } from "effect/unstable/http"
-import { HttpApiMiddleware, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, OpenApi } from "effect/unstable/httpapi"
+import { Authorization } from "../../middleware/authorization"
+import { InstanceContextMiddleware } from "../../middleware/instance-context"
+import { WorkspaceRoutingMiddleware } from "../../middleware/workspace-routing"
+import { LocationInfo, V2RoutingQuery } from "./shared"
 
 export const LocationQuery = Schema.Struct({
   location: Schema.optional(
@@ -66,3 +70,24 @@ export const layer = Layer.effect(
     )
   }),
 ).pipe(Layer.provide(LocationServiceMap.layer))
+
+// `GET /api/location` — resolve the request's directory/workspace into the
+// canonical location descriptor the v2 list endpoints echo back. Clients use it
+// once at startup to learn which project they are attached to.
+export const LocationGroup = HttpApiGroup.make("v2.location")
+  .add(
+    HttpApiEndpoint.get("get", "/api/location", {
+      query: V2RoutingQuery,
+      success: LocationInfo,
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "v2.location.get",
+        summary: "Resolve location",
+        description: "Resolve the requested directory and workspace into a location descriptor.",
+      }),
+    ),
+  )
+  .annotateMerge(OpenApi.annotations({ title: "v2 location", description: "Experimental v2 location routes." }))
+  .middleware(InstanceContextMiddleware)
+  .middleware(WorkspaceRoutingMiddleware)
+  .middleware(Authorization)

@@ -21,7 +21,7 @@ const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_SIDE_PANE_WIDTH = 360
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
-export type AppMode = "forge" | "zen" | "spark" | "pulse" | "future"
+export type AppMode = "forge" | "zen" | "spark" | "future"
 
 export type AppModeConfig = {
   id: AppMode
@@ -62,15 +62,6 @@ export const APP_MODES: AppModeConfig[] = [
     accent: "from-amber-500/35 via-orange-500/20 to-rose-400/20",
   },
   {
-    id: "pulse",
-    name: "运营模式",
-    shortName: "运营",
-    icon: "P",
-    description: "小红书、抖音、公众号等内容运营统一工作台。",
-    color: "#FF6B6B",
-    accent: "from-rose-500/35 via-red-500/20 to-pink-400/20",
-  },
-  {
     id: "future",
     name: "探索模式",
     shortName: "探索",
@@ -82,6 +73,15 @@ export const APP_MODES: AppModeConfig[] = [
 ]
 
 export const appModeConfig = (mode: AppMode | undefined | null) => APP_MODES.find((item) => item.id === mode)
+
+/**
+ * 曾经存在、后已下线的模式。
+ *
+ * "pulse"（运营模式）已移除：运营工作台不再是一种「工作模式」，而是图标条上的常驻入口，
+ * 任何模式下都能打开。持久化里残留的 "pulse" 必须在迁移时清掉 ——
+ * 否则侧栏读到的 current 是个未知模式，模式胶囊会显示成未选择的占位、项目过滤也全部失效。
+ */
+const RETIRED_APP_MODES = new Set(["pulse"])
 
 export function getAvatarColors(key?: string) {
   if (key && AVATAR_COLOR_KEYS.includes(key as AvatarColorKey)) {
@@ -419,6 +419,28 @@ export function migrateLayoutStore(value: unknown) {
     return { ...rest, opened, tabs: storedTabs, activeTab, width, dynamic }
   })()
 
+  const mode = value.mode
+  const migratedMode = (() => {
+    if (!isRecord(mode)) return mode
+    const projectModes = isRecord(mode.projects) ? mode.projects : {}
+    const keptProjects = Object.fromEntries(
+      Object.entries(projectModes).filter((entry): entry is [string, AppMode] => {
+        const id = entry[1]
+        return typeof id === "string" && !RETIRED_APP_MODES.has(id) && !!appModeConfig(id as AppMode)
+      }),
+    )
+    const current = typeof mode.current === "string" && !RETIRED_APP_MODES.has(mode.current) ? mode.current : undefined
+    const droppedCurrent = current === undefined && typeof mode.current === "string"
+    if (!droppedCurrent && Object.keys(keptProjects).length === Object.keys(projectModes).length) return mode
+    return {
+      ...mode,
+      current,
+      // 模式被下线后不能还留着"已选择"：否则首页不会回到未选择状态。
+      hasSelected: current === undefined ? false : mode.hasSelected,
+      projects: keptProjects,
+    }
+  })()
+
   if (
     !("git" in value) &&
     !("fileTree" in value) &&
@@ -426,7 +448,8 @@ export function migrateLayoutStore(value: unknown) {
     migratedReview === review &&
     migratedSessionTabs === sessionTabs &&
     migratedSessionView === sessionView &&
-    migratedSidePane === sidePane
+    migratedSidePane === sidePane &&
+    migratedMode === mode
   ) {
     return value
   }
@@ -439,6 +462,7 @@ export function migrateLayoutStore(value: unknown) {
     sessionTabs: migratedSessionTabs,
     sessionView: migratedSessionView,
     sidePane: migratedSidePane,
+    mode: migratedMode,
   }
 }
 

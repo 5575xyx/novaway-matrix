@@ -5,6 +5,8 @@
 收到任务后先确定唯一处理路由，不要混用流程：
 
 - `Generate PPTX`：根据主题、文档、表格、网页或其他资料生成一份新的演示文稿。
+- `Image to PPTX`：用户给的是截图、扫描件、白板照片或现成页面图片，要求还原成可编辑演示稿时使用；先识别版式与文字层级，再按普通 `Generate PPTX` 的页面契约重建，不得把整页图片贴回 PPTX。
+- `Beautify`：用户给的是现成 PPTX，只要求改视觉（配色、版式、字体、留白、图形风格）而不要改内容时使用；内容与页序保持不变。
 - `Fill Native PPTX`：用户提供原始 PPTX 模板并要求替换或填充新内容时，保留原生页面结构并按槽位写入。
 - `Create Template`：用户希望从品牌资料、参考图片、PPTX 或现有演示中提炼可复用模板时使用。
 - `Enhance Native PPTX`：用户要求在不改变现有页面内容和布局的前提下增加备注、转场、动画、音频或旁白时使用。
@@ -22,9 +24,24 @@
 
 用户明确要求快速生成时，可以跳过单独的大纲确认和设计确认，但不能跳过资料核验、资源准备、最终质量检查和可编辑 PPTX 导出。
 
+## 渲染链选择（先看 `<ppt_engine>`）
+
+加载本技能时，输出末尾会有一段 `<ppt_engine>`，给出本机的实际状态。**以它为准，不要自己猜**：
+
+- `engine: ppt-master`：本机已从市场安装 ppt-master。**优先用它**生成/美化/编辑 PPTX —— 它是 SVG → DrawingML，坐标与字体逐对象落盘，版式保真度高于本技能的 HTML 近似路径。接着用 `skill` 工具加载 `ppt-master`（`name: "ppt-master"`）并选它的路由；脚本一律用 `<python_environment>` 给出的解释器绝对路径。
+- `engine: ppt-master` 且 Python 未就绪：先调用 `skill_python`（`action=prepare`，`name: "ppt-master"`）把依赖装好再继续；失败就如实报告，不要假装脚本跑过。
+- `engine: builtin`：本机没有 ppt-master，走本文下面的「高保真 HTML → PPTX 路径」（它同样产出原生形状 + 可编辑文本框）。如果用户在意版式保真、要用 ppt-master 的模板家族或原生逐对象编辑，告诉用户可以在「插件 → 市场 → NovaWay 内置」一键安装，装完这条链路会自动优先。
+
+两条链路的共同硬约束：
+
+- 产物必须写到 `.novaway/office/ppt/<标题>.pptx`；ppt-master 的中间文件放 `.novaway/office/ppt-work/ppt-master/<deck-slug>/`，不要污染正式产物目录。
+- 交付的 PPTX 必须是**可继续编辑**的：文字是文本框、图形是原生形状、图表是原生图表、备注在备注页。把整页拼成一张图片交付等于没做。
+- 只有 ppt-master 自身失败（依赖缺失、`attribution_guard.py` 不通过、脚本报错）时才可降级到内置链路，并且必须在回复里写明降级原因，不能把降级说成「已经用 ppt-master 做好」。
+- ppt-master 安装目录里的 `attribution_guard.py` 与 LICENSE 原样保留，不要删除或改写。
+
 ## NovaWay 高保真 HTML → PPTX 路径
 
-`Generate PPTX` 默认使用本路径。只有以下情况可以不用：用户上传原生 PPTX 并选择 `Fill Native PPTX`；用户只要页级大纲而不要文件；或本机 Chrome/Edge 无法启动且已经向用户明确报告降级原因。禁止静默退回旧的固定 OOXML 配色导出器。
+`<ppt_engine>` 为 `builtin` 时，`Generate PPTX` 使用本路径。只有以下情况可以不用：用户上传原生 PPTX 并选择 `Fill Native PPTX`；用户只要页级大纲而不要文件；或本机 Chrome/Edge 无法启动且已经向用户明确报告降级原因。禁止静默退回旧的固定 OOXML 配色导出器。
 
 ### 模板资产
 
@@ -33,7 +50,7 @@
 - 导出真实模板时，使用 `packages/app/src/pages/session/office-ppt-template-fill.ts` 克隆模板页面并替换文本、表格、图片、原生图表、演讲备注和页面转场，保留母版、主题、版式、形状和媒体资源；模板缺少表格或图表槽位时会自动创建原生表格或图表。
 - 视觉基准工具：`script/visual-benchmark-ppt.py` 可对比模板预览与生成结果预览，输出 RMSE 与感知哈希差异；验收阈值为 RMSE 60、dHash 14，逐模板视觉回归必须使用该工具留痕。
 - 首先读取 `templates/presenton/catalog.json`，不要一次载入全部模板 JSON。
-- 当前内置 7 个 Presenton 模板家族：`dynamic`、`executive`、`general`、`modern`、`momentum`、`standard`、`swift`，共 134 个布局。
+- 当前内置 8 个 Presenton 模板家族：`dynamic`、`editorial`、`executive`、`general`、`modern`、`momentum`、`standard`、`swift`，共 158 个布局。
 - 用户锁定 `presenton-<id>` 时，必须读取对应 `templates/presenton/<id>/template.json` 中与页面角色最匹配的 1-3 个布局；缩略图、配色、字体、留白和构图是硬约束。
 - 模板中的 `static/` 图片、SVG 和字体可按 Apache-2.0 许可复用；远程占位图片必须替换为工作区本地资源。
 - 许可证位于 `licenses/`；交付或再分发模板资产时不得删除这些文件。

@@ -83,8 +83,12 @@ function run(command: string, args: string[], timeoutMs: number): Promise<Exec> 
     }
     const timer = setTimeout(() => {
       child.kill()
-      finish({ code: 124, stdout, stderr: `${stderr}
-${command} timed out after ${timeoutMs}ms` })
+      finish({
+        code: 124,
+        stdout,
+        stderr: `${stderr}
+${command} timed out after ${timeoutMs}ms`,
+      })
     }, timeoutMs)
     child.stdout?.on("data", (chunk) => (stdout += chunk.toString()))
     child.stderr?.on("data", (chunk) => (stderr += chunk.toString()))
@@ -136,10 +140,7 @@ export async function pageCount(filePath: string): Promise<number | undefined> {
  * 魔数校验很关键：把假 PDF（例如改了后缀的 HTML）放进上下文后，
  * 之后每一次 API 调用都会 400，会话只能靠 /clear 恢复。
  */
-export async function readWhole(
-  filePath: string,
-  size: number,
-): Promise<PdfResult<{ base64: string; size: number }>> {
+export async function readWhole(filePath: string, size: number): Promise<PdfResult<{ base64: string; size: number }>> {
   if (size === 0) return failure("empty", `PDF file is empty: ${filePath}`)
   if (size > MAX_EXTRACT_SIZE) {
     return failure("too_large", `PDF file exceeds maximum allowed size of ${formatSize(MAX_EXTRACT_SIZE)}.`)

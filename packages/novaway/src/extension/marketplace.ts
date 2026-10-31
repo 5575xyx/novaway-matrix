@@ -4,6 +4,9 @@ import path from "node:path"
 import { Global } from "@novaway/core/global"
 import * as Log from "@novaway/core/util/log"
 import { run } from "@/util/process"
+import { hasGit } from "@/util/git"
+import { extractArchive, fetchArchive, probeArchive, type ArchiveProbe } from "./archive"
+import * as Generation from "./generation"
 
 const log = Log.create({ service: "extension.marketplace" })
 
@@ -43,6 +46,10 @@ export type Record = {
   ref?: string
   subdir?: string
   sha256?: string
+  /** git 通道记录的提交哈希；没有 git 的机器上归档通道拿不到，会为空。 */
+  revision?: string
+  /** 归档通道记录的 ETag，用来判断远端分支头有没有动。 */
+  etag?: string
   installedAt: number
   history?: Revision[]
 }
@@ -314,10 +321,30 @@ export type InstallZipInput = {
   config?: string
 }
 
-export async function installZip(input: InstallZipInput): Promise<Installed> {
+/** 同一目标目录同时只允许一个安装：后台自动安装和市场按钮可能撞在一起。 */
+const installLocks = new Map<string, Promise<unknown>>()
+
+async function withInstallLock<T>(target: string, task: () => Promise<T>): Promise<T> {
+  const prior = installLocks.get(target) ?? Promise.resolve()
+  const next = prior.catch(() => undefined).then(task)
+  installLocks.set(target, next)
+  try {
+    return await next
+  } finally {
+    if (installLocks.get(target) === next) installLocks.delete(target)
+  }
+}
+
+export function installZip(input: InstallZipInput): Promise<Installed> {
   const config = input.config ?? Global.Path.config
   const name = safeSegment(input.name)
   const target = path.join(root(config), input.version ? `${name}@${safeSegment(input.version)}` : name)
+  return withInstallLock(target, () => installZipUnlocked(input, target))
+}
+
+async function installZipUnlocked(input: InstallZipInput, target: string): Promise<Installed> {
+  const config = input.config ?? Global.Path.config
+  const name = safeSegment(input.name)
 
   const buffer = await download(input.url, input.signal)
   verify(buffer, input.sha256)
@@ -345,6 +372,7 @@ export async function installZip(input: InstallZipInput): Promise<Installed> {
     await writeRecord(target, record)
     // Retire the version this install replaces, now that the new one is on disk.
     for (const sibling of siblings) await removeDirectory(sibling.root)
+    Generation.bump()
     const size = await measure(target)
     log.info("installed zip extension", { name, version: input.version, root: target })
     return { ...record, root: target, ...size, ...(replaced ? { previous: toRevision(replaced) } : {}) }
@@ -360,27 +388,15 @@ export type InstallGitInput = {
   ref?: string
   subdir?: string
   version?: string
+  /** 归档下载通道可校验的摘要（git 通道忽略）。 */
+  sha256?: string
   signal?: AbortSignal
   config?: string
   timeout?: number
 }
 
-export async function installGit(input: InstallGitInput): Promise<Installed> {
-  const config = input.config ?? Global.Path.config
-  const name = safeSegment(input.name)
-  const ref = (input.ref || "HEAD").replace(/[^A-Za-z0-9._/-]/g, "_")
-  const target = path.join(root(config), `${name}@${safeSegment(ref)}`)
-
-  if (!/^https?:\/\//i.test(input.url) && !/^git@/.test(input.url)) throw new Error("unsupported git url")
-
-  const siblings = await sameNameInstalls(config, input.name, target)
-  const replaced = (await previousRevision(target)) ?? siblings.toSorted((a, b) => b.installedAt - a.installedAt)[0]
-  const carried = (await readRecord(target))?.history ?? siblings.find((item) => item.previous)?.history
-  await removeDirectory(target)
-  await fs.mkdir(path.dirname(target), { recursive: true })
-
-  // GitHub is often unreachable directly from mainland China; mirror first,
-  // direct as fallback. The git protocol itself is unchanged.
+/** 浅克隆：GitHub 在国内经常直连不通，先走镜像再直连。 */
+async function cloneRepository(input: InstallGitInput, target: string) {
   const candidates = input.url.startsWith("https://github.com/")
     ? [`https://ghproxy.net/${input.url}`, input.url]
     : [input.url]
@@ -393,23 +409,81 @@ export async function installGit(input: InstallGitInput): Promise<Installed> {
       args.push(url, target)
       const result = await run(["git", ...args], { timeout: input.timeout ?? 240_000, abort: input.signal })
       if (result.code !== 0) throw new Error(result.stderr.toString().trim() || `git clone failed (${result.code})`)
-      lastError = undefined
-      break
+      return
     } catch (error) {
       lastError = error
       await removeDirectory(target)
     }
   }
-  if (lastError) throw lastError instanceof Error ? lastError : new Error("git clone failed")
+  throw lastError instanceof Error ? lastError : new Error("git clone failed")
+}
 
-  const installed = input.subdir ? path.join(target, input.subdir) : target
-  if (!within(target, installed)) {
-    await removeDirectory(target)
-    throw new Error(`subdir escapes repository: ${input.subdir}`)
-  }
-  if (!(await exists(installed))) {
-    await removeDirectory(target)
-    throw new Error(`subdir not found: ${input.subdir}`)
+/**
+ * 没有 git：下载仓库归档并解包（GitHub codeload / Gitee archive）。
+ *
+ * 指定 `subdir` 时只解出那个子树 —— 否则 ppt-master 这种仓库要落上万文件、
+ * 几十 MB，而扩展实际只用 `skills/`。返回值就是扩展根目录。
+ */
+async function checkoutArchive(input: InstallGitInput, target: string): Promise<{ root: string; etag?: string }> {
+  const archive = await fetchArchive(input.url, input.ref, input.signal)
+  verify(archive.buffer, input.sha256)
+  await extractArchive(archive.buffer, target, input.subdir ? { prefix: input.subdir } : {})
+  return { root: target, ...(archive.etag ? { etag: archive.etag } : {}) }
+}
+
+/** 本地克隆的 HEAD；目录不是仓库时返回 undefined。 */
+async function cloneRevision(target: string): Promise<string | undefined> {
+  const result = await run(["git", "-C", target, "rev-parse", "HEAD"], { timeout: 20_000 }).catch(() => undefined)
+  if (!result || result.code !== 0) return undefined
+  const revision = result.stdout.toString().trim()
+  return revision || undefined
+}
+
+export function installGit(input: InstallGitInput): Promise<Installed> {
+  const config = input.config ?? Global.Path.config
+  const name = safeSegment(input.name)
+  const ref = (input.ref || "HEAD").replace(/[^A-Za-z0-9._/-]/g, "_")
+  const target = path.join(root(config), `${name}@${safeSegment(ref)}`)
+  return withInstallLock(target, () => installGitUnlocked(input, target, config))
+}
+
+async function installGitUnlocked(input: InstallGitInput, target: string, config: string): Promise<Installed> {
+  if (!/^https?:\/\//i.test(input.url) && !/^git@/.test(input.url)) throw new Error("unsupported git url")
+
+  const siblings = await sameNameInstalls(config, input.name, target)
+  const replaced = (await previousRevision(target)) ?? siblings.toSorted((a, b) => b.installedAt - a.installedAt)[0]
+  const carried = (await readRecord(target))?.history ?? siblings.find((item) => item.previous)?.history
+  await removeDirectory(target)
+  await fs.mkdir(path.dirname(target), { recursive: true })
+
+  // 有 git 就浅克隆（保留完整仓库语义）；没有就退回托管平台的归档下载。
+  // 干净机器上后者是唯一能走通的路，两者装出来的文件树是一样的。
+  let installed: string
+  let revision: string | undefined
+  let etag: string | undefined
+  if (await hasGit()) {
+    await cloneRepository(input, target)
+    installed = input.subdir ? path.join(target, input.subdir) : target
+    if (!within(target, installed)) {
+      await removeDirectory(target)
+      throw new Error(`subdir escapes repository: ${input.subdir}`)
+    }
+    if (!(await exists(installed))) {
+      await removeDirectory(target)
+      throw new Error(`subdir not found: ${input.subdir}`)
+    }
+    revision = await cloneRevision(target)
+  } else {
+    log.info("git unavailable, installing from repository archive", { name: input.name, url: input.url })
+    try {
+      // 归档通道直接解出 subdir，所以扩展根目录就是 target。
+      const archive = await checkoutArchive(input, target)
+      installed = archive.root
+      etag = archive.etag
+    } catch (error) {
+      await removeDirectory(target)
+      throw error
+    }
   }
 
   const record: Record = {
@@ -419,10 +493,13 @@ export async function installGit(input: InstallGitInput): Promise<Installed> {
     source: input.url,
     ...(input.ref ? { ref: input.ref } : {}),
     ...(input.subdir ? { subdir: input.subdir } : {}),
+    ...(revision ? { revision } : {}),
+    ...(etag ? { etag } : {}),
     installedAt: Date.now(),
   }
   const withRev = withHistory(record, replaced, carried)
   await writeRecord(installed, withRev)
+  Generation.bump()
   for (const sibling of siblings) await removeDirectory(sibling.root)
   const size = await measure(installed)
   log.info("installed git extension", { name: input.name, ref: input.ref, root: installed })
@@ -474,8 +551,142 @@ export async function remove(nameOrRoot: string, config = Global.Path.config) {
   }
   if (!(await exists(target))) return false
   const ok = await removeDirectory(target)
-  if (ok) log.info("removed marketplace extension", { root: target })
+  if (ok) {
+    Generation.bump()
+    log.info("removed marketplace extension", { root: target })
+  }
   return ok
+}
+
+/** 一条已安装扩展的「有没有新版本」结论。 */
+export type UpdateState = "current" | "outdated" | "unknown"
+
+export type UpdateStatus = {
+  name: string
+  root: string
+  kind: "zip" | "git"
+  ref?: string
+  state: UpdateState
+  /** 本地记录的版本标识（git 是提交哈希，归档是 ETag）。 */
+  revision?: string
+  /** 远端当前标识。 */
+  available?: string
+  checkedAt: number
+  error?: string
+}
+
+/**
+ * 远端探测的注入点。
+ *
+ * 默认实现要联网（git ls-remote / 归档 HEAD）；测试用假的，避免依赖网络。
+ */
+export type UpdateProbe = {
+  localRevision: (dir: string) => Promise<string | undefined>
+  remoteRevision: (source: string, ref: string) => Promise<string | undefined>
+  archive: (source: string, ref: string | undefined, etag: string) => Promise<ArchiveProbe>
+}
+
+function remoteGitSpec(source: string, ref: string) {
+  return ["git", "ls-remote", source, ref]
+}
+
+function makeProbe(timeoutMs: number): UpdateProbe {
+  return {
+    localRevision: cloneRevision,
+    remoteRevision: async (source, ref) => {
+      if (!(await hasGit())) return undefined
+      const result = await run(remoteGitSpec(source, ref), { timeout: timeoutMs }).catch(() => undefined)
+      if (!result || result.code !== 0) return undefined
+      const revision = result.stdout.toString().trim().split(/\s+/, 1)[0]
+      return revision || undefined
+    },
+    archive: (source, ref, etag) => probeArchive(source, ref, etag, undefined, timeoutMs),
+  }
+}
+
+/**
+ * 检查已安装扩展有没有官方更新。
+ *
+ * 两条通道：
+ * - 浅克隆安装（有 `.git`）：`git ls-remote` 比对提交哈希，最准确；
+ * - 归档安装（干净机器上没 git）：用安装时记下的 ETag 发条件请求，304 = 没变。
+ *   镜像不透传条件请求时返回 `unknown`，不猜。
+ *
+ * 没有远端标识的老安装（本功能之前装的）返回 `unknown`，重新安装一次就会补上。
+ */
+export async function updates(
+  config = Global.Path.config,
+  options: { probe?: UpdateProbe; timeoutMs?: number; installed?: Installed[] } = {},
+): Promise<UpdateStatus[]> {
+  const probe = options.probe ?? makeProbe(options.timeoutMs ?? 8_000)
+  // 调用方通常刚算过 `list()`（要遍历文件统计体积）；复用一次，别重复扫目录。
+  const list_ = options.installed ?? (await list(config))
+  return Promise.all(
+    list_.map(async (item): Promise<UpdateStatus> => {
+      const base = {
+        name: item.name,
+        root: item.root,
+        kind: item.kind,
+        ...(item.ref ? { ref: item.ref } : {}),
+        checkedAt: Date.now(),
+      }
+      if (item.kind !== "git") return { ...base, state: "unknown" }
+      const ref = item.ref ?? "HEAD"
+      try {
+        if (item.etag) {
+          const result = await probe.archive(item.source, ref, item.etag)
+          return {
+            ...base,
+            state: result.state,
+            revision: item.etag,
+            ...(result.etag ? { available: result.etag } : {}),
+          }
+        }
+        const local = item.revision ?? (await probe.localRevision(item.root))
+        if (!local) return { ...base, state: "unknown" }
+        const remote = await probe.remoteRevision(item.source, ref)
+        if (!remote) return { ...base, state: "unknown", revision: local }
+        return {
+          ...base,
+          state: remote === local ? "current" : "outdated",
+          revision: local,
+          available: remote,
+        }
+      } catch (error) {
+        return { ...base, state: "unknown", error: String(error).slice(0, 300) }
+      }
+    }),
+  )
+}
+
+/**
+ * 按安装记录重新装一遍（升级）。
+ *
+ * 用记录里的 source/ref/subdir/version 重放安装流程，所以不需要调用方知道来源；
+ * 装完是同一个目标目录，旧的会被 `sameNameInstalls` 清掉。
+ */
+export async function reinstall(nameOrRoot: string, config = Global.Path.config): Promise<Installed> {
+  const base = root(config)
+  const target = within(base, nameOrRoot) ? path.resolve(nameOrRoot) : path.join(base, safeSegment(nameOrRoot))
+  const record = await readRecord(target)
+  if (!record) throw new Error("找不到这个扩展的安装记录：" + nameOrRoot)
+  if (record.kind === "zip") {
+    return installZip({
+      name: record.name,
+      url: record.source,
+      config,
+      ...(record.version ? { version: record.version } : {}),
+      ...(record.sha256 ? { sha256: record.sha256 } : {}),
+    })
+  }
+  return installGit({
+    name: record.name,
+    url: record.source,
+    config,
+    ...(record.ref ? { ref: record.ref } : {}),
+    ...(record.subdir ? { subdir: record.subdir } : {}),
+    ...(record.version ? { version: record.version } : {}),
+  })
 }
 
 export * as ExtensionMarketplace from "./marketplace"

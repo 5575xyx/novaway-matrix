@@ -19,12 +19,7 @@ import {
   type RemoteProviderModel,
 } from "@/utils/provider-model-discovery"
 import { modelTypeOptions, type ModelType } from "@/utils/model-type"
-import {
-  type FormState,
-  headerRow,
-  modelRow,
-  validateCustomProvider,
-} from "./dialog-custom-provider-form"
+import { type FormState, headerRow, modelRow, validateCustomProvider } from "./dialog-custom-provider-form"
 import { SelectProviderCombobox } from "./select-provider-combobox"
 import { DialogSelectProvider } from "./dialog-select-provider"
 
@@ -89,26 +84,36 @@ export function DialogCustomProvider(props: Props) {
     const query = modelQuery().trim().toLowerCase()
     const list = remoteModels()
     if (!query) return list
-    return list.filter(
-      (model) => model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query),
-    )
+    return list.filter((model) => model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query))
   })
 
   const addModel = () => {
-    setForm("models", produce((rows) => rows.push(modelRow())))
+    setForm(
+      "models",
+      produce((rows) => rows.push(modelRow())),
+    )
   }
 
   const removeModel = (index: number) => {
-    setForm("models", produce((rows) => rows.splice(index, 1)))
+    setForm(
+      "models",
+      produce((rows) => rows.splice(index, 1)),
+    )
   }
 
   const addHeader = () => {
-    setForm("headers", produce((rows) => rows.push(headerRow())))
+    setForm(
+      "headers",
+      produce((rows) => rows.push(headerRow())),
+    )
   }
 
   const removeHeader = (index: number) => {
     if (form.headers.length <= 1) return
-    setForm("headers", produce((rows) => rows.splice(index, 1)))
+    setForm(
+      "headers",
+      produce((rows) => rows.splice(index, 1)),
+    )
   }
 
   const setField = (key: "providerID" | "name" | "baseURL" | "apiKey", value: string) => {
@@ -160,7 +165,10 @@ export function DialogCustomProvider(props: Props) {
       setForm("models", empty, (prev) => ({ ...prev, ...payload }))
       return
     }
-    setForm("models", produce((rows) => rows.push({ ...modelRow(), ...payload })))
+    setForm(
+      "models",
+      produce((rows) => rows.push({ ...modelRow(), ...payload })),
+    )
   }
 
   const remoteModelMutation = useMutation(() => ({
@@ -218,9 +226,7 @@ export function DialogCustomProvider(props: Props) {
 
   const saveMutation = useMutation(() => ({
     mutationFn: async (result: NonNullable<ReturnType<typeof validate>["result"]>) => {
-      const nextDisabled = (globalSync.data.config.disabled_providers ?? []).filter(
-        (id) => id !== result.providerID,
-      )
+      const nextDisabled = (globalSync.data.config.disabled_providers ?? []).filter((id) => id !== result.providerID)
 
       if (result.key) {
         await globalSDK.client.auth.set({
@@ -457,9 +463,7 @@ export function DialogCustomProvider(props: Props) {
 
               <div class="flex flex-col gap-2">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <span class="text-12-medium text-foreground">
-                    {language.t("provider.custom.models.added")}
-                  </span>
+                  <span class="text-12-medium text-foreground">{language.t("provider.custom.models.added")}</span>
                   <Button
                     type="button"
                     size="small"
@@ -528,9 +532,7 @@ export function DialogCustomProvider(props: Props) {
           <div class="flex flex-col gap-4">
             <SelectProviderCombobox
               class="w-full"
-              current={
-                form.providerID ? { id: form.providerID, name: form.name, baseURL: form.baseURL } : undefined
-              }
+              current={form.providerID ? { id: form.providerID, name: form.name, baseURL: form.baseURL } : undefined}
               onSelect={handleProviderSelect}
             />
             <TextField
@@ -567,9 +569,7 @@ export function DialogCustomProvider(props: Props) {
             />
 
             <div class="flex flex-col gap-3">
-              <label class="text-12-medium text-foreground-subtle">
-                {language.t("provider.custom.headers.label")}
-              </label>
+              <label class="text-12-medium text-foreground-subtle">{language.t("provider.custom.headers.label")}</label>
               <For each={form.headers}>
                 {(h, i) => (
                   <div class="flex items-start gap-2" data-row={h.row}>

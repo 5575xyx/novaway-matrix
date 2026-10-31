@@ -280,7 +280,7 @@ npm install -g xymt-novaway --registry=https://registry.npmmirror.com
 需要 [Bun](https://bun.sh)。
 
 ```bash
-bun install
+bun install             # 也可以用 pnpm install，见 docs/pnpm-install.md
 cd packages/novaway
 bun run build --single   # 只构建当前平台（快速冒烟）
 bun run build            # 交叉编译全部平台

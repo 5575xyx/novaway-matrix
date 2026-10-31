@@ -8,8 +8,8 @@ export interface TodoSectionModel {
   following: number
 }
 
-// 完成语义与 assistant-panel.tsx 保持一致：cancelled 也算 done，与 Task 4 的 FloatingTodoButton
-// 展示口径统一（taskList.toggle 的默认筛选是「未完成」，这里把 cancelled 计入完成侧）。
+// 完成语义与 todo 列表的展示口径一致：cancelled 也算 done
+// （taskList.toggle 的默认筛选是「未完成」，这里把 cancelled 计入完成侧）。
 export function isTodoDone(todo: Todo): boolean {
   return todo.status === "completed" || todo.status === "cancelled"
 }

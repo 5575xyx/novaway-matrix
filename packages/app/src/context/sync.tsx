@@ -438,7 +438,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           agent: string
           model: { providerID: string; modelID: string }
           variant?: string
-        }) {          const message: Message = {
+        }) {
+          const message: Message = {
             id: input.messageID,
             sessionID: input.sessionID,
             role: "user",

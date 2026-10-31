@@ -133,7 +133,8 @@ const cli = yargs(args)
     })
 
     const marker = Database.getPath()
-    if (marker !== ":memory:" && !(await Filesystem.exists(marker))) {
+    const created = marker !== ":memory:" && !(await Filesystem.exists(marker))
+    if (created) {
       const tty = process.stderr.isTTY
       process.stderr.write("Performing one time database migration, may take a few minutes..." + EOL)
       const width = 36
@@ -167,6 +168,18 @@ const cli = yargs(args)
         }
       }
       process.stderr.write("Database migration complete." + EOL)
+    }
+    // 开发构建按 git 分支分库：新建的空库不是"历史丢了"，只是换了个库文件。
+    // 启动时把同目录下其他分支的库和会话数打出来，省得下次再被当成数据丢失。
+    if (created) {
+      const others = Database.siblingLibraries()
+      if (others.length) {
+        process.stderr.write(
+          `Sessions live in a per-branch library (${marker.split("\\").pop()!.split("/").pop()}). Other libraries: ${others
+            .map((item) => `${item.file} (${item.sessions} sessions)`)
+            .join(", ")}. Switch branch to open one, or set NOVAWAY_DB to its filename.` + EOL,
+        )
+      }
     }
   })
   .usage("")

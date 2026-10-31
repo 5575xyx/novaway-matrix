@@ -77,42 +77,11 @@ export function useGitSection(): () => StatusPanelSection | null {
 
   return () => {
     const current = model()
-    // 目录还不是 Git 仓库：给一张「初始化仓库」的卡，而不是整块消失 ——
-    // 用户在这个项目里看到的第一个 Git 入口就是它（对齐 IDE 的提示）。
-    if (!current) {
-      if (!git.notARepo()) return null
-      return {
-        id: "git",
-        title: language.t("git.toolsTitle"),
-        summary: <span class="text-foreground-subtlest">{language.t("git.notARepo")}</span>,
-        children: (
-          <div class="flex flex-col gap-2 px-2 pb-2">
-            <div class="text-ui-sm text-foreground-subtle">{language.t("git.init.description")}</div>
-            <Button
-              variant="secondary"
-              size="small"
-              class="self-start"
-              disabled={git.busy()}
-              onClick={() =>
-                void git.initRepo().then((ok) =>
-                  showToast(
-                    ok
-                      ? { variant: "success", icon: "circle-check", title: language.t("git.init.success") }
-                      : {
-                          variant: "error",
-                          title: language.t("git.init.failed"),
-                          description: git.error(),
-                        },
-                  ),
-                )
-              }
-            >
-              {language.t("git.init.action")}
-            </Button>
-          </div>
-        ),
-      } satisfies StatusPanelSection
-    }
+    // 目录还不是 Git 仓库：状态面板整体不出现。
+    // 「初始化仓库」的入口移到左侧栏项目行（folder 旁边的 branch 图标 + 浮层），
+    // 那里才是"这个项目还没有版本控制"该被看到的位置；常驻在会话右上角会一直占着
+    // 一块空卡，且与本次会话无关（对齐 ZCode：状态面板只收本轮有内容的信息）。
+    if (!current) return null
 
     return {
       id: "git",
@@ -233,9 +202,7 @@ export function useGitSection(): () => StatusPanelSection | null {
                 </div>
                 <DropdownMenu.Separator />
                 <DropdownMenu.Item
-                  onSelect={() =>
-                    dialog.show(() => <GitBranchDialog git={git} onClose={() => dialog.close()} />)
-                  }
+                  onSelect={() => dialog.show(() => <GitBranchDialog git={git} onClose={() => dialog.close()} />)}
                 >
                   <Icon name="branch" size="small" class="text-foreground-subtle" />
                   <DropdownMenu.ItemLabel>{language.t("git.branch.manage.title")}</DropdownMenu.ItemLabel>

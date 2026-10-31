@@ -25,7 +25,7 @@ describe("backgroundNotification", () => {
 
   test("distinguishes failures and stopped jobs", () => {
     expect(backgroundNotification(job({ status: "error", metadata: { background: true, exit: 1 } }))).toContain(
-      'failed with exit code 1',
+      "failed with exit code 1",
     )
     expect(backgroundNotification(job({ status: "cancelled" }))).toContain("was stopped")
     expect(backgroundNotification(job({ status: "error" }))).toContain("<status>failed</status>")

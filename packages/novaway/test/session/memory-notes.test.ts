@@ -53,11 +53,9 @@ describe("session.memory-notes", () => {
   })
 
   test("truncate enforces the total budget", () => {
-    const sections = Array.from({ length: 12 }, (_, index) => [
-      `# Section ${index}`,
-      "_desc_",
-      "y".repeat(7_000),
-    ].join("\n"))
+    const sections = Array.from({ length: 12 }, (_, index) =>
+      [`# Section ${index}`, "_desc_", "y".repeat(7_000)].join("\n"),
+    )
     const cut = SessionMemoryNotes.truncate(sections.join("\n\n"))
     expect(cut.truncated).toBe(true)
     expect(cut.text.endsWith("[... session notes truncated for length ...]")).toBe(true)

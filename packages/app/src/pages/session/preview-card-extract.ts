@@ -64,8 +64,7 @@ const DELIMITED_FILE_PATH_RE = new RegExp(
 )
 // 边界字符必须含全角括号:中文回答里路径后紧跟「（35.6 KB）」这类全角括号,
 // 缺了它们 lookahead 失败,整个裸路径匹配会静默作废。
-const PATH_BOUNDARY_CHARS =
-  String.raw`\s()"'` + QUOTE + String.raw`“”‘’,.;:!?，。！？；：、（）【】《》「」『』〈〉`
+const PATH_BOUNDARY_CHARS = String.raw`\s()"'` + QUOTE + String.raw`“”‘’,.;:!?，。！？；：、（）【】《》「」『』〈〉`
 const FILE_PATH_RE = new RegExp(
   String.raw`(?:^|[` +
     PATH_BOUNDARY_CHARS +
@@ -209,10 +208,7 @@ function resolveCitationKind(path: string, artifactKind: string | undefined): Pr
   return ARTIFACT_KIND_TO_PREVIEW[artifactKind] === inferred ? inferred : null
 }
 
-export function extractAnswerFileReferences(
-  content: string,
-  workspacePath: string,
-): PreviewFileReference[] {
+export function extractAnswerFileReferences(content: string, workspacePath: string): PreviewFileReference[] {
   if (!content.trim()) return []
 
   const references: PreviewFileReference[] = []
@@ -289,8 +285,7 @@ export function extractAnswerFileReferences(
     }
     const preceding = content[start - 1]
     const following = content[end]
-    const quoteBoundary =
-      isQuoteChar(preceding) || isQuoteChar(following)
+    const quoteBoundary = isQuoteChar(preceding) || isQuoteChar(following)
     if (quoteBoundary && preceding !== following && !isSmartQuotePair(preceding ?? "", following ?? "")) {
       // 单侧/错配引号包住的路径不提取,防止畸形输出出卡
       protectedRanges.push([start, end])
@@ -354,9 +349,7 @@ export function extractAnswerWebsites(content: string): { url: string; title: st
 
   const result: { url: string; title: string; start: number }[] = []
   for (const match of content.matchAll(LOCAL_URL)) {
-    const url = trimUnbalancedTrailingParens(
-      normalizeTrailingUrlText((match[0] ?? "").split(URL_JUNK_CUT_RE)[0] ?? ""),
-    )
+    const url = trimUnbalancedTrailingParens(normalizeTrailingUrlText((match[0] ?? "").split(URL_JUNK_CUT_RE)[0] ?? ""))
     if (!url) continue
     let parsed: URL
     try {
@@ -396,7 +389,11 @@ function trimUnbalancedTrailingParens(url: string): string {
 }
 
 export function normalizePathForCompare(path: string): string {
-  return path.replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/\/$/, "").toLowerCase()
+  return path
+    .replace(/\\/g, "/")
+    .replace(/\/{2,}/g, "/")
+    .replace(/\/$/, "")
+    .toLowerCase()
 }
 
 /** 正文里写全的绝对路径 / file:// 地址（写盘证明缺失时只认这种写法）。 */
@@ -411,10 +408,7 @@ const ABSOLUTE_REFERENCE_RE = /^(?:[a-zA-Z]:[\\/]|[\\/]|file:\/\/)/i
  * 只靠 diff 时,非 git 工作区(快照不可用)会永远拿不到证明,产物卡就时有时无。
  * 相对路径仍然必须命中证明,避免把正文里随口提到的文档变成卡片。
  */
-function matchChangedFilePath(
-  reference: PreviewFileReference,
-  changedFilePaths: readonly string[],
-): string | null {
+function matchChangedFilePath(reference: PreviewFileReference, changedFilePaths: readonly string[]): string | null {
   const cleanedRaw = cleanPreviewPathCandidate(reference.raw)
   const normalizedReference = normalizePathForCompare(reference.path)
   const normalizedChanged = changedFilePaths.map((path) => ({

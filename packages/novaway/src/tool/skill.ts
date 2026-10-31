@@ -4,6 +4,8 @@ import { Effect, Schema } from "effect"
 import * as Stream from "effect/Stream"
 import { Ripgrep } from "../file/ripgrep"
 import { Skill } from "../skill"
+import * as SkillPython from "@/skill/python-env"
+import * as PptEngine from "@/office/ppt-engine"
 import { Service as SessionService } from "@/session/session"
 import { Service as AgentService } from "@/agent/agent"
 import { Service as TeamService } from "@/team/team"
@@ -83,6 +85,40 @@ export const SkillTool = Tool.define(
 
           const dir = path.dirname(info.location)
           const base = pathToFileURL(dir).href
+          // 带 Python 脚本的技能：把准备好的解释器交给模型，别让它猜 python3。
+          const python = yield* Effect.promise(async () => {
+            const status = await SkillPython.status(info.name)
+            if (status.state !== "idle") return SkillPython.pythonEnvNote(status)
+            const found = await SkillPython.findRequirements(dir)
+            if (!found) return undefined
+            return SkillPython.missingEnvNote(found.name, found.file)
+          })
+          // 办公模式的 PPT：选哪条渲染链由环境决定，不让模型猜。
+          const engine =
+            info.name === "office-ppt"
+              ? yield* Effect.gen(function* () {
+                  const master = (yield* skill.all()).find((item) => item.name === "ppt-master")
+                  const state = master ? yield* Effect.promise(() => SkillPython.status(master.name)) : undefined
+                  // 装了 ppt-master 但从没准备过 Python 环境（老版本装的、或安装时后台任务被中断）：
+                  // 现在正是要用它，顺手在后台开始装。skill_python 的 prepare 会复用同一个任务，
+                  // 不会重复下载；失败也不影响这次加载，模型会按提示如实报告。
+                  if (master && state?.state === "idle") {
+                    const found = yield* Effect.promise(() =>
+                      SkillPython.findRequirements(path.dirname(master.location)),
+                    )
+                    if (found)
+                      void SkillPython.prepare({ name: found.name, requirements: found.file }).catch(() => undefined)
+                  }
+                  return PptEngine.pptEngineNote(
+                    PptEngine.decidePptEngine({
+                      installed: Boolean(master),
+                      pythonReady: state?.state === "ready",
+                      ...(state?.python ? { python: state.python } : {}),
+                      ...(state?.state === "error" && state.error ? { pythonError: state.error } : {}),
+                    }),
+                  )
+                })
+              : undefined
           const limit = 10
           const files = yield* rg.files({ cwd: dir, follow: false, hidden: true, signal: ctx.abort }).pipe(
             Stream.filter((file) => !file.includes("SKILL.md")),
@@ -107,6 +143,8 @@ export const SkillTool = Tool.define(
               "<skill_files>",
               files,
               "</skill_files>",
+              ...(python ? ["", "<python_environment>", python, "</python_environment>"] : []),
+              ...(engine ? ["", "<ppt_engine>", engine, "</ppt_engine>"] : []),
               "</skill_content>",
             ].join("\n"),
             metadata: { name: info.name, dir } satisfies Metadata,

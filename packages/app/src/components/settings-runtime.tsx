@@ -11,7 +11,7 @@ import type {
 import { Button } from "@novaway/ui/button"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { Dialog } from "@novaway/ui/dialog"
-import { Icon } from "@novaway/ui/icon"
+import { Icon, type IconProps } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
@@ -43,6 +43,7 @@ import { agentDisplayName, skillDisplayName } from "@/utils/agent"
 import { agentAvatarSrc } from "@/utils/agent-avatar"
 import { pathKey } from "@/utils/path-key"
 import { AiFixButton } from "./ai-fix-button"
+import { AppIcon, appIcon } from "./app-icon"
 import { rowAccent, rowAccentTint, SettingsGroup } from "./settings-parts"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
@@ -505,7 +506,6 @@ const SkillSelectDialog: Component<{
                     onClick={() => toggle(skill.name)}
                   >
                     <RuntimeRow
-                      icon="checklist"
                       title={skillDisplayName(skill.name, data)}
                       description={typeof data.description === "string" ? data.description : ""}
                       tags={[language.t("settings.management.tag.custom")]}
@@ -2878,7 +2878,6 @@ export const SettingsSkills: Component = () => {
                   const data = skillData(skill)
                   return (
                     <RuntimeRow
-                      icon="checklist"
                       title={skillDisplayName(skill.name, data)}
                       description={typeof data.description === "string" ? data.description : ""}
                       tags={[
@@ -3640,7 +3639,10 @@ const McpCatalogSection: Component<{
         />
       </Toolbar>
       <SettingsGroup>
-        <Show when={matches().length > 0} fallback={<EmptyState icon="mcp" message={language.t("settings.mcp.catalog.empty")} />}>
+        <Show
+          when={matches().length > 0}
+          fallback={<EmptyState icon="mcp" message={language.t("settings.mcp.catalog.empty")} />}
+        >
           <For each={matches()}>
             {(entry) => {
               const installed = () => catalogEntryInstalled(entry, props.configured)
@@ -3949,7 +3951,8 @@ function parseStringArray(raw: string): string[] {
 }
 
 const RuntimeRow: Component<{
-  icon: RuntimeIcon
+  /** 不给就按标题猜（技能名里常带 ppt / excel / memory 这类词）。 */
+  icon?: IconProps["name"]
   title: string
   description?: string
   tags?: string[]
@@ -3960,20 +3963,12 @@ const RuntimeRow: Component<{
 }> = (props) => {
   // 每个条目一份稳定色：图标块 / 头像描边 / 标题前的色点都读它，
   // 长列表里靠颜色就能区分"这是哪一条"。
-  const accent = createMemo(() => rowAccent(props.title))
+  const accent = createMemo(() => appIcon(props.title, { fallback: "dot-grid" }).to)
   return (
     // 对齐 ZCode 的资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
     // 中间标题 + 标签 + 描述，右侧操作。行与行之间由外层 SettingsGroup 的分隔线切分。
     <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-      <Show
-        when={props.avatar}
-        fallback={
-          <span class="grid size-9 shrink-0 place-items-center rounded-xl" style={{ background: rowAccentTint(accent()) }}>
-            {/* Icon 自身把 color 写死在 CSS 上，颜色必须通过 svg 的 style 传进去。 */}
-            <Icon name={props.icon} class="size-4.5" style={{ color: accent() }} />
-          </span>
-        }
-      >
+      <Show when={props.avatar} fallback={<AppIcon seed={props.title} glyph={props.icon} fallback="dot-grid" />}>
         {(src) => (
           <img
             src={src()}
@@ -4133,7 +4128,7 @@ const McpRow: Component<{
   const configurable = () => !!props.onEdit || !!props.onDelete
   // MCP 行的色：图标块按名字取稳定色，状态标签按状态取语义色（连上=绿、失败=红、
   // 待授权=琥珀、停用=灰），一眼能扫出哪个服务出了问题。
-  const accent = createMemo(() => rowAccent(props.name))
+  const accent = createMemo(() => appIcon(props.name, { fallback: "mcp" }).to)
   const statusColor = () => {
     switch (status()) {
       case "connected":
@@ -4150,9 +4145,7 @@ const McpRow: Component<{
 
   return (
     <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-      <span class="grid size-9 shrink-0 place-items-center rounded-xl" style={{ background: rowAccentTint(accent()) }}>
-        <Icon name="mcp" class="size-4.5" style={{ color: accent() }} />
-      </span>
+      <AppIcon seed={props.name} fallback="mcp" />
       <div class="flex min-w-0 flex-1 flex-col">
         <div class="flex min-w-0 flex-wrap items-center gap-2">
           <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent() }} />

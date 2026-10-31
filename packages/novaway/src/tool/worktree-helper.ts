@@ -71,7 +71,10 @@ export async function state(directory: string, base: string): Promise<WorktreeSt
   for (const line of listing.stdout.split("\n")) {
     if (line.startsWith("worktree ")) current = path.resolve(line.slice("worktree ".length).trim())
     if (line.startsWith("branch ") && current === normalized) {
-      branch = line.slice("branch ".length).trim().replace(/^refs\/heads\//, "")
+      branch = line
+        .slice("branch ".length)
+        .trim()
+        .replace(/^refs\/heads\//, "")
     }
   }
 

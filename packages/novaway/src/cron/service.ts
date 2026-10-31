@@ -39,10 +39,9 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/Cron") {}
 
-type PromptService = { prompt: (input: {
-  sessionID: SessionID
-  parts: { type: "text"; text: string }[]
-}) => Effect.Effect<unknown, unknown> }
+type PromptService = {
+  prompt: (input: { sessionID: SessionID; parts: { type: "text"; text: string }[] }) => Effect.Effect<unknown, unknown>
+}
 
 /**
  * SessionPrompt 在 tool → registry → session/prompt 之间构成环，静态导入会让
@@ -94,7 +93,9 @@ export const layer = Layer.effect(
         // Busy sessions would have this message interleaved with a running turn;
         // skip and retry on the next tick instead.
         const state = status
-          ? yield* status.get(task.sessionID as SessionID).pipe(Effect.catch(() => Effect.succeed({ type: "busy" as const })))
+          ? yield* status
+              .get(task.sessionID as SessionID)
+              .pipe(Effect.catch(() => Effect.succeed({ type: "busy" as const })))
           : { type: "idle" as const }
         if (state.type !== "idle") continue
 

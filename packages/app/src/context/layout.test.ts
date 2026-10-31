@@ -234,3 +234,25 @@ describe("migrateLayoutStore sidePane", () => {
 test("fresh sidePane default is expanded with empty tabs", () => {
   expect(DEFAULT_SIDE_PANE_STATE).toEqual({ opened: true, tabs: [], activeTab: null, dynamic: {} })
 })
+
+describe("migrateLayoutStore mode", () => {
+  test("drops the retired 运营 (pulse) mode so the switcher falls back to unselected", () => {
+    const out = migrateLayoutStore({
+      mode: {
+        current: "pulse",
+        hasSelected: true,
+        projects: { "/a": "pulse", "/b": "zen" },
+      },
+    }) as { mode: { current?: string; hasSelected: boolean; projects: Record<string, string> } }
+
+    expect(out.mode.current).toBeUndefined()
+    expect(out.mode.hasSelected).toBe(false)
+    expect(out.mode.projects).toEqual({ "/b": "zen" })
+  })
+
+  test("keeps a still-valid mode untouched", () => {
+    const mode = { current: "forge", hasSelected: true, projects: { "/a": "forge" } }
+    const out = migrateLayoutStore({ mode }) as { mode: unknown }
+    expect(out.mode).toEqual(mode)
+  })
+})

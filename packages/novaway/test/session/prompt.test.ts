@@ -536,10 +536,7 @@ it.instance(
       const msgs = yield* MessageV2.filterCompactedEffect(chat.id)
       const feedback = msgs
         .flatMap((msg) => msg.parts)
-        .filter(
-          (part): part is MessageV2.TextPart =>
-            part.type === "text" && part.text.includes("Stop hook feedback:"),
-        )
+        .filter((part): part is MessageV2.TextPart => part.type === "text" && part.text.includes("Stop hook feedback:"))
       // Three bounded continuations, then the loop gives up instead of spinning.
       expect(feedback).toHaveLength(3)
       expect(feedback[0]!.text).toContain("lint failed")
@@ -907,10 +904,7 @@ it.instance(
       const { dir, llm } = yield* useServerConfig(providerCfg)
       const script = path.join(dir, "fail.cjs")
       // Exit code 2 marks the hook as blocking; its stderr is the message.
-      yield* writeText(
-        script,
-        `process.stderr.write("the interface file moved to src/api.ts");process.exit(2)`,
-      )
+      yield* writeText(script, `process.stderr.write("the interface file moved to src/api.ts");process.exit(2)`)
       const hook = `"${process.execPath}" "${script}"`
       yield* writeText(
         path.join(dir, "hooks.json"),

@@ -209,7 +209,10 @@ export const SettingsProviders: Component = () => {
             title: language.t("settings.providers.credentials.copied.title", { provider: name }),
             description: language.t("settings.providers.credentials.copied.description"),
           }
-        : { title: language.t("common.requestFailed"), description: language.t("settings.providers.credentials.copyFailed") },
+        : {
+            title: language.t("common.requestFailed"),
+            description: language.t("settings.providers.credentials.copyFailed"),
+          },
     )
   }
 
@@ -304,7 +307,8 @@ export const SettingsProviders: Component = () => {
     const current = source(item)
     if (current === "env") {
       const vars = "env" in item ? (item.env ?? []) : []
-      if (vars.length > 0) return language.t("settings.providers.credentials.environmentWithVars", { vars: vars.join(", ") })
+      if (vars.length > 0)
+        return language.t("settings.providers.credentials.environmentWithVars", { vars: vars.join(", ") })
       return language.t("settings.providers.connected.environmentDescription")
     }
     if (current === "config") return language.t("settings.providers.credentials.configDescription" as never)
@@ -573,9 +577,7 @@ export const SettingsProviders: Component = () => {
                   </span>
                   <Show
                     when={(authEntries[item().id] ?? []).length > 0}
-                    fallback={
-                      <span class="text-12-regular text-foreground-subtlest">{credentialHint(item())}</span>
-                    }
+                    fallback={<span class="text-12-regular text-foreground-subtlest">{credentialHint(item())}</span>}
                   >
                     <div class="flex flex-col gap-2">
                       <div class="flex flex-col overflow-hidden rounded-lg border border-border">

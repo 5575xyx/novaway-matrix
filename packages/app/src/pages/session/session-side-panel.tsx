@@ -392,43 +392,53 @@ export function SessionSidePanel(props: {
           <Show when={contentKey()} keyed>
             {(_key) => (
               <div class="side-pane-content h-full min-h-0 flex flex-col">
-              {/* 文件:文件本身已是顶层标签,这里只渲染当前文件的内容,没有第二层标签条。
+                {/* 文件:文件本身已是顶层标签,这里只渲染当前文件的内容,没有第二层标签条。
                   FileTabContent 内部是 Tabs.Content,必须包一层 Tabs 提供上下文(不带标签条)。 */}
-              <Show when={tab() === "preview"}>
-                <Show when={activeFileTab()} keyed fallback={<SidePaneEmptyState onOpenFiles={openFilesFromPicker} />}>
-                  {(t) => (
-                    <Tabs value={t} onChange={(value) => tabs().setActive(value)} class="h-full min-h-0 flex flex-col">
-                      {/* 文件预览里的资源(office base64/文本读取)挂起时,没有这层边界会被
+                <Show when={tab() === "preview"}>
+                  <Show
+                    when={activeFileTab()}
+                    keyed
+                    fallback={<SidePaneEmptyState onOpenFiles={openFilesFromPicker} />}
+                  >
+                    {(t) => (
+                      <Tabs
+                        value={t}
+                        onChange={(value) => tabs().setActive(value)}
+                        class="h-full min-h-0 flex flex-col"
+                      >
+                        {/* 文件预览里的资源(office base64/文本读取)挂起时,没有这层边界会被
                           会话页外层的 Suspense 接住,把整个聊天区一起闪成空白。就地兜住,
                           挂起只影响这块内容。 */}
-                      <Suspense fallback={null}>
-                        <FileTabContent tab={t} />
-                      </Suspense>
-                    </Tabs>
+                        <Suspense fallback={null}>
+                          <FileTabContent tab={t} />
+                        </Suspense>
+                      </Tabs>
+                    )}
+                  </Show>
+                </Show>
+                {/* 浏览器：URL iframe（网页预览 / 开发服务器），对齐 ZCode 的浏览器独立标签。 */}
+                <Show when={tab() === "browser"}>
+                  <PreviewPanel
+                    files={{ count: () => openedTabs().length, open: () => layout.sidePane.add("preview") }}
+                  />
+                </Show>
+                <Show when={tab() === "terminal"}>
+                  <TerminalPanel variant="pane" />
+                </Show>
+                <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
+                {/* 会话标签（子代理钻取 / 侧边对话 / 后台任务输出）：面板里看另一个会话或任务输出。
+                  内置的三个标签走上面的分支，这里只处理动态标签。 */}
+                <Show when={layout.sidePane.activeSessionTab()}>
+                  {(session) => (
+                    <Show
+                      when={session().kind === "background" ? session() : undefined}
+                      keyed
+                      fallback={<SidePaneSessionPanel tab={session()} />}
+                    >
+                      {(tab) => <SidePaneBackgroundOutput tab={tab} />}
+                    </Show>
                   )}
                 </Show>
-              </Show>
-              {/* 浏览器：URL iframe（网页预览 / 开发服务器），对齐 ZCode 的浏览器独立标签。 */}
-              <Show when={tab() === "browser"}>
-                <PreviewPanel files={{ count: () => openedTabs().length, open: () => layout.sidePane.add("preview") }} />
-              </Show>
-              <Show when={tab() === "terminal"}>
-                <TerminalPanel variant="pane" />
-              </Show>
-              <Show when={tab() === "review"}>{props.reviewPanel()}</Show>
-              {/* 会话标签（子代理钻取 / 侧边对话 / 后台任务输出）：面板里看另一个会话或任务输出。
-                  内置的三个标签走上面的分支，这里只处理动态标签。 */}
-              <Show when={layout.sidePane.activeSessionTab()}>
-                {(session) => (
-                  <Show
-                    when={session().kind === "background" ? session() : undefined}
-                    keyed
-                    fallback={<SidePaneSessionPanel tab={session()} />}
-                  >
-                    {(tab) => <SidePaneBackgroundOutput tab={tab} />}
-                  </Show>
-                )}
-              </Show>
               </div>
             )}
           </Show>

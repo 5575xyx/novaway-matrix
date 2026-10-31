@@ -6,6 +6,7 @@ import { Tag } from "@novaway/ui/tag"
 import { showToast } from "@novaway/ui/toast"
 import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { AppIcon } from "./app-icon"
 import { SettingsGroup } from "./settings-parts"
 
 type ExtensionIssue = {
@@ -92,7 +93,7 @@ export const InstalledExtensions: Component<{ directory: string; refreshKey?: nu
         <For each={items()}>
           {(item) => (
             <div class="flex min-w-0 items-start gap-3 rounded-lg px-3 py-2 hover:bg-hover">
-              <Icon name="mcp" size="small" class="mt-0.5 shrink-0 text-foreground" />
+              <AppIcon seed={item.name} fallback="mcp" size="sm" class="mt-0.5" />
               <div class="min-w-0 flex-1">
                 <div class="flex min-w-0 items-center gap-2">
                   <span class="min-w-0 truncate text-ui-base text-foreground">{item.name}</span>

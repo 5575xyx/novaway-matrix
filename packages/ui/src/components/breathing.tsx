@@ -9,12 +9,7 @@ import type { ComponentProps } from "solid-js"
  */
 export function Breathing(props: { class?: string; style?: ComponentProps<"span">["style"] }) {
   return (
-    <span
-      data-component="breathing-indicator"
-      aria-hidden="true"
-      class={props.class}
-      style={props.style}
-    >
+    <span data-component="breathing-indicator" aria-hidden="true" class={props.class} style={props.style}>
       <span data-slot="breathing-core" />
     </span>
   )

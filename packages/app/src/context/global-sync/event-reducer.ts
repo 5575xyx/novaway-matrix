@@ -396,9 +396,9 @@ export function applyDirectoryEvent(input: {
       // 子代理 job 的 sessionId 是子会话、parentSessionId 是父会话；父会话的
       // 后台任务卡片与 composer 入口都按父键读取，所以两个键都要写——否则实时
       // 事件落不到父键，只有重新进入会话触发 GET 引导时父会话才看得到。
-      const keys = [
-        ...new Set([props.info.metadata?.sessionId, props.info.metadata?.parentSessionId]),
-      ].filter((value): value is string => typeof value === "string" && value !== "")
+      const keys = [...new Set([props.info.metadata?.sessionId, props.info.metadata?.parentSessionId])].filter(
+        (value): value is string => typeof value === "string" && value !== "",
+      )
       if (keys.length === 0) break
       for (const sessionID of keys) {
         const jobs = input.store.backgroundJob[sessionID]

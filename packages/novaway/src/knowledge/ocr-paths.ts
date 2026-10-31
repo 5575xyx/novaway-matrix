@@ -3,10 +3,13 @@
  *
  * 单独成文件是为了让「探测」和「一键安装」共用同一套路径：
  * 安装脚本把依赖装进 NovaWay 数据目录下的 `ocr/venv`，探测时优先用这个 venv，
- * 用户不需要改任何系统环境。
+ * 用户不需要改任何系统环境。uv 的位置与版本来自 `@/python/venv`（和其它
+ * Python 环境共用一份 uv，不重复下载）。
  */
 import path from "node:path"
 import { Global } from "@novaway/core/global"
+
+export { pythonInstallMirror, uvBinary, uvDownloadUrl, uvPython as UV_PYTHON } from "@/python/venv"
 
 export const ocrRoot = () => path.join(Global.Path.data, "ocr")
 export const venvDir = () => path.join(ocrRoot(), "venv")
@@ -42,31 +45,3 @@ export function pipIndexes(): string[] {
 
 export const RAPID_MODULES = ["rapidocr_onnxruntime", "rapidocr"] as const
 export const RAPID_PACKAGE = "rapidocr_onnxruntime"
-
-/** uv 的安装位置：和 ripgrep、LSP 等二进制共用 Global.Path.bin。 */
-export const uvBinary = () => path.join(Global.Path.bin, process.platform === "win32" ? "uv.exe" : "uv")
-
-/** 由 uv 托管的 Python 版本。用户机器上完全没有 Python 时也能一键装好。 */
-export const UV_PYTHON = "3.12"
-
-/**
- * uv 官方 release 资源。
- * 用户可通过 NOVAWAY_OCR_UV_URL 指向内网/镜像地址（例如自建代理）。
- */
-export function uvDownloadUrl(): string {
-  const override = process.env.NOVAWAY_OCR_UV_URL?.trim()
-  if (override) return override
-  const arch = process.arch === "arm64" ? "aarch64" : "x86_64"
-  const asset =
-    process.platform === "win32"
-      ? "uv-" + arch + "-pc-windows-msvc.zip"
-      : process.platform === "darwin"
-        ? "uv-" + arch + "-apple-darwin.tar.gz"
-        : "uv-" + arch + "-unknown-linux-gnu.tar.gz"
-  return "https://github.com/astral-sh/uv/releases/latest/download/" + asset
-}
-
-/** Python 运行时镜像：uv 下载 CPython 时使用，国内网络可指向镜像。 */
-export function pythonInstallMirror() {
-  return process.env.NOVAWAY_OCR_PYTHON_MIRROR?.trim() || undefined
-}

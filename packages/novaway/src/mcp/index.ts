@@ -21,6 +21,7 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { McpOAuthProvider } from "./oauth-provider"
 import { McpOAuthCallback } from "./oauth-callback"
 import { McpAuth } from "./auth"
+import { ensureUv, needsUv, planLocalCommandForHost } from "./runtime"
 import { Elicitation } from "./elicitation"
 import { ElicitRequestSchema, ElicitationCompleteNotificationSchema } from "@modelcontextprotocol/sdk/types.js"
 import { BusEvent } from "../bus/bus-event"
@@ -466,7 +467,21 @@ export const layer = Layer.effect(
       key: string,
       mcp: ConfigMCP.Info & { type: "local" },
     ) {
-      const [cmd, ...args] = mcp.command
+      let resolved = planLocalCommandForHost(mcp.command)
+      // uvx 型 MCP：机器上没有 uv 时先自己下下来（一次约 30MB），别让用户去装。
+      if ("error" in resolved && needsUv(mcp.command)) {
+        const uv = yield* Effect.promise(() => ensureUv())
+        if (uv) {
+          log.info("downloaded uv for local mcp", { key, uv })
+          resolved = planLocalCommandForHost(mcp.command)
+        }
+      }
+      if ("error" in resolved) {
+        log.error("local mcp command unavailable", { key, command: mcp.command, error: resolved.error })
+        return { client: undefined, status: { status: "failed", error: resolved.error } as Status }
+      }
+      if (resolved.fallback) log.info("local mcp uses bundled runtime", { key, fallback: resolved.fallback })
+      const [cmd, ...args] = resolved.command
       const cwd = yield* InstanceState.directory
       const transport = new StdioClientTransport({
         stderr: "pipe",
@@ -475,6 +490,7 @@ export const layer = Layer.effect(
         cwd,
         env: {
           ...process.env,
+          ...resolved.env,
           ...(cmd === "novaway" ? { BUN_BE_BUN: "1" } : {}),
           ...mcp.environment,
         },

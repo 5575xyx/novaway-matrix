@@ -1112,3 +1112,40 @@ it.instance(
   }),
   { git: true },
 )
+
+// 快照仓库是独立的 --git-dir，不该受项目本身是不是 Git 仓库影响：
+// 没有 init 过 Git 的目录，用户一样要能看改动、能撤回（见 snapshot/index.ts 的 enabled()）。
+it.instance(
+  "tracks and reverts changes without a git repository",
+  Effect.gen(function* () {
+    const tmp = yield* TestInstance
+    const snapshot = yield* Snapshot.Service
+    yield* write(`${tmp.directory}/page.html`, "<h1>v1</h1>")
+    const before = yield* snapshot.track()
+    expect(before).toBeTruthy()
+    yield* write(`${tmp.directory}/page.html`, "<h1>v2</h1>")
+    const patch = yield* snapshot.patch(before!)
+    expect(patch.files).toContain(fwd(tmp.directory, "page.html"))
+    yield* snapshot.revert([patch])
+    expect(yield* readText(`${tmp.directory}/page.html`)).toBe("<h1>v1</h1>")
+  }),
+)
+
+it.instance(
+  "keeps generated directories out of non-git snapshots",
+  Effect.gen(function* () {
+    const tmp = yield* TestInstance
+    const snapshot = yield* Snapshot.Service
+    yield* mkdirp(`${tmp.directory}/node_modules/pkg`)
+    yield* write(`${tmp.directory}/node_modules/pkg/index.js`, "module.exports = 1")
+    yield* write(`${tmp.directory}/index.js`, "1")
+    const before = yield* snapshot.track()
+    expect(before).toBeTruthy()
+    // node_modules 在默认排除清单里：改了它不该出现在改动列表里。
+    yield* write(`${tmp.directory}/node_modules/pkg/index.js`, "module.exports = 2")
+    expect((yield* snapshot.patch(before!)).files).toEqual([])
+    // 正常文件照旧能被看到（排除清单只针对生成物目录）。
+    yield* write(`${tmp.directory}/index.js`, "2")
+    expect((yield* snapshot.patch(before!)).files).toContain(fwd(tmp.directory, "index.js"))
+  }),
+)

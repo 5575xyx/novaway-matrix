@@ -20,7 +20,7 @@ const ExitParameters = Schema.Struct({
   }),
   action: Schema.optional(Schema.Literals(["keep", "remove"])).annotate({
     description:
-      'keep (default) leaves the worktree directory and branch on disk. remove deletes both — use it for a clean exit when the work is done or abandoned.',
+      "keep (default) leaves the worktree directory and branch on disk. remove deletes both — use it for a clean exit when the work is done or abandoned.",
   }),
   discard_changes: Schema.optional(Schema.Boolean).annotate({
     description:
@@ -121,7 +121,7 @@ export const WorktreeExitTool = Tool.define<typeof ExitParameters, ExitMetadata,
     const sessions = yield* Session.Service
     return {
       description:
-        "Leave the current worktree and switch this session back to the project's main checkout (or the given directory). action: \"keep\" (default) leaves the worktree and its branch on disk; action: \"remove\" deletes both, refusing when there are uncommitted files or unmerged commits unless discard_changes is true.",
+        'Leave the current worktree and switch this session back to the project\'s main checkout (or the given directory). action: "keep" (default) leaves the worktree and its branch on disk; action: "remove" deletes both, refusing when there are uncommitted files or unmerged commits unless discard_changes is true.',
       parameters: ExitParameters,
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof ExitParameters>, ctx: Tool.Context) =>

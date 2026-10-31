@@ -11,7 +11,6 @@ import * as Log from "@novaway/core/util/log"
 import { createOpencodeClient } from "@novaway/sdk"
 import { ServerAuth } from "@/server/auth"
 import { CodexAuthPlugin } from "./codex"
-import { Session } from "@/session/session"
 import { NamedError } from "@novaway/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
@@ -132,6 +131,10 @@ export const layer = Layer.effect(
         }
 
         const { Server } = yield* Effect.promise(() => import("../server/server"))
+        // Loaded lazily: `session/session` reads `Permission.Ruleset` at module
+        // init, and importing it statically here closes the
+        // permission -> hook -> plugin -> session -> permission cycle.
+        const { Session } = yield* Effect.promise(() => import("@/session/session"))
 
         const client = createOpencodeClient({
           baseUrl: "http://localhost:4096",

@@ -1,5 +1,5 @@
 diff --git a/photon_rs.js b/photon_rs.js
-index 8f4144d..29a964a 100644
+index ccf9c37..16baa07 100644
 --- a/photon_rs.js
 +++ b/photon_rs.js
 @@ -1,6 +1,7 @@
@@ -110,7 +110,7 @@ index 8f4144d..29a964a 100644
      let result;
      try {
          result = arg0 instanceof CanvasRenderingContext2D;
-@@ -4367,24 +4368,24 @@ module.exports.__wbg_instanceof_CanvasRenderingContext2d_3abbe7ec7af32cae = fun
+@@ -4367,24 +4368,24 @@ module.exports.__wbg_instanceof_CanvasRenderingContext2d_3abbe7ec7af32cae = func
      return ret;
  };
  
@@ -140,7 +140,7 @@ index 8f4144d..29a964a 100644
      let result;
      try {
          result = arg0 instanceof HTMLCanvasElement;
-@@ -4395,93 +4396,93 @@ module.exports.__wbg_instanceof_HtmlCanvasElement_25d964a0dde6717e = function(a
+@@ -4395,93 +4396,93 @@ module.exports.__wbg_instanceof_HtmlCanvasElement_25d964a0dde6717e = function(ar
      return ret;
  };
  
@@ -274,9 +274,9 @@ index 8f4144d..29a964a 100644
      const offset = table.grow(4);
      table.set(0, undefined);
 @@ -4509,7 +4510,8 @@ module.exports.__wbindgen_init_externref_table = function() {
-      ;
-  };
-  
+     ;
+ };
+ 
 -const path = require('path').join(__dirname, 'photon_rs_bg.wasm');
 +// Allow opencode's Bun compiled binary to point photon-node at its embedded wasm asset.
 +const path = globalThis.__OPENCODE_PHOTON_WASM_PATH || require('path').join(__dirname, 'photon_rs_bg.wasm');

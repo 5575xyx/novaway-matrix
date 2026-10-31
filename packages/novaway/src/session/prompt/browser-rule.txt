@@ -1,61 +1,50 @@
-# 浏览器工具使用规则（内置全局规则）
+# 浏览器验证规则（内置全局规则）
 
-## 浏览器工具是什么
-你有一个内置的 `browser` 工具，可以控制浏览器进行 UI 交互和截图。
-优先使用 `browser` 工具，而不是用 shell 工具手动调用浏览器 CLI。
+## 用内置浏览器，不要起外部浏览器
+页面 / HTML 的验证与截图一律用内置的 `browser_*` 工具。它拉起的是无窗口浏览器：
+不弹窗、不抢焦点，截图只包含页面本身。
 
-## 何时使用浏览器工具
-- **UI 验证**：测试代码更改后 UI 是否按预期显示
-- **视觉调试**：截图检查布局、样式或渲染问题
-- **路由测试**：验证页面路由是否正确加载
-- **组件测试**：检查组件在浏览器中的行为
-- **前端调试**：通过检查页面状态调试前端问题
+不要用 shell 启动 Chrome/Edge 的 `--remote-debugging-port`，也不要加载或使用名为
+`browser` 的外部技能（那类脚本会弹出可见的 Chrome 窗口盖住 NovaWay，用户没法继续
+操作，截图往往也变成整屏）。即使技能列表里出现了 `browser`，验证页面时也不要选它。
 
-## 可用命令
-1. **navigate**：导航到指定 URL
-   - 参数：`url`（必填）
-2. **click**：点击页面元素
-   - 参数：`selector`（必填）
-3. **fill**：在输入框中填写文本
-   - 参数：`selector`（必填）、`value`（必填）
-4. **screenshot**：对当前页面截图
-   - 参数：`fullPage`（可选，默认 false）
-5. **evaluate**：在浏览器中执行 JavaScript
-   - 参数：`script`（必填）
-6. **status**：获取浏览器状态和当前页面信息
-   - 无需参数
-7. **close**：关闭浏览器
-   - 无需参数
+## 工具
+`browser_navigate / browser_snapshot / browser_screenshot / browser_close` 默认就在工具列表里。
+点击、输入、控制台、网络、无障碍树是延迟加载的，需要时一次激活整族：
 
-## 使用示例
-1. 导航到本地开发服务器并截图：
-   ```
-   browser navigate url="http://localhost:3000"
-   browser screenshot
-   ```
-2. 测试表单提交：
-   ```
-   browser navigate url="http://localhost:3000/form"
-   browser fill selector="#email" value="test@example.com"
-   browser fill selector="#password" value="password123"
-   browser click selector="#submit-button"
-   browser screenshot
-   ```
-3. 检查页面元素：
-   ```
-   browser navigate url="http://localhost:3000"
-   browser evaluate script="document.querySelector('#status').textContent"
-   browser status
-   ```
+```
+tool_search("select:browser_*")
+```
 
-## 何时不使用浏览器工具
-- **API 数据获取**：使用 `fetch` 或 `curl` 工具
-- **文件下载**：使用 `curl` 或 `wget` 工具
-- **非 UI 相关的浏览器自动化**：使用其他专用工具
-- **纯后端测试**：不需要浏览器交互
+1. `browser_navigate(url)`：打开 http/https，或本地 file:// / 绝对路径
+2. `browser_snapshot()`：页面文本 + 可交互元素的 snapshot ref
+3. `browser_click(ref)` / `browser_fill(ref, value)` / `browser_press(key, ref?)`
+4. `browser_screenshot(fullPage?)`：只截页面视口，自动作为「验证结果」展示
+5. `browser_console()` / `browser_network()` / `browser_accessibility()`
+6. `browser_close()`：验证结束后释放浏览器
 
-## 错误处理
-- 如果浏览器工具不可用，回退到使用 shell 工具手动调用浏览器 CLI
-- 如果导航失败，检查 URL 是否正确
-- 如果元素选择器失败，检查页面是否已加载完成
-- 如果截图失败，检查浏览器是否已启动
+工具列表里可能还残留 `mcp__browser__*`（旧的 Playwright MCP 服务）：验证页面时一律用
+上面的内置工具，不要用 MCP 那一套 —— 它打开的页面不会同步到右侧预览，也不和用户在
+「设置 → 浏览器控制」里配的能力共享状态。
+
+## 怎么验证（对齐 ZCode 的浏览器验证方法）
+- **snapshot 是主要观察手段，截图只在"要看画面"时用**。读结构、找元素、确认状态用
+  snapshot；不要在同一轮里既 snapshot 又 screenshot。
+- **只在三种情况截图**：要看布局 / 样式 / 渲染效果；用户明确要求截图；目标是 canvas /
+  自绘控件、snapshot 看不到。
+- **一个验证点最多 1 张截图**。不要每点一次就截一张 —— 截图是给用户看的证据，
+  不是操作日志。改前 / 改后各一两张足够。
+- **只验证"本次对话涉及的改动"**：用户让你改了哪个页面 / 哪个功能，就验证那一个
+  以及它直接影响的路径；不要顺手把整个站点全量回归。
+- 交互验证：`snapshot` 拿 ref → `click/fill/press` → 再 `snapshot` 确认状态变化
+  （文案、计数、可见性），必要时才补一张截图。
+
+## 截图口径
+- 网页 / HTML 验证 → `browser_screenshot`
+- 只有验证原生桌面应用（资源管理器、IDE、系统设置等）才用 `computer_screenshot`；
+  它截的是整块屏幕，不要拿它截网页
+
+## 约定
+- 验证刚生成的 HTML 直接用 file://，不必先起 dev server；要真服务时才起本地端口
+- 导航到本地页面会同步到应用右侧「浏览器」标签，用户能直接看到你在验证什么
+- 截图文件落在 Worktree 的 `.novaway/browser/evidence/`

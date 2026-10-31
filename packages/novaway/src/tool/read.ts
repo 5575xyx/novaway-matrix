@@ -67,8 +67,7 @@ export const ReadTool = Tool.define(
     const scope = yield* Scope.Scope
     const readState = yield* ReadState.Service
 
-    const mtimeOf = (stat: { mtime: Option.Option<Date> }) =>
-      Option.getOrElse(stat.mtime, () => new Date(0)).getTime()
+    const mtimeOf = (stat: { mtime: Option.Option<Date> }) => Option.getOrElse(stat.mtime, () => new Date(0)).getTime()
 
     const recordRead = (
       ctx: Tool.Context,
@@ -491,7 +490,9 @@ export const ReadTool = Tool.define(
           notebook = Notebook.parse(source)
         } catch (error) {
           return yield* Effect.fail(
-            new Error(`Notebook is not valid JSON: ${filepath} (${error instanceof Error ? error.message : String(error)})`),
+            new Error(
+              `Notebook is not valid JSON: ${filepath} (${error instanceof Error ? error.message : String(error)})`,
+            ),
           )
         }
         const rendered = Notebook.render(notebook, { filePath: filepath, maxBytes: MAX_BYTES })

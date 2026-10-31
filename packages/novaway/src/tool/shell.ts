@@ -314,11 +314,7 @@ const parse = Effect.fn("ShellTool.parse")(function* (command: string, ps: boole
   return tree
 })
 
-const ask = Effect.fn("ShellTool.ask")(function* (
-  ctx: Tool.Context,
-  scan: Scan,
-  permission: string = ShellID.ToolID,
-) {
+const ask = Effect.fn("ShellTool.ask")(function* (ctx: Tool.Context, scan: Scan, permission: string = ShellID.ToolID) {
   if (scan.dirs.size > 0) {
     const globs = Array.from(scan.dirs).map((dir) => {
       if (process.platform === "win32") return AppFileSystem.normalizePathPattern(path.join(dir, "*"))

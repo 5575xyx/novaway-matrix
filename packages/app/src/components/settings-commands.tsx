@@ -2,7 +2,6 @@ import type { Command } from "@novaway/sdk/v2/client"
 import { Button } from "@novaway/ui/button"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { Dialog } from "@novaway/ui/dialog"
-import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Tag } from "@novaway/ui/tag"
 import { TextField } from "@novaway/ui/text-field"
@@ -12,7 +11,8 @@ import { useQuery } from "@tanstack/solid-query"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { rowAccent, rowAccentTint, SettingsGroup } from "./settings-parts"
+import { AppIcon } from "./app-icon"
+import { rowAccent, SettingsGroup } from "./settings-parts"
 
 type CommandSource = "config" | "markdown" | "builtin"
 
@@ -137,12 +137,7 @@ export const SettingsCommands: Component<{ directory?: string }> = (props) => {
                   const accent = rowAccent(item.command.name)
                   return (
                     <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-                      <span
-                        class="grid size-9 shrink-0 place-items-center rounded-xl"
-                        style={{ background: rowAccentTint(accent) }}
-                      >
-                        <Icon name="console" class="size-4.5" style={{ color: accent }} />
-                      </span>
+                      <AppIcon seed={item.command.name} glyph="console" />
                       <div class="flex min-w-0 flex-1 flex-col">
                         <div class="flex min-w-0 flex-wrap items-center gap-2">
                           <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent }} />
@@ -244,11 +239,7 @@ const CommandDialog: Component<{
         </>
       }
     >
-      <form
-        id="settings-command-form"
-        class="flex flex-col gap-4 px-2.5 pb-3"
-        onSubmit={(event) => void submit(event)}
-      >
+      <form id="settings-command-form" class="flex flex-col gap-4 px-2.5 pb-3" onSubmit={(event) => void submit(event)}>
         <TextField
           label={language.t("settings.management.field.name" as never)}
           value={name()}

@@ -2580,9 +2580,10 @@ describe("session.compaction session memory", () => {
         (item) => item.info.role === "assistant" && item.info.summary && item.info.parentID === parent.info.id,
       )
       expect(summary?.info.role).toBe("assistant")
-      const text = summary?.parts.find((part) => part.type === "text")?.type === "text"
-        ? (summary.parts.find((part) => part.type === "text") as MessageV2.TextPart).text
-        : ""
+      const text =
+        summary?.parts.find((part) => part.type === "text")?.type === "text"
+          ? (summary.parts.find((part) => part.type === "text") as MessageV2.TextPart).text
+          : ""
       expect(text).toContain("Working through the shell tool refactor.")
       expect(text).toContain("Recent messages are preserved verbatim.")
 

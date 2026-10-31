@@ -11,10 +11,12 @@ import { Context, Effect, Layer } from "effect"
 import * as clickhouse from "./drivers/clickhouse"
 import * as mongodb from "./drivers/mongodb"
 import * as mysql from "./drivers/mysql"
+import * as oracle from "./drivers/oracle"
 import * as postgres from "./drivers/postgres"
 import * as redis from "./drivers/redis"
 import * as rqlite from "./drivers/rqlite"
 import * as sqlite from "./drivers/sqlite"
+import * as sqlserver from "./drivers/sqlserver"
 import { assertReadOnly } from "./drivers/sql"
 import type { Driver, ResolvedConnection } from "./drivers/types"
 import {
@@ -29,6 +31,9 @@ import {
 } from "./schema"
 import * as Store from "./store"
 import { closeConnectionTunnels, withTunnel } from "./tunnel"
+import * as Log from "@novaway/core/util/log"
+
+const log = Log.create({ service: "database" })
 
 /**
  * `mariadb` / `starrocks` / `doris` 都讲 MySQL 协议，直接复用 mysql2 驱动；
@@ -45,6 +50,8 @@ const drivers: Record<ResolvedConnection["type"], Driver> = {
   clickhouse,
   starrocks: mysql,
   doris: mysql,
+  sqlserver,
+  oracle,
 }
 
 function driver(connection: ResolvedConnection) {
@@ -110,9 +117,33 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@NovaWay/Database") {}
 
+/**
+ * 启动时把旧 dbx 的连接导进来（见 ./import-dbx.ts）。
+ *
+ * 只在桌面端会设置 NOVAWAY_DBX_LEGACY_DB；CLI / 测试里直接跳过。
+ * 失败只记日志——迁移不该挡住应用启动。
+ */
+const migrateLegacyConnections = Effect.gen(function* () {
+  const legacy = process.env.NOVAWAY_DBX_LEGACY_DB
+  if (!legacy) return
+  yield* Effect.tryPromise({
+    try: () => import("./import-dbx").then((mod) => mod.importLegacyDbxConnections(legacy)),
+    catch: (error) => error,
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.sync(() =>
+        log.warn("importing legacy dbx connections failed", {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      ),
+    ),
+  )
+})
+
 export const layer = Layer.effect(
   Service,
-  Effect.sync(() => {
+  Effect.gen(function* () {
+    yield* migrateLegacyConnections
     const list = Effect.fn("Database.list")(() => Effect.promise(() => Store.listConnections()))
 
     const save = Effect.fn("Database.save")((input: ConnectionInput) =>

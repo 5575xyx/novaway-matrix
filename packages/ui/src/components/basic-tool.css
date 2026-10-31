@@ -67,7 +67,8 @@
     font-size: var(--font-size-ui-base);
   }
 
-  [data-slot="basic-tool-tool-info"] > :is([data-slot="basic-tool-tool-info-structured"], [data-component$="-trigger"]) {
+  [data-slot="basic-tool-tool-info"]
+    > :is([data-slot="basic-tool-tool-info-structured"], [data-component$="-trigger"]) {
     flex: 0 1 auto;
     min-width: 0;
   }
@@ -465,11 +466,7 @@
 }
 
 [data-component="tool-trigger"][data-badge]::before {
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--tool-tone) 85%, white) 0%,
-    var(--tool-tone) 100%
-  );
+  background: linear-gradient(180deg, color-mix(in oklab, var(--tool-tone) 85%, white) 0%, var(--tool-tone) 100%);
   opacity: 0.8;
 }
 

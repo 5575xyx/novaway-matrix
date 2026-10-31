@@ -62,14 +62,21 @@ function configuredWorkspaceID(): WorkspaceID | undefined {
   return Flag.NOVAWAY_WORKSPACE_ID ? WorkspaceID.make(Flag.NOVAWAY_WORKSPACE_ID) : undefined
 }
 
+// v2 SDK clients send the deep-object form (`location[directory]`) for /api/*
+// routes in addition to the flat params. Accept both so the same request works
+// whether or not the client sets a `directory` config.
+function queryParam(url: URL, key: string) {
+  return url.searchParams.get(key) || url.searchParams.get(`location[${key}]`) || undefined
+}
+
 function selectedWorkspaceID(url: URL, sessionWorkspaceID?: WorkspaceID): WorkspaceID | undefined {
-  const workspaceParam = url.searchParams.get("workspace")
+  const workspaceParam = queryParam(url, "workspace")
   return sessionWorkspaceID ?? (workspaceParam ? WorkspaceID.make(workspaceParam) : undefined)
 }
 
 function defaultDirectory(request: HttpServerRequest.HttpServerRequest, url: URL): string {
   return (
-    url.searchParams.get("directory") ||
+    queryParam(url, "directory") ||
     request.headers["x-novaway-directory"] ||
     request.headers["x-NovaWay-directory"] ||
     request.headers["x-opencode-directory"] ||

@@ -12,6 +12,7 @@ import { Global } from "@novaway/core/global"
 import type { MessageV2 } from "./message-v2"
 import type { MessageID } from "./schema"
 import BUILTIN_DATABASE_RULE from "./prompt/database-rule.txt"
+import BUILTIN_BROWSER_RULE from "./prompt/browser-rule.txt"
 
 const files = (disableClaudeCodePrompt: boolean) => [
   "AGENTS.md",
@@ -262,6 +263,11 @@ export const layer: Layer.Layer<
       // Built-in global rules ship with the binary.
       if (BUILTIN_DATABASE_RULE) {
         always.push(`Instructions from: <built-in>/database.md\n${BUILTIN_DATABASE_RULE.trimEnd()}`)
+      }
+      // 浏览器验证也要每轮都在：browser_* 默认延迟加载，模型看不到工具时
+      // 会去 shell 里起外部 Chrome（或加载同名的外部技能），抢走用户桌面。
+      if (BUILTIN_BROWSER_RULE) {
+        always.push(`Instructions from: <built-in>/browser.md\n${BUILTIN_BROWSER_RULE.trimEnd()}`)
       }
 
       for (const [index, item] of Array.from(paths).entries()) {

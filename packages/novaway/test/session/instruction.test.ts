@@ -199,6 +199,22 @@ describe("Instruction.resolve", () => {
 })
 
 describe("Instruction.system", () => {
+  it.live("always injects the built-in browser rule", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpWithFiles({ "AGENTS.md": "# Project Instructions" })
+      yield* Effect.gen(function* () {
+        const svc = yield* Instruction.Service
+        const parts = yield* svc.system()
+        const rule = parts.always.find((item) => item.startsWith("Instructions from: <built-in>/browser.md"))
+        expect(rule).toBeDefined()
+        // 规则必须点名真实工具，并明确禁止起外部 Chrome（会抢走用户桌面）。
+        expect(rule).toContain("browser_navigate")
+        expect(rule).toContain("browser_screenshot")
+        expect(rule).toContain("--remote-debugging-port")
+      }).pipe(provideInstance(dir), provideInstruction({ home: dir, config: dir }))
+    }),
+  )
+
   it.live("loads both project and global AGENTS.md when both exist", () =>
     Effect.gen(function* () {
       const globalTmp = yield* tmpWithFiles({ "AGENTS.md": "# Global Instructions" })

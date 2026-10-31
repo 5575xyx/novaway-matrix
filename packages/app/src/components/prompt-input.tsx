@@ -23,6 +23,7 @@ import { useComments } from "@/context/comments"
 import { showToast } from "@novaway/ui/toast"
 import { Button } from "@novaway/ui/button"
 import { DockShellForm, DockTray } from "@novaway/ui/dock-surface"
+import { AppIcon } from "@/components/app-icon"
 import { Icon } from "@novaway/ui/icon"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { modelColor, modelIconId } from "@/utils/provider-icon"
@@ -65,6 +66,8 @@ import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
+import { extensionEnabled } from "@/components/extension-config"
+import { officePluginEntries } from "@/pages/home/office-plugins"
 import { ImagePreview } from "@novaway/ui/image-preview"
 import { useQueries } from "@tanstack/solid-query"
 import { useQueryOptions } from "@/context/global-sync"
@@ -155,6 +158,17 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   let fileInputRef: HTMLInputElement | undefined
   let scrollRef!: HTMLDivElement
   let slashPopoverRef!: HTMLDivElement
+
+  /**
+   * 办公模式下已经启用的插件（= 内置扩展）。输入框顶上只显示前三个图标 + 数量，
+   * 真正的开关在弹层里，和扩展设置页写同一份 config。
+   */
+  const enabledOfficePlugins = createMemo(() => {
+    if (!zenOfficeMode()) return []
+    return officePluginEntries()
+      .map((entry) => entry.extension)
+      .filter((extension) => extensionEnabled(globalSync.data.config, extension))
+  })
 
   createEffect(() => {
     if (!zenOfficeMode()) return
@@ -1863,14 +1877,35 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               }
             >
               <Show when={zenOfficeMode()}>
-                <div
+                {/* 办公模式下这里原来是「当前场景」的只读标签 —— 信息量为零：
+                    场景是你在首页选的，输入框里再显示一遍，什么也点不了。
+                    ZCode 的同一位置是插件行，所以改成插件入口：一眼看到启用了几种能力、
+                    点一下就能像扩展设置页那样开关。 */}
+                <button
+                  type="button"
                   data-component="prompt-office-agent-control"
-                  class="flex h-7 min-w-0 max-w-[190px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-foreground"
+                  data-action="prompt-office-plugins"
+                  title={language.t("office.plugin.picker.hint")}
+                  class="flex h-7 min-w-0 max-w-[260px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-foreground transition-colors hover:bg-hover"
                   style={control()}
+                  onClick={() => {
+                    void import("@/components/office-suggested-prompts").then((x) => {
+                      dialog.show(() => (
+                        <x.OfficePluginPicker directory={sdk.directory} onClose={() => dialog.close()} />
+                      ))
+                    })
+                  }}
                 >
-                  <Icon name={office.activeAction().icon} size="small" class="shrink-0 text-emerald-200" />
-                  <span class="truncate">{office.activeAction().title}</span>
-                </div>
+                  <For each={enabledOfficePlugins().slice(0, 3)}>
+                    {(plugin) => <AppIcon seed={plugin.id} glyph={plugin.icon} size="mini" />}
+                  </For>
+                  <span class="truncate">
+                    {enabledOfficePlugins().length > 0
+                      ? language.t("office.plugin.picker.enabled", { count: enabledOfficePlugins().length })
+                      : language.t("office.plugin.picker.title")}
+                  </span>
+                  <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtle" />
+                </button>
               </Show>
             </Show>
             {/* 电脑控制快捷插入：与 agent 选择器并列。
@@ -1883,6 +1918,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   {
                     type: "button",
                     "data-action": "prompt-computer",
+                    title: language.t("prompt.computer.hint"),
                     class:
                       "flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] px-2 text-13-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground",
                   } as Record<string, unknown>

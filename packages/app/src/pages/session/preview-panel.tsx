@@ -23,7 +23,7 @@ export function PreviewPanel(props: { files?: { count: () => number; open: () =>
 
   /**
    * 「让 AI 操作这个页面」：右栏是 iframe，跨进程拿不到 DOM，
-   * 所以把当前地址交给辅助对话，让 AI 用 browser 工具（Playwright）
+   * 所以把当前地址交给辅助对话，让 AI 用内置 browser_* 工具
    * 在同一地址上执行点击/输入/截图。比假装能直接操控 iframe 更可靠。
    */
   const askAi = () =>

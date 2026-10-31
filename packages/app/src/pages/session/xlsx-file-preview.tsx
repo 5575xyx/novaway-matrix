@@ -47,10 +47,8 @@ const columnLabel = (index: number): string => {
   return label
 }
 
-/** SheetJS 里的颜色是 ARGB/RGB 十六进制,统一转成 CSS。 */
-const cssColor = (input: unknown): string | undefined => {
-  if (!input || typeof input !== "object") return undefined
-  const rgb = (input as { rgb?: unknown }).rgb
+/** xlsx 里的颜色是 ARGB/RGB 十六进制,统一转成 CSS。 */
+const cssColor = (rgb: unknown): string | undefined => {
   if (typeof rgb !== "string") return undefined
   const hex = rgb.length === 8 ? rgb.slice(2) : rgb.length === 6 ? rgb : undefined
   if (!hex || !/^[0-9a-f]{6}$/i.test(hex)) return undefined
@@ -67,36 +65,162 @@ const isDark = (hex: string | undefined) => {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.4
 }
 
+/** 从 XML 标签里取属性(只用于样式表这种小文件,不做完整解析)。 */
+const xmlAttr = (tag: string | undefined, name: string): string | undefined =>
+  tag ? new RegExp("(?:^|\\s)" + name + '="([^"]*)"').exec(tag)?.[1] : undefined
+
+const tagOf = (xml: string, name: string): string | undefined => {
+  const key = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return new RegExp("<" + key + "\\b[^>]*>").exec(xml)?.[0]
+}
+
+const sectionOf = (xml: string, name: string): string => {
+  const key = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return new RegExp("<" + key + "\\b[^>]*>([\\s\\S]*?)<\\/" + key + ">").exec(xml)?.[1] ?? ""
+}
+
+type FontDesc = {
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strike?: boolean
+  size?: number
+  color?: string
+}
+type XfDesc = {
+  fontId?: number
+  fillId?: number
+  horizontal?: string
+  vertical?: string
+  wrap?: boolean
+}
+type StyleTable = { fonts: FontDesc[]; fills: (string | undefined)[]; xfs: XfDesc[]; theme: string[] }
+
+/** 主题色槽位顺序(OOXML 固定):lt1, dk1, lt2, dk2, accent1-6, hlink, folHlink。 */
+const THEME_SLOTS = [
+  "lt1",
+  "dk1",
+  "lt2",
+  "dk2",
+  "accent1",
+  "accent2",
+  "accent3",
+  "accent4",
+  "accent5",
+  "accent6",
+  "hlink",
+  "folHlink",
+]
+
+const parseTheme = (xml: string | undefined): string[] => {
+  if (!xml) return []
+  return THEME_SLOTS.map((slot) => {
+    const body = sectionOf(xml, `a:${slot}`)
+    const srgb = /<a:srgbClr val="([0-9A-Fa-f]{6})"/.exec(body)?.[1]
+    const sys = /<a:sysClr[^>]*lastClr="([0-9A-Fa-f]{6})"/.exec(body)?.[1]
+    const hex = srgb ?? sys
+    return hex ? `#${hex.toLowerCase()}` : ""
+  })
+}
+
+/** `<color rgb="FF0000"/>` / `<color theme="4"/>`:显式 RGB 优先,其次查主题色。 */
+const colorOf = (tag: string | undefined, theme: string[]): string | undefined => {
+  const rgb = cssColor(xmlAttr(tag, "rgb"))
+  if (rgb) return rgb
+  const index = xmlAttr(tag, "theme")
+  return index === undefined ? undefined : theme[Number(index)] || undefined
+}
+
 /**
- * 把单元格样式翻译成 CSS。
+ * 解析 xl/styles.xml。
  *
- * SheetJS 的 `cell.s` 保留了 xlsx 里显式写过的字体/填充/对齐(`cellStyles: true`),
- * 之前的预览完全不看它 —— 标题行不加粗、金额没有底色、数字不右对齐,
- * 所以一眼就看得出"不是 Excel"。这里尽量按原样还原,只做两件保守的修正:
- * - 没设数字格式的数字用 Excel 的默认右对齐;
- * - 深色主题下不套用纯黑字色(否则字直接消失)。
+ * SheetJS 社区版只把**填充色**挂到 `cell.s` 上(见 0.18.5 的 process_cell_style),
+ * 字体/字号/对齐都丢在 `styles.xml` 里不暴露给调用方 —— 于是之前的预览
+ * 标题不加粗、没有底色、标题行不居中,一眼就不像 Excel。这里直接读原始的
+ * styles.xml,把 font/fill/alignment 还原出来。
  */
-const cellStyle = (cell: XLSX.CellObject): { style: JSX.CSSProperties; wrap: boolean } => {
+const parseStyles = (xml: string | undefined, theme: string[]): StyleTable | undefined => {
+  if (!xml) return undefined
+  const fonts = [...sectionOf(xml, "fonts").matchAll(/<font\b[^>]*>([\s\S]*?)<\/font>/g)].map(([, body]) => ({
+    bold: /<b\b[^>]*\/>/.test(body),
+    italic: /<i\b[^>]*\/>/.test(body),
+    underline: /<u\b[^>]*\/>/.test(body),
+    strike: /<strike\b[^>]*\/>/.test(body),
+    size: Number(xmlAttr(tagOf(body, "sz"), "val")) || undefined,
+    color: colorOf(tagOf(body, "color"), theme),
+  }))
+  const fills = [...sectionOf(xml, "fills").matchAll(/<fill\b[^>]*>([\s\S]*?)<\/fill>/g)].map(([, body]) => {
+    if (xmlAttr(tagOf(body, "patternFill"), "patternType") !== "solid") return undefined
+    return colorOf(tagOf(body, "fgColor"), theme)
+  })
+  const xfs = [...sectionOf(xml, "cellXfs").matchAll(/<xf\b([^>]*?)(?:\/>|>([\s\S]*?)<\/xf>)/g)].map(
+    ([, head, body = ""]) => {
+      const tag = `<xf ${head}>`
+      const align = tagOf(body, "alignment")
+      return {
+        fontId: Number(xmlAttr(tag, "fontId") ?? 0),
+        fillId: Number(xmlAttr(tag, "fillId") ?? 0),
+        horizontal: xmlAttr(align, "horizontal"),
+        vertical: xmlAttr(align, "vertical"),
+        wrap: xmlAttr(align, "wrapText") === "1",
+      }
+    },
+  )
+  return { fonts, fills, xfs, theme }
+}
+
+/** 工作表 XML 里每个单元格的样式索引(`<c r="A1" s="3"/>`)。 */
+const parseCellStyles = (xml: string | undefined): Map<string, number> => {
+  const map = new Map<string, number>()
+  if (!xml) return map
+  for (const match of xml.matchAll(/<c\b([^>]*?)(?:\/>|>)/g)) {
+    const tag = `<c ${match[1]}>`
+    const ref = xmlAttr(tag, "r")
+    const index = xmlAttr(tag, "s")
+    if (ref && index !== undefined) map.set(ref, Number(index))
+  }
+  return map
+}
+
+const rawFile = (files: Record<string, { content?: unknown }> | undefined, path: string | undefined) => {
+  if (!files || !path) return undefined
+  const content = files[path.replace(/^\//, "")]?.content
+  if (typeof content === "string") return content
+  if (content instanceof Uint8Array) return new TextDecoder().decode(content)
+  return undefined
+}
+
+/**
+ * 把单元格的样式索引翻译成 CSS。除了还原字体/填充/对齐,只做三件保守的修正:
+ * - 没设对齐的数字用 Excel 的默认右对齐,布尔/错误居中;
+ * - 深色主题下不套用纯黑字色(否则字直接消失);
+ * - 字号为默认 11pt 时不写,避免和界面字号打架。
+ */
+const cellStyle = (
+  cell: XLSX.CellObject,
+  xf: XfDesc | undefined,
+  styles: StyleTable | undefined,
+): { style: JSX.CSSProperties; wrap: boolean } => {
   const style: JSX.CSSProperties = {}
-  const raw = (cell as { s?: Record<string, any> }).s
   let wrap = false
 
-  const font = raw?.font
-  const fill = cssColor(raw?.fill?.fgColor)
-  if (font && typeof font === "object") {
+  const font = xf?.fontId === undefined ? undefined : styles?.fonts[xf.fontId]
+  // 没有原始样式表时,xlsx 的填充色仍然能从 SheetJS 的 cell.s 里拿到。
+  const fill =
+    (xf?.fillId === undefined ? undefined : styles?.fills[xf.fillId]) ??
+    cssColor((cell as { s?: { fgColor?: { rgb?: unknown } } }).s?.fgColor?.rgb)
+
+  if (font) {
     if (font.bold) style["font-weight"] = "600"
     if (font.italic) style["font-style"] = "italic"
     if (font.underline) style["text-decoration"] = "underline"
     if (font.strike) style["text-decoration"] = "line-through"
-    if (typeof font.sz === "number" && font.sz > 0 && font.sz !== 11) style["font-size"] = `${font.sz}pt`
-    const color = cssColor(font.color)
-    // 有底色时尊重原始字色;没底色时跳过硬编码的深色字(主题背景可能也是深的)。
-    if (color && (fill || !isDark(color))) style.color = color
+    if (font.size && font.size !== 11) style["font-size"] = `${Math.min(font.size, 40)}pt`
+    if (font.color && (fill || !isDark(font.color))) style.color = font.color
   }
   if (fill) style["background-color"] = fill
 
-  const align = raw?.alignment
-  const horizontal = typeof align?.horizontal === "string" ? align.horizontal : undefined
+  const horizontal = xf?.horizontal
   if (horizontal === "center" || horizontal === "centerContinuous") style["text-align"] = "center"
   else if (horizontal === "right") style["text-align"] = "right"
   else if (horizontal === "left") style["text-align"] = "left"
@@ -104,12 +228,12 @@ const cellStyle = (cell: XLSX.CellObject): { style: JSX.CSSProperties; wrap: boo
   else if (cell.t === "n") style["text-align"] = "right"
   else if (cell.t === "b" || cell.t === "e") style["text-align"] = "center"
 
-  const vertical = typeof align?.vertical === "string" ? align.vertical : undefined
+  const vertical = xf?.vertical
   if (vertical === "top") style["vertical-align"] = "top"
   else if (vertical === "center") style["vertical-align"] = "middle"
   else if (vertical === "bottom") style["vertical-align"] = "bottom"
 
-  if (align?.wrapText === true) {
+  if (xf?.wrap) {
     wrap = true
     style["white-space"] = "pre-wrap"
     style["word-break"] = "break-word"
@@ -128,7 +252,12 @@ const cellText = (cell: XLSX.CellObject): string => {
   return ""
 }
 
-function parseSheet(name: string, sheet: XLSX.WorkSheet): GridSheet {
+function parseSheet(
+  name: string,
+  sheet: XLSX.WorkSheet,
+  styles: StyleTable | undefined,
+  styleIndex: Map<string, number>,
+): GridSheet {
   if (!sheet || !sheet["!ref"]) return { name, rows: [], columns: [], heights: [] }
   const range = XLSX.utils.decode_range(sheet["!ref"])
   const rowCount = Math.min(range.e.r + 1, MAX_ROWS)
@@ -182,9 +311,13 @@ function parseSheet(name: string, sheet: XLSX.WorkSheet): GridSheet {
         row.push({ value: "", covered: true })
         continue
       }
-      const cell = sheet[XLSX.utils.encode_cell({ r, c })]
+      const ref = XLSX.utils.encode_cell({ r, c })
+      const cell = sheet[ref]
       const span = spans.get(`${r}:${c}`)
-      const parsed = cell ? cellStyle(cell) : { style: {}, wrap: false }
+      const index = styleIndex.get(ref)
+      const parsed = cell
+        ? cellStyle(cell, index === undefined ? undefined : styles?.xfs[index], styles)
+        : { style: {}, wrap: false }
       row.push({
         value: cell ? cellText(cell) : "",
         ...(span ? { rowSpan: span.rowSpan, colSpan: span.colSpan } : {}),
@@ -199,9 +332,24 @@ function parseSheet(name: string, sheet: XLSX.WorkSheet): GridSheet {
 
 async function parseWorkbook(base64: string): Promise<GridSheet[]> {
   const bytes = base64ToBytes(base64)
-  // cellStyles = 读取 xlsx 里显式写过的字体/填充/对齐;cellDates = 日期按 Date 解析。
-  const workbook = XLSX.read(bytes, { type: "array", cellStyles: true, cellDates: true })
-  return workbook.SheetNames.map((name) => parseSheet(name, workbook.Sheets[name]))
+  // cellStyles = 读取填充;cellDates = 日期按 Date 解析;bookFiles = 保留原始 XML,
+  // 字体/对齐要从 styles.xml 自己解析(SheetJS 社区版不暴露它们)。
+  const workbook = XLSX.read(bytes, {
+    type: "array",
+    cellStyles: true,
+    cellDates: true,
+    bookFiles: true,
+  }) as XLSX.WorkBook & {
+    files?: Record<string, { content?: unknown }>
+    Directory?: { sheets?: string[]; styles?: string[]; themes?: string[] }
+  }
+  const files = workbook.files
+  const theme = parseTheme(rawFile(files, workbook.Directory?.themes?.[0]))
+  const styles = parseStyles(rawFile(files, workbook.Directory?.styles?.[0]), theme)
+  return workbook.SheetNames.map((name, index) => {
+    const path = workbook.Directory?.sheets?.[index]
+    return parseSheet(name, workbook.Sheets[name], styles, parseCellStyles(rawFile(files, path)))
+  })
 }
 
 /**
@@ -254,7 +402,9 @@ export const XlsxFilePreview: Component<{ base64: string }> = (props) => {
             <colgroup>
               <col style={{ width: "44px" }} />
               <For each={columns()}>
-                {(column) => <col style={{ width: `${column.width}px`, display: column.hidden ? "none" : undefined }} />}
+                {(column) => (
+                  <col style={{ width: `${column.width}px`, display: column.hidden ? "none" : undefined }} />
+                )}
               </For>
             </colgroup>
             <thead>
@@ -274,8 +424,7 @@ export const XlsxFilePreview: Component<{ base64: string }> = (props) => {
                 {(row, rowIndex) => (
                   <tr
                     style={{
-                      height:
-                        (sheet()?.heights[rowIndex()] ?? 0) > 0 ? `${sheet()!.heights[rowIndex()]}px` : undefined,
+                      height: (sheet()?.heights[rowIndex()] ?? 0) > 0 ? `${sheet()!.heights[rowIndex()]}px` : undefined,
                       display: sheet()?.heights[rowIndex()] === 0 ? "none" : undefined,
                     }}
                   >

@@ -1,14 +1,26 @@
 [data-component="image-preview"] {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  /*
+   * 必须和 `dialog-overlay` 同层或更高。
+   *
+   * 图片预览是走 `dialog.show()` 挂上去的，DialogProvider 会先渲染一层遮罩
+   * （`[data-component="dialog-overlay"]`，z-index: 100，半透明底色 + backdrop blur）。
+   * 这里原来是 50 —— 遮罩盖在图片上面，于是**所有**图片点开都蒙了一层灰白 + 2px 模糊，
+   * 看起来就是"糊糊的"。普通弹窗没这个问题，因为 `[data-component="dialog"]` 也是 100、
+   * 且排在遮罩之后。
+   */
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 铺满全屏只是为了让内容居中，不能吃掉点击：
+     点图片外面仍然应当落到遮罩上（关掉预览）。 */
+  pointer-events: none;
 
   [data-slot="image-preview-container"] {
     position: relative;
-    z-index: 50;
+    z-index: 100;
     width: min(calc(100vw - 32px), 90vw);
     max-width: 1200px;
     height: min(calc(100vh - 32px), 90vh);
@@ -16,6 +28,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    pointer-events: none;
 
     [data-slot="image-preview-content"] {
       display: flex;
@@ -25,6 +38,8 @@
       max-height: 100%;
       border-radius: var(--radius-lg);
       background: var(--popover);
+      /* 图片贴纸之外（标题栏与留白）自己接走点击，避免"点到卡片上却把弹窗关了"。 */
+      pointer-events: auto;
       box-shadow:
         0 15px 45px 0 rgba(19, 16, 16, 0.35),
         0 3.35px 10.051px 0 rgba(19, 16, 16, 0.25),

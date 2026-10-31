@@ -49,9 +49,7 @@ describe("cron.tasks", () => {
     const created = new Date("2026-03-10T09:01:00").getTime()
     const item = Tasks.add(task({ createdAt: created, cron: "*/5 * * * *" }))
     expect(Tasks.due(item, new Date("2026-03-10T09:04:00").getTime())).toBeUndefined()
-    expect(Tasks.due(item, new Date("2026-03-10T09:05:30").getTime())).toBe(
-      new Date("2026-03-10T09:05:00").getTime(),
-    )
+    expect(Tasks.due(item, new Date("2026-03-10T09:05:30").getTime())).toBe(new Date("2026-03-10T09:05:00").getTime())
   })
 
   test("due() anchors on the last fire so a task does not fire twice", () => {
@@ -59,9 +57,7 @@ describe("cron.tasks", () => {
     const item = Tasks.add(task({ createdAt: created }))
     Tasks.markFired(item.id, new Date("2026-03-10T09:05:00").getTime())
     expect(Tasks.due(item, new Date("2026-03-10T09:06:00").getTime())).toBeUndefined()
-    expect(Tasks.due(item, new Date("2026-03-10T09:10:30").getTime())).toBe(
-      new Date("2026-03-10T09:10:00").getTime(),
-    )
+    expect(Tasks.due(item, new Date("2026-03-10T09:10:30").getTime())).toBe(new Date("2026-03-10T09:10:00").getTime())
   })
 
   test("expired() only applies to tasks with an expiry", () => {

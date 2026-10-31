@@ -70,10 +70,26 @@ export const MarketplaceEntry = Schema.Struct({
   keywords: Schema.optional(Schema.Array(Schema.String)),
 }).annotate({ identifier: "MarketplaceEntry" })
 
+export const MarketplaceUpdate = Schema.Struct({
+  name: Schema.String,
+  root: Schema.String,
+  kind: Schema.Literals(["zip", "git"]),
+  ref: Schema.optional(Schema.String),
+  state: Schema.Literals(["current", "outdated", "unknown"]),
+  /** 本地记录的标识（git 提交哈希 / 归档 ETag）。 */
+  revision: Schema.optional(Schema.String),
+  /** 远端当前标识。 */
+  available: Schema.optional(Schema.String),
+  checkedAt: Schema.Number,
+  error: Schema.optional(Schema.String),
+}).annotate({ identifier: "MarketplaceUpdate" })
+
 export const MarketplaceCatalog = Schema.Struct({
   installed: Schema.Array(MarketplaceInstalled),
   zcode: Schema.Array(MarketplaceEntry),
   claude: Schema.Array(MarketplaceEntry),
+  /** 每个已安装扩展的远端更新检查结果（探测失败时 state=unknown）。 */
+  updates: Schema.optional(Schema.Array(MarketplaceUpdate)),
   errors: Schema.Array(Schema.String),
 }).annotate({ identifier: "MarketplaceCatalog" })
 

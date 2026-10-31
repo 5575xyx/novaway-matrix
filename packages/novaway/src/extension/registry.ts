@@ -9,6 +9,7 @@ import * as Schema from "./schema"
 import * as Validate from "./validate"
 import * as Lock from "./lock"
 import * as Package from "./package"
+import * as Generation from "./generation"
 import { InstallationVersion } from "@novaway/core/installation/version"
 import type { Contribution, Loaded } from "./schema"
 
@@ -19,6 +20,8 @@ type State = {
   disabled: string[]
   changes: Record<string, Lock.Change>
   at: number
+  /** 加载时扩展目录的代数，见 ./generation.ts。 */
+  revision: number
 }
 
 export interface Interface {
@@ -91,7 +94,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const state = yield* InstanceState.make<State>(
       Effect.fn("Extension.state")(function* () {
-        return { loaded: [], disabled: [], changes: {}, at: 0 }
+        return { loaded: [], disabled: [], changes: {}, at: 0, revision: 0 }
       }),
     )
 
@@ -112,6 +115,7 @@ export const layer = Layer.effect(
       s.loaded = loaded
       s.disabled = disabled
       s.at = Date.now()
+      s.revision = Generation.current()
 
       // Record what we loaded so the next boot can report upgrades/edits.
       const previous = yield* Effect.promise(() => Lock.read(Global.Path.config))
@@ -136,7 +140,8 @@ export const layer = Layer.effect(
 
     const ensure = Effect.fn("Extension.ensure")(function* () {
       const s = yield* InstanceState.get(state)
-      if (s.at > 0) return s
+      // 后台自动安装（provision）装完了会 bump 代数，这里据此作废旧快照。
+      if (s.at > 0 && s.revision === Generation.current()) return s
       yield* load()
       return yield* InstanceState.get(state)
     })

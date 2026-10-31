@@ -13,9 +13,7 @@ export type BackgroundJob = BackgroundJobInfo
  * 不再留 90 秒尾巴。结束后的结果走会话时间线与任务详情，不靠这张卡兜底。
  */
 export function visibleBackgroundJobs(jobs: readonly BackgroundJob[]): BackgroundJob[] {
-  return jobs
-    .filter((job) => job.status === "running")
-    .toSorted((a, b) => num(b.started_at) - num(a.started_at))
+  return jobs.filter((job) => job.status === "running").toSorted((a, b) => num(b.started_at) - num(a.started_at))
 }
 
 /** 运行中的任务。可见性对 running 恒真，所以这里不需要时钟。 */

@@ -135,12 +135,17 @@ function resolveExecutable(envName, commandName, packageName) {
   if (process.env[envName]) return process.env[envName]
   const checked = spawnSync(commandName, ["-version"], { stdio: "ignore" })
   if (checked.status === 0) return commandName
-  try {
-    const require = createRequire(import.meta.url)
-    const resolved = require(packageName)
-    if (typeof resolved === "string") return resolved
-    if (typeof resolved?.path === "string") return resolved.path
-  } catch {}
+  // 依赖可能只装在工作区子包里（bun 按包提升），脚本在仓库根目录时按自己解析不到。
+  const bases = [import.meta.url]
+  for (const pkg of ["novaway", "app"]) bases.push(new URL(`../packages/${pkg}/package.json`, import.meta.url).href)
+  for (const base of bases) {
+    try {
+      const require = createRequire(base)
+      const resolved = require(packageName)
+      if (typeof resolved === "string") return resolved
+      if (typeof resolved?.path === "string") return resolved.path
+    } catch {}
+  }
   return undefined
 }
 

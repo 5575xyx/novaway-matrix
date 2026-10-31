@@ -1,0 +1,13 @@
+# 补丁文件必须保持 LF。
+# Windows 上 core.autocrlf=true 会把检出的 .patch 转成 CRLF，而 pnpm 的补丁器
+# 按字节比对上下文行，CRLF 会让 patchedDependencies 直接打不上（bun 恰好容忍）。
+# 这个仓库的补丁是 bun / pnpm 共用的，所以统一钉成 LF。
+patches/*.patch text eol=lf
+
+# 二进制资源不参与换行转换
+*.png binary
+*.jpg binary
+*.ico binary
+*.wasm binary
+*.pptx binary
+*.zip binary

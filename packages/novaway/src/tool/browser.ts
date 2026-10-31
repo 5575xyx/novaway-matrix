@@ -184,11 +184,13 @@ export const BrowserScreenshotTool = Tool.define(
               title: "截图",
               metadata: { path: relative },
               output: `截图已保存：${relative}`,
+              // 用 data URL 而不是文件路径：消息流里要直接把截图当验证结果展示，
+              // 也方便支持媒体的模型看到实际渲染效果。文件同时落在证据目录里。
               attachments: [
                 {
                   type: "file" as const,
                   mime: "image/png",
-                  url: result.path,
+                  url: result.dataURL,
                   filename: path.basename(result.path),
                 },
               ],
