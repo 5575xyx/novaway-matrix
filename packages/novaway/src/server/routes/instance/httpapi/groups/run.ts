@@ -1,6 +1,11 @@
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
-import { WorkspaceRoutingQuery, WorkspaceRoutingQueryFields } from "../middleware/workspace-routing"
+import { InstanceContextMiddleware } from "../middleware/instance-context"
+import {
+  WorkspaceRoutingMiddleware,
+  WorkspaceRoutingQuery,
+  WorkspaceRoutingQueryFields,
+} from "../middleware/workspace-routing"
 import { described } from "./metadata"
 
 const root = "/run"
@@ -687,4 +692,12 @@ export const RunApi = HttpApiGroup.make("run")
       }),
     ),
   )
+  /**
+   * 运行接口要读实例状态（总控开关、快照、会话），必须声明实例上下文中间件。
+   *
+   * 少了它，`/run/:id/execute` 里的 `config.get()` 会以「InstanceRef not provided」
+   * 直接 500 —— 其余团队接口只读库，所以这个洞一直没被发现（见 httpapi-team-run.test.ts）。
+   */
+  .middleware(InstanceContextMiddleware)
+  .middleware(WorkspaceRoutingMiddleware)
   .annotateMerge(OpenApi.annotations({ title: "Team runs" }))
