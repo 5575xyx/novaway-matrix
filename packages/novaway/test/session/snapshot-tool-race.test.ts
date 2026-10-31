@@ -65,6 +65,10 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Memory } from "@/memory/service"
 import { Auth } from "@/auth"
+import { ClientCapabilities } from "@/effect/client-capabilities"
+import { defaultLayer as CronDefaultLayer } from "@/cron/service"
+import { defaultLayer as DatabaseDefaultLayer } from "@/database/service"
+import { defaultLayer as TruncateDefaultLayer } from "@/tool/truncate"
 
 void Log.init({ print: false })
 
@@ -136,6 +140,7 @@ function makeHttp() {
     SyncEvent.defaultLayer,
     EventV2Bridge.defaultLayer,
     Auth.defaultLayer,
+    ClientCapabilities.layer({ client: "test", capabilities: ["question", "plan"] }),
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
@@ -151,6 +156,10 @@ function makeHttp() {
     Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
+    Layer.provide(CronDefaultLayer),
+    Layer.provide(DatabaseDefaultLayer),
+    Layer.provide(Instruction.defaultLayer),
+    Layer.provide(TruncateDefaultLayer),
     Layer.provideMerge(deps),
   )
   const trunc = Truncate.layer.pipe(Layer.provideMerge(deps))

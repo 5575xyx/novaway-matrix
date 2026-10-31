@@ -31,6 +31,9 @@ import { InstanceState } from "@/effect/instance-state"
 import { Reference } from "@/reference/reference"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Auth } from "@/auth"
+import { ClientCapabilities } from "@/effect/client-capabilities"
+import { defaultLayer as CronDefaultLayer } from "@/cron/service"
+import { defaultLayer as DatabaseDefaultLayer } from "@/database/service"
 import { testEffect } from "../lib/effect"
 import { TestConfig } from "../fixture/config"
 
@@ -82,6 +85,9 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(Goal.defaultLayer),
       Layer.provide(WorkflowDefaultLayer),
       Layer.provide(OrchestratorDefaultLayer),
+      Layer.provide(ClientCapabilities.defaultLayer),
+      Layer.provide(CronDefaultLayer),
+      Layer.provide(DatabaseDefaultLayer),
     )
 
 const it = testEffect(

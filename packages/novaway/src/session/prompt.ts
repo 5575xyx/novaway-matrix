@@ -68,6 +68,7 @@ import { Service as TeamRunService } from "@/team/run"
 import { TeamPolicy } from "@/team/policy"
 import { Service as TeamService } from "@/team/team"
 import { TeamCatalog } from "@/team/catalog"
+import * as TeamSwitch from "@/team/switch"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { LLM } from "./llm"
@@ -1099,7 +1100,11 @@ export const layer = Layer.effect(
 
       // 团队目录（§4.2）：用户在输入框选了团队 / Auto，才把可用团队告诉模型。
       // 这是选择器的唯一下游 —— 主智能体能派发的团队必须与用户看到的完全一致。
-      if (teamService) {
+      //
+      // 总控关闭时**不注入**（§13.1 / §15）：`team_run` 那时也不在工具表里，再把目录
+      // 塞给模型只会让它去调一个不存在的入口。会话字段是建会话时写的，关掉开关后
+      // 旧会话仍带着 `teamMode`，所以这道门必须在这里，而不只在 `session.create`。
+      if (teamService && TeamSwitch.enabled((yield* config.get()).experimental)) {
         const mode = input.session.teamMode
         if (mode && mode !== "off") {
           const wanted = new Set(mode === "selected" ? (input.session.teamIDs ?? []) : [])

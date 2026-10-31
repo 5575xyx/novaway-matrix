@@ -59,8 +59,13 @@ import { reply, TestLLMServer } from "../lib/llm-server"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { defaultLayer as TeamOpLogLayer, Service as TeamOpLogService } from "@/team/op-log"
+import { defaultLayer as TeamLayer, Service as TeamService } from "@/team/team"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Auth } from "@/auth"
+import { ClientCapabilities } from "@/effect/client-capabilities"
+import { defaultLayer as CronDefaultLayer } from "@/cron/service"
+import { defaultLayer as DatabaseDefaultLayer } from "@/database/service"
+import { defaultLayer as TruncateDefaultLayer } from "@/tool/truncate"
 
 void Log.init({ print: false })
 
@@ -194,6 +199,8 @@ function makeHttp(input?: { processor?: "blocking" }) {
     HookLayer,
     ReadState.defaultLayer,
     TeamOpLogLayer,
+    TeamLayer,
+    ClientCapabilities.layer({ client: "test", capabilities: ["question", "plan"] }),
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
@@ -209,6 +216,10 @@ function makeHttp(input?: { processor?: "blocking" }) {
     Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
+    Layer.provide(CronDefaultLayer),
+    Layer.provide(DatabaseDefaultLayer),
+    Layer.provide(Instruction.defaultLayer),
+    Layer.provide(TruncateDefaultLayer),
     Layer.provideMerge(deps),
   )
   const trunc = Truncate.layer.pipe(Layer.provideMerge(deps))
@@ -632,7 +643,7 @@ it.instance(
       })
       const file = path.join(dir, "scoped.txt")
       // 模拟编排派发的子会话：登记坐标后，写操作会落操作日志。
-      yield* ops.scope({ sessionID: chat.id, runID: "run_scoped", taskID: "team_a", attempt: 1 })
+      yield* ops.scope({ sessionID: chat.id, runID: "run_scoped", taskID: "team_a", attempt: 1, readOnly: false })
 
       yield* prompt.prompt({
         sessionID: chat.id,
@@ -3010,6 +3021,96 @@ it.instance(
           expect(err.data.message).toContain("init")
         }
       }
+    }),
+  { git: true },
+  60_000,
+)
+
+it.instance(
+  "tells the model which teams the user selected",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const teams = yield* TeamService
+      const chat = yield* sessions.create({
+        title: "Selected teams",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const team = yield* teams.create({ name: "资料组", rootSessionID: chat.id })
+      yield* sessions.setTeamMode({ sessionID: chat.id, mode: "selected", teamIDs: [team.id] })
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        parts: [{ type: "text", text: "查一下资料" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      // 目录是在发给模型之前注入的（insertReminders），所以要看这一轮的用户消息。
+      const catalog = (yield* MessageV2.filterCompactedEffect(chat.id))
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.TextPart => part.type === "text" && part.synthetic === true)
+        .map((part) => part.text)
+        .filter((text) => text.includes("本次会话可派发的团队"))
+      expect(catalog).toHaveLength(1)
+      expect(catalog[0]).toContain(team.id)
+      expect(catalog[0]).toContain("资料组")
+
+      // 内容没变就不重发：目录每轮都会算，但不该每轮都塞进上下文。
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        parts: [{ type: "text", text: "继续" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+      const again = (yield* MessageV2.filterCompactedEffect(chat.id))
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.TextPart => part.type === "text" && part.synthetic === true)
+        .filter((part) => part.text.includes("本次会话可派发的团队"))
+      expect(again).toHaveLength(1)
+    }),
+  { git: true },
+  60_000,
+)
+
+it.instance(
+  "keeps quiet about teams when orchestration is switched off",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig((url) => ({
+        ...providerCfg(url),
+        experimental: { team_orchestration: false },
+      }))
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const teams = yield* TeamService
+      const chat = yield* sessions.create({
+        title: "Teams off",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const team = yield* teams.create({ name: "资料组", rootSessionID: chat.id })
+      yield* sessions.setTeamMode({ sessionID: chat.id, mode: "selected", teamIDs: [team.id] })
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        parts: [{ type: "text", text: "查一下资料" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      // 会话是开关关掉之前建的，`teamMode` 还在。目录不能跟着一起去，否则
+      // 模型会看到一张派发不了任何东西的名单（`team_run` 那时也不在工具表里）。
+      const texts = (yield* MessageV2.filterCompactedEffect(chat.id))
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.TextPart => part.type === "text")
+        .map((part) => part.text)
+        .join(String.fromCharCode(10))
+      expect(texts).not.toContain("本次会话可派发的团队")
     }),
   { git: true },
   60_000,
