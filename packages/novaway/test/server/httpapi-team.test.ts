@@ -311,6 +311,54 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("a plan copies the template's roster at that moment instead of binding to it", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type Detail = {
+        teams: Array<{ id: string; profileID?: string; profileVersion?: number }>
+      }
+      const captain = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "甲", job: "review" })).json) as {
+        id: string
+      }
+      const profile = (yield* (
+        yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "审查组",
+          captain: captain.id,
+          members: [{ employeeID: captain.id }],
+        })
+      ).json) as { profile: { id: string; version: number } }
+
+      const run = (yield* (
+        yield* post(dir, "/run", { sessionID: "ses_plan_roster", directory: dir, mode: "team", goal: "审查" })
+      ).json) as { run: { id: string } }
+      const planned = yield* post(dir, `/run/${run.run.id}/plan`, {
+        directory: dir,
+        teams: [{ name: "审查组", profileID: profile.profile.id }],
+      })
+      expect(planned.status).toBe(200)
+      // 计划点了模板，团队记下的是**复制下来那一版**：派发时才有「该派给谁」可对账（§9）。
+      const first = ((yield* planned.json) as Detail).teams[0]
+      expect(first.profileID).toBe(profile.profile.id)
+      expect(first.profileVersion).toBe(1)
+
+      // 改模板不改变已经在跑（或已建好计划）的这次运行：模板是复制，不是绑定。
+      yield* patch(dir, `/team/profile/${profile.profile.id}`, { name: "审查组 v2" })
+      const after = (yield* (yield* get(dir, "/run/" + run.run.id, dir)).json) as Detail
+      expect(after.teams[0].profileVersion).toBe(1)
+
+      // 计划点名一个不存在的模板：现在拒绝还能说清是哪一步错了。
+      const other = (yield* (
+        yield* post(dir, "/run", { sessionID: "ses_plan_missing", directory: dir, mode: "team", goal: "审查" })
+      ).json) as { run: { id: string } }
+      const missing = yield* post(dir, `/run/${other.run.id}/plan`, {
+        directory: dir,
+        teams: [{ name: "不存在的组", profileID: "prof_missing" }],
+      })
+      expect(missing.status).toBe(400)
+    }),
+  )
+
   it.live("a run interrupted by a restart comes back as paused, or needs_review when an op is unknown", () =>
     Effect.gen(function* () {
       type Detail = {

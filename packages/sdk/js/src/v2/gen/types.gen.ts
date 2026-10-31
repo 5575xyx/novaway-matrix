@@ -3737,6 +3737,7 @@ export type RunView = {
 export type RunTeamView = {
   id: string
   profileID?: string
+  profileVersion?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   phase: string
   roundCaptain: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   verdict?: unknown
@@ -18072,6 +18073,10 @@ export type RunPlanData = {
 }
 
 export type RunPlanErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
   /**
    * Not found
    */

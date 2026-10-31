@@ -4,6 +4,7 @@ import { Service as TeamOpLogService, defaultLayer as opLogLayer } from "./op-lo
 import { summarize as attributeUsage } from "./attribution"
 import { depsOf, normalize, stillValid, versions, type Dep } from "./artifacts"
 import { Service as TeamRunService, defaultLayer as runLayer, isTerminal, type RunState, type RunTeam } from "./run"
+import { describe as describeAddressing, type Problem } from "./roster"
 import {
   Service as TeamVerificationService,
   defaultLayer as verificationLayer,
@@ -94,6 +95,14 @@ export const DEFAULT_CONCURRENCY = 3
 export type Dispatcher = (input: DispatchInput) => Effect.Effect<Report, unknown>
 export type Verifier = (input: VerifyInput) => Effect.Effect<VerificationResult, unknown>
 
+/**
+ * 寻址失败的一项（§9）：某个该接活的人已经接不了。
+ *
+ * 判定与措辞都归名册模块（`team/roster`）：调度器只负责「有人接不了 → 这一轮不派发」，
+ * 不重新定义什么叫归档。
+ */
+export type AddressingProblem = Problem
+
 export type Execution = {
   state: RunState
   rounds: number
@@ -128,6 +137,14 @@ export type Options = {
   integrate?: Integrator
   /** 合并后的全局验收：有全局验收项时必须提供。 */
   verifyMerged?: (input: { acceptance: Acceptance; snapshotID: string }) => Effect.Effect<VerificationResult, unknown>
+  /**
+   * 寻址校验（§9）：派发前确认这个团队名册里的人现在还能接活。
+   *
+   * 返回非空即「这一轮不派发」，团队按失败处理并列出问题成员。**不跳过、不静默改派**：
+   * 悄悄换一个人接着干，会让「谁做了什么」这件事在事后无法回答。
+   * 不提供 = 不做这项校验（临时团队的成员是会话，本来就不在员工库里）。
+   */
+  addressing?: (team: RunTeam) => Effect.Effect<readonly AddressingProblem[]>
   signal?: AbortSignal
 }
 
@@ -323,9 +340,34 @@ export const layer = Layer.effect(
               .pipe(Effect.asVoid, Effect.catchCause(() => Effect.void))
           : Effect.void
 
-      /** 单团队一轮：预占 → 派发 → 验证 → 判定。失败不影响其他团队。 */
+      /** 本轮派发被寻址校验拦下的团队（§9）：收尾时要说清楚，而不是只留一条事件。 */
+      const addressingFailed: Array<{ teamID: string; problems: readonly AddressingProblem[] }> = []
+
+      /** 单团队一轮：寻址 → 预占 → 派发 → 验证 → 判定。失败不影响其他团队。 */
       const attempt = (team: RunTeam, round: number) =>
         Effect.gen(function* () {
+          /**
+           * 寻址（§9）：名册里的人接不了活，这一轮就一轮都不派。
+           *
+           * 放在预占之前：人都派不出去，没有理由先占住额度。团队按失败处理而不是
+           * 「排队等下次」，因为等下去名册也不会自己好起来 —— 要么人恢复，要么由人改派。
+           */
+          const addressed = input.addressing ? yield* input.addressing(team) : []
+          if (addressed.length > 0) {
+            addressingFailed.push({ teamID: team.id, problems: addressed })
+            yield* runs.updateTeam({
+              id: team.id,
+              phase: "failed",
+              verdict: { verdict: "addressing_failed", members: addressed },
+            })
+            yield* runs.appendEvent({
+              runID: input.runID,
+              kind: "team.addressing_failed",
+              payload: { teamID: team.id, round, reason: describeAddressing(addressed), members: addressed },
+            })
+            return
+          }
+
           const teamLines = acceptances.filter((acceptance) => acceptance.owner === team.id)
           const reservation = yield* Effect.exit(
             ledger.reserve({ runID: input.runID, actor: team.id, tokens: reserveTokens, cap: dispatchCap }),
@@ -846,12 +888,16 @@ export const layer = Layer.effect(
           state === "failed"
             ? integrationBroken
               ? "集成未完成，团队结果不构成可交付"
-              : "没有团队产出可交付结果"
+              : addressingFailed.length > 0
+                ? describeAddressing(addressingFailed.flatMap((item) => item.problems))
+                : "没有团队产出可交付结果"
             : state === "exceeded"
               ? "尝试次数或预算超限"
               : state === "partial" && integrationBroken
                 ? "集成冲突：团队已交付，但合并后的代码尚未验证"
-                : null,
+                : state === "partial" && addressingFailed.length > 0
+                  ? "部分团队未能派发：" + describeAddressing(addressingFailed.flatMap((item) => item.problems))
+                  : null,
       })
       yield* runs.appendEvent({
         runID: input.runID,
@@ -865,6 +911,7 @@ export const layer = Layer.effect(
           unverified: summary.unverified,
           stale: summary.stale,
           needsReview: pending.length,
+          addressing: addressingFailed.length,
           integration: integration ? (Exit.isSuccess(integration) ? integration.value.kind : "failed") : "none",
         },
       })

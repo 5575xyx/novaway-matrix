@@ -13,6 +13,7 @@ import {
 import { TeamVerifier } from "@/team/verifier"
 import * as TeamContext from "@/team/context"
 import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } from "@/team/profile"
+import * as TeamRoster from "@/team/roster"
 import { TeamPolicy } from "@/team/policy"
 import {
   branch as worktreeBranch,
@@ -238,6 +239,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           teams: teams.map((team) => ({
             id: team.id,
             profileID: team.profileID,
+            // 记录的是复制那一刻的版本，不是模板现在的版本：模板是复制，不是绑定。
+            profileVersion: team.profileVersion,
             phase: team.phase,
             roundCaptain: team.roundCaptain,
             verdict: team.verdict,
@@ -543,10 +546,19 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             for (const team of ctx.payload.teams) {
               // 每个团队一份 worktree：团队成员之间共享，团队之间隔离（§10.1）。
               const worktree = yield* ensureWorktree(base, run.id, team.name)
+              // 计划里点了模板，就在这一刻把模板复制成快照（§5.2）：之后改模板不影响
+              // 这次运行，派发时也才有「该派给谁」可对账（§9）。
+              const roster = team.profileID ? yield* profiles.snapshot(team.profileID) : undefined
+              // 计划点了不存在的模板：现在拒绝还能说清是哪一步错了，等到派发时
+              // 只剩一句「寻址失败」。
+              if (team.profileID && !roster) return yield* Effect.fail(new HttpApiError.BadRequest({}))
               yield* runs.addTeam({
                 runID: run.id,
                 profileID: team.profileID,
-                profileVersion: team.profileVersion,
+                // 记的是**复制下来那一版**，不是计划里写的版本：两者不一致时，
+                // 快照才是这次运行真正用的名册。
+                profileVersion: roster?.version ?? team.profileVersion,
+                ...(roster ? { rosterSnapshot: roster as unknown as Record<string, unknown> } : {}),
                 dependsOn: team.dependsOn ? [...team.dependsOn] : [],
                 worktree: worktree.kind === "created" ? worktree.worktree.directory : undefined,
               })
@@ -687,17 +699,23 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           })
 
           // 模板发起时，队长默认用编制里的队长岗位 —— 模板写了谁负责就谁负责。
-          // 快照读不回来时退回默认 agent，而不是拿半份名册去派发。
+          //
+          // 名册按**团队**读，不按运行读（§8.3.1）：A 团队的队长与 B 团队无关，
+          // 拿第一队的名册去派所有队，等于替别的团队改派了人。
           const teamRows = yield* runs.teams(run.id)
-          const roster = snapshotFrom(teamRows[0]?.rosterSnapshot)
-          const captainMember = roster?.roster.find((entry) => entry.employee.id === roster.captain)
-          const captainJob = captainMember?.employee.job
-          const members = roster ? rosterBrief(roster) : []
-          const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
-          // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下：
-          // 请求换了一个同岗位的人来当队长，账不能挂回原来那个人（§10.3）。
-          const captainEmployeeID = captain === captainJob ? captainMember?.employee.id : undefined
-          const verifier = ctx.payload.verifier ?? captain
+          const rosterOf = (team: (typeof teamRows)[number] | undefined) => snapshotFrom(team?.rosterSnapshot)
+          const captainOf = (team: (typeof teamRows)[number] | undefined) => {
+            const roster = rosterOf(team)
+            const member = roster?.roster.find((entry) => entry.employee.id === roster.captain)
+            return {
+              roster,
+              job: member?.employee.job,
+              members: roster ? rosterBrief(roster) : [],
+              // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下：
+              // 请求换了一个同岗位的人来当队长，账不能挂回原来那个人（§10.3）。
+              employeeID: member?.employee.id,
+            }
+          }
           const policy = TeamPolicy.fromPlan(run.plan)
           // 团队 worktree 存在时，成员在那里工作，证据也绑定在那里创建时的提交上。
           // 没有 worktree（非 git 仓库、空仓库）则退回实例目录的快照。
@@ -708,15 +726,16 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
            * 集成成功后切到集成 worktree 的 HEAD —— 合并后的结论必须落在合并后的代码上。
            */
           const integrated = yield* Ref.make<string | undefined>(undefined)
-          const snapshotOf = Effect.gen(function* () {
-            const after = yield* Ref.get(integrated)
-            if (after) return yield* Effect.promise(() => worktreeHead(after))
-            if (teamDirectory) {
-              const sha = yield* Effect.promise(() => worktreeHead(teamDirectory))
-              if (sha) return sha
-            }
-            return yield* instanceSnapshot
-          })
+          const snapshotOf = (directory?: string) =>
+            Effect.gen(function* () {
+              const after = yield* Ref.get(integrated)
+              if (after) return yield* Effect.promise(() => worktreeHead(after))
+              if (directory) {
+                const sha = yield* Effect.promise(() => worktreeHead(directory))
+                if (sha) return sha
+              }
+              return yield* instanceSnapshot
+            })
 
           /**
            * 把团队 worktree 里的改动落成提交（§10.1）。
@@ -797,6 +816,10 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
           const dispatch = (input: DispatchInput) =>
             Effect.gen(function* () {
+              const { roster, job: captainJob, members, employeeID: captainEmployeeID } = captainOf(input.team)
+              // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下（§10.3）。
+              const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
+              const attributed = captain === captainJob ? captainEmployeeID : undefined
               // 提示词与清单同源（§6.4）：模型看到的字，就是事后审计的字。
               // `run.brief` 是用户声明的范围与约束（§5.3）：不喂进去，用户写了等于没写。
               const declared = TeamContext.normalizeBrief(run.brief)
@@ -831,12 +854,16 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                   truncated: context.manifest.truncated,
                 },
               })
+              // 每个团队在自己的 worktree 里干活（§10.1）：拿第一队的目录派所有队，
+              // 等于让两个团队在同一份文件上互相踩。没有 worktree（非 git 仓库）就退回
+              // 会话默认目录，绝不借用别的团队的。
+              const dispatchDirectory = input.team.worktree
               const captainRun = yield* runAgent({
                 agent: captain,
-                ...(teamDirectory ? { directory: teamDirectory } : {}),
+                ...(dispatchDirectory ? { directory: dispatchDirectory } : {}),
                 title: "队长 · 第 " + input.round + " 轮",
                 scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
-                ...(captainEmployeeID ? { employeeID: captainEmployeeID } : {}),
+                ...(attributed ? { employeeID: attributed } : {}),
                 prompt: context.prompt,
               })
               const text = captainRun.text
@@ -909,20 +936,32 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               return { ...base, ...TeamCommandVerifier.interpret(result) } satisfies VerificationResult
             })
 
+          /**
+           * 验证器：缺省用队长的岗位，但必须是一个**独立判断**。
+           *
+           * 按团队取（§8.3.1）：两队各有各的队长岗位，用一个运行级的默认值会让
+           * 后一队被前一队的岗位验，证据就解释不通了。
+           */
+          const verifierFor = (team?: (typeof teamRows)[number]) =>
+            ctx.payload.verifier ?? ctx.payload.captain ?? captainOf(team).job ?? defaultAgent
+
           // 验证：必须是**另一个会话**的独立判断，且允许回答「未验证」。
           const verify = (input: VerifyInput) =>
             Effect.gen(function* () {
-              const snapshotID = (yield* snapshotOf) ?? "unknown"
+              // 证据绑定这个团队自己的目录（§10.1）：验别人的快照等于验了个不相干的东西。
+              // 没有 worktree 时不借用别的团队的目录，退回这次运行的默认快照。
+              const teamWorktree = input.team.worktree
+              const snapshotID = (yield* snapshotOf(teamWorktree)) ?? "unknown"
               // 有命令就用命令验：同样的代码、同样的命令，答案不该由一次模型判断决定。
               const command = yield* commandVerify({
                 acceptance: input.acceptance,
-                directory: teamDirectory,
+                directory: teamWorktree,
                 snapshotID,
               })
               if (command) return command
               const verified = yield* runAgent({
-                agent: verifier,
-                ...(teamDirectory ? { directory: teamDirectory } : {}),
+                agent: verifierFor(input.team),
+                ...(teamWorktree ? { directory: teamWorktree } : {}),
                 title: "验证 · " + input.acceptance.id,
                 scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round, readOnly: policy.readOnly },
                 prompt: TeamVerifier.prompt(input.acceptance, input.report),
@@ -950,7 +989,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               })
               if (command) return command
               const mergedRun = yield* runAgent({
-                agent: verifier,
+                agent: verifierFor(undefined),
                 ...(directory ? { directory } : {}),
                 title: "合并验收 · " + input.acceptance.id,
                 scope: { runID: run.id, taskID: input.acceptance.id, attempt: 1, readOnly: policy.readOnly },
@@ -965,16 +1004,33 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               } satisfies VerificationResult
             })
 
+          /**
+           * 寻址校验（§9）：这个团队名册里的人，现在还能不能接活。
+           *
+           * 名册宣称有来源（快照或模板）却读不回来，同样算失败：那说明这份运行已经没有
+           * 可信的「该派给谁」，退回默认 agent 就是静默改派给别人。
+           * 什么都没有的团队（只有名字、没有编制的计划团队）不参与对账 —— 它们本来
+           * 就没有名册可对。
+           */
+          const addressing = (team: (typeof teamRows)[number]) =>
+            Effect.gen(function* () {
+              const roster = rosterOf(team)
+              if (!roster)
+                return team.rosterSnapshot || team.profileID ? [{ reason: "unreadable" as const }] : []
+              return TeamRoster.problems(roster, yield* profiles.employees())
+            })
+
           // 后台执行：UI 轮询 run detail；取消走 cancel 接口。
           yield* orchestrator
             .execute({
               runID: run.id,
               dispatch,
               verify,
+              addressing,
               commit: commitTeams,
               verifyMerged,
               integrate,
-              snapshot: () => snapshotOf.pipe(Effect.map((id) => id ?? "unknown")),
+              snapshot: () => snapshotOf(teamDirectory).pipe(Effect.map((id) => id ?? "unknown")),
               maxRounds: ctx.payload.maxRounds,
               maxBusinessAttempts: ctx.payload.maxBusinessAttempts,
               reserveTokens: ctx.payload.reserveTokens,

@@ -210,6 +210,8 @@ export const RunView = Schema.Struct({
 export const RunTeamView = Schema.Struct({
   id: Schema.String,
   profileID: Schema.optional(Schema.String),
+  /** 复制进这次运行的名册版本（§5.2）：之后改模板不会改变这个数。 */
+  profileVersion: Schema.optional(Schema.Number),
   phase: Schema.String,
   roundCaptain: Schema.Number,
   verdict: Schema.optional(Schema.Any),
@@ -524,7 +526,7 @@ export const RunApi = HttpApiGroup.make("run")
       query: WorkspaceRoutingQuery,
       payload: RunPlanPayload,
       success: described(RunDetail, "Updated run"),
-      error: [HttpApiError.NotFound],
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "run.plan",

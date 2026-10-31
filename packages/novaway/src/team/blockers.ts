@@ -9,7 +9,13 @@ import type { RunEvent } from "./run"
  * 这里只做筛选与规整，不重写原因：事件里的 `reason` 才是当时真正发生的事。
  */
 
-export type BlockerKind = "tool.denied" | "integration.commit_failed" | "budget.exceeded" | "team.conflict"
+export type BlockerKind =
+  | "tool.denied"
+  | "integration.commit_failed"
+  | "budget.exceeded"
+  | "team.conflict"
+  /** 寻址失败（§9）：名册里的人已经归档或不在名册里，这一轮没有派发。 */
+  | "team.addressing_failed"
 
 export type Blocker = {
   seq: number
@@ -30,6 +36,7 @@ export const BLOCKING_KINDS: readonly BlockerKind[] = [
   "integration.commit_failed",
   "budget.exceeded",
   "team.conflict",
+  "team.addressing_failed",
 ]
 
 const isBlocking = (kind: string): kind is BlockerKind => (BLOCKING_KINDS as readonly string[]).includes(kind)

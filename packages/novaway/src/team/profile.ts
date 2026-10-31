@@ -27,8 +27,10 @@ export type Employee = {
   /**
    * 已归档 = 不再出现在「可编入新团队」的候选里。
    *
-   * 归档**不影响已经在跑或已经建好的模板**：模板是复制，运行只认快照。
-   * 这一点和「删除员工」不同 —— 删除会让人从历史名册里消失，归档不会。
+   * 归档**不改写已经建好的模板或快照**：模板是复制，运行只认快照，历史因此还能解释。
+   * 但归档之后这个人不能再接新活 —— 派发前会对账（`team/roster` 的 `problems()`，§9）：
+   * 名册里有人已归档时，这一轮不派，而不是「照原样派给一个已经离开的人」。
+   * 这一点和「删除员工」不同 —— 删除会让人从历史名册里消失，归档不会（而且员工只归档、不物理删除）。
    */
   archived: boolean
 }
@@ -246,8 +248,8 @@ export function snapshotFrom(value: unknown): Snapshot | undefined {
         model: typeof model === "string" ? model : undefined,
         prompt: typeof prompt === "string" ? prompt : undefined,
         ...(typeof tier === "string" ? { tier } : {}),
-        // 归档状态随快照冻结：这次运行里这个人是不是「已归档」要能从快照看出来，
-        // 但归档不阻止派发 —— 模板是复制，工具能力仍然在。
+        // 归档状态随快照冻结：这次运行开始时这个人是不是「已归档」要能从快照看出来。
+        // 归档不抹掉历史，但会拦下派发（`team/roster` 的 `problems()`，§9）。
         archived: archived === true,
       },
       role: role === "captain" ? "captain" : "worker",

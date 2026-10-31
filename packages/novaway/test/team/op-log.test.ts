@@ -45,8 +45,16 @@ describe("team op-log", () => {
       const key = idempotencyKey({ scope: { runID: id }, tool: "bash", args: { command: "git push" } })
       yield* ops.begin({ runID: id, tool: "bash", idempotencyKey: key })
       // 进程被杀后重启：没有任何回填，恢复时统一判 unknown。
-      const marked = yield* ops.markUnknown({ runID: id, olderThanMs: -1 })
+      //
+      // `olderThanMs: 0` 就是恢复时用的值：刚刚才开始的操作同样要定性 ——
+      // 它与恢复落在同一毫秒时，严格小于会把它漏掉，随后被当成「没执行过」。
+      const marked = yield* ops.markUnknown({ runID: id, olderThanMs: 0 })
       expect(marked).toBe(1)
+      // 已经回填结果的操作不是「不明」：恢复不该改写已知的事实。
+      const doneKey = idempotencyKey({ scope: { runID: id }, tool: "bash", args: { command: "git status" } })
+      const done = yield* ops.begin({ runID: id, tool: "bash", idempotencyKey: doneKey })
+      yield* ops.finish({ id: done.op.id, outcome: "succeeded" })
+      expect(yield* ops.markUnknown({ runID: id, olderThanMs: 0 })).toBe(0)
       const pending = yield* ops.needsReview(id)
       expect(pending.map((op) => op.outcome)).toEqual(["unknown"])
     }),

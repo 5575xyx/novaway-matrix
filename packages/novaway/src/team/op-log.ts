@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect"
 import { createHash } from "node:crypto"
-import { and, eq, lt } from "drizzle-orm"
+import { and, eq, lte } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import type { SessionID } from "@/session/schema"
 import { TeamRunOpTable } from "./run.sql"
@@ -258,6 +258,13 @@ export const layer = Layer.effect(
       )
     })
 
+    /**
+     * 把仍在 `started` 的操作标成 `unknown`。
+     *
+     * 判据是「开始时间 **不晚于** cutoff」：恢复调用常用 `olderThanMs: 0`，
+     * 而「刚刚才开始」正是最需要定性的那一类 —— 用严格小于会把与恢复同一毫秒
+     * 开始的操作漏掉，随后被当成「没执行过」，而这恰恰是不能假设的事（§8.5）。
+     */
     const markUnknown: Interface["markUnknown"] = Effect.fn("TeamOpLog.markUnknown")(function* (input) {
       const cutoff = Date.now() - input.olderThanMs
       const rows = yield* Effect.sync(() =>
@@ -271,9 +278,9 @@ export const layer = Layer.effect(
                   ? and(
                       eq(TeamRunOpTable.run_id, input.runID),
                       eq(TeamRunOpTable.outcome, "started"),
-                      lt(TeamRunOpTable.started_at, cutoff),
+                      lte(TeamRunOpTable.started_at, cutoff),
                     )
-                  : and(eq(TeamRunOpTable.outcome, "started"), lt(TeamRunOpTable.started_at, cutoff)),
+                  : and(eq(TeamRunOpTable.outcome, "started"), lte(TeamRunOpTable.started_at, cutoff)),
               )
               .all()
             for (const row of pending) {

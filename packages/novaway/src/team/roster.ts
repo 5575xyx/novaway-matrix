@@ -1,4 +1,4 @@
-import type { RosterEntry, Snapshot } from "./profile"
+import type { Employee, RosterEntry, Snapshot } from "./profile"
 
 /**
  * 活团队 → 名册快照（§5.2）。
@@ -35,4 +35,61 @@ export function fromLive(input: {
     canAutoDispatch: false,
   }))
   return { profileID: input.teamID, name: input.name, version: 1, captain: captain.sessionID, roster }
+}
+
+/**
+ * 派发前对账（§9）：快照里的人现在还能不能接活。
+ *
+ * 快照冻结的是「当初这份名册长什么样」，不是「这些人现在还在不在」；两件事在派发
+ * 时都必须成立，否则队长会把活派给一个已经归档的人，而界面只会显示「运行中」。
+ *
+ * 三条口径：
+ *
+ * 1. **归档即不可派**：快照里记着 `archived`（复制那一刻就已经归档了），或者员工库里
+ *    现在把它标成归档，结果一样 —— 这个人都不能再接活。
+ * 2. **查不到不等于被删了**：员工只归档、不物理删除（§5.1），所以员工库查不到的 id
+ *    只可能是临时团队的会话成员。对它们不做判定，否则每个临时团队都会「寻址失败」。
+ * 3. **队长必须在名册里**：找不到队长时退回默认 agent，就是「静默改派给别人」。
+ */
+export type Problem = {
+  /** 出问题的人；整份快照读不出来时没有具体的人。 */
+  employeeID?: string
+  name?: string
+  job?: string
+  reason: "archived" | "missing" | "unreadable"
+}
+
+const REASON: Record<Problem["reason"], string> = {
+  archived: "已归档",
+  missing: "不在名册里",
+  unreadable: "名册快照读不出来",
+}
+
+/** 把问题成员写成一句能直接铺在看板上的话：点名到人，不写「有成员」这种含糊话。 */
+export function describe(problems: readonly Problem[]): string {
+  const parts = problems.map((problem) => {
+    const who = problem.name ?? problem.employeeID
+    if (!who) return REASON[problem.reason]
+    return who + (problem.job ? "（" + problem.job + "）" : "") + "：" + REASON[problem.reason]
+  })
+  return "寻址失败：" + parts.join("；")
+}
+
+export function problems(snapshot: Snapshot, employees: readonly Employee[]): Problem[] {
+  const library = new Map(employees.map((employee) => [employee.id, employee]))
+  const out: Problem[] = []
+  for (const entry of snapshot.roster) {
+    const live = library.get(entry.employee.id)
+    if (!entry.employee.archived && live?.archived !== true) continue
+    out.push({
+      employeeID: entry.employee.id,
+      // 名字与岗位优先用库里的现值：人可能改过名，看板上要认得出是谁。
+      name: live?.name ?? entry.employee.name,
+      job: live?.job ?? entry.employee.job,
+      reason: "archived",
+    })
+  }
+  if (!snapshot.roster.some((entry) => entry.employee.id === snapshot.captain))
+    out.push({ employeeID: snapshot.captain, reason: "missing" })
+  return out
 }

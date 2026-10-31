@@ -878,4 +878,85 @@ describe("team orchestrator", () => {
       expect((yield* runs.teams(run.id)).map((team) => team.phase).sort()).toEqual(["delivered", "exceeded"])
     }),
   )
+
+  it.effect("refuses to dispatch a team whose roster cannot be addressed", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const ledger = yield* LedgerService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_addressing"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "名册里有人被归档了",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const team = yield* runs.addTeam({ runID: run.id })
+
+      let dispatched = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        // 名册里的人已经归档：这一轮一个都不派。
+        addressing: () => Effect.succeed([{ employeeID: "emp_b", name: "小红", job: "build", reason: "archived" as const }]),
+        dispatch: (input) => {
+          dispatched += 1
+          return Effect.succeed(report(input.team.id))
+        },
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 不跳过、不静默改派：整轮派发失败，团队不是「交付」而是「失败」。
+      expect(dispatched).toBe(0)
+      expect((yield* runs.teams(run.id))[0].phase).toBe("failed")
+      expect(result.state).toBe("failed")
+      // 人都派不出去，就不该先占住额度。
+      expect((yield* ledger.usage({ runID: run.id })).reserved).toBe(0)
+
+      const event = (yield* runs.events({ runID: run.id })).find((item) => item.kind === "team.addressing_failed")
+      expect(event?.payload?.reason).toContain("小红")
+      expect(event?.payload?.reason).toContain("已归档")
+      // 名单要能被看板点名：结构化一份，界面不用解析那句中文。
+      expect(event?.payload?.members).toEqual([
+        { employeeID: "emp_b", name: "小红", job: "build", reason: "archived" },
+      ])
+      const after = yield* runs.get(run.id)
+      expect(after?.error).toContain("小红")
+    }),
+  )
+
+  it.effect("still delivers the teams whose rosters are fine", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_addressing_partial"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "两个团队，一个名册坏了",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }, { name: "beta" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const broken = yield* runs.addTeam({ runID: run.id, profileID: "prof_broken" })
+      yield* runs.addTeam({ runID: run.id, profileID: "prof_ok" })
+      yield* verification.register({ runID: run.id, specID: "b", text: "另一队验收", kind: "test", owner: broken.id })
+
+      // 寻址失败只影响自己的团队：局部阻塞不冻结整次运行（§4.4）。
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        addressing: (team) =>
+          Effect.succeed(team.profileID === "prof_broken" ? [{ employeeID: "emp_b", reason: "archived" as const }] : []),
+        dispatch: (input) => Effect.succeed(report(input.team.id)),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      expect(result.state).toBe("partial")
+      expect((yield* runs.teams(run.id)).map((team) => team.phase).sort()).toEqual(["delivered", "failed"])
+    }),
+  )
 })
