@@ -341,6 +341,20 @@ export const RunDenialClearResult = Schema.Struct({
   cleared: Schema.Number,
 }).annotate({ identifier: "RunDenialClearResult" })
 
+/**
+ * 待核对的工具操作（§8.5）。
+ *
+ * 「这个工具到底执行了没有」只能由人回答。这里只给结构与时间：工具名、归属任务、
+ * 会话、开始时刻 —— 参数原文可能带命令与凭据，按既有约束不出接口。
+ */
+export const RunUnknownOpView = Schema.Struct({
+  tool: Schema.String,
+  outcome: Schema.String,
+  taskID: Schema.optional(Schema.String),
+  sessionID: Schema.optional(Schema.String),
+  startedAt: Schema.Number,
+}).annotate({ identifier: "RunUnknownOpView" })
+
 export const RunDetail = Schema.Struct({
   run: RunView,
   teams: Schema.Array(RunTeamView),
@@ -350,6 +364,8 @@ export const RunDetail = Schema.Struct({
   blockers: Schema.Array(RunBlockerView),
   /** 拒绝在本次运行内保持有效：这些动作不会再次弹窗，直到用户显式放行。 */
   denials: Schema.Array(RunDenialView),
+  /** 结果不明的工具操作：未清空之前，这次运行不能自动续跑。 */
+  needsReview: Schema.Array(RunUnknownOpView),
 }).annotate({ identifier: "RunDetail" })
 
 export const RunCreatePayload = Schema.Struct({

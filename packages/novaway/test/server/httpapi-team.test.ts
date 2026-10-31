@@ -1,6 +1,7 @@
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { Flag } from "@novaway/core/flag/flag"
 import { SessionTable } from "@/session/session.sql"
+import { TeamRunOpTable, TeamRunTable } from "@/team/run.sql"
 import { SessionID } from "@/session/schema"
 import { Database } from "@/storage/db"
 import * as TeamDenials from "@/team/denials"
@@ -307,6 +308,67 @@ describe("team HttpApi", () => {
         acceptance: [{ text: "没有高危问题" }],
       })
       expect(invalid.status).toBe(400)
+    }),
+  )
+
+  it.live("a run interrupted by a restart comes back as paused, or needs_review when an op is unknown", () =>
+    Effect.gen(function* () {
+      type Detail = {
+        run: { id: string; state: string; error?: string }
+        needsReview: Array<{ tool: string; outcome: string; startedAt: number }>
+      }
+      /** 造一次「上一个进程跑到一半被杀」的运行：库里还停在 running + executing，时间戳是旧的。 */
+      const interrupted = (dir: string, sessionID: string) =>
+        Effect.gen(function* () {
+          const created = yield* post(dir, "/run", {
+            sessionID,
+            directory: dir,
+            mode: "team",
+            goal: "重启前的运行",
+          })
+          const id = ((yield* created.json) as { run: { id: string } }).run.id
+          yield* Effect.sync(() =>
+            Database.use((db) =>
+              db
+                .update(TeamRunTable)
+                .set({ state: "running", phase: "executing", time_updated: 1 })
+                .where(eq(TeamRunTable.id, id))
+                .run(),
+            ),
+          )
+          return id
+        })
+
+      // 没有未知操作 → paused：能续跑，且不需要人核对任何副作用。
+      const clean = yield* tmpdirScoped({ git: true })
+      const pausedID = yield* interrupted(clean, "ses_restart_a")
+      const paused = (yield* (yield* get(clean, "/run/" + pausedID, clean)).json) as Detail
+      expect(paused.run.state).toBe("paused")
+      expect(paused.needsReview).toEqual([])
+
+      // 有工具停在「已开始、结果未写回」→ needs_review：先核对副作用，不自动续跑。
+      const dirty = yield* tmpdirScoped({ git: true })
+      const reviewID = yield* interrupted(dirty, "ses_restart_b")
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .insert(TeamRunOpTable)
+            .values({
+              id: "op_" + reviewID,
+              run_id: reviewID,
+              tool: "bash",
+              idempotency_key: "restart:1",
+              started_at: 1,
+              outcome: "started",
+            })
+            .run(),
+        ),
+      )
+      const review = (yield* (yield* get(dirty, "/run/" + reviewID, dirty)).json) as Detail
+      expect(review.run.state).toBe("needs_review")
+      expect(review.run.error).toContain("结果不明")
+      // 只回结构与时间，不回传参数原文。
+      expect(review.needsReview).toEqual([{ tool: "bash", outcome: "unknown", startedAt: 1 }])
     }),
   )
 

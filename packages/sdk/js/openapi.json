@@ -50668,6 +50668,48 @@
         "required": ["tool", "at"],
         "additionalProperties": false
       },
+      "RunUnknownOpView": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "taskID": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["tool", "outcome", "startedAt"],
+        "additionalProperties": false
+      },
       "RunDetail": {
         "type": "object",
         "properties": {
@@ -50706,9 +50748,15 @@
             "items": {
               "$ref": "#/components/schemas/RunDenialView"
             }
+          },
+          "needsReview": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunUnknownOpView"
+            }
           }
         },
-        "required": ["run", "teams", "acceptances", "verifications", "summary", "blockers", "denials"],
+        "required": ["run", "teams", "acceptances", "verifications", "summary", "blockers", "denials", "needsReview"],
         "additionalProperties": false
       },
       "RunMetricsView": {

@@ -47,6 +47,7 @@ import { Service as TeamOpLogService } from "@/team/op-log"
 import { Service as TeamLedgerService } from "@/team/ledger"
 import * as TeamDenials from "@/team/denials"
 import * as TeamCommandVerifier from "@/team/command-verifier"
+import * as TeamRecovery from "@/team/recovery"
 import { Snapshot } from "@/snapshot"
 
 const number = (value: unknown, fallback = 0) => (typeof value === "number" ? value : fallback)
@@ -194,6 +195,24 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     const provider = yield* Provider.Service
     const teams = yield* TeamService
     const config = yield* ConfigService.Service
+    const opLog = yield* TeamOpLogService
+
+    /**
+     * 重启恢复（§8.5）：每个工作区只做一次。
+     *
+     * 只恢复本进程启动之前就没有更新的运行 —— 本进程正在跑的运行一定在被写时间戳，
+     * 不会被误判成遗留。失败只记日志：恢复是补救，不该让看板打不开。
+     */
+    const recovered = new Set<string>()
+    const recoverStale = (directory: string | undefined) =>
+      Effect.gen(function* () {
+        const key = directory ?? "*"
+        if (recovered.has(key)) return
+        recovered.add(key)
+        yield* TeamRecovery.recover({ directory }).pipe(
+          Effect.catchCause((cause) => Effect.logWarning("team recovery failed", { cause })),
+        )
+      })
     const snapshot = yield* Snapshot.Service
     const scope = yield* Scope.Scope
 
@@ -201,11 +220,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       Effect.gen(function* () {
         const run = yield* runs.get(runID)
         if (!run) return undefined
-        const [teams, acceptances, verifications, events] = yield* Effect.all([
+        const [teams, acceptances, verifications, events, unknownOps] = yield* Effect.all([
           runs.teams(runID),
           verification.list(runID),
           verification.verifications(runID),
           runs.events({ runID }),
+          opLog.needsReview(runID),
         ])
         const summary = yield* verification.summary({ runID })
         return {
@@ -241,6 +261,14 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               ...(command ? { verifier: { kind: command.kind, timeoutMs: command.timeoutMs } } : {}),
             }
           }),
+          // 待核对的操作（§8.5）：只回结构与时间，不回传参数原文 —— 参数里常有命令与凭据。
+          needsReview: unknownOps.map((op) => ({
+            tool: op.tool,
+            outcome: op.outcome,
+            ...(op.taskID ? { taskID: op.taskID } : {}),
+            ...(op.sessionID ? { sessionID: op.sessionID } : {}),
+            startedAt: op.startedAt,
+          })),
           // 拒绝在本次运行内保持有效（§11.2）：回传工具名与说明，不回传动作原文。
           denials: TeamDenials.list(runID).map((denial) => ({
             tool: denial.tool,
@@ -310,6 +338,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     return handlers
       .handle("listRuns", (ctx) =>
         Effect.gen(function* () {
+          // 打开看板是重启后最先发生的事：先把上一个进程留下的运行收拾成 paused / needs_review，
+          // 否则它们会永远显示「正在跑」，也永远点不动「继续」（§8.5）。
+          yield* recoverStale(ctx.query.directory)
           const all = yield* runs.list()
           // 只列本工作区的运行：运行表是全局的，目录过滤在这里做，不在数据库。
           const directory = ctx.query.directory
@@ -480,6 +511,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("runDetail", (ctx) =>
         Effect.gen(function* () {
+          // 直接点开某次运行的详情（刷新页面、从会话跳转）也要先恢复一次。
+          yield* recoverStale(ctx.query.directory)
           const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           const found = yield* detail(run.id)
           if (!found) return yield* Effect.fail(new HttpApiError.NotFound({}))
@@ -605,6 +638,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("executeRun", (ctx) =>
         Effect.gen(function* () {
+          // 直接点「执行」而不经列表时，也要先把上次遗留的运行定性 —— 否则它会以
+          // `running + 过期 phase` 被 `canStart` 拒绝，永远续不上。
+          yield* recoverStale(ctx.query.directory)
           const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 未批准不能跑；已经在跑也不能再起一份。
           if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
@@ -628,7 +664,6 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             resolvePromptParts: (template) => promptSvc.resolvePromptParts(template),
             prompt: (input) => promptSvc.prompt(input).pipe(Effect.orDie),
           }
-          const opLog = yield* TeamOpLogService
           const runAgent = makeRunAgent({
             ops,
             sessions,

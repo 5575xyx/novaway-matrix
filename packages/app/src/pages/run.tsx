@@ -964,8 +964,14 @@ export const RunPage: Component<{
                         </Button>
                       </Show>
                       <Show when={canExecute()}>
-                        <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void execute()}>
-                          {t("run.action.execute")}
+                        <Button
+                          variant="primary"
+                          size="small"
+                          title={data().run.state === "paused" ? t("run.action.resumeHint") : undefined}
+                          disabled={busy() !== ""}
+                          onClick={() => void execute()}
+                        >
+                          {data().run.state === "paused" ? t("run.action.resume") : t("run.action.execute")}
                         </Button>
                       </Show>
                       <Show when={!TERMINAL.has(data().run.state)}>
@@ -1156,6 +1162,29 @@ export const RunPage: Component<{
                     阻塞与拒绝（§11.2）：拒绝不能被静默吞掉。权限类要标出「换成别人也没用」——
                     换一个「权限更高」的人做同一件事就是提权，只能由用户放行。
                   */}
+                  {/*
+                    待核对的操作（§8.5）：重启时有工具停在「已开始、结果未写回」。
+                    在清空之前，这次运行不能自动续跑 —— 先把副作用（文件 / 进程 / 提交）核对掉。
+                    只显示工具名与开始时间：参数里常有命令与凭据。
+                  */}
+                  <Show when={(data().needsReview ?? []).length > 0}>
+                    <div class="flex flex-col gap-1 rounded-lg border border-warning bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-warning" title={t("run.review.hint")}>
+                        {t("run.review.title", { count: String(data().needsReview.length) })}
+                      </div>
+                      <For each={data().needsReview}>
+                        {(op) => (
+                          <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                            <Tag>{op.tool}</Tag>
+                            <Tag>{op.outcome}</Tag>
+                            <span class="min-w-0 flex-1 truncate">
+                              {t("run.review.startedAt", { time: new Date(numeric(op.startedAt)).toLocaleString() })}
+                            </span>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
                   <Show when={(data().denials ?? []).length > 0}>
                     <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
                       <div class="flex items-center justify-between gap-2">

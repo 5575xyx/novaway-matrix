@@ -3831,6 +3831,14 @@ export type RunDenialView = {
   at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
+export type RunUnknownOpView = {
+  tool: string
+  outcome: string
+  taskID?: string
+  sessionID?: string
+  startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type RunDetail = {
   run: RunView
   teams: Array<RunTeamView>
@@ -3839,6 +3847,7 @@ export type RunDetail = {
   summary: RunSummaryView
   blockers: Array<RunBlockerView>
   denials: Array<RunDenialView>
+  needsReview: Array<RunUnknownOpView>
 }
 
 export type RunMetricsView = {

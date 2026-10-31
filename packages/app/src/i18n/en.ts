@@ -102,6 +102,8 @@ export const dict = {
   "run.state.cancelled": "Cancelled",
   "run.state.needs_review": "Needs review",
   "run.action.execute": "Execute",
+  "run.action.resume": "Resume",
+  "run.action.resumeHint": "The last execution was interrupted by a restart; resuming dispatches the queued teams again and leaves delivered ones as they are.",
   "run.action.cancel": "Cancel run",
   "run.action.openSession": "Open session",
   "run.action.openSessionHint":
@@ -122,6 +124,9 @@ export const dict = {
   "run.events.toggle": "Event log",
   "run.events.toggleCount": "Event log ({{count}}, newest first)",
   "run.events.empty": "No events yet.",
+  "run.review.title": "{{count}} tool call(s) with unknown outcome",
+  "run.review.hint": "A restart cut these calls off: they may or may not have run. The run will not resume by itself until the side effects (files, processes, commits) are checked.",
+  "run.review.startedAt": "started {{time}}",
   "run.events.hint":
     "Read-only log used to replay why the run reached its conclusion. Only kinds and times are shown; payloads stay local.",
   "run.blocked.title": "Blocked ({{count}})",
