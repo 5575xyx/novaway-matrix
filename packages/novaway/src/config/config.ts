@@ -414,6 +414,10 @@ export const Info = Schema.Struct({
         description:
           "团队编排总控（与上面的 teams 特性含义不同：那个表示团队工具是否加载）。关闭后 team_run 不再注入、团队选择器隐藏、运行不可被启动；已建的计划与历史保留，已在跑的运行不会被停掉。默认开。",
       }),
+      team_concurrency: Schema.optional(PositiveInt).annotate({
+        description:
+          "团队编排的并发上限：同一次运行里同时推进的团队数，超出的团队排队。默认 3。执行接口显式传 concurrency 时以请求为准。",
+      }),
       defer_loading: Schema.optional(Schema.Boolean).annotate({
         description:
           "延迟加载低频工具(browser_* / generate_*):先用 tool_search 激活,减少每轮工具块体积。未设置时默认开启；显式 false 可关闭。",

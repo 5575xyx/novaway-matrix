@@ -1524,6 +1524,7 @@ export type Config = {
     background_subagents?: boolean
     auto_delegate?: boolean
     team_orchestration?: boolean
+    team_concurrency?: number
     defer_loading?: boolean
     defer_mcp_loading?: boolean
     tool_result_budget_chars?: number

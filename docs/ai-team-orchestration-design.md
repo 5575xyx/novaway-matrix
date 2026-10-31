@@ -2196,6 +2196,28 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
 
   仍未实现：`/team/employee/:id/usage`（需要成员级用量上报，见 §10.3 的 `basis: "captain"` 边界）。
 
+**团队页总控面板（2026-10-31 追加，§4.1）**
+
+总控开关此前只有服务端语义（`TeamSwitch.enabled`），用户要从配置文件里改才能关掉。这一刀把它放回团队页左栏：
+
+| 文件                               | 内容                                                                         |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| `experimental.team_concurrency`    | 项目级并发上限（默认 3）；执行接口显式传 `concurrency` 时以请求为准          |
+| `handlers/run.ts`                  | `concurrency: payload.concurrency ?? cfg.experimental?.team_concurrency`     |
+| `pages/team.tsx` 的总控面板        | 开关 + 并发选择，写回最近的 `novaway.json`（实例级 `PATCH /config`，深合并） |
+| `test/server/httpapi-team.test.ts` | 分两次写开关与并发，断言后一次不抹掉前一次                                   |
+
+四条边界：
+
+1. **写的是项目配置，不是全局配置。** 团队是按目录组织的，开关也应该跟着目录走；实例级
+   `PATCH /config` 落到最近的 `novaway.json`，不同项目可以各关各的。
+2. **深合并，不是覆盖。** 面板每次只写自己那一个字段；`team_orchestration` 与 `team_concurrency`
+   互不吞掉，其他 `experimental` 字段也不受影响。
+3. **关闭不影响已有数据。** 计划、历史、正在跑的运行都在；只是 `team_run` 不再注入、
+   选择器隐藏、新的执行不能开始。这一点与 §13.1 的服务端判定是同一句话。
+4. **默认模式仍不做。** 面板没有「新会话默认团队」，原因见下面的 P2 遗留条目 ——
+   半截实现会让「选择器显示 auto、内核按 off 注入」两边打架。
+
 > 记录一条环境异常：本次会话期间工作区里的 `dbx-main/` 目录与 `NOVAWAY-ICON-GUIDE.md` 被外部删除（非本分支改动），提交时已刻意排除；如需恢复请单独处理。
 
 ### 23.5 v3 → v4（吸收 Rovai-ai 的对照结论）

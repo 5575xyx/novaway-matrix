@@ -37231,6 +37231,10 @@
               "team_orchestration": {
                 "type": "boolean"
               },
+              "team_concurrency": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
               "defer_loading": {
                 "type": "boolean"
               },

@@ -331,6 +331,22 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("the team page can flip one orchestration switch without dropping the other", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+
+      // 总控面板分两次写：关开关、再改并发。项目配置是深合并，后一次不能把前一次抹掉。
+      expect((yield* patch(dir, "/config", { experimental: { team_orchestration: false } })).status).toBe(200)
+      expect((yield* patch(dir, "/config", { experimental: { team_concurrency: 2 } })).status).toBe(200)
+
+      const config = (yield* (yield* get(dir, "/config")).json) as {
+        experimental?: { team_orchestration?: boolean; team_concurrency?: number }
+      }
+      expect(config.experimental?.team_orchestration).toBe(false)
+      expect(config.experimental?.team_concurrency).toBe(2)
+    }),
+  )
+
   it.live("only an abandoned mission can give its workspace back", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

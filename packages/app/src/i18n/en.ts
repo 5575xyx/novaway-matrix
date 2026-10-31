@@ -225,6 +225,12 @@ export const dict = {
   "team.lead": "Coordinator",
   "team.members": "Members",
   "team.membersHint": "Pick AI employees. Each becomes its own session.",
+  "team.control.title": "Team orchestration",
+  "team.control.concurrency": "Concurrency",
+  "team.control.on":
+    "When on, teams can be picked in the chat input. When off, teams are organizational only and cannot be invoked.",
+  "team.control.off":
+    "Off: team_run is no longer injected and the team selector is hidden. Existing plans and history stay; running runs are not stopped.",
   "team.member.search": "Search AI employees…",
   "team.member.add": "Add",
   "team.member.remove": "Remove from team",

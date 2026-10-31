@@ -751,7 +751,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               maxRounds: ctx.payload.maxRounds,
               maxBusinessAttempts: ctx.payload.maxBusinessAttempts,
               reserveTokens: ctx.payload.reserveTokens,
-              concurrency: ctx.payload.concurrency,
+              // 请求没指定并发时用项目级上限；两者都没有就是调度器的默认值（3）。
+              concurrency: ctx.payload.concurrency ?? cfg.experimental?.team_concurrency,
             })
             .pipe(
               Effect.catchCause((cause) =>

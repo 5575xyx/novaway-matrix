@@ -10,6 +10,7 @@ import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Tag } from "@novaway/ui/tag"
+import { Switch } from "@novaway/ui/switch"
 import { showToast } from "@novaway/ui/toast"
 import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
@@ -72,6 +73,10 @@ export const TeamPage: Component<{
   const [adding, setAdding] = createSignal("")
   // 员工库（§3.1 / §4.5）：模板引用的是「人」，所以人要先能建、能归档。
   const [employees, setEmployees] = createSignal<TeamEmployeeView[]>([])
+  // 总控（§4.1）：项目级一档。关闭后团队只作组织管理，不可被调用。
+  const [orchestrationOn, setOrchestrationOn] = createSignal(true)
+  const [teamConcurrency, setTeamConcurrency] = createSignal(3)
+  const [controlBusy, setControlBusy] = createSignal(false)
   let feed: HTMLDivElement | undefined
 
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
@@ -119,6 +124,7 @@ export const TeamPage: Component<{
     void loadTeams()
     void loadAgents()
     void loadEmployees()
+    void loadControl()
     // 成员回复是后台跑完才写回来的；轮询让群聊在没有推送的情况下也能更新。
     const timer = window.setInterval(() => {
       const id = selected()
@@ -157,6 +163,31 @@ export const TeamPage: Component<{
     } catch {
       // 员工库只是附加面板：读失败不盖掉团队本身的错误提示。
       setEmployees([])
+    }
+  }
+
+  const loadControl = async () => {
+    try {
+      const result = await sdk.client.config.get({ directory: props.directory })
+      const experimental = result.data?.experimental
+      // 缺省即开：只有显式 false 才算关闭，与 TeamSwitch.enabled 的口径一致。
+      setOrchestrationOn(experimental?.team_orchestration !== false)
+      setTeamConcurrency(experimental?.team_concurrency ?? 3)
+    } catch {
+      // 读不到就按默认值显示；不要因为一次读取失败把开关画成「关闭」。
+    }
+  }
+
+  const updateControl = async (patch: { team_orchestration?: boolean; team_concurrency?: number }) => {
+    setControlBusy(true)
+    try {
+      await sdk.client.config.update({ directory: props.directory, config: { experimental: patch } })
+      setError("")
+      await loadControl()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setControlBusy(false)
     }
   }
 
@@ -314,6 +345,32 @@ export const TeamPage: Component<{
               aria-label={t("team.create")}
               onClick={openCreate}
             />
+          </div>
+          {/* 总控（§4.1）：项目级一档，写回 novaway.json；关闭不影响已有计划与正在跑的运行。 */}
+          <div class="mx-1 mb-1 flex flex-col gap-2 rounded-lg border border-border px-2 py-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-ui-xs text-foreground-subtle">{t("team.control.title")}</span>
+              <Switch
+                checked={orchestrationOn()}
+                disabled={controlBusy()}
+                aria-label={t("team.control.title")}
+                onChange={(value) => void updateControl({ team_orchestration: value })}
+              />
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-ui-xs text-foreground-subtle">{t("team.control.concurrency")}</span>
+              <select
+                class="h-7 rounded-[6px] border border-border bg-surface px-1 text-ui-xs text-foreground outline-none disabled:opacity-50"
+                value={String(teamConcurrency())}
+                disabled={controlBusy()}
+                onChange={(event) => void updateControl({ team_concurrency: Number(event.currentTarget.value) })}
+              >
+                <For each={[1, 2, 3, 4, 5]}>{(count) => <option value={String(count)}>{count}</option>}</For>
+              </select>
+            </div>
+            <div class="text-ui-xs leading-relaxed text-foreground-subtlest">
+              {orchestrationOn() ? t("team.control.on") : t("team.control.off")}
+            </div>
           </div>
           <Show
             when={teams().length > 0}
