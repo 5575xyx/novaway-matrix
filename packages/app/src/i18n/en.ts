@@ -227,6 +227,11 @@ export const dict = {
   "team.membersHint": "Pick AI employees. Each becomes its own session.",
   "team.control.title": "Team orchestration",
   "team.control.concurrency": "Concurrency",
+  "team.control.defaultMode": "Default mode",
+  "team.control.default.off": "Off",
+  "team.control.default.auto": "Auto",
+  "team.control.default.selected": "Specific teams",
+  "team.control.default.empty": "No teams to pick yet.",
   "team.control.on":
     "When on, teams can be picked in the chat input. When off, teams are organizational only and cannot be invoked.",
   "team.control.off":

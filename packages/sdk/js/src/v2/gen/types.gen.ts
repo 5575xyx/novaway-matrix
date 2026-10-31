@@ -1525,6 +1525,8 @@ export type Config = {
     auto_delegate?: boolean
     team_orchestration?: boolean
     team_concurrency?: number
+    team_default_mode?: "off" | "auto" | "selected"
+    team_default_ids?: Array<string>
     defer_loading?: boolean
     defer_mcp_loading?: boolean
     tool_result_budget_chars?: number

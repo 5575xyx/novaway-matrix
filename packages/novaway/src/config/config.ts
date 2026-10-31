@@ -418,6 +418,13 @@ export const Info = Schema.Struct({
         description:
           "团队编排的并发上限：同一次运行里同时推进的团队数，超出的团队排队。默认 3。执行接口显式传 concurrency 时以请求为准。",
       }),
+      team_default_mode: Schema.optional(Schema.Literals(["off", "auto", "selected"])).annotate({
+        description:
+          "新会话的默认团队模式（指定团队 | Auto），只决定选择器的初始值：用户仍可随时改。显式选择的会话、子会话不受影响；总控关闭时不生效。",
+      }),
+      team_default_ids: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+        description: "`team_default_mode: selected` 时默认点名哪些团队。为空等于不启用默认值。",
+      }),
       defer_loading: Schema.optional(Schema.Boolean).annotate({
         description:
           "延迟加载低频工具(browser_* / generate_*):先用 tool_search 激活,减少每轮工具块体积。未设置时默认开启；显式 false 可关闭。",

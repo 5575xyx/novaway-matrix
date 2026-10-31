@@ -347,6 +347,44 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("a new session picks up the project's default team mode, sub-sessions do not", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type SessionInfo = { id: string; parentID?: string; teamMode?: string; teamIDs?: string[] }
+
+      expect((yield* patch(dir, "/config", { experimental: { team_default_mode: "auto" } })).status).toBe(200)
+
+      const created = yield* post(dir, "/session", {})
+      expect(created.status).toBe(200)
+      // 默认模式只决定「新会话的初始值」：写进库，选择器读它。
+      expect((yield* created.json) as SessionInfo).toMatchObject({ teamMode: "auto" })
+
+      // 显式选择永远优先，包括「不选」。
+      const explicit = yield* post(dir, "/session", { teamMode: "off" })
+      expect((yield* explicit.json) as SessionInfo).toMatchObject({ teamMode: "off" })
+
+      // 子会话不继承：团队内派生会话、子代理能不能派发由父会话的编排决定。
+      const parent = (yield* created.json) as SessionInfo
+      const child = yield* post(dir, "/session", { parentID: parent.id })
+      expect((yield* child.json) as SessionInfo).toMatchObject({ parentID: parent.id })
+      expect(((yield* child.json) as SessionInfo).teamMode).toBeUndefined()
+
+      // 指定团队：配置里的名单直接写进会话，选择器与内核读到同一份。
+      expect(
+        (yield* patch(dir, "/config", { experimental: { team_default_mode: "selected", team_default_ids: ["t1"] } }))
+          .status,
+      ).toBe(200)
+      expect((yield* (yield* post(dir, "/session", {})).json) as SessionInfo).toMatchObject({
+        teamMode: "selected",
+        teamIDs: ["t1"],
+      })
+
+      // 总控关闭后默认值失效：写一个 auto 进库只会让界面显示「Auto」却什么也不注入。
+      expect((yield* patch(dir, "/config", { experimental: { team_orchestration: false } })).status).toBe(200)
+      expect(((yield* (yield* post(dir, "/session", {})).json) as SessionInfo).teamMode).toBeUndefined()
+    }),
+  )
+
   it.live("only an abandoned mission can give its workspace back", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

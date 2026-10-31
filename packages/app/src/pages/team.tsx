@@ -76,6 +76,9 @@ export const TeamPage: Component<{
   // 总控（§4.1）：项目级一档。关闭后团队只作组织管理，不可被调用。
   const [orchestrationOn, setOrchestrationOn] = createSignal(true)
   const [teamConcurrency, setTeamConcurrency] = createSignal(3)
+  // 默认模式（§4.5）：只决定新会话选择器的初始值，不改已有会话。
+  const [teamDefaultMode, setTeamDefaultMode] = createSignal<"off" | "auto" | "selected">("off")
+  const [teamDefaultIDs, setTeamDefaultIDs] = createSignal<string[]>([])
   const [controlBusy, setControlBusy] = createSignal(false)
   let feed: HTMLDivElement | undefined
 
@@ -173,12 +176,19 @@ export const TeamPage: Component<{
       // 缺省即开：只有显式 false 才算关闭，与 TeamSwitch.enabled 的口径一致。
       setOrchestrationOn(experimental?.team_orchestration !== false)
       setTeamConcurrency(experimental?.team_concurrency ?? 3)
+      setTeamDefaultMode(experimental?.team_default_mode ?? "off")
+      setTeamDefaultIDs([...(experimental?.team_default_ids ?? [])])
     } catch {
       // 读不到就按默认值显示；不要因为一次读取失败把开关画成「关闭」。
     }
   }
 
-  const updateControl = async (patch: { team_orchestration?: boolean; team_concurrency?: number }) => {
+  const updateControl = async (patch: {
+    team_orchestration?: boolean
+    team_concurrency?: number
+    team_default_mode?: "off" | "auto" | "selected"
+    team_default_ids?: string[]
+  }) => {
     setControlBusy(true)
     try {
       await sdk.client.config.update({ directory: props.directory, config: { experimental: patch } })
@@ -189,6 +199,15 @@ export const TeamPage: Component<{
     } finally {
       setControlBusy(false)
     }
+  }
+
+  /** 默认名单里点一个团队：切到 `selected` 是顺带的，省一次下拉。 */
+  const toggleDefaultTeam = (teamID: string) => {
+    const next = teamDefaultIDs().includes(teamID)
+      ? teamDefaultIDs().filter((id) => id !== teamID)
+      : [...teamDefaultIDs(), teamID]
+    setTeamDefaultIDs(next)
+    void updateControl({ team_default_mode: next.length ? "selected" : "off", team_default_ids: next })
   }
 
   const openEmployees = () => {
@@ -368,6 +387,49 @@ export const TeamPage: Component<{
                 <For each={[1, 2, 3, 4, 5]}>{(count) => <option value={String(count)}>{count}</option>}</For>
               </select>
             </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-ui-xs text-foreground-subtle">{t("team.control.defaultMode")}</span>
+              <select
+                class="h-7 rounded-[6px] border border-border bg-surface px-1 text-ui-xs text-foreground outline-none disabled:opacity-50"
+                value={teamDefaultMode()}
+                disabled={controlBusy() || !orchestrationOn()}
+                onChange={(event) =>
+                  void updateControl({ team_default_mode: event.currentTarget.value as "off" | "auto" | "selected" })
+                }
+              >
+                <option value="off">{t("team.control.default.off")}</option>
+                <option value="auto">{t("team.control.default.auto")}</option>
+                <option value="selected">{t("team.control.default.selected")}</option>
+              </select>
+            </div>
+            <Show when={orchestrationOn() && teamDefaultMode() === "selected"}>
+              <div class="flex flex-col gap-1">
+                <Show
+                  when={teams().length > 0}
+                  fallback={<div class="text-ui-xs text-foreground-subtlest">{t("team.control.default.empty")}</div>}
+                >
+                  <For each={teams()}>
+                    {(team) => (
+                      <button
+                        type="button"
+                        class="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 text-left text-ui-xs transition-colors hover:bg-hover"
+                        onClick={() => toggleDefaultTeam(team.id)}
+                      >
+                        <span class="min-w-0 truncate text-foreground-subtle">{team.name}</span>
+                        <Icon
+                          name={teamDefaultIDs().includes(team.id) ? "circle-check" : "lu-circle"}
+                          classList={{
+                            "shrink-0 text-12": true,
+                            "text-primary": teamDefaultIDs().includes(team.id),
+                            "text-foreground-subtlest": !teamDefaultIDs().includes(team.id),
+                          }}
+                        />
+                      </button>
+                    )}
+                  </For>
+                </Show>
+              </div>
+            </Show>
             <div class="text-ui-xs leading-relaxed text-foreground-subtlest">
               {orchestrationOn() ? t("team.control.on") : t("team.control.off")}
             </div>

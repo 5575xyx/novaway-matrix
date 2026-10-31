@@ -37235,6 +37235,16 @@
                 "type": "integer",
                 "exclusiveMinimum": 0
               },
+              "team_default_mode": {
+                "type": "string",
+                "enum": ["off", "auto", "selected"]
+              },
+              "team_default_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "defer_loading": {
                 "type": "boolean"
               },
