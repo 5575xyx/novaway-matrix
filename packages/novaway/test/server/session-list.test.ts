@@ -121,7 +121,7 @@ describe("session.list", () => {
         const pathIDs = (yield* SessionNs.Service.use((session) =>
           session.list({
             directory: path.join(test.directory, "packages", "app"),
-            path: "packages/novaway/src",
+            path: "packages/opencode/src",
           }),
         )).map((session) => session.id)
         expect(pathIDs).not.toContain(parent.id)
