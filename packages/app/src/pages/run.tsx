@@ -65,6 +65,8 @@ export const RunPage: Component<{
   const [budget, setBudget] = createSignal(100_000)
   // 墙钟上限（分钟）：0 表示不限。超过即停的是新的派发（§7.3）。
   const [wallMinutes, setWallMinutes] = createSignal(0)
+  // 成本上限（模型目录的计价单位）：0 表示不限。成本事后才有权威值，所以停的也是新派发。
+  const [costCap, setCostCap] = createSignal(0)
   // 持久目标（§3.2）：可选归属。选「新建」时会先建目标再建运行。
   const [missions, setMissions] = createSignal<MissionView[]>([])
   const [missionID, setMissionID] = createSignal("")
@@ -309,7 +311,11 @@ export const RunPage: Component<{
                 ...(constraintLines.length > 0 ? { constraints: constraintLines } : {}),
               }
             : undefined,
-        budget: { tokens: budget(), ...(wallMinutes() > 0 ? { wallMs: Math.round(wallMinutes() * 60_000) } : {}) },
+        budget: {
+          tokens: budget(),
+          ...(wallMinutes() > 0 ? { wallMs: Math.round(wallMinutes() * 60_000) } : {}),
+          ...(costCap() > 0 ? { cost: costCap() } : {}),
+        },
         acceptance: lines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
       })
       setComposing(false)
@@ -815,6 +821,18 @@ export const RunPage: Component<{
                     onInput={(event) => setWallMinutes(Number(event.currentTarget.value) || 0)}
                   />
                 </label>
+                {/* 成本上限（§7.3）：同样 0 表示不限；成本只在调用返回后才有权威值。 */}
+                <label class="flex items-center gap-2">
+                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.cost")}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    class="h-8 w-24 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                    value={costCap()}
+                    onInput={(event) => setCostCap(Number(event.currentTarget.value) || 0)}
+                  />
+                </label>
               </div>
               <div class="flex flex-wrap items-center gap-1.5">
                 <Button
@@ -1156,6 +1174,12 @@ export const RunPage: Component<{
                           <span>{t("run.usage.settled", { n: numeric(usage().settled).toLocaleString() })}</span>
                           <span>{t("run.usage.unknown", { n: numeric(usage().unknown).toLocaleString() })}</span>
                           <span>{t("run.usage.reserved", { n: numeric(usage().reserved).toLocaleString() })}</span>
+                          {/* 成本只在提供方回报时出现：老运行与免费模型不该显示一个假的 0。 */}
+                          <Show when={usage().cost !== undefined}>
+                            <span title={t("run.usage.costHint")}>
+                              {t("run.usage.cost", { n: numeric(usage().cost ?? 0).toFixed(4) })}
+                            </span>
+                          </Show>
                         </div>
                       </div>
                     )}

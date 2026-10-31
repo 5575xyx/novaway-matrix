@@ -8,6 +8,7 @@ const entry = (over: Partial<Entry> & Pick<Entry, "actor" | "state">): Entry => 
   runID: "run_1",
   reservedTokens: 0,
   settledTokens: 0,
+  settledCost: 0,
   at: 1,
   ...over,
 })

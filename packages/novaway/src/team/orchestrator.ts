@@ -38,7 +38,8 @@ export type Report = {
   summary: string
   claims: Claim[]
   artifacts?: Artifact[]
-  usage?: { tokens?: number }
+  /** 本次派发实际消耗；`cost` 只在提供方权威回报时有值。 */
+  usage?: { tokens?: number; cost?: number }
   done?: boolean
 }
 
@@ -50,12 +51,12 @@ export type VerificationResult = {
   /** 验证针对的代码快照；缺省用调度器传入的当前快照。 */
   snapshotID?: string
   /**
-   * 这次验证实际消耗的 token。
+   * 这次验证实际消耗的 token 与成本。
    *
    * 验证不在派发的预占里，但它是真金白银：不记账的话，预算上限只约束队长，
    * 而「验证器是否 affordable」就变成了没有人回答的问题（§7.1）。
    */
-  usage?: { tokens?: number }
+  usage?: { tokens?: number; cost?: number }
 }
 
 export type DispatchInput = {
@@ -211,8 +212,25 @@ export const layer = Layer.effect(
        */
       const wallStart = Date.now()
       const wallMs = run.budget?.wallMs
-      const overWall = () => wallMs !== undefined && Date.now() - wallStart >= wallMs
-      const stopForWall = (current: RunTeam[]) =>
+      const costCap = run.budget?.cost
+      /**
+       * 硬上限到期了就说清楚是哪一条（§7.3）。
+       *
+       * 成本与墙钟的语义刻意一致：成本只在调用**返回后**才有权威值（调用前无法预占），
+       * 所以它停的也是新派发，而不是掐断正在跑的模型调用。缺省 = 不限，显式 `0` = 立刻停。
+       */
+      const limitHit = () =>
+        Effect.gen(function* () {
+          if (wallMs !== undefined && Date.now() - wallStart >= wallMs)
+            return { reason: "墙钟超出上限（" + wallMs + " ms）", wallMs }
+          if (costCap !== undefined) {
+            const current = yield* ledger.usage({ runID: input.runID })
+            if (current.settledCost >= costCap)
+              return { reason: "成本超出上限（" + costCap + "）", cost: costCap }
+          }
+          return undefined
+        })
+      const stopForLimit = (current: RunTeam[], limit: { reason: string; wallMs?: number; cost?: number }) =>
         Effect.gen(function* () {
           for (const team of current) {
             if (team.phase === "queued" || team.phase === "rework")
@@ -221,8 +239,9 @@ export const layer = Layer.effect(
           yield* runs.appendEvent({
             runID: input.runID,
             kind: "budget.exceeded",
-            payload: { reason: "墙钟超出上限（" + wallMs + " ms）", wallMs },
-          })        })
+            payload: limit,
+          })
+        })
       const acceptances = yield* verification.list(input.runID)
       const attempts = { ...run.attempts }
 
@@ -257,7 +276,7 @@ export const layer = Layer.effect(
           runID: input.runID,
           state: "cancelled",
           phase: null,
-          usage: { reserved: usage.reserved, settled: usage.settled },
+          usage: { reserved: usage.reserved, settled: usage.settled, cost: usage.settledCost },
           endedAt: Date.now(),
           terminalReason: "user-cancelled",
         })
@@ -278,9 +297,15 @@ export const layer = Layer.effect(
        * 但花在哪件事上不再靠猜。
        */
       const chargeVerification = (teamID: string, result: VerificationResult) =>
-        result.usage?.tokens && result.usage.tokens > 0
+        (result.usage?.tokens ?? 0) > 0 || (result.usage?.cost ?? 0) > 0
           ? ledger
-              .record({ runID: input.runID, actor: teamID, kind: "verification", tokens: result.usage.tokens })
+              .record({
+                runID: input.runID,
+                actor: teamID,
+                kind: "verification",
+                tokens: result.usage?.tokens ?? 0,
+                ...(result.usage?.cost !== undefined ? { cost: result.usage.cost } : {}),
+              })
               .pipe(Effect.asVoid, Effect.catchCause(() => Effect.void))
           : Effect.void
 
@@ -326,7 +351,11 @@ export const layer = Layer.effect(
           }
 
           const report = dispatched.value
-          yield* ledger.settle({ id: reservation.value.id, tokens: report.usage?.tokens })
+          yield* ledger.settle({
+            id: reservation.value.id,
+            tokens: report.usage?.tokens,
+            ...(report.usage?.cost !== undefined ? { cost: report.usage.cost } : {}),
+          })
           // 产物版本由内容决定（§8.6）：下游记下自己依赖的**具体版本**，
           // 上游一变，下游的「通过」就不是现在这件事的结论了。
           const artifacts = normalize(report.artifacts)
@@ -494,9 +523,10 @@ export const layer = Layer.effect(
 
       while (rounds < maxRounds) {
         if (cancelled()) return yield* finishCancelled(teams)
-        // 墙钟用尽：不再开新一轮，也不再派发任何团队。
-        if (overWall()) {
-          yield* stopForWall(teams)
+        // 墙钟 / 成本用尽：不再开新一轮，也不再派发任何团队。
+        const limit = yield* limitHit()
+        if (limit) {
+          yield* stopForLimit(teams, limit)
           exceeded = true
           break
         }
@@ -521,9 +551,10 @@ export const layer = Layer.effect(
             return team.dependsOn.every((dep) => byID.get(dep)?.phase === "delivered")
           })
           if (ready.length === 0) break
-          // 一批派发之前再查一次墙钟：一轮里可能有多个依赖链批次，不能等轮末才停。
-          if (overWall()) {
-            yield* stopForWall(teams)
+          // 一批派发之前再查一次：一轮里可能有多个依赖链批次，不能等轮末才停。
+          const limit = yield* limitHit()
+          if (limit) {
+            yield* stopForLimit(teams, limit)
             exceeded = true
             break
           }
@@ -786,6 +817,7 @@ export const layer = Layer.effect(
           reserved: usage.reserved,
           settled: usage.settled,
           unknown: usage.unknown,
+          cost: usage.settledCost,
           cap: usage.cap,
           overrun: usage.overrun,
           byActor: attribution.byActor,

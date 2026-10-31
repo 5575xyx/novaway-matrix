@@ -141,6 +141,8 @@ export const dict = {
   "run.usage.settled": "settled {{n}}",
   "run.usage.unknown": "unknown {{n}} (counted defensively)",
   "run.usage.reserved": "in flight {{n}}",
+  "run.usage.cost": "settled cost {{n}}",
+  "run.usage.costHint": "Cost counts only authoritative provider reports; calls without one are not estimated.",
   "run.usage.overrun": "Over budget",
   "run.usage.hint":
     "Committed tokens per job, counted for the whole team: captain, members and their subagents. Per-person spend lives in the employee library (\"total usage\"): it counts only sessions attributed to a person, and anything that cannot be attributed is reported separately.",
@@ -162,6 +164,7 @@ export const dict = {
   "run.new.briefHint": "Scope and constraints go into the captain's prompt verbatim; nothing is inferred.",
   "run.new.budget": "Token budget",
   "run.new.wall": "Wall clock (minutes, 0 = unlimited)",
+  "run.new.cost": "Cost cap (0 = unlimited)",
   "run.new.start": "Create run",
   "run.new.creating": "Creating…",
   "run.new.cancel": "Cancel",

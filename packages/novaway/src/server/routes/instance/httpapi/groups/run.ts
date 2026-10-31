@@ -145,6 +145,8 @@ export const RunUsageView = Schema.Struct({
   reserved: Schema.Number,
   settled: Schema.Number,
   unknown: Schema.Number,
+  /** 已结算成本（提供方权威回报之和）；老运行没有这个字段。 */
+  cost: Schema.optional(Schema.Number),
   cap: Schema.Number,
   overrun: Schema.Boolean,
   byActor: Schema.optional(

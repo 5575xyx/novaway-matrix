@@ -42,6 +42,14 @@ export type Entry = {
   kind?: EntryKind
   reservedTokens: number
   settledTokens: number
+  /**
+   * 这笔实际花掉的成本（提供方权威回报，单位由模型目录决定）。
+   *
+   * 成本调用前无法预占 —— 不知道会输出多少 —— 所以它只记**已结算**的值。
+   * 预占那一列（`reserved_cost`）始终为空；给一个猜出来的预占额，等于把
+   * 「上界」冒充成「花了多少」（§7.1 / §7.3）。
+   */
+  settledCost: number
   state: LedgerState
   at: number
 }
@@ -59,6 +67,8 @@ export type Usage = {
   unknown: number
   /** 已承诺 = 预占 + 已结算 + 用量不明；并发判断只看这个数。 */
   committed: number
+  /** 已结算成本之和；没有提供方回报的条目不计入。 */
+  settledCost: number
   cap: number
   remaining: number
   overrun: boolean
@@ -82,8 +92,10 @@ export interface Interface {
   /**
    * 结算。`tokens` 缺省表示提供方没有可信用量：记为 `unknown`，
    * **绝不**用预占额或估算值冒充实际花费。
+   *
+   * `cost` 只在提供方权威回报时传；它与 token 是两件事，可以一个有、一个没有。
    */
-  readonly settle: (input: { id: string; tokens?: number }) => Effect.Effect<Entry | undefined>
+  readonly settle: (input: { id: string; tokens?: number; cost?: number }) => Effect.Effect<Entry | undefined>
   readonly release: (input: { id: string }) => Effect.Effect<void>
   /**
    * 直接记一笔已结算的消耗，不走「预占 → 结算」。
@@ -95,7 +107,14 @@ export interface Interface {
    * `kind` 必填：调用方必须说清这笔是派发还是验证。给它一个默认值，
    * 下一个记账的人就会顺手把它写错，指标也跟着错。
    */
-  readonly record: (input: { runID: string; actor: string; kind: EntryKind; tokens: number }) => Effect.Effect<Entry>
+  readonly record: (input: {
+    runID: string
+    actor: string
+    kind: EntryKind
+    tokens: number
+    /** 同样只认提供方权威回报；缺省表示这次没有成本数据。 */
+    cost?: number
+  }) => Effect.Effect<Entry>
   readonly usage: (input: { runID: string; cap?: Cap }) => Effect.Effect<Usage>
   /**
    * 本次运行的全部账本条目。
@@ -112,6 +131,17 @@ export class Service extends Context.Service<Service, Interface>()("@NovaWay/Tea
 
 const generateId = () => "led_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)
 
+/**
+ * 成本列是 text：SQLite 存浮点没有精确的小数类型，账本只做校验与相加，
+ * 写进去用十进制字符串，读回来按数解析。认不出来（老数据、手改）按 0 ——
+ * 那表示「这笔没有成本数据」，不是「花了 0」。
+ */
+const toCost = (value: string | null): number => {
+  if (value === null) return 0
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
 const toEntry = (row: typeof TeamRunLedgerTable.$inferSelect): Entry => {
   const kind = toKind(row.kind)
   return {
@@ -121,6 +151,7 @@ const toEntry = (row: typeof TeamRunLedgerTable.$inferSelect): Entry => {
     ...(kind ? { kind } : {}),
     reservedTokens: row.reserved_tokens,
     settledTokens: row.settled_tokens,
+    settledCost: toCost(row.settled_cost),
     state: row.state as LedgerState,
     at: row.at,
   }
@@ -134,10 +165,14 @@ function usageOf(entries: Entry[], cap?: Cap): Usage {
   let reserved = 0
   let settled = 0
   let unknown = 0
+  let settledCost = 0
   for (const entry of entries) {
     if (entry.state === "reserved") reserved += entry.reservedTokens
     if (entry.state === "settled" || entry.state === "overrun") settled += entry.settledTokens
     if (entry.state === "unknown") unknown += entry.reservedTokens
+    // 成本是钱，不是额度：只要提供方说过实际扣了多少，就计入 ——
+    // 哪怕 token 用量不明（`unknown`），那条条目上的成本仍然是权威的。
+    if (entry.state !== "reserved" && entry.state !== "released") settledCost += entry.settledCost
   }
   const committed = reserved + settled + unknown
   const limit = cap?.tokens ?? 0
@@ -146,6 +181,7 @@ function usageOf(entries: Entry[], cap?: Cap): Usage {
     settled,
     unknown,
     committed,
+    settledCost,
     cap: limit,
     remaining: limit === 0 ? Number.POSITIVE_INFINITY : Math.max(0, limit - committed),
     overrun: limit !== 0 && committed > limit,
@@ -179,6 +215,8 @@ export const layer = Layer.effect(
               kind: "dispatch",
               reservedTokens: input.tokens,
               settledTokens: 0,
+              // 成本事前不可知：预占只预占 token，成本等结算时如实记。
+              settledCost: 0,
               state: "reserved",
               at: Date.now(),
             }
@@ -219,17 +257,22 @@ export const layer = Layer.effect(
           (tx) => {
             const row = tx.select().from(TeamRunLedgerTable).where(eq(TeamRunLedgerTable.id, input.id)).all()[0]
             if (!row) return undefined
+            const cost = input.cost !== undefined && input.cost > 0 ? String(input.cost) : row.settled_cost
             // 用量不明就如实记 unknown：预占仍占着额度，但不能伪装成已结算的花费。
+            // 成本若拿到了权威值，照样记 —— 它回答的是「花了多少钱」，与 token 是否可知无关。
             if (input.tokens === undefined) {
-              tx.update(TeamRunLedgerTable).set({ state: "unknown" }).where(eq(TeamRunLedgerTable.id, input.id)).run()
-              return { ...toEntry(row), state: "unknown" as LedgerState }
+              tx.update(TeamRunLedgerTable)
+                .set({ state: "unknown", ...(cost !== row.settled_cost ? { settled_cost: cost } : {}) })
+                .where(eq(TeamRunLedgerTable.id, input.id))
+                .run()
+              return { ...toEntry({ ...row, settled_cost: cost }), state: "unknown" as LedgerState }
             }
             const state: LedgerState = input.tokens > row.reserved_tokens ? "overrun" : "settled"
             tx.update(TeamRunLedgerTable)
-              .set({ settled_tokens: input.tokens, state })
+              .set({ settled_tokens: input.tokens, settled_cost: cost, state })
               .where(eq(TeamRunLedgerTable.id, input.id))
               .run()
-            return { ...toEntry(row), settledTokens: input.tokens, state }
+            return { ...toEntry({ ...row, settled_cost: cost }), settledTokens: input.tokens, state }
           },
           { behavior: "immediate" },
         ),
@@ -260,6 +303,7 @@ export const layer = Layer.effect(
     const record: Interface["record"] = Effect.fn("TeamLedger.record")(function* (input) {
       // 预占 0、结算 N：这不是「超支」，而是「没预占过的一笔实际花费」。
       // 用 overrun 表达会被误读成「估算太保守」，所以状态记 settled。
+      const cost = input.cost !== undefined && input.cost > 0 ? input.cost : 0
       const entry: Entry = {
         id: generateId(),
         runID: input.runID,
@@ -267,10 +311,12 @@ export const layer = Layer.effect(
         kind: input.kind,
         reservedTokens: 0,
         settledTokens: input.tokens,
+        settledCost: cost,
         state: "settled",
         at: Date.now(),
       }
-      if (input.tokens <= 0) return entry
+      // token 与成本各自可能有、可能没有：只有成本也算一笔真实开销。
+      if (input.tokens <= 0 && cost <= 0) return entry
       yield* Effect.sync(() =>
         Database.use((db) =>
           db
@@ -282,6 +328,7 @@ export const layer = Layer.effect(
               kind: entry.kind,
               reserved_tokens: 0,
               settled_tokens: entry.settledTokens,
+              settled_cost: cost > 0 ? String(cost) : null,
               state: entry.state,
               at: entry.at,
             })

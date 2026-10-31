@@ -136,6 +136,8 @@ export const dict = {
   "run.usage.settled": "已结算 {{n}}",
   "run.usage.unknown": "用量不明 {{n}}（按预占额保守计入）",
   "run.usage.reserved": "在途预占 {{n}}",
+  "run.usage.cost": "已结算成本 {{n}}",
+  "run.usage.costHint": "成本只统计提供方权威回报；没有回报的调用不估算。",
   "run.usage.overrun": "已超支",
   "run.usage.hint":
     "每个岗位的承诺用量，口径是整支团队：队长、成员与成员的子代理都算在内。按人拆开的用量在员工库的「累计用量」里，只算能指认到具体人的会话，指认不出来的单列为未归属。",
@@ -157,6 +159,7 @@ export const dict = {
   "run.new.briefHint": "范围与约束会原样写进队长提示词；没写的不会被猜出来。",
   "run.new.budget": "Token 预算",
   "run.new.wall": "墙钟上限（分钟，0 = 不限）",
+  "run.new.cost": "成本上限（0 = 不限）",
   "run.new.start": "创建运行",
   "run.new.creating": "创建中…",
   "run.new.cancel": "取消",

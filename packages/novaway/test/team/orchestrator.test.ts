@@ -785,4 +785,55 @@ describe("team orchestrator", () => {
       expect(team.phase).toBe("queued")
     }),
   )
+
+  it.effect("stops scheduling new dispatches once settled cost reaches the cap", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_cost"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "两个有依赖的团队",
+        // 成本上限是硬上限（§7.3）：调用前无法预占成本，所以停的也是新的派发。
+        budget: { tokens: 100_000, cost: 0.5 },
+      })
+      yield* runs.update({
+        runID: run.id,
+        plan: { teams: [{ name: "upstream" }, { name: "downstream" }] },
+        planVersion: 1,
+      })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000, cost: 0.5 }, by: "user" })
+      const upstream = yield* runs.addTeam({ runID: run.id })
+      const downstream = yield* runs.addTeam({ runID: run.id, dependsOn: [0] })
+      yield* verification.register({ runID: run.id, specID: "u", text: "上游验收", kind: "test", owner: upstream.id })
+      yield* verification.register({ runID: run.id, specID: "d", text: "下游验收", kind: "test", owner: downstream.id })
+
+      let dispatched = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) => {
+          dispatched += 1
+          // 第一批就把成本花过上限：下一批派发之前必须停。
+          return Effect.succeed({ ...report(input.team.id), usage: { tokens: 10, cost: 0.6 } })
+        },
+        verify: () => Effect.succeed({ outcome: "pass" as const, usage: { tokens: 5 } }),
+      })
+
+      // 第一个团队照常跑完（中断在跑的只会留下半成品），第二个一次都不该派。
+      expect(dispatched).toBe(1)
+      expect(result.state).toBe("exceeded")
+      const phases = (yield* runs.teams(run.id)).map((team) => team.phase).sort()
+      expect(phases).toEqual(["delivered", "exceeded"])
+      const events = yield* runs.events({ runID: run.id })
+      const exceeded = events.filter((event) => event.kind === "budget.exceeded")
+      expect(exceeded.length).toBe(1)
+      expect(exceeded[0].payload?.reason).toContain("成本")
+      // 成本是事实，不是估算：结算后能在运行快照里读到。
+      const settled = yield* runs.get(run.id)
+      expect(Number(settled?.usage?.cost)).toBeCloseTo(0.6, 10)
+    }),
+  )
 })

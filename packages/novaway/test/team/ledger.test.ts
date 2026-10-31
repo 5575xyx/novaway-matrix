@@ -173,3 +173,63 @@ describe("team ledger: unsettled usage", () => {
     }),
   )
 })
+
+describe("team ledger: cost", () => {
+  it.effect("keeps settled cost next to tokens and sums it for the run", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      // 成本调用前不可知，所以预占只占 token；成本在结算时如实记。
+      const entry = yield* ledger.reserve({ runID: id, actor: "team-a", tokens: 100, cap: { tokens: 1_000 } })
+      expect(entry.settledCost).toBe(0)
+      const settled = yield* ledger.settle({ id: entry.id, tokens: 80, cost: 0.25 })
+      expect(settled?.settledCost).toBe(0.25)
+      expect(settled?.settledTokens).toBe(80)
+
+      yield* ledger.record({ runID: id, actor: "team-a", kind: "verification", tokens: 20, cost: 0.05 })
+      const usage = yield* ledger.usage({ runID: id, cap: { tokens: 1_000 } })
+      expect(usage.settledCost).toBeCloseTo(0.3, 10)
+      // 成本不参与 token 额度判断：两者是两笔账。
+      expect(usage.committed).toBe(100)
+    }),
+  )
+
+  it.effect("records a verification that only reported cost", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      // 只拿到成本、没拿到 token 也是一笔真实开销：不能因为 tokens 是 0 就丢掉。
+      yield* ledger.record({ runID: id, actor: "team-a", kind: "verification", tokens: 0, cost: 0.02 })
+      const entries = yield* ledger.entries(id)
+      expect(entries.length).toBe(1)
+      expect(entries[0].settledCost).toBeCloseTo(0.02, 10)
+      expect((yield* ledger.usage({ runID: id })).settledCost).toBeCloseTo(0.02, 10)
+    }),
+  )
+
+  it.effect("counts cost even when the provider gave no token numbers", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      const entry = yield* ledger.reserve({ runID: id, actor: "team-a", tokens: 40, cap: { tokens: 100 } })
+      // 用量不明不等于成本不明：钱确实花了，计数口径仍然按「已结算」。
+      const settled = yield* ledger.settle({ id: entry.id, cost: 0.1 })
+      expect(settled?.state).toBe("unknown")
+      const usage = yield* ledger.usage({ runID: id, cap: { tokens: 100 } })
+      expect(usage.unknown).toBe(40)
+      expect(usage.settledCost).toBeCloseTo(0.1, 10)
+    }),
+  )
+
+  it.effect("ignores a released reservation's cost and never invents one", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      const entry = yield* ledger.reserve({ runID: id, actor: "team-a", tokens: 10, cap: { tokens: 100 } })
+      yield* ledger.release({ id: entry.id })
+      const usage = yield* ledger.usage({ runID: id, cap: { tokens: 100 } })
+      // 没有提供方回报 = 没有成本数据，不是「花了 0」。
+      expect(usage.settledCost).toBe(0)
+    }),
+  )
+})

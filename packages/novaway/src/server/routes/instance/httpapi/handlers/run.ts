@@ -60,12 +60,15 @@ const toUsage = (value: Record<string, unknown> | undefined) => {
   if (!value) return undefined
   const rawActors: unknown = Reflect.get(value, "byActor")
   const rawJobs: unknown = Reflect.get(value, "byJob")
+  const cost: unknown = Reflect.get(value, "cost")
   return {
     reserved: number(Reflect.get(value, "reserved")),
     settled: number(Reflect.get(value, "settled")),
     unknown: number(Reflect.get(value, "unknown")),
     cap: number(Reflect.get(value, "cap")),
     overrun: Reflect.get(value, "overrun") === true,
+    // 老运行没有成本数据：缺就是缺，不编一个「花了 0」。
+    ...(typeof cost === "number" && Number.isFinite(cost) ? { cost } : {}),
     ...(Array.isArray(rawActors)
       ? {
           byActor: rawActors.flatMap((item: unknown) => {
@@ -799,7 +802,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               return {
                 teamID: input.team.id,
                 // 用量按这次派发的实际消耗结算：不填的话账本只能记成「用量不明」（§7.1）。
-                usage: { tokens: captainRun.usage.tokens },
+                usage: { tokens: captainRun.usage.tokens, cost: captainRun.usage.cost },
                 summary: typeof parsed?.summary === "string" ? parsed.summary : text.slice(0, 500),
                 claims,
                 artifacts: Array.isArray(parsed?.artifacts)
@@ -830,7 +833,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 ...TeamVerifier.interpret(text),
                 snapshotID,
                 // 验证也要花钱：不计进来的话，预算上限只约束派发，约束不到真相。
-                usage: { tokens: verified.usage.tokens },
+                usage: { tokens: verified.usage.tokens, cost: verified.usage.cost },
               } satisfies VerificationResult
             })
 
@@ -851,7 +854,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               return {
                 ...TeamVerifier.interpret(mergedRun.text),
                 snapshotID: input.snapshotID,
-                usage: { tokens: mergedRun.usage.tokens },
+                usage: { tokens: mergedRun.usage.tokens, cost: mergedRun.usage.cost },
               } satisfies VerificationResult
             })
 
