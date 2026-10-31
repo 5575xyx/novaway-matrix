@@ -2,6 +2,7 @@ import type {
   Agent,
   RunView,
   TeamDetail,
+  TeamEmployeeRecordView,
   TeamEmployeeUsageView,
   TeamEmployeeView,
   TeamMemberView,
@@ -827,22 +828,32 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
   const [draft, setDraft] = createSignal({ name: "", job: "", model: "", skills: "", prompt: "", tier: "" })
   // 用途量回答「这个人花了多少」；未归属单列，不能摊到他头上。
   const [usage, setUsage] = createSignal<Record<string, TeamEmployeeUsageView>>({})
+  // 事实记录（§12.1）：参与、团队驳回、团队一次通过率；只记录，不排名。
+  const [facts, setFacts] = createSignal<Record<string, TeamEmployeeRecordView>>({})
 
   const loadUsage = async (employees: TeamEmployeeView[]) => {
     const entries = await Promise.all(
       employees.map(async (employee) => {
         try {
-          const result = await sdk.client.employee.usage({ directory: props.directory, employeeID: employee.id })
-          return [employee.id, result.data] as const
+          const [usage, record] = await Promise.all([
+            sdk.client.employee.usage({ directory: props.directory, employeeID: employee.id }),
+            sdk.client.employee.record({ directory: props.directory, employeeID: employee.id }),
+          ])
+          return [employee.id, usage.data, record.data] as const
         } catch {
-          // 用量读不出来不影响员工库本身：行照常显示，只是没有那行小字。
-          return [employee.id, undefined] as const
+          // 用量或记录读不出来不影响员工库本身：行照常显示，只是少了那行小字。
+          return [employee.id, undefined, undefined] as const
         }
       }),
     )
-    const next: Record<string, TeamEmployeeUsageView> = {}
-    for (const [id, value] of entries) if (value) next[id] = value
-    setUsage(next)
+    const nextUsage: Record<string, TeamEmployeeUsageView> = {}
+    const nextFacts: Record<string, TeamEmployeeRecordView> = {}
+    for (const [id, usage, record] of entries) {
+      if (usage) nextUsage[id] = usage
+      if (record) nextFacts[id] = record
+    }
+    setUsage(nextUsage)
+    setFacts(nextFacts)
   }
 
   const load = async () => {
@@ -953,6 +964,23 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
     }
   }
 
+  /**
+   * 事实记录的一行文案（§12.1）。
+   *
+   * 未给比率时写「暂无」而不是 0%：0 条验收不等于一次都没通过。
+   * 这里的数字全是「所在团队」的事实，tooltip 里原样带出内核给的口径说明。
+   */
+  const factsLine = (entry: TeamEmployeeRecordView) => {
+    const rate = entry.firstPass.rate
+    return t("team.employees.facts", {
+      runs: numeric(entry.participations.runs),
+      teams: numeric(entry.participations.teams),
+      rework: numeric(entry.rework.total),
+      rate: rate === undefined ? t("team.employees.factsNoRate") : Math.round(numeric(rate) * 100) + "%",
+    })
+  }
+  const factsHint = (entry: TeamEmployeeRecordView) => entry.caveats.join("，")
+
   return (
     <Dialog title={t("team.employees.title")}>
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
@@ -981,6 +1009,16 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                     </div>
                     <Show when={employee.prompt}>
                       {(text) => <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{text()}</div>}
+                    </Show>
+                    {/* 事实记录（§12.1）：参与次数与「所在团队」的驳回/一次通过率。 */}
+                    <Show when={facts()[employee.id]}>
+                      {(entry) => (
+                        <Show when={numeric(entry().participations.runs) > 0}>
+                          <div class="mt-0.5 text-ui-xs text-foreground-subtlest" title={factsHint(entry())}>
+                            {factsLine(entry())}
+                          </div>
+                        </Show>
+                      )}
                     </Show>
                     <Show when={usage()[employee.id]}>
                       {(entry) => (

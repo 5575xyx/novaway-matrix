@@ -287,6 +287,8 @@ export const dict = {
   "team.employees.tier.deep": "Deep",
   "team.employees.modelPlaceholder": "Model override (optional) — empty follows the job",
   "team.employees.skillsPlaceholder": "Skill overrides (optional), comma separated — empty follows the job",
+  "team.employees.facts": "{{runs}} runs / {{teams}} teams · {{rework}} team rejections · {{rate}} first-pass",
+  "team.employees.factsNoRate": "n/a",
   "team.employees.usage": "{{n}} tokens total · {{runs}} runs",
   "team.employees.usageEmpty": "No usage yet",
   "team.employees.usageUnattributed": "unattributed in the same runs: {{n}}",

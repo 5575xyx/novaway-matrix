@@ -3,6 +3,7 @@ import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { Service as ProfileService } from "@/team/profile"
 import * as TeamEmployeeUsage from "@/team/employee-usage"
+import * as TeamEmployeeRecord from "@/team/employee-record"
 
 /**
  * 团队模板接口。
@@ -199,6 +200,15 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
             ...(updated.tier !== undefined ? { tier: updated.tier } : {}),
             archived: updated.archived,
           }
+        }),
+      )
+      .handle("employeeRecord", (ctx) =>
+        Effect.gen(function* () {
+          // 归档的人仍然有历史记录：查不到人只说明 id 写错了。
+          const employee = (yield* profiles.employees()).find((item) => item.id === ctx.params.employeeID)
+          if (!employee) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          // 员工是全局身份，记录也跟着人走；目录参数只用于路由到实例。
+          return yield* Effect.sync(() => TeamEmployeeRecord.of(employee.id))
         }),
       )
       .handle("employeeUsage", (ctx) =>

@@ -277,6 +277,8 @@ export const dict = {
   "team.employees.tier.deep": "重",
   "team.employees.modelPlaceholder": "模型覆盖（可选），留空则跟随岗位",
   "team.employees.skillsPlaceholder": "技能覆盖（可选），逗号分隔，留空则跟随岗位",
+  "team.employees.facts": "参与 {{runs}} 次运行 / {{teams}} 个团队 · 团队驳回 {{rework}} 次 · 一次通过 {{rate}}",
+  "team.employees.factsNoRate": "暂无",
   "team.employees.usage": "累计 {{n}} tokens · {{runs}} 次运行",
   "team.employees.usageEmpty": "还没有用量",
   "team.employees.usageUnattributed": "同运行未归属 {{n}}",

@@ -540,6 +540,66 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("an employee's record counts participation but says whose facts the numbers are", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type Facts = {
+        employeeID: string
+        participations: { runs: number; teams: number; asCaptain: number; lastAt?: number }
+        rework: { total: number; runs: number; top: Array<{ reason: string; count: number }> }
+        firstPass: { lines: number; passed: number; rate?: number }
+        wall: { measured: number; avgMs?: number; totalMs?: number }
+        caveats: string[]
+      }
+
+      // 一起建两个人：一个当队长，一个当成员，模板发起后两人都应该被记一次参与。
+      const captain = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "老周", job: "build" }))
+        .json) as { id: string }
+      const member = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "review" }))
+        .json) as { id: string }
+      const profile = (yield* (
+        yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "记录组",
+          captain: captain.id,
+          members: [{ employeeID: captain.id }, { employeeID: member.id }],
+        })
+      ).json) as { profile: { id: string } }
+
+      // 发起前：没有任何参与记录，比率也不该造假。
+      const before = (yield* (yield* get(dir, `/team/employee/${member.id}/record`, dir)).json) as Facts
+      expect(before.participations.runs).toBe(0)
+      expect(before.firstPass).toEqual({ lines: 0, passed: 0 })
+      expect(before.firstPass.rate).toBeUndefined()
+      expect(before.wall.avgMs).toBeUndefined()
+
+      yield* post(dir, "/run", {
+        sessionID: "ses_record",
+        directory: dir,
+        mode: "team",
+        goal: "审查",
+        profileID: profile.profile.id,
+        acceptance: [{ text: "没有高危问题" }],
+      })
+
+      const after = (yield* (yield* get(dir, `/team/employee/${member.id}/record`, dir)).json) as Facts
+      // 参与来自发起时冻结的名册快照：改模板不会倒过来改写历史。
+      expect(after.participations).toMatchObject({ runs: 1, teams: 1, asCaptain: 0 })
+      expect(typeof after.participations.lastAt).toBe("number")
+
+      const lead = (yield* (yield* get(dir, `/team/employee/${captain.id}/record`, dir)).json) as Facts
+      expect(lead.participations.asCaptain).toBe(1)
+
+      // 只读事实：口径必须原样带出来，界面不能自己编成「某某业绩」。
+      expect(after.caveats.join("\n")).toContain("不是对个人的评价")
+      expect(after.caveats.join("\n")).toContain("不是个人工时")
+      // 运行还没结束：墙钟不测，也不拿 0 冒充。
+      expect(after.wall.measured).toBe(0)
+
+      expect((yield* get(dir, "/team/employee/emp_missing/record", dir)).status).toBe(404)
+    }),
+  )
+
   it.live("the team page can flip one orchestration switch without dropping the other", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

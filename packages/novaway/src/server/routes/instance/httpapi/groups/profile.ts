@@ -107,6 +107,40 @@ export const EmployeeUsageView = Schema.Struct({
   lastUsedAt: Schema.optional(Schema.Number),
 }).annotate({ identifier: "TeamEmployeeUsageView" })
 
+/**
+ * 员工的事实记录（§12.1）：只记录，不排名。
+ *
+ * `rework` 与 `firstPass` 挂在**所在团队**上（验收的责任人是团队，返工也是整队退回），
+ * `wall` 是运行墙钟而不是个人工时 —— 这三条口径由 `caveats` 原样带出，
+ * 界面直接显示，不要自己再组织成「某某业绩」。
+ */
+export const EmployeeRecordView = Schema.Struct({
+  employeeID: Schema.String,
+  participations: Schema.Struct({
+    runs: Schema.Number,
+    teams: Schema.Number,
+    asCaptain: Schema.Number,
+    lastAt: Schema.optional(Schema.Number),
+  }),
+  rework: Schema.Struct({
+    total: Schema.Number,
+    runs: Schema.Number,
+    top: Schema.Array(Schema.Struct({ reason: Schema.String, count: Schema.Number })),
+  }),
+  /** 首次验证就通过的验收项占比；没有验收项时 `rate` 不出现。 */
+  firstPass: Schema.Struct({
+    lines: Schema.Number,
+    passed: Schema.Number,
+    rate: Schema.optional(Schema.Number),
+  }),
+  wall: Schema.Struct({
+    measured: Schema.Number,
+    avgMs: Schema.optional(Schema.Number),
+    totalMs: Schema.optional(Schema.Number),
+  }),
+  caveats: Schema.Array(Schema.String),
+}).annotate({ identifier: "TeamEmployeeRecordView" })
+
 export const ProfileCreatePayload = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
@@ -240,6 +274,19 @@ export const ProfileApi = HttpApiGroup.make("profile")
         summary: "Change a person",
         description:
           "Rename, change job, edit overrides, or archive/unarchive. Archiving keeps existing templates and finished runs untouched.",
+      }),
+    ),
+    HttpApiEndpoint.get("employeeRecord", "/team/employee/:employeeID/record", {
+      params: { employeeID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(EmployeeRecordView, "Facts about this employee's participation"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "employee.record",
+        summary: "Facts about one person",
+        description:
+          "Participation count, rejections of the teams they were on, first-pass verification rate of those teams, and the wall time of runs they joined. Facts only: rejections and pass rates belong to the team, not to the person, and wall time is shared by parallel members. Not a ranking.",
       }),
     ),
     HttpApiEndpoint.get("employeeUsage", "/team/employee/:employeeID/usage", {

@@ -3585,6 +3585,35 @@ export type TeamEmployeeView = {
   archived: boolean
 }
 
+export type TeamEmployeeRecordView = {
+  employeeID: string
+  participations: {
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    teams: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    asCaptain: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    lastAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  rework: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    top: Array<{
+      reason: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }
+  firstPass: {
+    lines: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    passed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    rate?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  wall: {
+    measured: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    avgMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    totalMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  caveats: Array<string>
+}
+
 export type TeamEmployeeUsageView = {
   employeeID: string
   totals: {
@@ -17618,6 +17647,36 @@ export type EmployeeUpdateResponses = {
 }
 
 export type EmployeeUpdateResponse = EmployeeUpdateResponses[keyof EmployeeUpdateResponses]
+
+export type EmployeeRecordData = {
+  body?: never
+  path: {
+    employeeID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee/{employeeID}/record"
+}
+
+export type EmployeeRecordErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type EmployeeRecordError = EmployeeRecordErrors[keyof EmployeeRecordErrors]
+
+export type EmployeeRecordResponses = {
+  /**
+   * Facts about this employee's participation
+   */
+  200: TeamEmployeeRecordView
+}
+
+export type EmployeeRecordResponse = EmployeeRecordResponses[keyof EmployeeRecordResponses]
 
 export type EmployeeUsageData = {
   body?: never

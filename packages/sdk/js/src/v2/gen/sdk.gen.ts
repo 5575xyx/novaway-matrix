@@ -61,6 +61,8 @@ import type {
   EmployeeCreateErrors,
   EmployeeCreateResponses,
   EmployeeListResponses,
+  EmployeeRecordErrors,
+  EmployeeRecordResponses,
   EmployeeUpdateErrors,
   EmployeeUpdateResponses,
   EmployeeUsageErrors,
@@ -13703,6 +13705,38 @@ export class Employee extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Facts about one person
+   *
+   * Participation count, rejections of the teams they were on, first-pass verification rate of those teams, and the wall time of runs they joined. Facts only: rejections and pass rates belong to the team, not to the person, and wall time is shared by parallel members. Not a ranking.
+   */
+  public record<ThrowOnError extends boolean = false>(
+    parameters: {
+      employeeID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "employeeID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<EmployeeRecordResponses, EmployeeRecordErrors, ThrowOnError>({
+      url: "/team/employee/{employeeID}/record",
+      ...options,
+      ...params,
     })
   }
 
