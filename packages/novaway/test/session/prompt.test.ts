@@ -60,6 +60,7 @@ import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { defaultLayer as TeamOpLogLayer, Service as TeamOpLogService } from "@/team/op-log"
 import { defaultLayer as TeamLayer, Service as TeamService } from "@/team/team"
+import { defaultLayer as AgentTaskListLayer, Service as AgentTaskListService } from "@/team/task-list"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Auth } from "@/auth"
 import { ClientCapabilities } from "@/effect/client-capabilities"
@@ -200,6 +201,7 @@ function makeHttp(input?: { processor?: "blocking" }) {
     ReadState.defaultLayer,
     TeamOpLogLayer,
     TeamLayer,
+    AgentTaskListLayer,
     ClientCapabilities.layer({ client: "test", capabilities: ["question", "plan"] }),
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
@@ -3111,6 +3113,130 @@ it.instance(
         .map((part) => part.text)
         .join(String.fromCharCode(10))
       expect(texts).not.toContain("本次会话可派发的团队")
+    }),
+  { git: true },
+  60_000,
+)
+
+it.instance(
+  "tells a run member only about its own tasks",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const ops = yield* TeamOpLogService
+      const board = yield* AgentTaskListService
+      const chat = yield* sessions.create({
+        title: "Board",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const captain = yield* sessions.create({ title: "队长", parentID: chat.id })
+      const member = yield* sessions.create({ title: "成员", parentID: captain.id })
+      const scope = { runID: "run_board", taskID: "team_board", attempt: 1, readOnly: false }
+      yield* ops.scope({ sessionID: captain.id, ...scope })
+      yield* ops.scope({ sessionID: member.id, ...scope })
+      const mine = yield* board.create({ teamID: "team_board", subject: "查资料", description: "" })
+      yield* board.update({ taskID: mine.id, status: "in_progress", ownerSessionID: member.id })
+      const theirs = yield* board.create({ teamID: "team_board", subject: "写报告", description: "" })
+      yield* board.update({ taskID: theirs.id, status: "in_progress", ownerSessionID: captain.id })
+
+      yield* prompt.prompt({
+        sessionID: member.id,
+        agent: "build",
+        parts: [{ type: "text", text: "我开始干活了" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: member.id })
+
+      const injected = (yield* MessageV2.filterCompactedEffect(member.id))
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.TextPart => part.type === "text" && part.synthetic === true)
+        .map((part) => part.text)
+        .join(String.fromCharCode(10))
+      expect(injected).toContain("查资料")
+      // 别人的任务注进来只会诱导成员去写别人的看板。
+      expect(injected).not.toContain("写报告")
+    }),
+  { git: true },
+  60_000,
+)
+
+it.instance(
+  "shows the captain the whole board, including unclaimed work",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const ops = yield* TeamOpLogService
+      const board = yield* AgentTaskListService
+      const chat = yield* sessions.create({
+        title: "Captain board",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const captain = yield* sessions.create({ title: "队长", parentID: chat.id })
+      yield* ops.scope({
+        sessionID: captain.id,
+        runID: "run_captain",
+        taskID: "team_captain",
+        attempt: 1,
+        readOnly: false,
+      })
+      yield* board.create({ teamID: "team_captain", subject: "整理素材", description: "" })
+      const owned = yield* board.create({ teamID: "team_captain", subject: "查资料", description: "" })
+      yield* board.update({ taskID: owned.id, status: "in_progress", ownerSessionID: captain.id })
+
+      yield* prompt.prompt({
+        sessionID: captain.id,
+        agent: "build",
+        parts: [{ type: "text", text: "看看现在有什么活" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: captain.id })
+
+      const injected = (yield* MessageV2.filterCompactedEffect(captain.id))
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.TextPart => part.type === "text" && part.synthetic === true)
+        .map((part) => part.text)
+        .join(String.fromCharCode(10))
+      expect(injected).toContain("查资料")
+      expect(injected).toContain("整理素材（未认领）")
+      expect(injected).toContain("队长视角")
+    }),
+  { git: true },
+  60_000,
+)
+
+it.instance(
+  "does not talk about tasks in a session that is not part of a run",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const board = yield* AgentTaskListService
+      const chat = yield* sessions.create({
+        title: "Plain",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      yield* board.create({ teamID: "team_elsewhere", subject: "别人的活", description: "" })
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        parts: [{ type: "text", text: "随便聊聊" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const injected = (yield* MessageV2.filterCompactedEffect(chat.id))
+        .flatMap((msg) => msg.parts)
+        .filter((part): part is MessageV2.TextPart => part.type === "text")
+        .map((part) => part.text)
+        .join(String.fromCharCode(10))
+      expect(injected).not.toContain("这次运行里")
+      expect(injected).not.toContain("别人的活")
     }),
   { git: true },
   60_000,

@@ -69,6 +69,8 @@ import { TeamPolicy } from "@/team/policy"
 import { Service as TeamService } from "@/team/team"
 import { TeamCatalog } from "@/team/catalog"
 import * as TeamSwitch from "@/team/switch"
+import { Service as AgentTaskListService } from "@/team/task-list"
+import { TaskBoard } from "@/team/task-board"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { LLM } from "./llm"
@@ -670,6 +672,9 @@ export const layer = Layer.effect(
     // 团队目录：能派发谁由会话字段决定，注入内容按签名去重（见 insertReminders）。
     const teamService = Option.getOrUndefined(yield* Effect.serviceOption(TeamService))
     const teamCatalogSignatures = new Map<string, string>()
+    // 运行内的任务板（§5.5）：只有登记过编排坐标的会话才注入，普通会话完全不受影响。
+    const teamTasks = Option.getOrUndefined(yield* Effect.serviceOption(AgentTaskListService))
+    const taskBoardSignatures = new Map<string, string>()
     /**
      * 权限询问带上团队口径（§11.2）。
      *
@@ -1141,6 +1146,36 @@ export const layer = Layer.effect(
         } else {
           teamCatalogSignatures.delete(input.session.id)
         }
+      }
+
+      // 运行里的任务板（§5.5）：把「自己该关心的」非终态任务写进上下文。
+      //
+      // 队长看全队、成员只看自己负责的 —— 判据是编排坐标：成员是队长派生出来的
+      // 子会话，与队长共享同一个 runID；父会话不在这次运行里，才说明它是这次运行的队长。
+      // 任务的「存在」与「有人在做」是两件事，渲染时分开表达。
+      const taskScope = teamOps ? yield* teamOps.scopeOf(input.session.id) : undefined
+      if (teamOps && teamTasks && taskScope?.taskID) {
+        const parentScope = input.session.parentID ? yield* teamOps.scopeOf(input.session.parentID) : undefined
+        const board = TaskBoard.view({
+          captain: parentScope?.runID !== taskScope.runID,
+          sessionID: input.session.id,
+          tasks: yield* teamTasks.list(taskScope.taskID),
+        })
+        // 板没变就不重复注入：任务板是每轮都会算的，但不该每轮都塞进上下文。
+        if (taskBoardSignatures.get(input.session.id) !== board.signature) {
+          taskBoardSignatures.set(input.session.id, board.signature)
+          const part = yield* sessions.updatePart({
+            id: PartID.ascending(),
+            messageID: userMessage.info.id,
+            sessionID: userMessage.info.sessionID,
+            type: "text",
+            synthetic: true,
+            text: board.text,
+          })
+          userMessage.parts.push(part)
+        }
+      } else {
+        taskBoardSignatures.delete(input.session.id)
       }
 
       if (!flags.experimentalPlanMode) {
