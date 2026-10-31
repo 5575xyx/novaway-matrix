@@ -424,6 +424,8 @@ import type {
   ProfileListResponses,
   ProfileRemoveErrors,
   ProfileRemoveResponses,
+  ProfileUpdateErrors,
+  ProfileUpdateResponses,
   ProjectCurrentResponses,
   ProjectDirectoriesErrors,
   ProjectDirectoriesResponses,
@@ -13517,6 +13519,57 @@ export class Profile extends HeyApiClient {
       url: "/team/profile/{profileID}",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Change a team template
+   *
+   * Rename, change the description, swap the captain, replace the roster, or toggle auto dispatch. Bumps `version` only when a field actually changes; running runs keep their snapshot, so edits apply to the next run only.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      profileID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      captain?: string
+      members?: Array<{
+        employeeID: string
+        duty?: string
+        canAutoDispatch?: boolean
+      }>
+      autoEligible?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "profileID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "captain" },
+            { in: "body", key: "members" },
+            { in: "body", key: "autoEligible" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<ProfileUpdateResponses, ProfileUpdateErrors, ThrowOnError>({
+      url: "/team/profile/{profileID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 }

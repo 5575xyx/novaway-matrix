@@ -17376,6 +17376,50 @@ export type ProfileDetailResponses = {
 
 export type ProfileDetailResponse = ProfileDetailResponses[keyof ProfileDetailResponses]
 
+export type ProfileUpdateData = {
+  body?: {
+    name?: string
+    description?: string
+    captain?: string
+    members?: Array<{
+      employeeID: string
+      duty?: string
+      canAutoDispatch?: boolean
+    }>
+    autoEligible?: boolean
+  }
+  path: {
+    profileID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile/{profileID}"
+}
+
+export type ProfileUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProfileUpdateError = ProfileUpdateErrors[keyof ProfileUpdateErrors]
+
+export type ProfileUpdateResponses = {
+  /**
+   * Updated template
+   */
+  200: TeamProfileDetail
+}
+
+export type ProfileUpdateResponse = ProfileUpdateResponses[keyof ProfileUpdateResponses]
+
 export type EmployeeListData = {
   body?: never
   path?: never

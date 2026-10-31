@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { EmployeeTable, TeamProfileMemberTable, TeamProfileTable } from "./run.sql"
 
@@ -85,6 +85,26 @@ export type CreateInput = {
   }>
 }
 
+/**
+ * 改模板（§5.2 / §13）。
+ *
+ * 只有「显式给了」的字段才动：`undefined` = 不改，`description: null` = 清空描述。
+ * 名册是**整表替换**而不是增量：编制有顺序（`order`），增删一个人会让后面所有人的
+ * 位置都变；让调用方一次说明整份名册，比猜「这次想插在哪」更不容易错。
+ */
+export type UpdateInput = {
+  profileID: string
+  name?: string
+  description?: string | null
+  captain?: string
+  members?: ReadonlyArray<{
+    employeeID: string
+    duty?: string
+    canAutoDispatch?: boolean
+  }>
+  autoEligible?: boolean
+}
+
 export interface Interface {
   /** 幂等：内置模板不存在才插入；已存在时不覆盖用户的改动。 */
   readonly seed: () => Effect.Effect<void>
@@ -121,6 +141,16 @@ export interface Interface {
   /** 深拷贝成快照：运行只认它，不再读模板。 */
   readonly snapshot: (profileID: string) => Effect.Effect<Snapshot | undefined>
   readonly create: (input: CreateInput) => Effect.Effect<Profile>
+  /**
+   * 改模板；`undefined` 表示模板不存在。
+   *
+   * `version` 只在真的有字段被改时 +1：它表达的是「内容变过」，不是「接口被调过」。
+   * 空 PATCH 原样返回，不发版本 —— 否则每次打开编辑框再保存都会让版本无意义地漂。
+   *
+   * 调用方负责保证 `captain` 在生效的名册里（HTTP 层校验）；正在跑的运行读的是
+   * `roster_snapshot`，改模板对它们零影响（§5.2「模板是复制，不是绑定」）。
+   */
+  readonly update: (input: UpdateInput) => Effect.Effect<Profile | undefined>
   readonly remove: (id: string) => Effect.Effect<void>
 }
 
@@ -525,6 +555,83 @@ export const layer = Layer.effect(
       }
     })
 
+    const update: Interface["update"] = Effect.fn("TeamProfile.update")(function* (input) {
+      const now = Date.now()
+      const existing = yield* get(input.profileID)
+      if (!existing) return undefined
+
+      const changed =
+        input.name !== undefined ||
+        input.description !== undefined ||
+        input.captain !== undefined ||
+        input.members !== undefined ||
+        input.autoEligible !== undefined
+      // 空 PATCH 不算一次修改：版本号表达的是「内容变过」，不是「接口被调过」。
+      if (!changed) return existing
+
+      const captain = input.captain ?? existing.captainMember
+      // 空串与 null 都表示「清空描述」：前者是 HTTP 的自然写法，后者是类型里的写法。
+      const description =
+        input.description === undefined
+          ? undefined
+          : input.description === null || input.description.trim() === ""
+            ? null
+            : input.description
+      yield* Effect.sync(() =>
+        Database.transaction((tx) => {
+          if (input.members) {
+            // 名册整表替换：数组顺序就是 order，队长行按新的 captain 重标。
+            tx.delete(TeamProfileMemberTable).where(eq(TeamProfileMemberTable.profile_id, input.profileID)).run()
+            input.members.forEach((member, index) => {
+              tx.insert(TeamProfileMemberTable)
+                .values({
+                  id: id("profmem"),
+                  profile_id: input.profileID,
+                  employee_id: member.employeeID,
+                  role: member.employeeID === captain ? "captain" : "worker",
+                  duty: member.duty ?? null,
+                  can_auto_dispatch: member.canAutoDispatch === false ? 0 : 1,
+                  order: index,
+                  time_created: now,
+                  time_updated: now,
+                })
+                .run()
+            })
+          } else if (input.captain !== undefined && input.captain !== existing.captainMember) {
+            // 只换队长时 role 必须跟着走：模板里的「队长是谁」与名册行的 role 不能各说各话。
+            tx.update(TeamProfileMemberTable)
+              .set({ role: "worker", time_updated: now })
+              .where(
+                and(eq(TeamProfileMemberTable.profile_id, input.profileID), eq(TeamProfileMemberTable.role, "captain")),
+              )
+              .run()
+            tx.update(TeamProfileMemberTable)
+              .set({ role: "captain", time_updated: now })
+              .where(
+                and(
+                  eq(TeamProfileMemberTable.profile_id, input.profileID),
+                  eq(TeamProfileMemberTable.employee_id, captain),
+                ),
+              )
+              .run()
+          }
+
+          tx.update(TeamProfileTable)
+            .set({
+              ...(input.name !== undefined ? { name: input.name } : {}),
+              ...(description !== undefined ? { description } : {}),
+              captain_member: captain,
+              ...(input.autoEligible !== undefined ? { auto_eligible: input.autoEligible ? 1 : 0 } : {}),
+              version: existing.version + 1,
+              time_updated: now,
+            })
+            .where(eq(TeamProfileTable.id, input.profileID))
+            .run()
+        }),
+      )
+      return yield* get(input.profileID)
+    })
+
     const remove: Interface["remove"] = Effect.fn("TeamProfile.remove")(function* (profileID) {
       // 只删模板与编制行：历史运行用的是快照，员工也可能被别的模板引用。
       yield* Effect.sync(() =>
@@ -546,6 +653,7 @@ export const layer = Layer.effect(
       roster,
       snapshot,
       create,
+      update,
       remove,
     })
   }),

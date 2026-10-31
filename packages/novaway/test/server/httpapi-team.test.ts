@@ -335,6 +335,99 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("edits a template in place: rename, swap the captain, replace the roster", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type Detail = {
+        profile: {
+          id: string
+          name: string
+          description?: string
+          captainMember: string
+          autoEligible: boolean
+          version: number
+          memberCount: number
+        }
+        members: Array<{ employeeID: string; role: string; duty?: string; order: number }>
+      }
+      const first = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "甲", job: "review" })).json) as {
+        id: string
+      }
+      const second = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "乙", job: "review" })).json) as {
+        id: string
+      }
+      const third = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "丙", job: "review" })).json) as {
+        id: string
+      }
+
+      const created = (yield* (
+        yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "两人组",
+          description: "旧描述",
+          captain: first.id,
+          members: [{ employeeID: first.id }, { employeeID: second.id, duty: "只看测试" }],
+        })
+      ).json) as Detail
+      expect(created.profile.version).toBe(1)
+
+      // 改名：没传的字段保持原样，版本 +1。
+      const renamed = (yield* (
+        yield* patch(dir, `/team/profile/${created.profile.id}`, { name: "三人组", autoEligible: true })
+      ).json) as Detail
+      expect(renamed.profile).toMatchObject({
+        name: "三人组",
+        description: "旧描述",
+        captainMember: first.id,
+        autoEligible: true,
+        version: 2,
+        memberCount: 2,
+      })
+
+      // 只换队长：名册行的 role 跟着走，顺序不变。
+      const swapped = (yield* (
+        yield* patch(dir, `/team/profile/${created.profile.id}`, { captain: second.id })
+      ).json) as Detail
+      expect(swapped.profile.captainMember).toBe(second.id)
+      expect(swapped.profile.version).toBe(3)
+      expect(swapped.members.map((member) => [member.employeeID, member.role])).toEqual([
+        [first.id, "worker"],
+        [second.id, "captain"],
+      ])
+
+      // 整表替换：顺序即 order，被删掉的人不在名册里。
+      const replaced = (yield* (
+        yield* patch(dir, `/team/profile/${created.profile.id}`, {
+          description: "  ",
+          members: [{ employeeID: third.id, duty: "安全" }, { employeeID: second.id }],
+        })
+      ).json) as Detail
+      expect(replaced.profile.description).toBeUndefined()
+      expect(replaced.profile.version).toBe(4)
+      expect(replaced.members.map((member) => [member.employeeID, member.order, member.role])).toEqual([
+        [third.id, 0, "worker"],
+        [second.id, 1, "captain"],
+      ])
+
+      // 空补丁不算修改：版本不动。
+      const untouched = (yield* (yield* patch(dir, `/team/profile/${created.profile.id}`, {})).json) as Detail
+      expect(untouched.profile.version).toBe(4)
+
+      // 拒绝写错的修改，而不是写进库再让运行时才发现。
+      expect((yield* patch(dir, `/team/profile/${created.profile.id}`, { name: "  " })).status).toBe(400)
+      expect((yield* patch(dir, `/team/profile/${created.profile.id}`, { captain: "emp_missing" })).status).toBe(400)
+      expect(
+        (yield* patch(dir, `/team/profile/${created.profile.id}`, {
+          members: [
+            { employeeID: third.id },
+            { employeeID: third.id },
+          ],
+        })).status,
+      ).toBe(400)
+      expect((yield* patch(dir, "/team/profile/prof_missing", { name: "不存在" })).status).toBe(404)
+    }),
+  )
+
   it.live("the team page can flip one orchestration switch without dropping the other", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

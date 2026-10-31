@@ -23,7 +23,9 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
         profile: {
           id: profile.id,
           name: profile.name,
-          description: profile.description,
+          // 没有描述就整个字段不出现：编码器会把「存在但为 undefined」写成 null，
+          // 而生成的客户端类型只有 `description?: string`，null 是契约外的值。
+          ...(profile.description !== undefined ? { description: profile.description } : {}),
           captainMember: profile.captainMember,
           autoEligible: profile.autoEligible,
           version: profile.version,
@@ -53,7 +55,7 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
                 return {
                   id: profile.id,
                   name: profile.name,
-                  description: profile.description,
+                  ...(profile.description !== undefined ? { description: profile.description } : {}),
                   captainMember: profile.captainMember,
                   autoEligible: profile.autoEligible,
                   version: profile.version,
@@ -78,6 +80,10 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
           if (!name) return yield* Effect.fail(new HttpApiError.BadRequest({}))
           if (!ctx.payload.members.some((member) => member.employeeID === ctx.payload.captain))
             return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          // 一人一编制是库里的唯一索引；重复 id 会让插入撞约束（500），
+          // 不如在边界上直接说「名册写重了」。
+          if (new Set(ctx.payload.members.map((member) => member.employeeID)).size !== ctx.payload.members.length)
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
           const profile = yield* profiles.create({
             name,
             description: ctx.payload.description?.trim() || undefined,
@@ -88,6 +94,38 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
           if (!created) return yield* Effect.fail(new HttpApiError.BadRequest({}))
           return created
         }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.BadRequest({})))),
+      )
+      .handle("updateProfile", (ctx) =>
+        Effect.gen(function* () {
+          const profile = yield* profiles.get(ctx.params.profileID)
+          if (!profile) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          const name = ctx.payload.name?.trim()
+          const captain = ctx.payload.captain?.trim()
+          // 名字与队长不能变空：空名字在列表里没法认，空队长等于没人拆解任务。
+          if (name === "" || captain === "") return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const members = ctx.payload.members
+          if (members && new Set(members.map((member) => member.employeeID)).size !== members.length)
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          // 队长必须在**生效的**名册里：没给新名册就用现有编制判断。
+          const roster = members ?? (yield* profiles.members(profile.id))
+          const nextCaptain = captain ?? profile.captainMember
+          if (!roster.some((member) => member.employeeID === nextCaptain))
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
+
+          const updated = yield* profiles.update({
+            profileID: profile.id,
+            ...(name !== undefined ? { name } : {}),
+            // 空串 = 清空描述；`undefined` = 没传，保持原样。
+            ...(ctx.payload.description !== undefined ? { description: ctx.payload.description.trim() || null } : {}),
+            ...(captain !== undefined ? { captain } : {}),
+            ...(members !== undefined ? { members } : {}),
+            ...(ctx.payload.autoEligible !== undefined ? { autoEligible: ctx.payload.autoEligible } : {}),
+          })
+          if (!updated) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          const changed = yield* detail(profile.id)
+          if (!changed) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          return changed
+        }),
       )
       .handle("removeProfile", (ctx) =>
         Effect.gen(function* () {

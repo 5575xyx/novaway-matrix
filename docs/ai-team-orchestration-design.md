@@ -993,10 +993,10 @@ LLM 参与点仅四处：主智能体出 Plan、队长拆解 / 裁决、成员�
 
 | 方法        | 路径                       | 说明                                                                                                |
 | ----------- | -------------------------- | --------------------------------------------------------------------------------------------------- |
-| GET         | `/team/profiles`           | 团队模板列表（含名册、策略、自动可调度）                                                            |
-| POST        | `/team/profiles`           | 新建模板                                                                                            |
-| PATCH       | `/team/profiles/:id`       | 改名 / 名册 / 策略（递增 `version`）                                                                |
-| DELETE      | `/team/profiles/:id`       | 删除（有运行中的 run 时拒绝，除非 `force`）                                                         |
+| GET         | `/team/profile`            | 团队模板列表（含名册、策略、自动可调度）                                                            |
+| POST        | `/team/profile`            | 新建模板                                                                                            |
+| PATCH       | `/team/profile/:id`        | 改名 / 描述 / 换队长 / 整表替换名册 / 自动可调度（真改了才递增 `version`）                          |
+| DELETE      | `/team/profile/:id`        | 删除模板与编制行；历史运行保留自己的快照                                                            |
 | GET         | `/team/runs`               | 运行列表（按团队 / 状态 / 时间过滤）                                                                |
 | POST        | `/team/runs`               | 创建运行 `{ mode, teamIDs, goal, brief, acceptance?, budget }`，返回 `{ runID, plan, planVersion }` |
 | GET         | `/team/runs/:id`           | 运行详情：状态 / 阶段 / plan / teams / tasks / verifications / verdicts / usage                     |
@@ -1007,14 +1007,25 @@ LLM 参与点仅四处：主智能体出 Plan、队长拆解 / 裁决、成员�
 | POST        | `/team/runs/:id/resume`    | 从检查点恢复；存在 `unknown` 操作时要求先核对                                                       |
 | GET         | `/team/runs/:id/artifacts` | 产物与版本（用于下游依赖与失效判断）                                                                |
 | POST        | `/team/runs/:id/merge`     | 显式合并；与 `done` 独立，失败记 `merge_failed` 且可重试（§3.2）                                    |
-| GET / POST  | `/team/missions`           | 持久目标：列表 / 新建（内部 id + 展示编号 `M-xxx`）                                                 |
-| GET         | `/team/missions/:id`       | 目标详情：状态、关联运行、从 `baseSHA` 起的累计差异                                                 |
-| POST        | `/team/missions/:id/runs`  | 在该目标下再发起一次运行（复用同一 worktree 与 `baseSHA`）                                          |
+| GET / POST  | `/team/mission`            | 持久目标：列表 / 新建（内部 id + 展示编号 `M-xxx`）                                                 |
+| GET         | `/team/mission/:id`        | 目标详情：状态、关联运行、从 `baseSHA` 起的累计差异                                                 |
+| POST        | `/team/mission/:id/runs`   | 在该目标下再发起一次运行（复用同一 worktree 与 `baseSHA`）                                          |
 | GET         | `/team/employee`           | 员工库（人）：名字、岗位、覆盖项、归档状态；归档的也在列表里（`archived: true`）                    |
 | POST        | `/team/employee`           | 新建员工（人）：`name + job` 必填，`model/skills/prompt/tier` 可选                                  |
-| PATCH       | `/team/employee/:id`       | 改名 / 换岗位 / 改覆盖项 / 归档；`null` 是清空，省略是不改                                          |
-| GET         | `/team/employee/:id/usage` | 这个人在各团队 / 各 run 的用量（事实数据，不做排名；尚未实现）                                      |
+| PATCH       | `/team/employee/:id`       | 改名 / 换岗位 / 改覆盖项 / 归档；空串或空数组是清空，省略是不改（生成 SDK 里没有 `null`）            |
+| GET         | `/team/employee/:id/usage` | 这个人在各 run 的用量与未归属部分（事实数据，不做排名；口径见 §23.4「按人计量」）                  |
 | GET / PATCH | `/config`                  | 总控开关、默认模式与默认名单、并发上限（`experimental.team_*`，项目级配置）                         |
+
+**实现注记（2026-10-31）：这张表是早期草案，以生成 SDK / OpenAPI 为准。**
+
+- 运行的接口落在 `/run` 而不是 `/team/runs`：`/run`（列表 / 创建）、`/run/:id`（详情）、
+  `/plan` / `/approve` / `/policy` / `/acceptance` / `/execute` / `/cancel` / `/events` / `/merge`
+  与 `DELETE /worktrees`。`?teamID=` 按计划里的模板过滤，供团队页的「最近运行」。
+- **没有单独的 `rework` / `resume` / `artifacts` 端点**：返工由编排器在轮次内驱动（队长带打回意见
+  重派），恢复就是再次 `POST /run/:id/execute`（终态之外、且当前没有在跑的阶段时才允许），
+  产物随运行详情返回。设计里那张「主智能体打回」的接口，落地后由内核的返工循环承担。
+- `GET /team/mission/:id/diff` 是「从 `base_sha` 起的累计差异」；「在该目标下再发起一次运行」
+  走 `POST /run` 带 `missionID`，没有独立的 `/missions/:id/runs`。
 
 工具（主智能体侧，**只新增 1 个**）：
 
@@ -1101,7 +1112,7 @@ CC 的 agent teams 已经具备：队长 + 成员、共享任务列表、任务�
 
 1. 团队模板与员工库是否需要跨项目共享（全局库 vs 项目内）？
 2. Auto 是否允许「发现没有合适团队时自动临时组队」？（首版不做）
-3. 集成角色是内置 agent，还是用户可配置的员工？
+3. ~~集成角色是内置 agent，还是用户可配置的员工？~~ **已定（2026-10-31）：都不是 —— 集成是内核的确定性动作**（`src/team/integration.ts`）。合并顺序、冲突即停、`git merge --abort` 都由代码决定，不交给模型：让「谁来做集成」可配置，等于给自动解冲突开口子，而这恰恰是验证器最该盯住的动作（§10.2 / §16 P4「调度确定性」）。冲突的处置是返工，不是换个人来猜。
 4. 员工级记忆（跨团队长期经验）是否要做？若做，必须「按项目隔离 + 读取快照 + 提交时校验版本」，并在一次 run 内独占写入。
 5. 同一个「人」在不同团队能否有不同称呼？当前为员工级统一名字，团队内用 `duty` 区分职责。
 
@@ -1664,7 +1675,7 @@ P1 的第一批代码已落地并通过类型检查与测试。为免文档与�
 | 文件                             | 内容                                                                                                                 |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `src/team/profile.ts`            | 模板的种子 / 列表 / 名册 / 快照 / 新建 / 删除；内置「代码审查团队」= 1 名队长 + 4 名不同角度成员                     |
-| `groups/profile.ts`              | `GET /team/profile`、`GET /team/profile/:id`、`POST /team/profile`、`DELETE /team/profile/:id`、`GET /team/employee` |
+| `groups/profile.ts`              | `GET /team/profile`、`GET /team/profile/:id`、`POST /team/profile`、`PATCH /team/profile/:id`、`DELETE /team/profile/:id`、`GET /team/employee` |
 | `handlers/profile.ts`            | 组初始化时执行一次幂等种子（已有就跳过，不覆盖用户编辑）；新建模板校验队长必须在名册里                               |
 | `handlers/run.ts` 的 `profileID` | 建运行时把名册复制进 `roster_snapshot` 并写 `plan.created`；队长与验收归属都从快照解析                               |
 | `test/team/profile.test.ts`      | 种子只落一份、快照是深拷贝、未知模板返回 `undefined`、新建时队长被正确标记                                           |
@@ -2241,8 +2252,6 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
 
 **尚未实现（P2 遗留，非门禁）**
 
-- **集成角色可配置**：目前集成由运行器串行执行（`integration.ts`），还不是一个可配置的员工；
-  开放问题 §15 第 3 条仍未定。
 - **员工级记忆**：`employee.memory` 尚未落地（§15 第 4 条），P4 再议。
 - **默认团队模式已实现（2026-10-31，§4.5）**：`experimental.team_default_mode`（`off | auto | selected`）
   与 `experimental.team_default_ids`，团队页总控面板可改。三条边界写在 `src/team/defaults.ts` 的纯函数里：
@@ -2312,6 +2321,38 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
    两处各说一半才不会互相打架。
 
 > 记录一条环境异常：本次会话期间工作区里的 `dbx-main/` 目录与 `NOVAWAY-ICON-GUIDE.md` 被外部删除（非本分支改动），提交时已刻意排除；如需恢复请单独处理。
+
+**模板可改（2026-10-31 追加，§5.2 / §13）**
+
+模板此前只能建和删：想换个人、改个名都得重建一份，历史运行因此对不上「同一个模板的第几版」。
+这一刀补上 `PATCH /team/profile/:profileID`：
+
+| 文件                              | 内容                                                                       |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `src/team/profile.ts` 的 `update` | 改名 / 描述 / 换队长 / 整表替换名册 / 自动可调度；事务里改模板行与编制行   |
+| `groups/profile.ts`               | `ProfileUpdatePayload` 与 `PATCH /team/profile/:profileID`                 |
+| `handlers/profile.ts`             | 队长必须在生效名册里、名册不许重复、名字与队长不许变空（400 / 404）        |
+| `test/team/profile.test.ts`       | 版本语义、整表替换、只换队长、空补丁、快照不受影响                         |
+| `test/server/httpapi-team.test.ts`| 三个连续修改、版本递增、四类拒绝（空名 / 未知队长 / 重复成员 / 不存在）    |
+
+五条边界：
+
+1. **`version` 是「内容变过」，不是「接口被调过」。** 空 PATCH 原样返回、不发版本 ——
+   否则打开编辑框再保存一次就漂一版，版本号就再也解释不了「运行用的是哪一版」。
+2. **名册是整表替换，不是增量。** 编制有顺序（`order`），插一个人会让后面所有人挪位；
+   让调用方一次说明整份名册，比猜「这次想插在哪」更不容易错。没给 `members` 就保持原样。
+3. **只换队长也要补 role。** 模板上的 `captain_member` 与编制行的 `role` 不能各说各话：
+   换队长时同一事务里把旧 captain 行改回 `worker`、新行改成 `captain`。
+4. **改模板不影响在跑的运行。** 运行读的是发起时的 `roster_snapshot`（§5.2「复制而不是绑定」）；
+   测试里先取快照、再换名册，快照仍解释自己当时用了谁。
+5. **描述用空串清空，响应里没有描述就不出现这个字段。** 编码器会把「键存在但值为 `undefined`」
+   写成 `null`，而生成的客户端类型只有 `description?: string` —— 让契约与类型一致。
+
+顺带修掉一个会让新建 500 的洞：名册里同一个人写两次会撞库里的唯一索引，
+现在新建与修改都在边界上返回 400，而不是把约束错误抛成未知错误。
+
+> 仍未做：**模板编辑还没有界面入口**（目前只能走接口），运行页的「用模板发起」固定取第一个模板。
+> 这两件是团队页「管模板」的界面部分，下一刀再补；接口与版本的语义已经就位，界面接上即可。
 
 ### 23.5 v3 → v4（吸收 Rovai-ai 的对照结论）
 

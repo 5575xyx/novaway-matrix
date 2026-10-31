@@ -120,6 +120,29 @@ export const ProfileCreatePayload = Schema.Struct({
   ),
 })
 
+/**
+ * 改模板：改名 / 改描述 / 换队长 / 整表替换名册 / 自动可调度。
+ *
+ * 字段全部可选：只改传了的那些。描述传空串表示清空（与员工覆盖项同一约定：
+ * OpenAPI 表达不出 `NullOr`，空值才是「没有」的自然写法）。
+ * 给了 `members` 就是整份名册 —— 增删一个人要让调用方说明完整编制，而不是猜插入位置。
+ */
+export const ProfileUpdatePayload = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  captain: Schema.optional(Schema.String),
+  members: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        employeeID: Schema.String,
+        duty: Schema.optional(Schema.String),
+        canAutoDispatch: Schema.optional(Schema.Boolean),
+      }),
+    ),
+  ),
+  autoEligible: Schema.optional(Schema.Boolean),
+})
+
 export const ProfileApi = HttpApiGroup.make("profile")
   .add(
     HttpApiEndpoint.get("listProfiles", root, {
@@ -154,6 +177,20 @@ export const ProfileApi = HttpApiGroup.make("profile")
         identifier: "profile.create",
         summary: "Create a team template",
         description: "Register a reusable roster; runs copy it, so later edits cannot affect a running run.",
+      }),
+    ),
+    HttpApiEndpoint.patch("updateProfile", `${root}/:profileID`, {
+      params: { profileID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: ProfileUpdatePayload,
+      success: described(ProfileDetail, "Updated template"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "profile.update",
+        summary: "Change a team template",
+        description:
+          "Rename, change the description, swap the captain, replace the roster, or toggle auto dispatch. Bumps `version` only when a field actually changes; running runs keep their snapshot, so edits apply to the next run only.",
       }),
     ),
     HttpApiEndpoint.delete("removeProfile", `${root}/:profileID`, {
