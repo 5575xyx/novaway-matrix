@@ -873,6 +873,8 @@ export type Session = {
   permissionMode?: PermissionMode
   teamMode?: "off" | "auto" | "selected"
   teamIDs?: Array<string>
+  employeeID?: string
+  runID?: string
   revert?: {
     messageID: string
     partID?: string
@@ -1435,6 +1437,9 @@ export type Config = {
     embedding_ollama_install_dir?: string
     embedding_ollama_models_dir?: string
   }
+  browser?: {
+    enabled?: boolean
+  }
   evolution?: {
     enabled?: boolean
     review_llm?: boolean
@@ -1520,6 +1525,10 @@ export type Config = {
     disable_paste_summary?: boolean
     background_subagents?: boolean
     auto_delegate?: boolean
+    team_orchestration?: boolean
+    team_concurrency?: number
+    team_default_mode?: "off" | "auto" | "selected"
+    team_default_ids?: Array<string>
     defer_loading?: boolean
     defer_mcp_loading?: boolean
     tool_result_budget_chars?: number
@@ -1770,6 +1779,8 @@ export type GlobalSession = {
   permissionMode?: PermissionMode
   teamMode?: "off" | "auto" | "selected"
   teamIDs?: Array<string>
+  employeeID?: string
+  runID?: string
   revert?: {
     messageID: string
     partID?: string
@@ -1962,10 +1973,23 @@ export type MarketplaceEntry = {
   keywords?: Array<string>
 }
 
+export type MarketplaceUpdate = {
+  name: string
+  root: string
+  kind: "zip" | "git"
+  ref?: string
+  state: "current" | "outdated" | "unknown"
+  revision?: string
+  available?: string
+  checkedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  error?: string
+}
+
 export type MarketplaceCatalog = {
   installed: Array<MarketplaceInstalled>
   zcode: Array<MarketplaceEntry>
   claude: Array<MarketplaceEntry>
+  updates?: Array<MarketplaceUpdate>
   errors: Array<string>
 }
 
@@ -3525,12 +3549,170 @@ export type TeamDetail = {
   messages: Array<TeamMessageView>
 }
 
+export type TeamProfileView = {
+  id: string
+  name: string
+  description?: string
+  captainMember: string
+  autoEligible: boolean
+  version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  memberCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TeamProfileMemberView = {
+  employeeID: string
+  name: string
+  job: string
+  role: "captain" | "worker"
+  duty?: string
+  order: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TeamProfileDetail = {
+  profile: TeamProfileView
+  members: Array<TeamProfileMemberView>
+}
+
+export type TeamEmployeeView = {
+  id: string
+  name: string
+  job: string
+  model?: string
+  prompt?: string
+  skills?: Array<string>
+  tier?: string
+  archived: boolean
+}
+
+export type TeamEmployeeRecordView = {
+  employeeID: string
+  participations: {
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    teams: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    asCaptain: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    lastAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  rework: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    top: Array<{
+      reason: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }
+  firstPass: {
+    lines: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    passed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    rate?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  wall: {
+    measured: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    avgMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    totalMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  caveats: Array<string>
+}
+
+export type TeamEmployeeUsageView = {
+  employeeID: string
+  totals: {
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  runs: Array<{
+    runID: string
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    lastAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  unattributed: {
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  outsideRuns: {
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  lastUsedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type MissionView = {
+  id: string
+  number: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  label: string
+  directory: string
+  goal: string
+  status: "active" | "done" | "abandoned"
+  baseSHA?: string
+  worktree?: string
+  branch?: string
+  runCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type MissionDiffFile = {
+  path: string
+  added: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  removed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  binary: boolean
+}
+
+export type MissionDiffView = {
+  baseSHA?: string
+  head?: string
+  files: Array<MissionDiffFile>
+  untracked: Array<string>
+  truncated: boolean
+  skippedReason?: string
+}
+
+export type MissionCleanup = {
+  removed: boolean
+  reason?: string
+}
+
+export type RunBrief = {
+  scope?: Array<string>
+  files?: Array<string>
+  constraints?: Array<string>
+  context?: string
+}
+
+export type RunUsageView = {
+  reserved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  unknown: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  cap: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  overrun: boolean
+  byActor?: Array<{
+    actor: string
+    teamID: string
+    employeeID?: string
+    job?: string
+    committed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    basis: string
+  }>
+  byJob?: Array<{
+    job: string
+    committed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
 export type RunView = {
   id: string
   sessionID: string
   directory: string
+  missionID?: string
   mode: "team" | "auto"
   goal: string
+  brief?: RunBrief
   state: string
   phase?: string
   planVersion: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -3548,6 +3730,8 @@ export type RunView = {
   updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   error?: string
   terminalReason?: string
+  readOnly: boolean
+  usage?: RunUsageView
 }
 
 export type RunTeamView = {
@@ -3557,6 +3741,26 @@ export type RunTeamView = {
   roundCaptain: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   verdict?: unknown
   dependsOn: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
+  worktree?: string
+  artifacts?: Array<{
+    name: string
+    version: string
+  }>
+  context?: {
+    acceptance: Array<{
+      id: string
+      version: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    rosterVersion?: string
+    feedback: Array<string>
+    omitted: Array<{
+      kind: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      reason: string
+    }>
+    truncated: boolean
+    builtAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
 }
 
 export type RunAcceptanceView = {
@@ -3602,16 +3806,111 @@ export type RunSummaryView = {
   lines: Array<RunSummaryLine>
 }
 
+export type RunBlockerView = {
+  seq: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  kind: string
+  tool?: string
+  taskID?: string
+  reason?: string
+  teamID?: string
+  files?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  swappable: boolean
+}
+
+export type RunDenialView = {
+  tool: string
+  reason?: string
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type RunDetail = {
   run: RunView
   teams: Array<RunTeamView>
   acceptances: Array<RunAcceptanceView>
   verifications: Array<RunVerificationView>
   summary: RunSummaryView
+  blockers: Array<RunBlockerView>
+  denials: Array<RunDenialView>
+}
+
+export type RunMetricsView = {
+  window: {
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    eventsCovered: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    from?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    to?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  states: Array<{
+    state: string
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  tokens: {
+    settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    unknown: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    covered: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    overrunRuns: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    costCovered: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  rounds: Array<{
+    round: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  rework: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    top: Array<{
+      reason: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }
+  attempts: {
+    dispatched: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    failed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    failureRate?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  blockers: {
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    rate?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    byKind: Array<{
+      kind: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }
+  spend: {
+    dispatch: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    verification: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    unspecified: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    verificationShare?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    coveredRuns: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    partialRuns: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  unavailable: Array<{
+    metric: string
+    reason: string
+  }>
 }
 
 export type EffectHttpApiErrorConflict = {
   _tag: "Conflict"
+}
+
+export type RunWorktreeCleanup = {
+  directory: string
+  removed: boolean
+  error?: string
+}
+
+export type RunMergeResult = {
+  merged: boolean
+  branch?: string
+  sha?: string
+  files?: Array<string>
+  message?: string
+}
+
+export type RunDenialClearResult = {
+  cleared: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type RunEventView = {
@@ -3619,6 +3918,49 @@ export type RunEventView = {
   at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   kind: string
   payload?: unknown
+}
+
+export type RunReplayStep = {
+  seq: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  kind: string
+  teamID?: string
+  round?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  attempt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  acceptanceID?: string
+  outcome?: string
+  snapshotID?: string
+  verifierVersion?: string
+  count?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  reason?: string
+  leaseEpoch?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type RunReplayView = {
+  source: "events" | "empty"
+  steps: Array<RunReplayStep>
+  conclusion: {
+    state: string
+    verdict: "complete" | "partial" | "failed"
+    deliverable: boolean
+    lines: Array<{
+      acceptanceID: string
+      text: string
+      outcome: string
+      snapshotID?: string
+      verifierVersion?: string
+      attempt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    counts: {
+      pass: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      fail: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      unverified: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      stale: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    evidence: "complete" | "partial" | "absent"
+    notes: Array<string>
+  }
 }
 
 export type PlanApprovalPending2 = {
@@ -17080,12 +17422,509 @@ export type TeamMessageSendResponses = {
 
 export type TeamMessageSendResponse = TeamMessageSendResponses[keyof TeamMessageSendResponses]
 
+export type ProfileListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile"
+}
+
+export type ProfileListResponses = {
+  /**
+   * Team templates
+   */
+  200: Array<TeamProfileView>
+}
+
+export type ProfileListResponse = ProfileListResponses[keyof ProfileListResponses]
+
+export type ProfileCreateData = {
+  body?: {
+    name: string
+    description?: string
+    captain: string
+    members: Array<{
+      employeeID: string
+      duty?: string
+      canAutoDispatch?: boolean
+    }>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile"
+}
+
+export type ProfileCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ProfileCreateError = ProfileCreateErrors[keyof ProfileCreateErrors]
+
+export type ProfileCreateResponses = {
+  /**
+   * Created template
+   */
+  200: TeamProfileDetail
+}
+
+export type ProfileCreateResponse = ProfileCreateResponses[keyof ProfileCreateResponses]
+
+export type ProfileRemoveData = {
+  body?: never
+  path: {
+    profileID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile/{profileID}"
+}
+
+export type ProfileRemoveErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProfileRemoveError = ProfileRemoveErrors[keyof ProfileRemoveErrors]
+
+export type ProfileRemoveResponses = {
+  /**
+   * Template removed
+   */
+  200: boolean
+}
+
+export type ProfileRemoveResponse = ProfileRemoveResponses[keyof ProfileRemoveResponses]
+
+export type ProfileDetailData = {
+  body?: never
+  path: {
+    profileID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile/{profileID}"
+}
+
+export type ProfileDetailErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProfileDetailError = ProfileDetailErrors[keyof ProfileDetailErrors]
+
+export type ProfileDetailResponses = {
+  /**
+   * Team template
+   */
+  200: TeamProfileDetail
+}
+
+export type ProfileDetailResponse = ProfileDetailResponses[keyof ProfileDetailResponses]
+
+export type ProfileUpdateData = {
+  body?: {
+    name?: string
+    description?: string
+    captain?: string
+    members?: Array<{
+      employeeID: string
+      duty?: string
+      canAutoDispatch?: boolean
+    }>
+    autoEligible?: boolean
+  }
+  path: {
+    profileID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/profile/{profileID}"
+}
+
+export type ProfileUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProfileUpdateError = ProfileUpdateErrors[keyof ProfileUpdateErrors]
+
+export type ProfileUpdateResponses = {
+  /**
+   * Updated template
+   */
+  200: TeamProfileDetail
+}
+
+export type ProfileUpdateResponse = ProfileUpdateResponses[keyof ProfileUpdateResponses]
+
+export type EmployeeListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee"
+}
+
+export type EmployeeListResponses = {
+  /**
+   * Employees
+   */
+  200: Array<TeamEmployeeView>
+}
+
+export type EmployeeListResponse = EmployeeListResponses[keyof EmployeeListResponses]
+
+export type EmployeeCreateData = {
+  body?: {
+    name: string
+    job: string
+    model?: string
+    skills?: Array<string>
+    prompt?: string
+    tier?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee"
+}
+
+export type EmployeeCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type EmployeeCreateError = EmployeeCreateErrors[keyof EmployeeCreateErrors]
+
+export type EmployeeCreateResponses = {
+  /**
+   * Created employee
+   */
+  200: TeamEmployeeView
+}
+
+export type EmployeeCreateResponse = EmployeeCreateResponses[keyof EmployeeCreateResponses]
+
+export type EmployeeUpdateData = {
+  body?: {
+    name?: string
+    job?: string
+    model?: string
+    skills?: Array<string>
+    prompt?: string
+    tier?: string
+    archived?: boolean
+  }
+  path: {
+    employeeID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee/{employeeID}"
+}
+
+export type EmployeeUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type EmployeeUpdateError = EmployeeUpdateErrors[keyof EmployeeUpdateErrors]
+
+export type EmployeeUpdateResponses = {
+  /**
+   * Updated employee
+   */
+  200: TeamEmployeeView
+}
+
+export type EmployeeUpdateResponse = EmployeeUpdateResponses[keyof EmployeeUpdateResponses]
+
+export type EmployeeRecordData = {
+  body?: never
+  path: {
+    employeeID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee/{employeeID}/record"
+}
+
+export type EmployeeRecordErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type EmployeeRecordError = EmployeeRecordErrors[keyof EmployeeRecordErrors]
+
+export type EmployeeRecordResponses = {
+  /**
+   * Facts about this employee's participation
+   */
+  200: TeamEmployeeRecordView
+}
+
+export type EmployeeRecordResponse = EmployeeRecordResponses[keyof EmployeeRecordResponses]
+
+export type EmployeeUsageData = {
+  body?: never
+  path: {
+    employeeID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee/{employeeID}/usage"
+}
+
+export type EmployeeUsageErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type EmployeeUsageError = EmployeeUsageErrors[keyof EmployeeUsageErrors]
+
+export type EmployeeUsageResponses = {
+  /**
+   * Usage attributed to this employee
+   */
+  200: TeamEmployeeUsageView
+}
+
+export type EmployeeUsageResponse = EmployeeUsageResponses[keyof EmployeeUsageResponses]
+
+export type MissionListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission"
+}
+
+export type MissionListResponses = {
+  /**
+   * Missions
+   */
+  200: Array<MissionView>
+}
+
+export type MissionListResponse = MissionListResponses[keyof MissionListResponses]
+
+export type MissionCreateData = {
+  body?: {
+    directory: string
+    goal: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission"
+}
+
+export type MissionCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type MissionCreateError = MissionCreateErrors[keyof MissionCreateErrors]
+
+export type MissionCreateResponses = {
+  /**
+   * Created mission
+   */
+  200: MissionView
+}
+
+export type MissionCreateResponse = MissionCreateResponses[keyof MissionCreateResponses]
+
+export type MissionDetailData = {
+  body?: never
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}"
+}
+
+export type MissionDetailErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionDetailError = MissionDetailErrors[keyof MissionDetailErrors]
+
+export type MissionDetailResponses = {
+  /**
+   * Mission
+   */
+  200: MissionView
+}
+
+export type MissionDetailResponse = MissionDetailResponses[keyof MissionDetailResponses]
+
+export type MissionUpdateData = {
+  body?: {
+    status: "active" | "done" | "abandoned"
+  }
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}"
+}
+
+export type MissionUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionUpdateError = MissionUpdateErrors[keyof MissionUpdateErrors]
+
+export type MissionUpdateResponses = {
+  /**
+   * Updated mission
+   */
+  200: MissionView
+}
+
+export type MissionUpdateResponse = MissionUpdateResponses[keyof MissionUpdateResponses]
+
+export type MissionDiffData = {
+  body?: never
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}/diff"
+}
+
+export type MissionDiffErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionDiffError = MissionDiffErrors[keyof MissionDiffErrors]
+
+export type MissionDiffResponses = {
+  /**
+   * Cumulative diff
+   */
+  200: MissionDiffView
+}
+
+export type MissionDiffResponse = MissionDiffResponses[keyof MissionDiffResponses]
+
+export type MissionCleanupData = {
+  body?: never
+  path: {
+    missionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/mission/{missionID}/worktree"
+}
+
+export type MissionCleanupErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type MissionCleanupError = MissionCleanupErrors[keyof MissionCleanupErrors]
+
+export type MissionCleanupResponses = {
+  /**
+   * Cleanup result
+   */
+  200: MissionCleanup
+}
+
+export type MissionCleanupResponse = MissionCleanupResponses[keyof MissionCleanupResponses]
+
 export type RunListData = {
   body?: never
   path?: never
   query?: {
     directory?: string
     workspace?: string
+    teamID?: string
   }
   url: "/run"
 }
@@ -17105,13 +17944,16 @@ export type RunCreateData = {
     directory: string
     mode: "team" | "auto"
     goal: string
-    brief?: unknown
+    brief?: RunBrief
     acceptance?: Array<unknown>
     budget?: {
       tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
+    profileID?: string
+    missionID?: string
+    readOnly?: boolean
   }
   path?: never
   query?: {
@@ -17138,6 +17980,27 @@ export type RunCreateResponses = {
 }
 
 export type RunCreateResponse = RunCreateResponses[keyof RunCreateResponses]
+
+export type RunMetricsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    teamID?: string
+    limit?: string | "Infinity" | "-Infinity" | "NaN"
+  }
+  url: "/run/metrics"
+}
+
+export type RunMetricsResponses = {
+  /**
+   * Aggregated run metrics
+   */
+  200: RunMetricsView
+}
+
+export type RunMetricsResponse = RunMetricsResponses[keyof RunMetricsResponses]
 
 export type RunDetailData = {
   body?: never
@@ -17180,6 +18043,7 @@ export type RunPlanData = {
       dependsOn?: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
     }>
     notes?: string
+    readOnly?: boolean
   }
   path: {
     runID: string
@@ -17254,6 +18118,46 @@ export type RunApproveResponses = {
 }
 
 export type RunApproveResponse = RunApproveResponses[keyof RunApproveResponses]
+
+export type RunPolicyData = {
+  body?: {
+    readOnly: boolean
+  }
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/policy"
+}
+
+export type RunPolicyErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunPolicyError = RunPolicyErrors[keyof RunPolicyErrors]
+
+export type RunPolicyResponses = {
+  /**
+   * Updated run
+   */
+  200: RunDetail
+}
+
+export type RunPolicyResponse = RunPolicyResponses[keyof RunPolicyResponses]
 
 export type RunAcceptanceAddData = {
   body?: {
@@ -17333,6 +18237,104 @@ export type RunExecuteResponses = {
 
 export type RunExecuteResponse = RunExecuteResponses[keyof RunExecuteResponses]
 
+export type RunWorktreesRemoveData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/worktrees"
+}
+
+export type RunWorktreesRemoveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunWorktreesRemoveError = RunWorktreesRemoveErrors[keyof RunWorktreesRemoveErrors]
+
+export type RunWorktreesRemoveResponses = {
+  /**
+   * Cleaned worktrees
+   */
+  200: Array<RunWorktreeCleanup>
+}
+
+export type RunWorktreesRemoveResponse = RunWorktreesRemoveResponses[keyof RunWorktreesRemoveResponses]
+
+export type RunMergeData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/merge"
+}
+
+export type RunMergeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunMergeError = RunMergeErrors[keyof RunMergeErrors]
+
+export type RunMergeResponses = {
+  /**
+   * Merge result
+   */
+  200: RunMergeResult
+}
+
+export type RunMergeResponse = RunMergeResponses[keyof RunMergeResponses]
+
+export type RunDenialsClearData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/denials"
+}
+
+export type RunDenialsClearErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunDenialsClearError = RunDenialsClearErrors[keyof RunDenialsClearErrors]
+
+export type RunDenialsClearResponses = {
+  /**
+   * Cleared denials
+   */
+  200: RunDenialClearResult
+}
+
+export type RunDenialsClearResponse = RunDenialsClearResponses[keyof RunDenialsClearResponses]
+
 export type RunCancelData = {
   body?: never
   path: {
@@ -17375,6 +18377,15 @@ export type RunEventsData = {
   url: "/run/{runID}/events"
 }
 
+export type RunEventsErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunEventsError = RunEventsErrors[keyof RunEventsErrors]
+
 export type RunEventsResponses = {
   /**
    * Events
@@ -17383,6 +18394,36 @@ export type RunEventsResponses = {
 }
 
 export type RunEventsResponse = RunEventsResponses[keyof RunEventsResponses]
+
+export type RunReplayData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/replay"
+}
+
+export type RunReplayErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunReplayError = RunReplayErrors[keyof RunReplayErrors]
+
+export type RunReplayResponses = {
+  /**
+   * Decision chain and its evidence
+   */
+  200: RunReplayView
+}
+
+export type RunReplayResponse = RunReplayResponses[keyof RunReplayResponses]
 
 export type PtyConnectData = {
   body?: never

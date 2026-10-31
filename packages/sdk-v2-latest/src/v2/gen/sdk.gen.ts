@@ -58,6 +58,15 @@ import type {
   ElicitationRejectResponses,
   ElicitationReplyErrors,
   ElicitationReplyResponses,
+  EmployeeCreateErrors,
+  EmployeeCreateResponses,
+  EmployeeListResponses,
+  EmployeeRecordErrors,
+  EmployeeRecordResponses,
+  EmployeeUpdateErrors,
+  EmployeeUpdateResponses,
+  EmployeeUsageErrors,
+  EmployeeUsageResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -319,6 +328,17 @@ import type {
   MemoryStatusResponses,
   MemoryUpdateErrors,
   MemoryUpdateResponses,
+  MissionCleanupErrors,
+  MissionCleanupResponses,
+  MissionCreateErrors,
+  MissionCreateResponses,
+  MissionDetailErrors,
+  MissionDetailResponses,
+  MissionDiffErrors,
+  MissionDiffResponses,
+  MissionListResponses,
+  MissionUpdateErrors,
+  MissionUpdateResponses,
   OfficeArtifactListErrors,
   OfficeArtifactListResponses,
   OfficeArtifactSaveErrors,
@@ -399,6 +419,15 @@ import type {
   PermissionRespondErrors,
   PermissionRespondResponses,
   PermissionRuleset,
+  ProfileCreateErrors,
+  ProfileCreateResponses,
+  ProfileDetailErrors,
+  ProfileDetailResponses,
+  ProfileListResponses,
+  ProfileRemoveErrors,
+  ProfileRemoveResponses,
+  ProfileUpdateErrors,
+  ProfileUpdateResponses,
   ProjectCurrentResponses,
   ProjectDirectoriesErrors,
   ProjectDirectoriesResponses,
@@ -440,18 +469,31 @@ import type {
   RunAcceptanceAddResponses,
   RunApproveErrors,
   RunApproveResponses,
+  RunBrief,
   RunCancelErrors,
   RunCancelResponses,
   RunCreateErrors,
   RunCreateResponses,
+  RunDenialsClearErrors,
+  RunDenialsClearResponses,
   RunDetailErrors,
   RunDetailResponses,
+  RunEventsErrors,
   RunEventsResponses,
   RunExecuteErrors,
   RunExecuteResponses,
   RunListResponses,
+  RunMergeErrors,
+  RunMergeResponses,
+  RunMetricsResponses,
   RunPlanErrors,
   RunPlanResponses,
+  RunPolicyErrors,
+  RunPolicyResponses,
+  RunReplayErrors,
+  RunReplayResponses,
+  RunWorktreesRemoveErrors,
+  RunWorktreesRemoveResponses,
   SessionAbortErrors,
   SessionAbortResponses,
   SessionBackgroundCancelErrors,
@@ -13346,6 +13388,608 @@ export class Team extends HeyApiClient {
   }
 }
 
+export class Profile extends HeyApiClient {
+  /**
+   * List team templates
+   *
+   * Team templates (roster + captain) available in this workspace; includes the built-in one.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProfileListResponses, unknown, ThrowOnError>({
+      url: "/team/profile",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create a team template
+   *
+   * Register a reusable roster; runs copy it, so later edits cannot affect a running run.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      captain?: string
+      members?: Array<{
+        employeeID: string
+        duty?: string
+        canAutoDispatch?: boolean
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "captain" },
+            { in: "body", key: "members" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProfileCreateResponses, ProfileCreateErrors, ThrowOnError>({
+      url: "/team/profile",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete a team template
+   *
+   * Removes the template and its roster rows. Historical runs keep their snapshots.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      profileID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "profileID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<ProfileRemoveResponses, ProfileRemoveErrors, ThrowOnError>({
+      url: "/team/profile/{profileID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Team template detail
+   *
+   * Template plus its roster (employee, job, role, duty).
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      profileID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "profileID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProfileDetailResponses, ProfileDetailErrors, ThrowOnError>({
+      url: "/team/profile/{profileID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Change a team template
+   *
+   * Rename, change the description, swap the captain, replace the roster, or toggle auto dispatch. Bumps `version` only when a field actually changes; running runs keep their snapshot, so edits apply to the next run only.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      profileID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      description?: string
+      captain?: string
+      members?: Array<{
+        employeeID: string
+        duty?: string
+        canAutoDispatch?: boolean
+      }>
+      autoEligible?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "profileID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "captain" },
+            { in: "body", key: "members" },
+            { in: "body", key: "autoEligible" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<ProfileUpdateResponses, ProfileUpdateErrors, ThrowOnError>({
+      url: "/team/profile/{profileID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Employee extends HeyApiClient {
+  /**
+   * List employees
+   *
+   * People that can be placed into a team template (job = agent capability). Archived people are included with archived=true.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<EmployeeListResponses, unknown, ThrowOnError>({
+      url: "/team/employee",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Add a person
+   *
+   * Creates an employee (name + job) that team templates can then reference.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      job?: string
+      model?: string
+      skills?: Array<string>
+      prompt?: string
+      tier?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "job" },
+            { in: "body", key: "model" },
+            { in: "body", key: "skills" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "tier" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<EmployeeCreateResponses, EmployeeCreateErrors, ThrowOnError>({
+      url: "/team/employee",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Change a person
+   *
+   * Rename, change job, edit overrides, or archive/unarchive. Archiving keeps existing templates and finished runs untouched.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      employeeID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      job?: string
+      model?: string
+      skills?: Array<string>
+      prompt?: string
+      tier?: string
+      archived?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "employeeID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "job" },
+            { in: "body", key: "model" },
+            { in: "body", key: "skills" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "tier" },
+            { in: "body", key: "archived" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<EmployeeUpdateResponses, EmployeeUpdateErrors, ThrowOnError>({
+      url: "/team/employee/{employeeID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Facts about one person
+   *
+   * Participation count, rejections of the teams they were on, first-pass verification rate of those teams, and the wall time of runs they joined. Facts only: rejections and pass rates belong to the team, not to the person, and wall time is shared by parallel members. Not a ranking.
+   */
+  public record<ThrowOnError extends boolean = false>(
+    parameters: {
+      employeeID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "employeeID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<EmployeeRecordResponses, EmployeeRecordErrors, ThrowOnError>({
+      url: "/team/employee/{employeeID}/record",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Usage of one person
+   *
+   * Spend of the sessions attributed to this employee (including subagents they spawned), grouped by run. Sessions of the same runs that are not attributed to anyone are reported separately as unattributed: a person's number is not a complete bill.
+   */
+  public usage<ThrowOnError extends boolean = false>(
+    parameters: {
+      employeeID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "employeeID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<EmployeeUsageResponses, EmployeeUsageErrors, ThrowOnError>({
+      url: "/team/employee/{employeeID}/usage",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Mission extends HeyApiClient {
+  /**
+   * List missions
+   *
+   * Persistent goals for this workspace; runs may be attached to one and reuse its worktree.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MissionListResponses, unknown, ThrowOnError>({
+      url: "/team/mission",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create a mission
+   *
+   * Allocates a non-reusable number and freezes the base commit; status is independent of runs.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      query_directory?: string
+      workspace?: string
+      body_directory?: string
+      goal?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            {
+              in: "query",
+              key: "query_directory",
+              map: "directory",
+            },
+            { in: "query", key: "workspace" },
+            {
+              in: "body",
+              key: "body_directory",
+              map: "directory",
+            },
+            { in: "body", key: "goal" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<MissionCreateResponses, MissionCreateErrors, ThrowOnError>({
+      url: "/team/mission",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Mission detail
+   *
+   * Goal, status, frozen base commit and the shared worktree.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MissionDetailResponses, MissionDetailErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update mission status
+   *
+   * Only the user (or a member) sets this: finishing a run never completes a mission.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+      status?: "active" | "done" | "abandoned"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<MissionUpdateResponses, MissionUpdateErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Cumulative diff of a mission
+   *
+   * Changes from the mission's base commit to the worktree's current content. Untracked files are listed separately — they are not delivered yet.
+   */
+  public diff<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<MissionDiffResponses, MissionDiffErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}/diff",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Remove an abandoned mission's workspace
+   *
+   * Only abandoned missions can be cleaned up: an active mission may need its workspace for the next run, and a done mission needs it to answer what changed overall.
+   */
+  public cleanup<ThrowOnError extends boolean = false>(
+    parameters: {
+      missionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "missionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<MissionCleanupResponses, MissionCleanupErrors, ThrowOnError>({
+      url: "/team/mission/{missionID}/worktree",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Acceptance extends HeyApiClient {
   /**
    * Add an acceptance line
@@ -13397,14 +14041,15 @@ export class Acceptance extends HeyApiClient {
   }
 }
 
-export class Run2 extends HeyApiClient {
+export class Worktrees extends HeyApiClient {
   /**
-   * List team runs
+   * Remove a finished run's worktrees
    *
-   * List orchestration runs in this workspace.
+   * Deletes the team worktrees and the integration worktree of a terminal run. The integration branch is the deliverable — merge or discard it first.
    */
-  public list<ThrowOnError extends boolean = false>(
-    parameters?: {
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
       directory?: string
       workspace?: string
     },
@@ -13415,8 +14060,79 @@ export class Run2 extends HeyApiClient {
       [
         {
           args: [
+            { in: "path", key: "runID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<RunWorktreesRemoveResponses, RunWorktreesRemoveErrors, ThrowOnError>(
+      {
+        url: "/run/{runID}/worktrees",
+        ...options,
+        ...params,
+      },
+    )
+  }
+}
+
+export class Denials extends HeyApiClient {
+  /**
+   * Allow denied actions again
+   *
+   * Clears this run's permission denials. Denials are kept for the rest of the run so the same action is never asked twice; clearing them is the explicit human override.
+   */
+  public clear<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<RunDenialsClearResponses, RunDenialsClearErrors, ThrowOnError>({
+      url: "/run/{runID}/denials",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Run2 extends HeyApiClient {
+  /**
+   * List team runs
+   *
+   * List orchestration runs in this workspace; `teamID` narrows it to one team's runs.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      teamID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "teamID" },
           ],
         },
       ],
@@ -13441,13 +14157,16 @@ export class Run2 extends HeyApiClient {
       body_directory?: string
       mode?: "team" | "auto"
       goal?: string
-      brief?: unknown
+      brief?: RunBrief
       acceptance?: Array<unknown>
       budget?: {
         tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
+      profileID?: string
+      missionID?: string
+      readOnly?: boolean
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13473,6 +14192,9 @@ export class Run2 extends HeyApiClient {
             { in: "body", key: "brief" },
             { in: "body", key: "acceptance" },
             { in: "body", key: "budget" },
+            { in: "body", key: "profileID" },
+            { in: "body", key: "missionID" },
+            { in: "body", key: "readOnly" },
           ],
         },
       ],
@@ -13486,6 +14208,40 @@ export class Run2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Aggregated run metrics
+   *
+   * Local aggregate over the most recent runs in this workspace: state counts, settled vs unknown usage, round distribution, top rejection reasons, dispatch failure rate and blocked-run rate. Percentages are omitted when their denominator is zero, and metrics that cannot be derived are listed in `unavailable` with a reason. Nothing is uploaded.
+   */
+  public metrics<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      teamID?: string
+      limit?: string | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "teamID" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunMetricsResponses, unknown, ThrowOnError>({
+      url: "/run/metrics",
+      ...options,
+      ...params,
     })
   }
 
@@ -13540,6 +14296,7 @@ export class Run2 extends HeyApiClient {
         dependsOn?: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
       }>
       notes?: string
+      readOnly?: boolean
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13553,6 +14310,7 @@ export class Run2 extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "teams" },
             { in: "body", key: "notes" },
+            { in: "body", key: "readOnly" },
           ],
         },
       ],
@@ -13617,6 +14375,45 @@ export class Run2 extends HeyApiClient {
   }
 
   /**
+   * Change the run policy
+   *
+   * Switch between read-only and writable before the run starts. Bumps the plan version, so any previous approval becomes stale.
+   */
+  public policy<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+      readOnly?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "readOnly" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunPolicyResponses, RunPolicyErrors, ThrowOnError>({
+      url: "/run/{runID}/policy",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
    * Execute the run
    *
    * Dispatch to captains in the background and poll run detail for progress.
@@ -13662,6 +14459,38 @@ export class Run2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Merge the run's integration branch
+   *
+   * Explicitly merges novaway/integrate/<run> into the branch the user currently has checked out. Refuses when the run is not finished, when there is no integration commit, or when the working tree is dirty.
+   */
+  public merge<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunMergeResponses, RunMergeErrors, ThrowOnError>({
+      url: "/run/{runID}/merge",
+      ...options,
+      ...params,
     })
   }
 
@@ -13722,8 +14551,40 @@ export class Run2 extends HeyApiClient {
         },
       ],
     )
-    return (options?.client ?? this.client).get<RunEventsResponses, unknown, ThrowOnError>({
+    return (options?.client ?? this.client).get<RunEventsResponses, RunEventsErrors, ThrowOnError>({
       url: "/run/{runID}/events",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Replay the decision chain
+   *
+   * Rebuilds, from the append-only event log plus the verification table, why this run reached its verdict: ordered steps, per-acceptance evidence (pass / fail / unverified / stale kept apart), and whether every pass is backed by an event. This is replay, not re-execution: it never claims a re-run would produce the same result.
+   */
+  public replay<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunReplayResponses, RunReplayErrors, ThrowOnError>({
+      url: "/run/{runID}/replay",
       ...options,
       ...params,
     })
@@ -13732,6 +14593,16 @@ export class Run2 extends HeyApiClient {
   private _acceptance?: Acceptance
   get acceptance(): Acceptance {
     return (this._acceptance ??= new Acceptance({ client: this.client }))
+  }
+
+  private _worktrees?: Worktrees
+  get worktrees(): Worktrees {
+    return (this._worktrees ??= new Worktrees({ client: this.client }))
+  }
+
+  private _denials?: Denials
+  get denials(): Denials {
+    return (this._denials ??= new Denials({ client: this.client }))
   }
 }
 
@@ -13976,6 +14847,21 @@ export class NovawayClient extends HeyApiClient {
   private _team?: Team
   get team(): Team {
     return (this._team ??= new Team({ client: this.client }))
+  }
+
+  private _profile?: Profile
+  get profile(): Profile {
+    return (this._profile ??= new Profile({ client: this.client }))
+  }
+
+  private _employee?: Employee
+  get employee(): Employee {
+    return (this._employee ??= new Employee({ client: this.client }))
+  }
+
+  private _mission?: Mission
+  get mission(): Mission {
+    return (this._mission ??= new Mission({ client: this.client }))
   }
 
   private _run?: Run2

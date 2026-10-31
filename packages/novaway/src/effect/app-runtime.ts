@@ -39,7 +39,6 @@ import { MCP } from "@/mcp"
 import { Elicitation } from "@/mcp/elicitation"
 import { McpAuth } from "@/mcp/auth"
 import { Command } from "@/command"
-import { Database } from "@/database"
 import { Truncate } from "@/tool/truncate"
 import { ToolRegistry } from "@/tool/registry"
 import { Format } from "@/format"
@@ -118,7 +117,6 @@ export const AppLayer = Layer.mergeAll(
   ExtensionLayer,
   Database.defaultLayer,
   Truncate.defaultLayer,
-  Database.defaultLayer,
   ToolRegistry.defaultLayer,
   Format.defaultLayer,
   Project.defaultLayer,
