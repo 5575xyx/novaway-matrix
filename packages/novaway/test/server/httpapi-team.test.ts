@@ -405,6 +405,37 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("an approval only covers the plan version it was given for", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const created = (yield* (
+        yield* post(dir, "/run", { sessionID: "ses_approval", directory: dir, mode: "team", goal: "审查" })
+      ).json) as { run: { id: string } }
+      const id = created.run.id
+
+      // 还没批准：执行是拒绝的，而不是拿一份没人批过的计划开跑。
+      const early = yield* post(dir, `/run/${id}/execute`, { directory: dir })
+      expect(early.status).toBe(400)
+
+      yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "alpha" }] })
+      const approved = (yield* (
+        yield* post(dir, `/run/${id}/approve`, { directory: dir, planVersion: 1, budget: { tokens: 10_000 } })
+      ).json) as { run: { state: string } }
+      expect(approved.run.state).toBe("running")
+
+      // 批准之后改计划：版本变了，旧批准不再代表它，运行退回等批准（§13.1）。
+      const replanned = (yield* (
+        yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "beta" }] })
+      ).json) as { run: { state: string; planVersion: number } }
+      expect(replanned.run.planVersion).toBe(2)
+      expect(replanned.run.state).toBe("awaiting_approval")
+
+      // 用旧批准去跑新计划：拒绝。这一条挡住的正是「先批准、再改计划、直接执行」。
+      const afterReplan = yield* post(dir, `/run/${id}/execute`, { directory: dir })
+      expect(afterReplan.status).toBe(400)
+    }),
+  )
+
   it.live("a run interrupted by a restart comes back as paused, or needs_review when an op is unknown", () =>
     Effect.gen(function* () {
       type Detail = {

@@ -554,7 +554,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               policy: { readOnly: ctx.payload.readOnly ?? true },
             },
             planVersion: nextVersion,
-            state: run.state === "planning" ? "awaiting_approval" : run.state,
+            // 计划变了，旧批准同时失效（§13.1）：把还没开工的运行退回「等批准」，
+            // 而不是留一个「看起来已批准、其实批的不是这一版」的状态。
+            state: run.state === "planning" || (run.state === "running" && !run.phase) ? "awaiting_approval" : run.state,
           })
           // 计划里的团队逐个落库，依赖用下标表达。
           const existing = yield* runs.teams(run.id)
@@ -675,6 +677,15 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 未批准不能跑；已经在跑也不能再起一份。
           if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          /**
+           * 批准必须匹配**当前**这一版计划（§13.1）。
+           *
+           * 批准在库里是 `approval.planVersion`；计划一改版本号就变，旧批准不再代表它。
+           * 少了这一条，「先批准 → 再改计划 → 执行」就会拿着一份旧批准的预算跑一份
+           * 没人批准过的计划，而界面上看不出来。
+           */
+          if (!run.approval || run.approval.planVersion !== run.planVersion)
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
           // 总控开关关闭时不可被调用（§13.1）：浏览、改计划、取消都可以，唯独不能开始新的执行。
           const cfg = yield* config.get()
           if (!TeamSwitch.enabled(cfg.experimental)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
