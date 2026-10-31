@@ -7,6 +7,7 @@ import { Bus } from "@/bus"
 import { Auth } from "@/auth"
 import { Account } from "@/account/account"
 import { Config } from "@/config/config"
+import { Database } from "@/database"
 import { Git } from "@/git"
 import { Ripgrep } from "@/file/ripgrep"
 import { File } from "@/file"
@@ -115,6 +116,7 @@ export const AppLayer = Layer.mergeAll(
   McpAuth.defaultLayer,
   Command.defaultLayer,
   ExtensionLayer,
+  Database.defaultLayer,
   Truncate.defaultLayer,
   Database.defaultLayer,
   ToolRegistry.defaultLayer,
