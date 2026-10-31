@@ -320,6 +320,54 @@ export const layer = Layer.effect(
       })
 
       /**
+       * 全局阻塞（§8.1 / §4.4）：所有剩余团队都在等一个不会到来的依赖。
+       *
+       * 与 `failed` 的区别：没有谁做错，只是有上游永远交付不了。团队保持 `queued`，
+       * 依赖修好后用户可以再次执行（`blocked → running`）。事件与状态里只留结构
+       * （团队 id、在等哪几个下标）—— 不把目标、brief 或提示词搬进日志。
+       */
+      const finishBlocked = Effect.fn("TeamOrchestrator.blocked")(function* (current: RunTeam[]) {
+        const waiting = current
+          .filter((team) => team.phase === "queued")
+          .map((team) => ({
+            teamID: team.id,
+            waitingOn: team.dependsOn.filter((dep) => current[dep]?.phase !== "delivered"),
+          }))
+        yield* runs.appendEvent({
+          runID: input.runID,
+          kind: "blocked",
+          payload: { round: rounds, teams: waiting },
+        })
+        const usage = yield* ledger.usage({ runID: input.runID, cap })
+        const summary = yield* verification.summary({ runID: input.runID })
+        yield* runs.update({
+          runID: input.runID,
+          state: "blocked",
+          phase: null,
+          attempts: { ...attempts },
+          usage: {
+            reserved: usage.reserved,
+            settled: usage.settled,
+            unknown: usage.unknown,
+            cost: usage.settledCost,
+            cap: usage.cap,
+            overrun: usage.overrun,
+          },
+          // 原因里只写坐标：用户要能一眼看出是谁在等谁，而不是去翻提示词。
+          error:
+            "所有剩余团队都在等待不会到来的依赖：" +
+            waiting.map((item) => item.teamID + " 等待 " + item.waitingOn.join("、")).join("；"),
+          terminalReason: "blocked",
+        })
+        return {
+          state: "blocked" as const,
+          rounds,
+          summary,
+          teams: current.map((team) => ({ teamID: team.id, phase: team.phase, verdict: team.verdict })),
+        }
+      })
+
+      /**
        * 验证消耗入账。
        *
        * 验证器不经过派发预占，但花的钱是真的；不记的话，预算上限管不到它（§7.1）。
@@ -669,10 +717,18 @@ export const layer = Layer.effect(
           exceeded = true
           break
         }
-        // 一个团队都推不动（全部在等依赖 / 等确认）才算 blocked。
-        if (teams.some((team) => team.phase === "running")) continue
+        // 还有团队在跑 / 等下一轮返工：它们会带来新状态，继续下一轮。
+        if (teams.some((team) => team.phase === "running" || team.phase === "rework")) continue
+        // 所有团队都已有结论（交付 / 失败 / 超限）：走正常结算。
         if (teams.every((team) => team.phase === "delivered" || team.phase === "failed" || team.phase === "exceeded"))
           break
+        // 剩下的团队只能是在等依赖，而那些依赖不会自己好起来（上游失败了 / 依赖成环）。
+        // 再转几轮也只会把轮次烧光，最后报成一句「没有团队产出可交付结果」，
+        // 看不出真正原因 —— §8.1：这时是全局 `blocked`，不是 `failed`。
+        if (!teams.some((team) => team.phase === "queued")) break
+        // 有结果不明的工具操作时先交给人核对副作用：`needs_review` 比 `blocked` 更要紧。
+        if ((yield* ops.needsReview(input.runID)).length > 0) break
+        return yield* finishBlocked(teams)
       }
 
       // 集成已经在循环里做过（全部交付时）；这里只记录最终结果。

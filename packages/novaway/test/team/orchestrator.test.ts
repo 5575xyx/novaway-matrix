@@ -1,7 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Effect, Layer, Ref } from "effect"
 import { Service as OrchestratorService, defaultLayer as OrchestratorLayer, type Report } from "@/team/orchestrator"
-import { Service as RunService, defaultLayer as RunLayer } from "@/team/run"
+import { Service as RunService, defaultLayer as RunLayer, isTerminal } from "@/team/run"
 import { Service as VerificationService, defaultLayer as VerificationLayer } from "@/team/verification"
 import { Service as OpLogService, defaultLayer as OpLogLayer } from "@/team/op-log"
 import { Service as LedgerService, defaultLayer as LedgerLayer } from "@/team/ledger"
@@ -985,6 +985,57 @@ describe("team orchestrator", () => {
 
       expect(result.state).toBe("partial")
       expect((yield* runs.teams(run.id)).map((team) => team.phase).sort()).toEqual(["delivered", "failed"])
+    }),
+  )
+
+  it.effect("a run whose remaining work waits on a failed team is blocked, not failed", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_deadlock"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "下游在等一个失败的上游",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({
+        runID: run.id,
+        plan: { teams: [{ name: "upstream" }, { name: "downstream" }] },
+        planVersion: 1,
+      })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const upstream = yield* runs.addTeam({ runID: run.id })
+      const downstream = yield* runs.addTeam({ runID: run.id, dependsOn: [0] })
+      yield* verification.register({ runID: run.id, specID: "u", text: "上游验收", kind: "test", owner: upstream.id })
+
+      const dispatched: string[] = []
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) => {
+          dispatched.push(input.team.id)
+          return input.team.id === upstream.id
+            ? Effect.fail(new Error("上游崩了"))
+            : Effect.succeed(report(input.team.id))
+        },
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 下游永远等不到上游交付：再转几轮也不会派发任何团队。
+      // 这不是「没有团队产出可交付结果」的失败，而是「所有剩余工作都无法推进」（§8.1）。
+      expect(dispatched).toEqual([upstream.id])
+      expect(result.state).toBe("blocked")
+      expect((yield* runs.teams(run.id)).map((team) => team.phase).sort()).toEqual(["failed", "queued"])
+
+      const event = (yield* runs.events({ runID: run.id })).find((item) => item.kind === "blocked")
+      expect(event?.payload?.teams).toEqual([{ teamID: downstream.id, waitingOn: [0] }])
+      const after = yield* runs.get(run.id)
+      expect(after?.state).toBe("blocked")
+      expect(after?.error).toContain(downstream.id)
+      // blocked 不是终态：修好依赖后还能再次执行（`canStart` 只为 running 带 phase 时拒绝）。
+      expect(after && isTerminal(after.state)).toBe(false)
     }),
   )
 })
