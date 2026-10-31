@@ -1401,6 +1401,12 @@ CC 的 agent teams 已经具备：队长 + 成员、共享任务列表、任务�
 G6 是唯一保留人工的一条：判定「这条 `pass` 是不是假的」本身需要人，脚本只负责抽样与核对阈值。
 **没有复核记录 = 没复核 = 不通过**，这条刻意不做「缺省放行」——那正是 §21.4 第 4 条警告的失效方式。
 
+复核流程三步（2026-10-31 补齐第一步的缺口）：`gate:release --export` 把本地库里的 `pass`
+验证导出成 `.artifacts/release-gate/pass-records.json`（证据已脱敏、文件不进版本库）→
+`gate:release --sample` 确定性抽 20% 并写出复核模板 → 人逐条看，填 `reviewed` / `wrong`，
+再跑 `gate:release`。此前 `--sample` 要求手写 `pass-records.json`，等于把「可复现」交给人肉；
+现在导出、抽样都能从真实库一键完成，只有判定留给人。
+
 实跑记录（2026-10-31，`bun run gate:release`）：G1–G5、G7 通过；G6 未通过，原因是
 `.artifacts/release-gate/false-pass-review.json` 还不存在 —— 这不是代码回归，是「还没人做过复核」。
 补法只有一条：先用 `--sample` 生成的抽样逐条人工复核，写入该文件后再跑一次门禁。门禁在 G6 补齐前保持不通过。

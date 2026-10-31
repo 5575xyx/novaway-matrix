@@ -9,6 +9,12 @@
  * G6（误判通过率）无法自动化：判定「这条 pass 是不是假的」本身需要人。
  * 这里只读取复核记录并核对阈值；**没有记录就是没复核**，按不通过处理。
  *
+ * 复核流程三步（脚本只做前两步，判定留给人）：
+ *   1. `bun run gate:release --export`：把本地库里的 pass 验证导出成 `pass-records.json`
+ *      （证据已脱敏；文件在 `.artifacts/`，不进版本库）；
+ *   2. `bun run gate:release --sample`：确定性抽取 10–20%，写出复核模板；
+ *   3. 人逐条复核，填 `reviewed` / `wrong`，再跑门禁。
+ *
  * 复核记录格式（`.artifacts/release-gate/false-pass-review.json`）：
  *   { "sampled": 24, "reviewed": 24, "wrong": 1, "note": "谁在什么时候复核的" }
  */
@@ -16,6 +22,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { ReleaseGate } from "../src/team/release-gate"
+import { Database } from "../src/storage/db"
+import { TeamVerificationTable } from "../src/team/run.sql"
+import { sanitizeOptional } from "../src/team/evidence"
 
 const root = join(import.meta.dir, "..")
 const artifacts = join(root, ".artifacts", "release-gate")
@@ -149,6 +158,36 @@ const readID = (item: object) => {
 }
 
 /**
+ * `--export`：把本地库里所有 `pass` 验证导出成复核清单。
+ *
+ * 为什么要有这一步：`--sample` 读的是 `pass-records.json`，而此前没有任何东西会生成它 ——
+ * 复核流程第一步就得手写 JSON，等于把「可复现」交给人肉。
+ *
+ * 导出的是**复核需要的最小字段**：结论、快照、验证器版本与脱敏后的证据原文
+ * （`measured` / `evidenceRef` 在入库前已脱敏，这里再脱一次以覆盖旧行）。
+ * 文件落在 `.artifacts/`（版本库忽略），不写进会话库、不写进事件流。
+ */
+function exportPassRecords() {
+  const rows = Database.use((db) => db.select().from(TeamVerificationTable).all())
+  const records = rows
+    .filter((row) => row.outcome === "pass")
+    .sort((a, b) => a.at - b.at)
+    .map((row) => ({
+      id: row.id,
+      acceptanceID: row.acceptance_id,
+      snapshotID: row.snapshot_id,
+      verifierVersion: row.verifier_version,
+      at: row.at,
+      ...(row.measured ? { measured: sanitizeOptional(row.measured) } : {}),
+      ...(row.evidence_ref ? { evidenceRef: sanitizeOptional(row.evidence_ref) } : {}),
+    }))
+  mkdirSync(artifacts, { recursive: true })
+  writeFileSync(join(artifacts, "pass-records.json"), JSON.stringify(records, null, 2) + "\n")
+  console.log("已导出 " + records.length + " 条 pass：" + join(artifacts, "pass-records.json"))
+  console.log("下一步：bun run gate:release --sample")
+}
+
+/**
  * `--sample`：从导出的 pass 记录里抽 10–20% 人工复核。
  *
  * 抽样是确定性的（同一批记录永远抽到同一批），所以复核记录可以复用；
@@ -184,6 +223,11 @@ function writeSample() {
   )
   console.log("已抽 " + sample.length + "/" + ids.length + " 条 pass：" + join(artifacts, "false-pass-sample.txt"))
   console.log("逐条复核后填写 " + reviewFile + " 的 reviewed / wrong，再运行门禁。")
+}
+
+if (process.argv.includes("--export")) {
+  exportPassRecords()
+  process.exit(0)
 }
 
 if (process.argv.includes("--sample")) {
