@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from "effect"
 import { desc, eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { TeamAcceptanceTable, TeamVerificationTable } from "./run.sql"
+import { sanitizeOptional } from "./evidence"
 
 /**
  * 验收与验证。
@@ -175,8 +176,9 @@ const toVerification = (row: typeof TeamVerificationTable.$inferSelect): Verific
   snapshotID: row.snapshot_id,
   verifierVersion: row.verifier_version,
   outcome: row.outcome as Verification["outcome"],
-  measured: row.measured ?? undefined,
-  evidenceRef: row.evidence_ref ?? undefined,
+  // 读取时再脱敏一遍：写入前就有脱敏，但旧行是在这条规则之前落库的。
+  measured: sanitizeOptional(row.measured ?? undefined),
+  evidenceRef: sanitizeOptional(row.evidence_ref ?? undefined),
   at: row.at,
 })
 
@@ -248,8 +250,9 @@ export const layer = Layer.effect(
         snapshotID: input.snapshotID,
         verifierVersion: input.verifierVersion,
         outcome: input.outcome,
-        measured: input.measured,
-        evidenceRef: input.evidenceRef,
+        // 验证器原样输出，可能带着凭据与 URL：入库前脱敏（§11.3）。
+        measured: sanitizeOptional(input.measured),
+        evidenceRef: sanitizeOptional(input.evidenceRef),
         at: Date.now(),
       }
       yield* Effect.sync(() =>
