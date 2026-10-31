@@ -45,6 +45,7 @@ import { SessionUsage } from "@/session/usage"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamOpLogService } from "@/team/op-log"
 import { Service as TeamLedgerService } from "@/team/ledger"
+import * as TeamDenials from "@/team/denials"
 import { Snapshot } from "@/snapshot"
 
 const number = (value: unknown, fallback = 0) => (typeof value === "number" ? value : fallback)
@@ -230,6 +231,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             kind: acceptance.kind,
             expected: acceptance.expected,
             owner: acceptance.owner,
+          })),
+          // 拒绝在本次运行内保持有效（§11.2）：回传工具名与说明，不回传动作原文。
+          denials: TeamDenials.list(runID).map((denial) => ({
+            tool: denial.tool,
+            ...(denial.reason ? { reason: denial.reason } : {}),
+            at: denial.at,
           })),
           verifications: verifications.map((item) => ({
             id: item.id,
@@ -989,6 +996,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             payload: { branch: outcome.branch, integration: branch, sha: outcome.sha },
           })
           return { merged: true, branch: outcome.branch, sha: outcome.sha }
+        }),
+      )
+      .handle("clearRunDenials", (ctx) =>
+        Effect.gen(function* () {
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
+          // 用户的显式放行：之后同一个动作会重新询问，而不是一辈子被拒。
+          return { cleared: TeamDenials.clear(run.id) }
         }),
       )
       .handle("cancelRun", (ctx) =>

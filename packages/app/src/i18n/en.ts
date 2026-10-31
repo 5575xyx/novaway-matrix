@@ -123,6 +123,10 @@ export const dict = {
   "run.events.hint":
     "Read-only log used to replay why the run reached its conclusion. Only kinds and times are shown; payloads stay local.",
   "run.blocked.title": "Blocked ({{count}})",
+  "run.denials.title": "{{count}} action(s) denied in this run",
+  "run.denials.hint": "A denial lasts for the rest of this run: the same action is never asked twice. Swapping in another person does not help either.",
+  "run.denials.clear": "Allow and ask again",
+  "run.denials.cleared": "Cleared {{count}} denial(s)",
   "run.blocked.swappable": "another member may get past this",
   "run.blocked.noSwap": "not fixable by swapping members — the user has to allow it",
   "run.context.truncated": "{{count}} part(s) of the dispatched context were truncated",

@@ -474,6 +474,8 @@ import type {
   RunCancelResponses,
   RunCreateErrors,
   RunCreateResponses,
+  RunDenialsClearErrors,
+  RunDenialsClearResponses,
   RunDetailErrors,
   RunDetailResponses,
   RunEventsErrors,
@@ -14075,6 +14077,40 @@ export class Worktrees extends HeyApiClient {
   }
 }
 
+export class Denials extends HeyApiClient {
+  /**
+   * Allow denied actions again
+   *
+   * Clears this run's permission denials. Denials are kept for the rest of the run so the same action is never asked twice; clearing them is the explicit human override.
+   */
+  public clear<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<RunDenialsClearResponses, RunDenialsClearErrors, ThrowOnError>({
+      url: "/run/{runID}/denials",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Run2 extends HeyApiClient {
   /**
    * List team runs
@@ -14562,6 +14598,11 @@ export class Run2 extends HeyApiClient {
   private _worktrees?: Worktrees
   get worktrees(): Worktrees {
     return (this._worktrees ??= new Worktrees({ client: this.client }))
+  }
+
+  private _denials?: Denials
+  get denials(): Denials {
+    return (this._denials ??= new Denials({ client: this.client }))
   }
 }
 

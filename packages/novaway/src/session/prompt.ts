@@ -62,6 +62,7 @@ import { Service as HookServiceService, defaultLayer as HookServiceLayer } from 
 import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import { Service as TeamOpLogService, defaultLayer as TeamOpLogLayer, idempotencyKey } from "@/team/op-log"
+import * as TeamDenials from "@/team/denials"
 import { Service as TeamWriterService, defaultLayer as TeamWriterLayer } from "@/team/writer"
 import { Service as TeamRunService } from "@/team/run"
 import { TeamPolicy } from "@/team/policy"
@@ -668,6 +669,81 @@ export const layer = Layer.effect(
     // 团队目录：能派发谁由会话字段决定，注入内容按签名去重（见 insertReminders）。
     const teamService = Option.getOrUndefined(yield* Effect.serviceOption(TeamService))
     const teamCatalogSignatures = new Map<string, string>()
+    /**
+     * 权限询问带上团队口径（§11.2）。
+     *
+     * 普通会话：原样询问，行为与之前一致。
+     * 编排内的子会话：
+     * - **同一动作被拒过就不再弹窗** —— 本次运行内保持拒绝，直接把拒绝交给模型；
+     * - 用户这次点了拒绝 → 记进运行（只存动作哈希，原文不落库）并写 `tool.denied` 事件，
+     *   看板上看得见；另一个人执行同一个动作同样被拒（换人不解决权限）。
+     * 要改判定只有一条路：用户显式放行（清除本运行的拒绝记录）。
+     */
+    const askPermission = (input: {
+      sessionID: SessionID
+      request: Omit<Permission.Request, "id" | "sessionID" | "tool">
+      ruleset: Permission.Ruleset
+      tool?: { messageID: MessageID; callID: string }
+      mode?: Permission.Mode
+    }) =>
+      Effect.gen(function* () {
+        const scoped = teamOps ? yield* teamOps.scopeOf(input.sessionID) : undefined
+        if (scoped) {
+          const previous = yield* Effect.sync(() =>
+            TeamDenials.lookup({
+              runID: scoped.runID,
+              tool: input.request.permission,
+              patterns: input.request.patterns,
+            }),
+          )
+          if (previous) {
+            return yield* Effect.fail(
+              new Error(
+                "用户已在本次运行中拒绝过同一个动作（" +
+                  input.request.permission +
+                  "），不会再次弹窗。" +
+                  (previous.reason ? "当时的说明：" + previous.reason + "。" : "") +
+                  "要改判定需要用户显式放行。",
+              ),
+            )
+          }
+        }
+        const result = yield* Effect.exit(
+          permission.ask({
+            ...input.request,
+            sessionID: input.sessionID,
+            ruleset: input.ruleset,
+            ...(input.tool ? { tool: input.tool } : {}),
+            ...(input.mode ? { mode: input.mode } : {}),
+          }),
+        )
+        if (Exit.isSuccess(result)) return
+        // 只有「用户拒绝」才进记忆：规则拒绝（DeniedError）本来就是稳定的，
+        // 而用户纠正（CorrectedError）意味着他希望换一种做法，不该被封死。
+        if (scoped && Cause.squash(result.cause) instanceof Permission.RejectedError) {
+          yield* Effect.sync(() =>
+            TeamDenials.remember({
+              runID: scoped.runID,
+              tool: input.request.permission,
+              patterns: input.request.patterns,
+            }),
+          )
+          if (teamRuns)
+            yield* teamRuns
+              .appendEvent({
+                runID: scoped.runID,
+                kind: "tool.denied",
+                payload: {
+                  tool: input.request.permission,
+                  ...(scoped.taskID ? { taskID: scoped.taskID } : {}),
+                  sessionID: input.sessionID,
+                  reason: "用户拒绝：本次运行内不再询问同一个动作",
+                },
+              })
+              .pipe(Effect.ignore)
+        }
+        return yield* Effect.failCause(result.cause)
+      })
     const planApproval = Option.getOrUndefined(yield* Effect.serviceOption(PlanApproval.Service))
     const git = yield* Effect.serviceOption(Git.Service)
     const truncate = yield* Truncate.Service
@@ -1247,16 +1323,14 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             }
           }),
         ask: (req) =>
-          permission
-            .ask({
-              ...req,
-              sessionID: input.session.id,
-              tool: { messageID: input.processor.message.id, callID: options.toolCallId },
-              ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
-              // Session mode wins; the store falls back to config when unset.
-              ...(input.session.permissionMode ? { mode: input.session.permissionMode } : {}),
-            })
-            .pipe(Effect.orDie),
+          askPermission({
+            sessionID: input.session.id,
+            request: req,
+            tool: { messageID: input.processor.message.id, callID: options.toolCallId },
+            ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
+            // Session mode wins; the store falls back to config when unset.
+            ...(input.session.permissionMode ? { mode: input.session.permissionMode } : {}),
+          }).pipe(Effect.orDie),
       })
 
       for (const item of yield* registry.tools({
@@ -1778,13 +1852,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               } satisfies MessageV2.ToolPart)
             }),
           ask: (req: any) =>
-            permission
-              .ask({
-                ...req,
-                sessionID,
-                ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
-              })
-              .pipe(Effect.orDie),
+            askPermission({
+              sessionID,
+              request: req,
+              ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
+            }).pipe(Effect.orDie),
         })
         .pipe(
           Effect.catchCause((cause) => {

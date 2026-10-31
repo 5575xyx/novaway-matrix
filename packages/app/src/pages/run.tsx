@@ -351,6 +351,20 @@ export const RunPage: Component<{
         setError(failed.map((item) => item.directory + "：" + (item.error ?? "")).join(String.fromCharCode(10)))
     })
 
+  /**
+   * 显式放行（§11.2）。
+   *
+   * 拒绝在本次运行内保持有效，所以「再问一次」必须由人点出来 ——
+   * 不做「过一会儿自动重试弹窗」，那等于把用户的拒绝当成噪音。
+   */
+  const allowDenied = () =>
+    act("denials", async () => {
+      const runID = selected()
+      if (!runID) return
+      const result = await sdk.client.run.denials.clear({ runID, directory: props.directory })
+      setNotice(t("run.denials.cleared", { count: String(numeric(result.data?.cleared ?? 0)) }))
+    })
+
   const hasWorktrees = createMemo(() => (detail()?.teams ?? []).some((team) => !!team.worktree))
   /** 当前运行属于哪个目标：编号只给人看，悬停给出目标描述。 */
   const currentMission = createMemo(() => missions().find((item) => item.id === detail()?.run.missionID))
@@ -1077,6 +1091,27 @@ export const RunPage: Component<{
                     阻塞与拒绝（§11.2）：拒绝不能被静默吞掉。权限类要标出「换成别人也没用」——
                     换一个「权限更高」的人做同一件事就是提权，只能由用户放行。
                   */}
+                  <Show when={(data().denials ?? []).length > 0}>
+                    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="text-ui-xs text-warning" title={t("run.denials.hint")}>
+                          {t("run.denials.title", { count: String(data().denials.length) })}
+                        </div>
+                        {/* 放行是人的决定：模型没有接口把自己被拒的动作重新打开。 */}
+                        <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void allowDenied()}>
+                          {t("run.denials.clear")}
+                        </Button>
+                      </div>
+                      <For each={data().denials}>
+                        {(denial) => (
+                          <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                            <Tag>{denial.tool}</Tag>
+                            <span class="min-w-0 flex-1 truncate">{denial.reason ?? ""}</span>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
                   <Show when={(data().blockers ?? []).length > 0}>
                     <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
                       <div class="text-ui-xs text-destructive">

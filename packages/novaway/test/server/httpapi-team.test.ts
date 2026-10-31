@@ -3,6 +3,7 @@ import { Flag } from "@novaway/core/flag/flag"
 import { SessionTable } from "@/session/session.sql"
 import { SessionID } from "@/session/schema"
 import { Database } from "@/storage/db"
+import * as TeamDenials from "@/team/denials"
 import { describe, expect } from "bun:test"
 import { eq } from "drizzle-orm"
 import { Config, Effect, Layer } from "effect"
@@ -306,6 +307,48 @@ describe("team HttpApi", () => {
         acceptance: [{ text: "没有高危问题" }],
       })
       expect(invalid.status).toBe(400)
+    }),
+  )
+
+  it.live("a denied action stays denied for the run until the user explicitly allows it again", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type Detail = {
+        run: { id: string }
+        denials: Array<{ tool: string; reason?: string; at: number }>
+      }
+      const created = yield* post(dir, "/run", {
+        sessionID: "ses_denial",
+        directory: dir,
+        mode: "team",
+        goal: "会碰到权限的审查",
+      })
+      const id = ((yield* created.json) as Detail).run.id
+
+      const empty = (yield* (yield* get(dir, "/run/" + id, dir)).json) as Detail
+      // 还没拒绝过：空数组，而不是缺失。
+      expect(empty.denials).toEqual([])
+
+      // 拒绝由工具漏斗写入（那里需要真实权限往返），这里直接落到同一个存储上验证读路径。
+      TeamDenials.remember({ runID: id, tool: "bash", patterns: ["bun test"], reason: "跑测试会起服务" })
+      TeamDenials.remember({ runID: id, tool: "edit", patterns: ["src/a.ts"] })
+      const denied = (yield* (yield* get(dir, "/run/" + id, dir)).json) as Detail
+      expect(denied.denials.map((item) => item.tool).sort()).toEqual(["bash", "edit"])
+      expect(denied.denials.find((item) => item.tool === "bash")?.reason).toBe("跑测试会起服务")
+      // 动作原文不出现：库里只有哈希，接口也不该编出一个原文来。
+      expect(JSON.stringify(denied.denials)).not.toContain("bun test")
+
+      const allowed = yield* del(dir, "/run/" + id + "/denials")
+      expect(allowed.status).toBe(200)
+      expect(((yield* allowed.json) as { cleared: number }).cleared).toBe(2)
+      const after = (yield* (yield* get(dir, "/run/" + id, dir)).json) as Detail
+      expect(after.denials).toEqual([])
+      // 再清一次不是错误：本来就没有可清的了。
+      const again = yield* del(dir, "/run/" + id + "/denials")
+      expect(((yield* again.json) as { cleared: number }).cleared).toBe(0)
+      // 跨目录不放行：别人的运行不能被这个接口清掉。
+      const other = yield* tmpdirScoped({ git: true })
+      expect((yield* del(other, "/run/" + id + "/denials")).status).toBe(404)
     }),
   )
 

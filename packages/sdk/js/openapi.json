@@ -32845,6 +32845,68 @@
         ]
       }
     },
+    "/run/{runID}/denials": {
+      "delete": {
+        "tags": ["Team runs"],
+        "operationId": "run.denials.clear",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cleared denials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDenialClearResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Clears this run's permission denials. Denials are kept for the rest of the run so the same action is never asked twice; clearing them is the explicit human override.",
+        "summary": "Allow denied actions again",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.denials.clear({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run/{runID}/cancel": {
       "post": {
         "tags": ["Team runs"],
@@ -50461,6 +50523,42 @@
         "required": ["seq", "at", "kind", "swappable"],
         "additionalProperties": false
       },
+      "RunDenialView": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["tool", "at"],
+        "additionalProperties": false
+      },
       "RunDetail": {
         "type": "object",
         "properties": {
@@ -50493,9 +50591,15 @@
             "items": {
               "$ref": "#/components/schemas/RunBlockerView"
             }
+          },
+          "denials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunDenialView"
+            }
           }
         },
-        "required": ["run", "teams", "acceptances", "verifications", "summary", "blockers"],
+        "required": ["run", "teams", "acceptances", "verifications", "summary", "blockers", "denials"],
         "additionalProperties": false
       },
       "RunMetricsView": {
@@ -51237,6 +51341,36 @@
           }
         },
         "required": ["merged"],
+        "additionalProperties": false
+      },
+      "RunDenialClearResult": {
+        "type": "object",
+        "properties": {
+          "cleared": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["cleared"],
         "additionalProperties": false
       },
       "RunEventView": {

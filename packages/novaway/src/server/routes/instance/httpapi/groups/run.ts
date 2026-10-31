@@ -303,6 +303,23 @@ export const RunBlockerView = Schema.Struct({
   swappable: Schema.Boolean,
 }).annotate({ identifier: "RunBlockerView" })
 
+/**
+ * 一次运行里被用户拒绝过的动作（§11.2）。
+ *
+ * 只回传工具名与说明，不回传动作原文 —— 被拒的往往是带 token 的命令或 URL，
+ * 库里存的也只有哈希（`team_run_denial.action`）。
+ */
+export const RunDenialView = Schema.Struct({
+  tool: Schema.String,
+  reason: Schema.optional(Schema.String),
+  at: Schema.Number,
+}).annotate({ identifier: "RunDenialView" })
+
+export const RunDenialClearResult = Schema.Struct({
+  /** 清掉了几条；0 表示本来就没有拒绝记录。 */
+  cleared: Schema.Number,
+}).annotate({ identifier: "RunDenialClearResult" })
+
 export const RunDetail = Schema.Struct({
   run: RunView,
   teams: Schema.Array(RunTeamView),
@@ -310,6 +327,8 @@ export const RunDetail = Schema.Struct({
   verifications: Schema.Array(RunVerificationView),
   summary: RunSummaryView,
   blockers: Schema.Array(RunBlockerView),
+  /** 拒绝在本次运行内保持有效：这些动作不会再次弹窗，直到用户显式放行。 */
+  denials: Schema.Array(RunDenialView),
 }).annotate({ identifier: "RunDetail" })
 
 export const RunCreatePayload = Schema.Struct({
@@ -549,6 +568,19 @@ export const RunApi = HttpApiGroup.make("run")
         summary: "Merge the run's integration branch",
         description:
           "Explicitly merges novaway/integrate/<run> into the branch the user currently has checked out. Refuses when the run is not finished, when there is no integration commit, or when the working tree is dirty.",
+      }),
+    ),
+    HttpApiEndpoint.delete("clearRunDenials", `${root}/:runID/denials`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(RunDenialClearResult, "Cleared denials"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.denials.clear",
+        summary: "Allow denied actions again",
+        description:
+          "Clears this run's permission denials. Denials are kept for the rest of the run so the same action is never asked twice; clearing them is the explicit human override.",
       }),
     ),
     HttpApiEndpoint.post("cancelRun", `${root}/:runID/cancel`, {

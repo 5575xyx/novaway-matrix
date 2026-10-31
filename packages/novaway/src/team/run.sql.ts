@@ -231,6 +231,29 @@ export const TeamRunOpTable = sqliteTable(
   ],
 )
 
+/**
+ * 权限拒绝（§11.2）：同一动作在本次运行内保持拒绝。
+ *
+ * 只存动作的哈希，不存原文 —— 被拒的往往是带 token 的命令或 URL，
+ * 落库即泄露。`tool` 用来在界面上说清「拒绝的是哪类工具」。
+ */
+export const TeamRunDenialTable = sqliteTable(
+  "team_run_denial",
+  {
+    id: text().primaryKey(),
+    run_id: text().notNull(),
+    tool: text().notNull(),
+    /** `tool + 排序后的 patterns` 的 SHA-256：同一动作得到同一个值，原文不落库。 */
+    action: text().notNull(),
+    reason: text(),
+    at: integer().notNull(),
+  },
+  (table) => [
+    uniqueIndex("team_run_denial_action").on(table.run_id, table.action),
+    index("team_run_denial_run_idx").on(table.run_id),
+  ],
+)
+
 /** 账本：预占与结算分开记，并发也不会超支。 */
 export const TeamRunLedgerTable = sqliteTable(
   "team_run_ledger",

@@ -3817,6 +3817,12 @@ export type RunBlockerView = {
   swappable: boolean
 }
 
+export type RunDenialView = {
+  tool: string
+  reason?: string
+  at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type RunDetail = {
   run: RunView
   teams: Array<RunTeamView>
@@ -3824,6 +3830,7 @@ export type RunDetail = {
   verifications: Array<RunVerificationView>
   summary: RunSummaryView
   blockers: Array<RunBlockerView>
+  denials: Array<RunDenialView>
 }
 
 export type RunMetricsView = {
@@ -3897,6 +3904,10 @@ export type RunMergeResult = {
   sha?: string
   files?: Array<string>
   message?: string
+}
+
+export type RunDenialClearResult = {
+  cleared: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type RunEventView = {
@@ -18290,6 +18301,36 @@ export type RunMergeResponses = {
 }
 
 export type RunMergeResponse = RunMergeResponses[keyof RunMergeResponses]
+
+export type RunDenialsClearData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/denials"
+}
+
+export type RunDenialsClearErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunDenialsClearError = RunDenialsClearErrors[keyof RunDenialsClearErrors]
+
+export type RunDenialsClearResponses = {
+  /**
+   * Cleared denials
+   */
+  200: RunDenialClearResult
+}
+
+export type RunDenialsClearResponse = RunDenialsClearResponses[keyof RunDenialsClearResponses]
 
 export type RunCancelData = {
   body?: never
