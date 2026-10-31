@@ -152,6 +152,7 @@ export const dict = {
   "run.new.constraintsPlaceholder": "每行一条，例如：不要改测试\n不要新增依赖",
   "run.new.briefHint": "范围与约束会原样写进队长提示词；没写的不会被猜出来。",
   "run.new.budget": "Token 预算",
+  "run.new.wall": "墙钟上限（分钟，0 = 不限）",
   "run.new.start": "创建运行",
   "run.new.creating": "创建中…",
   "run.new.cancel": "取消",

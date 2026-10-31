@@ -199,6 +199,30 @@ export const layer = Layer.effect(
       const reserveTokens = input.reserveTokens ?? 4000
       const maxRounds = input.maxRounds ?? 3
       const maxBusiness = input.maxBusinessAttempts ?? 6
+      /**
+       * 墙钟上限（§7.3）：只在轮次与派发批次之间检查。
+       *
+       * 一次派发已经在跑时中断它，只会留下半成品与重复副作用；「超过即停」停的是
+       * **新的**派发。按本次执行计时（恢复不继承上一次的墙钟），token 上限则是累计的 ——
+       * 两个上限回答的问题不同：一个问「这次跑了多久」，一个问「一共花了多少」。
+       *
+       * 缺省（未写 `wallMs`）= 不限；显式 `0` = 一分钟都不给，立刻停 ——
+       * 「没写」与「写了 0」必须能分开，否则测试与用户都没法确定它到底管不管。
+       */
+      const wallStart = Date.now()
+      const wallMs = run.budget?.wallMs
+      const overWall = () => wallMs !== undefined && Date.now() - wallStart >= wallMs
+      const stopForWall = (current: RunTeam[]) =>
+        Effect.gen(function* () {
+          for (const team of current) {
+            if (team.phase === "queued" || team.phase === "rework")
+              yield* runs.updateTeam({ id: team.id, phase: "exceeded" })
+          }
+          yield* runs.appendEvent({
+            runID: input.runID,
+            kind: "budget.exceeded",
+            payload: { reason: "墙钟超出上限（" + wallMs + " ms）", wallMs },
+          })        })
       const acceptances = yield* verification.list(input.runID)
       const attempts = { ...run.attempts }
 
@@ -470,6 +494,12 @@ export const layer = Layer.effect(
 
       while (rounds < maxRounds) {
         if (cancelled()) return yield* finishCancelled(teams)
+        // 墙钟用尽：不再开新一轮，也不再派发任何团队。
+        if (overWall()) {
+          yield* stopForWall(teams)
+          exceeded = true
+          break
+        }
         rounds += 1
         // 新一轮开始：上一轮的 rework 回到可派发状态。
         for (const team of teams) {
@@ -491,6 +521,12 @@ export const layer = Layer.effect(
             return team.dependsOn.every((dep) => byID.get(dep)?.phase === "delivered")
           })
           if (ready.length === 0) break
+          // 一批派发之前再查一次墙钟：一轮里可能有多个依赖链批次，不能等轮末才停。
+          if (overWall()) {
+            yield* stopForWall(teams)
+            exceeded = true
+            break
+          }
           // 并发上限（§4.5）：缺省 3，超出的团队排队。不设上限时十个团队会同时烧钱，
           // 而同一个 worktree 上的写操作本来也要排队 —— 并发的好处抵不过成本。
           yield* Effect.forEach(ready, (team) => attempt(team, rounds), {

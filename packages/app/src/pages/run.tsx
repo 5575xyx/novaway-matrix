@@ -63,6 +63,8 @@ export const RunPage: Component<{
   const [scope, setScope] = createSignal("")
   const [constraints, setConstraints] = createSignal("")
   const [budget, setBudget] = createSignal(100_000)
+  // 墙钟上限（分钟）：0 表示不限。超过即停的是新的派发（§7.3）。
+  const [wallMinutes, setWallMinutes] = createSignal(0)
   // 持久目标（§3.2）：可选归属。选「新建」时会先建目标再建运行。
   const [missions, setMissions] = createSignal<MissionView[]>([])
   const [missionID, setMissionID] = createSignal("")
@@ -307,7 +309,7 @@ export const RunPage: Component<{
                 ...(constraintLines.length > 0 ? { constraints: constraintLines } : {}),
               }
             : undefined,
-        budget: { tokens: budget() },
+        budget: { tokens: budget(), ...(wallMinutes() > 0 ? { wallMs: Math.round(wallMinutes() * 60_000) } : {}) },
         acceptance: lines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
       })
       setComposing(false)
@@ -775,17 +777,31 @@ export const RunPage: Component<{
                 </Show>
                 <span class="text-ui-xs text-foreground-subtlest">{t("run.new.missionHint")}</span>
               </label>
-              <label class="flex items-center gap-2">
-                <span class="text-ui-xs text-foreground-subtle">{t("run.new.budget")}</span>
-                <input
-                  type="number"
-                  min="1000"
-                  step="1000"
-                  class="h-8 w-32 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
-                  value={budget()}
-                  onInput={(event) => setBudget(Number(event.currentTarget.value) || 0)}
-                />
-              </label>
+              <div class="flex flex-wrap items-center gap-3">
+                <label class="flex items-center gap-2">
+                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.budget")}</span>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    class="h-8 w-32 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                    value={budget()}
+                    onInput={(event) => setBudget(Number(event.currentTarget.value) || 0)}
+                  />
+                </label>
+                {/* 墙钟上限（§7.3）：0 表示不限；超过即停的是新的派发，不是正在跑的。 */}
+                <label class="flex items-center gap-2">
+                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.wall")}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="5"
+                    class="h-8 w-24 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                    value={wallMinutes()}
+                    onInput={(event) => setWallMinutes(Number(event.currentTarget.value) || 0)}
+                  />
+                </label>
+              </div>
               <div class="flex flex-wrap items-center gap-1.5">
                 <Button
                   variant="primary"

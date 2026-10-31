@@ -157,6 +157,7 @@ export const dict = {
   "run.new.constraintsPlaceholder": "One per line, e.g.\ndon't touch tests\ndon't add dependencies",
   "run.new.briefHint": "Scope and constraints go into the captain's prompt verbatim; nothing is inferred.",
   "run.new.budget": "Token budget",
+  "run.new.wall": "Wall clock (minutes, 0 = unlimited)",
   "run.new.start": "Create run",
   "run.new.creating": "Creating…",
   "run.new.cancel": "Cancel",

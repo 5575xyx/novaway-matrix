@@ -745,4 +745,44 @@ describe("team orchestrator", () => {
       expect(yield* Ref.get(peak)).toBe(1)
     }),
   )
+
+  it.effect("stops scheduling new dispatches once the wall clock is spent", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_wall"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "长时间审查",
+        // 墙钟上限是硬上限（§7.3）：超过即停，输出降级结果。
+        budget: { tokens: 100_000, wallMs: 0 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000, wallMs: 0 }, by: "user" })
+      const team = yield* runs.addTeam({ runID: run.id, profileID: "prof_alpha" })
+
+      // 墙钟给 0 ms：不依赖真实时钟，只验证「到期就不再开新的」。
+      let dispatched = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: () => {
+          dispatched += 1
+          return Effect.succeed(report("team"))
+        },
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 一次都不该派：超限后的「继续跑」等于把硬上限变成建议。
+      expect(dispatched).toBe(0)
+      expect(result.state).toBe("exceeded")
+      expect((yield* runs.teams(run.id))[0].phase).toBe("exceeded")
+      const events = yield* runs.events({ runID: run.id })
+      const exceeded = events.filter((event) => event.kind === "budget.exceeded")
+      expect(exceeded.length).toBe(1)
+      expect(exceeded[0].payload?.reason).toContain("墙钟")
+      expect(team.phase).toBe("queued")
+    }),
+  )
 })

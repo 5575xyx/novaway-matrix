@@ -134,6 +134,10 @@ export const RunReplayView = Schema.Struct({
 export const RunBudget = Schema.Struct({
   tokens: Schema.optional(Schema.Number),
   cost: Schema.optional(Schema.Number),
+  /**
+   * 墙钟上限（毫秒）。缺省 = 不限；`0` = 一分钟都不给，立刻停。
+   * 只在轮次与派发批次之间检查：已经在跑的派发不会被中断（§7.3 硬上限）。
+   */
   wallMs: Schema.optional(Schema.Number),
 })
 
