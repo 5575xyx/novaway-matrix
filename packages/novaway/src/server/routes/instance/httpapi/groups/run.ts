@@ -1,9 +1,21 @@
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
-import { WorkspaceRoutingQuery } from "../middleware/workspace-routing"
+import { WorkspaceRoutingQuery, WorkspaceRoutingQueryFields } from "../middleware/workspace-routing"
 import { described } from "./metadata"
 
 const root = "/run"
+
+/** 运行列表的查询：目录过滤之外，还能按团队筛。 */
+export const RunListQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  /**
+   * 只看某支团队参与过的运行。
+   *
+   * 团队页的「最近运行」用它：计划里 `profileID` 记的就是发起时那支团队，
+   * 在服务端按计划过滤，界面不必拉全量再自己比对。
+   */
+  teamID: Schema.optional(Schema.String),
+})
 
 export const RunBudget = Schema.Struct({
   tokens: Schema.optional(Schema.Number),
@@ -263,13 +275,13 @@ export const RunMergeResult = Schema.Struct({
 export const RunApi = HttpApiGroup.make("run")
   .add(
     HttpApiEndpoint.get("listRuns", root, {
-      query: WorkspaceRoutingQuery,
+      query: RunListQuery,
       success: described(Schema.Array(RunView), "Runs"),
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "run.list",
         summary: "List team runs",
-        description: "List orchestration runs in this workspace.",
+        description: "List orchestration runs in this workspace; `teamID` narrows it to one team's runs.",
       }),
     ),
     HttpApiEndpoint.post("createRun", root, {

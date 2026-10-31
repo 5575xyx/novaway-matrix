@@ -13954,12 +13954,13 @@ export class Run2 extends HeyApiClient {
   /**
    * List team runs
    *
-   * List orchestration runs in this workspace.
+   * List orchestration runs in this workspace; `teamID` narrows it to one team's runs.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string
       workspace?: string
+      teamID?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13970,6 +13971,7 @@ export class Run2 extends HeyApiClient {
           args: [
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "teamID" },
           ],
         },
       ],

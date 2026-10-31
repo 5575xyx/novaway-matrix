@@ -1,5 +1,6 @@
 import type {
   Agent,
+  RunView,
   TeamDetail,
   TeamEmployeeView,
   TeamMemberView,
@@ -29,6 +30,30 @@ const statusIcon = (status: TeamMemberView["status"]) =>
 const statusTone = (status: TeamMemberView["status"]) =>
   status === "active" ? "text-success" : status === "archived" ? "text-foreground-subtlest" : "text-foreground-subtle"
 
+/**
+ * 运行状态在列表里只用一个图标 + 属性色表达。
+ *
+ * `partial` / `needs_review` 用警示色而不是成功色：它们都还没到「已验证交付」，
+ * 用绿色会让人以为已经可以合并了（§10.2）。
+ */
+const runStateIcon = (state: string) =>
+  state === "done"
+    ? "circle-check"
+    : state === "failed" || state === "exceeded" || state === "cancelled"
+      ? "circle-ban-sign"
+      : state === "running" || state === "blocked" || state === "paused"
+        ? "lu-activity"
+        : "lu-circle"
+
+const runStateTone = (state: string) =>
+  state === "done"
+    ? "text-success"
+    : state === "partial" || state === "needs_review" || state === "awaiting_approval"
+      ? "text-warning"
+      : state === "failed" || state === "exceeded" || state === "cancelled"
+        ? "text-foreground-subtlest"
+        : "text-foreground-subtle"
+
 /** 用量字段在 JSON 里可能是字符串化的 Infinity/NaN，统一先转成有限数字。 */
 function compactTokens(value: number | string | undefined) {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : 0
@@ -55,6 +80,8 @@ export const TeamPage: Component<{
   onOpenSession: (sessionID: string) => void
   /** 打开设置 → AI 员工，新建或调整角色后再回来组队。 */
   onManageAgents?: () => void
+  /** 打开运行看板并选中这次运行（§4.1：运行历史是团队页的主要价值）。 */
+  onOpenRun?: (runID: string) => void
 }> = (props) => {
   const sdk = useGlobalSDK()
   const language = useLanguage()
@@ -76,6 +103,8 @@ export const TeamPage: Component<{
   // 总控（§4.1）：项目级一档。关闭后团队只作组织管理，不可被调用。
   const [orchestrationOn, setOrchestrationOn] = createSignal(true)
   const [teamConcurrency, setTeamConcurrency] = createSignal(3)
+  // 这支团队的运行历史（§4.1）：按团队筛，不拉全量再自己比对。
+  const [teamRuns, setTeamRuns] = createSignal<RunView[]>([])
   // 默认模式（§4.5）：只决定新会话选择器的初始值，不改已有会话。
   const [teamDefaultMode, setTeamDefaultMode] = createSignal<"off" | "auto" | "selected">("off")
   const [teamDefaultIDs, setTeamDefaultIDs] = createSignal<string[]>([])
@@ -131,7 +160,10 @@ export const TeamPage: Component<{
     // 成员回复是后台跑完才写回来的；轮询让群聊在没有推送的情况下也能更新。
     const timer = window.setInterval(() => {
       const id = selected()
-      if (id) void loadDetail(id, true)
+      if (!id) return
+      void loadDetail(id, true)
+      // 运行是后台推进的，状态会变；不跟着刷的话「最近运行」会一直停在打开那一刻。
+      void loadTeamRuns(id)
     }, 4000)
     onCleanup(() => window.clearInterval(timer))
   })
@@ -140,9 +172,11 @@ export const TeamPage: Component<{
     const id = selected()
     if (!id) {
       setDetail(undefined)
+      setTeamRuns([])
       return
     }
     void loadDetail(id)
+    void loadTeamRuns(id)
     setTarget("")
   })
 
@@ -158,6 +192,21 @@ export const TeamPage: Component<{
   const workers = createMemo(() => (detail()?.members ?? []).filter((member) => member.role === "worker"))
   const memberName = (sessionID: string | undefined) =>
     detail()?.members.find((member) => member.sessionID === sessionID)?.name
+
+  /**
+   * 最近运行。
+   *
+   * 读失败就清空而不是保留上一次的列表：换了一支团队却还显示上一支的运行，
+   * 比什么都不显示更容易误导。
+   */
+  const loadTeamRuns = async (teamID: string) => {
+    try {
+      const result = await sdk.client.run.list({ directory: props.directory, teamID })
+      setTeamRuns((result.data ?? []) as RunView[])
+    } catch {
+      setTeamRuns([])
+    }
+  }
 
   const loadEmployees = async () => {
     try {
@@ -585,6 +634,44 @@ export const TeamPage: Component<{
                       </div>
                     </div>
                   </Show>
+
+                  {/* 运行历史（§4.1）：团队页回答「这支队实际干成过什么」，
+                      点开进入运行看板看验收台账，不在这里重复一份。 */}
+                  <div class="mt-3">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-ui-xs text-foreground-subtle">{t("team.runs.title")}</span>
+                      <Show when={teamRuns().length > 5}>
+                        <span class="text-ui-xs text-foreground-subtlest">{t("team.runs.recent", { count: 5 })}</span>
+                      </Show>
+                    </div>
+                    <Show
+                      when={teamRuns().length > 0}
+                      fallback={<div class="mt-1 text-ui-xs text-foreground-subtlest">{t("team.runs.empty")}</div>}
+                    >
+                      <div class="mt-1 flex flex-col gap-0.5">
+                        <For each={teamRuns().slice(0, 5)}>
+                          {(run) => (
+                            <button
+                              type="button"
+                              class="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-hover disabled:cursor-default"
+                              disabled={!props.onOpenRun}
+                              title={props.onOpenRun ? t("team.runs.open") : undefined}
+                              onClick={() => props.onOpenRun?.(run.id)}
+                            >
+                              <Icon name={runStateIcon(run.state)} size="small" class={runStateTone(run.state)} />
+                              <span class="min-w-0 flex-1 truncate text-ui-xs text-foreground">{run.goal}</span>
+                              <span class="shrink-0 text-ui-xs text-foreground-subtlest">
+                                {t("run.state." + run.state)}
+                              </span>
+                              <span class="shrink-0 text-ui-xs text-foreground-subtlest">
+                                {formatRelativeTime(Number(run.updatedAt) || undefined, Date.now(), language.t)}
+                              </span>
+                            </button>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </div>
                 </div>
 
                 <div ref={feed} class="min-h-0 flex-1 overflow-y-auto px-4 py-3">

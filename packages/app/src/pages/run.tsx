@@ -29,6 +29,8 @@ export const RunPage: Component<{
   directory: string
   onBack: () => void
   onOpenSession?: (sessionID: string) => void
+  /** 从团队页「最近运行」进入时直接选中那次运行，不让用户再找一遍。 */
+  initialRunID?: string
 }> = (props) => {
   const sdk = useGlobalSDK()
   const language = useLanguage()
@@ -69,7 +71,11 @@ export const RunPage: Component<{
       const list = (result.data ?? []) as RunView[]
       setRuns(list)
       setError("")
-      const next = select ?? selected() ?? list[0]?.id
+      // 外部点进来指定的运行优先于「之前选的那条」：用户的心智是「打开我刚点的那次」。
+      // 只有它确实在本目录的列表里才采用，避免拿着别的项目的 id 显示空白详情。
+      const requested = select ?? props.initialRunID
+      const next =
+        (requested && list.some((run) => run.id === requested) ? requested : undefined) ?? selected() ?? list[0]?.id
       setSelected(next)
       if (next) await loadDetail(next)
       else setDetail(undefined)
@@ -333,7 +339,7 @@ export const RunPage: Component<{
     })
 
   onMount(() => {
-    void loadRuns()
+    void loadRuns(props.initialRunID)
     void loadProfiles()
     void loadMissions()
     void sdk.client.kernel

@@ -31396,6 +31396,14 @@
               "type": "string"
             },
             "required": false
+          },
+          {
+            "name": "teamID",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -31414,7 +31422,7 @@
             }
           }
         },
-        "description": "List orchestration runs in this workspace.",
+        "description": "List orchestration runs in this workspace; `teamID` narrows it to one team's runs.",
         "summary": "List team runs",
         "x-codeSamples": [
           {

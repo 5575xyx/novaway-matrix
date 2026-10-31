@@ -286,7 +286,15 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const all = yield* runs.list()
           // 只列本工作区的运行：运行表是全局的，目录过滤在这里做，不在数据库。
           const directory = ctx.query.directory
-          return all.filter((run) => !directory || run.directory === directory).map(toRun)
+          const teamID = ctx.query.teamID
+          return (
+            all
+              .filter((run) => !directory || run.directory === directory)
+              // 按计划里的团队过滤：`profileID` 记的是发起时那支团队。没有计划的运行
+              // （还没生成计划）不属于任何团队，按团队筛时不出现。
+              .filter((run) => !teamID || (run.plan?.teams ?? []).some((team) => team.profileID === teamID))
+              .map(toRun)
+          )
         }),
       )
       .handle("createRun", (ctx) =>

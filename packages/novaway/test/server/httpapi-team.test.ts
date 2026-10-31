@@ -385,6 +385,37 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("the run list can be narrowed to one team's runs", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
+      const profile = profiles[0]
+      expect(profile).toBeTruthy()
+
+      const created = yield* post(dir, "/run", {
+        sessionID: "ses_list",
+        directory: dir,
+        mode: "team",
+        goal: "按团队筛运行",
+        profileID: profile.id,
+        acceptance: [{ text: "能列出这次运行" }],
+      })
+      expect(created.status).toBe(200)
+      const runID = ((yield* created.json) as { run: { id: string } }).run.id
+
+      const mine = (yield* (yield* get(dir, `/run?teamID=${profile.id}`, dir)).json) as Array<{ id: string }>
+      expect(mine.map((run) => run.id)).toContain(runID)
+
+      // 别的团队查不到它：过滤按计划里的团队算，不是在结果里做模糊匹配。
+      const other = (yield* (yield* get(dir, "/run?teamID=team_elsewhere", dir)).json) as Array<{ id: string }>
+      expect(other.map((run) => run.id)).not.toContain(runID)
+
+      // 同目录不传 teamID 仍然看得到全部。
+      const all = (yield* (yield* get(dir, "/run", dir)).json) as Array<{ id: string }>
+      expect(all.map((run) => run.id)).toContain(runID)
+    }),
+  )
+
   it.live("only an abandoned mission can give its workspace back", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

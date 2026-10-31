@@ -1573,7 +1573,11 @@ export default function Layout(props: ParentProps) {
     setState("teamPage", "open", true)
   }
 
-  function openRunPage() {
+  // 从团队页点「最近运行」进来时带上目标运行；从侧栏进来时留空，由运行页挑最近一条。
+  const [runFocus, setRunFocus] = createSignal<string | undefined>(undefined)
+
+  function openRunPage(runID?: string) {
+    setRunFocus(runID)
     closeFramePages("runPage")
     setState("runPage", "open", true)
   }
@@ -3366,6 +3370,7 @@ export default function Layout(props: ParentProps) {
                       directory={currentDir()}
                       onBack={closeTeamPage}
                       onManageAgents={() => openSettingsFromExtensions("agents")}
+                      onOpenRun={(runID) => openRunPage(runID)}
                       onOpenSession={(sessionID) => {
                         closeTeamPage()
                         if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
@@ -3387,6 +3392,7 @@ export default function Layout(props: ParentProps) {
                   <div class="flex-1 min-h-0">
                     <RunPage
                       directory={currentDir()}
+                      initialRunID={runFocus()}
                       onBack={closeRunPage}
                       onOpenSession={(sessionID) => {
                         closeRunPage()
