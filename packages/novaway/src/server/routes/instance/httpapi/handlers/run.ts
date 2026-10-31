@@ -1048,6 +1048,10 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
            * `cancel` 只发停止请求，收尾（三段式）由编排器做，因为只有它知道
            * 已经发生了哪些影响。
            */
+          // `canStart` 看的是库里的 `phase`，而写 `phase` 发生在执行开始之后 —— 两个并发请求
+          // 可以同时通过它。本进程里已经有执行时就拒绝：两个编排器驱动同一次运行会双倍派发、
+          // 双倍记账，还会互相覆盖状态。登记放在这里（紧接着 fork），中间没有可以让出的点。
+          if (executions.has(run.id)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
           const controller = new AbortController()
           executions.set(run.id, controller)
           yield* orchestrator
