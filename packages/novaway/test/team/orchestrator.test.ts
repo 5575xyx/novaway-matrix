@@ -1038,4 +1038,57 @@ describe("team orchestrator", () => {
       expect(after && isTerminal(after.state)).toBe(false)
     }),
   )
+
+  it.effect("re-executing a blocked run retries the teams that failed", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_unblock"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "先阻塞再重试",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({
+        runID: run.id,
+        plan: { teams: [{ name: "upstream" }, { name: "downstream" }] },
+        planVersion: 1,
+      })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const upstream = yield* runs.addTeam({ runID: run.id })
+      const downstream = yield* runs.addTeam({ runID: run.id, dependsOn: [0] })
+      yield* verification.register({ runID: run.id, specID: "u", text: "上游验收", kind: "test", owner: upstream.id })
+
+      let broken = true
+      const dispatch = (input: { team: { id: string } }) =>
+        input.team.id === upstream.id && broken
+          ? Effect.fail(new Error("上游崩了"))
+          : Effect.succeed(report(input.team.id))
+
+      const first = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch,
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+      expect(first.state).toBe("blocked")
+
+      // 用户处理完（这里是上游恢复正常）之后再次执行：失败过的团队回到队列重新派发，
+      // 而不是带着 `failed` 立刻再判一次 blocked。
+      broken = false
+      const second = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_2"),
+        dispatch,
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+      expect(second.state).toBe("done")
+      expect((yield* runs.teams(run.id)).map((team) => team.phase).sort()).toEqual(["delivered", "delivered"])
+      const unblocked = (yield* runs.events({ runID: run.id })).find((item) => item.kind === "unblocked")
+      expect(unblocked?.payload?.teams).toEqual([upstream.id])
+      expect(downstream.id).toBeTruthy()
+    }),
+  )
 })

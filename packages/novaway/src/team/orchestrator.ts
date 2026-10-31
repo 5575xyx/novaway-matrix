@@ -283,6 +283,24 @@ export const layer = Layer.effect(
         startedAt: run.startedAt ?? Date.now(),
       })
 
+      /**
+       * 从 blocked 再次执行 = 显式重试（§8.1 的「处理 → running」）。
+       *
+       * 把失败过的团队放回队列：它们当初失败的往往正是阻塞的原因（名册被归档、权限被拒、
+       * 一次临时错误），用户修好后再点一次应当重试，而不是带着 `failed` 直接再判一次 `blocked`。
+       * `delivered` 不重跑（已经交付的结论仍然成立），`exceeded` 也不重跑（再跑要先加预算）。
+       */
+      if (run.state === "blocked") {
+        const retry = (yield* runs.teams(input.runID)).filter((team) => team.phase === "failed")
+        for (const team of retry) yield* runs.updateTeam({ id: team.id, phase: "queued" })
+        if (retry.length > 0)
+          yield* runs.appendEvent({
+            runID: input.runID,
+            kind: "unblocked",
+            payload: { teams: retry.map((team) => team.id) },
+          })
+      }
+
       let rounds = 0
       // 打回意见按团队保存，下一轮派发时随任务一起下发。
       const feedback = new Map<string, string[]>()
