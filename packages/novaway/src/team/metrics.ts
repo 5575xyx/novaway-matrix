@@ -54,6 +54,10 @@ export type Report = {
     /** 有用量快照的运行数：覆盖率。 */
     covered: number
     overrunRuns: number
+    /** 已结算成本之和（提供方权威回报）；只统计带成本数据的运行。 */
+    cost: number
+    /** 有成本数据的运行数：老运行没有这一项，覆盖率单列。 */
+    costCovered: number
   }
   rounds: Array<{ round: number; runs: number }>
   rework: { total: number; top: Array<{ reason: string; count: number }> }
@@ -102,6 +106,7 @@ const usageOf = (run: RunSample) => {
   return {
     settled: amount(Reflect.get(usage, "settled")),
     unknown: amount(Reflect.get(usage, "unknown")),
+    cost: amount(Reflect.get(usage, "cost")),
     overrun: Reflect.get(usage, "overrun") === true,
   }
 }
@@ -142,9 +147,14 @@ export function report(samples: readonly Sample[], top = 5): Report {
   const counts = new Map<RunState, number>()
   for (const run of runs) counts.set(run.state, (counts.get(run.state) ?? 0) + 1)
 
-  const tokens = { settled: 0, unknown: 0, covered: 0, overrunRuns: 0 }
+  const tokens = { settled: 0, unknown: 0, covered: 0, overrunRuns: 0, cost: 0, costCovered: 0 }
   for (const run of runs) {
     const usage = usageOf(run)
+    // 成本与 token 分开计数：有成本没 token、或有 token 没成本，都是合法组合。
+    if (usage.cost !== undefined) {
+      tokens.cost += usage.cost
+      tokens.costCovered += 1
+    }
     if (usage.settled === undefined && usage.unknown === undefined) continue
     tokens.covered += 1
     tokens.settled += usage.settled ?? 0

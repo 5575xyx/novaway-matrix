@@ -39,6 +39,10 @@ export const RunMetricsView = Schema.Struct({
     unknown: Schema.Number,
     covered: Schema.Number,
     overrunRuns: Schema.Number,
+    /** 已结算成本之和；只有带成本数据的运行才计入。 */
+    cost: Schema.Number,
+    /** 有成本数据的运行数（老运行没有这一项）。 */
+    costCovered: Schema.Number,
   }),
   rounds: Schema.Array(Schema.Struct({ round: Schema.Number, runs: Schema.Number })),
   rework: Schema.Struct({

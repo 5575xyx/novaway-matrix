@@ -634,6 +634,15 @@ export const RunPage: Component<{
                             {t("run.metrics.overrun", { n: numeric(data().tokens.overrunRuns) })}
                           </span>
                         </Show>
+                        {/* 成本只统计有提供方回报的运行；覆盖率单列，不把缺数据的运行当 0。 */}
+                        <Show when={numeric(data().tokens.costCovered) > 0}>
+                          <span title={t("run.metrics.costHint")}>
+                            {t("run.metrics.cost", {
+                              n: numeric(data().tokens.cost).toFixed(4),
+                              runs: numeric(data().tokens.costCovered),
+                            })}
+                          </span>
+                        </Show>
                       </div>
                       <div class="flex flex-wrap gap-x-2 gap-y-0.5">
                         <For each={data().rounds}>

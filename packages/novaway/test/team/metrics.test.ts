@@ -34,7 +34,7 @@ describe("team run metrics", () => {
       { state: "partial", runs: 1 },
       { state: "failed", runs: 1 },
     ])
-    expect(result.tokens).toEqual({ settled: 170, unknown: 30, covered: 3, overrunRuns: 1 })
+    expect(result.tokens).toEqual({ settled: 170, unknown: 30, covered: 3, overrunRuns: 1, cost: 0, costCovered: 0 })
     // 轮次分布保持轮次升序，界面不用自己排。
     expect(result.rounds).toEqual([
       { round: 1, runs: 2 },
@@ -169,12 +169,28 @@ describe("team run metrics", () => {
     expect(result.unavailable).toEqual([])
   })
 
+  it("sums only the costs that runs actually reported", () => {
+    const result = report([
+      sample(run("r1", "done", { usage: { settled: 100, unknown: 0, cost: 0.12 } })),
+      sample(run("r2", "done", { usage: { settled: 50, unknown: 0, cost: 0.03 } })),
+      // 老运行没有成本数据：不参与成本覆盖率，也不按 0 计。
+      sample(run("r3", "done", { usage: { settled: 20, unknown: 0 } })),
+      // 成本写坏了：当作缺失，不归零。
+      sample(run("r4", "failed", { usage: { settled: 10, unknown: 0, cost: Number.NaN } })),
+    ])
+
+    // token 覆盖 4 次，成本只覆盖 2 次：两者是两笔账，不能互相代替。
+    expect(result.tokens.covered).toBe(4)
+    expect(result.tokens.costCovered).toBe(2)
+    expect(result.tokens.cost).toBeCloseTo(0.15, 10)
+  })
+
   it("ignores malformed usage instead of turning it into zero", () => {
     const result = report([
       sample(run("r1", "done", { usage: { settled: -5 } })),
       sample(run("r2", "done", { usage: { settled: Number.NaN, unknown: 10 } })),
     ])
     // 负数与 NaN 只可能是记录写错：那一项当作缺失，不归零、不编造。
-    expect(result.tokens).toEqual({ settled: 0, unknown: 10, covered: 1, overrunRuns: 0 })
+    expect(result.tokens).toEqual({ settled: 0, unknown: 10, covered: 1, overrunRuns: 0, cost: 0, costCovered: 0 })
   })
 })

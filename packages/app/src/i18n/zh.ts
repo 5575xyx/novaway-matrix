@@ -70,6 +70,8 @@ export const dict = {
   "run.metrics.unknown": "用量不明 {{n}}",
   "run.metrics.coverage": "覆盖 {{covered}}/{{runs}}",
   "run.metrics.overrun": "超支 {{n}} 次",
+  "run.metrics.cost": "成本 {{n}}（{{runs}} 次有回报）",
+  "run.metrics.costHint": "成本只统计提供方权威回报的运行；没有回报的运行不估算、不按 0 计。",
   "run.metrics.round": "第 {{round}} 轮 × {{runs}}",
   "run.metrics.rework": "打回 {{n}} 次",
   "run.metrics.failureRate": "派发失败 {{failed}}/{{dispatched}}（{{percent}}%）",

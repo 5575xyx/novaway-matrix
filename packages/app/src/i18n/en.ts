@@ -68,6 +68,8 @@ export const dict = {
   "run.metrics.unknown": "{{n}} unknown",
   "run.metrics.coverage": "covered {{covered}}/{{runs}}",
   "run.metrics.overrun": "{{n}} overruns",
+  "run.metrics.cost": "cost {{n}} ({{runs}} reported)",
+  "run.metrics.costHint": "Cost counts only runs with authoritative provider reports; runs without one are neither estimated nor counted as zero.",
   "run.metrics.round": "round {{round}} × {{runs}}",
   "run.metrics.rework": "{{n}} rejections",
   "run.metrics.failureRate": "Dispatch failures {{failed}}/{{dispatched}} ({{percent}}%)",
