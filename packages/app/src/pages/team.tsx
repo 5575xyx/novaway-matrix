@@ -2,6 +2,7 @@ import type {
   Agent,
   RunView,
   TeamDetail,
+  TeamEmployeeUsageView,
   TeamEmployeeView,
   TeamMemberView,
   TeamMessageView,
@@ -55,9 +56,13 @@ const runStateTone = (state: string) =>
         : "text-foreground-subtle"
 
 /** 用量字段在 JSON 里可能是字符串化的 Infinity/NaN，统一先转成有限数字。 */
-function compactTokens(value: number | string | undefined) {
+const numeric = (value: number | string | undefined) => {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : 0
-  const total = Number.isFinite(parsed) ? parsed : 0
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function compactTokens(value: number | string | undefined) {
+  const total = numeric(value)
   if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(1)}M`
   if (total >= 1_000) return `${(total / 1_000).toFixed(1)}k`
   return String(total)
@@ -781,11 +786,32 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
   // 编辑中的行：不弹第二层对话框，展开在原行下面，改完就能看到同一份列表。
   const [editing, setEditing] = createSignal<string>()
   const [draft, setDraft] = createSignal({ name: "", job: "", model: "", skills: "", prompt: "", tier: "" })
+  // 用途量回答「这个人花了多少」；未归属单列，不能摊到他头上。
+  const [usage, setUsage] = createSignal<Record<string, TeamEmployeeUsageView>>({})
+
+  const loadUsage = async (employees: TeamEmployeeView[]) => {
+    const entries = await Promise.all(
+      employees.map(async (employee) => {
+        try {
+          const result = await sdk.client.employee.usage({ directory: props.directory, employeeID: employee.id })
+          return [employee.id, result.data] as const
+        } catch {
+          // 用量读不出来不影响员工库本身：行照常显示，只是没有那行小字。
+          return [employee.id, undefined] as const
+        }
+      }),
+    )
+    const next: Record<string, TeamEmployeeUsageView> = {}
+    for (const [id, value] of entries) if (value) next[id] = value
+    setUsage(next)
+  }
 
   const load = async () => {
     try {
       const result = await sdk.client.employee.list({ directory: props.directory })
-      setList((result.data ?? []) as TeamEmployeeView[])
+      const employees = (result.data ?? []) as TeamEmployeeView[]
+      setList(employees)
+      await loadUsage(employees)
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -916,6 +942,24 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                     </div>
                     <Show when={employee.prompt}>
                       {(text) => <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{text()}</div>}
+                    </Show>
+                    <Show when={usage()[employee.id]}>
+                      {(entry) => (
+                        <div class="mt-0.5 text-ui-xs text-foreground-subtlest" title={t("team.employees.usageHint")}>
+                          {numeric(entry().totals.sessions) > 0
+                            ? t("team.employees.usage", {
+                                n: compactTokens(entry().totals.tokens),
+                                runs: entry().runs.length,
+                              })
+                            : t("team.employees.usageEmpty")}
+                          <Show when={numeric(entry().unattributed.tokens) > 0}>
+                            {" · " +
+                              t("team.employees.usageUnattributed", {
+                                n: compactTokens(entry().unattributed.tokens),
+                              })}
+                          </Show>
+                        </div>
+                      )}
                     </Show>
                   </div>
                   <Button variant="ghost" size="small" disabled={busy()} onClick={() => startEdit(employee)}>

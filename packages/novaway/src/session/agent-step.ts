@@ -39,6 +39,11 @@ export interface RunAgentInput {
    * 成员看到的是 `HEAD` 的独立副本，而不是用户还没提交的工作区。
    */
   readonly directory?: string
+  /**
+   * 这次派发记在谁名下（员工库 id）。运行派发队长时由调用方给出；
+   * 没给就跟着父会话走 —— 一个人派生出来的助手，工时算这个人的。
+   */
+  readonly employeeID?: string
 }
 
 /**
@@ -148,19 +153,28 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
               .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
           : undefined)
 
-      const child = yield* sessions.create({
-        parentID: parentSessionID,
-        ...(input.directory ? { directory: input.directory } : {}),
-        title: input.title ?? `${resolvedName} (workflow step)`,
-        ...(parent?.permissionMode ? { permissionMode: parent.permissionMode } : {}),
-        permission: next
-          ? deriveSubagentSessionPermission({
-              parentSessionPermission: parent?.permission ?? [],
-              parentAgent,
-              subagent: next,
-            })
-          : (parent?.permission ?? []),
-      })
+      // 归属：显式的员工身份优先；否则沿用父会话 —— 队长自己的助手不是名册里的
+      // 成员，工时算回队长，而不是凭空多出一个「无人」。
+      const employeeID = input.employeeID ?? parent?.employeeID
+      const child = yield* sessions.create(
+        {
+          parentID: parentSessionID,
+          ...(input.directory ? { directory: input.directory } : {}),
+          title: input.title ?? `${resolvedName} (workflow step)`,
+          ...(parent?.permissionMode ? { permissionMode: parent.permissionMode } : {}),
+          permission: next
+            ? deriveSubagentSessionPermission({
+                parentSessionPermission: parent?.permission ?? [],
+                parentAgent,
+                subagent: next,
+              })
+            : (parent?.permission ?? []),
+        },
+        {
+          ...(employeeID ? { employeeID } : {}),
+          ...(input.scope?.runID ? { runID: input.scope.runID } : {}),
+        },
+      )
 
       if (onSession && input.scope) {
         yield* onSession({ sessionID: child.id, scope: input.scope }).pipe(Effect.ignore)

@@ -16,7 +16,10 @@ import { Cause, Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Service as TeamService } from "@/team/team"
+import { Service as TeamRunService } from "@/team/run"
 import { Service as TeamOpLogService } from "@/team/op-log"
+import { identify as identifyEmployee } from "@/team/identity"
+import { snapshotFrom } from "@/team/profile"
 import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
 import { create as createWorktree } from "./worktree-helper"
 import { GlobalBus } from "@/bus/global"
@@ -294,31 +297,55 @@ export const TaskTool = Tool.define(
             .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
 
+      // 编排坐标与归属都在建会话之前算好：归属是会话行上的字段，事后补写只会多一次写。
+      const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
+      const teamRuns = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
+      const teamScope = teamOps ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
+      const run = teamRuns && teamScope ? yield* teamRuns.get(teamScope.runID) : undefined
+      const dispatchedTeam =
+        run && teamRuns && teamScope?.taskID
+          ? (yield* teamRuns.teams(run.id)).find((team) => team.id === teamScope.taskID)
+          : undefined
+      const employeeID = identifyEmployee({
+        roster: dispatchedTeam ? snapshotFrom(dispatchedTeam.rosterSnapshot) : undefined,
+        // 队长的父会话就是运行根会话；成员派生的子代理不按名字重新指认，只继承。
+        captain: !!run && parent.parentID === run.sessionID,
+        name: params.name,
+        parentEmployeeID: parent.employeeID,
+      })
+      const runID = teamScope?.runID ?? parent.runID
+
       const nextSession =
         session ??
         forked ??
-        (yield* sessions.create({
-          parentID: ctx.sessionID,
-          ...(isolated ? { directory: isolated.directory } : {}),
-          // Agent declaration wins; otherwise inherit the parent's mode so a
-          // plan-mode session cannot silently spawn an editing subagent.
-          ...(next.permissionMode || parent.permissionMode
-            ? { permissionMode: next.permissionMode ?? parent.permissionMode }
-            : {}),
-          title: params.description + ` (@${next.name} subagent)`,
-          permission: [
-            ...deriveSubagentSessionPermission({
-              parentSessionPermission: parent.permission ?? [],
-              parentAgent,
-              subagent: next,
-            }),
-            ...(cfg.experimental?.primary_tools?.map((item) => ({
-              pattern: "*",
-              action: "allow" as const,
-              permission: item,
-            })) ?? []),
-          ],
-        }))
+        (yield* sessions.create(
+          {
+            parentID: ctx.sessionID,
+            ...(isolated ? { directory: isolated.directory } : {}),
+            // Agent declaration wins; otherwise inherit the parent's mode so a
+            // plan-mode session cannot silently spawn an editing subagent.
+            ...(next.permissionMode || parent.permissionMode
+              ? { permissionMode: next.permissionMode ?? parent.permissionMode }
+              : {}),
+            title: params.description + ` (@${next.name} subagent)`,
+            permission: [
+              ...deriveSubagentSessionPermission({
+                parentSessionPermission: parent.permission ?? [],
+                parentAgent,
+                subagent: next,
+              }),
+              ...(cfg.experimental?.primary_tools?.map((item) => ({
+                pattern: "*",
+                action: "allow" as const,
+                permission: item,
+              })) ?? []),
+            ],
+          },
+          {
+            ...(employeeID ? { employeeID } : {}),
+            ...(runID ? { runID } : {}),
+          },
+        ))
 
       // Turn the inherited `task` tool call into a completed placeholder. Every
       // fork child therefore sends the same tool_result bytes for that call,
@@ -354,11 +381,7 @@ export const TaskTool = Tool.define(
 
       // 编排策略随人走：子代理没有自己的坐标，但它是「替谁干活」才有的调用，
       // 必须继承父会话的运行坐标与策略，否则 readOnly 运行里的 task 会成为后门。
-      const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
-      if (teamOps) {
-        const scope = yield* teamOps.scopeOf(ctx.sessionID)
-        if (scope) yield* teamOps.scope({ sessionID: nextSession.id, ...scope })
-      }
+      if (teamOps && teamScope) yield* teamOps.scope({ sessionID: nextSession.id, ...teamScope })
 
       const resolvedTeam =
         (params.team ? yield* teams.resolve(params.team, ctx.sessionID) : undefined) ??

@@ -1,6 +1,10 @@
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { Flag } from "@novaway/core/flag/flag"
+import { SessionTable } from "@/session/session.sql"
+import { SessionID } from "@/session/schema"
+import { Database } from "@/storage/db"
 import { describe, expect } from "bun:test"
+import { eq } from "drizzle-orm"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpRouter, HttpServer } from "effect/unstable/http"
 import * as Socket from "effect/unstable/socket/Socket"
@@ -27,7 +31,7 @@ const testStateLayer = Layer.effectDiscard(
 
 const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(
   HttpApiApp.routes,
-  { disableListenLog: true, disableLogger: true },
+  { disableListenLog: true },
 )
 
 const httpApiServerLayer = servedRoutes.pipe(
@@ -457,6 +461,73 @@ describe("team HttpApi", () => {
       // 别的目录里连清理也看不到。
       const other = yield* tmpdirScoped({ git: true })
       expect((yield* del(other, `/team/mission/${mission.id}/worktree`)).status).toBe(404)
+    }),
+  )
+
+  it.live("per-person usage counts only attributed sessions and cannot be written by the client", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const created = yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "review" })
+      const employee = (yield* created.json) as { id: string }
+
+      type Usage = {
+        totals: { tokens: number; cost: number; sessions: number }
+        runs: Array<{ runID: string; tokens: number; cost: number; sessions: number; lastAt: number }>
+        unattributed: { tokens: number; cost: number; sessions: number }
+        outsideRuns: { tokens: number; cost: number; sessions: number }
+        lastUsedAt?: number
+      }
+
+      const before = (yield* (yield* get(dir, `/team/employee/${employee.id}/usage`, dir)).json) as Usage
+      // 没有用量是「确认为 0」，不是缺字段；未归属也明说为 0。
+      expect(before).toMatchObject({
+        totals: { tokens: 0, cost: 0, sessions: 0 },
+        runs: [],
+        unattributed: { tokens: 0, cost: 0, sessions: 0 },
+        outsideRuns: { tokens: 0, cost: 0, sessions: 0 },
+      })
+
+      // 归属不是客户端可写的字段：建会话时带上也会被丢掉。
+      const sessionInfo = (body: Record<string, unknown> = {}) =>
+        Effect.gen(function* () {
+          const response = yield* post(dir, "/session", body)
+          return (yield* response.json) as { id: string; employeeID?: string; runID?: string }
+        })
+      const spoofed = yield* sessionInfo({ employeeID: employee.id, runID: "run_fake" })
+      expect(spoofed.employeeID).toBeUndefined()
+      expect(spoofed.runID).toBeUndefined()
+
+      // 模拟派发路径写入的归属会话：两条记在小林名下（含她派生的子代理），
+      // 一条是同运行的验证（未归属），还有一条属于别的运行。
+      const mine = yield* sessionInfo()
+      const helper = yield* sessionInfo()
+      const verify = yield* sessionInfo()
+      const elsewhere = yield* sessionInfo()
+      const set = (
+        id: string,
+        values: { employee_id?: string; run_id?: string; tokens_input?: number; tokens_output?: number; cost?: number },
+      ) => Database.use((db) => db.update(SessionTable).set(values).where(eq(SessionTable.id, SessionID.make(id))).run())
+      set(mine.id, { employee_id: employee.id, run_id: "run_1", tokens_input: 100, tokens_output: 20, cost: 0.5 })
+      set(helper.id, { employee_id: employee.id, run_id: "run_1", tokens_input: 30, cost: 0.25 })
+      set(verify.id, { run_id: "run_1", tokens_input: 10 })
+      set(elsewhere.id, { run_id: "run_2", tokens_input: 999 })
+
+      const usage = (yield* (yield* get(dir, `/team/employee/${employee.id}/usage`, dir)).json) as Usage
+      expect(usage.totals).toEqual({ tokens: 150, cost: 0.75, sessions: 2 })
+      expect(usage.runs).toHaveLength(1)
+      expect(usage.runs[0]).toMatchObject({ runID: "run_1", tokens: 150, cost: 0.75, sessions: 2 })
+      // 同一次运行里没人认领的会话单列；别的运行的未归属不混进来。
+      expect(usage.unattributed).toEqual({ tokens: 10, cost: 0, sessions: 1 })
+      expect(usage.outsideRuns).toEqual({ tokens: 0, cost: 0, sessions: 0 })
+      expect(typeof usage.lastUsedAt).toBe("number")
+
+      // 员工是全局身份，别的目录里读到的也是同一个人、同一份用量 ——
+      // 归属跟着人走，不因为从哪个工作区发起请求而改变。
+      const other = yield* tmpdirScoped({ git: true })
+      const elsewhereUsage = (yield* (yield* get(other, `/team/employee/${employee.id}/usage`, other)).json) as Usage
+      expect(elsewhereUsage.totals).toEqual({ tokens: 150, cost: 0.75, sessions: 2 })
+
+      expect((yield* get(dir, "/team/employee/emp_missing/usage", dir)).status).toBe(404)
     }),
   )
 })

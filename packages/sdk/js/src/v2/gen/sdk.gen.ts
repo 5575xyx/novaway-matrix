@@ -63,6 +63,8 @@ import type {
   EmployeeListResponses,
   EmployeeUpdateErrors,
   EmployeeUpdateResponses,
+  EmployeeUsageErrors,
+  EmployeeUsageResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -13645,6 +13647,38 @@ export class Employee extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Usage of one person
+   *
+   * Spend of the sessions attributed to this employee (including subagents they spawned), grouped by run. Sessions of the same runs that are not attributed to anyone are reported separately as unattributed: a person's number is not a complete bill.
+   */
+  public usage<ThrowOnError extends boolean = false>(
+    parameters: {
+      employeeID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "employeeID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<EmployeeUsageResponses, EmployeeUsageErrors, ThrowOnError>({
+      url: "/team/employee/{employeeID}/usage",
+      ...options,
+      ...params,
     })
   }
 }

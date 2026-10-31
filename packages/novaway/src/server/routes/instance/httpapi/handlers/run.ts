@@ -559,9 +559,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           // 快照读不回来时退回默认 agent，而不是拿半份名册去派发。
           const teamRows = yield* runs.teams(run.id)
           const roster = snapshotFrom(teamRows[0]?.rosterSnapshot)
-          const captainJob = roster?.roster.find((entry) => entry.employee.id === roster.captain)?.employee.job
+          const captainMember = roster?.roster.find((entry) => entry.employee.id === roster.captain)
+          const captainJob = captainMember?.employee.job
           const members = roster ? rosterBrief(roster) : []
           const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
+          // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下：
+          // 请求换了一个同岗位的人来当队长，账不能挂回原来那个人（§10.3）。
+          const captainEmployeeID = captain === captainJob ? captainMember?.employee.id : undefined
           const verifier = ctx.payload.verifier ?? captain
           const policy = TeamPolicy.fromPlan(run.plan)
           // 团队 worktree 存在时，成员在那里工作，证据也绑定在那里创建时的提交上。
@@ -698,6 +702,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 ...(teamDirectory ? { directory: teamDirectory } : {}),
                 title: "队长 · 第 " + input.round + " 轮",
                 scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
+                ...(captainEmployeeID ? { employeeID: captainEmployeeID } : {}),
                 prompt: context.prompt,
               })
               const text = captainRun.text

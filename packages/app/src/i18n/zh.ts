@@ -104,7 +104,8 @@ export const dict = {
   "run.usage.unknown": "用量不明 {{n}}（按预占额保守计入）",
   "run.usage.reserved": "在途预占 {{n}}",
   "run.usage.overrun": "已超支",
-  "run.usage.hint": "每个岗位的承诺用量，口径是整支团队：队长、成员与成员的子代理都算在内。成员身上没有编制里的员工身份，所以还拆不到「某个人花了多少」。",
+  "run.usage.hint":
+    "每个岗位的承诺用量，口径是整支团队：队长、成员与成员的子代理都算在内。按人拆开的用量在员工库的「累计用量」里，只算能指认到具体人的会话，指认不出来的单列为未归属。",
   "run.action.refresh": "刷新",
   "run.action.new": "试跑内置团队",
   "run.action.newHint": "用内置的代码审查模板直接发起一次运行，不需要先建团队。",
@@ -251,6 +252,11 @@ export const dict = {
   "team.employees.tier.deep": "重",
   "team.employees.modelPlaceholder": "模型覆盖（可选），留空则跟随岗位",
   "team.employees.skillsPlaceholder": "技能覆盖（可选），逗号分隔，留空则跟随岗位",
+  "team.employees.usage": "累计 {{n}} tokens · {{runs}} 次运行",
+  "team.employees.usageEmpty": "还没有用量",
+  "team.employees.usageUnattributed": "同运行未归属 {{n}}",
+  "team.employees.usageHint":
+    "只统计能指认到这个人的会话（含他派生出的子代理）。同几次运行里没有归属到人的会话单列，不摊到任何一个人头上。",
   "team.failed": "出错了",
   "team.chat": "群聊",
   "team.placeholder": "给团队发消息…",

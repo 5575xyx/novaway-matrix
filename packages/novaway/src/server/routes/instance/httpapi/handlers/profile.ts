@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { Service as ProfileService } from "@/team/profile"
+import * as TeamEmployeeUsage from "@/team/employee-usage"
 
 /**
  * 团队模板接口。
@@ -159,6 +160,24 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
             ...(updated.skills !== undefined ? { skills: updated.skills } : {}),
             ...(updated.tier !== undefined ? { tier: updated.tier } : {}),
             archived: updated.archived,
+          }
+        }),
+      )
+      .handle("employeeUsage", (ctx) =>
+        Effect.gen(function* () {
+          // 归档的人仍然有历史用量：查不到人只说明 id 写错了，不是说没花过钱。
+          const employee = (yield* profiles.employees()).find((item) => item.id === ctx.params.employeeID)
+          if (!employee) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          // 员工是全局身份（员工库本身也不按目录切），用量跟着人汇总；
+          // 目录参数只用于路由到实例，不参与这里的归属计算。
+          const usage = yield* Effect.sync(() => TeamEmployeeUsage.of(employee.id))
+          return {
+            employeeID: employee.id,
+            totals: usage.totals,
+            runs: usage.runs,
+            unattributed: usage.unattributed,
+            outsideRuns: usage.outsideRuns,
+            ...(usage.lastUsedAt !== undefined ? { lastUsedAt: usage.lastUsedAt } : {}),
           }
         }),
       )

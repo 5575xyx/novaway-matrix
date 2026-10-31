@@ -52,6 +52,15 @@ export const SessionTable = sqliteTable(
     team_mode: text(),
     /** `selected` 模式下注入的团队 ID。 */
     team_ids: text({ mode: "json" }).$type<string[]>(),
+    /**
+     * 会话归属的人（员工库 id）与运行（`team_run` id）。
+     *
+     * 这两个字段不由 HTTP 建会话接口写入，只由派发路径在内部带上：
+     * 谁派生的会话、这次派发指的是名册里的哪个人，都是编排的事实，
+     * 不能让客户端随便改。读取侧用它们回答「某员工花了多少」。
+     */
+    employee_id: text(),
+    run_id: text(),
     agent: text(),
     model: text({ mode: "json" }).$type<{
       id: string
@@ -66,6 +75,8 @@ export const SessionTable = sqliteTable(
     index("session_project_idx").on(table.project_id),
     index("session_workspace_idx").on(table.workspace_id),
     index("session_parent_idx").on(table.parent_id),
+    index("session_employee_idx").on(table.employee_id),
+    index("session_run_idx").on(table.run_id),
   ],
 )
 

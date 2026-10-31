@@ -76,6 +76,37 @@ export const ProfileDetail = Schema.Struct({
   members: Schema.Array(ProfileMemberView),
 }).annotate({ identifier: "TeamProfileDetail" })
 
+const UsageAmount = Schema.Struct({
+  tokens: Schema.Number,
+  cost: Schema.Number,
+  sessions: Schema.Number,
+})
+
+/**
+ * 某个人的用量。
+ *
+ * 口径写在字段上而不是说明里：`totals` 只含归属到这个人的会话；
+ * `unattributed` 是同几次运行里没有归属到人的会话（验证、匿名派发），
+ * 单列出来是为了让「部分覆盖」看起来就是部分覆盖，而不是一张完整账单。
+ */
+export const EmployeeUsageView = Schema.Struct({
+  employeeID: Schema.String,
+  totals: UsageAmount,
+  runs: Schema.Array(
+    Schema.Struct({
+      runID: Schema.String,
+      tokens: Schema.Number,
+      cost: Schema.Number,
+      sessions: Schema.Number,
+      lastAt: Schema.Number,
+    }),
+  ),
+  unattributed: UsageAmount,
+  /** 有归属却没有运行坐标的会话；正常应为 0。 */
+  outsideRuns: UsageAmount,
+  lastUsedAt: Schema.optional(Schema.Number),
+}).annotate({ identifier: "TeamEmployeeUsageView" })
+
 export const ProfileCreatePayload = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
@@ -172,6 +203,19 @@ export const ProfileApi = HttpApiGroup.make("profile")
         summary: "Change a person",
         description:
           "Rename, change job, edit overrides, or archive/unarchive. Archiving keeps existing templates and finished runs untouched.",
+      }),
+    ),
+    HttpApiEndpoint.get("employeeUsage", "/team/employee/:employeeID/usage", {
+      params: { employeeID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(EmployeeUsageView, "Usage attributed to this employee"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "employee.usage",
+        summary: "Usage of one person",
+        description:
+          "Spend of the sessions attributed to this employee (including subagents they spawned), grouped by run. Sessions of the same runs that are not attributed to anyone are reported separately as unattributed: a person's number is not a complete bill.",
       }),
     ),
   )

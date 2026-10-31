@@ -110,7 +110,7 @@ export const dict = {
   "run.usage.reserved": "in flight {{n}}",
   "run.usage.overrun": "Over budget",
   "run.usage.hint":
-    "Committed tokens per job, counted for the whole team: captain, members and their subagents. Member sessions carry no employee identity yet, so this cannot be split per person.",
+    "Committed tokens per job, counted for the whole team: captain, members and their subagents. Per-person spend lives in the employee library (\"total usage\"): it counts only sessions attributed to a person, and anything that cannot be attributed is reported separately.",
   "run.action.refresh": "Refresh",
   "run.action.new": "Try built-in team",
   "run.action.newHint": "Start a run with the built-in code-review template — no team setup needed.",
@@ -262,6 +262,11 @@ export const dict = {
   "team.employees.tier.deep": "Deep",
   "team.employees.modelPlaceholder": "Model override (optional) — empty follows the job",
   "team.employees.skillsPlaceholder": "Skill overrides (optional), comma separated — empty follows the job",
+  "team.employees.usage": "{{n}} tokens total · {{runs}} runs",
+  "team.employees.usageEmpty": "No usage yet",
+  "team.employees.usageUnattributed": "unattributed in the same runs: {{n}}",
+  "team.employees.usageHint":
+    "Counts only sessions attributed to this person (including subagents they spawned). Sessions of the same runs that could not be attributed are reported separately — never split across people.",
   "team.failed": "Something went wrong",
   "team.chat": "Group chat",
   "team.placeholder": "Message the team…",

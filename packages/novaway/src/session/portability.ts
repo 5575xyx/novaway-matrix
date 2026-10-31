@@ -270,6 +270,10 @@ export const layer: Layer.Layer<Service, never, Session.Service> = Layer.effect(
       const info = Schema.decodeUnknownSync(Session.Info)({
         ...bundle.info,
         ...(projectID ? { projectID } : {}),
+        // 归属是本地编排的事实，不能随导入的会话带进来：否则别人分享的会话
+        // 会出现在本地员工的账上。导入的会话重新从「没有归属」开始。
+        employeeID: undefined,
+        runID: undefined,
       }) as Session.Info
       const row = Session.toRow(info)
       Database.use((db) =>

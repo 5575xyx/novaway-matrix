@@ -873,6 +873,8 @@ export type Session = {
   permissionMode?: PermissionMode
   teamMode?: "off" | "auto" | "selected"
   teamIDs?: Array<string>
+  employeeID?: string
+  runID?: string
   revert?: {
     messageID: string
     partID?: string
@@ -1777,6 +1779,8 @@ export type GlobalSession = {
   permissionMode?: PermissionMode
   teamMode?: "off" | "auto" | "selected"
   teamIDs?: Array<string>
+  employeeID?: string
+  runID?: string
   revert?: {
     messageID: string
     partID?: string
@@ -3566,6 +3570,33 @@ export type TeamEmployeeView = {
   skills?: Array<string>
   tier?: string
   archived: boolean
+}
+
+export type TeamEmployeeUsageView = {
+  employeeID: string
+  totals: {
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  runs: Array<{
+    runID: string
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    lastAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  unattributed: {
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  outsideRuns: {
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    sessions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  lastUsedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type MissionView = {
@@ -17440,6 +17471,36 @@ export type EmployeeUpdateResponses = {
 }
 
 export type EmployeeUpdateResponse = EmployeeUpdateResponses[keyof EmployeeUpdateResponses]
+
+export type EmployeeUsageData = {
+  body?: never
+  path: {
+    employeeID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee/{employeeID}/usage"
+}
+
+export type EmployeeUsageErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type EmployeeUsageError = EmployeeUsageErrors[keyof EmployeeUsageErrors]
+
+export type EmployeeUsageResponses = {
+  /**
+   * Usage attributed to this employee
+   */
+  200: TeamEmployeeUsageView
+}
+
+export type EmployeeUsageResponse = EmployeeUsageResponses[keyof EmployeeUsageResponses]
 
 export type MissionListData = {
   body?: never

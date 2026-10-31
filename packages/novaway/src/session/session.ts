@@ -135,6 +135,8 @@ export function fromRow(row: SessionRow): Info {
     permissionMode: (row.permission_mode ?? undefined) as Permission.Mode | undefined,
     teamMode: (row.team_mode ?? undefined) as Info["teamMode"],
     teamIDs: row.team_ids ?? undefined,
+    employeeID: row.employee_id ?? undefined,
+    runID: row.run_id ?? undefined,
     time: {
       created: row.time_created,
       updated: row.time_updated,
@@ -173,6 +175,8 @@ export function toRow(info: Info) {
     permission_mode: info.permissionMode ?? null,
     team_mode: info.teamMode ?? null,
     team_ids: info.teamIDs ?? null,
+    employee_id: info.employeeID ?? null,
+    run_id: info.runID ?? null,
     time_created: info.time.created,
     time_updated: info.time.updated,
     time_compacting: info.time.compacting,
@@ -271,6 +275,16 @@ export const Info = Schema.Struct({
    */
   teamMode: optionalOmitUndefined(Schema.Literals(["off", "auto", "selected"])),
   teamIDs: optionalOmitUndefined(Schema.Array(Schema.String)),
+  /**
+   * 这次会话的工作记在谁名下（员工库 id）。
+   *
+   * 只由派发路径写入：运行派发的队长是名册里的队长，队长把活派给名册里的
+   * 某个成员时该成员的会话记在那个人的名下，成员自己再派生的子代理跟着成员走。
+   * 指认不出来就是空 —— 不猜。
+   */
+  employeeID: optionalOmitUndefined(Schema.String),
+  /** 这次会话属于哪次团队运行（`team_run` id）；普通会话没有。 */
+  runID: optionalOmitUndefined(Schema.String),
   revert: optionalOmitUndefined(Revert),
 }).annotate({ identifier: "Session" })
 export type Info = Types.DeepMutable<Schema.Schema.Type<typeof Info>>
@@ -308,6 +322,17 @@ export type CreateInput = Types.DeepMutable<Schema.Schema.Type<typeof CreateInpu
  * 不必为了绕过 `readonly` 数组再拷贝一遍。
  */
 export type CreateParams = NonNullable<Schema.Schema.Type<typeof CreateInput>>
+
+/**
+ * 会话归属（`Info.employeeID` / `Info.runID`）。
+ *
+ * **只在内部派发路径上传**，故意不放进 `CreateInput`：HTTP 的建会话接口直接
+ * 用它当 payload，写进去就等于任何客户端都能把工时记到别人头上。
+ */
+export type Attribution = {
+  employeeID?: string
+  runID?: string
+}
 
 export const ForkInput = Schema.Struct({
   sessionID: SessionID,
@@ -515,18 +540,22 @@ export class DirectoryError extends Schema.TaggedErrorClass<DirectoryError>()("S
 
 export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<Info[]>
-  readonly create: (input?: {
-    parentID?: SessionID
-    title?: string
-    agent?: string
-    model?: Schema.Schema.Type<typeof Model>
-    permission?: Permission.Ruleset
-    permissionMode?: Permission.Mode
-    teamMode?: Info["teamMode"]
-    teamIDs?: readonly string[]
-    workspaceID?: WorkspaceID
-    directory?: string
-  }) => Effect.Effect<Info>
+  readonly create: (
+    input?: {
+      parentID?: SessionID
+      title?: string
+      agent?: string
+      model?: Schema.Schema.Type<typeof Model>
+      permission?: Permission.Ruleset
+      permissionMode?: Permission.Mode
+      teamMode?: Info["teamMode"]
+      teamIDs?: readonly string[]
+      workspaceID?: WorkspaceID
+      directory?: string
+    },
+    /** 内部派发路径专用的归属；HTTP 建会话接口没有这个参数。 */
+    attribution?: Attribution,
+  ) => Effect.Effect<Info>
   readonly fork: (input: {
     sessionID: SessionID
     messageID?: MessageID
@@ -696,6 +725,8 @@ const rawLayer: Layer.Layer<
       permissionMode?: Permission.Mode
       teamMode?: Info["teamMode"]
       teamIDs?: readonly string[]
+      employeeID?: string
+      runID?: string
     }) {
       const ctx = yield* InstanceState.context
       // 团队选择只在 `selected` 下有意义：其它模式一律不留 teamIDs，
@@ -718,6 +749,8 @@ const rawLayer: Layer.Layer<
         permissionMode: input.permissionMode,
         teamMode,
         teamIDs,
+        employeeID: input.employeeID,
+        runID: input.runID,
         cost: 0,
         tokens: EmptyTokens,
         time: {
@@ -837,18 +870,21 @@ const rawLayer: Layer.Layer<
       } as MessageV2.Part
     })
 
-    const create = Effect.fn("Session.create")(function* (input?: {
-      parentID?: SessionID
-      title?: string
-      agent?: string
-      model?: Schema.Schema.Type<typeof Model>
-      permission?: Permission.Ruleset
-      permissionMode?: Permission.Mode
-      teamMode?: Info["teamMode"]
-      teamIDs?: readonly string[]
-      workspaceID?: WorkspaceID
-      directory?: string
-    }) {
+    const create = Effect.fn("Session.create")(function* (
+      input?: {
+        parentID?: SessionID
+        title?: string
+        agent?: string
+        model?: Schema.Schema.Type<typeof Model>
+        permission?: Permission.Ruleset
+        permissionMode?: Permission.Mode
+        teamMode?: Info["teamMode"]
+        teamIDs?: readonly string[]
+        workspaceID?: WorkspaceID
+        directory?: string
+      },
+      attribution?: Attribution,
+    ) {
       const ctx = yield* InstanceState.context
       const workspace = yield* InstanceState.workspaceID
       return yield* createNext({
@@ -863,6 +899,8 @@ const rawLayer: Layer.Layer<
         teamMode: input?.teamMode,
         teamIDs: input?.teamIDs,
         workspaceID: input?.workspaceID ?? workspace,
+        ...(attribution?.employeeID ? { employeeID: attribution.employeeID } : {}),
+        ...(attribution?.runID ? { runID: attribution.runID } : {}),
       })
     })
 
@@ -884,6 +922,10 @@ const rawLayer: Layer.Layer<
         path: sessionPath(ctx.worktree, ctx.directory),
         workspaceID: original.workspaceID,
         title,
+        // 分叉沿用原来的归属：这个会话仍然是那个人的那份工作，
+        // 只是换了一条对话线，不该在账上变成另一个人。
+        ...(original.employeeID ? { employeeID: original.employeeID } : {}),
+        ...(original.runID ? { runID: original.runID } : {}),
         ...(input.parentID ? { parentID: input.parentID } : {}),
         ...(input.agent ? { agent: input.agent } : {}),
         ...(input.permission ? { permission: input.permission } : {}),
