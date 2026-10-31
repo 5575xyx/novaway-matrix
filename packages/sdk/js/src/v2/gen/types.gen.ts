@@ -3560,6 +3560,9 @@ export type TeamEmployeeView = {
   job: string
   model?: string
   prompt?: string
+  skills?: Array<string>
+  tier?: string
+  archived: boolean
 }
 
 export type MissionView = {
@@ -17357,6 +17360,83 @@ export type EmployeeListResponses = {
 }
 
 export type EmployeeListResponse = EmployeeListResponses[keyof EmployeeListResponses]
+
+export type EmployeeCreateData = {
+  body?: {
+    name: string
+    job: string
+    model?: string
+    skills?: Array<string>
+    prompt?: string
+    tier?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee"
+}
+
+export type EmployeeCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type EmployeeCreateError = EmployeeCreateErrors[keyof EmployeeCreateErrors]
+
+export type EmployeeCreateResponses = {
+  /**
+   * Created employee
+   */
+  200: TeamEmployeeView
+}
+
+export type EmployeeCreateResponse = EmployeeCreateResponses[keyof EmployeeCreateResponses]
+
+export type EmployeeUpdateData = {
+  body?: {
+    name?: string
+    job?: string
+    model?: string
+    skills?: Array<string>
+    prompt?: string
+    tier?: string
+    archived?: boolean
+  }
+  path: {
+    employeeID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/employee/{employeeID}"
+}
+
+export type EmployeeUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type EmployeeUpdateError = EmployeeUpdateErrors[keyof EmployeeUpdateErrors]
+
+export type EmployeeUpdateResponses = {
+  /**
+   * Updated employee
+   */
+  200: TeamEmployeeView
+}
+
+export type EmployeeUpdateResponse = EmployeeUpdateResponses[keyof EmployeeUpdateResponses]
 
 export type MissionListData = {
   body?: never

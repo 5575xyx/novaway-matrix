@@ -1004,10 +1004,10 @@ LLM 参与点仅四处：主智能体出 Plan、队长拆解 / 裁决、成员�
 | GET / POST  | `/team/missions`           | 持久目标：列表 / 新建（内部 id + 展示编号 `M-xxx`）                                                 |
 | GET         | `/team/missions/:id`       | 目标详情：状态、关联运行、从 `baseSHA` 起的累计差异                                                 |
 | POST        | `/team/missions/:id/runs`  | 在该目标下再发起一次运行（复用同一 worktree 与 `baseSHA`）                                          |
-| GET         | `/employees`               | 员工库（人）：名字、岗位、覆盖项、归档状态                                                          |
-| POST        | `/employees`               | 新建员工（人），指定现有岗位或新建岗位                                                              |
-| PATCH       | `/employees/:id`           | 改名 / 换岗位 / 改覆盖项 / 归档                                                                     |
-| GET         | `/employees/:id/usage`     | 这个人在各团队 / 各 run 的用量（事实数据，不做排名）                                                |
+| GET         | `/team/employee`           | 员工库（人）：名字、岗位、覆盖项、归档状态；归档的也在列表里（`archived: true`）                    |
+| POST        | `/team/employee`           | 新建员工（人）：`name + job` 必填，`model/skills/prompt/tier` 可选                                  |
+| PATCH       | `/team/employee/:id`       | 改名 / 换岗位 / 改覆盖项 / 归档；`null` 是清空，省略是不改                                          |
+| GET         | `/team/employee/:id/usage` | 这个人在各团队 / 各 run 的用量（事实数据，不做排名；尚未实现）                                      |
 | GET / PATCH | `/team/orchestration`      | 总控开关、默认模式、员工并发额度（项目级配置）                                                      |
 
 工具（主智能体侧，**只新增 1 个**）：
@@ -2182,8 +2182,16 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
   新会话固定从 `off` 开始。它不只是界面偏好：会话记录里写什么，内核就按什么注入目录，
   所以要么在 `session.create` 时就把默认值落库（需要项目级配置与「子会话不继承」的规则），
   要么干脆不做 —— 半截实现会让「选择器显示 auto、内核按 off 注入」两边打架。留作独立一刀。
-- **员工库的新建 / 归档**：目前只有「列出员工」（`employee.list`），§4.5 的「管理 AI 员工」
-  还没有写入口；内置审查团队的五名员工是播种出来的。P4 与 Auto 一起做。
+- **员工库的新建 / 归档已实现（2026-10-31）**：`POST /team/employee` 建人、`PATCH /team/employee/:id`
+  改人（含归档 / 恢复），团队页左栏的「AI 员工（n）」打开员工库。几个语义值得记住：
+  - **归档不是删除**。`archived_at` 只打一次时间戳，归档的人仍在列表里（`archived: true`），
+    已有模板与跑完的运行都不受影响 —— 模板引用的是快照，点名册引用的是历史。
+  - **`name` / `job` 不能变空**。新建时两者必填；更新时传空串是 400，而不是把一个人的岗位写成空。
+  - **`null` 与省略不同**。更新 payload 里 `model/skills/prompt/tier` 传 `null` 表示清空，
+    省略表示保持原值；界面目前只用到归档，其余留给后续编辑表单。
+  - **员工库入口在团队页左栏**，与「新建团队」并列，不占用右上角窗口控件区。
+
+  仍未实现：员工页内的完整编辑表单（目前只有新建与归档 / 恢复）、`/team/employee/:id/usage`。
 
 > 记录一条环境异常：本次会话期间工作区里的 `dbx-main/` 目录与 `NOVAWAY-ICON-GUIDE.md` 被外部删除（非本分支改动），提交时已刻意排除；如需恢复请单独处理。
 

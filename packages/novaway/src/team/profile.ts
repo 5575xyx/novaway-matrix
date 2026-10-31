@@ -22,6 +22,15 @@ export type Employee = {
   model?: string
   skills?: string[]
   prompt?: string
+  /** 档位（轻 / 中 / 重），用于成本预估；缺省由调度器判定。 */
+  tier?: string
+  /**
+   * 已归档 = 不再出现在「可编入新团队」的候选里。
+   *
+   * 归档**不影响已经在跑或已经建好的模板**：模板是复制，运行只认快照。
+   * 这一点和「删除员工」不同 —— 删除会让人从历史名册里消失，归档不会。
+   */
+  archived: boolean
 }
 
 export type ProfileMember = {
@@ -83,6 +92,31 @@ export interface Interface {
   readonly get: (id: string) => Effect.Effect<Profile | undefined>
   readonly members: (profileID: string) => Effect.Effect<ProfileMember[]>
   readonly employees: () => Effect.Effect<Employee[]>
+  /** 新建「人」：名字 + 岗位（agent 名），可选覆盖项。 */
+  readonly createEmployee: (input: {
+    name: string
+    job: string
+    model?: string
+    skills?: string[]
+    prompt?: string
+    tier?: string
+  }) => Effect.Effect<Employee>
+  /**
+   * 改一个人：改名、换岗位、改覆盖项、归档 / 恢复。
+   *
+   * 返回 `undefined` 表示这个人不存在 —— 不新建一个来「接住」这次修改，
+   * 否则打错 id 会静默多出一个人。
+   */
+  readonly updateEmployee: (input: {
+    employeeID: string
+    name?: string
+    job?: string
+    model?: string | null
+    skills?: string[] | null
+    prompt?: string | null
+    tier?: string | null
+    archived?: boolean
+  }) => Effect.Effect<Employee | undefined>
   readonly roster: (profileID: string) => Effect.Effect<RosterEntry[]>
   /** 深拷贝成快照：运行只认它，不再读模板。 */
   readonly snapshot: (profileID: string) => Effect.Effect<Snapshot | undefined>
@@ -169,6 +203,8 @@ export function snapshotFrom(value: unknown): Snapshot | undefined {
     if (typeof id !== "string" || typeof employeeName !== "string" || typeof job !== "string") continue
     const model: unknown = Reflect.get(employee, "model")
     const prompt: unknown = Reflect.get(employee, "prompt")
+    const tier: unknown = Reflect.get(employee, "tier")
+    const archived: unknown = Reflect.get(employee, "archived")
     const role: unknown = Reflect.get(raw, "role")
     const duty: unknown = Reflect.get(raw, "duty")
     const canAutoDispatch: unknown = Reflect.get(raw, "canAutoDispatch")
@@ -179,6 +215,10 @@ export function snapshotFrom(value: unknown): Snapshot | undefined {
         job,
         model: typeof model === "string" ? model : undefined,
         prompt: typeof prompt === "string" ? prompt : undefined,
+        ...(typeof tier === "string" ? { tier } : {}),
+        // 归档状态随快照冻结：这次运行里这个人是不是「已归档」要能从快照看出来，
+        // 但归档不阻止派发 —— 模板是复制，工具能力仍然在。
+        archived: archived === true,
       },
       role: role === "captain" ? "captain" : "worker",
       duty: typeof duty === "string" ? duty : undefined,
@@ -212,6 +252,8 @@ const toEmployee = (row: typeof EmployeeTable.$inferSelect): Employee => ({
   model: row.model ?? undefined,
   skills: row.skills ?? undefined,
   prompt: row.prompt ?? undefined,
+  tier: row.tier ?? undefined,
+  archived: row.archived_at !== null,
 })
 
 /** 库里 role 是自由文本；认不出来的一律当普通成员，不让脏数据变成队长。 */
@@ -329,6 +371,72 @@ export const layer = Layer.effect(
       return rows.map(toEmployee)
     })
 
+    const createEmployee: Interface["createEmployee"] = Effect.fn("TeamProfile.createEmployee")(function* (input) {
+      const now = Date.now()
+      const employeeID = id("emp")
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .insert(EmployeeTable)
+            .values({
+              id: employeeID,
+              name: input.name,
+              job: input.job,
+              model: input.model ?? null,
+              skills: input.skills ?? null,
+              prompt: input.prompt ?? null,
+              tier: input.tier ?? null,
+              time_created: now,
+              time_updated: now,
+            })
+            .run(),
+        ),
+      )
+      return {
+        id: employeeID,
+        name: input.name,
+        job: input.job,
+        model: input.model,
+        skills: input.skills,
+        prompt: input.prompt,
+        tier: input.tier,
+        archived: false,
+      }
+    })
+
+    const updateEmployee: Interface["updateEmployee"] = Effect.fn("TeamProfile.updateEmployee")(function* (input) {
+      const now = Date.now()
+      // 归档时间只写一次：反复点「归档」不该让「什么时候归档的」一直往后漂。
+      const existing = yield* Effect.sync(() =>
+        Database.use((db) => db.select().from(EmployeeTable).where(eq(EmployeeTable.id, input.employeeID)).all()),
+      )
+      const row = existing[0]
+      if (!row) return undefined
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(EmployeeTable)
+            .set({
+              ...(input.name !== undefined ? { name: input.name } : {}),
+              ...(input.job !== undefined ? { job: input.job } : {}),
+              ...(input.model !== undefined ? { model: input.model } : {}),
+              ...(input.skills !== undefined ? { skills: input.skills } : {}),
+              ...(input.prompt !== undefined ? { prompt: input.prompt } : {}),
+              ...(input.tier !== undefined ? { tier: input.tier } : {}),
+              ...(input.archived === true ? { archived_at: row.archived_at ?? now } : {}),
+              ...(input.archived === false ? { archived_at: null } : {}),
+              time_updated: now,
+            })
+            .where(eq(EmployeeTable.id, input.employeeID))
+            .run(),
+        ),
+      )
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) => db.select().from(EmployeeTable).where(eq(EmployeeTable.id, input.employeeID)).all()),
+      )
+      return rows[0] ? toEmployee(rows[0]) : undefined
+    })
+
     const roster: Interface["roster"] = Effect.fn("TeamProfile.roster")(function* (profileID) {
       const rows = yield* members(profileID)
       const people = new Map((yield* employees()).map((employee) => [employee.id, employee]))
@@ -427,7 +535,19 @@ export const layer = Layer.effect(
       )
     })
 
-    return Service.of({ seed, list, get, members, employees, roster, snapshot, create, remove })
+    return Service.of({
+      seed,
+      list,
+      get,
+      members,
+      employees,
+      createEmployee,
+      updateEmployee,
+      roster,
+      snapshot,
+      create,
+      remove,
+    })
   }),
 )
 

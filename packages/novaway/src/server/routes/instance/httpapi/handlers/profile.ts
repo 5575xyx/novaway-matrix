@@ -97,5 +97,62 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
         }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.NotFound({})))),
       )
       .handle("listEmployees", () => profiles.employees())
+      .handle("createEmployee", (ctx) =>
+        Effect.gen(function* () {
+          const name = ctx.payload.name.trim()
+          const job = ctx.payload.job.trim()
+          // 名字与岗位是唯一必填的两项：没有岗位就无法派活，没有名字就无法在名册里指认人。
+          if (!name || !job) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const created = yield* profiles.createEmployee({
+            name,
+            job,
+            model: ctx.payload.model?.trim() || undefined,
+            ...(ctx.payload.skills ? { skills: [...ctx.payload.skills] } : {}),
+            prompt: ctx.payload.prompt,
+            tier: ctx.payload.tier?.trim() || undefined,
+          })
+          return {
+            id: created.id,
+            name: created.name,
+            job: created.job,
+            model: created.model,
+            prompt: created.prompt,
+            skills: created.skills,
+            tier: created.tier,
+            archived: created.archived,
+          }
+        }),
+      )
+      .handle("updateEmployee", (ctx) =>
+        Effect.gen(function* () {
+          const name = ctx.payload.name?.trim()
+          const job = ctx.payload.job?.trim()
+          // 传了空字符串是「想清空」的误用：名字与岗位不能变空，直接拒绝而不是写进库。
+          if (name === "" || job === "") return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const updated = yield* profiles.updateEmployee({
+            employeeID: ctx.params.employeeID,
+            ...(name !== undefined ? { name } : {}),
+            ...(job !== undefined ? { job } : {}),
+            ...(ctx.payload.model !== undefined ? { model: ctx.payload.model } : {}),
+            ...(ctx.payload.skills !== undefined
+              ? { skills: ctx.payload.skills ? [...ctx.payload.skills] : null }
+              : {}),
+            ...(ctx.payload.prompt !== undefined ? { prompt: ctx.payload.prompt } : {}),
+            ...(ctx.payload.tier !== undefined ? { tier: ctx.payload.tier } : {}),
+            ...(ctx.payload.archived !== undefined ? { archived: ctx.payload.archived } : {}),
+          })
+          if (!updated) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          return {
+            id: updated.id,
+            name: updated.name,
+            job: updated.job,
+            model: updated.model,
+            prompt: updated.prompt,
+            skills: updated.skills,
+            tier: updated.tier,
+            archived: updated.archived,
+          }
+        }),
+      )
   }),
 )

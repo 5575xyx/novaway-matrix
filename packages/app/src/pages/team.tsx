@@ -1,4 +1,11 @@
-import type { Agent, TeamDetail, TeamMemberView, TeamMessageView, TeamSummaryView } from "@novaway/sdk/v2"
+import type {
+  Agent,
+  TeamDetail,
+  TeamEmployeeView,
+  TeamMemberView,
+  TeamMessageView,
+  TeamSummaryView,
+} from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
@@ -63,6 +70,8 @@ export const TeamPage: Component<{
   const [sending, setSending] = createSignal(false)
   const [confirmDelete, setConfirmDelete] = createSignal(false)
   const [adding, setAdding] = createSignal("")
+  // 员工库（§3.1 / §4.5）：模板引用的是「人」，所以人要先能建、能归档。
+  const [employees, setEmployees] = createSignal<TeamEmployeeView[]>([])
   let feed: HTMLDivElement | undefined
 
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
@@ -109,6 +118,7 @@ export const TeamPage: Component<{
   onMount(() => {
     void loadTeams()
     void loadAgents()
+    void loadEmployees()
     // 成员回复是后台跑完才写回来的；轮询让群聊在没有推送的情况下也能更新。
     const timer = window.setInterval(() => {
       const id = selected()
@@ -139,6 +149,28 @@ export const TeamPage: Component<{
   const workers = createMemo(() => (detail()?.members ?? []).filter((member) => member.role === "worker"))
   const memberName = (sessionID: string | undefined) =>
     detail()?.members.find((member) => member.sessionID === sessionID)?.name
+
+  const loadEmployees = async () => {
+    try {
+      const result = await sdk.client.employee.list({ directory: props.directory })
+      setEmployees((result.data ?? []) as TeamEmployeeView[])
+    } catch {
+      // 员工库只是附加面板：读失败不盖掉团队本身的错误提示。
+      setEmployees([])
+    }
+  }
+
+  const openEmployees = () => {
+    dialog.show(() => (
+      <DialogEmployees
+        directory={props.directory}
+        agents={agents()}
+        onChanged={() => {
+          void loadEmployees()
+        }}
+      />
+    ))
+  }
 
   const call = async (work: Promise<unknown>, success?: string) => {
     try {
@@ -265,6 +297,15 @@ export const TeamPage: Component<{
                 {t("settings.kernel.manageAgents")}
               </Button>
             </Show>
+            <Button
+              variant="ghost"
+              size="small"
+              class="min-w-0 shrink justify-start"
+              title={t("team.employees.hint")}
+              onClick={openEmployees}
+            >
+              {t("team.employees.open", { count: employees().filter((item) => !item.archived).length })}
+            </Button>
             <IconButton
               icon="plus-small"
               variant="primary"
@@ -513,6 +554,156 @@ function MessageRow(props: { message: TeamMessageView }) {
  * 只列非隐藏角色；协调者默认用 build。创建成功后服务端已经为每个成员建好
  * 会话，页面直接切到新团队。
  */
+/**
+ * 员工库（§3.1 / §4.5）。
+ *
+ * 「人」是模板引用的一层：没有它，模板只能引用播种出来的五个内置员工。
+ * 归档的语义写清楚在界面上 —— 不在新团队里出现，但已经建好的模板与已跑的运行不受影响。
+ */
+function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged: () => void }) {
+  const dialog = useDialog()
+  const language = useLanguage()
+  const sdk = useGlobalSDK()
+  const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
+
+  const [list, setList] = createSignal<TeamEmployeeView[]>([])
+  const [name, setName] = createSignal("")
+  const [job, setJob] = createSignal(props.agents[0]?.name ?? "build")
+  const [duty, setDuty] = createSignal("")
+  const [busy, setBusy] = createSignal(false)
+  const [error, setError] = createSignal("")
+
+  const load = async () => {
+    try {
+      const result = await sdk.client.employee.list({ directory: props.directory })
+      setList((result.data ?? []) as TeamEmployeeView[])
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  onMount(() => {
+    void load()
+  })
+
+  const create = async () => {
+    if (!name().trim() || !job().trim()) {
+      setError(t("team.employees.nameRequired"))
+      return
+    }
+    setBusy(true)
+    try {
+      await sdk.client.employee.create({
+        directory: props.directory,
+        name: name().trim(),
+        job: job().trim(),
+        // 职责/提示词是可选的覆盖项：写在这里的东西会进这个人的提示词。
+        prompt: duty().trim() || undefined,
+      })
+      setName("")
+      setDuty("")
+      setError("")
+      await load()
+      props.onChanged()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleArchived = async (employee: TeamEmployeeView) => {
+    setBusy(true)
+    try {
+      await sdk.client.employee.update({
+        directory: props.directory,
+        employeeID: employee.id,
+        archived: !employee.archived,
+      })
+      // 归档要让模板列表也跟着刷新：名册里会显示这个人的状态。
+      setError("")
+      await load()
+      props.onChanged()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog title={t("team.employees.title")}>
+      <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
+        <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.employees.hint")}</div>
+        <Show when={error()}>
+          <div class="text-12-regular text-destructive">{error()}</div>
+        </Show>
+
+        <div class="flex flex-col gap-2">
+          <For each={list()}>
+            {(employee) => (
+              <div class="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5">
+                    <span
+                      classList={{ "truncate text-14-regular": true, "text-foreground-subtlest": employee.archived }}
+                    >
+                      {employee.name}
+                    </span>
+                    <Tag>{employee.job}</Tag>
+                    <Show when={employee.archived}>
+                      <Tag class="text-foreground-subtlest">{t("team.employees.archived")}</Tag>
+                    </Show>
+                  </div>
+                  <Show when={employee.prompt}>
+                    {(text) => <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{text()}</div>}
+                  </Show>
+                </div>
+                <Button variant="ghost" size="small" disabled={busy()} onClick={() => void toggleArchived(employee)}>
+                  {employee.archived ? t("team.employees.restore") : t("team.employees.archive")}
+                </Button>
+              </div>
+            )}
+          </For>
+        </div>
+
+        <div class="flex flex-col gap-2 border-t border-border pt-3">
+          <label class="text-13-medium text-foreground">{t("team.employees.add")}</label>
+          <div class="flex gap-2">
+            <input
+              class="flex h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+              value={name()}
+              placeholder={t("team.employees.namePlaceholder")}
+              onInput={(event) => setName(event.currentTarget.value)}
+            />
+            <select
+              class="h-9 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
+              value={job()}
+              onChange={(event) => setJob(event.currentTarget.value)}
+            >
+              <For each={props.agents}>{(agent) => <option value={agent.name}>{agent.name}</option>}</For>
+            </select>
+          </div>
+          <input
+            class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+            value={duty()}
+            placeholder={t("team.employees.dutyPlaceholder")}
+            onInput={(event) => setDuty(event.currentTarget.value)}
+          />
+          <div class="flex items-center justify-end gap-1.5">
+            <Button variant="ghost" size="small" onClick={() => dialog.close()}>
+              {t("common.close")}
+            </Button>
+            <Button variant="primary" size="small" disabled={busy()} onClick={() => void create()}>
+              {t("team.employees.addAction")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
 function DialogCreateTeam(props: {
   directory: string
   agents: Agent[]

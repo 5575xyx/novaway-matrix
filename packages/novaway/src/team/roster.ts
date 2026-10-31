@@ -27,7 +27,8 @@ export function fromLive(input: {
   // 一个成员都没有就没有队长：不编一个默认 agent 冒充，调用方按「无法派发」处理。
   if (!captain) return undefined
   const roster: RosterEntry[] = members.map((member, index) => ({
-    employee: { id: member.sessionID, name: member.name, job: member.agent },
+    // 活团队成员是会话，不是员工库里的「人」：没有归档这一说，一律按可用处理。
+    employee: { id: member.sessionID, name: member.name, job: member.agent, archived: false },
     role: member.sessionID === captain.sessionID ? "captain" : "worker",
     order: index,
     // 活团队没有「这个人能不能被 Auto 自动派活」的声明：一律按最严格的 false。

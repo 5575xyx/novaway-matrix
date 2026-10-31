@@ -11,7 +11,41 @@ export const EmployeeView = Schema.Struct({
   job: Schema.String,
   model: Schema.optional(Schema.String),
   prompt: Schema.optional(Schema.String),
+  skills: Schema.optional(Schema.Array(Schema.String)),
+  /** 档位（轻 / 中 / 重）：用于成本预估，缺省由调度器判定。 */
+  tier: Schema.optional(Schema.String),
+  /**
+   * 已归档：不再出现在「可编入新团队」的候选里，但已在用的模板与已跑的运行不受影响
+   * （模板是复制，运行只认快照）。
+   */
+  archived: Schema.Boolean,
 }).annotate({ identifier: "TeamEmployeeView" })
+
+export const EmployeeCreatePayload = Schema.Struct({
+  name: Schema.String,
+  /** 岗位（agent 名）：能力模板，同一岗位可以有多个员工。 */
+  job: Schema.String,
+  model: Schema.optional(Schema.String),
+  skills: Schema.optional(Schema.Array(Schema.String)),
+  prompt: Schema.optional(Schema.String),
+  tier: Schema.optional(Schema.String),
+})
+
+/**
+ * 改名 / 换岗位 / 改覆盖项 / 归档。
+ *
+ * 字段全部可选：只改传了的那些。`null` 表示清空（覆盖项被移除），
+ * 与「没传 = 不动」区分开 —— 否则用户永远没法把一个覆盖项改回默认。
+ */
+export const EmployeeUpdatePayload = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  job: Schema.optional(Schema.String),
+  model: Schema.optional(Schema.NullOr(Schema.String)),
+  skills: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+  prompt: Schema.optional(Schema.NullOr(Schema.String)),
+  tier: Schema.optional(Schema.NullOr(Schema.String)),
+  archived: Schema.optional(Schema.Boolean),
+})
 
 export const ProfileMemberView = Schema.Struct({
   employeeID: Schema.String,
@@ -106,7 +140,34 @@ export const ProfileApi = HttpApiGroup.make("profile")
       OpenApi.annotations({
         identifier: "employee.list",
         summary: "List employees",
-        description: "People that can be placed into a team template (job = agent capability).",
+        description:
+          "People that can be placed into a team template (job = agent capability). Archived people are included with archived=true.",
+      }),
+    ),
+    HttpApiEndpoint.post("createEmployee", "/team/employee", {
+      query: WorkspaceRoutingQuery,
+      payload: EmployeeCreatePayload,
+      success: described(EmployeeView, "Created employee"),
+      error: [HttpApiError.BadRequest],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "employee.create",
+        summary: "Add a person",
+        description: "Creates an employee (name + job) that team templates can then reference.",
+      }),
+    ),
+    HttpApiEndpoint.patch("updateEmployee", "/team/employee/:employeeID", {
+      params: { employeeID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: EmployeeUpdatePayload,
+      success: described(EmployeeView, "Updated employee"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "employee.update",
+        summary: "Change a person",
+        description:
+          "Rename, change job, edit overrides, or archive/unarchive. Archiving keeps existing templates and finished runs untouched.",
       }),
     ),
   )

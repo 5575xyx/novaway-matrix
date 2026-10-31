@@ -58,7 +58,11 @@ import type {
   ElicitationRejectResponses,
   ElicitationReplyErrors,
   ElicitationReplyResponses,
+  EmployeeCreateErrors,
+  EmployeeCreateResponses,
   EmployeeListResponses,
+  EmployeeUpdateErrors,
+  EmployeeUpdateResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute2,
   EventTuiPromptAppend2,
@@ -13519,7 +13523,7 @@ export class Employee extends HeyApiClient {
   /**
    * List employees
    *
-   * People that can be placed into a team template (job = agent capability).
+   * People that can be placed into a team template (job = agent capability). Archived people are included with archived=true.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -13543,6 +13547,104 @@ export class Employee extends HeyApiClient {
       url: "/team/employee",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Add a person
+   *
+   * Creates an employee (name + job) that team templates can then reference.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      job?: string
+      model?: string
+      skills?: Array<string>
+      prompt?: string
+      tier?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "job" },
+            { in: "body", key: "model" },
+            { in: "body", key: "skills" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "tier" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<EmployeeCreateResponses, EmployeeCreateErrors, ThrowOnError>({
+      url: "/team/employee",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Change a person
+   *
+   * Rename, change job, edit overrides, or archive/unarchive. Archiving keeps existing templates and finished runs untouched.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      employeeID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      job?: string
+      model?: string
+      skills?: Array<string>
+      prompt?: string
+      tier?: string
+      archived?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "employeeID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "job" },
+            { in: "body", key: "model" },
+            { in: "body", key: "skills" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "tier" },
+            { in: "body", key: "archived" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<EmployeeUpdateResponses, EmployeeUpdateErrors, ThrowOnError>({
+      url: "/team/employee/{employeeID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 }

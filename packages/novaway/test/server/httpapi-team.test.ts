@@ -269,6 +269,54 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("adds a person, then archives and restores them without losing the row", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type Employee = {
+        id: string
+        name: string
+        job: string
+        prompt?: string
+        archived: boolean
+      }
+
+      const created = yield* post(dir, "/team/employee", {
+        directory: dir,
+        name: "  小林  ",
+        job: "build",
+        prompt: "负责构建与依赖问题。",
+      })
+      expect(created.status).toBe(200)
+      const employee = (yield* created.json) as Employee
+      // 名字前后空格会混进名册与提示词，落库前就剪掉。
+      expect(employee.name).toBe("小林")
+      expect(employee.job).toBe("build")
+      expect(employee.archived).toBe(false)
+
+      const listed = (yield* (yield* get(dir, "/team/employee", dir)).json) as Employee[]
+      expect(listed.map((item) => item.id)).toContain(employee.id)
+
+      // 归档不是删除：人还在列表里，只是标了 archived，供「恢复」使用。
+      const archived = yield* patch(dir, `/team/employee/${employee.id}`, { archived: true })
+      expect(archived.status).toBe(200)
+      expect((yield* archived.json) as Employee).toMatchObject({ name: "小林", archived: true })
+      const stillThere = (yield* (yield* get(dir, "/team/employee", dir)).json) as Employee[]
+      expect(stillThere.find((item) => item.id === employee.id)?.archived).toBe(true)
+
+      const restored = yield* patch(dir, `/team/employee/${employee.id}`, { archived: false })
+      expect((yield* restored.json) as Employee).toMatchObject({ archived: false })
+
+      // 改名不会碰岗位；没传的字段保持原样。
+      const renamed = yield* patch(dir, `/team/employee/${employee.id}`, { name: "林" })
+      expect((yield* renamed.json) as Employee).toMatchObject({ name: "林", job: "build" })
+
+      // 名字或岗位被清空是误用，不是合法修改。
+      expect((yield* post(dir, "/team/employee", { directory: dir, name: "  ", job: "build" })).status).toBe(400)
+      expect((yield* patch(dir, `/team/employee/${employee.id}`, { name: "" })).status).toBe(400)
+      expect((yield* patch(dir, "/team/employee/emp_missing", { name: "不存在" })).status).toBe(404)
+    }),
+  )
+
   it.live("only an abandoned mission can give its workspace back", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

@@ -30770,12 +30770,206 @@
             }
           }
         },
-        "description": "People that can be placed into a team template (job = agent capability).",
+        "description": "People that can be placed into a team template (job = agent capability). Archived people are included with archived=true.",
         "summary": "List employees",
         "x-codeSamples": [
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.list({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["profile"],
+        "operationId": "employee.create",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Created employee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmployeeView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Creates an employee (name + job) that team templates can then reference.",
+        "summary": "Add a person",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "job": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "skills": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "tier": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "job"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.create({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/team/employee/{employeeID}": {
+      "patch": {
+        "tags": ["profile"],
+        "operationId": "employee.update",
+        "parameters": [
+          {
+            "name": "employeeID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated employee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmployeeView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Rename, change job, edit overrides, or archive/unarchive. Archiving keeps existing templates and finished runs untouched.",
+        "summary": "Change a person",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "job": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "skills": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "tier": {
+                    "type": "string"
+                  },
+                  "archived": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.update({\n  ...\n})"
           }
         ]
       }
@@ -47740,9 +47934,21 @@
           },
           "prompt": {
             "type": "string"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tier": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
           }
         },
-        "required": ["id", "name", "job"],
+        "required": ["id", "name", "job", "archived"],
         "additionalProperties": false
       },
       "MissionView": {
