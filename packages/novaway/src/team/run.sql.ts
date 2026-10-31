@@ -242,6 +242,13 @@ export const TeamRunLedgerTable = sqliteTable(
     reserved_cost: text(),
     settled_tokens: integer().notNull().default(0),
     settled_cost: text(),
+    /**
+     * 这笔钱花在哪：`dispatch`（把活派给团队）还是 `verification`（验证是否成立）。
+     *
+     * 没有这一列时，验证开销占比算不出来 —— 两者都记在团队这个 actor 上，
+     * 汇总后只剩一个总数。老账本没有值，读取时按「未区分」处理，不猜。
+     */
+    kind: text(),
     state: text().notNull().default("reserved"),
     at: integer().notNull(),
   },

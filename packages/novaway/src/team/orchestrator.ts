@@ -250,13 +250,14 @@ export const layer = Layer.effect(
        *
        * 验证器不经过派发预占，但花的钱是真的；不记的话，预算上限管不到它（§7.1）。
        * 归属记到团队上：验证是「这支队的交付是否成立」的成本，不是另一个人的。
+       * `kind: "verification"` 让「验证开销占比」算得出来（§12）：归属仍是团队，
+       * 但花在哪件事上不再靠猜。
        */
       const chargeVerification = (teamID: string, result: VerificationResult) =>
         result.usage?.tokens && result.usage.tokens > 0
-          ? ledger.record({ runID: input.runID, actor: teamID, tokens: result.usage.tokens }).pipe(
-              Effect.asVoid,
-              Effect.catchCause(() => Effect.void),
-            )
+          ? ledger
+              .record({ runID: input.runID, actor: teamID, kind: "verification", tokens: result.usage.tokens })
+              .pipe(Effect.asVoid, Effect.catchCause(() => Effect.void))
           : Effect.void
 
       /** 单团队一轮：预占 → 派发 → 验证 → 判定。失败不影响其他团队。 */

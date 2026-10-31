@@ -44,6 +44,7 @@ import { SessionID } from "@/session/schema"
 import { SessionUsage } from "@/session/usage"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamOpLogService } from "@/team/op-log"
+import { Service as TeamLedgerService } from "@/team/ledger"
 import { Snapshot } from "@/snapshot"
 
 const number = (value: unknown, fallback = 0) => (typeof value === "number" ? value : fallback)
@@ -174,6 +175,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     const runs = yield* RunService
     const missions = yield* MissionService
     const verification = yield* VerificationService
+    const ledger = yield* TeamLedgerService
     const orchestrator = yield* OrchestratorService
     const promptSvc = yield* SessionPrompt.Service
     const profiles = yield* TeamProfileService
@@ -336,6 +338,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             (run) =>
               Effect.gen(function* () {
                 const events = yield* runs.events({ runID: run.id })
+                const entries = yield* ledger.entries(run.id)
                 return {
                   run: {
                     id: run.id,
@@ -348,6 +351,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                   // 只把种类与结构字段交给聚合函数；响应里不出现 payload 原文，
                   // 事件里可能带着命令与路径。
                   events: events.map((event) => ({ kind: event.kind, payload: event.payload })),
+                  // 账本只带用途、状态与金额：`actor` 不进指标（不排名，§12.1）。
+                  ledger: entries.map((entry) => ({
+                    ...(entry.kind ? { kind: entry.kind } : {}),
+                    state: entry.state,
+                    settled: entry.settledTokens,
+                    reserved: entry.reservedTokens,
+                  })),
                 }
               }),
             { concurrency: 1 },

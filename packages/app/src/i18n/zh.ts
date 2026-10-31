@@ -75,6 +75,9 @@ export const dict = {
   "run.metrics.blocked": "有阻塞 {{n}} 次（{{percent}}%）",
   "run.metrics.blockedUnknown": "阻塞率：没有事件记录",
   "run.metrics.unavailable": "无法计算：{{metric}} —— {{reason}}",
+  "run.metrics.verification": "验证开销 {{percent}}%（派发 {{dispatch}} / 验证 {{verification}} tokens）",
+  "run.metrics.verificationUnknown": "验证开销占比：还没有可区分用途的结算记录",
+  "run.metrics.verificationPartial": "（{{n}} 次运行的历史账本未区分用途，占比只含新记录）",
   "run.replay.toggle": "决策链回放",
   "run.replay.hint":
     "回放只还原当时的事件与证据，不代表重跑会得到同样的结果。",

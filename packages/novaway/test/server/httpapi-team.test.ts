@@ -440,6 +440,14 @@ describe("team HttpApi", () => {
         rework: { total: number; top: Array<{ reason: string; count: number }> }
         attempts: { dispatched: number; failed: number; failureRate?: number }
         blockers: { runs: number; rate?: number; byKind: Array<{ kind: string; count: number }> }
+        spend: {
+          dispatch: number
+          verification: number
+          unspecified: number
+          verificationShare?: number
+          coveredRuns: number
+          partialRuns: number
+        }
         unavailable: Array<{ metric: string; reason: string }>
       }
 
@@ -474,8 +482,16 @@ describe("team HttpApi", () => {
       expect(metrics.attempts.failureRate).toBeUndefined()
       expect(metrics.states).toEqual([{ state: "awaiting_approval", runs: 2 }])
       expect(metrics.tokens.covered).toBe(0)
-      // 算不出来的指标要说出来，不编数字。
-      expect(metrics.unavailable.map((item) => item.metric)).toContain("验证开销占比")
+      // 还没有结算记录 ⇒ 验证开销占比不给数（没有分母），也不算「算不出来」。
+      expect(metrics.spend).toEqual({
+        dispatch: 0,
+        verification: 0,
+        unspecified: 0,
+        coveredRuns: 0,
+        partialRuns: 0,
+      })
+      expect(metrics.spend.verificationShare).toBeUndefined()
+      expect(metrics.unavailable).toEqual([])
 
       // 取样窗口可以被请求收窄，且不会跨目录混进来。
       const one = (yield* (yield* get(dir, "/run/metrics?limit=1", dir)).json) as Metrics

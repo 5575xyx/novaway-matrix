@@ -73,6 +73,9 @@ export const dict = {
   "run.metrics.blocked": "{{n}} blocked runs ({{percent}}%)",
   "run.metrics.blockedUnknown": "Blocked rate: no event records",
   "run.metrics.unavailable": "Not computable: {{metric}} — {{reason}}",
+  "run.metrics.verification": "Verification spend {{percent}}% ({{dispatch}} dispatch / {{verification}} verification tokens)",
+  "run.metrics.verificationUnknown": "Verification share: no settled entries that record the purpose yet",
+  "run.metrics.verificationPartial": "({{n}} historic runs have ledger rows without a purpose; the share only covers new records)",
   "run.replay.toggle": "Decision chain",
   "run.replay.hint":
     "Replay only restores the events and evidence of that moment; it does not claim a re-run would end the same way.",

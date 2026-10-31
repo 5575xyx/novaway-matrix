@@ -19,10 +19,27 @@ import { TeamRunLedgerTable } from "./run.sql"
  */
 export type LedgerState = "reserved" | "settled" | "released" | "overrun" | "unknown"
 
+/**
+ * 这笔钱花在哪（§12「验证开销占比」）。
+ *
+ * 派发与验证都记在团队这个 actor 上 —— 归属是对的（验证是「这支队交付是否成立」的成本），
+ * 但只按 actor 汇总，就把两笔完全不同的开销混成了一个数。分开记之后，
+ * 才能回答「这次运行里有多少钱花在验证上」，而不是编一个比例。
+ */
+export type EntryKind = "dispatch" | "verification"
+
+const KINDS: readonly EntryKind[] = ["dispatch", "verification"]
+
+/** 老账本没有这一列：读不到就是未区分，不当成派发。 */
+const toKind = (value: string | null): EntryKind | undefined =>
+  value === null ? undefined : KINDS.find((kind) => kind === value)
+
 export type Entry = {
   id: string
   runID: string
   actor: string
+  /** 未区分（老账本）时为 `undefined`。 */
+  kind?: EntryKind
   reservedTokens: number
   settledTokens: number
   state: LedgerState
@@ -74,8 +91,11 @@ export interface Interface {
    * 用于不经过派发预占、但确实花掉的钱（例如验证器）：把它补进账本，
    * 预算判断（`reserved + settled + unknown`）才覆盖得到它。
    * 少了这一步，「上限」只约束得到派发，约束不到验证。
+   *
+   * `kind` 必填：调用方必须说清这笔是派发还是验证。给它一个默认值，
+   * 下一个记账的人就会顺手把它写错，指标也跟着错。
    */
-  readonly record: (input: { runID: string; actor: string; tokens: number }) => Effect.Effect<Entry>
+  readonly record: (input: { runID: string; actor: string; kind: EntryKind; tokens: number }) => Effect.Effect<Entry>
   readonly usage: (input: { runID: string; cap?: Cap }) => Effect.Effect<Usage>
   /**
    * 本次运行的全部账本条目。
@@ -92,15 +112,19 @@ export class Service extends Context.Service<Service, Interface>()("@NovaWay/Tea
 
 const generateId = () => "led_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)
 
-const toEntry = (row: typeof TeamRunLedgerTable.$inferSelect): Entry => ({
-  id: row.id,
-  runID: row.run_id,
-  actor: row.actor,
-  reservedTokens: row.reserved_tokens,
-  settledTokens: row.settled_tokens,
-  state: row.state as LedgerState,
-  at: row.at,
-})
+const toEntry = (row: typeof TeamRunLedgerTable.$inferSelect): Entry => {
+  const kind = toKind(row.kind)
+  return {
+    id: row.id,
+    runID: row.run_id,
+    actor: row.actor,
+    ...(kind ? { kind } : {}),
+    reservedTokens: row.reserved_tokens,
+    settledTokens: row.settled_tokens,
+    state: row.state as LedgerState,
+    at: row.at,
+  }
+}
 
 const rows = (runID: string) =>
   Database.use((db) => db.select().from(TeamRunLedgerTable).where(eq(TeamRunLedgerTable.run_id, runID)).all())
@@ -151,6 +175,8 @@ export const layer = Layer.effect(
               id: generateId(),
               runID: input.runID,
               actor: input.actor,
+              // 预占只发生在派发前；验证是事后补记，不走这里。
+              kind: "dispatch",
               reservedTokens: input.tokens,
               settledTokens: 0,
               state: "reserved",
@@ -161,6 +187,7 @@ export const layer = Layer.effect(
                 id: entry.id,
                 run_id: entry.runID,
                 actor: entry.actor,
+                kind: entry.kind,
                 reserved_tokens: entry.reservedTokens,
                 settled_tokens: 0,
                 state: entry.state,
@@ -237,6 +264,7 @@ export const layer = Layer.effect(
         id: generateId(),
         runID: input.runID,
         actor: input.actor,
+        kind: input.kind,
         reservedTokens: 0,
         settledTokens: input.tokens,
         state: "settled",
@@ -251,6 +279,7 @@ export const layer = Layer.effect(
               id: entry.id,
               run_id: entry.runID,
               actor: entry.actor,
+              kind: entry.kind,
               reserved_tokens: 0,
               settled_tokens: entry.settledTokens,
               state: entry.state,

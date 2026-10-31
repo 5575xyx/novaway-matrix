@@ -11,9 +11,9 @@ import type { RunState } from "./run"
  *    没有提供方回报就是缺失，不估算、不补零。
  * 2. **分母不够就不给百分比。** 失败尝试率只看有事件记录的运行；一次派发都没有时
  *    这个数就是「不知道」，而不是 0%。
- * 3. **算不出来的指标要明说。** 验证开销占比需要把「验证花的钱」和「成员花的钱」
- *    分开，而账本按团队汇总、两者用同一个 actor —— 这里不编一个比例，列进
- *    `unavailable` 并写清原因。
+ * 3. **算不出来的指标要明说。** 验证开销占比要按账本条目里的 `kind` 分开算：
+ *    有汇总用量却没有明细、或者老账本没有 `kind` 的，单独计入 `spend.unspecified`
+ *    与 `unavailable`，绝不把它们并进任何一边来凑一个比例。
  */
 
 export type RunSample = {
@@ -28,7 +28,15 @@ export type RunSample = {
 
 export type EventSample = { kind: string; payload?: Record<string, unknown> }
 
-export type Sample = { run: RunSample; events: readonly EventSample[] }
+/**
+ * 账本条目里与指标有关的字段。
+ *
+ * 只带结构与数字：`actor`（团队 / 会话 id）不进报表 —— 指标不排名（§12.1）。
+ * `kind` 缺省表示老账本没区分派发与验证。
+ */
+export type LedgerSample = { kind?: string; state: string; settled: number; reserved: number }
+
+export type Sample = { run: RunSample; events: readonly EventSample[]; ledger?: readonly LedgerSample[] }
 
 export type Report = {
   window: {
@@ -51,6 +59,19 @@ export type Report = {
   rework: { total: number; top: Array<{ reason: string; count: number }> }
   attempts: { dispatched: number; failed: number; failureRate?: number }
   blockers: { runs: number; rate?: number; byKind: Array<{ kind: BlockerKind; count: number }> }
+  /** 钱花在哪（§12「验证开销占比」）：只统计有账本明细、且标注了用途的条目。 */
+  spend: {
+    dispatch: number
+    verification: number
+    /** 老账本没有 `kind` 的那部分已结算花费：单列，不并入任何一边。 */
+    unspecified: number
+    /** 验证占「已区分」结算额的比例；分母为零时不出现。 */
+    verificationShare?: number
+    /** 有账本条目的运行数。 */
+    coveredRuns: number
+    /** 至少有一条未区分花费的运行数：占比只覆盖新记录。 */
+    partialRuns: number
+  }
   unavailable: Array<{ metric: string; reason: string }>
 }
 
@@ -137,6 +158,41 @@ export function report(samples: readonly Sample[], top = 5): Report {
     rounds.set(round, (rounds.get(round) ?? 0) + 1)
   }
 
+  /**
+   * 验证开销占比（§12）：按账本条目里的 `kind` 分开累加。
+   *
+   * - 只有**已结算**的条目参与：预占、用量不明都不是「花了多少」，摊进去就等于估算。
+   * - 老账本没有 `kind`：记进 `unspecified`，不猜它是派发还是验证。
+   * - 汇总用量大于明细：说明这次运行有花费没进账本，占比不可用 —— 列进 `unavailable`。
+   */
+  const spend = { dispatch: 0, verification: 0, unspecified: 0, coveredRuns: 0, partialRuns: 0 }
+  let unaccounted = 0
+  for (const sample of samples) {
+    const ledger = sample.ledger ?? []
+    if (ledger.length > 0) spend.coveredRuns += 1
+    let labeled = 0
+    let unspecified = 0
+    for (const entry of ledger) {
+      const settled = amount(entry.settled)
+      if (settled === undefined || settled === 0) continue
+      if (entry.kind === "verification") {
+        spend.verification += settled
+        labeled += settled
+      } else if (entry.kind === "dispatch") {
+        spend.dispatch += settled
+        labeled += settled
+      } else {
+        spend.unspecified += settled
+        unspecified += settled
+      }
+    }
+    if (unspecified > 0) spend.partialRuns += 1
+    // 汇总里报了已结算，明细却拼不出同样的金额：有花费无法归属，占比只能作废。
+    const reported = usageOf(sample.run).settled
+    if (reported !== undefined && reported > labeled + unspecified) unaccounted += 1
+  }
+  const labeledTotal = spend.dispatch + spend.verification
+
   const reasons = new Map<string, number>()
   let reworkTotal = 0
   let dispatched = 0
@@ -197,11 +253,22 @@ export function report(samples: readonly Sample[], top = 5): Report {
         .sort((a, b) => b[1] - a[1] || stable(a[0], b[0]))
         .map(([kind, count]) => ({ kind, count })),
     },
-    unavailable: [
-      {
-        metric: "验证开销占比",
-        reason: "账本按团队汇总，验证与成员会话用同一个 actor，无法把验证花费单独拆出来。",
-      },
-    ],
+    spend: {
+      dispatch: spend.dispatch,
+      verification: spend.verification,
+      unspecified: spend.unspecified,
+      ...(labeledTotal > 0 ? { verificationShare: spend.verification / labeledTotal } : {}),
+      coveredRuns: spend.coveredRuns,
+      partialRuns: spend.partialRuns,
+    },
+    unavailable:
+      unaccounted > 0
+        ? [
+            {
+              metric: "验证开销占比",
+              reason: "有 " + unaccounted + " 次运行的汇总用量超出了账本明细，无法区分派发与验证。",
+            },
+          ]
+        : [],
   }
 }

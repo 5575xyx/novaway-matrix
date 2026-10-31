@@ -50,7 +50,7 @@ describe("team ledger", () => {
       const ledger = yield* LedgerService
       const id = runID()
       // 验证器不在派发预占里，但它确实花钱：补记后额度判断必须看得到它。
-      yield* ledger.record({ runID: id, actor: "team-a", tokens: 30 })
+      yield* ledger.record({ runID: id, actor: "team-a", kind: "verification", tokens: 30 })
       const usage = yield* ledger.usage({ runID: id, cap: { tokens: 100 } })
       expect(usage.settled).toBe(30)
       expect(usage.reserved).toBe(0)
@@ -59,12 +59,31 @@ describe("team ledger", () => {
     }),
   )
 
+  it.effect("labels reservations as dispatch and records verification separately", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      // 「验证开销占比」靠这一列才拆得开：派发与验证是同一笔账里的两种用途。
+      const reservation = yield* ledger.reserve({ runID: id, actor: "team-a", tokens: 40, cap: { tokens: 100 } })
+      expect(reservation.kind).toBe("dispatch")
+      yield* ledger.settle({ id: reservation.id, tokens: 35 })
+      yield* ledger.record({ runID: id, actor: "team-a", kind: "verification", tokens: 15 })
+
+      const entries = yield* ledger.entries(id)
+      // 不依赖数据库返回顺序：这里只关心每一项的用途与金额。
+      expect(entries.map((entry) => [entry.kind, entry.settledTokens]).sort()).toEqual([
+        ["dispatch", 35],
+        ["verification", 15],
+      ])
+    }),
+  )
+
   it.effect("a zero-token record writes nothing", () =>
     Effect.gen(function* () {
       const ledger = yield* LedgerService
       const id = runID()
       // 读不到用量的验证不该在账本里留一行 0：那会让「有几笔花费」变成噪声。
-      yield* ledger.record({ runID: id, actor: "team-a", tokens: 0 })
+      yield* ledger.record({ runID: id, actor: "team-a", kind: "verification", tokens: 0 })
       expect(yield* ledger.entries(id)).toEqual([])
     }),
   )

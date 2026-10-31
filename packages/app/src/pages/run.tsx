@@ -630,6 +630,22 @@ export const RunPage: Component<{
                             })
                           : t("run.metrics.blockedUnknown")}
                       </div>
+                      {/* 验证开销占比（§12）：只算有用途标注的结算；历史账本单列说明。 */}
+                      <div>
+                        {data().spend.verificationShare !== undefined
+                          ? t("run.metrics.verification", {
+                              percent: Math.round(numeric(data().spend.verificationShare!) * 100),
+                              dispatch: numeric(data().spend.dispatch).toLocaleString(),
+                              verification: numeric(data().spend.verification).toLocaleString(),
+                            })
+                          : t("run.metrics.verificationUnknown")}
+                        <Show when={numeric(data().spend.partialRuns) > 0}>
+                          <span class="text-foreground-subtlest">
+                            {" "}
+                            {t("run.metrics.verificationPartial", { n: numeric(data().spend.partialRuns) })}
+                          </span>
+                        </Show>
+                      </div>
                       {/* 算不出来的指标要说出来：空着会被读成「没有这项」。 */}
                       <For each={data().unavailable}>
                         {(entry) => (

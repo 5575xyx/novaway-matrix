@@ -11,7 +11,11 @@ const run = (id: string, state: RunState, extra: Partial<Sample["run"]> = {}): S
   ...extra,
 })
 
-const sample = (r: Sample["run"], events: EventSample[] = []): Sample => ({ run: r, events })
+const sample = (r: Sample["run"], events: EventSample[] = [], ledger?: Sample["ledger"]): Sample => ({
+  run: r,
+  events,
+  ...(ledger ? { ledger } : {}),
+})
 
 describe("team run metrics", () => {
   it("counts states and rounds, and never folds unknown usage into settled", () => {
@@ -104,14 +108,65 @@ describe("team run metrics", () => {
     expect(result.blockers).toEqual({ runs: 1, rate: 1 / 2, byKind: [{ kind: "tool.denied", count: 1 }] })
   })
 
-  it("says which metric it cannot compute instead of inventing one", () => {
-    const result = report([sample(run("r1", "done"))])
+  it("splits verification spend from dispatch spend, and counts only settled rows", () => {
+    const result = report([
+      sample(run("r1", "done", { usage: { settled: 125 } }), [], [
+        // 预占里的钱还没结算：不是「花了多少」，不参与占比。
+        { kind: "dispatch", state: "reserved", settled: 0, reserved: 50 },
+        { kind: "dispatch", state: "settled", settled: 100, reserved: 0 },
+        { kind: "verification", state: "settled", settled: 25, reserved: 0 },
+      ]),
+    ])
+    expect(result.spend).toEqual({
+      dispatch: 100,
+      verification: 25,
+      unspecified: 0,
+      verificationShare: 0.2,
+      coveredRuns: 1,
+      partialRuns: 0,
+    })
+    // 算得出来的指标不进 unavailable：那里只列真的算不出来的。
+    expect(result.unavailable).toEqual([])
+  })
+
+  it("keeps ledger rows without a kind out of both sides instead of guessing", () => {
+    const result = report([
+      // 老账本：条目存在，但没有 kind。它既不是派发也不是验证。
+      sample(run("r1", "done", { usage: { settled: 140 } }), [], [
+        { kind: "dispatch", state: "settled", settled: 60, reserved: 0 },
+        { kind: "verification", state: "settled", settled: 40, reserved: 0 },
+        { state: "settled", settled: 40, reserved: 0 },
+      ]),
+    ])
+    expect(result.spend.dispatch).toBe(60)
+    expect(result.spend.verification).toBe(40)
+    expect(result.spend.unspecified).toBe(40)
+    // 占比只在已区分的 100 里算；partialRuns 提醒读者这一版只覆盖新记录。
+    expect(result.spend.verificationShare).toBe(0.4)
+    expect(result.spend.partialRuns).toBe(1)
+    expect(result.unavailable).toEqual([])
+  })
+
+  it("refuses a share when the summary reports spend the ledger cannot explain", () => {
+    const result = report([sample(run("r1", "done", { usage: { settled: 100 } }))])
+    // 汇总说花了 100，明细一条都没有：不拿总数去猜比例。
+    expect(result.spend.verificationShare).toBeUndefined()
     expect(result.unavailable).toEqual([
       {
         metric: "验证开销占比",
-        reason: "账本按团队汇总，验证与成员会话用同一个 actor，无法把验证花费单独拆出来。",
+        reason: "有 1 次运行的汇总用量超出了账本明细，无法区分派发与验证。",
       },
     ])
+  })
+
+  it("gives no share when nothing was settled", () => {
+    const result = report([
+      sample(run("r1", "done"), [], [{ kind: "dispatch", state: "reserved", settled: 0, reserved: 50 }]),
+    ])
+    // 只有预占、没有结算：分母为零，不给 0%（那会被读成「验证没花钱」）。
+    expect(result.spend.verificationShare).toBeUndefined()
+    expect(result.spend.coveredRuns).toBe(1)
+    expect(result.unavailable).toEqual([])
   })
 
   it("ignores malformed usage instead of turning it into zero", () => {

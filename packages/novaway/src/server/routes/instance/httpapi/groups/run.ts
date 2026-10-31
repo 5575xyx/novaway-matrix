@@ -55,6 +55,17 @@ export const RunMetricsView = Schema.Struct({
     rate: Schema.optional(Schema.Number),
     byKind: Schema.Array(Schema.Struct({ kind: Schema.String, count: Schema.Number })),
   }),
+  /** 钱花在哪（验证开销占比）：只统计有明细且标注了用途的已结算条目。 */
+  spend: Schema.Struct({
+    dispatch: Schema.Number,
+    verification: Schema.Number,
+    /** 老账本没有区分用途的那部分：单列，不并入任何一边。 */
+    unspecified: Schema.Number,
+    /** 验证 / (派发 + 验证)；分母为零时不出现。 */
+    verificationShare: Schema.optional(Schema.Number),
+    coveredRuns: Schema.Number,
+    partialRuns: Schema.Number,
+  }),
   unavailable: Schema.Array(Schema.Struct({ metric: Schema.String, reason: Schema.String })),
 }).annotate({ identifier: "RunMetricsView" })
 
