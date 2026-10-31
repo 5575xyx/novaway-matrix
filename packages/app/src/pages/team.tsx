@@ -572,6 +572,9 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
   const [duty, setDuty] = createSignal("")
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal("")
+  // 编辑中的行：不弹第二层对话框，展开在原行下面，改完就能看到同一份列表。
+  const [editing, setEditing] = createSignal<string>()
+  const [draft, setDraft] = createSignal({ name: "", job: "", model: "", skills: "", prompt: "", tier: "" })
 
   const load = async () => {
     try {
@@ -612,6 +615,54 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
     }
   }
 
+  const startEdit = (employee: TeamEmployeeView) => {
+    setEditing(employee.id)
+    setDraft({
+      name: employee.name,
+      job: employee.job,
+      model: employee.model ?? "",
+      // 技能在库里是数组，界面上用逗号串更省事；保存时再拆回去。
+      skills: (employee.skills ?? []).join(", "),
+      prompt: employee.prompt ?? "",
+      tier: employee.tier ?? "",
+    })
+  }
+
+  const save = async () => {
+    const employeeID = editing()
+    if (!employeeID) return
+    const value = draft()
+    if (!value.name.trim() || !value.job.trim()) {
+      setError(t("team.employees.nameRequired"))
+      return
+    }
+    setBusy(true)
+    try {
+      await sdk.client.employee.update({
+        directory: props.directory,
+        employeeID,
+        name: value.name.trim(),
+        job: value.job.trim(),
+        // 留空 = 清掉这条覆盖。空串与空数组就是这个意思，不需要额外协议。
+        model: value.model.trim(),
+        skills: value.skills
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        prompt: value.prompt.trim(),
+        tier: value.tier.trim(),
+      })
+      setEditing(undefined)
+      setError("")
+      await load()
+      props.onChanged()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const toggleArchived = async (employee: TeamEmployeeView) => {
     setBusy(true)
     try {
@@ -642,26 +693,87 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
         <div class="flex flex-col gap-2">
           <For each={list()}>
             {(employee) => (
-              <div class="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-1.5">
-                    <span
-                      classList={{ "truncate text-14-regular": true, "text-foreground-subtlest": employee.archived }}
-                    >
-                      {employee.name}
-                    </span>
-                    <Tag>{employee.job}</Tag>
-                    <Show when={employee.archived}>
-                      <Tag class="text-foreground-subtlest">{t("team.employees.archived")}</Tag>
+              <div class="rounded-lg border border-border">
+                <div class="flex items-center gap-2 px-3 py-2">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                      <span
+                        classList={{ "truncate text-14-regular": true, "text-foreground-subtlest": employee.archived }}
+                      >
+                        {employee.name}
+                      </span>
+                      <Tag>{employee.job}</Tag>
+                      <Show when={employee.tier}>{(tier) => <Tag>{tier()}</Tag>}</Show>
+                      <Show when={employee.archived}>
+                        <Tag class="text-foreground-subtlest">{t("team.employees.archived")}</Tag>
+                      </Show>
+                    </div>
+                    <Show when={employee.prompt}>
+                      {(text) => <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{text()}</div>}
                     </Show>
                   </div>
-                  <Show when={employee.prompt}>
-                    {(text) => <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{text()}</div>}
-                  </Show>
+                  <Button variant="ghost" size="small" disabled={busy()} onClick={() => startEdit(employee)}>
+                    {t("team.employees.edit")}
+                  </Button>
+                  <Button variant="ghost" size="small" disabled={busy()} onClick={() => void toggleArchived(employee)}>
+                    {employee.archived ? t("team.employees.restore") : t("team.employees.archive")}
+                  </Button>
                 </div>
-                <Button variant="ghost" size="small" disabled={busy()} onClick={() => void toggleArchived(employee)}>
-                  {employee.archived ? t("team.employees.restore") : t("team.employees.archive")}
-                </Button>
+                <Show when={editing() === employee.id}>
+                  <div class="flex flex-col gap-2 border-t border-border px-3 py-2">
+                    <div class="flex gap-2">
+                      <input
+                        class="flex h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                        value={draft().name}
+                        placeholder={t("team.employees.namePlaceholder")}
+                        onInput={(event) => setDraft({ ...draft(), name: event.currentTarget.value })}
+                      />
+                      <select
+                        class="h-9 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
+                        value={draft().job}
+                        onChange={(event) => setDraft({ ...draft(), job: event.currentTarget.value })}
+                      >
+                        <For each={props.agents}>{(agent) => <option value={agent.name}>{agent.name}</option>}</For>
+                      </select>
+                      <select
+                        class="h-9 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
+                        value={draft().tier}
+                        onChange={(event) => setDraft({ ...draft(), tier: event.currentTarget.value })}
+                      >
+                        <option value="">{t("team.employees.tier.none")}</option>
+                        <option value="fast">{t("team.employees.tier.fast")}</option>
+                        <option value="standard">{t("team.employees.tier.standard")}</option>
+                        <option value="deep">{t("team.employees.tier.deep")}</option>
+                      </select>
+                    </div>
+                    <input
+                      class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                      value={draft().model}
+                      placeholder={t("team.employees.modelPlaceholder")}
+                      onInput={(event) => setDraft({ ...draft(), model: event.currentTarget.value })}
+                    />
+                    <input
+                      class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                      value={draft().skills}
+                      placeholder={t("team.employees.skillsPlaceholder")}
+                      onInput={(event) => setDraft({ ...draft(), skills: event.currentTarget.value })}
+                    />
+                    <textarea
+                      class="min-h-20 w-full resize-y rounded-[8px] border border-border bg-surface px-3 py-2 text-14-regular text-foreground outline-none focus:border-primary"
+                      value={draft().prompt}
+                      placeholder={t("team.employees.dutyPlaceholder")}
+                      onInput={(event) => setDraft({ ...draft(), prompt: event.currentTarget.value })}
+                    />
+                    <div class="flex items-center justify-end gap-1.5">
+                      <Button variant="ghost" size="small" onClick={() => setEditing(undefined)}>
+                        {t("common.cancel")}
+                      </Button>
+                      <Button variant="primary" size="small" disabled={busy()} onClick={() => void save()}>
+                        {t("common.save")}
+                      </Button>
+                    </div>
+                  </div>
+                </Show>
               </div>
             )}
           </For>

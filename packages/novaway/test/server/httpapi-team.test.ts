@@ -277,6 +277,8 @@ describe("team HttpApi", () => {
         name: string
         job: string
         prompt?: string
+        skills?: string[]
+        tier?: string
         archived: boolean
       }
 
@@ -285,6 +287,7 @@ describe("team HttpApi", () => {
         name: "  小林  ",
         job: "build",
         prompt: "负责构建与依赖问题。",
+        skills: ["build"],
       })
       expect(created.status).toBe(200)
       const employee = (yield* created.json) as Employee
@@ -309,6 +312,17 @@ describe("team HttpApi", () => {
       // 改名不会碰岗位；没传的字段保持原样。
       const renamed = yield* patch(dir, `/team/employee/${employee.id}`, { name: "林" })
       expect((yield* renamed.json) as Employee).toMatchObject({ name: "林", job: "build" })
+
+      // 覆盖项留空就是清掉：生成的 SDK 里没有 null，清空只能靠空串 / 空数组。
+      const fine = yield* patch(dir, `/team/employee/${employee.id}`, {
+        prompt: "  ",
+        skills: [],
+        tier: "fast",
+      })
+      const cleared = (yield* fine.json) as Employee
+      expect(cleared.tier).toBe("fast")
+      expect(cleared.prompt).toBeUndefined()
+      expect(cleared.skills).toBeUndefined()
 
       // 名字或岗位被清空是误用，不是合法修改。
       expect((yield* post(dir, "/team/employee", { directory: dir, name: "  ", job: "build" })).status).toBe(400)

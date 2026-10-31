@@ -34,16 +34,20 @@ export const EmployeeCreatePayload = Schema.Struct({
 /**
  * 改名 / 换岗位 / 改覆盖项 / 归档。
  *
- * 字段全部可选：只改传了的那些。`null` 表示清空（覆盖项被移除），
+ * 字段全部可选：只改传了的那些。覆盖项的「清空」用空串 / 空数组表达，
  * 与「没传 = 不动」区分开 —— 否则用户永远没法把一个覆盖项改回默认。
+ *
+ * 为什么不用 `null`：OpenAPI 表达不出 `NullOr`（生成出来仍是 `type: string`），
+ * 只有手写 JSON 的客户端能传 null，生成的 SDK 类型里根本不存在这个值。
+ * 空值本来就是「没有覆盖」的自然写法，契约跟着这个走。
  */
 export const EmployeeUpdatePayload = Schema.Struct({
   name: Schema.optional(Schema.String),
   job: Schema.optional(Schema.String),
-  model: Schema.optional(Schema.NullOr(Schema.String)),
-  skills: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
-  prompt: Schema.optional(Schema.NullOr(Schema.String)),
-  tier: Schema.optional(Schema.NullOr(Schema.String)),
+  model: Schema.optional(Schema.String),
+  skills: Schema.optional(Schema.Array(Schema.String)),
+  prompt: Schema.optional(Schema.String),
+  tier: Schema.optional(Schema.String),
   archived: Schema.optional(Schema.Boolean),
 })
 

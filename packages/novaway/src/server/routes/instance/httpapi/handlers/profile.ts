@@ -115,10 +115,12 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
             id: created.id,
             name: created.name,
             job: created.job,
-            model: created.model,
-            prompt: created.prompt,
-            skills: created.skills,
-            tier: created.tier,
+            // 没设的覆盖项直接不出现：客户端类型写的是 `model?: string`，
+            // 发送 null 会让「有没有设置」看起来像「设置成了 null」。
+            ...(created.model !== undefined ? { model: created.model } : {}),
+            ...(created.prompt !== undefined ? { prompt: created.prompt } : {}),
+            ...(created.skills !== undefined ? { skills: created.skills } : {}),
+            ...(created.tier !== undefined ? { tier: created.tier } : {}),
             archived: created.archived,
           }
         }),
@@ -129,16 +131,22 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
           const job = ctx.payload.job?.trim()
           // 传了空字符串是「想清空」的误用：名字与岗位不能变空，直接拒绝而不是写进库。
           if (name === "" || job === "") return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          // 覆盖项留空 = 清掉这条覆盖；`undefined` = 没传，保持原样。两者不能混。
+          // 服务层用 null 表示「没有覆盖」，HTTP 层把空值归一成 null。
+          const override = (value: string | undefined) => (value === undefined ? undefined : value.trim() || null)
+          const skills =
+            ctx.payload.skills === undefined ? undefined : ctx.payload.skills.map((item) => item.trim()).filter(Boolean)
+          const model = override(ctx.payload.model)
+          const prompt = override(ctx.payload.prompt)
+          const tier = override(ctx.payload.tier)
           const updated = yield* profiles.updateEmployee({
             employeeID: ctx.params.employeeID,
             ...(name !== undefined ? { name } : {}),
             ...(job !== undefined ? { job } : {}),
-            ...(ctx.payload.model !== undefined ? { model: ctx.payload.model } : {}),
-            ...(ctx.payload.skills !== undefined
-              ? { skills: ctx.payload.skills ? [...ctx.payload.skills] : null }
-              : {}),
-            ...(ctx.payload.prompt !== undefined ? { prompt: ctx.payload.prompt } : {}),
-            ...(ctx.payload.tier !== undefined ? { tier: ctx.payload.tier } : {}),
+            ...(model !== undefined ? { model } : {}),
+            ...(skills !== undefined ? { skills: skills.length > 0 ? skills : null } : {}),
+            ...(prompt !== undefined ? { prompt } : {}),
+            ...(tier !== undefined ? { tier } : {}),
             ...(ctx.payload.archived !== undefined ? { archived: ctx.payload.archived } : {}),
           })
           if (!updated) return yield* Effect.fail(new HttpApiError.NotFound({}))
@@ -146,10 +154,10 @@ export const profileHandlers = HttpApiBuilder.group(InstanceHttpApi, "profile", 
             id: updated.id,
             name: updated.name,
             job: updated.job,
-            model: updated.model,
-            prompt: updated.prompt,
-            skills: updated.skills,
-            tier: updated.tier,
+            ...(updated.model !== undefined ? { model: updated.model } : {}),
+            ...(updated.prompt !== undefined ? { prompt: updated.prompt } : {}),
+            ...(updated.skills !== undefined ? { skills: updated.skills } : {}),
+            ...(updated.tier !== undefined ? { tier: updated.tier } : {}),
             archived: updated.archived,
           }
         }),
