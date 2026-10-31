@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect"
-import { desc, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { TeamAcceptanceTable, TeamVerificationTable } from "./run.sql"
 import { sanitizeOptional } from "./evidence"
@@ -41,6 +41,8 @@ export type Verification = {
   outcome: Outcome
   measured?: string
   evidenceRef?: string
+  /** 结论是否复用自同一快照上的另一次验证（§19.1）：界面必须标出来。 */
+  reused?: boolean
   at: number
 }
 
@@ -144,7 +146,20 @@ export interface Interface {
     measured?: string
     evidenceRef?: string
     attempt?: number
+    /** 复用同快照结论时置真（§19.1）；界面据此标注，不能伪装成新验证。 */
+    reused?: boolean
   }) => Effect.Effect<Verification>
+  /**
+   * 同一快照、同一验证器版本上已有的结论（§19.1）。
+   *
+   * 只给**确定性**验证器用（命令类）：同样的代码、同样的命令，重跑只会得到同一个答案。
+   * 模型验证不适用 —— 同一快照上再问一次模型，得到的是另一次判断，不是「同一条结论」。
+   */
+  readonly reusable: (input: {
+    acceptanceID: string
+    snapshotID: string
+    verifierVersion: string
+  }) => Effect.Effect<Verification | undefined>
   readonly verifications: (runID: string) => Effect.Effect<Verification[]>
   /** 汇总：`currentSnapshot` 缺省时取最近一条验证的快照。 */
   readonly summary: (input: { runID: string; currentSnapshot?: string }) => Effect.Effect<Summary>
@@ -179,6 +194,7 @@ const toVerification = (row: typeof TeamVerificationTable.$inferSelect): Verific
   // 读取时再脱敏一遍：写入前就有脱敏，但旧行是在这条规则之前落库的。
   measured: sanitizeOptional(row.measured ?? undefined),
   evidenceRef: sanitizeOptional(row.evidence_ref ?? undefined),
+  ...(row.reused === 1 ? { reused: true } : {}),
   at: row.at,
 })
 
@@ -253,6 +269,7 @@ export const layer = Layer.effect(
         // 验证器原样输出，可能带着凭据与 URL：入库前脱敏（§11.3）。
         measured: sanitizeOptional(input.measured),
         evidenceRef: sanitizeOptional(input.evidenceRef),
+        ...(input.reused ? { reused: true } : {}),
         at: Date.now(),
       }
       yield* Effect.sync(() =>
@@ -269,12 +286,35 @@ export const layer = Layer.effect(
               outcome: verification.outcome,
               measured: verification.measured ?? null,
               evidence_ref: verification.evidenceRef ?? null,
+              reused: verification.reused === true ? 1 : 0,
               at: verification.at,
             })
             .run(),
         ),
       )
       return verification
+    })
+
+    const reusable: Interface["reusable"] = Effect.fn("TeamVerification.reusable")(function* (input) {
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .select()
+            .from(TeamVerificationTable)
+            .where(
+              and(
+                eq(TeamVerificationTable.acceptance_id, input.acceptanceID),
+                eq(TeamVerificationTable.snapshot_id, input.snapshotID),
+                eq(TeamVerificationTable.verifier_version, input.verifierVersion),
+              ),
+            )
+            .all(),
+        ),
+      )
+      // 只复用「确定结论」：`unverified` 意味着没验成，那不该被缓存成一个答案。
+      const usable = rows.filter((row) => row.outcome === "pass" || row.outcome === "fail")
+      usable.sort((a, b) => b.at - a.at)
+      return usable[0] ? toVerification(usable[0]) : undefined
     })
 
     const verifications: Interface["verifications"] = Effect.fn("TeamVerification.verifications")(function* (runID) {
@@ -300,7 +340,7 @@ export const layer = Layer.effect(
       return summarize(acceptances, records, snapshot)
     })
 
-    return Service.of({ register, list, record, verifications, summary })
+    return Service.of({ register, list, record, reusable, verifications, summary })
   }),
 )
 

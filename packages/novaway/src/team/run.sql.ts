@@ -201,6 +201,13 @@ export const TeamVerificationTable = sqliteTable(
     outcome: text().notNull(),
     measured: text(),
     evidence_ref: text(),
+    /**
+     * 这一条是不是「复用同快照结果」（§19.1）。
+     *
+     * 同一份快照、同一条命令，第二次跑只会得到同一个答案；此时记一条 `reused` 的
+     * 结论，而不是假装又验了一遍。界面必须能看出来，否则缓存就变成了伪造新验证。
+     */
+    reused: integer().notNull().default(0),
     at: integer().notNull(),
   },
   (table) => [

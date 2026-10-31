@@ -46,6 +46,7 @@ import { Service as TeamService } from "@/team/team"
 import { Service as TeamOpLogService } from "@/team/op-log"
 import { Service as TeamLedgerService } from "@/team/ledger"
 import * as TeamDenials from "@/team/denials"
+import * as TeamCommandVerifier from "@/team/command-verifier"
 import { Snapshot } from "@/snapshot"
 
 const number = (value: unknown, fallback = 0) => (typeof value === "number" ? value : fallback)
@@ -225,16 +226,21 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             artifacts: artifactsOf(team.artifactsOut),
             context: toContext(team.contextManifest),
           })),
-          acceptances: acceptances.map((acceptance) => ({
-            id: acceptance.id,
-            taskID: acceptance.taskID,
-            specID: acceptance.specID,
-            version: acceptance.version,
-            text: acceptance.text,
-            kind: acceptance.kind,
-            expected: acceptance.expected,
-            owner: acceptance.owner,
-          })),
+          acceptances: acceptances.map((acceptance) => {
+            // 命令原文不出接口：它常带凭据，与 hook 命令同一条约束。
+            const command = TeamCommandVerifier.normalize(acceptance.verifier)
+            return {
+              id: acceptance.id,
+              taskID: acceptance.taskID,
+              specID: acceptance.specID,
+              version: acceptance.version,
+              text: acceptance.text,
+              kind: acceptance.kind,
+              expected: acceptance.expected,
+              owner: acceptance.owner,
+              ...(command ? { verifier: { kind: command.kind, timeoutMs: command.timeoutMs } } : {}),
+            }
+          }),
           // 拒绝在本次运行内保持有效（§11.2）：回传工具名与说明，不回传动作原文。
           denials: TeamDenials.list(runID).map((denial) => ({
             tool: denial.tool,
@@ -250,6 +256,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             outcome: item.outcome,
             measured: item.measured,
             evidenceRef: item.evidenceRef,
+            ...(item.reused ? { reused: true } : {}),
             at: item.at,
           })),
           summary: {
@@ -523,6 +530,11 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       .handle("addRunAcceptance", (ctx) =>
         Effect.gen(function* () {
           yield* requireRun(ctx.params.runID, ctx.query.directory)
+          // 命令类验收只对 `test` 成立：其它类型没有「退出码」这个判定标准。
+          // 不接收就明确拒绝，而不是悄悄退回模型验证 —— 用户会以为跑的是命令。
+          if (ctx.payload.verifier && ctx.payload.kind !== "test")
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const command = TeamCommandVerifier.normalize(ctx.payload.verifier)
           const acceptance = yield* verification.register({
             runID: ctx.params.runID,
             taskID: ctx.payload.taskID,
@@ -530,6 +542,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             text: ctx.payload.text,
             kind: ctx.payload.kind,
             expected: ctx.payload.expected,
+            ...(command ? { verifier: command as unknown as Record<string, unknown> } : {}),
             owner: ctx.payload.owner,
           })
           return {
@@ -541,6 +554,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             kind: acceptance.kind,
             expected: acceptance.expected,
             owner: acceptance.owner,
+            ...(command ? { verifier: { kind: command.kind, timeoutMs: command.timeoutMs } } : {}),
           }
         }),
       )
@@ -816,10 +830,61 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               } satisfies Report
             })
 
+          /**
+           * 命令类验收（§6.2 / §19.1）：退出码就是结论，不经过模型。
+           *
+           * 三条口径：
+           * - 命令只从验收项自己的 `verifier` 读（受控配置），成员报告里写的命令一概不认；
+           * - 在团队 worktree / 集成目录里跑，副作用落在可以整体丢弃的副本上；
+           * - 同一快照上已有确定性结论时直接复用，并标 `reused`，不伪装成新验证。
+           */
+          const commandVerify = (input: { acceptance: Acceptance; directory: string | undefined; snapshotID: string }) =>
+            Effect.gen(function* () {
+              const spec = TeamCommandVerifier.normalize(input.acceptance.verifier)
+              if (!spec) return undefined
+              const version = TeamCommandVerifier.VERSION
+              const cached = yield* verification.reusable({
+                acceptanceID: input.acceptance.id,
+                snapshotID: input.snapshotID,
+                verifierVersion: version,
+              })
+              const base = {
+                snapshotID: input.snapshotID,
+                verifierVersion: version,
+                // 命令验收没有模型调用：不产生 token 与成本。
+                usage: {},
+              }
+              if (cached)
+                return {
+                  ...base,
+                  outcome: cached.outcome,
+                  ...(cached.measured ? { measured: cached.measured } : {}),
+                  ...(cached.evidenceRef ? { evidenceRef: cached.evidenceRef } : {}),
+                  reused: true,
+                } satisfies VerificationResult
+              if (!input.directory)
+                return {
+                  ...base,
+                  outcome: "unverified" as const,
+                  measured: "没有可执行验收的工作区",
+                } satisfies VerificationResult
+              const result = yield* Effect.promise(() =>
+                TeamCommandVerifier.execute({ directory: input.directory!, spec }),
+              )
+              return { ...base, ...TeamCommandVerifier.interpret(result) } satisfies VerificationResult
+            })
+
           // 验证：必须是**另一个会话**的独立判断，且允许回答「未验证」。
           const verify = (input: VerifyInput) =>
             Effect.gen(function* () {
               const snapshotID = (yield* snapshotOf) ?? "unknown"
+              // 有命令就用命令验：同样的代码、同样的命令，答案不该由一次模型判断决定。
+              const command = yield* commandVerify({
+                acceptance: input.acceptance,
+                directory: teamDirectory,
+                snapshotID,
+              })
+              if (command) return command
               const verified = yield* runAgent({
                 agent: verifier,
                 ...(teamDirectory ? { directory: teamDirectory } : {}),
@@ -842,6 +907,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const verifyMerged = (input: { acceptance: Acceptance; snapshotID: string }) =>
             Effect.gen(function* () {
               const directory = (yield* Ref.get(integrated)) ?? teamDirectory
+              // 合并后的命令验收跑在集成目录上：团队各自通过不代表合起来还通过。
+              const command = yield* commandVerify({
+                acceptance: input.acceptance,
+                directory,
+                snapshotID: input.snapshotID,
+              })
+              if (command) return command
               const mergedRun = yield* runAgent({
                 agent: verifier,
                 ...(directory ? { directory } : {}),

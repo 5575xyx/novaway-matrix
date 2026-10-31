@@ -14007,6 +14007,11 @@ export class Acceptance extends HeyApiClient {
       kind?: "test" | "diff" | "file" | "rubric" | "human"
       expected?: string
       owner?: string
+      verifier?: {
+        kind: "command"
+        run: string
+        timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -14024,6 +14029,7 @@ export class Acceptance extends HeyApiClient {
             { in: "body", key: "kind" },
             { in: "body", key: "expected" },
             { in: "body", key: "owner" },
+            { in: "body", key: "verifier" },
           ],
         },
       ],

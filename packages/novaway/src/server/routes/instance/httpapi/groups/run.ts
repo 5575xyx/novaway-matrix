@@ -243,6 +243,17 @@ export const RunTeamView = Schema.Struct({
   ),
 }).annotate({ identifier: "RunTeamView" })
 
+/**
+ * 验收方式的公开视图：只说「怎么验」，不说「跑什么」。
+ *
+ * 命令行里经常带着凭据（`curl -H "Authorization: Bearer …"`），所以它既不进响应，
+ * 也不进事件与界面 —— 与 hook 命令同一条约束。人能靠「哪条验收、什么超时」认出来即可。
+ */
+export const RunVerifierView = Schema.Struct({
+  kind: Schema.String,
+  timeoutMs: Schema.optional(Schema.Number),
+}).annotate({ identifier: "RunVerifierView" })
+
 export const RunAcceptanceView = Schema.Struct({
   id: Schema.String,
   taskID: Schema.optional(Schema.String),
@@ -252,6 +263,8 @@ export const RunAcceptanceView = Schema.Struct({
   kind: Schema.String,
   expected: Schema.optional(Schema.String),
   owner: Schema.optional(Schema.String),
+  /** 命令类验收只回 `{ kind, timeoutMs }`；命令原文不出接口。 */
+  verifier: Schema.optional(RunVerifierView),
 }).annotate({ identifier: "RunAcceptanceView" })
 
 export const RunVerificationView = Schema.Struct({
@@ -263,6 +276,8 @@ export const RunVerificationView = Schema.Struct({
   outcome: Schema.Literals(["pass", "fail", "unverified"]),
   measured: Schema.optional(Schema.String),
   evidenceRef: Schema.optional(Schema.String),
+  /** 复用同快照上的已有结论（§19.1）：界面必须标出来，不能当成新验证。 */
+  reused: Schema.optional(Schema.Boolean),
   at: Schema.Number,
 }).annotate({ identifier: "RunVerificationView" })
 
@@ -397,6 +412,17 @@ export const RunAcceptancePayload = Schema.Struct({
   expected: Schema.optional(Schema.String),
   /** 团队 ID；省略表示全局验收（合并快照上重验）。 */
   owner: Schema.optional(Schema.String),
+  /**
+   * 命令类验收（§6.2 / §19.1）：给了就直接跑命令看退出码，不交给模型判断。
+   * 命令是**人**声明的受控配置 —— 模型没有等价的写入通道。
+   */
+  verifier: Schema.optional(
+    Schema.Struct({
+      kind: Schema.Literals(["command"]),
+      run: Schema.String,
+      timeoutMs: Schema.optional(Schema.Number),
+    }),
+  ),
 })
 
 export const RunExecutePayload = Schema.Struct({
@@ -529,7 +555,7 @@ export const RunApi = HttpApiGroup.make("run")
       query: WorkspaceRoutingQuery,
       payload: RunAcceptancePayload,
       success: described(RunAcceptanceView, "Registered acceptance"),
-      error: [HttpApiError.NotFound],
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "run.acceptance.add",

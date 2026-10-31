@@ -3763,6 +3763,11 @@ export type RunTeamView = {
   }
 }
 
+export type RunVerifierView = {
+  kind: string
+  timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type RunAcceptanceView = {
   id: string
   taskID?: string
@@ -3772,6 +3777,7 @@ export type RunAcceptanceView = {
   kind: string
   expected?: string
   owner?: string
+  verifier?: RunVerifierView
 }
 
 export type RunVerificationView = {
@@ -3783,6 +3789,7 @@ export type RunVerificationView = {
   outcome: "pass" | "fail" | "unverified"
   measured?: string
   evidenceRef?: string
+  reused?: boolean
   at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
@@ -18167,6 +18174,11 @@ export type RunAcceptanceAddData = {
     kind: "test" | "diff" | "file" | "rubric" | "human"
     expected?: string
     owner?: string
+    verifier?: {
+      kind: "command"
+      run: string
+      timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
   }
   path: {
     runID: string
@@ -18179,6 +18191,10 @@ export type RunAcceptanceAddData = {
 }
 
 export type RunAcceptanceAddErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
   /**
    * Not found
    */

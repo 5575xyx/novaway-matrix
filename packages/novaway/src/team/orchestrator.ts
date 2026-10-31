@@ -48,6 +48,8 @@ export type VerificationResult = {
   measured?: string
   evidenceRef?: string
   verifierVersion?: string
+  /** 结论复用自同一快照上的另一次验证；界面与事件都要标出来（§19.1）。 */
+  reused?: boolean
   /** 验证针对的代码快照；缺省用调度器传入的当前快照。 */
   snapshotID?: string
   /**
@@ -175,6 +177,8 @@ export const layer = Layer.effect(
         measured?: string
         evidenceRef?: string
         attempt: number
+        /** 复用同快照结论（§19.1）：事件里也标出来，回放不能把它当成新验证。 */
+        reused?: boolean
         /** 这条验收归谁：团队 id，或全局验收时为运行 id。 */
         owner?: string
       }) =>
@@ -191,6 +195,7 @@ export const layer = Layer.effect(
               verifierVersion: entry.verifierVersion,
               ...(entry.owner ? { owner: entry.owner } : {}),
               ...(entry.evidenceRef ? { hasEvidence: true } : {}),
+              ...(entry.reused ? { reused: true } : {}),
             },
           })
           return saved
@@ -417,6 +422,7 @@ export const layer = Layer.effect(
               outcome: result.value.outcome,
               measured: result.value.measured,
               evidenceRef: result.value.evidenceRef,
+              ...(result.value.reused ? { reused: true } : {}),
               attempt: round,
               owner: team.id,
             })
@@ -681,6 +687,7 @@ export const layer = Layer.effect(
                 outcome: Exit.isSuccess(result) ? result.value.outcome : "unverified",
                 measured: Exit.isSuccess(result) ? result.value.measured : message(result.cause),
                 evidenceRef: Exit.isSuccess(result) ? result.value.evidenceRef : undefined,
+                ...(Exit.isSuccess(result) && result.value.reused ? { reused: true } : {}),
                 attempt: rounds + 1,
                 owner: teamID,
               })

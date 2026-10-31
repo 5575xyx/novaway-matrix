@@ -310,6 +310,58 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("a command acceptance says how it verifies but never echoes the command", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      type Acceptance = {
+        id: string
+        specID: string
+        kind: string
+        verifier?: { kind: string; timeoutMs?: number }
+      }
+      type Detail = { run: { id: string }; acceptances: Acceptance[] }
+
+      const created = yield* post(dir, "/run", {
+        sessionID: "ses_command",
+        directory: dir,
+        mode: "team",
+        goal: "命令类验收",
+        acceptance: [{ text: "占位" }],
+      })
+      const id = ((yield* created.json) as Detail).run.id
+
+      // 命令行里带着一个假 token：它不能被回显到任何响应里（与 hook 命令同一条约束）。
+      const added = yield* post(dir, `/run/${id}/acceptance`, {
+        specID: "cmd-1",
+        text: "测试全绿",
+        kind: "test",
+        verifier: { kind: "command", run: "bun test --token=abc123", timeoutMs: 30_000 },
+      })
+      expect(added.status).toBe(200)
+      const view = (yield* added.json) as Acceptance
+      expect(view.verifier).toEqual({ kind: "command", timeoutMs: 30_000 })
+      expect(JSON.stringify(view)).not.toContain("abc123")
+      expect(JSON.stringify(view)).not.toContain("bun test")
+
+      // 运行详情回同样的视图：能看出「怎么验」，看不出「跑什么」。
+      const detail = (yield* (yield* get(dir, "/run/" + id, dir)).json) as Detail
+      const line = detail.acceptances.find((item) => item.specID === "cmd-1")
+      expect(line?.verifier).toEqual({ kind: "command", timeoutMs: 30_000 })
+      expect(JSON.stringify(detail)).not.toContain("abc123")
+
+      // 其它类型没有「退出码」这个判定标准：明确拒绝，而不是悄悄退回模型验证。
+      const refused = yield* post(dir, `/run/${id}/acceptance`, {
+        specID: "cmd-2",
+        text: "看起来不错",
+        kind: "rubric",
+        verifier: { kind: "command", run: "true" },
+      })
+      expect(refused.status).toBe(400)
+      const afterRefusal = (yield* (yield* get(dir, "/run/" + id, dir)).json) as Detail
+      expect(afterRefusal.acceptances.some((item) => item.specID === "cmd-2")).toBe(false)
+    }),
+  )
+
   it.live("a denied action stays denied for the run until the user explicitly allows it again", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

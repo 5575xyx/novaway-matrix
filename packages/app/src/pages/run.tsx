@@ -75,6 +75,11 @@ export const RunPage: Component<{
   const [missionDiff, setMissionDiff] = createSignal<MissionDiffView | undefined>(undefined)
   // 展开中的验收项：点一下看证据，再点一下收起。
   const [openLine, setOpenLine] = createSignal<string | undefined>(undefined)
+  // 命令类验收（§19.1）：命令由人写进去，注册后界面不再回显它。
+  const [commandOpen, setCommandOpen] = createSignal(false)
+  const [commandText, setCommandText] = createSignal("")
+  const [commandRun, setCommandRun] = createSignal("")
+  const [commandSeconds, setCommandSeconds] = createSignal(120)
   // 总控开关（§13.1）：关闭时不能启动运行，但历史与计划照旧可以看、可以改。
   const [switchedOn, setSwitchedOn] = createSignal(true)
   // 事件流：按需加载，收起时不发请求。
@@ -370,6 +375,39 @@ export const RunPage: Component<{
       const result = await sdk.client.run.denials.clear({ runID, directory: props.directory })
       setNotice(t("run.denials.cleared", { count: String(numeric(result.data?.cleared ?? 0)) }))
     })
+
+  /**
+   * 注册一条命令类验收（§6.2 / §19.1）。
+   *
+   * 命令只在待人写的这里进入系统：注册之后界面不会再回显它 —— 命令行常带凭据，
+   * 之后能看到的只有「这条验收是命令验的、超时多久」。
+   */
+  const addCommandAcceptance = () =>
+    act("acceptance", async () => {
+      const runID = selected()
+      if (!runID) return
+      const text = commandText().trim()
+      const run = commandRun().trim()
+      if (!text || !run) return
+      await sdk.client.run.acceptance.add({
+        runID,
+        directory: props.directory,
+        specID: "cmd-" + Date.now().toString(36),
+        text,
+        kind: "test",
+        verifier: {
+          kind: "command",
+          run,
+          ...(commandSeconds() > 0 ? { timeoutMs: Math.round(commandSeconds() * 1000) } : {}),
+        },
+      })
+      setCommandText("")
+      setCommandRun("")
+      setCommandOpen(false)
+    })
+
+  const acceptanceFor = (acceptanceID: string) =>
+    (detail()?.acceptances ?? []).find((item) => item.id === acceptanceID)
 
   const hasWorktrees = createMemo(() => (detail()?.teams ?? []).some((team) => !!team.worktree))
   /** 当前运行属于哪个目标：编号只给人看，悬停给出目标描述。 */
@@ -1209,7 +1247,57 @@ export const RunPage: Component<{
                   </Show>
 
                   <div class="flex flex-col gap-1.5">
-                    <div class="text-ui-xs text-foreground-subtle">{t("run.page.about")}</div>
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="text-ui-xs text-foreground-subtle">{t("run.page.about")}</div>
+                      {/*
+                        命令类验收（§19.1）：退出码就是结论，不交给模型去评。
+                        命令由人写、由人负责；写完之后界面不再回显它。
+                      */}
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        title={t("run.acceptance.commandHint")}
+                        onClick={() => setCommandOpen((open) => !open)}
+                      >
+                        {t("run.acceptance.command")}
+                      </Button>
+                    </div>
+                    <Show when={commandOpen()}>
+                      <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-3 py-2">
+                        <div class="text-ui-xs text-foreground-subtlest">{t("run.acceptance.commandHint")}</div>
+                        <input
+                          class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                          value={commandText()}
+                          placeholder={t("run.acceptance.commandText")}
+                          onInput={(event) => setCommandText(event.currentTarget.value)}
+                        />
+                        <input
+                          class="h-8 rounded-md border border-border bg-surface px-2 font-mono text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                          value={commandRun()}
+                          placeholder={t("run.acceptance.commandRun")}
+                          onInput={(event) => setCommandRun(event.currentTarget.value)}
+                        />
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="text-ui-xs text-foreground-subtle">{t("run.acceptance.commandTimeout")}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="10"
+                            class="h-8 w-24 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                            value={commandSeconds()}
+                            onInput={(event) => setCommandSeconds(Number(event.currentTarget.value) || 0)}
+                          />
+                          <Button
+                            variant="primary"
+                            size="small"
+                            disabled={busy() !== "" || !commandText().trim() || !commandRun().trim()}
+                            onClick={() => void addCommandAcceptance()}
+                          >
+                            {t("run.acceptance.commandAdd")}
+                          </Button>
+                        </div>
+                      </div>
+                    </Show>
                     <Show
                       when={(data().summary.lines ?? []).length > 0}
                       fallback={
@@ -1245,6 +1333,15 @@ export const RunPage: Component<{
                                 <div class="text-ui-base text-foreground">{line.text}</div>
                                 <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
                                   <Tag>{line.outcome}</Tag>
+                                  <Show when={acceptanceFor(line.acceptanceID)?.verifier}>
+                                    {(verifier) => (
+                                      <Tag title={t("run.acceptance.commandTagHint")}>
+                                        {t("run.acceptance.commandTag", {
+                                          seconds: String(Math.round(numeric(verifier().timeoutMs ?? 0) / 1000)),
+                                        })}
+                                      </Tag>
+                                    )}
+                                  </Show>
                                   <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
                                   <Show when={line.snapshotID}>
                                     {(snapshot) => <span class="truncate">{snapshot()}</span>}
@@ -1271,6 +1368,12 @@ export const RunPage: Component<{
                                         </Show>
                                         <Show when={record.evidenceRef}>
                                           {(ref) => <span class="min-w-0 truncate">{ref()}</span>}
+                                        </Show>
+                                        {/* 缓存命中也算证据，但必须看得出它不是这次新验的（§19.1）。 */}
+                                        <Show when={record.reused}>
+                                          <Tag class="text-warning" title={t("run.evidence.reusedHint")}>
+                                            {t("run.evidence.reused")}
+                                          </Tag>
                                         </Show>
                                       </div>
                                     )}
