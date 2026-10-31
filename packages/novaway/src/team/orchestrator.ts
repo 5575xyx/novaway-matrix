@@ -49,6 +49,13 @@ export type VerificationResult = {
   verifierVersion?: string
   /** 验证针对的代码快照；缺省用调度器传入的当前快照。 */
   snapshotID?: string
+  /**
+   * 这次验证实际消耗的 token。
+   *
+   * 验证不在派发的预占里，但它是真金白银：不记账的话，预算上限只约束队长，
+   * 而「验证器是否 affordable」就变成了没有人回答的问题（§7.1）。
+   */
+  usage?: { tokens?: number }
 }
 
 export type DispatchInput = {
@@ -202,6 +209,20 @@ export const layer = Layer.effect(
         }
       })
 
+      /**
+       * 验证消耗入账。
+       *
+       * 验证器不经过派发预占，但花的钱是真的；不记的话，预算上限管不到它（§7.1）。
+       * 归属记到团队上：验证是「这支队的交付是否成立」的成本，不是另一个人的。
+       */
+      const chargeVerification = (teamID: string, result: VerificationResult) =>
+        result.usage?.tokens && result.usage.tokens > 0
+          ? ledger.record({ runID: input.runID, actor: teamID, tokens: result.usage.tokens }).pipe(
+              Effect.asVoid,
+              Effect.catchCause(() => Effect.void),
+            )
+          : Effect.void
+
       /** 单团队一轮：预占 → 派发 → 验证 → 判定。失败不影响其他团队。 */
       const attempt = (team: RunTeam, round: number) =>
         Effect.gen(function* () {
@@ -288,6 +309,7 @@ export const layer = Layer.effect(
               })
               continue
             }
+            yield* chargeVerification(team.id, result.value)
             yield* verification.record({
               acceptanceID: acceptance.id,
               snapshotID: result.value.snapshotID ?? snapshot,
@@ -523,17 +545,21 @@ export const layer = Layer.effect(
             acceptance: Acceptance,
             result: Exit.Exit<VerificationResult, unknown>,
             fallbackVersion: string,
+            teamID: string,
           ) =>
-            verification.record({
-              acceptanceID: acceptance.id,
-              snapshotID: Exit.isSuccess(result) ? (result.value.snapshotID ?? snapshot) : snapshot,
-              verifierVersion: Exit.isSuccess(result)
-                ? (result.value.verifierVersion ?? fallbackVersion)
-                : "verifier-error",
-              outcome: Exit.isSuccess(result) ? result.value.outcome : "unverified",
-              measured: Exit.isSuccess(result) ? result.value.measured : message(result.cause),
-              evidenceRef: Exit.isSuccess(result) ? result.value.evidenceRef : undefined,
-              attempt: rounds + 1,
+            Effect.gen(function* () {
+              if (Exit.isSuccess(result)) yield* chargeVerification(teamID, result.value)
+              yield* verification.record({
+                acceptanceID: acceptance.id,
+                snapshotID: Exit.isSuccess(result) ? (result.value.snapshotID ?? snapshot) : snapshot,
+                verifierVersion: Exit.isSuccess(result)
+                  ? (result.value.verifierVersion ?? fallbackVersion)
+                  : "verifier-error",
+                outcome: Exit.isSuccess(result) ? result.value.outcome : "unverified",
+                measured: Exit.isSuccess(result) ? result.value.measured : message(result.cause),
+                evidenceRef: Exit.isSuccess(result) ? result.value.evidenceRef : undefined,
+                attempt: rounds + 1,
+              })
             })
 
           for (const acceptance of acceptances) {
@@ -550,7 +576,9 @@ export const layer = Layer.effect(
                 continue
               }
               const merged = yield* Effect.exit(input.verifyMerged({ acceptance, snapshotID: snapshot }))
-              yield* recordResult(acceptance, merged, "merged")
+              // 全局验收不属于任何团队：成本记在运行上（actor 用 runID），
+              // 免得把「合并后才验的那几条」摊给某一支队。
+              yield* recordResult(acceptance, merged, "merged", input.runID)
               continue
             }
             const team = teamByID.get(acceptance.owner)
@@ -571,7 +599,7 @@ export const layer = Layer.effect(
               claims: [],
             }
             const recheck = yield* Effect.exit(input.verify({ acceptance, report, team, round: rounds + 1 }))
-            yield* recordResult(acceptance, recheck, "v1")
+            yield* recordResult(acceptance, recheck, "v1", team.id)
           }
         })
 

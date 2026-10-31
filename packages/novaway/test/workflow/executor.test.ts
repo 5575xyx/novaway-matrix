@@ -4,6 +4,7 @@ import { executeRun } from "../../src/workflow/executor"
 import type { Workflow, WorkflowRun } from "../../src/workflow/workflow"
 import type { WorkflowStep } from "../../src/workflow/workflow.sql"
 import type { RunAgent } from "../../src/session/agent-step"
+import { SessionID } from "../../src/session/schema"
 
 // 执行引擎是纯函数(runAgent + service 均为注入),无需 DB / LLM。
 // 用假 runAgent(回显 prompt)与假 service(内存记录状态)验证图遍历、插值、
@@ -68,7 +69,7 @@ function makeEchoAgent() {
   const runAgent: RunAgent = (input) =>
     Effect.sync(() => {
       prompts.push(input.prompt)
-      return `out:${input.prompt}`
+      return { text: `out:${input.prompt}`, sessionID: SessionID.make("ses_fake"), usage: { cost: 0, tokens: 0 } }
     })
   return { runAgent, prompts }
 }

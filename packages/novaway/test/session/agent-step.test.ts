@@ -10,6 +10,8 @@ function harness(opts: {
   service?: boolean
   existingName?: string
   prompt?: (sessionID: string) => Effect.Effect<unknown, unknown>
+  /** 注入「读用量」的实现：验证派发方能把整棵子树的消耗算进来。 */
+  usage?: { cost: number; tokens: number }
 }) {
   const parentID = SessionID.make("ses_parent")
   const childID = SessionID.make("ses_child_1234")
@@ -64,6 +66,7 @@ function harness(opts: {
     defaultModel: { providerID: "test", modelID: "test-model" },
     defaultAgent: "build",
     ...(opts.service === false ? {} : { teams }),
+    ...(opts.usage ? { readUsage: () => Effect.succeed(opts.usage!) } : {}),
   })
 
   return { runAgent, created, added, statuses, childID, parentID }
@@ -74,7 +77,7 @@ describe("session.agent-step.makeRunAgent", () => {
     const h = harness({})
     const output = await Effect.runPromise(h.runAgent({ agent: "explore", prompt: "hello", title: "Research" }))
 
-    expect(output).toBe("done")
+    expect(output.text).toBe("done")
     expect(h.created).toHaveLength(1)
     expect(h.created[0].parentID).toBe(h.parentID)
     expect(h.created[0].permissionMode).toBe("acceptEdits")
@@ -92,6 +95,21 @@ describe("session.agent-step.makeRunAgent", () => {
       { sessionID: h.childID, status: "active" },
       { sessionID: h.childID, status: "idle" },
     ])
+  })
+
+  test("reports what this run cost so the caller can settle instead of guessing", async () => {
+    // 只返回文本时，账本只能把每笔预占记成「用量不明」—— 「花了多少」永远没人回答。
+    const h = harness({ usage: { cost: 0.02, tokens: 1234 } })
+    const output = await Effect.runPromise(h.runAgent({ agent: "build", prompt: "hi", title: "Work" }))
+    expect(output.usage).toEqual({ cost: 0.02, tokens: 1234 })
+    expect(output.sessionID).toBe(h.childID)
+  })
+
+  test("a session that cannot be read reports zero instead of failing the dispatch", async () => {
+    // 读用量失败不该让整次派发失败：文本已经产出，用量记 0 比丢掉这轮更可解释。
+    const h = harness({})
+    const output = await Effect.runPromise(h.runAgent({ agent: "build", prompt: "hi", title: "Work" }))
+    expect(output.usage).toEqual({ cost: 0, tokens: 0 })
   })
 
   test("marks the worker idle even when the prompt fails", async () => {

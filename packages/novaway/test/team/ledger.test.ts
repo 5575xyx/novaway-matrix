@@ -45,6 +45,30 @@ describe("team ledger", () => {
     }),
   )
 
+  it.effect("records spend that never went through a reservation", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      // 验证器不在派发预占里，但它确实花钱：补记后额度判断必须看得到它。
+      yield* ledger.record({ runID: id, actor: "team-a", tokens: 30 })
+      const usage = yield* ledger.usage({ runID: id, cap: { tokens: 100 } })
+      expect(usage.settled).toBe(30)
+      expect(usage.reserved).toBe(0)
+      expect(usage.committed).toBe(30)
+      expect(usage.remaining).toBe(70)
+    }),
+  )
+
+  it.effect("a zero-token record writes nothing", () =>
+    Effect.gen(function* () {
+      const ledger = yield* LedgerService
+      const id = runID()
+      // 读不到用量的验证不该在账本里留一行 0：那会让「有几笔花费」变成噪声。
+      yield* ledger.record({ runID: id, actor: "team-a", tokens: 0 })
+      expect(yield* ledger.entries(id)).toEqual([])
+    }),
+  )
+
   it.effect("marks settlement above the reservation as overrun", () =>
     Effect.gen(function* () {
       const ledger = yield* LedgerService

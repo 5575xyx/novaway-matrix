@@ -39,6 +39,7 @@ import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
 import { Provider } from "@/provider/provider"
 import { SessionID } from "@/session/schema"
+import { SessionUsage } from "@/session/usage"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamOpLogService } from "@/team/op-log"
 import { Snapshot } from "@/snapshot"
@@ -78,7 +79,7 @@ const toUsage = (value: Record<string, unknown> | undefined) => {
                 ...(typeof employeeID === "string" ? { employeeID } : {}),
                 ...(typeof job === "string" ? { job } : {}),
                 committed: number(Reflect.get(item, "committed")),
-                basis: typeof basis === "string" ? basis : "captain",
+                basis: typeof basis === "string" ? basis : "team",
               },
             ]
           }),
@@ -525,6 +526,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               ? { providerID: lastAssistant.info.providerID, modelID: lastAssistant.info.modelID }
               : yield* provider.defaultModel()
           const defaultAgent = yield* agents.defaultAgent()
+          const sessionUsage = yield* SessionUsage.Service
 
           const ops: RunAgentPromptOps = {
             resolvePromptParts: (template) => promptSvc.resolvePromptParts(template),
@@ -539,6 +541,16 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             defaultModel,
             defaultAgent,
             teams,
+            /**
+             * 用量按**整棵子树**读：队长自己是一层，成员是队长用 `task` 派生的子会话，
+             * 再往下还有成员自己的子代理。只读队长那一行，会把成员的开销整个漏掉 ——
+             * 账本记的就不是「这次运行花了多少」，而是「队长自己花了多少」。
+             */
+            readUsage: (sessionID) =>
+              sessionUsage.tree(sessionID).pipe(
+                Effect.map((tree) => ({ cost: tree.total.cost, tokens: tree.total.tokens.total })),
+                Effect.catchCause(() => Effect.succeed({ cost: 0, tokens: 0 })),
+              ),
             // 子会话一创建就登记编排坐标；之后它跑的任何有副作用工具都会带幂等键。
             onSession: ({ sessionID, scope }) => (scope ? opLog.scope({ sessionID, ...scope }) : Effect.void),
           })
@@ -681,13 +693,14 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                   truncated: context.manifest.truncated,
                 },
               })
-              const text = yield* runAgent({
+              const captainRun = yield* runAgent({
                 agent: captain,
                 ...(teamDirectory ? { directory: teamDirectory } : {}),
                 title: "队长 · 第 " + input.round + " 轮",
                 scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
                 prompt: context.prompt,
               })
+              const text = captainRun.text
               const parsed = parseJSON(text)
               const claims = Array.isArray(parsed?.claims)
                 ? (parsed!.claims as Array<Record<string, unknown>>).map((claim) => ({
@@ -698,6 +711,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 : []
               return {
                 teamID: input.team.id,
+                // 用量按这次派发的实际消耗结算：不填的话账本只能记成「用量不明」（§7.1）。
+                usage: { tokens: captainRun.usage.tokens },
                 summary: typeof parsed?.summary === "string" ? parsed.summary : text.slice(0, 500),
                 claims,
                 artifacts: Array.isArray(parsed?.artifacts)
@@ -715,17 +730,20 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const verify = (input: VerifyInput) =>
             Effect.gen(function* () {
               const snapshotID = (yield* snapshotOf) ?? "unknown"
-              const text = yield* runAgent({
+              const verified = yield* runAgent({
                 agent: verifier,
                 ...(teamDirectory ? { directory: teamDirectory } : {}),
                 title: "验证 · " + input.acceptance.id,
                 scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round, readOnly: policy.readOnly },
                 prompt: TeamVerifier.prompt(input.acceptance, input.report),
               })
+              const text = verified.text
               // 没有证据的 pass 在这里被降级为 unverified（见 TeamVerifier.interpret）。
               return {
                 ...TeamVerifier.interpret(text),
                 snapshotID,
+                // 验证也要花钱：不计进来的话，预算上限只约束派发，约束不到真相。
+                usage: { tokens: verified.usage.tokens },
               } satisfies VerificationResult
             })
 
@@ -734,7 +752,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const verifyMerged = (input: { acceptance: Acceptance; snapshotID: string }) =>
             Effect.gen(function* () {
               const directory = (yield* Ref.get(integrated)) ?? teamDirectory
-              const text = yield* runAgent({
+              const mergedRun = yield* runAgent({
                 agent: verifier,
                 ...(directory ? { directory } : {}),
                 title: "合并验收 · " + input.acceptance.id,
@@ -743,7 +761,11 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                   claims: [{ text: "合并后的代码（" + input.snapshotID + "）" }],
                 }),
               })
-              return { ...TeamVerifier.interpret(text), snapshotID: input.snapshotID } satisfies VerificationResult
+              return {
+                ...TeamVerifier.interpret(mergedRun.text),
+                snapshotID: input.snapshotID,
+                usage: { tokens: mergedRun.usage.tokens },
+              } satisfies VerificationResult
             })
 
           // 后台执行：UI 轮询 run detail；取消走 cancel 接口。

@@ -68,6 +68,14 @@ export interface Interface {
    */
   readonly settle: (input: { id: string; tokens?: number }) => Effect.Effect<Entry | undefined>
   readonly release: (input: { id: string }) => Effect.Effect<void>
+  /**
+   * 直接记一笔已结算的消耗，不走「预占 → 结算」。
+   *
+   * 用于不经过派发预占、但确实花掉的钱（例如验证器）：把它补进账本，
+   * 预算判断（`reserved + settled + unknown`）才覆盖得到它。
+   * 少了这一步，「上限」只约束得到派发，约束不到验证。
+   */
+  readonly record: (input: { runID: string; actor: string; tokens: number }) => Effect.Effect<Entry>
   readonly usage: (input: { runID: string; cap?: Cap }) => Effect.Effect<Usage>
   /**
    * 本次运行的全部账本条目。
@@ -222,6 +230,38 @@ export const layer = Layer.effect(
       )
     })
 
+    const record: Interface["record"] = Effect.fn("TeamLedger.record")(function* (input) {
+      // 预占 0、结算 N：这不是「超支」，而是「没预占过的一笔实际花费」。
+      // 用 overrun 表达会被误读成「估算太保守」，所以状态记 settled。
+      const entry: Entry = {
+        id: generateId(),
+        runID: input.runID,
+        actor: input.actor,
+        reservedTokens: 0,
+        settledTokens: input.tokens,
+        state: "settled",
+        at: Date.now(),
+      }
+      if (input.tokens <= 0) return entry
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .insert(TeamRunLedgerTable)
+            .values({
+              id: entry.id,
+              run_id: entry.runID,
+              actor: entry.actor,
+              reserved_tokens: 0,
+              settled_tokens: entry.settledTokens,
+              state: entry.state,
+              at: entry.at,
+            })
+            .run(),
+        ),
+      )
+      return entry
+    })
+
     const usage: Interface["usage"] = Effect.fn("TeamLedger.usage")(function* (input) {
       const entries = yield* Effect.sync(() => rows(input.runID))
       return usageOf(entries.map(toEntry), input.cap)
@@ -233,7 +273,7 @@ export const layer = Layer.effect(
       return current.committed + input.delta > input.cap.tokens
     })
 
-    return Service.of({ reserve, settle, release, usage, wouldExceed, entries })
+    return Service.of({ reserve, settle, release, record, usage, wouldExceed, entries })
   }),
 )
 

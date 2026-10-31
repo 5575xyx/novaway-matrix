@@ -203,7 +203,7 @@ export const layer = Layer.effect(
             } else {
               promptText = interpolate(String(c.prompt ?? task.name), results)
             }
-            const out = yield* input.runAgent({ agent: agentName, prompt: promptText, title: task.name })
+            const out = (yield* input.runAgent({ agent: agentName, prompt: promptText, title: task.name })).text
             const cur = byId.get(task.id)!
             ;(cur as any).status = "completed"
             ;(cur as any).result = out

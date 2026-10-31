@@ -41,7 +41,25 @@ export interface RunAgentInput {
   readonly directory?: string
 }
 
-export type RunAgent = (input: RunAgentInput) => Effect.Effect<string>
+/**
+ * 这一轮子会话实际花了什么（§10.3）。
+ *
+ * 之前只返回文本，导致上级只能把用量记成 `unknown` —— 「跑了多少」永远是个问号，
+ * 预算判断也只能靠预占额。用量来自会话行上的累计值（`step-finish` 折进去的），
+ * 比事后扫消息更准，也能覆盖在别的进程里跑完的子会话。
+ */
+export type RunAgentUsage = {
+  readonly cost: number
+  readonly tokens: number
+}
+
+export type RunAgentResult = {
+  readonly text: string
+  readonly sessionID: SessionID
+  readonly usage: RunAgentUsage
+}
+
+export type RunAgent = (input: RunAgentInput) => Effect.Effect<RunAgentResult>
 
 /** promptOps 中执行 runAgent 所需的最小子集(来自 SessionPrompt.Service)。 */
 export interface RunAgentPromptOps {
@@ -72,6 +90,11 @@ export interface MakeRunAgentConfig {
    * 放在这里而不是 runAgent 调用点，是因为会话 ID 只有创建后才知道。
    */
   readonly onSession?: (input: { sessionID: SessionID; scope: RunAgentInput["scope"] }) => Effect.Effect<void>
+  /**
+   * 读取某个会话（含其子孙）的累计用量。缺省只读会话自己的行；
+   * 编排方可以注入「整棵子树」的读法，把队长派生出的成员开销一起算进来。
+   */
+  readonly readUsage?: (sessionID: SessionID) => Effect.Effect<RunAgentUsage>
 }
 
 /**
@@ -80,6 +103,22 @@ export interface MakeRunAgentConfig {
  */
 export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
   const { ops, sessions, agents, parentSessionID, defaultModel, defaultAgent, teams, onSession } = config
+  // 缺省读法：会话行自己记的总量。子会话是新建的，读到的就是这一轮的消耗。
+  const readUsage: (sessionID: SessionID) => Effect.Effect<RunAgentUsage> =
+    config.readUsage ??
+    ((sessionID) =>
+      sessions.get(sessionID).pipe(
+        Effect.map((info) => ({
+          cost: info?.cost ?? 0,
+          tokens:
+            (info?.tokens?.input ?? 0) +
+            (info?.tokens?.output ?? 0) +
+            (info?.tokens?.reasoning ?? 0) +
+            (info?.tokens?.cache?.read ?? 0) +
+            (info?.tokens?.cache?.write ?? 0),
+        })),
+        Effect.catchCause(() => Effect.succeed({ cost: 0, tokens: 0 })),
+      ))
   return (input) =>
     Effect.gen(function* () {
       const parent = yield* sessions.get(parentSessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
@@ -162,6 +201,12 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
           parts,
         })
         .pipe(Effect.ensuring(mark("idle")))
-      return result.parts.findLast((item) => item.type === "text")?.text ?? ""
+      // 用量必须在这一轮结束后立刻读：再晚一点，同一会话里后续的消耗会混进来。
+      const usage = yield* readUsage(child.id)
+      return {
+        text: result.parts.findLast((item) => item.type === "text")?.text ?? "",
+        sessionID: child.id,
+        usage,
+      } satisfies RunAgentResult
     })
 }

@@ -31,7 +31,7 @@ function makeRecordingAgent() {
     Effect.sync(() => {
       order.push(input.agent)
       prompts.push(input.prompt)
-      return `out:${input.title}`
+      return { text: `out:${input.title}`, sessionID: SessionID.make("ses_fake"), usage: { cost: 0, tokens: 0 } }
     })
   return { runAgent, order, prompts }
 }

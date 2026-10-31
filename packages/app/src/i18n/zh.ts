@@ -104,7 +104,7 @@ export const dict = {
   "run.usage.unknown": "用量不明 {{n}}（按预占额保守计入）",
   "run.usage.reserved": "在途预占 {{n}}",
   "run.usage.overrun": "已超支",
-  "run.usage.hint": "每个岗位的承诺用量。目前只有队长真正跑会话，所以这是队长口径，不是按成员拆分。",
+  "run.usage.hint": "每个岗位的承诺用量，口径是整支团队：队长、成员与成员的子代理都算在内。成员身上没有编制里的员工身份，所以还拆不到「某个人花了多少」。",
   "run.action.refresh": "刷新",
   "run.action.new": "试跑内置团队",
   "run.action.newHint": "用内置的代码审查模板直接发起一次运行，不需要先建团队。",

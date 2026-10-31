@@ -54,7 +54,7 @@ describe("team attribution", () => {
       ["rt_b", 30],
     ])
     // 队长口径要说清楚：现在只有队长真的跑会话。
-    expect(result.byActor[0]).toMatchObject({ employeeID: "emp_a", job: "build", basis: "captain" })
+    expect(result.byActor[0]).toMatchObject({ employeeID: "emp_a", job: "build", basis: "team" })
     expect(result.byJob).toEqual([
       { job: "build", committed: 130 },
       { job: "general", committed: 30 },

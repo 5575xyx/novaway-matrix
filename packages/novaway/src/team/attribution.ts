@@ -13,10 +13,13 @@ import type { RunTeam } from "./run"
  * | `actor`  | 按账本里的 actor（团队）汇总，再映射到**队长**岗位 |
  * | `job`    | 把 actor 汇总跨团队并到岗位，用于性价比判断        |
  *
- * 一处必须说清楚的边界：现在只有队长真正跑 agent 会话，成员是队长用 `task` 派发的，
- * 其用量没有按人单独计量。所以这里的 `byActor` 是**队长口径**（`basis: "captain"`），
- * 不是「每个成员花了多少」。想按人计量，需要成员级会话自带用量上报 —— 那时把
- * `basis` 改成 `member` 即可，但绝不能在此之前假装已经按人拆开。
+ * 数字的口径（2026-10-31 起）：派发结束后读的是**整棵子会话树**的累计用量
+ * （队长会话 + 它派生的成员会话 + 成员的子代理），所以 `byActor` 是**团队口径**
+ * （`basis: "team"`）—— 「这支队伍这次花了多少」，不是「队长自己花了多少」。
+ *
+ * 仍未做到的：按**人**拆开。成员是队长用 `task` 派生出来的会话，身上没有编制里
+ * 的员工身份，只能看到 agent（岗位）。要按人计量，得让派发时把 employeeID 带到
+ * 子会话上；在那之前，任何「某员工花了 N」的说法都是编的。
  */
 
 export type ActorUsage = {
@@ -31,7 +34,7 @@ export type ActorUsage = {
   unknown: number
   /** 承诺量 = 预占 + 已结算 + 用量不明，与预算判断同一口径。 */
   committed: number
-  basis: "captain"
+  basis: "team"
 }
 
 export type Attribution = {
@@ -68,7 +71,7 @@ export function summarize(input: { entries: readonly Entry[]; teams: readonly Ru
     ...captains.get(actor),
     ...empty(),
     committed: 0,
-    basis: "captain",
+    basis: "team",
   })
 
   const byActor = new Map<string, ActorUsage>()

@@ -110,7 +110,7 @@ export const dict = {
   "run.usage.reserved": "in flight {{n}}",
   "run.usage.overrun": "Over budget",
   "run.usage.hint":
-    "Committed tokens per job. Only the captain runs an agent session today, so this is captain-level attribution, not a per-member split.",
+    "Committed tokens per job, counted for the whole team: captain, members and their subagents. Member sessions carry no employee identity yet, so this cannot be split per person.",
   "run.action.refresh": "Refresh",
   "run.action.new": "Try built-in team",
   "run.action.newHint": "Start a run with the built-in code-review template — no team setup needed.",

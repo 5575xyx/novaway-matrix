@@ -64,7 +64,7 @@ export const SkillTool = Tool.define(
                   defaultAgent: info.agent ?? ctx.agent,
                   teams,
                 })
-                const output = yield* runAgent({
+                const { text: output } = yield* runAgent({
                   agent: info.agent ?? ctx.agent,
                   prompt: info.content,
                   title: `Skill: ${info.name}`,

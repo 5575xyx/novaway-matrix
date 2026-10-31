@@ -4,11 +4,12 @@ import { Service as OrchestratorService, defaultLayer as OrchestratorLayer, type
 import { Service as RunService, defaultLayer as RunLayer } from "@/team/run"
 import { Service as VerificationService, defaultLayer as VerificationLayer } from "@/team/verification"
 import { Service as OpLogService, defaultLayer as OpLogLayer } from "@/team/op-log"
+import { Service as LedgerService, defaultLayer as LedgerLayer } from "@/team/ledger"
 import { SessionID } from "@/session/schema"
 import { normalize } from "@/team/artifacts"
 import { testEffect } from "../lib/effect"
 
-const it = testEffect(Layer.mergeAll(OrchestratorLayer, RunLayer, VerificationLayer, OpLogLayer))
+const it = testEffect(Layer.mergeAll(OrchestratorLayer, RunLayer, VerificationLayer, OpLogLayer, LedgerLayer))
 
 const report = (teamID: string): Report => ({
   teamID,
@@ -110,6 +111,45 @@ describe("team orchestrator", () => {
       expect(result.state).not.toBe("done")
       expect(result.summary.deliverable).toBe(false)
       expect(result.summary.unverified).toBe(1)
+    }),
+  )
+
+  it.effect("settles the dispatch with its real usage and charges verification on top", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const ledger = yield* LedgerService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_usage"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "算钱",
+        budget: { tokens: 100_000 },
+      })
+      const team = yield* runs.addTeam({ runID: run.id })
+      yield* verification.register({ runID: run.id, specID: "s", text: "完成", kind: "test", owner: team.id })
+
+      yield* orchestrator.execute({
+        runID: run.id,
+        reserveTokens: 4000,
+        snapshot: () => Effect.succeed("snap_1"),
+        // 派发回报真实用量；验证器也报一份。
+        dispatch: (input) => Effect.succeed({ ...report(input.team.id), usage: { tokens: 1200 } }),
+        verify: () => Effect.succeed({ outcome: "pass" as const, usage: { tokens: 300 } }),
+      })
+
+      const usage = yield* ledger.usage({ runID: run.id })
+      // 结算用实际值替换预占，不再把每一笔都记成「用量不明」。
+      expect(usage.reserved).toBe(0)
+      expect(usage.unknown).toBe(0)
+      // 1200（派发）+ 300（轮内验证）+ 300（合并后重验）：验一次算一次钱，
+      // 重验是另一笔开销，不该被前一笔吞掉（§10.2 的重验本来就是「再花一遍」）。
+      expect(usage.settled).toBe(1800)
+      const entries = yield* ledger.entries(run.id)
+      expect(entries.every((entry) => entry.state === "settled")).toBe(true)
+      // 三笔都记在团队名下，没有人替验证付账。
+      expect(new Set(entries.map((entry) => entry.actor))).toEqual(new Set([team.id]))
     }),
   )
 

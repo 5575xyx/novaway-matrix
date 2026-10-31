@@ -68,7 +68,7 @@ export const executeRun = (deps: ExecuteRunDeps): Effect.Effect<WorkflowRun> =>
         switch (step.type) {
           case "agent": {
             const promptText = interpolate(String(c.prompt ?? step.name), outputs)
-            return yield* runAgent({ agent: agentName, prompt: promptText, title: step.name })
+            return (yield* runAgent({ agent: agentName, prompt: promptText, title: step.name })).text
           }
           case "tool":
           case "skill": {
@@ -78,7 +78,7 @@ export const executeRun = (deps: ExecuteRunDeps): Effect.Effect<WorkflowRun> =>
             const promptText = [`请使用${kind} \`${String(target ?? "")}\` 完成以下任务：`, instruction]
               .filter(Boolean)
               .join("\n")
-            return yield* runAgent({ agent: agentName, prompt: promptText, title: step.name })
+            return (yield* runAgent({ agent: agentName, prompt: promptText, title: step.name })).text
           }
           default:
             return ""
