@@ -129,6 +129,9 @@ export const dict = {
   "run.review.startedAt": "started {{time}}",
   "run.events.hint":
     "Read-only log used to replay why the run reached its conclusion. Only kinds and times are shown; payloads stay local.",
+  "run.tasks.title": "Task board ({{count}})",
+  "run.tasks.hint": "Progress only: a board entry is a coordination note, not proof that a session is running it.",
+  "run.tasks.owner": "owner: {{owner}}",
   "run.blocked.title": "Blocked ({{count}})",
   "run.denials.title": "{{count}} action(s) denied in this run",
   "run.denials.hint": "A denial lasts for the rest of this run: the same action is never asked twice. Swapping in another person does not help either.",

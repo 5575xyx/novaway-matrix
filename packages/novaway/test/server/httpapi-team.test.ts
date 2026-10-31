@@ -2,6 +2,7 @@ import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { Flag } from "@novaway/core/flag/flag"
 import { SessionTable } from "@/session/session.sql"
 import { TeamRunOpTable, TeamRunTable } from "@/team/run.sql"
+import { AgentTaskTable } from "@/team/team.sql"
 import { SessionID } from "@/session/schema"
 import { Database } from "@/storage/db"
 import * as TeamDenials from "@/team/denials"
@@ -356,6 +357,51 @@ describe("team HttpApi", () => {
         teams: [{ name: "不存在的组", profileID: "prof_missing" }],
       })
       expect(missing.status).toBe(400)
+    }),
+  )
+
+  it.live("the run board lists the tasks the team is working on", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
+      const created = (yield* (
+        yield* post(dir, "/run", {
+          sessionID: "ses_run_tasks",
+          directory: dir,
+          mode: "team",
+          goal: "审查这次改动",
+          profileID: profiles[0].id,
+        })
+      ).json) as { run: { id: string }; teams: Array<{ id: string }> }
+      const teamID = created.teams[0].id
+      const now = Date.now()
+      // 运行里创建的任务挂在运行团队上（`team_run_team.id`），不是会话临时团队。
+      Database.use((db) =>
+        db
+          .insert(AgentTaskTable)
+          .values({
+            id: "task_board_1",
+            team_id: teamID,
+            subject: "补 refund 边界用例",
+            description: "覆盖全额与部分退款",
+            status: "in_progress",
+            owner_session_id: SessionID.make("ses_member"),
+            blocks: [],
+            blocked_by: [],
+            metadata: { runID: created.run.id },
+            created_at: now,
+            updated_at: now,
+          })
+          .run(),
+      )
+
+      const detail = (yield* (yield* get(dir, "/run/" + created.run.id, dir)).json) as {
+        teams: Array<{ id: string; tasks?: Array<{ id: string; subject: string; status: string; owner?: string }> }>
+      }
+      // 看板要能回答「做到哪一步、谁在做」，而不是只有状态机。
+      expect(detail.teams[0].tasks).toEqual([
+        { id: "task_board_1", subject: "补 refund 边界用例", status: "in_progress", owner: "ses_member" },
+      ])
     }),
   )
 

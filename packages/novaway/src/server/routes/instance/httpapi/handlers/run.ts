@@ -45,6 +45,7 @@ import { SessionID } from "@/session/schema"
 import { SessionUsage } from "@/session/usage"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamOpLogService } from "@/team/op-log"
+import { Service as AgentTaskListService } from "@/team/task-list"
 import { Service as TeamLedgerService } from "@/team/ledger"
 import * as TeamDenials from "@/team/denials"
 import * as TeamCommandVerifier from "@/team/command-verifier"
@@ -197,6 +198,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     const teams = yield* TeamService
     const config = yield* ConfigService.Service
     const opLog = yield* TeamOpLogService
+    const taskList = yield* AgentTaskListService
 
     /**
      * 重启恢复（§8.5）：每个工作区只做一次。
@@ -228,6 +230,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           runs.events({ runID }),
           opLog.needsReview(runID),
         ])
+        // 任务板（§5.5）：运行内创建的任务挂在这个运行团队上，看板才有「做到哪一步」可看。
+        const boards = yield* Effect.forEach(teams, (team) => taskList.list(team.id), { concurrency: 1 })
+        const tasksOf = new Map(teams.map((team, index) => [team.id, boards[index] ?? []]))
         const summary = yield* verification.summary({ runID })
         return {
           run: toRun(run),
@@ -248,6 +253,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             worktree: team.worktree,
             artifacts: artifactsOf(team.artifactsOut),
             context: toContext(team.contextManifest),
+            // 任务板只回这四项：看板要的是一次能扫完的进度，不是任务的全文。
+            tasks: (tasksOf.get(team.id) ?? []).map((task) => ({
+              id: task.id,
+              subject: task.subject,
+              status: task.status,
+              ...(task.ownerSessionID ? { owner: task.ownerSessionID } : {}),
+            })),
           })),
           acceptances: acceptances.map((acceptance) => {
             // 命令原文不出接口：它常带凭据，与 hook 命令同一条约束。

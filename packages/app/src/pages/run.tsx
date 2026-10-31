@@ -542,6 +542,12 @@ export const RunPage: Component<{
       })),
     ),
   )
+  /** 任务板（§5.5）：按团队摊平，只回答「做什么、到哪一步、谁在做」。 */
+  const board = createMemo(() =>
+    (detail()?.teams ?? []).flatMap((team) =>
+      (team.tasks ?? []).map((task) => ({ teamID: team.id, ...task })),
+    ),
+  )
   // 与后端同一条规则：批准前、以及批准后还没开工（running 且没有 phase）时可以改授权。
   // 会话里点名的团队会自动批准并落在 running，所以这一段不能漏 —— 否则界面上就没法放宽。
   const canChangePolicy = createMemo(() => {
@@ -1434,6 +1440,30 @@ export const RunPage: Component<{
                       )}
                     </For>
                   </div>
+
+                  {/*
+                    任务板（§5.5 / §4.3）：只显示做法与进度。
+                    任务存在不代表有会话正在做 —— 界面上也不替它做这个暗示。
+                  */}
+                  <Show when={board().length > 0}>
+                    <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                      <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
+                        <span class="text-foreground-subtlest">{t("run.tasks.title", { count: String(board().length) })}</span>
+                        <span class="min-w-0 flex-1 truncate text-foreground-subtlest">{t("run.tasks.hint")}</span>
+                      </div>
+                      <For each={board()}>
+                        {(task) => (
+                          <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                            <Tag>{task.status}</Tag>
+                            <span class="min-w-0 flex-1 truncate">{task.subject}</span>
+                            <span class="shrink-0 text-foreground-subtlest">
+                              {t("run.tasks.owner", { owner: task.owner ?? "—" })}
+                            </span>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
 
                   {/*
                     事件流（§4.3 / §12）：只读、可展开、按需加载。

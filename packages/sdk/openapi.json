@@ -50001,6 +50001,25 @@
         ],
         "additionalProperties": false
       },
+      "RunTaskView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "subject", "status"],
+        "additionalProperties": false
+      },
       "RunTeamView": {
         "type": "object",
         "properties": {
@@ -50103,6 +50122,12 @@
               },
               "required": ["name", "version"],
               "additionalProperties": false
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunTaskView"
             }
           },
           "context": {

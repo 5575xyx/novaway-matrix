@@ -3734,6 +3734,13 @@ export type RunView = {
   usage?: RunUsageView
 }
 
+export type RunTaskView = {
+  id: string
+  subject: string
+  status: string
+  owner?: string
+}
+
 export type RunTeamView = {
   id: string
   profileID?: string
@@ -3747,6 +3754,7 @@ export type RunTeamView = {
     name: string
     version: string
   }>
+  tasks?: Array<RunTaskView>
   context?: {
     acceptance: Array<{
       id: string

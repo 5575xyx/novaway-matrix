@@ -1,7 +1,8 @@
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import * as Tool from "./tool"
 import { Service as TeamService } from "@/team/team"
 import { Service as AgentTaskListService, type TaskStatus } from "@/team/task-list"
+import { Service as TeamOpLogService } from "@/team/op-log"
 import { Service as BackgroundJobService } from "@/background/job"
 import { Service as HookService } from "@/hook/service"
 import { SessionUsage } from "@/session/usage"
@@ -35,6 +36,24 @@ function teamResolver(teams: TeamInterface, ctx: Tool.Context, requested?: strin
   })
 }
 
+/**
+ * 任务板归属（§5.5）：**运行里**的任务属于这次运行的那个团队。
+ *
+ * 运行里的子会话（队长 / 成员）不是会话临时团队的成员，`teams.ofSession` 永远解析不到，
+ * 于是 `task_create` 只会回一句「先建团队」—— 可运行本来就有团队。运行坐标里记着它
+ * （编排坐标的 `taskID` 就是 `team_run_team.id`，见 `handler` 的 `dispatch`），
+ * 运行内一律以它为准；没有运行坐标时才退回会话临时团队的解析。
+ */
+const boardFor = (teams: TeamInterface, ctx: Tool.Context, requested?: string) =>
+  Effect.gen(function* () {
+    const ops = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
+    const scope = ops ? yield* ops.scopeOf(ctx.sessionID) : undefined
+    // 运行内不认 `requested`：跨团队写别人的看板没有定义，也不该由一个成员决定。
+    if (scope?.taskID) return { teamID: scope.taskID, runID: scope.runID }
+    const team = yield* teamResolver(teams, ctx, requested)
+    return team ? { teamID: team.id } : undefined
+  })
+
 export const TaskCreateParameters = Schema.Struct({
   subject: Schema.String.annotate({ description: "Short task title" }),
   description: Schema.String.annotate({ description: "What needs to be done" }),
@@ -63,16 +82,17 @@ export const TaskCreateTool = Tool.define<
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof TaskCreateParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
-          const team = yield* teamResolver(teams, ctx, params.team)
-          if (!team) {
+          const board = yield* boardFor(teams, ctx, params.team)
+          if (!board) {
             return { title: "No team", output: "Create a team first with team_create.", metadata: {} }
           }
           const task = yield* tasks.create({
-            teamID: team.id,
+            teamID: board.teamID,
             subject: params.subject,
             description: params.description,
             activeForm: params.activeForm,
-            metadata: params.metadata,
+            // 运行坐标写进 metadata：看板要能按运行/团队把任务捞回来（§5.5）。
+            metadata: { ...(board.runID ? { runID: board.runID } : {}), ...params.metadata },
             createdBy: ctx.sessionID,
             blockedBy: params.blockedBy,
           })
@@ -81,13 +101,13 @@ export const TaskCreateTool = Tool.define<
               event: "TaskCreated",
               sessionID: ctx.sessionID,
               cwd: ctx.directory,
-              metadata: { taskID: task.id, subject: task.subject, teamID: team.id },
+              metadata: { taskID: task.id, subject: task.subject, teamID: board.teamID },
             })
             .pipe(Effect.ignore)
           return {
             title: `Task ${task.id}`,
             output: `Task created on the board: ${task.id} — ${task.subject}. Nothing runs until a subagent is launched with the task tool (or an existing worker claims it).`,
-            metadata: { taskID: task.id, teamID: team.id },
+            metadata: { taskID: task.id, teamID: board.teamID },
           }
         }).pipe(Effect.orDie),
     }
@@ -115,9 +135,9 @@ export const TaskListTool = Tool.define<
       capabilities: { readOnly: true, concurrencySafe: true },
       execute: (params: Schema.Schema.Type<typeof TaskListParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
-          const team = yield* teamResolver(teams, ctx, params.team)
-          if (!team) return { title: "No team", output: "The current session is not in a team.", metadata: {} }
-          const list = yield* tasks.list(team.id)
+          const board = yield* boardFor(teams, ctx, params.team)
+          if (!board) return { title: "No team", output: "The current session is not in a team.", metadata: {} }
+          const list = yield* tasks.list(board.teamID)
           const filtered = params.status ? list.filter((task) => task.status === params.status) : list
           if (filtered.length === 0) return { title: "Tasks", output: "No tasks.", metadata: {} }
           const completed = new Set(list.filter((task) => task.status === "completed").map((task) => task.id))
@@ -128,7 +148,7 @@ export const TaskListTool = Tool.define<
               return `${task.id} [${task.status}] ${task.subject}${owner}${blocked.length ? ` blockedBy=${blocked.join(",")}` : ""}`
             })
             .join("\n")
-          return { title: `Tasks (${filtered.length})`, output, metadata: { teamID: team.id } }
+          return { title: `Tasks (${filtered.length})`, output, metadata: { teamID: board.teamID } }
         }).pipe(Effect.orDie),
     }
   }),
@@ -441,15 +461,15 @@ export const TaskWaitTool = Tool.define<
             }
           }
 
-          const team = yield* teamResolver(teams, ctx, params.team)
-          if (!team) return { title: "No team", output: "The current session is not in a team.", metadata: {} }
+          const board = yield* boardFor(teams, ctx, params.team)
+          if (!board) return { title: "No team", output: "The current session is not in a team.", metadata: {} }
 
-          let list = yield* tasks.list(team.id)
-          let ready = yield* tasks.ready(team.id)
+          let list = yield* tasks.list(board.teamID)
+          let ready = yield* tasks.ready(board.teamID)
           while (ready.length === 0 && list.some((task) => !TERMINAL.has(task.status)) && Date.now() < deadline) {
             yield* Effect.sleep(WAIT_INTERVAL)
-            list = yield* tasks.list(team.id)
-            ready = yield* tasks.ready(team.id)
+            list = yield* tasks.list(board.teamID)
+            ready = yield* tasks.ready(board.teamID)
           }
 
           if (ready.length === 0) {

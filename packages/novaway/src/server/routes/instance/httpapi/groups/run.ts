@@ -207,6 +207,20 @@ export const RunView = Schema.Struct({
   usage: Schema.optional(RunUsageView),
 }).annotate({ identifier: "RunView" })
 
+/**
+ * 团队任务板上的一条（§5.5 / §4.3）。
+ *
+ * 只回「做什么、到哪一步、谁在做」：任务详情里可能有成员的描述与依赖，
+ * 看板需要的不是这些，而是一次能扫完的进度。
+ */
+export const RunTaskView = Schema.Struct({
+  id: Schema.String,
+  subject: Schema.String,
+  status: Schema.String,
+  /** 认领它的会话；空的表示没有会话在做（看板不假装它在跑）。 */
+  owner: Schema.optional(Schema.String),
+}).annotate({ identifier: "RunTaskView" })
+
 export const RunTeamView = Schema.Struct({
   id: Schema.String,
   profileID: Schema.optional(Schema.String),
@@ -223,6 +237,8 @@ export const RunTeamView = Schema.Struct({
    * 上游一变，下游的旧结论就失效 —— 界面能看出「它交付的是哪一版」。
    */
   artifacts: Schema.optional(Schema.Array(Schema.Struct({ name: Schema.String, version: Schema.String }))),
+  /** 这支队任务板上的条目（§5.5）：看板据此显示「做到哪一步」。 */
+  tasks: Schema.optional(Schema.Array(RunTaskView)),
   /**
    * 最近一次派发的上下文清单（§6.4）。`brief` 就是模型实际看到的字；
    * `truncated` 为真时界面必须显示 —— 「悄悄少给几条」是不允许的。
