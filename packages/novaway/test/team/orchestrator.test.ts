@@ -836,4 +836,46 @@ describe("team orchestrator", () => {
       expect(Number(settled?.usage?.cost)).toBeCloseTo(0.6, 10)
     }),
   )
+
+  it.effect("keeps a slice of the cap for verification instead of handing it all to dispatches", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_reserve"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "为验收留额度",
+        budget: { tokens: 100 },
+      })
+      yield* runs.update({
+        runID: run.id,
+        plan: { teams: [{ name: "upstream" }, { name: "downstream" }] },
+        planVersion: 1,
+      })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100 }, by: "user" })
+      const upstream = yield* runs.addTeam({ runID: run.id })
+      const downstream = yield* runs.addTeam({ runID: run.id, dependsOn: [0] })
+      yield* verification.register({ runID: run.id, specID: "u", text: "上游验收", kind: "test", owner: upstream.id })
+
+      let dispatched = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        reserveTokens: 50,
+        dispatch: (input) => {
+          dispatched += 1
+          return Effect.succeed({ ...report(input.team.id), usage: { tokens: 50 } })
+        },
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 批准 100：派发只拿到 85，第二个 50 已经放不下 —— 剩下的留给验证与收尾。
+      // 没有这份预留时，第二个团队会刚好塞进 100 的上限里。
+      expect(dispatched).toBe(1)
+      expect(result.state).toBe("exceeded")
+      expect((yield* runs.teams(run.id)).map((team) => team.phase).sort()).toEqual(["delivered", "exceeded"])
+    }),
+  )
 })

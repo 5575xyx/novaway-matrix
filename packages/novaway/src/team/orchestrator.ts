@@ -197,6 +197,15 @@ export const layer = Layer.effect(
         })
 
       const cap = { tokens: run.budget?.tokens ?? 0 }
+      /**
+       * 给验收与收尾留的额度（§7.1 第 4 条）：派发只能花掉批准额度的 85%。
+       *
+       * 验证不在派发的预占里，但它确实花钱。把批准的额度全部分给成员，
+       * 验证再花就必然越过用户批准的上限 —— 那不是「预算硬上限」，只是「派发硬上限」。
+       * 留出的是**派发额度**，不是另一种上限：用户看到的 `cap` 仍是批准值。
+       */
+      const DISPATCH_SHARE = 0.85
+      const dispatchCap = { tokens: cap.tokens === 0 ? 0 : Math.max(1, Math.floor(cap.tokens * DISPATCH_SHARE)) }
       const reserveTokens = input.reserveTokens ?? 4000
       const maxRounds = input.maxRounds ?? 3
       const maxBusiness = input.maxBusinessAttempts ?? 6
@@ -314,7 +323,7 @@ export const layer = Layer.effect(
         Effect.gen(function* () {
           const teamLines = acceptances.filter((acceptance) => acceptance.owner === team.id)
           const reservation = yield* Effect.exit(
-            ledger.reserve({ runID: input.runID, actor: team.id, tokens: reserveTokens, cap }),
+            ledger.reserve({ runID: input.runID, actor: team.id, tokens: reserveTokens, cap: dispatchCap }),
           )
           if (Exit.isFailure(reservation)) {
             // 预算不足不是团队的错：记 exceeded，让整体结论走「超限」。
