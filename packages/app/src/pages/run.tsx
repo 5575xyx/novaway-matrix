@@ -973,11 +973,21 @@ export const RunPage: Component<{
                         <Button
                           variant="primary"
                           size="small"
-                          title={data().run.state === "paused" ? t("run.action.resumeHint") : undefined}
+                          title={
+                            data().run.state === "paused"
+                              ? t("run.action.resumeHint")
+                              : data().run.state === "blocked"
+                                ? t("run.action.retryHint")
+                                : undefined
+                          }
                           disabled={busy() !== ""}
                           onClick={() => void execute()}
                         >
-                          {data().run.state === "paused" ? t("run.action.resume") : t("run.action.execute")}
+                          {data().run.state === "paused"
+                            ? t("run.action.resume")
+                            : data().run.state === "blocked"
+                              ? t("run.action.retry")
+                              : t("run.action.execute")}
                         </Button>
                       </Show>
                       <Show when={!TERMINAL.has(data().run.state)}>

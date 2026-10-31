@@ -104,6 +104,9 @@ export const dict = {
   "run.action.execute": "Execute",
   "run.action.resume": "Resume",
   "run.action.resumeHint": "The last execution was interrupted by a restart; resuming dispatches the queued teams again and leaves delivered ones as they are.",
+  "run.action.retry": "Retry",
+  "run.action.retryHint":
+    "This run is blocked on a dependency that will never arrive. Retrying re-dispatches the teams that failed; delivered teams are not re-run.",
   "run.action.cancel": "Cancel run",
   "run.action.openSession": "Open session",
   "run.action.openSessionHint":
