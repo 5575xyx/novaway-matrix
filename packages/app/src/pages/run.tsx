@@ -1,4 +1,12 @@
-import type { MissionDiffView, MissionView, RunDetail, RunEventView, RunView, TeamProfileView } from "@novaway/sdk/v2"
+import type {
+  MissionDiffView,
+  MissionView,
+  RunDetail,
+  RunEventView,
+  RunMetricsView,
+  RunView,
+  TeamProfileView,
+} from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
@@ -65,6 +73,10 @@ export const RunPage: Component<{
   const [showEvents, setShowEvents] = createSignal(false)
   const [loadingEvents, setLoadingEvents] = createSignal(false)
   const [events, setEvents] = createSignal<RunEventView[]>([])
+  // 指标（§12）：默认收起。收起时不发请求，展开时拉一次由自己的慢轮询刷新。
+  const [showMetrics, setShowMetrics] = createSignal(false)
+  const [metrics, setMetrics] = createSignal<RunMetricsView | undefined>(undefined)
+  const [loadingMetrics, setLoadingMetrics] = createSignal(false)
   const NEW_MISSION = "__new"
 
   const loadRuns = async (select?: string) => {
@@ -109,6 +121,30 @@ export const RunPage: Component<{
       // 差异只是附加信息：读失败不该盖掉运行本身的错误提示。
       setMissionDiff(undefined)
     }
+  }
+
+  /**
+   * 运行指标（§12）。
+   *
+   * 附加信息：读失败不盖掉运行本身的错误提示 —— 指标缺了不影响「这次交付成立吗」。
+   * 展开时才拉，且用 15 秒的慢轮询：指标要扫最近若干次运行的事件，不该跟着 3 秒的看板刷新走。
+   */
+  const loadMetrics = async () => {
+    setLoadingMetrics(true)
+    try {
+      const result = await sdk.client.run.metrics({ directory: props.directory })
+      setMetrics((result.data ?? undefined) as RunMetricsView | undefined)
+    } catch {
+      setMetrics(undefined)
+    } finally {
+      setLoadingMetrics(false)
+    }
+  }
+
+  const toggleMetrics = () => {
+    const next = !showMetrics()
+    setShowMetrics(next)
+    if (next) void loadMetrics()
   }
 
   const reload = async () => {
@@ -359,7 +395,12 @@ export const RunPage: Component<{
     const timer = setInterval(() => {
       void reload()
     }, 3000)
+    // 指标是慢变量：只在这个面板展开时刷新，且频率比看板低。
+    const metricsTimer = setInterval(() => {
+      if (showMetrics()) void loadMetrics()
+    }, 15000)
     onCleanup(() => clearInterval(timer))
+    onCleanup(() => clearInterval(metricsTimer))
   })
 
   const stateLabel = (state: string) => t(`run.state.${state}`)
@@ -451,6 +492,119 @@ export const RunPage: Component<{
               )}
             </For>
           </Show>
+          {/* 指标（§12）：本地统计，不上报、不排名。默认收起，展开时才拉一次。 */}
+          <div class="mt-2 border-t border-border px-1 pt-2">
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+              onClick={toggleMetrics}
+              title={t("run.metrics.hint")}
+            >
+              <Icon size="small" name={showMetrics() ? "chevron-down" : "chevron-right"} />
+              {t("run.metrics.title")}
+            </button>
+            <Show when={showMetrics()}>
+              <Show
+                when={metrics()}
+                fallback={
+                  <div class="px-1 py-1 text-ui-xs text-foreground-subtlest">
+                    {loadingMetrics() ? t("run.metrics.loading") : t("run.metrics.empty")}
+                  </div>
+                }
+              >
+                {(data) => (
+                  <Show
+                    when={numeric(data().window.runs) > 0}
+                    fallback={<div class="px-1 py-1 text-ui-xs text-foreground-subtlest">{t("run.metrics.empty")}</div>}
+                  >
+                    <div class="flex flex-col gap-1 px-1 py-1 text-ui-xs leading-relaxed text-foreground-subtle">
+                      <div>
+                        {t("run.metrics.window", {
+                          runs: numeric(data().window.runs),
+                          covered: numeric(data().window.eventsCovered),
+                        })}
+                      </div>
+                      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+                        <For each={data().states}>
+                          {(entry) => (
+                            <span>
+                              {stateLabel(entry.state)} {numeric(entry.runs)}
+                            </span>
+                          )}
+                        </For>
+                      </div>
+                      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+                        <span>{t("run.metrics.settled", { n: numeric(data().tokens.settled).toLocaleString() })}</span>
+                        {/* 用量不明单独显示：不并入已结算，也不并进总数。 */}
+                        <Show when={numeric(data().tokens.unknown) > 0}>
+                          <span class="text-warning">
+                            {t("run.metrics.unknown", { n: numeric(data().tokens.unknown).toLocaleString() })}
+                          </span>
+                        </Show>
+                        <span class="text-foreground-subtlest">
+                          {t("run.metrics.coverage", {
+                            covered: numeric(data().tokens.covered),
+                            runs: numeric(data().window.runs),
+                          })}
+                        </span>
+                        <Show when={numeric(data().tokens.overrunRuns) > 0}>
+                          <span class="text-destructive">
+                            {t("run.metrics.overrun", { n: numeric(data().tokens.overrunRuns) })}
+                          </span>
+                        </Show>
+                      </div>
+                      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+                        <For each={data().rounds}>
+                          {(entry) => (
+                            <span>
+                              {t("run.metrics.round", { round: numeric(entry.round), runs: numeric(entry.runs) })}
+                            </span>
+                          )}
+                        </For>
+                      </div>
+                      <Show when={numeric(data().rework.total) > 0}>
+                        <div class="flex flex-col gap-0.5">
+                          <span>{t("run.metrics.rework", { n: numeric(data().rework.total) })}</span>
+                          <For each={data().rework.top}>
+                            {(entry) => (
+                              <span class="truncate pl-2 text-foreground-subtlest" title={entry.reason}>
+                                {entry.reason} × {numeric(entry.count)}
+                              </span>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
+                      <div>
+                        {data().attempts.failureRate !== undefined
+                          ? t("run.metrics.failureRate", {
+                              failed: numeric(data().attempts.failed),
+                              dispatched: numeric(data().attempts.dispatched),
+                              percent: Math.round(numeric(data().attempts.failureRate!) * 100),
+                            })
+                          : t("run.metrics.failureUnknown")}
+                      </div>
+                      <div>
+                        {data().blockers.rate !== undefined
+                          ? t("run.metrics.blocked", {
+                              n: numeric(data().blockers.runs),
+                              percent: Math.round(numeric(data().blockers.rate!) * 100),
+                            })
+                          : t("run.metrics.blockedUnknown")}
+                      </div>
+                      {/* 算不出来的指标要说出来：空着会被读成「没有这项」。 */}
+                      <For each={data().unavailable}>
+                        {(entry) => (
+                          <div class="text-foreground-subtlest">
+                            {t("run.metrics.unavailable", { metric: entry.metric, reason: entry.reason })}
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                )}
+              </Show>
+            </Show>
+          </div>
         </aside>
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">

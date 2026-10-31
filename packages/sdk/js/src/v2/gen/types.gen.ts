@@ -1973,10 +1973,23 @@ export type MarketplaceEntry = {
   keywords?: Array<string>
 }
 
+export type MarketplaceUpdate = {
+  name: string
+  root: string
+  kind: "zip" | "git"
+  ref?: string
+  state: "current" | "outdated" | "unknown"
+  revision?: string
+  available?: string
+  checkedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  error?: string
+}
+
 export type MarketplaceCatalog = {
   installed: Array<MarketplaceInstalled>
   zcode: Array<MarketplaceEntry>
   claude: Array<MarketplaceEntry>
+  updates?: Array<MarketplaceUpdate>
   errors: Array<string>
 }
 
@@ -3774,6 +3787,53 @@ export type RunDetail = {
   verifications: Array<RunVerificationView>
   summary: RunSummaryView
   blockers: Array<RunBlockerView>
+}
+
+export type RunMetricsView = {
+  window: {
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    eventsCovered: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    from?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    to?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  states: Array<{
+    state: string
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  tokens: {
+    settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    unknown: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    covered: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    overrunRuns: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  rounds: Array<{
+    round: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  rework: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    top: Array<{
+      reason: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }
+  attempts: {
+    dispatched: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    failed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    failureRate?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  blockers: {
+    runs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    rate?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    byKind: Array<{
+      kind: string
+      count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }
+  unavailable: Array<{
+    metric: string
+    reason: string
+  }>
 }
 
 export type EffectHttpApiErrorConflict = {
@@ -17788,6 +17848,27 @@ export type RunCreateResponses = {
 }
 
 export type RunCreateResponse = RunCreateResponses[keyof RunCreateResponses]
+
+export type RunMetricsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    teamID?: string
+    limit?: string | "Infinity" | "-Infinity" | "NaN"
+  }
+  url: "/run/metrics"
+}
+
+export type RunMetricsResponses = {
+  /**
+   * Aggregated run metrics
+   */
+  200: RunMetricsView
+}
+
+export type RunMetricsResponse = RunMetricsResponses[keyof RunMetricsResponses]
 
 export type RunDetailData = {
   body?: never

@@ -360,7 +360,15 @@ export const layer = Layer.effect(
           yield* runs.appendEvent({
             runID: input.runID,
             kind: "team.rework",
-            payload: { teamID: team.id, round, attempts: attempts.business, notes },
+            payload: {
+              teamID: team.id,
+              round,
+              attempts: attempts.business,
+              notes,
+              // 结构化一份「哪条验收没过」：指标里的「驳回原因 TopN」据此统计，
+              // 不靠解析上面那句给人看的中文。
+              failed: failing.map((line) => ({ text: line.acceptance.text, outcome: line.outcome })),
+            },
           })
         })
 
@@ -614,24 +622,25 @@ export const layer = Layer.effect(
         const merged = yield* verification.summary({ runID: input.runID, currentSnapshot: snapshot })
 
         // 最新结论不是 pass、且有归属团队的验收项 → 这些团队需要重做。
-        const responsible = new Map<string, string[]>()
+        const responsible = new Map<string, { notes: string[]; failed: Array<{ text: string; outcome: string }> }>()
         for (const line of merged.lines) {
           if (!line.acceptance.owner || line.outcome === "pass") continue
-          const notes = responsible.get(line.acceptance.owner) ?? []
-          notes.push("合并后重验未通过：" + line.acceptance.text + "（" + line.outcome + "）")
-          responsible.set(line.acceptance.owner, notes)
+          const entry = responsible.get(line.acceptance.owner) ?? { notes: [], failed: [] }
+          entry.notes.push("合并后重验未通过：" + line.acceptance.text + "（" + line.outcome + "）")
+          entry.failed.push({ text: line.acceptance.text, outcome: line.outcome })
+          responsible.set(line.acceptance.owner, entry)
         }
         if (mergeReworked || responsible.size === 0 || attempts.business >= maxBusiness) break
 
         // 只重试一次：责任团队退回、重跑、提交、重新集成，然后在新快照上再验一遍。
         mergeReworked = true
-        for (const [teamID, notes] of responsible) {
-          feedback.set(teamID, notes)
+        for (const [teamID, entry] of responsible) {
+          feedback.set(teamID, entry.notes)
           yield* runs.updateTeam({ id: teamID, phase: "queued" })
           yield* runs.appendEvent({
             runID: input.runID,
             kind: "team.rework",
-            payload: { teamID, reason: "merged-verification", notes },
+            payload: { teamID, reason: "merged-verification", notes: entry.notes, failed: entry.failed },
           })
         }
         rounds += 1

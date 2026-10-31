@@ -428,6 +428,72 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("metrics aggregate the recent runs and say what they cannot compute", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const other = yield* tmpdirScoped({ git: true })
+      type Metrics = {
+        window: { runs: number; eventsCovered: number; from?: number; to?: number }
+        states: Array<{ state: string; runs: number }>
+        tokens: { settled: number; unknown: number; covered: number; overrunRuns: number }
+        rounds: Array<{ round: number; runs: number }>
+        rework: { total: number; top: Array<{ reason: string; count: number }> }
+        attempts: { dispatched: number; failed: number; failureRate?: number }
+        blockers: { runs: number; rate?: number; byKind: Array<{ kind: string; count: number }> }
+        unavailable: Array<{ metric: string; reason: string }>
+      }
+
+      const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
+      const profile = profiles[0]
+      // 两次运行：一次团体、一次带计划里同一个团队 —— 指标按目录取样。
+      const first = (yield* (
+        yield* post(dir, "/run", {
+          sessionID: "ses_metrics_a",
+          directory: dir,
+          mode: "team",
+          goal: "第一次",
+          profileID: profile.id,
+          acceptance: [{ text: "没有高危问题" }],
+        })
+      ).json) as { run: { id: string } }
+      yield* post(dir, "/run", {
+        sessionID: "ses_metrics_b",
+        directory: dir,
+        mode: "team",
+        goal: "第二次",
+        profileID: profile.id,
+        acceptance: [{ text: "没有高危问题" }],
+      })
+
+      const response = yield* get(dir, "/run/metrics", dir)
+      // `/run/metrics` 是字面路径，不能被 `/run/:runID` 抢走当成一次运行的详情。
+      expect(response.status).toBe(200)
+      const metrics = (yield* response.json) as Metrics
+      expect(metrics.window.runs).toBe(2)
+      // 还没执行 ⇒ 没有派发事件 ⇒ 不给失败率，而不是 0%。
+      expect(metrics.attempts.failureRate).toBeUndefined()
+      expect(metrics.states).toEqual([{ state: "awaiting_approval", runs: 2 }])
+      expect(metrics.tokens.covered).toBe(0)
+      // 算不出来的指标要说出来，不编数字。
+      expect(metrics.unavailable.map((item) => item.metric)).toContain("验证开销占比")
+
+      // 取样窗口可以被请求收窄，且不会跨目录混进来。
+      const one = (yield* (yield* get(dir, "/run/metrics?limit=1", dir)).json) as Metrics
+      expect(one.window.runs).toBe(1)
+      const elsewhere = (yield* (yield* get(other, "/run/metrics", other)).json) as Metrics
+      expect(elsewhere.window.runs).toBe(0)
+
+      // 按团队过滤：同一个目录里用别的模板查，查不到这两次运行。
+      const filtered = (yield* (
+        yield* get(dir, `/run/metrics?teamID=${profile.id}`, dir)
+      ).json) as Metrics
+      expect(filtered.window.runs).toBe(2)
+      const missing = (yield* (yield* get(dir, "/run/metrics?teamID=prof_missing", dir)).json) as Metrics
+      expect(missing.window.runs).toBe(0)
+      expect(first.run.id).toBeTruthy()
+    }),
+  )
+
   it.live("the team page can flip one orchestration switch without dropping the other", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

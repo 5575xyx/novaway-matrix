@@ -23,6 +23,7 @@ import {
 import { attachMission, prepareWorktree } from "@/team/setup"
 import * as TeamSwitch from "@/team/switch"
 import * as TeamBlockers from "@/team/blockers"
+import * as TeamMetrics from "@/team/metrics"
 import { Config as ConfigService } from "@/config/config"
 import {
   forkPoint,
@@ -296,6 +297,43 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               .filter((run) => !teamID || (run.plan?.teams ?? []).some((team) => team.profileID === teamID))
               .map(toRun)
           )
+        }),
+      )
+      .handle("runMetrics", (ctx) =>
+        Effect.gen(function* () {
+          // 取样窗口：最近 N 次运行（默认 30，最多 100）。指标回答「最近怎么样」，
+          // 不替代归档；窗口太小会误导，太大则每次都扫一遍事件流。
+          const requested = ctx.query.limit === undefined ? 30 : Math.floor(ctx.query.limit)
+          const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 100) : 30
+          const directory = ctx.query.directory
+          const teamID = ctx.query.teamID
+          const all = yield* runs.list()
+          const window = all
+            .filter((run) => !directory || run.directory === directory)
+            .filter((run) => !teamID || (run.plan?.teams ?? []).some((team) => team.profileID === teamID))
+            .slice(0, limit)
+          const samples = yield* Effect.forEach(
+            window,
+            (run) =>
+              Effect.gen(function* () {
+                const events = yield* runs.events({ runID: run.id })
+                return {
+                  run: {
+                    id: run.id,
+                    state: run.state,
+                    roundMain: run.roundMain,
+                    attempts: run.attempts,
+                    ...(run.usage ? { usage: run.usage } : {}),
+                    createdAt: run.createdAt,
+                  },
+                  // 只把种类与结构字段交给聚合函数；响应里不出现 payload 原文，
+                  // 事件里可能带着命令与路径。
+                  events: events.map((event) => ({ kind: event.kind, payload: event.payload })),
+                }
+              }),
+            { concurrency: 1 },
+          )
+          return TeamMetrics.report(samples)
         }),
       )
       .handle("createRun", (ctx) =>

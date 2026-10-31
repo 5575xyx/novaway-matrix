@@ -625,6 +625,8 @@ describe("team orchestrator", () => {
         teamID: team.id,
         reason: "merged-verification",
         notes: ["合并后重验未通过：验收（fail）"],
+        // 结构化失败项：指标里的「驳回原因 TopN」用它，不解析给人看的中文。
+        failed: [{ text: "验收", outcome: "fail" }],
       })
       // 合并后重验的结论落在最终的合并快照上，而不是团队自己的快照。
       const summary = yield* verification.summary({ runID: run.id, currentSnapshot: "snap_2" })

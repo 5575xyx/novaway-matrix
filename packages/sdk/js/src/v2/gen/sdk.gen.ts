@@ -480,6 +480,7 @@ import type {
   RunListResponses,
   RunMergeErrors,
   RunMergeResponses,
+  RunMetricsResponses,
   RunPlanErrors,
   RunPlanResponses,
   RunPolicyErrors,
@@ -14134,6 +14135,40 @@ export class Run2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Aggregated run metrics
+   *
+   * Local aggregate over the most recent runs in this workspace: state counts, settled vs unknown usage, round distribution, top rejection reasons, dispatch failure rate and blocked-run rate. Percentages are omitted when their denominator is zero, and metrics that cannot be derived are listed in `unavailable` with a reason. Nothing is uploaded.
+   */
+  public metrics<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      teamID?: string
+      limit?: string | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "teamID" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunMetricsResponses, unknown, ThrowOnError>({
+      url: "/run/metrics",
+      ...options,
+      ...params,
     })
   }
 

@@ -17,6 +17,53 @@ export const RunListQuery = Schema.Struct({
   teamID: Schema.optional(Schema.String),
 })
 
+/**
+ * 运行指标（§12）：本地统计，不上报、不排名。
+ *
+ * 每个字段都带口径：`unknown` 是「已发生但用量不明」，不并入 `settled`；
+ * `failureRate` / `rate` 在分母为零时**不出现**，而不是写成 0；
+ * 算不出来的指标列在 `unavailable` 里并写明原因，不编一个数。
+ */
+export const RunMetricsView = Schema.Struct({
+  window: Schema.Struct({
+    runs: Schema.Number,
+    /** 有事件记录的运行数：百分比类指标的分母是它，不是全部运行。 */
+    eventsCovered: Schema.Number,
+    from: Schema.optional(Schema.Number),
+    to: Schema.optional(Schema.Number),
+  }),
+  states: Schema.Array(Schema.Struct({ state: Schema.String, runs: Schema.Number })),
+  tokens: Schema.Struct({
+    settled: Schema.Number,
+    /** 用量不明：单独计数，不计入 settled。 */
+    unknown: Schema.Number,
+    covered: Schema.Number,
+    overrunRuns: Schema.Number,
+  }),
+  rounds: Schema.Array(Schema.Struct({ round: Schema.Number, runs: Schema.Number })),
+  rework: Schema.Struct({
+    total: Schema.Number,
+    top: Schema.Array(Schema.Struct({ reason: Schema.String, count: Schema.Number })),
+  }),
+  attempts: Schema.Struct({
+    dispatched: Schema.Number,
+    failed: Schema.Number,
+    failureRate: Schema.optional(Schema.Number),
+  }),
+  blockers: Schema.Struct({
+    runs: Schema.Number,
+    rate: Schema.optional(Schema.Number),
+    byKind: Schema.Array(Schema.Struct({ kind: Schema.String, count: Schema.Number })),
+  }),
+  unavailable: Schema.Array(Schema.Struct({ metric: Schema.String, reason: Schema.String })),
+}).annotate({ identifier: "RunMetricsView" })
+
+/** 指标的取样窗口：最近 `limit` 次运行（默认 30，最多 100）。 */
+export const RunMetricsQuery = Schema.Struct({
+  ...RunListQuery.fields,
+  limit: Schema.optional(Schema.Number),
+})
+
 export const RunBudget = Schema.Struct({
   tokens: Schema.optional(Schema.Number),
   cost: Schema.optional(Schema.Number),
@@ -294,6 +341,17 @@ export const RunApi = HttpApiGroup.make("run")
         identifier: "run.create",
         summary: "Create a run",
         description: "Create a team orchestration run in planning state.",
+      }),
+    ),
+    HttpApiEndpoint.get("runMetrics", `${root}/metrics`, {
+      query: RunMetricsQuery,
+      success: described(RunMetricsView, "Aggregated run metrics"),
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.metrics",
+        summary: "Aggregated run metrics",
+        description:
+          "Local aggregate over the most recent runs in this workspace: state counts, settled vs unknown usage, round distribution, top rejection reasons, dispatch failure rate and blocked-run rate. Percentages are omitted when their denominator is zero, and metrics that cannot be derived are listed in `unavailable` with a reason. Nothing is uploaded.",
       }),
     ),
     HttpApiEndpoint.get("runDetail", `${root}/:runID`, {
