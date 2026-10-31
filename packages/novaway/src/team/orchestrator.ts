@@ -781,6 +781,9 @@ export const layer = Layer.effect(
       let mergeSnapshot = yield* input.snapshot()
       let mergeReworked = false
       for (;;) {
+        // 收尾阶段也可能很长（重验、返工、再集成）：取消在这里同样要生效，
+        // 否则用户点停止之后还要等它把这一整段跑完。
+        if (cancelled()) return yield* finishCancelled(yield* runs.teams(input.runID))
         const snapshot = mergeSnapshot
         teams = yield* runs.teams(input.runID)
         const teamByID = new Map(teams.map((team) => [team.id, team]))
@@ -836,6 +839,9 @@ export const layer = Layer.effect(
               integration.value.kind === "failed"))
         mergeSnapshot = yield* input.snapshot()
       }
+
+      // 最后一刻的取消同样算数：不能让它被下面的最终结算覆盖成 done / partial。
+      if (cancelled()) return yield* finishCancelled(yield* runs.teams(input.runID))
 
       const snapshot = mergeSnapshot
       const summary = yield* verification.summary({ runID: input.runID, currentSnapshot: snapshot })

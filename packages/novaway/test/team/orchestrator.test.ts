@@ -308,6 +308,34 @@ describe("team orchestrator", () => {
     }),
   )
 
+  it.effect("a cancel that lands after the last round still ends cancelled, not done", () =>
+    Effect.gen(function* () {
+      const { runs, run } = yield* setup
+      const orchestrator = yield* OrchestratorService
+      const controller = new AbortController()
+
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        signal: controller.signal,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) => Effect.succeed(report(input.team.id)),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+        // 团队已经交付、正在集成时才点停止：这一段同样要停得住。
+        integrate: () => {
+          controller.abort()
+          return Effect.succeed({ kind: "skipped" as const, reason: "测试" })
+        },
+      })
+
+      // 不能因为「取消来晚了一步」就把已经点过的停止改写成 done。
+      expect(result.state).toBe("cancelled")
+      expect((yield* runs.get(run.id))?.state).toBe("cancelled")
+      const kinds = (yield* runs.events({ runID: run.id })).map((event) => event.kind)
+      expect(kinds).toContain("cancel.settled")
+      expect(kinds).not.toContain("run.settled")
+    }),
+  )
+
   /** 建一个已批准、带一个已归属验收的运行。 */
   const setup = Effect.gen(function* () {
     const runs = yield* RunService

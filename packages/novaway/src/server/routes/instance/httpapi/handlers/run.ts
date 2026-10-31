@@ -207,6 +207,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
      * 不会被误判成遗留。失败只记日志：恢复是补救，不该让看板打不开。
      */
     const recovered = new Set<string>()
+    /**
+     * 本进程里正在跑的编排器（§8.5）：`cancel` 靠它把停止请求送到真正在干活的那个循环。
+     *
+     * 只覆盖本进程：重启后的遗留运行由恢复流程处理成 `paused`；别的进程里在跑的运行
+     * 不该由这份内存表假装能停 —— 没有控制器时 `cancel` 退回「直接置终态」的老路。
+     */
+    const executions = new Map<string, AbortController>()
     const recoverStale = (directory: string | undefined) =>
       Effect.gen(function* () {
         const key = directory ?? "*"
@@ -1032,7 +1039,17 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               return TeamRoster.problems(roster, yield* profiles.employees())
             })
 
-          // 后台执行：UI 轮询 run detail；取消走 cancel 接口。
+          /**
+           * 取消要能真的停住编排器（§8.5 / §9）。
+           *
+           * 此前 `cancel` 只把库里的状态改成 `cancelled`：在跑的编排器并不知道，
+           * 它会继续派发、继续花钱，最后用自己的结算把 `cancelled` 覆盖掉 ——
+           * 用户点了「停止」，看板上却照样跑完。这里把信号接上：
+           * `cancel` 只发停止请求，收尾（三段式）由编排器做，因为只有它知道
+           * 已经发生了哪些影响。
+           */
+          const controller = new AbortController()
+          executions.set(run.id, controller)
           yield* orchestrator
             .execute({
               runID: run.id,
@@ -1042,6 +1059,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               commit: commitTeams,
               verifyMerged,
               integrate,
+              signal: controller.signal,
               snapshot: () => snapshotOf(teamDirectory).pipe(Effect.map((id) => id ?? "unknown")),
               maxRounds: ctx.payload.maxRounds,
               maxBusinessAttempts: ctx.payload.maxBusinessAttempts,
@@ -1052,6 +1070,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             .pipe(
               Effect.catchCause((cause) =>
                 Effect.logError("team run failed").pipe(Effect.annotateLogs({ runID: run.id, cause })),
+              ),
+              // 跑完就摘掉：留下的控制器会让下一次「取消」发到一个已经结束的运行上。
+              Effect.ensuring(
+                Effect.sync(() => {
+                  if (executions.get(run.id) === controller) executions.delete(run.id)
+                }),
               ),
               Effect.forkIn(scope, { startImmediately: true }),
             )
@@ -1187,7 +1211,19 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
         Effect.gen(function* () {
           const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           if (!isTerminal(run.state)) {
-            // 三段式：先请求停止，再把已发生的影响写进事件，最后才置 cancelled。
+            /**
+             * 本进程正在跑它：只发停止请求。
+             *
+             * 三段式的收尾（记录已发生的影响、结算、置终态）必须由编排器做：
+             * 只有它知道这一轮派发到了哪一步。这里直接改状态的话，编排器随后的结算
+             * 会把 `cancelled` 覆盖掉 —— 那正是「点了停止却照样跑完」的成因。
+             */
+            const controller = executions.get(run.id)
+            if (controller) {
+              controller.abort()
+              return (yield* detail(run.id))!
+            }
+            // 没有在跑的编排器（进程重启后的遗留、或状态卡住）：直接收尾。
             yield* runs.appendEvent({ runID: run.id, kind: "cancel.requested" })
             const usage = yield* runs.get(run.id)
             yield* runs.appendEvent({
