@@ -59,6 +59,9 @@ export const RunPage: Component<{
   const [composing, setComposing] = createSignal(false)
   const [goal, setGoal] = createSignal("")
   const [criteria, setCriteria] = createSignal("")
+  // 范围与约束（§5.3 brief）：每行一条，写进队长提示词；不填就是不限定。
+  const [scope, setScope] = createSignal("")
+  const [constraints, setConstraints] = createSignal("")
   const [budget, setBudget] = createSignal(100_000)
   // 持久目标（§3.2）：可选归属。选「新建」时会先建目标再建运行。
   const [missions, setMissions] = createSignal<MissionView[]>([])
@@ -262,6 +265,14 @@ export const RunPage: Component<{
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
+    const scopeLines = scope()
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const constraintLines = constraints()
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
     if (!profile || !text || lines.length === 0) return
     setBusy("create")
     try {
@@ -288,12 +299,22 @@ export const RunPage: Component<{
         goal: text,
         profileID: profile.id,
         missionID: attached || undefined,
+        // 范围与约束原样交给服务端：以前这里不传，用户写了也没人看。
+        brief:
+          scopeLines.length > 0 || constraintLines.length > 0
+            ? {
+                ...(scopeLines.length > 0 ? { scope: scopeLines } : {}),
+                ...(constraintLines.length > 0 ? { constraints: constraintLines } : {}),
+              }
+            : undefined,
         budget: { tokens: budget() },
         acceptance: lines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
       })
       setComposing(false)
       setGoal("")
       setCriteria("")
+      setScope("")
+      setConstraints("")
       setMissionID("")
       setMissionGoal("")
       await loadMissions()
@@ -708,6 +729,29 @@ export const RunPage: Component<{
                 />
                 <span class="text-ui-xs text-foreground-subtlest">{t("run.new.acceptanceHint")}</span>
               </label>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="flex flex-col gap-1">
+                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.scope")}</span>
+                  <textarea
+                    class="min-h-16 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                    rows={2}
+                    value={scope()}
+                    placeholder={t("run.new.scopePlaceholder")}
+                    onInput={(event) => setScope(event.currentTarget.value)}
+                  />
+                </label>
+                <label class="flex flex-col gap-1">
+                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.constraints")}</span>
+                  <textarea
+                    class="min-h-16 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                    rows={2}
+                    value={constraints()}
+                    placeholder={t("run.new.constraintsPlaceholder")}
+                    onInput={(event) => setConstraints(event.currentTarget.value)}
+                  />
+                </label>
+              </div>
+              <span class="-mt-2 text-ui-xs text-foreground-subtlest">{t("run.new.briefHint")}</span>
               <label class="flex flex-col gap-1">
                 <span class="text-ui-xs text-foreground-subtle">{t("run.new.mission")}</span>
                 <select
@@ -772,6 +816,22 @@ export const RunPage: Component<{
                   <div class="flex items-start gap-2">
                     <div class="min-w-0 flex-1">
                       <div class="truncate text-15-medium text-foreground">{data().run.goal}</div>
+                      {/* 用户自己声明的范围与约束（§5.3）：它们确实进了队长提示词，这里可回看。 */}
+                      <Show when={data().run.brief}>
+                        {(brief) => (
+                          <div
+                            class="mt-0.5 truncate text-ui-xs text-foreground-subtle"
+                            title={[brief().scope?.join("、"), brief().constraints?.join("、"), brief().context]
+                              .filter(Boolean)
+                              .join(" ｜ ")}
+                          >
+                            {t("run.brief", {
+                              scope: (brief().scope ?? []).join("、") || t("run.brief.none"),
+                              constraints: (brief().constraints ?? []).join("、") || t("run.brief.none"),
+                            })}
+                          </div>
+                        )}
+                      </Show>
                       <div class="mt-1 flex flex-wrap items-center gap-1.5">
                         <Tag>{stateLabel(data().run.state)}</Tag>
                         <Tag>{data().run.mode}</Tag>

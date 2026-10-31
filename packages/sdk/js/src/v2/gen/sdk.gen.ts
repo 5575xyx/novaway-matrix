@@ -469,6 +469,7 @@ import type {
   RunAcceptanceAddResponses,
   RunApproveErrors,
   RunApproveResponses,
+  RunBrief,
   RunCancelErrors,
   RunCancelResponses,
   RunCreateErrors,
@@ -14120,7 +14121,7 @@ export class Run2 extends HeyApiClient {
       body_directory?: string
       mode?: "team" | "auto"
       goal?: string
-      brief?: unknown
+      brief?: RunBrief
       acceptance?: Array<unknown>
       budget?: {
         tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"

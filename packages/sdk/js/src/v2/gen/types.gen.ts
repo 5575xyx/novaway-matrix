@@ -3677,6 +3677,13 @@ export type MissionCleanup = {
   reason?: string
 }
 
+export type RunBrief = {
+  scope?: Array<string>
+  files?: Array<string>
+  constraints?: Array<string>
+  context?: string
+}
+
 export type RunUsageView = {
   reserved: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   settled: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -3704,6 +3711,7 @@ export type RunView = {
   missionID?: string
   mode: "team" | "auto"
   goal: string
+  brief?: RunBrief
   state: string
   phase?: string
   planVersion: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -17922,7 +17930,7 @@ export type RunCreateData = {
     directory: string
     mode: "team" | "auto"
     goal: string
-    brief?: unknown
+    brief?: RunBrief
     acceptance?: Array<unknown>
     budget?: {
       tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"

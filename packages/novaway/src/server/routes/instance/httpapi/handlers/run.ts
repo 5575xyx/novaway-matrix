@@ -144,28 +144,33 @@ const artifactsOf = (value: unknown) => {
   return list.length > 0 ? list : undefined
 }
 
-const toRun = (run: TeamRun) => ({
-  id: run.id,
-  sessionID: run.sessionID,
-  directory: run.directory,
-  missionID: run.missionID,
-  mode: run.mode,
-  goal: run.goal,
-  state: run.state,
-  phase: run.phase,
-  planVersion: run.planVersion,
-  roundMain: run.roundMain,
-  budget: run.budget,
-  attempts: run.attempts,
-  createdAt: run.createdAt,
-  updatedAt: run.updatedAt,
-  error: run.error,
-  terminalReason: run.terminalReason,
-  // 缺省只读：界面要能看出来这次运行会不会改工作区。
-  readOnly: TeamPolicy.fromPlan(run.plan).readOnly,
-  // 用量归属快照（§10.3）：运行结束后才有，运行中缺失是正常的。
-  usage: toUsage(run.usage),
-})
+const toRun = (run: TeamRun) => {
+  // 老运行存的是自由 JSON：只回传认得的字段，不把脏数据带进响应。
+  const brief = TeamContext.normalizeBrief(run.brief)
+  return {
+    id: run.id,
+    sessionID: run.sessionID,
+    directory: run.directory,
+    missionID: run.missionID,
+    mode: run.mode,
+    goal: run.goal,
+    ...(brief ? { brief } : {}),
+    state: run.state,
+    phase: run.phase,
+    planVersion: run.planVersion,
+    roundMain: run.roundMain,
+    budget: run.budget,
+    attempts: run.attempts,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    error: run.error,
+    terminalReason: run.terminalReason,
+    // 缺省只读：界面要能看出来这次运行会不会改工作区。
+    readOnly: TeamPolicy.fromPlan(run.plan).readOnly,
+    // 用量归属快照（§10.3）：运行结束后才有，运行中缺失是正常的。
+    usage: toUsage(run.usage),
+  }
+}
 
 /** 从模型输出里取出第一个 JSON 对象；取不到就当作「未验证」，绝不默认通过。 */
 const parseJSON = TeamVerifier.parseJSON
@@ -388,7 +393,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             missionID,
             mode: ctx.payload.mode,
             goal: ctx.payload.goal,
-            brief: ctx.payload.brief as Record<string, unknown> | undefined,
+            brief: ctx.payload.brief,
             acceptance: ctx.payload.acceptance as unknown[] | undefined,
             budget: ctx.payload.budget,
           })
@@ -734,8 +739,11 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const dispatch = (input: DispatchInput) =>
             Effect.gen(function* () {
               // 提示词与清单同源（§6.4）：模型看到的字，就是事后审计的字。
+              // `run.brief` 是用户声明的范围与约束（§5.3）：不喂进去，用户写了等于没写。
+              const declared = TeamContext.normalizeBrief(run.brief)
               const context = TeamContext.build({
                 goal: run.goal,
+                ...(declared ? { brief: declared } : {}),
                 acceptance: input.acceptance.map((acceptance) => ({
                   id: acceptance.id,
                   version: acceptance.version,

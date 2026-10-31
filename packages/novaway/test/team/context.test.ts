@@ -1,6 +1,6 @@
 import { describe, expect, it as check } from "bun:test"
 import { Effect } from "effect"
-import { build, DEFAULT_LIMITS } from "@/team/context"
+import { build, DEFAULT_LIMITS, normalizeBrief } from "@/team/context"
 import { Service as RunService, defaultLayer as RunLayer } from "@/team/run"
 import { SessionID } from "@/session/schema"
 import { testEffect } from "../lib/effect"
@@ -87,6 +87,53 @@ describe("dispatch context manifest", () => {
   check("an empty acceptance list says so instead of pretending there is one", () => {
     const { prompt } = build({ goal: "g", acceptance: [], members: [], feedback: [] })
     expect(prompt).toContain("（未声明验收，按目标自检）")
+  })
+
+  check("scope and constraints reach the prompt right after the goal", () => {
+    const { manifest, prompt } = build({
+      goal: "修登录超时",
+      brief: {
+        scope: ["当前 diff", "src/auth"],
+        files: ["src/auth/login.ts"],
+        constraints: ["不要改测试", "不要新增依赖"],
+        context: "线上只有 iOS 复现",
+      },
+      acceptance: [{ id: "acc_1", text: "超时后重试一次" }],
+      members: ["- 小王（build）：实现"],
+      feedback: [],
+    })
+    expect(prompt).toContain("【范围与约束】")
+    expect(prompt).toContain("- 当前 diff\n- src/auth")
+    expect(prompt).toContain("- src/auth/login.ts")
+    expect(prompt).toContain("- 不要改测试\n- 不要新增依赖")
+    expect(prompt).toContain("补充背景：线上只有 iOS 复现")
+    // 范围约束的是「怎么做」，必须排在验收之前。
+    expect(prompt.indexOf("【范围与约束】")).toBeLessThan(prompt.indexOf("【本次验收】"))
+    // 没有截断就不该留下截断账：这是「没写」与「被砍掉」的区别。
+    expect(manifest.omitted).toEqual([])
+    expect(manifest.truncated).toBe(false)
+    // 清单仍是同一份输出的账。
+    expect(manifest.brief).toBe(prompt)
+  })
+
+  check("too many brief lines are dropped, counted and announced", () => {
+    const scope = Array.from({ length: DEFAULT_LIMITS.brief + 2 }, (_, index) => "范围 " + index)
+    const { manifest, prompt } = build({ goal: "g", brief: { scope }, acceptance: [], members: [], feedback: [] })
+    expect(manifest.truncated).toBe(true)
+    expect(manifest.omitted).toEqual([
+      { kind: "brief", count: 2, reason: expect.stringContaining("范围 条数上限") },
+    ])
+    expect(prompt).toContain("brief 少了 2 条")
+  })
+
+  check("reads only known brief fields and treats empty ones as absent", () => {
+    expect(normalizeBrief(undefined)).toBeUndefined()
+    expect(normalizeBrief({ nothing: true })).toBeUndefined()
+    // 空串与空数组不算「限定过」：派发时不该出现一行空的范围。
+    expect(normalizeBrief({ scope: ["  "], constraints: [], context: "  " })).toBeUndefined()
+    expect(
+      normalizeBrief({ scope: [" 当前 diff ", 3], files: "not-a-list", constraints: ["不要改测试"], extra: "x" }),
+    ).toEqual({ scope: ["当前 diff"], constraints: ["不要改测试"] })
   })
 
   it.effect("the latest manifest is persisted on the team and survives a re-read", () =>

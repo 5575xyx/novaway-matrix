@@ -30,9 +30,23 @@ const AcceptanceInput = Schema.Struct({
   expected: Schema.optional(Schema.String).annotate({ description: "预期结果；能写具体值就写具体值" }),
 })
 
+export const BriefInput = Schema.Struct({
+  scope: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "这次要看/改的范围，每行一条（例如「当前 diff」「src/team」「PR #123」）",
+  }),
+  files: Schema.optional(Schema.Array(Schema.String)).annotate({ description: "相关文件路径，每行一个" }),
+  constraints: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "硬约束，每行一条（例如「不要改测试」）",
+  }),
+  context: Schema.optional(Schema.String).annotate({ description: "补充背景，一段话" }),
+})
+
 export const TeamRunParameters = Schema.Struct({
   team: Schema.String.annotate({ description: "团队 ID 或名字；必须出现在本次会话的团队目录里" }),
   goal: Schema.String.annotate({ description: "这一轮要交付什么（面向结果，不写过程）" }),
+  brief: Schema.optional(BriefInput).annotate({
+    description: "用户给的范围与约束；不填就只按目标派发。写了就原样进队长提示词，不能悄悄丢掉。",
+  }),
   acceptance: Schema.optional(Schema.Array(AcceptanceInput)),
   tokens: Schema.optional(Schema.Number).annotate({ description: "预算上限（tokens）；不填用默认值" }),
   missionID: Schema.optional(Schema.String).annotate({
@@ -52,6 +66,7 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
       "Dispatch a team from this session's team catalog.",
       "Creates a run with a plan and acceptance criteria, then stops: the user starts it, and approves it first unless it is a read-only run of a team they picked.",
       "Runs are read-only unless the user asked for changes; asking for writes (allowWrites) always waits for the user's approval.",
+      "If the user stated a scope, file list or hard constraints, pass them in brief: they go into the captain's prompt verbatim.",
       "Works only when the user picked a team (or Auto) for this session; otherwise tell the user to choose one.",
     ].join(" "),
     parameters: TeamRunParameters,
@@ -138,6 +153,7 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
           missionID: params.missionID,
           mode: mode === "auto" ? "auto" : "team",
           goal: params.goal,
+          ...(params.brief ? { brief: params.brief } : {}),
           acceptance: [...acceptance],
           budget,
         })

@@ -158,6 +158,19 @@ export const RunUsageView = Schema.Struct({
   byJob: Schema.optional(Schema.Array(Schema.Struct({ job: Schema.String, committed: Schema.Number }))),
 }).annotate({ identifier: "RunUsageView" })
 
+/**
+ * 用户声明的范围与约束（§5.3 / §13）。
+ *
+ * 以前这里是 `Schema.Any`：收下就存，从没进过队长的提示词。现在类型化：
+ * 已知字段会原样进提示词，字段类型不对就在入口报错；不认识的键按平台默认忽略。
+ */
+export const RunBrief = Schema.Struct({
+  scope: Schema.optional(Schema.Array(Schema.String)),
+  files: Schema.optional(Schema.Array(Schema.String)),
+  constraints: Schema.optional(Schema.Array(Schema.String)),
+  context: Schema.optional(Schema.String),
+}).annotate({ identifier: "RunBrief" })
+
 export const RunView = Schema.Struct({
   id: Schema.String,
   sessionID: Schema.String,
@@ -166,6 +179,8 @@ export const RunView = Schema.Struct({
   missionID: Schema.optional(Schema.String),
   mode: Schema.Literals(["team", "auto"]),
   goal: Schema.String,
+  /** 用户声明的范围与约束（§5.3）：派发时原样进队长提示词，这里可回看。 */
+  brief: Schema.optional(RunBrief),
   state: Schema.String,
   phase: Schema.optional(Schema.String),
   planVersion: Schema.Number,
@@ -298,7 +313,7 @@ export const RunCreatePayload = Schema.Struct({
   directory: Schema.String,
   mode: Schema.Literals(["team", "auto"]),
   goal: Schema.String,
-  brief: Schema.optional(Schema.Any),
+  brief: Schema.optional(RunBrief),
   acceptance: Schema.optional(Schema.Array(Schema.Any)),
   budget: Schema.optional(RunBudget),
   /**

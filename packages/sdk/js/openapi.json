@@ -31732,7 +31732,9 @@
                   "goal": {
                     "type": "string"
                   },
-                  "brief": {},
+                  "brief": {
+                    "$ref": "#/components/schemas/RunBrief"
+                  },
                   "acceptance": {
                     "type": "array"
                   },
@@ -49364,6 +49366,33 @@
         "required": ["removed"],
         "additionalProperties": false
       },
+      "RunBrief": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "context": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "RunUsageView": {
         "type": "object",
         "properties": {
@@ -49571,6 +49600,9 @@
           },
           "goal": {
             "type": "string"
+          },
+          "brief": {
+            "$ref": "#/components/schemas/RunBrief"
           },
           "state": {
             "type": "string"

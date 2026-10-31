@@ -273,6 +273,42 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("a run keeps the scope and constraints the user declared", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
+      const created = yield* post(dir, "/run", {
+        sessionID: "ses_brief",
+        directory: dir,
+        mode: "team",
+        goal: "审查登录改动",
+        profileID: profiles[0].id,
+        // 以前这个字段收下就存、从不进提示词：等于用户白写。
+        brief: { scope: ["当前 diff"], constraints: ["不要改测试"], context: "只在 iOS 复现" },
+        acceptance: [{ text: "没有高危问题" }],
+      })
+      expect(created.status).toBe(200)
+      const id = ((yield* created.json) as { run: { id: string } }).run.id
+
+      const detail = (yield* (yield* get(dir, "/run/" + id, dir)).json) as {
+        run: { brief?: { scope?: string[]; constraints?: string[]; context?: string } }
+      }
+      expect(detail.run.brief).toEqual({ scope: ["当前 diff"], constraints: ["不要改测试"], context: "只在 iOS 复现" })
+
+      // 类型不对的范围是坏输入，不能当成「没写」静默放过。
+      const invalid = yield* post(dir, "/run", {
+        sessionID: "ses_brief_bad",
+        directory: dir,
+        mode: "team",
+        goal: "坏范围",
+        profileID: profiles[0].id,
+        brief: { scope: "当前 diff" },
+        acceptance: [{ text: "没有高危问题" }],
+      })
+      expect(invalid.status).toBe(400)
+    }),
+  )
+
   it.live("adds a person, then archives and restores them without losing the row", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })
