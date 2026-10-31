@@ -32462,6 +32462,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found",
             "content": {
@@ -32499,6 +32509,43 @@
                   },
                   "owner": {
                     "type": "string"
+                  },
+                  "verifier": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["command"]
+                      },
+                      "run": {
+                        "type": "string"
+                      },
+                      "timeoutMs": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["kind", "run"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["specID", "text", "kind"],
@@ -50146,6 +50193,39 @@
         "required": ["id", "phase", "roundCaptain", "dependsOn"],
         "additionalProperties": false
       },
+      "RunVerifierView": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["kind"],
+        "additionalProperties": false
+      },
       "RunAcceptanceView": {
         "type": "object",
         "properties": {
@@ -50192,6 +50272,9 @@
           },
           "owner": {
             "type": "string"
+          },
+          "verifier": {
+            "$ref": "#/components/schemas/RunVerifierView"
           }
         },
         "required": ["id", "specID", "version", "text", "kind"],
@@ -50244,6 +50327,9 @@
           },
           "evidenceRef": {
             "type": "string"
+          },
+          "reused": {
+            "type": "boolean"
           },
           "at": {
             "anyOf": [
