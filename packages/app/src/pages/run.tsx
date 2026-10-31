@@ -950,6 +950,18 @@ export const RunPage: Component<{
                         <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
                         {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
                       </div>
+                      {/*
+                        终态/阻塞的原因：接口一直有 `run.error`，界面却从不显示 ——
+                        用户只看到「失败」两个字，不知道是名册坏了、集成冲突还是没交付。
+                        这里只放内核写下的那句总结（团队 id / 原因），不放任何事件原文。
+                      */}
+                      <Show when={data().run.error}>
+                        {(reason) => (
+                          <div class="mt-1 text-ui-xs text-foreground-subtle" title={reason()}>
+                            {t("run.reason", { reason: reason() })}
+                          </div>
+                        )}
+                      </Show>
                     </div>
                     <div class="flex shrink-0 items-center gap-1.5">
                       {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
