@@ -882,6 +882,12 @@ main:  收团队 Report → 验证结果核对 → 裁决
 >
 > 实现注记（2026-11-01）：取消现在真的会停住编排器（`AbortSignal` 接到 `cancelRun`）；
 > 收尾仍按三段式由编排器完成，`cancel` 只是「停止请求」。细节见 §23.4「取消要真停」。
+>
+> 实现注记（2026-11-01）：**任务级检查点没有接线**。`src/team/checkpoint.ts` 写了读写与
+> `resume()`，但没有任何调用方：现在的恢复不需要它 —— 运行的可恢复事实在 `team_run_team`
+> 与 `team_run_op` 里（团队阶段、报告、验证、在途操作），不依赖会话消息回放。
+> 它真正有用的场景是「把队长的会话本身接回来继续跑」，而那件事没做；不接线却写数据，
+> 只会让「能从检查点继续」看起来像已经成立。§23.4「重启恢复」写的是实际路径。
 
 ### 8.6 下游失效（产物版本）
 
@@ -1277,6 +1283,11 @@ CC 的 agent teams 已经具备：队长 + 成员、共享任务列表、任务�
 
 仓库目前**没有任务级检查点**（`src/session/session.ts` 无 checkpoint / resume 概念）。这是 P1 里唯一需要新造的地基，也是最容易被低估工作量的一块：它不只是存快照，还要定义「从检查点继续」时哪些副作用已经发生过。
 
+> 实现注记（2026-11-01）：会话检查点（`src/session/checkpoint.ts`）与团队侧的包装
+> （`src/team/checkpoint.ts`）都已经有了，但**团队运行不使用它们**：重启恢复靠的是
+> `team_run_team` / `team_run_op` 里的事实，而不是回放队长会话。这条地基仍然没有
+> 承重件落在它上面 —— 见 §8.5 的实现注记。
+
 ---
 
 ## 19. 验证开销与「未验证」的呈现
@@ -1663,7 +1674,7 @@ P1 的第一批代码已落地并通过类型检查与测试。为免文档与�
 | `src/team/verification.ts`               | 纯函数 `summarize`：缺失→`unverified`、快照不符→`stale`，两者都计入 `unresolved` | §6.2 / §19.2 |
 | `src/team/ledger.ts`                     | 预占 → 结算 → 释放；承诺量 = `reserved + settled + unknown`；超发记 `overrun`    | §7.1 / §5.9  |
 | `src/team/op-log.ts`                     | 幂等键唯一索引、replay 语义、`started → unknown → needs_review`                  | §8.5         |
-| `src/team/checkpoint.ts`                 | 复用 `session_checkpoint`，用 `team-run:<runID>` 标签记任务/步骤指针             | §8.5         |
+| `src/team/checkpoint.ts`                 | 复用 `session_checkpoint`，用 `team-run:<runID>` 标签记任务/步骤指针（**未接线**，见下） | §8.5         |
 | `src/team/economy.ts`                    | 轻/中/重三档由调度器判定，`violations()` 拦截「轻档冒充验证」                    | §19.1        |
 | `src/team/orchestrator.ts`               | 派发→验证→判定→打回循环、共享尝试计数、合并快照重验、三段式取消、预算超限        | §8.2 / §8.4  |
 | `groups/run.ts` + `handlers/run.ts`      | `/run` 创建、计划、批准、执行、取消、事件；队长与验证器各用**独立子会话**        | §13          |
