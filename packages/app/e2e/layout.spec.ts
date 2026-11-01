@@ -332,11 +332,12 @@ test("WorkspaceHeader 单行且不溢出", async ({ page }) => {
   // 因此用「约等于 48~49」而不是精确相等）
   expect(headerBox!.height, `header height ${headerBox!.height}`).toBeGreaterThanOrEqual(47.5)
   expect(headerBox!.height, `header height ${headerBox!.height}`).toBeLessThanOrEqual(49.5)
-  const model = page.locator('[data-component="workspace-model"]').first()
-  await expect(model).toBeVisible()
-  const modelBox = await model.boundingBox()
-  expect(modelBox, "model no bbox").not.toBeNull()
-  expect(modelBox!.x + modelBox!.width).toBeLessThanOrEqual(headerBox!.x + headerBox!.width)
+  // 模型名与思考强度已从顶栏移除（输入框底栏才是唯一的修改入口），
+  // 这里改成校验「顶栏不再重复显示模型」+ 顶栏内容不横向溢出。
+  await expect(header.locator('[data-component="workspace-model"]')).toHaveCount(0)
+  await expect(page.locator('[data-component="prompt-model-control"]').first()).toBeVisible()
+  const overflow = await header.evaluate((el) => el.scrollWidth - el.clientWidth)
+  expect(overflow, `header overflows by ${overflow}px`).toBeLessThanOrEqual(1)
 })
 
 test("顶栏移除后的入口归属（A1）", async ({ page }) => {

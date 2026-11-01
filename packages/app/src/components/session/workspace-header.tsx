@@ -1,19 +1,13 @@
 import { Show, createMemo } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
-import { Button } from "@novaway/ui/button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
-import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Mark } from "@novaway/ui/logo"
-import { ModelSelectorPopover } from "@/components/dialog-select-model"
-import { ThinkingEffortPopover } from "@/components/thinking-effort-popover"
 import { WindowControls } from "@/components/window-controls"
 import { SessionHeader } from "@/components/session/session-header"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
-import { useLocal } from "@/context/local"
-import { useModels } from "@/context/models"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -26,8 +20,6 @@ export function WorkspaceHeader() {
   const language = useLanguage()
   const layout = useLayout()
   const globalSync = useGlobalSync()
-  const modelsCtx = useModels()
-  const local = useLocal()
   const sessionLayout = useSessionLayout()
   const settings = useSettings()
   // 运行平台（"desktop" = Electron 壳），不是视口宽度。会话页里那个 `isDesktop()` 是
@@ -125,27 +117,8 @@ export function WorkspaceHeader() {
       <span class="text-ui-xs text-foreground-subtle truncate max-w-[180px] hidden md:block border border-border rounded-md px-1.5 py-0.5">
         {branch() ? language.t("workspace.header.projectBranch", { project: dirName(), branch: branch() }) : dirName()}
       </span>
-      <Show when={modelsCtx.autoMode() || local.model.current()}>
-        <div data-component="workspace-model" class="min-w-0">
-          <ModelSelectorPopover
-            model={local.model}
-            triggerAs={Button}
-            triggerProps={{
-              variant: "ghost",
-              size: "normal",
-              class: "text-ui-caption text-foreground max-w-[150px] min-w-0 truncate",
-            }}
-          >
-            <span class="truncate">
-              {modelsCtx.autoMode() ? "Auto" : (local.model.current()?.name ?? language.t("dialog.model.select.title"))}
-            </span>
-            <Icon name="chevron-down" size="small" class="shrink-0" />
-          </ModelSelectorPopover>
-        </div>
-        <Show when={!modelsCtx.autoMode()}>
-          <ThinkingEffortPopover model={local.model} size="small" placement="bottom-start" />
-        </Show>
-      </Show>
+      {/* 模型名与思考强度不再显示在这里：输入框底栏已经有同一组控件，
+          而且那才是真正能改的地方 —— 顶栏这份是只读的重复信息，还挤占标题宽度。 */}
       <div class="flex-1" />
       <Show when={settings.general.showTerminal()}>
         <IconButton

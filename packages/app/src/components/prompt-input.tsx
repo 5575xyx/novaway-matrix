@@ -1961,6 +1961,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </div>
               </Popover>
             </Show>
+            {/* 团队派发入口：紧贴「电脑控制」右侧 —— 两者都是"这一轮交给谁/用什么能力"的开关，
+                放同一行比塞进底栏（模式和用量之间）更好找。没有可选团队时它自己不渲染。 */}
+            <TeamModeSelect sessionID={params.id} />
             <div class="flex-1 min-w-0" />
           </div>
         </Show>
@@ -1981,7 +1984,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             if (!shellRef?.contains(target)) return
             if (
               target.closest(
-                '[data-action="prompt-add"], [data-action="prompt-attach"], [data-action="prompt-submit"], [data-action="prompt-optimize"], [data-action="prompt-optimize-undo"], [data-action="prompt-background"], [data-action="prompt-permission-mode"], [data-action="prompt-context-usage"], [data-action="prompt-model"], [data-action="prompt-thinking"]',
+                '[data-action="prompt-add"], [data-action="prompt-attach"], [data-action="prompt-submit"], [data-action="prompt-optimize"], [data-action="prompt-optimize-undo"], [data-action="prompt-background"], [data-action="prompt-permission-mode"], [data-action="prompt-context-usage"], [data-action="prompt-model"], [data-action="prompt-thinking"], [data-action="prompt-team-mode"]',
               )
             ) {
               return
@@ -2430,9 +2433,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               {/* 权限模式与上下文占用放到输入框底部：顶部工具条在右侧面板展开后
                   会被模型名/思考强度挤满，这几个入口挪到底部反而更稳、更顺手
                   （也是 ZCode 的摆放：+ 之后跟模式与用量）。 */}
-              {/* 团队选择写的是会话字段（teamMode/teamIDs），内核据此注入目录；
-                  没有可选团队时它自己不渲染，footer 不会多一个空入口。 */}
-              <TeamModeSelect sessionID={params.id} />
               <div data-component="prompt-auto-accept" class="flex items-center">
                 <PermissionModeSelect
                   sessionID={params.id}
