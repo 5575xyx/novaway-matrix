@@ -40,7 +40,7 @@ import { useModels } from "@/context/models"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { agentDisplayName, skillDisplayName } from "@/utils/agent"
-import { agentAvatarSrc } from "@/utils/agent-avatar"
+import { agentAvatar, agentAvatarSeeds, agentAvatarSrc } from "@/utils/agent-avatar"
 import { pathKey } from "@/utils/path-key"
 import { AiFixButton } from "./ai-fix-button"
 import { AppIcon, appIcon } from "./app-icon"
@@ -264,12 +264,22 @@ function agentFromFile(file: SettingsAgentListResponse[number]): Agent {
   }
 }
 
-function agentEditableData(value: Record<string, unknown>, input: { description: string; mode: string }) {
-  return {
+function agentEditableData(
+  value: Record<string, unknown>,
+  input: { description: string; mode: string; avatar?: string | null },
+) {
+  const next: Record<string, unknown> = {
     ...value,
     description: input.description.trim() || undefined,
     mode: input.mode.trim() || undefined,
   }
+  // `null` 表示用户明确选了「自动」（删掉这个键）；不传表示这个对话框不碰头像
+  // （配置式员工不经过文件对话框，别把已有选择抹掉）。
+  if (input.avatar !== undefined) {
+    if (input.avatar) next.avatar = input.avatar
+    else delete next.avatar
+  }
+  return next
 }
 
 function nextName(existing: Record<string, unknown>, base: string) {
@@ -935,7 +945,7 @@ const AgentDetailDialog: Component<{
           style={{ background: rowAccentTint(rowAccent(props.agent.name), 8) }}
         >
           <img
-            src={agentAvatarSrc(props.agent.name)}
+            src={agentAvatar(props.agent.name, props.agent.options)}
             alt=""
             class="size-10 rounded-xl object-cover"
             style={{ "box-shadow": `0 0 0 1px ${rowAccentTint(rowAccent(props.agent.name), 45)}` }}
@@ -1095,6 +1105,60 @@ const AgentConfigDialog: Component<{
   )
 }
 
+/**
+ * AI 员工头像选择。
+ *
+ * 头像是按种子离线生成的 SVG（不联网、不用图床），所以这里给的就是一批稳定的
+ * 候选；「自动」表示继续按名字生成。选中的种子写进员工配置的 `avatar`，
+ * 之后列表、团队页、对话里都读同一个字段。
+ */
+const AvatarPicker: Component<{
+  name: string
+  seed?: string
+  onChange: (seed: string | undefined) => void
+}> = (props) => {
+  const language = useLanguage()
+  const cell = "size-9 shrink-0 overflow-hidden rounded-lg border-2 transition-colors"
+  return (
+    <div class="flex flex-col gap-1.5">
+      <span class="text-12-medium text-foreground-subtle">{language.t("settings.agents.field.avatar")}</span>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          class={cell}
+          classList={{
+            "border-primary": !props.seed,
+            "border-transparent hover:border-border": !!props.seed,
+          }}
+          title={language.t("settings.agents.field.avatar.auto")}
+          aria-label={language.t("settings.agents.field.avatar.auto")}
+          onClick={() => props.onChange(undefined)}
+        >
+          <img src={agentAvatarSrc(props.name)} alt="" draggable={false} class="size-full object-cover" />
+        </button>
+        <For each={agentAvatarSeeds}>
+          {(seed) => (
+            <button
+              type="button"
+              class={cell}
+              classList={{
+                "border-primary": props.seed === seed,
+                "border-transparent hover:border-border": props.seed !== seed,
+              }}
+              title={language.t("settings.agents.field.avatar.pick")}
+              aria-label={language.t("settings.agents.field.avatar.pick")}
+              onClick={() => props.onChange(seed)}
+            >
+              <img src={agentAvatarSrc(seed)} alt="" draggable={false} class="size-full object-cover" />
+            </button>
+          )}
+        </For>
+      </div>
+      <span class="text-11-regular text-foreground-subtlest">{language.t("settings.agents.field.avatar.hint")}</span>
+    </div>
+  )
+}
+
 const AgentFileDialog: Component<{
   title: string
   initialName: string
@@ -1108,6 +1172,7 @@ const AgentFileDialog: Component<{
   const [name, setName] = createSignal(props.initialName)
   const [description, setDescription] = createSignal(stringField(props.initialData, "description"))
   const [mode, setMode] = createSignal(stringField(props.initialData, "mode") || "subagent")
+  const [avatar, setAvatar] = createSignal(stringField(props.initialData, "avatar") || undefined)
   const [content, setContent] = createSignal(props.initialContent)
   const [error, setError] = createSignal("")
 
@@ -1121,6 +1186,7 @@ const AgentFileDialog: Component<{
         agentEditableData(props.initialData, {
           description: description(),
           mode: mode(),
+          avatar: avatar() ?? null,
         }),
         content(),
       )
@@ -1161,6 +1227,23 @@ const AgentFileDialog: Component<{
           if (!save.isPending) save.mutate()
         }}
       >
+        {/* 先给一张「这个人」的身份证：头像 + 名字 + 一句话职责，改字段时实时变。 */}
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-surface/60 px-3 py-2.5">
+          <img
+            src={agentAvatar(name(), { avatar: avatar() })}
+            alt=""
+            draggable={false}
+            class="size-11 shrink-0 rounded-xl object-cover"
+          />
+          <div class="flex min-w-0 flex-1 flex-col">
+            <span class="truncate text-14-medium text-foreground">
+              {name().trim() || language.t("settings.management.field.name")}
+            </span>
+            <span class="truncate text-12-regular text-foreground-subtle">
+              {description().trim() || language.t("settings.skills.field.description")}
+            </span>
+          </div>
+        </div>
         <TextField
           label={language.t("settings.management.field.name")}
           value={name()}
@@ -1181,6 +1264,7 @@ const AgentFileDialog: Component<{
           autocapitalize="off"
           error={error()}
         />
+        <AvatarPicker name={name()} seed={avatar()} onChange={setAvatar} />
         <TextField
           label={language.t("settings.agents.field.mode")}
           value={mode()}
@@ -1949,6 +2033,8 @@ type AgentDraft = {
   description: string
   mode: "primary" | "subagent"
   prompt: string
+  /** 用户在预览里挑的头像种子；空表示按名字生成。 */
+  avatar?: string
 }
 
 const agentModeOptions = [
@@ -1990,6 +2076,7 @@ const AgentGenerateDialog: Component<{
   const [mode, setMode] = createSignal<"primary" | "subagent">("subagent")
   const [model, setModel] = createSignal(props.initialModel)
   const [draft, setDraft] = createSignal<AgentDraft>()
+  const [avatar, setAvatar] = createSignal<string>()
   const [error, setError] = createSignal("")
   const options = () => props.models
   const currentModel = () =>
@@ -2013,7 +2100,7 @@ const AgentGenerateDialog: Component<{
   }))
 
   const create = useMutation(() => ({
-    mutationFn: async (value: AgentDraft) => props.onCreate(value),
+    mutationFn: async (value: AgentDraft) => props.onCreate({ ...value, avatar: avatar() }),
     onSuccess: () => dialog.close(),
     onError: (err) => {
       const message = err instanceof Error ? err.message : String(err)
@@ -2064,55 +2151,73 @@ const AgentGenerateDialog: Component<{
           else if (!generate.isPending) generate.mutate()
         }}
       >
-        <p class="text-12-regular leading-5 text-foreground-subtle">{language.t("settings.agents.ai.hint")}</p>
-        <TextField
-          label={language.t("settings.agents.ai.field.description")}
-          placeholder={language.t("settings.agents.ai.field.description.placeholder")}
-          multiline
-          value={description()}
-          onChange={(value) => {
-            setDescription(value)
-            setDraft(undefined)
-            setError("")
-          }}
-          class="min-h-32 max-h-[min(40vh,18rem)] overflow-y-auto"
-          error={error()}
-        />
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-12-medium text-foreground-subtle">{language.t("settings.agents.field.mode")}</label>
-            <Select
-              options={agentModeOptions.map((item) => ({ ...item, label: language.t(item.label as never) }))}
-              current={
-                currentMode() ? { ...currentMode()!, label: language.t(currentMode()!.label as never) } : undefined
-              }
-              value={(item) => item.value}
-              label={(item) => item.label}
-              onSelect={(item) => item && setMode(item.value)}
-              variant="secondary"
-              triggerVariant="settings"
-            />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-12-medium text-foreground-subtle">{language.t("settings.agents.ai.field.model")}</label>
-            <Select
-              options={options()}
-              current={currentModel()}
-              value={(option) => `${option.providerID}/${option.modelID}`}
-              label={(option) => option.label}
-              onSelect={(option) => option && setModel({ providerID: option.providerID, modelID: option.modelID })}
-              variant="secondary"
-              triggerVariant="settings"
-            />
+        <div class="flex flex-col gap-4 rounded-xl border border-border bg-surface/40 p-4">
+          <p class="text-12-regular leading-5 text-foreground-subtle">{language.t("settings.agents.ai.hint")}</p>
+          <TextField
+            label={language.t("settings.agents.ai.field.description")}
+            placeholder={language.t("settings.agents.ai.field.description.placeholder")}
+            multiline
+            value={description()}
+            onChange={(value) => {
+              setDescription(value)
+              setDraft(undefined)
+              setError("")
+            }}
+            class="min-h-32 max-h-[min(40vh,18rem)] overflow-y-auto"
+            error={error()}
+          />
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-12-medium text-foreground-subtle">{language.t("settings.agents.field.mode")}</label>
+              <Select
+                options={agentModeOptions.map((item) => ({ ...item, label: language.t(item.label as never) }))}
+                current={
+                  currentMode() ? { ...currentMode()!, label: language.t(currentMode()!.label as never) } : undefined
+                }
+                value={(item) => item.value}
+                label={(item) => item.label}
+                onSelect={(item) => item && setMode(item.value)}
+                variant="secondary"
+                triggerVariant="settings"
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-12-medium text-foreground-subtle">{language.t("settings.agents.ai.field.model")}</label>
+              <Select
+                options={options()}
+                current={currentModel()}
+                value={(option) => `${option.providerID}/${option.modelID}`}
+                label={(option) => option.label}
+                onSelect={(option) => option && setModel({ providerID: option.providerID, modelID: option.modelID })}
+                variant="secondary"
+                triggerVariant="settings"
+              />
+            </div>
           </div>
         </div>
 
         <Show when={draft()}>
           {(value) => (
-            <div class="flex flex-col gap-4 rounded-lg border border-border bg-surface/60 p-3">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-13-medium text-foreground">{language.t("settings.agents.ai.preview")}</span>
-                <img src={agentAvatarSrc(value().name)} alt="" class="size-8 rounded-lg object-cover" />
+            <div class="flex flex-col gap-4 rounded-xl border border-border bg-surface/60 p-4">
+              {/* 预览先给结果一张「身份证」：改名字/描述/头像，这里立刻跟着变。 */}
+              <div class="flex items-center gap-3">
+                <img
+                  src={agentAvatar(value().name, { avatar: avatar() })}
+                  alt=""
+                  draggable={false}
+                  class="size-11 shrink-0 rounded-xl object-cover"
+                />
+                <div class="flex min-w-0 flex-1 flex-col">
+                  <span class="truncate text-14-medium text-foreground">
+                    {value().name.trim() || language.t("settings.management.field.name")}
+                  </span>
+                  <span class="truncate text-12-regular text-foreground-subtle">
+                    {value().description.trim() || language.t("settings.skills.field.description")}
+                  </span>
+                </div>
+                <span class="shrink-0 text-12-regular text-foreground-subtle">
+                  {language.t("settings.agents.ai.preview")}
+                </span>
               </div>
               <TextField
                 label={language.t("settings.management.field.name")}
@@ -2124,6 +2229,7 @@ const AgentGenerateDialog: Component<{
                 value={value().description}
                 onChange={(description) => setDraft({ ...value(), description })}
               />
+              <AvatarPicker name={value().name} seed={avatar()} onChange={setAvatar} />
               <TextField
                 label={language.t("settings.agents.field.prompt")}
                 multiline
@@ -2535,6 +2641,8 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
         description: draft.description || draft.name,
         mode: draft.mode,
         permission: {},
+        // 用户在预览里挑过头像才写进 frontmatter；没挑就继续按名字生成。
+        ...(draft.avatar ? { avatar: draft.avatar } : {}),
       },
       draft.prompt,
     )
@@ -2628,7 +2736,7 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
                 {(agent: Agent) => (
                   <RuntimeRow
                     icon="brain"
-                    avatar={agentAvatarSrc(agent.name)}
+                    avatar={agentAvatar(agent.name, agent.options)}
                     title={agentDisplayName(agent.name, agent.options)}
                     description={agent.description}
                     tags={agentTags(agent)}

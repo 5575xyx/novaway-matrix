@@ -2293,6 +2293,10 @@ export const dict = {
   "settings.agents.field.promptSource": "运行时提示词来源",
   "settings.agents.field.mode": "模式",
   "settings.agents.field.model": "模型",
+  "settings.agents.field.avatar": "头像",
+  "settings.agents.field.avatar.auto": "自动（按名字生成）",
+  "settings.agents.field.avatar.pick": "使用这个头像",
+  "settings.agents.field.avatar.hint": "头像是离线生成的，会随 AI 员工一起保存；列表、团队页和对话里显示同一张脸。",
   "settings.agents.detail.prompt.empty": "该内置AI员工没有单独的提示词配置，主要由模式、描述和内置权限规则驱动。",
   "settings.agents.detail.prompt.inherited": "该AI员工没有专属提示词；实际运行时会继承当前模型的基础系统提示词。",
   "settings.agents.detail.prompt.source":

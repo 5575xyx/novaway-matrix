@@ -23,10 +23,41 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, 
 import { PageHeader } from "@/components/page-header"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
-import { agentColor } from "@/utils/agent"
+import { agentDisplayName } from "@/utils/agent"
+import { agentAvatar } from "@/utils/agent-avatar"
 import { formatRelativeTime } from "@/utils/relative-time"
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+/**
+ * AI 员工的展示名。
+ *
+ * 内置员工的 `options.displayName` 本来就是中文（agency / office 系列都带），
+ * 自定义员工则读 `display_name`；两样都没有时才退回本地词表翻译。
+ * 团队页所有露出角色名的地方都走它，别再把 `corporate-training-designer`
+ * 这种 id 直接摆到用户面前。
+ */
+const agentLabel = (name: string, agents: readonly Agent[]) =>
+  agentDisplayName(name, agents.find((agent) => agent.name === name)?.options)
+
+/**
+ * 团队成员行的名字。
+ *
+ * 名册里的 `name` 可能是员工自定义的名字，也可能只是 agent id 的回填
+ * （建队时没给名字）或 `team-lead` 这种内部占位；后两种一律按展示名说话。
+ */
+const memberLabel = (member: TeamMemberView, agents: readonly Agent[]) =>
+  member.role === "lead" || member.name === member.agent ? agentLabel(member.agent, agents) : member.name
+
+/** 头像与展示名同源：员工配置里挑过头像就按挑的生成。 */
+const agentAvatarOf = (name: string, agents: readonly Agent[]) =>
+  agentAvatar(name, agents.find((agent) => agent.name === name)?.options)
+
+/** 内置员工带一个中文分类标签（营销 / 工程 / 设计…），列表里当副标题用。 */
+const agentCategory = (agent: Agent) => {
+  const value = agent.options?.category
+  return typeof value === "string" && value.trim() ? value : undefined
+}
 
 const statusIcon = (status: TeamMemberView["status"]) =>
   status === "active" ? "lu-activity" : status === "archived" ? "circle-ban-sign" : "lu-circle"
@@ -296,6 +327,7 @@ export const TeamPage: Component<{
     dialog.show(() => (
       <DialogProfiles
         directory={props.directory}
+        agents={agents()}
         employees={employees()}
         onChanged={() => {
           void loadProfiles()
@@ -595,10 +627,12 @@ export const TeamPage: Component<{
                   <div class="mt-3 flex flex-wrap items-center gap-1.5">
                     <For each={team().members}>
                       {(member) => (
-                        <div class="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5">
-                          <span
-                            class="size-1.5 shrink-0 rounded-full"
-                            style={{ background: agentColor(member.agent) }}
+                        <div class="flex items-center gap-1.5 rounded-full border border-border py-0.5 pl-0.5 pr-2">
+                          <img
+                            src={agentAvatarOf(member.agent, agents())}
+                            alt=""
+                            draggable={false}
+                            class="size-5 shrink-0 rounded-full object-cover"
                           />
                           <button
                             type="button"
@@ -606,7 +640,7 @@ export const TeamPage: Component<{
                             title={t("team.openSession")}
                             onClick={() => props.onOpenSession(member.sessionID)}
                           >
-                            {member.name}
+                            {memberLabel(member, agents())}
                           </button>
                           <Show when={member.role === "lead"}>
                             <span class="text-ui-xs text-foreground-subtlest">{t("team.coordinator")}</span>
@@ -635,7 +669,9 @@ export const TeamPage: Component<{
                         onChange={(event) => setAdding(event.currentTarget.value)}
                       >
                         <option value="">+ {t("team.member.add")}</option>
-                        <For each={usableAgents()}>{(agent) => <option value={agent.name}>{agent.name}</option>}</For>
+                        <For each={usableAgents()}>
+                          {(agent) => <option value={agent.name}>{agentLabel(agent.name, agents())}</option>}
+                        </For>
                       </select>
                       <Show when={adding()}>
                         <Button variant="ghost" size="small" onClick={() => void addMember()}>
@@ -994,6 +1030,12 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
             {(employee) => (
               <div class="rounded-lg border border-border">
                 <div class="flex items-center gap-2 px-3 py-2">
+                  <img
+                    src={agentAvatarOf(employee.job, props.agents)}
+                    alt=""
+                    draggable={false}
+                    class="size-8 shrink-0 rounded-lg object-cover"
+                  />
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
                       <span
@@ -1001,7 +1043,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                       >
                         {employee.name}
                       </span>
-                      <Tag>{employee.job}</Tag>
+                      <Tag>{agentLabel(employee.job, props.agents)}</Tag>
                       <Show when={employee.tier}>{(tier) => <Tag>{tier()}</Tag>}</Show>
                       <Show when={employee.archived}>
                         <Tag class="text-foreground-subtlest">{t("team.employees.archived")}</Tag>
@@ -1060,7 +1102,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                         value={draft().job}
                         onChange={(event) => setDraft({ ...draft(), job: event.currentTarget.value })}
                       >
-                        <For each={props.agents}>{(agent) => <option value={agent.name}>{agent.name}</option>}</For>
+                        <For each={props.agents}>{(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}</For>
                       </select>
                       <select
                         class="h-9 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
@@ -1120,7 +1162,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
               value={job()}
               onChange={(event) => setJob(event.currentTarget.value)}
             >
-              <For each={props.agents}>{(agent) => <option value={agent.name}>{agent.name}</option>}</For>
+              <For each={props.agents}>{(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}</For>
             </select>
           </div>
           <input
@@ -1152,7 +1194,12 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
  * 界面只做三件事：建、改、删。版本号可见，但不提供「回滚」：历史运行自带快照，
  * 想比较版本去运行详情，不在这里另起一套版本管理。
  */
-function DialogProfiles(props: { directory: string; employees: TeamEmployeeView[]; onChanged: () => void }) {
+function DialogProfiles(props: {
+  directory: string
+  agents: Agent[]
+  employees: TeamEmployeeView[]
+  onChanged: () => void
+}) {
   const dialog = useDialog()
   const language = useLanguage()
   const sdk = useGlobalSDK()
@@ -1427,6 +1474,12 @@ function DialogProfiles(props: { directory: string; employees: TeamEmployeeView[
                           disabled={employee.archived && !picked(employee.id)}
                           onChange={() => toggleMember(employee.id)}
                         />
+                        <img
+                          src={agentAvatarOf(employee.job, props.agents)}
+                          alt=""
+                          draggable={false}
+                          class="size-6 shrink-0 rounded-md object-cover"
+                        />
                         <span
                           classList={{
                             "min-w-0 flex-1 truncate text-14-regular": true,
@@ -1435,7 +1488,7 @@ function DialogProfiles(props: { directory: string; employees: TeamEmployeeView[
                         >
                           {employee.name}
                         </span>
-                        <Tag>{employee.job}</Tag>
+                        <Tag>{agentLabel(employee.job, props.agents)}</Tag>
                         <Show when={employee.archived}>
                           <Tag class="text-foreground-subtlest">{t("team.employees.archived")}</Tag>
                         </Show>
@@ -1504,7 +1557,14 @@ function DialogCreateTeam(props: {
   const candidates = createMemo(() => {
     const query = search().trim().toLowerCase()
     // 成员不限于 subagent：build 这类 primary 角色同样可以作为团队里的执行者。
-    return props.agents.filter((agent) => !query || agent.name.toLowerCase().includes(query)).slice(0, 60)
+    // 搜索同时匹配原始 id 和展示名 —— 用户看到的是中文，输入的可能仍是英文。
+    return props.agents
+      .filter((agent) => {
+        if (!query) return true
+        if (agent.name.toLowerCase().includes(query)) return true
+        return agentLabel(agent.name, props.agents).toLowerCase().includes(query)
+      })
+      .slice(0, 60)
   })
 
   const toggle = (agent: string) => {
@@ -1567,7 +1627,7 @@ function DialogCreateTeam(props: {
             value={lead()}
             onChange={(event) => setLead(event.currentTarget.value)}
           >
-            <For each={props.agents}>{(agent) => <option value={agent.name}>{agent.name}</option>}</For>
+            <For each={props.agents}>{(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}</For>
           </select>
         </div>
         <div class="flex flex-col gap-2">
@@ -1581,20 +1641,58 @@ function DialogCreateTeam(props: {
             placeholder={t("team.member.search")}
             onInput={(event) => setSearch(event.currentTarget.value)}
           />
-          <div class="grid max-h-56 grid-cols-2 gap-1 overflow-y-auto">
+          {/* 已选的人先摆出来：列表很长时，光看一个数字不知道自己挑的是谁。 */}
+          <Show when={picked().length > 0}>
+            <div class="flex flex-wrap items-center gap-1">
+              <For each={picked()}>
+                {(name) => (
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 rounded-full border border-border py-0.5 pl-0.5 pr-1.5 text-ui-xs text-foreground transition-colors hover:bg-hover"
+                    title={name}
+                    onClick={() => toggle(name)}
+                  >
+                    <img
+                      src={agentAvatarOf(name, props.agents)}
+                      alt=""
+                      draggable={false}
+                      class="size-4 shrink-0 rounded-full object-cover"
+                    />
+                    <span class="max-w-28 truncate">{agentLabel(name, props.agents)}</span>
+                    <Icon name="close-small" size="small" class="text-foreground-subtle" />
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>          <div class="grid max-h-56 grid-cols-2 gap-1 overflow-y-auto">
             <For each={candidates()}>
               {(agent) => (
                 <button
                   type="button"
-                  class="flex min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors"
+                  class="flex min-w-0 items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors"
                   classList={{
                     "border-primary bg-surface": picked().includes(agent.name),
                     "border-border hover:bg-hover": !picked().includes(agent.name),
                   }}
+                  title={agent.name}
                   onClick={() => toggle(agent.name)}
                 >
-                  <span class="size-1.5 shrink-0 rounded-full" style={{ background: agentColor(agent.name) }} />
-                  <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">{agent.name}</span>
+                  <img
+                    src={agentAvatar(agent.name, agent.options)}
+                    alt=""
+                    draggable={false}
+                    class="size-7 shrink-0 rounded-lg object-cover"
+                  />
+                  <span class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate text-ui-base text-foreground">
+                      {agentLabel(agent.name, props.agents)}
+                    </span>
+                    <Show when={agentCategory(agent)}>
+                      {(category) => (
+                        <span class="truncate text-ui-xs text-foreground-subtlest">{category()}</span>
+                      )}
+                    </Show>
+                  </span>
                   <Show when={picked().includes(agent.name)}>
                     <Icon name="check-small" size="small" class="shrink-0 text-foreground" />
                   </Show>

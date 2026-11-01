@@ -2445,6 +2445,10 @@ export const dict = {
   "settings.agents.field.promptSource": "Runtime prompt source",
   "settings.agents.field.mode": "Mode",
   "settings.agents.field.model": "Model",
+  "settings.agents.field.avatar": "Avatar",
+  "settings.agents.field.avatar.auto": "Auto (from name)",
+  "settings.agents.field.avatar.pick": "Use this avatar",
+  "settings.agents.field.avatar.hint": "Avatars are generated offline and saved with the AI employee, so the same face shows in lists, teams, and conversations.",
   "settings.agents.detail.prompt.empty":
     "This built-in agent does not define a separate prompt. It is driven by its mode, description, and built-in permission rules.",
   "settings.agents.detail.prompt.inherited":

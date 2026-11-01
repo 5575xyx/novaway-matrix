@@ -42,13 +42,15 @@ const ANTENNAS = [
 ] as const
 
 export function agentAvatarSrc(name: string): string {
+  // 哈希是 32 位无符号数：取变体必须用无符号右移，否则高位名字会拿到负数下标，
+  // 眼睛/嘴巴直接变成 undefined（画出来是张没有五官的脸）。
   const seed = hash(name || "agent")
   const hue = seed % 360
   const second = (hue + 38 + (seed % 40)) % 360
-  const eyes = EYES[(seed >> 3) % EYES.length]
-  const mouth = MOUTHS[(seed >> 7) % MOUTHS.length]
-  const antenna = ANTENNAS[(seed >> 11) % ANTENNAS.length]
-  const tilt = ((seed >> 15) % 7) - 3
+  const eyes = EYES[(seed >>> 3) % EYES.length]
+  const mouth = MOUTHS[(seed >>> 7) % MOUTHS.length]
+  const antenna = ANTENNAS[(seed >>> 11) % ANTENNAS.length]
+  const tilt = ((seed >>> 15) % 7) - 3
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
 <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 72% 58%)"/><stop offset="1" stop-color="hsl(${second} 68% 46%)"/></linearGradient></defs>
 <rect width="64" height="64" rx="14" fill="url(#bg)"/>
