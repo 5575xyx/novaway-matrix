@@ -21,6 +21,9 @@ import { TextShimmer } from "./text-shimmer"
 import { Tooltip } from "./tooltip"
 import { IconButton } from "./icon-button"
 import { writeClipboard } from "../util/clipboard"
+import { useDialog } from "../context/dialog"
+import { ImagePreview } from "./image-preview"
+import { imageAttachmentsOf, type ToolAttachment } from "./tool-attachments"
 
 export type TriggerTitle = {
   title: string
@@ -46,10 +49,20 @@ const isTriggerTitle = (val: any): val is TriggerTitle => {
   )
 }
 
+
 export interface BasicToolProps {
   icon: IconProps["name"]
   trigger: TriggerTitle | JSX.Element
   children?: JSX.Element
+  /**
+   * 工具产出/读入的图片（`part.state.attachments`）。
+   *
+   * 展开工具行时按缩略图铺在详情区，点开看大图 —— 模型读进来的图（原型图、
+   * PDF 页、notebook 渲染出的图表）必须能在它**产生的那一行**里看到。
+   * 截图类工具（browser/computer_screenshot）的图片不走这里：它们是「验证结果」，
+   * 由时间线统一挂在每轮回复末尾（见 @novaway/core/tool-media 的说明）。
+   */
+  attachments?: readonly ToolAttachment[]
   status?: string
   hideDetails?: boolean
   defaultOpen?: boolean
@@ -234,6 +247,7 @@ function ToolStatusNode(props: {
 
 export function BasicTool(props: BasicToolProps) {
   const i18n = useI18n()
+  const dialog = useDialog()
   const persisted = props.persistKey ? toolOpenState.get(props.persistKey) : undefined
   const [state, setState] = createStore({
     open: persisted ?? props.defaultOpen ?? false,
@@ -242,7 +256,10 @@ export function BasicTool(props: BasicToolProps) {
   const open = () => state.open
   const ready = () => state.ready
   const pending = () => props.status === "pending" || props.status === "running"
-  const hasChildren = () => (props.defer ? "children" in props : props.children)
+  // 只渲染图片附件：PDF / 文本附件展开成缩略图没有意义，它们的正文已经在 output 里。
+  const images = createMemo(() => imageAttachmentsOf(props.attachments))
+  const hasChildren = () =>
+    (props.defer ? "children" in props : props.children) || (images().length > 0 ? true : undefined)
 
   /**
    * 状态词。显式传入优先；否则按 status 推导。
@@ -398,6 +415,40 @@ export function BasicTool(props: BasicToolProps) {
     setState("open", value)
   }
 
+  /**
+   * 详情区：渲染器自己的 children（输出正文等）+ 这次调用读入/产出的图片。
+   *
+   * 图片必须能点开看大图 —— 模型说"我看到原型图了"，用户得能自己核对。
+   */
+  const details = () => (
+    <>
+      {props.children}
+      <Show when={images().length > 0}>
+        <div data-slot="tool-attachments">
+          <For each={images()}>
+            {(file) => (
+              <button
+                type="button"
+                data-slot="tool-attachment"
+                title={file.filename}
+                onClick={() =>
+                  dialog.show(() => <ImagePreview src={file.url} alt={file.filename ?? i18n.t("ui.imagePreview.alt")} />)
+                }
+              >
+                <img
+                  data-slot="tool-attachment-image"
+                  src={file.url}
+                  alt={file.filename ?? i18n.t("ui.imagePreview.alt")}
+                  loading="lazy"
+                />
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
+    </>
+  )
+
   const trigger = () => (
     <div
       data-component="tool-trigger"
@@ -529,12 +580,12 @@ export function BasicTool(props: BasicToolProps) {
             overflow: initialOpen ? "visible" : "hidden",
           }}
         >
-          <Show when={!props.defer || ready()}>{props.children}</Show>
+          <Show when={!props.defer || ready()}>{details()}</Show>
         </div>
       </Show>
       <Show when={!props.animated && hasChildren() && !props.hideDetails}>
         <Collapsible.Content>
-          <Show when={!props.defer || ready()}>{props.children}</Show>
+          <Show when={!props.defer || ready()}>{details()}</Show>
         </Collapsible.Content>
       </Show>
     </Collapsible>
@@ -567,6 +618,8 @@ export function GenericTool(props: {
   input?: Record<string, unknown>
   statusTooltip?: string
   persistKey?: string
+  /** 结果里的图片附件：展开后按缩略图展示（MCP 工具也可能返回图片）。 */
+  attachments?: readonly ToolAttachment[]
 }) {
   const i18n = useI18n()
 
@@ -582,6 +635,7 @@ export function GenericTool(props: {
       hideDetails={props.hideDetails}
       statusTooltip={props.statusTooltip}
       persistKey={props.persistKey}
+      attachments={props.attachments}
     />
   )
 }

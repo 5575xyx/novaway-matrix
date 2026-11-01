@@ -96,6 +96,7 @@ import {
   TimelineRow,
   TimelineRowMap,
 } from "./message-timeline.data"
+import { collectEvidenceImages } from "./message-timeline.evidence"
 import type { EvidenceImage, PreviewTarget } from "./message-timeline.data"
 import { useOfficeAgent } from "./office-agent-context"
 import { isTodoDone } from "./status-panel/todo-section"
@@ -1118,22 +1119,15 @@ export function MessageTimeline(props: {
     for (const [userMessageID, messages] of assistantMessagesByParent()) {
       const images: EvidenceImage[] = []
       for (const message of messages) {
-        for (const part of getMsgParts(message.id)) {
-          if (part.type !== "tool") continue
-          const attachments = (part.state as { attachments?: unknown }).attachments
-          if (!Array.isArray(attachments)) continue
-          for (const item of attachments) {
-            if (!item || typeof item !== "object") continue
-            const file = item as { mime?: unknown; url?: unknown; filename?: unknown }
-            if (typeof file.mime !== "string" || !file.mime.startsWith("image/")) continue
-            if (typeof file.url !== "string" || !file.url) continue
-            images.push({
-              url: file.url,
-              name: typeof file.filename === "string" ? file.filename : undefined,
-              tool: part.tool,
-            })
-          }
-        }
+        images.push(
+          // 只收截图工具的产物（见 collectEvidenceImages 的注释）：`read` 一张原型图 /
+          // PDF 页、`webfetch` 抓到的配图都是调研过程的副产品，不该冒充「验证结果」。
+          ...collectEvidenceImages(
+            getMsgParts(message.id)
+              .filter((part) => part.type === "tool")
+              .map((part) => ({ tool: part.tool, state: part.state })),
+          ),
+        )
       }
       if (images.length > 0) result.set(userMessageID, images.slice(-limit))
     }

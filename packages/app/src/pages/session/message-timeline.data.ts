@@ -5,6 +5,9 @@ import { groupParts, PartGroup, renderable } from "@novaway/ui/message-part"
 import { Data, Equal } from "effect"
 import { uniqueSummaryDiffs } from "./message-timeline.summary-diffs"
 import { projectCitationText } from "./preview-card-extract"
+import type { EvidenceImage } from "./message-timeline.evidence"
+
+export type { EvidenceImage } from "./message-timeline.evidence"
 
 export type SummaryDiff = SnapshotFileDiff & { file: string }
 
@@ -22,14 +25,6 @@ export interface PreviewTarget {
   title: string
   /** 副标题:相对路径或完整 URL */
   subtitle: string
-}
-
-export interface EvidenceImage {
-  /** 可直接给 `<img src>` 用的地址(data URL 或 file:// 路径)。 */
-  url: string
-  name?: string
-  /** 产生这张图的工具名,用来在卡片上标注来源(browser_screenshot 等)。 */
-  tool: string
 }
 
 export type TimelineRowMap = {

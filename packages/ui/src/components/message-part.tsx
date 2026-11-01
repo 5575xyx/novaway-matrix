@@ -37,6 +37,7 @@ import { type UiI18n, useI18n } from "../context/i18n"
 import { writeClipboard } from "../util/clipboard"
 import { agentAvatarSrc } from "../util/agent-avatar"
 import { BasicTool, GenericTool } from "./basic-tool"
+import { toolImageAttachments, type ToolAttachment } from "./tool-attachments"
 
 export { BasicTool } from "./basic-tool"
 import { MediaToolbar } from "./media-toolbar"
@@ -1392,6 +1393,11 @@ export interface ToolProps {
   statusTooltip?: string
   /** 工具调用起止时间（`part.state.time`），用于运行中的实时计时。 */
   timing?: { start?: number; end?: number }
+  /**
+   * 结果里的图片附件（模型读进来的原型图 / PDF 页 / notebook 图表）。
+   * 截图工具的图片不在这里 —— 它们作为「验证结果」挂在轮尾（见 ToolPartDisplay）。
+   */
+  attachments?: readonly ToolAttachment[]
 }
 
 export type ToolComponent = Component<ToolProps>
@@ -1498,6 +1504,9 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
 
   const render = createMemo(() => ToolRegistry.render(part().tool) ?? GenericTool)
 
+  // 图片归属见 ./tool-attachments：截图类工具走轮尾「验证结果」，其余留在本行。
+  const attachments = createMemo<ToolAttachment[]>(() => toolImageAttachments(part().tool, part().state))
+
   return (
     <Show when={!hideQuestion()}>
       <div data-component="tool-part-wrapper" data-timeline-part-id={part().id}>
@@ -1530,6 +1539,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   status="error"
                   statusTooltip={cleaned}
                   timing={timing()}
+                  attachments={attachments()}
                   hideDetails={props.hideDetails}
                   defaultOpen={props.defaultOpen}
                   deferContent={props.deferToolContent}
@@ -1552,6 +1562,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               output={part().state.output}
               status={part().state.status}
               timing={timing()}
+              attachments={attachments()}
               hideDetails={props.hideDetails}
               defaultOpen={props.defaultOpen}
               deferContent={props.deferToolContent}
@@ -1916,7 +1927,9 @@ ToolRegistry.register({
     return (
       <BasicTool
         {...props}
-        hideDetails
+        // 平时就是一行链接摘要；但抓到的是图片时（`webfetch` 直接给了图片 URL），
+        // 不展开就什么也看不到 —— 这时允许展开看缩略图。
+        hideDetails={props.hideDetails || !props.attachments?.length}
         icon="window-cursor"
         badge={{ color: "cyan" }}
         trigger={
