@@ -120,6 +120,7 @@ import {
   officePptxFillPlanSummary,
   officePptxTemplateFillFilename,
 } from "./office-template-fill"
+import { PptxFilePreview } from "./pptx-file-preview"
 import { OfficeSlideEditor } from "./office-slide-editor"
 import { OfficePptTemplateGallery } from "@/components/office-ppt-template-gallery"
 import { openCustomPptTemplateDialog } from "./office-custom-template"
@@ -2366,7 +2367,7 @@ export function MessageTimeline(props: {
             </button>
           </Show>
           <Show when={input.artifact.slides.length > 0}>
-            <button type="button" class={actionButton} onClick={() => previewOfficeSlides(input.artifact)}>
+            <button type="button" class={actionButton} onClick={() => void previewOfficeSlides(input.artifact)}>
               <Icon name="layout-bottom" size="small" class="transition-transform duration-150 group-hover:scale-110" />
               <span>预览页</span>
             </button>
@@ -2518,8 +2519,64 @@ export function MessageTimeline(props: {
     showToast({ title: "办公文件已导出", description: file.filename })
   }
 
-  function previewOfficeSlides(artifact: OfficeArtifact) {
-    dialog.show(() => (
+  /**
+   * 「预览页」= 真的把要交付的那份 PPTX 渲染出来看。
+   *
+   * 以前这里是把 slide.content 逐行铺成文字：标题一行、要点几行，14 页的稿子
+   * 看起来像 14 张便利贴 —— 用户没法从中判断「这页排出来是什么样」。现在直接把
+   * 导出用的 OOXML 交给 pptx 渲染引擎（与文件预览同一个引擎、同一份版面），
+   * 看到的就是打开 .pptx 会看到的东西，左侧还能翻缩略图。
+   *
+   * 渲染失败（模板填充异常 / 引擎不支持某种形状）时退回文本网格，不把用户卡死。
+   */
+  async function previewOfficeSlides(artifact: OfficeArtifact) {
+    const office = useOfficeAgent()
+    const template = office.pptTemplate()
+    let base64 = ""
+    try {
+      const file =
+        template && isRealPptxTemplate(template)
+          ? await createOfficeExportFileFromPptxTemplate(artifact, template, {
+              includeAnimations: office.pptAnimationEnabled(),
+              includeNarration: office.pptNarrationEnabled(),
+              readAsset: readOfficeAssetForExport,
+            })
+          : createOfficeExportFile(artifact, { pptTemplate: template })
+      base64 = bytesToBase64(file.bytes)
+    } catch {
+      base64 = ""
+    }
+
+    if (!base64) {
+      previewOfficeSlidesAsText(artifact)
+      return
+    }
+
+    void dialog.show(() => (
+      <Dialog title={`PPT 预览：${artifact.title}`} class="w-full max-w-[1180px] mx-auto">
+        <div class="flex min-h-0 flex-col gap-3 px-4 pb-4">
+          <div class="h-[74vh] min-h-0">
+            <PptxFilePreview base64={base64} />
+          </div>
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-[8px] border border-border bg-background px-3 py-2 text-12-medium text-foreground-subtle transition-colors hover:bg-surface hover:text-foreground"
+              onClick={() => {
+                dialog.close()
+                editOfficeSlides(artifact)
+              }}
+            >
+              逐页编辑
+            </button>
+          </div>
+        </div>
+      </Dialog>
+    ))
+  }
+
+  function previewOfficeSlidesAsText(artifact: OfficeArtifact) {
+    void dialog.show(() => (
       <Dialog title={`PPT 页级预览：${artifact.title}`} class="w-full max-w-[860px] mx-auto">
         <div class="max-h-[72vh] overflow-auto p-6 pt-0">
           <div class="grid gap-3 md:grid-cols-2">
