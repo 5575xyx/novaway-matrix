@@ -88,7 +88,8 @@ export const OfficePptxReadTool = Tool.define<typeof ReadParameters, Record<stri
               lines.push(`  [${index}] ${text}${hints ? `  (${hints})` : ""}`)
             })
             for (const cell of node.cells ?? []) {
-              lines.push(`  cell[${cell.row}][${cell.col}] ${cell.paragraphs.join(" / ")}`)
+              const at = cell.box ? ` @${cell.box.x},${cell.box.y} ${cell.box.w}x${cell.box.h}` : ""
+              lines.push(`  cell[${cell.row}][${cell.col}]${at} ${cell.paragraphs.join(" / ")}`)
             }
             if (node.image) lines.push(`  picture: ${node.image.target || node.image.rId}`)
             slides.set(node.slide, lines)

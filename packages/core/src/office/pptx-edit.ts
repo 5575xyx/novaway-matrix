@@ -521,7 +521,8 @@ function cellParagraph(block: Block, cell: { row: number; col: number }, index: 
 
 /**
  * 重写一个段落：
- * - 给了新文字 → 收敛成单 run（格式沿用首个 run + 本次样式）；
+ * - 给了新文字 → 尽量保留混排（新旧文字公共前缀/后缀覆盖到的 run 原样不动，
+ *   只重写中间真正变化的部分）；整段被替换时才收敛成单 run。
  * - 只给样式 → 逐 run 打补丁，保留段内混排。
  */
 function rebuildParagraph(xml: string, paragraph: ParagraphBlock, edit: PptxTextEdit) {
@@ -531,10 +532,9 @@ function rebuildParagraph(xml: string, paragraph: ParagraphBlock, edit: PptxText
   if (edit.text !== undefined) {
     const prefix = paragraphXmlPrefix(original)
     const suffix = paragraphXmlSuffix(original)
-    const runPr = patchRunProperties(paragraph.runs[0]?.rPr, style)
-    const run = "<a:r>" + (runPr ?? "") + '<a:t xml:space="preserve">' + encodeXml(edit.text) + "</a:t></a:r>"
+    const middle = rebuildRuns(paragraph, edit.text, style)
     const withAlign = style?.align ? patchAlign(prefix, style.align) : prefix
-    return "<a:p>" + withAlign + run + suffix + "</a:p>"
+    return "<a:p>" + withAlign + middle + suffix + "</a:p>"
   }
 
   if (!style) return original
@@ -555,6 +555,62 @@ function rebuildParagraph(xml: string, paragraph: ParagraphBlock, edit: PptxText
   }
   if (style.align) next = patchAlign(next, style.align)
   return next
+}
+
+/**
+ * 按新文字重排 run，尽量保留混排：
+ * 1. 新旧文字有公共前缀/后缀时，被完全覆盖的原 run 原样保留（格式不动）；
+ * 2. 中间真正变化的区间合成一个 run（沿用区间里第一个 run 的格式 + 本次样式）；
+ * 3. 原 run 只有 0 或 1 个时直接走单 run 收敛，行为与之前一致。
+ * run 边界不做字符级 diff —— 那会把「改一个字」变成一堆碎片 run，
+ * PowerPoint 自己也不是这么存的。
+ */
+function rebuildRuns(paragraph: ParagraphBlock, text: string, style: PptxTextStyle | undefined) {
+  const runs = paragraph.runs
+  if (runs.length <= 1) {
+    const runPr = patchRunProperties(runs[0]?.rPr, style)
+    return "<a:r>" + (runPr ?? "") + '<a:t xml:space="preserve">' + encodeXml(text) + "</a:t></a:r>"
+  }
+
+  const previous = runs.map((run) => run.text).join("")
+  // 公共前缀/后缀长度（不超过两边较短的那个）。
+  let head = 0
+  const headLimit = Math.min(previous.length, text.length)
+  while (head < headLimit && previous[head] === text[head]) head++
+  let tail = 0
+  const tailLimit = Math.min(previous.length - head, text.length - head)
+  while (tail < tailLimit && previous[previous.length - 1 - tail] === text[text.length - 1 - tail]) tail++
+
+  const changedStart = head
+  const changedEnd = previous.length - tail
+  const changedText = text.slice(head, text.length - tail)
+  const pieces: string[] = []
+  let cursor = 0
+  let changedWritten = false
+  for (const run of runs) {
+    const runStart = cursor
+    const runEnd = cursor + run.text.length
+    cursor = runEnd
+    // 完全落在公共前缀或后缀里的 run：原样保留。
+    if (runEnd <= changedStart || runStart >= changedEnd) {
+      pieces.push("<a:r>" + (run.rPr ?? "") + '<a:t xml:space="preserve">' + encodeXml(run.text) + "</a:t></a:r>")
+      continue
+    }
+    // 变化区间的 run：整段新文字只在第一个相交的 run 处写一次，
+    // 用它自己的格式 —— 跨多个 run 时后面的直接丢掉。
+    if (changedWritten) continue
+    changedWritten = true
+    if (!changedText) continue
+    const runPr = patchRunProperties(run.rPr, style)
+    pieces.push("<a:r>" + (runPr ?? "") + '<a:t xml:space="preserve">' + encodeXml(changedText) + "</a:t></a:r>")
+  }
+
+  // 变化区间没有覆盖任何 run（比如全选后输入 → 不可能；纯防御），兜底单 run。
+  if (!changedWritten) {
+    const runPr = patchRunProperties(runs[0]?.rPr, style)
+    return "<a:r>" + (runPr ?? "") + '<a:t xml:space="preserve">' + encodeXml(text) + "</a:t></a:r>"
+  }
+  return pieces.join("")
 }
 
 /** 段落属性（缩进/项目符号/对齐）直接决定排版，丢了等于重排整页。 */

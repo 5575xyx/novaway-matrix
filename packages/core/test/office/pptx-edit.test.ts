@@ -161,7 +161,7 @@ async function slideXml(bytes: Uint8Array) {
 }
 
 describe("editPptx 文本", () => {
-  test("改一段文字：保留字体与段落属性，其它 run 合并成一段", async () => {
+  test("改一段文字：公共前缀/后缀里的 run 原样保留，只重写变化的部分", async () => {
     const original = fixture()
     const result = await editPptx({ bytes: original, textEdits: [{ slide: 1, shapeId: "2", text: "行业应用场景" }] })
 
@@ -174,14 +174,26 @@ describe("editPptx 文本", () => {
     expect(layout.find((shape) => shape.shapeId === "2")?.paragraphs).toEqual(["行业应用场景"])
 
     const xml = await slideXml(result.bytes)
-    expect(xml).toContain('<a:t xml:space="preserve">行业应用场景</a:t>')
-    // 字体/字号/加粗原样保留
-    expect(xml).toContain('sz="4400" b="1"')
+    // 混排保留：后缀「应用场景」的 run 没被重写，只有「典型 → 行业」是新写的 run
+    expect(xml).toContain('<a:t xml:space="preserve">行业</a:t>')
+    expect(xml).toContain('<a:t xml:space="preserve">应用场景</a:t>')
+    // 两段都沿用原有字体/字号/加粗
+    expect(xml.match(/sz="4400" b="1"/g)?.length).toBe(2)
     // 段落属性保留
     expect(xml).toContain('<a:pPr algn="l"/>')
     // autofit 的旧缩放比例被清掉，编辑器打开时会自己重算
     expect(xml).toContain("<a:normAutofit/>")
     expect(xml).not.toContain("fontScale=")
+  })
+
+  test("整段重写时收敛成单 run：新旧文字没有公共部分", async () => {
+    const result = await editPptx({ bytes: fixture(), textEdits: [{ slide: 1, shapeId: "2", text: "全新标题" }] })
+    const xml = await slideXml(result.bytes)
+    expect(xml).toContain('<a:t xml:space="preserve">全新标题</a:t>')
+    // 原 rPr 沿用
+    expect(xml).toContain('sz="4400" b="1"')
+    const layout = await readPptxLayout(result.bytes, [1])
+    expect(layout.find((shape) => shape.shapeId === "2")?.paragraphs).toEqual(["全新标题"])
   })
 
   test("只动目标段落，同页另一段和另一形状不受影响", async () => {
