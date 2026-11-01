@@ -1,4 +1,5 @@
 import type { PptxBox, PptxTextStyle } from "@novaway/core/office/pptx-edit"
+import { resizeBox, rotationFromPointer } from "@/utils/pptx-box"
 import { createSignal, For, Show, type Component } from "solid-js"
 
 // 画布编辑器：选中框（拖动/缩放）、原地改字（contenteditable）、格式工具条。
@@ -57,7 +58,7 @@ export const PptxShapeFrame: Component<{
     const dx = toSlide(event.clientX - drag.pointer.clientX, props.scale)
     const dy = toSlide(event.clientY - drag.pointer.clientY, props.scale)
     if (Math.abs(dx) + Math.abs(dy) > 0) drag.moved = true
-    current = () => resize(drag!.box, drag!.handle, dx, dy)
+    current = () => resizeBox(drag!.box, drag!.handle, dx, dy)
     props.onLive(current())
   }
 
@@ -76,8 +77,7 @@ export const PptxShapeFrame: Component<{
     if (!rotating || !frame) return
     const rect = frame.getBoundingClientRect()
     const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-    const raw = (Math.atan2(event.clientY - center.y, event.clientX - center.x) * 180) / Math.PI + 90
-    setLiveRotation(Math.round(((raw % 360) + 360) % 360))
+    setLiveRotation(rotationFromPointer({ centerX: center.x, centerY: center.y, x: event.clientX, y: event.clientY }))
   }
   const endRotate = () => {
     window.removeEventListener("pointermove", rotate)
@@ -136,32 +136,6 @@ export const PptxShapeFrame: Component<{
   )
 }
 
-/** 按把手方向改尺寸；拖动整块时 x/y 平移。 */
-function resize(box: PptxBox, handle: HandleId | "move", dx: number, dy: number): PptxBox {
-  if (handle === "move") return { ...box, x: box.x + dx, y: box.y + dy }
-  const min = 100000
-  let { x, y, w, h } = box
-  if (handle.includes("w")) {
-    x = box.x + dx
-    w = box.w - dx
-  }
-  if (handle.includes("e")) w = box.w + dx
-  if (handle.includes("n")) {
-    y = box.y + dy
-    h = box.h - dy
-  }
-  if (handle.includes("s")) h = box.h + dy
-  if (w < min) {
-    if (handle.includes("w")) x = box.x + box.w - min
-    w = min
-  }
-  if (h < min) {
-    if (handle.includes("n")) y = box.y + box.h - min
-    h = min
-  }
-  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }
-}
-
 /**
  * 原地改字：一块半透明画布压在被框住的形状上，逐段可编辑。
  * 字号/颜色/对齐按 XML 里的真实属性换算，看起来就是「直接在幻灯片上打字」。
@@ -207,54 +181,57 @@ export const PptxTextEditor: Component<{
       }}
     >
       <For each={props.paragraphs}>
-        {(text, index) => {
-          const style = () => props.styles[index()] ?? {}
-          return (
-            <div
-              ref={(element) => {
-                editors[index()] = element
-                // 挂载后抢焦点：Solid 插进 DOM 之前 focus() 不生效。
-                if (index() === 0) queueMicrotask(() => element.focus())
-              }}
-              data-paragraph={index()}
-              contentEditable="plaintext-only"
-              spellcheck={false}
-              class="min-h-[1.2em] w-full whitespace-pre-wrap break-words rounded-[2px] px-1 outline-none focus:bg-emerald-50"
-              style={{
-                "font-size": `${Math.max(8, (style().size ?? 18) * 12700 * props.scale)}px`,
-                "font-weight": style().bold ? 700 : 400,
-                "font-style": style().italic ? "italic" : "normal",
-                "text-decoration": style().underline ? "underline" : "none",
-                color: style().color ? `#${style().color}` : "#111827",
-                "text-align": alignCss(style().align),
-                "font-family": style().font ? `"${style().font}"` : undefined,
-                "line-height": 1.25,
-              }}
-              onInput={(event) => props.onInput(index(), event.currentTarget.textContent ?? "")}
-              onFocus={(event) => {
-                // 选中整段：和 PowerPoint 里点进文本框后「全选」一个感觉。
-                const range = document.createRange()
-                range.selectNodeContents(event.currentTarget)
-                const selection = window.getSelection()
-                selection?.removeAllRanges()
-                selection?.addRange(range)
-              }}
-              onKeyDown={(event) => {
-                // 段落结构不能在这里新增：回车跳到下一段，最后一段再回车就保存。
-                if (event.key !== "Enter" || event.shiftKey) return
-                event.preventDefault()
-                if (index() === props.paragraphs.length - 1) props.onSave()
-                else focusAt(index() + 1)
-              }}
-            />
-          )
-        }}
+        {(text, index) => (
+          <div
+            ref={(element) => {
+              editors[index()] = element
+              // 挂载后抢焦点：Solid 插进 DOM 之前 focus() 不生效。
+              if (index() === 0) queueMicrotask(() => element.focus())
+            }}
+            data-paragraph={index()}
+            contentEditable="plaintext-only"
+            spellcheck={false}
+            class="min-h-[1.2em] w-full whitespace-pre-wrap break-words rounded-[2px] px-1 outline-none focus:bg-emerald-50"
+            style={paragraphStyle(props.styles[index()], props.scale)}
+            onInput={(event) => props.onInput(index(), event.currentTarget.textContent ?? "")}
+            onFocus={(event) => {
+              // 选中整段：和 PowerPoint 里点进文本框后「全选」一个感觉。
+              const range = document.createRange()
+              range.selectNodeContents(event.currentTarget)
+              const selection = window.getSelection()
+              selection?.removeAllRanges()
+              selection?.addRange(range)
+            }}
+            onKeyDown={(event) => {
+              // 段落结构不能在这里新增：回车跳到下一段，最后一段再回车就保存。
+              if (event.key !== "Enter" || event.shiftKey) return
+              event.preventDefault()
+              if (index() === props.paragraphs.length - 1) props.onSave()
+              else focusAt(index() + 1)
+            }}
+          />
+        )}
       </For>
     </div>
   )
 }
 
-function alignCss(align: PptxTextStyle["align"]) {
+/** 段落样式：pt → 屏幕像素。1pt = 12700 EMU，画布又按 displayScale 缩放。 */
+function paragraphStyle(style: PptxTextStyle | undefined, scale: number) {
+  const value = style ?? {}
+  return {
+    "font-size": `${Math.max(8, (value.size ?? 18) * 12700 * scale)}px`,
+    "font-weight": value.bold ? 700 : 400,
+    "font-style": value.italic ? "italic" : "normal",
+    "text-decoration": value.underline ? "underline" : "none",
+    color: value.color ? `#${value.color}` : "#111827",
+    "text-align": alignCss(value.align),
+    "font-family": value.font ? `"${value.font}"` : undefined,
+    "line-height": 1.25,
+  }
+}
+
+function alignCss(align: PptxTextStyle["align"]): "left" | "center" | "right" | "justify" {
   if (align === "ctr") return "center"
   if (align === "r") return "right"
   if (align === "just") return "justify"
