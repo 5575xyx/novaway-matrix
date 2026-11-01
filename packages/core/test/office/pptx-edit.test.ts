@@ -127,6 +127,15 @@ const SLIDE_ONE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:xfrm><a:off x="100000" y="500000"/><a:ext cx="2000000" cy="1000000"/></p:xfrm>
 <a:graphic><a:graphicData><a:tbl><a:tblGrid><a:gridCol w="1000000"/><a:gridCol w="1000000"/></a:tblGrid><a:tr h="500000"><a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="zh-CN"/><a:t>表头A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>表头B</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
 <a:tr h="500000"><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>数值1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>数值2</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>
+<p:grpSp><p:nvGrpSpPr><p:cNvPr id="6" name="组合 6"/><p:cNvGrpSpPr/></p:nvGrpSpPr>
+<p:grpSpPr><a:xfrm><a:off x="1000000" y="1000000"/><a:ext cx="2000000" cy="1000000"/><a:chOff x="0" y="0"/><a:chExt cx="4000000" cy="2000000"/></a:xfrm></p:grpSpPr>
+<p:sp><p:nvSpPr><p:cNvPr id="7" name="组内文本框"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+<p:spPr><a:xfrm><a:off x="100000" y="200000"/><a:ext cx="1000000" cy="500000"/></a:xfrm></p:spPr>
+<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="zh-CN" sz="2000"/><a:t>组内文字</a:t></a:r></a:p></p:txBody></p:sp>
+<p:sp><p:nvSpPr><p:cNvPr id="8" name="组内形状"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+<p:spPr><a:xfrm><a:off x="2100000" y="300000"/><a:ext cx="800000" cy="600000"/></a:xfrm></p:spPr>
+<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="zh-CN"/><a:t>第二个</a:t></a:r></a:p></p:txBody></p:sp>
+</p:grpSp>
 </p:spTree></p:cSld></p:sld>`
 
 const PRESENTATION = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:p="x"/>`
@@ -287,7 +296,7 @@ describe("editPptx 格式", () => {
     })
   })
 
-  test("取消加粗会把 b 属性删掉，而不是写成 b=\"0\"", async () => {
+  test('取消加粗会把 b 属性删掉，而不是写成 b="0"', async () => {
     const result = await editPptx({
       bytes: fixture(),
       textEdits: [{ slide: 1, shapeId: "2", style: { bold: false } }],
@@ -347,6 +356,44 @@ describe("editPptx 几何", () => {
     expect(xml).toContain('rot="900000"')
     expect((await readPptxLayout(result.bytes, [1])).find((shape) => shape.shapeId === "4")?.rotation).toBe(15)
   })
+
+  test("组合里的子形状：布局读到页面坐标，编辑时改的是子块自己的 xfrm", async () => {
+    const layout = await readPptxLayout(fixture(), [1])
+    const child = layout.find((shape) => shape.shapeId === "7")
+    // chOff=(0,0) chExt=(4M,2M)，组合 off=(1M,1M) ext=(2M,1M)：缩放 0.5，平移 (1M,1M)
+    expect(child?.parentId).toBe("6")
+    expect(child?.box).toEqual({ x: 1050000, y: 1100000, w: 500000, h: 250000 })
+    // 组合本身仍然作为一个块存在
+    expect(layout.find((shape) => shape.shapeId === "6")?.kind).toBe("group")
+
+    // 组内改字：落在子块自己的 <a:p> 上，组合 XML 的其它部分原样
+    const result = await editPptx({ bytes: fixture(), textEdits: [{ slide: 1, shapeId: "7", text: "改过的组内文字" }] })
+    expect(result.changed).toEqual(["ppt/slides/slide1.xml"])
+    expect(result.textApplied[0]).toMatchObject({ shapeId: "7", previous: "组内文字", text: "改过的组内文字" })
+    const xml = await slideXml(result.bytes)
+    expect(xml).toContain("改过的组内文字")
+    expect(xml).toContain("第二个")
+    // 兄弟子块与组合框几何没动
+    expect(xml).toContain('<a:off x="2100000" y="300000"/>')
+    expect(xml).toContain('<a:off x="1000000" y="1000000"/>')
+  })
+
+  test("移动组合里的子形状：按子坐标空间换算后写回子块的 xfrm", async () => {
+    // 页面坐标 (1.5M, 1.2M) → 子坐标 = (页面 - off) / 缩放 = ((1.5-1)/0.5, (1.2-1)/0.5)
+    const result = await editPptx({
+      bytes: fixture(),
+      shapeEdits: [{ slide: 1, shapeId: "7", box: { x: 1500000, y: 1200000, w: 500000, h: 250000 } }],
+    })
+    const xml = await slideXml(result.bytes)
+    expect(xml).toContain('<a:off x="1000000" y="400000"/>')
+    const layout = await readPptxLayout(result.bytes, [1])
+    expect(layout.find((shape) => shape.shapeId === "7")?.box).toEqual({
+      x: 1500000,
+      y: 1200000,
+      w: 500000,
+      h: 250000,
+    })
+  })
 })
 
 describe("editPptx 图片", () => {
@@ -397,7 +444,7 @@ describe("editPptx 图片", () => {
 describe("readPptxLayout", () => {
   test("给出形状 id/名称/段落/格式/几何", async () => {
     const layout = await readPptxLayout(fixture())
-    expect(layout.map((shape) => shape.shapeId)).toEqual(["2", "3", "4", "5"])
+    expect(layout.map((shape) => shape.shapeId)).toEqual(["2", "3", "4", "5", "6", "7", "8"])
     expect(layout[0]).toMatchObject({
       slide: 1,
       shapeName: "标题 1",

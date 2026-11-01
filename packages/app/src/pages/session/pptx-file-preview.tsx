@@ -4,6 +4,7 @@ import {
   parseZipLazyMedia,
   RECOMMENDED_ZIP_LIMITS,
   renderSlide,
+  type GroupNodeData,
   type PresentationData,
   type SlideHandle,
   type SlideNode,
@@ -245,9 +246,35 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
     // 懒加载的幻灯片此刻才解析形状树；materializeSlideNodes 自带幂等标记
     materializeSlideNodes(value, slide)
     const node = hitTestNodes(slide.nodes, point)
+    // 点中组合时再往里找一层：命中子 XML 后，anchor 用 layout 里对应的子形状
+    // （layout 的 scanBlocks 已把组内子形状展开成带页面坐标的可编辑块）。
+    const innerChild = node?.nodeType === "group" ? hitTestGroupChildren(node, point) : undefined
+    const groupId = node?.nodeType === "group" ? node.id : undefined
+    const innerId = innerChild?.attr("id")
+    const innerAnchor =
+      innerId && innerChild && groupId
+        ? (() => {
+            const childNode = layout()?.find(
+              (item) => item.slide === page() + 1 && item.parentId === groupId && item.shapeId === innerId,
+            )
+            if (!childNode) return undefined
+            return {
+              slide: page() + 1,
+              kind: childNode.kind,
+              shapeId: childNode.shapeId,
+              name: childNode.shapeName ?? innerChild.attr("name"),
+              text: childNode.paragraphs.join("\n"),
+              paragraphs: childNode.paragraphs,
+              box: childNode.box,
+              slideSize: { w: value.width, h: value.height },
+            } satisfies SlideElementAnchor
+          })()
+        : undefined
+    const picked = innerAnchor ?? node
     // 表格：再算一次落在哪个格子上（格子盒子来自 layout 的行高列宽累加）。
-    const anchor = node ? anchorOf(node, page() + 1, value) : undefined
-    const cellNode = anchor
+    // 组合子形状的 anchor 本来就是 SlideElementAnchor；渲染节点要转一遍。
+    const anchor = picked ? ("nodeType" in picked ? anchorOf(picked, page() + 1, value) : picked) : undefined
+    const cellNode = anchor?.shapeId
       ? layout()?.find((item) => item.slide === anchor.slide && item.shapeId === anchor.shapeId)
       : undefined
     const cellBox = cellNode?.cells?.find(
@@ -262,11 +289,7 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
     setComment("")
     setDrafting(undefined)
     setLiveBox(undefined)
-    setTarget(
-      node
-        ? anchorOf(node, page() + 1, value)
-        : { slide: page() + 1, kind: "slide", slideSize: { w: value.width, h: value.height } },
-    )
+    setTarget(anchor ?? { slide: page() + 1, kind: "slide", slideSize: { w: value.width, h: value.height } })
   }
 
   /** 这一块能不能直接拖：整页和组合没有独立坐标，形状/图片/表格都可以。 */
@@ -369,6 +392,7 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
       return
     }
     const paragraphs = targetParagraphs()
+    // kind 是 shape（含组合里点出来的子形状）、且 layout 里有对应块时才能原地改。
     if (target()?.kind !== "shape" || !target()?.shapeId || paragraphs.length === 0) return
     setComment("")
     editTexts = [...paragraphs]
@@ -817,6 +841,70 @@ function nodeParagraphs(node: SlideNode): string[] | undefined {
       .filter(Boolean)
   }
   return undefined
+}
+
+/**
+ * 组合内命中：把点从页面坐标换算进组合的子坐标空间，再在子 XML 上挑命中的那个，
+ * 返回子 XML 节点（不是渲染节点 —— 编辑定位只需要 cNvPr id / 名称）。
+ * 子形状的渲染位置由渲染器按 (off + (child - chOff) * scale) 换算，这里做同样的事。
+ * 旋转/翻转的组合没有线性映射，直接返回 undefined（整组选中）。
+ */
+function hitTestGroupChildren(
+  group: GroupNodeData,
+  point: { x: number; y: number },
+): GroupNodeData["children"][number] | undefined {
+  const xfrm = group.source.child("grpSpPr").child("xfrm")
+  if (!xfrm.exists()) return undefined
+  if ((xfrm.element?.getAttribute("rot") ?? "0") !== "0") return undefined
+  if (xfrm.element?.getAttribute("flipH") || xfrm.element?.getAttribute("flipV")) return undefined
+  const off = xfrm.child("off")
+  const ext = xfrm.child("ext")
+  const chOff = xfrm.child("chOff")
+  const chExt = xfrm.child("chExt")
+  if (!off.exists() || !ext.exists()) return undefined
+  const cx = ext.numAttr("cx") ?? 0
+  const cy = ext.numAttr("cy") ?? 0
+  const chExtCx = chExt.numAttr("cx") ?? cx
+  const chExtCy = chExt.numAttr("cy") ?? cy
+  if (chExtCx <= 0 || chExtCy <= 0 || cx <= 0 || cy <= 0) return undefined
+  const scaleX = cx / chExtCx
+  const scaleY = cy / chExtCy
+  const childPoint = {
+    x: (chOff.numAttr("x") ?? 0) + (point.x - (off.numAttr("x") ?? 0)) / scaleX,
+    y: (chOff.numAttr("y") ?? 0) + (point.y - (off.numAttr("y") ?? 0)) / scaleY,
+  }
+  // 子 XML 只有原始坐标，用原始坐标做矩形命中（近似：与渲染器一致的非旋转情形）。
+  for (let index = group.children.length - 1; index >= 0; index--) {
+    const child = group.children[index]
+    if (!child) continue
+    const bounds = childXfrmBounds(child)
+    if (
+      bounds &&
+      childPoint.x >= bounds.x &&
+      childPoint.x <= bounds.x + bounds.w &&
+      childPoint.y >= bounds.y &&
+      childPoint.y <= bounds.y + bounds.h
+    ) {
+      return child
+    }
+  }
+  return undefined
+}
+
+/** 子 XML 节点的原始 xfrm 边界；没有 xfrm 的子节点（极少）忽略。 */
+function childXfrmBounds(child: GroupNodeData["children"][number]) {
+  const spPr = child.child("spPr").exists() ? child.child("spPr") : child.child("grpSpPr")
+  const xfrm = spPr.child("xfrm")
+  if (!xfrm.exists()) return undefined
+  const off = xfrm.child("off")
+  const ext = xfrm.child("ext")
+  if (!off.exists() || !ext.exists()) return undefined
+  return {
+    x: off.numAttr("x") ?? 0,
+    y: off.numAttr("y") ?? 0,
+    w: ext.numAttr("cx") ?? 0,
+    h: ext.numAttr("cy") ?? 0,
+  }
 }
 
 function bodyParagraphs(body: TextBody | undefined) {

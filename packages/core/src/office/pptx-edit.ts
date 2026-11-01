@@ -135,6 +135,8 @@ export type PptxLayoutNode = {
   rotation?: number
   /** 图片（仅 kind === "picture"）：当前引用的媒体与关系 id */
   image?: { rId: string; target: string }
+  /** 在组合里时：所属组合的 shapeId（编辑时上层用它判断能不能整体拖动） */
+  parentId?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +253,7 @@ export async function readPptxLayout(bytes: Uint8Array, slides?: readonly number
         box: block.box,
         rotation: block.rotation,
         ...(block.blip ? { image: { rId: block.blip.rId, target: rels.get(block.blip.rId) ?? "" } } : {}),
+        ...(block.parentId ? { parentId: block.parentId } : {}),
       })
     }
   }
@@ -275,11 +278,20 @@ type Block = {
   paragraphs: ParagraphBlock[]
   cells?: CellBlock[]
   blip?: { rId: string }
+  /** 组合里的子形状：父链上的「子坐标 → 页面坐标」线性映射 */
+  map?: GroupMap
+  /** 组合里的子形状：所属组合的 cNvPr id */
+  parentId?: string
 }
 
 type ParagraphBlock = { start: number; end: number; text: string; runs: RunBlock[] }
 type RunBlock = { start: number; end: number; text: string; rPr?: string }
 type CellBlock = { row: number; col: number; paragraphs: ParagraphBlock[]; box?: PptxBox }
+
+/** 子坐标 → 页面坐标：slideX = offX + x * scaleX */
+type GroupMap = { offX: number; offY: number; scaleX: number; scaleY: number }
+
+const IDENTITY_MAP: GroupMap = { offX: 0, offY: 0, scaleX: 1, scaleY: 1 }
 
 const BLOCK_TAGS: BlockTag[] = ["graphicFrame", "grpSp", "sp", "pic"]
 
@@ -291,11 +303,15 @@ function blockKind(tag: BlockTag): PptxNodeKind {
 }
 
 function scanBlocks(xml: string): Block[] {
+  return scanRange(xml, 0, xml.length, IDENTITY_MAP, undefined)
+}
+
+function scanRange(xml: string, from: number, to: number, map: GroupMap, parentId: string | undefined): Block[] {
   const result: Block[] = []
-  let cursor = 0
-  while (cursor < xml.length) {
+  let cursor = from
+  while (cursor < to) {
     const next = nextBlockOpen(xml, cursor)
-    if (!next) break
+    if (!next || next.start >= to) break
     const end = closingIndex(xml, next.contentStart, next.tag)
     if (end === -1) break
     const body = xml.slice(next.start, end)
@@ -311,17 +327,70 @@ function scanBlocks(xml: string): Block[] {
         start: next.start,
         end,
         body,
-        box: geometry.box,
+        box: geometry.box ? mapBox(geometry.box, map) : undefined,
         rotation: geometry.rotation,
         paragraphs: textBodyParagraphs(body, next.start),
         ...(cells.length > 0 ? { cells } : {}),
         ...(next.tag === "pic" ? blipOf(body) : {}),
+        ...(map === IDENTITY_MAP ? {} : { map, parentId }),
       })
     }
-    // 走到整块的末尾：组合里嵌套的形状由组合自己代表，不再单独展开。
+    // 组合：子形状递归展开成可独立编辑的块（旋转/翻转的组合没有线性映射，不展开）。
+    if (next.tag === "grpSp") {
+      const childMap = groupChildMap(body, map)
+      if (childMap) result.push(...scanRange(xml, next.contentStart, end, childMap, id || undefined))
+    }
     cursor = end
   }
   return result
+}
+
+function mapBox(box: PptxBox, map: GroupMap): PptxBox {
+  if (map === IDENTITY_MAP) return box
+  return {
+    x: Math.round(map.offX + box.x * map.scaleX),
+    y: Math.round(map.offY + box.y * map.scaleY),
+    w: Math.round(box.w * map.scaleX),
+    h: Math.round(box.h * map.scaleY),
+  }
+}
+
+/** 页面坐标 → 子坐标空间（写回子块 xfrm 时用）。 */
+function unmapBox(box: PptxBox, map: GroupMap): PptxBox {
+  if (map === IDENTITY_MAP) return box
+  return {
+    x: Math.round((box.x - map.offX) / map.scaleX),
+    y: Math.round((box.y - map.offY) / map.scaleY),
+    w: Math.round(box.w / map.scaleX),
+    h: Math.round(box.h / map.scaleY),
+  }
+}
+
+/** 组合的 `grpSpPr/a:xfrm`：off/ext 映射到父坐标，chOff/chExt 是子坐标空间。 */
+function groupChildMap(body: string, parent: GroupMap): GroupMap | undefined {
+  const xfrm = body.match(/<p:grpSpPr\b[^>]*>[\s\S]*?<a:xfrm\b([^>]*)>([\s\S]*?)<\/a:xfrm>/)
+  if (!xfrm) return undefined
+  const attrs = xfrm[1] ?? ""
+  const rot = attrs.match(/\brot="(-?\d+)"/)
+  if (rot && rot[1] !== "0") return undefined
+  if (/\bflip[HV]="(?:1|true)"/.test(attrs)) return undefined
+  const inner = xfrm[2] ?? ""
+  const off = inner.match(/<a:off\s+x="(-?\d+)"\s+y="(-?\d+)"/)
+  const ext = inner.match(/<a:ext\s+cx="(\d+)"\s+cy="(\d+)"/)
+  if (!off || !ext) return undefined
+  const chOffX = Number(inner.match(/<a:chOff\s+x="(-?\d+)"/)?.[1] ?? 0)
+  const chOffY = Number(inner.match(/<a:chOff\s+y="(-?\d+)"/)?.[1] ?? 0)
+  const chExtW = Number(inner.match(/<a:chExt\s+cx="(\d+)"\s+cy="(\d+)"/)?.[1] ?? ext[1])
+  const chExtH = Number(inner.match(/<a:chExt\s+cx="(\d+)"\s+cy="(\d+)"/)?.[2] ?? ext[2])
+  const scaleX = chExtW > 0 ? Number(ext[1]) / chExtW : 1
+  const scaleY = chExtH > 0 ? Number(ext[2]) / chExtH : 1
+  // page = off + (child - chOff) * scale；再叠上父链的映射。
+  return {
+    offX: parent.offX + (Number(off[1]) - chOffX * scaleX) * parent.scaleX,
+    offY: parent.offY + (Number(off[2]) - chOffY * scaleY) * parent.scaleY,
+    scaleX: scaleX * parent.scaleX,
+    scaleY: scaleY * parent.scaleY,
+  }
 }
 
 function nextBlockOpen(xml: string, cursor: number) {
@@ -549,8 +618,9 @@ function rebuildParagraph(xml: string, paragraph: ParagraphBlock, edit: PptxText
   }
   // 没有 run 的段落：样式落到段落结束符上，否则看起来像没生效。
   if (paragraph.runs.length === 0) {
-    next = next.replace(/<a:endParaRPr\b[^>]*(?:\/>|>[\s\S]*?<\/a:endParaRPr>)/, (tag) =>
-      patchRunProperties(tag, style, "endParaRPr") ?? tag,
+    next = next.replace(
+      /<a:endParaRPr\b[^>]*(?:\/>|>[\s\S]*?<\/a:endParaRPr>)/,
+      (tag) => patchRunProperties(tag, style, "endParaRPr") ?? tag,
     )
   }
   if (style.align) next = patchAlign(next, style.align)
@@ -735,7 +805,9 @@ function applyShapeEdits(xml: string, edits: readonly PptxShapeEdit[]) {
   for (const edit of edits) {
     const block = findBlock(blocks, edit)
     if (!block) continue
-    const patched = patchGeometry(block.body, edit)
+    // 组合里的子形状：页面坐标要换算回子坐标空间再写 xfrm（子块只有线性映射时可行）。
+    const local = block.map && edit.box ? unmapBox(edit.box, block.map) : edit.box
+    const patched = patchGeometry(block.body, { ...edit, box: local })
     if (!patched) continue
     const existing = splices.findIndex((item) => item.start === block.start)
     if (existing !== -1) splices.splice(existing, 1)
