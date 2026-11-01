@@ -26,6 +26,7 @@ import { Spinner } from "@novaway/ui/spinner"
 import { showToast } from "@novaway/ui/toast"
 import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
+import { useSDK } from "@/context/sdk"
 import {
   elementCommentItem,
   hitTestNodes,
@@ -51,9 +52,10 @@ async function openPptx(base64: string): Promise<PptxDoc> {
  * 传了 `path`（工作区相对路径）才有「选取元素 + 评论」：点中某一页上的形状/图片/表格，
  * 写一句要改什么，作为文件上下文挂到输入框上方，发送后由 AI 落回这一页。
  */
-export const PptxFilePreview: Component<{ base64: string; path?: string }> = (props) => {
+export const PptxFilePreview: Component<{ base64: string; path?: string; onEdited?: () => void }> = (props) => {
   const language = useLanguage()
   const prompt = usePrompt()
+  const sdk = useSDK()
   const [doc] = createResource(() => props.base64, openPptx)
   const [page, setPage] = createSignal(0)
   // zoom=1 表示"适宽";± 按钮在其上乘系数。
@@ -64,6 +66,9 @@ export const PptxFilePreview: Component<{ base64: string; path?: string }> = (pr
   const [picking, setPicking] = createSignal(false)
   const [target, setTarget] = createSignal<SlideElementAnchor>()
   const [comment, setComment] = createSignal("")
+  // 画布内直接改字：paragraphs 与 XML 里的 <a:p> 一一对应，逐段回写。
+  const [drafting, setDrafting] = createSignal<string[]>()
+  const [saving, setSaving] = createSignal(false)
 
   let mainMount: HTMLDivElement | undefined
   // ref 走 signal:主视图容器在 <Show> 内挂载,普通变量在 effect 里读不到挂载时机。
@@ -110,6 +115,7 @@ export const PptxFilePreview: Component<{ base64: string; path?: string }> = (pr
       () => {
         setTarget(undefined)
         setComment("")
+        setDrafting(undefined)
       },
       { defer: true },
     ),
@@ -139,6 +145,43 @@ export const PptxFilePreview: Component<{ base64: string; path?: string }> = (pr
         ? anchorOf(node, page() + 1, value)
         : { slide: page() + 1, kind: "slide", slideSize: { w: value.width, h: value.height } },
     )
+  }
+
+  /** 点中带文字的形状 → 进入画布内改字：每一段一个输入框，改完只回写变化的段落。 */
+  const startInlineEdit = () => {
+    const anchor = target()
+    if (anchor?.kind !== "shape" || !anchor.shapeId || !anchor.paragraphs?.length) return
+    setDrafting([...anchor.paragraphs])
+  }
+
+  const saveInlineEdit = async () => {
+    const anchor = target()
+    const next = drafting()
+    if (!anchor?.shapeId || !next || !props.path) return
+    const edits = next
+      .map((text, index) => ({ slide: anchor.slide, shapeId: anchor.shapeId, paragraph: index, text }))
+      .filter((item) => item.text !== (anchor.paragraphs?.[item.paragraph] ?? ""))
+    if (edits.length === 0) {
+      setDrafting(undefined)
+      return
+    }
+
+    setSaving(true)
+    try {
+      await sdk.client.office.pptx.edit({ directory: sdk.directory, path: props.path, edits })
+      showToast({ title: "已保存", description: "只改了这一块的文字，其它页与素材未动。" })
+      setDrafting(undefined)
+      setTarget(undefined)
+      setPicking(false)
+      props.onEdited?.()
+    } catch (error) {
+      showToast({
+        title: "保存失败",
+        description: error instanceof Error ? error.message : "这个形状没法原地改字。",
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const addCommentToConversation = () => {
@@ -258,6 +301,51 @@ export const PptxFilePreview: Component<{ base64: string; path?: string }> = (pr
                       onClick={pickAt}
                     />
                   </Show>
+                  {/* 画布内改字：输入框就压在被框住的那块位置，改完写回 slideN.xml。 */}
+                  <Show when={drafting() && target()?.box}>
+                    <div
+                      data-component="pptx-inline-editor"
+                      class="absolute z-30 flex flex-col gap-0.5 overflow-auto rounded-[2px] border-2 border-emerald-400 bg-white/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
+                      style={{
+                        left: `${(target()?.box?.x ?? 0) * displayScale()}px`,
+                        top: `${(target()?.box?.y ?? 0) * displayScale()}px`,
+                        width: `${Math.max(120, (target()?.box?.w ?? 0) * displayScale())}px`,
+                        height: `${Math.max(40, (target()?.box?.h ?? 0) * displayScale())}px`,
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault()
+                          setDrafting(undefined)
+                          return
+                        }
+                        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                          event.preventDefault()
+                          void saveInlineEdit()
+                        }
+                      }}
+                    >
+                      <For each={drafting()}>
+                        {(text, index) => (
+                          <input
+                            value={text}
+                            ref={(element) => {
+                              // 挂载时 Solid 还没把它插进 DOM，下一帧再抢焦点。
+                              if (index() === 0) queueMicrotask(() => element.focus())
+                            }}
+                            onFocus={(event) => event.currentTarget.select()}
+                            onInput={(event) => {
+                              const value = event.currentTarget.value
+                              setDrafting((current) =>
+                                (current ?? []).map((item, at) => (at === index() ? value : item)),
+                              )
+                            }}
+                            class="w-full rounded-[2px] border border-transparent bg-transparent px-1 py-0.5 text-black outline-none focus:border-emerald-400 focus:bg-emerald-50"
+                            style={{ "font-size": `${Math.min(28, Math.max(12, displayScale() * 18))}px` }}
+                          />
+                        )}
+                      </For>
+                    </div>
+                  </Show>
                   {/* 选中框：位置按 displayScale 换算回屏幕像素，只是给人看的，不挡点击。 */}
                   <Show when={target()?.box}>
                     {(box) => (
@@ -287,43 +375,88 @@ export const PptxFilePreview: Component<{ base64: string; path?: string }> = (pr
                     说一句要改什么，发送后由 AI 改这一页
                   </span>
                 </div>
-                <textarea
-                  value={comment()}
-                  onInput={(event) => setComment(event.currentTarget.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      event.preventDefault()
-                      setTarget(undefined)
-                      return
-                    }
-                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                      event.preventDefault()
-                      addCommentToConversation()
-                    }
-                  }}
-                  placeholder="例如：这张卡片换成蓝绿色；标题字号再大一点…"
-                  class="min-h-14 w-full resize-y rounded-lg border border-border bg-background p-2 text-12-regular leading-relaxed text-foreground outline-none transition-colors focus:border-border-hover"
-                />
-                <div class="flex items-center gap-2">
-                  <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
-                    添加到对话后可在输入框继续补充
-                  </span>
-                  <button
-                    type="button"
-                    class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                    onClick={() => setTarget(undefined)}
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    data-action="pptx-pick-add"
-                    class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20"
-                    onClick={addCommentToConversation}
-                  >
-                    添加到对话
-                  </button>
-                </div>
+                {/* 直接改字：画布上压一层输入框，回车/点保存写回 slideN.xml（只动这一块）。 */}
+                <Show
+                  when={drafting()}
+                  fallback={
+                    <>
+                      <textarea
+                        value={comment()}
+                        onInput={(event) => setComment(event.currentTarget.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault()
+                            setTarget(undefined)
+                            return
+                          }
+                          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                            event.preventDefault()
+                            addCommentToConversation()
+                          }
+                        }}
+                        placeholder="例如：这张卡片换成蓝绿色；标题字号再大一点…"
+                        class="min-h-14 w-full resize-y rounded-lg border border-border bg-background p-2 text-12-regular leading-relaxed text-foreground outline-none transition-colors focus:border-border-hover"
+                      />
+                      <div class="flex items-center gap-2">
+                        <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
+                          添加到对话后可在输入框继续补充
+                        </span>
+                        <Show
+                          when={
+                            props.path && anchor().kind === "shape" && anchor().shapeId && anchor().paragraphs?.length
+                          }
+                        >
+                          <button
+                            type="button"
+                            data-action="pptx-inline-start"
+                            title="直接在画布上改这段文字，只改这一个形状"
+                            class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                            onClick={startInlineEdit}
+                          >
+                            直接改字
+                          </button>
+                        </Show>
+                        <button
+                          type="button"
+                          class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                          onClick={() => setTarget(undefined)}
+                        >
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          data-action="pptx-pick-add"
+                          class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20"
+                          onClick={addCommentToConversation}
+                        >
+                          添加到对话
+                        </button>
+                      </div>
+                    </>
+                  }
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
+                      改动只写回这一块的文字，其它页与素材不动；⌘/Ctrl+Enter 保存
+                    </span>
+                    <button
+                      type="button"
+                      class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                      onClick={() => setDrafting(undefined)}
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      data-action="pptx-inline-save"
+                      disabled={saving()}
+                      class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20 disabled:opacity-50"
+                      onClick={() => void saveInlineEdit()}
+                    >
+                      {saving() ? "保存中…" : "保存"}
+                    </button>
+                  </div>
+                </Show>
               </div>
             )}
           </Show>
@@ -410,44 +543,38 @@ export const PptxFilePreview: Component<{ base64: string; path?: string }> = (pr
 
 /** 命中的形状节点 → 评论锚点（页码 + 名称 + 文字 + 几何，坐标用幻灯片单位）。 */
 function anchorOf(node: SlideNode, slide: number, presentation: PresentationData): SlideElementAnchor {
+  const paragraphs = nodeParagraphs(node)
   return {
     slide,
     kind: node.nodeType,
+    shapeId: node.id,
     name: node.name,
-    text: nodeText(node),
+    text: paragraphs?.join("\n"),
+    paragraphs,
     box: { x: node.position.x, y: node.position.y, w: node.size.w, h: node.size.h },
     slideSize: { w: presentation.width, h: presentation.height },
   }
 }
 
-/** 形状取自身文字；表格按行列拼成一行一格，图片/图表没有可读文字。 */
-function nodeText(node: SlideNode) {
-  if (node.nodeType === "shape") return bodyText(node.textBody)
+/** 形状逐段文字；图片/图表没有可读文字（表格拼成一行一格）。 */
+function nodeParagraphs(node: SlideNode): string[] | undefined {
+  if (node.nodeType === "shape") return bodyParagraphs(node.textBody)
   if (node.nodeType === "table") {
     return node.rows
-      .map((row) =>
-        row.cells
-          .map((cell) => bodyText(cell.textBody))
-          .filter(Boolean)
-          .join(" | "),
-      )
+      .map((row) => row.cells.map((cell) => bodyParagraphs(cell.textBody).join("")).join(" | "))
       .filter(Boolean)
-      .join("\n")
   }
   return undefined
 }
 
-function bodyText(body: TextBody | undefined) {
-  if (!body) return ""
-  return body.paragraphs
-    .map((paragraph) =>
-      paragraph.runs
-        .map((run) => run.text)
-        .join("")
-        .trim(),
-    )
-    .filter(Boolean)
-    .join("\n")
+function bodyParagraphs(body: TextBody | undefined) {
+  if (!body) return []
+  return body.paragraphs.map((paragraph) =>
+    paragraph.runs
+      .map((run) => run.text)
+      .join("")
+      .trim(),
+  )
 }
 
 /** 缩略图:进入视口才真正渲染幻灯片(与大视图同引擎、同媒体缓存)。 */

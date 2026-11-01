@@ -43,10 +43,14 @@ export type SlideElementAnchor = {
   slide: number
   /** 元素类型；点到空白处时为整页 */
   kind: SlideElementKind
+  /** PPTX 里的 `p:cNvPr@id` —— 写回 XML 时靠它精确定位 */
+  shapeId?: string
   /** PPTX 里的形状名（「标题 1」「文本框 5」） */
   name?: string
   /** 形状里的文字（表格取前几格） */
   text?: string
+  /** 逐段原文，和 XML 里的 `<a:p>` 一一对应，原地改字时用来填初值 */
+  paragraphs?: string[]
   /** 幻灯片坐标系里的位置与尺寸 */
   box?: { x: number; y: number; w: number; h: number }
   slideSize: { w: number; h: number }

@@ -393,6 +393,8 @@ import type {
   OfficePlatformWorkflowScheduleResponses,
   OfficePlatformWorkflowUpdateErrors,
   OfficePlatformWorkflowUpdateResponses,
+  OfficePptxEditErrors,
+  OfficePptxEditResponses,
   OfficePptxTemplateFillErrors,
   OfficePptxTemplateFillResponses,
   OrchestratorCreateOrchestratorPlanErrors,
@@ -6864,6 +6866,53 @@ export class PptxTemplate extends HeyApiClient {
   }
 }
 
+export class Pptx extends HeyApiClient {
+  /**
+   * Edit PPTX slide text
+   *
+   * Rewrite the text of specific shapes inside an existing PPTX. Only the touched slide XML is re-encoded; every other zip entry is copied byte-for-byte, so layouts, media and animations stay intact.
+   */
+  public edit<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      edits?: Array<{
+        slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        shapeId?: string
+        shapeName?: string
+        paragraph?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        text: string
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "edits" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficePptxEditResponses, OfficePptxEditErrors, ThrowOnError>({
+      url: "/office/pptx-edit",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Schedule extends HeyApiClient {
   /**
    * List office schedules
@@ -8041,6 +8090,11 @@ export class Office extends HeyApiClient {
   private _pptxTemplate?: PptxTemplate
   get pptxTemplate(): PptxTemplate {
     return (this._pptxTemplate ??= new PptxTemplate({ client: this.client }))
+  }
+
+  private _pptx?: Pptx
+  get pptx(): Pptx {
+    return (this._pptx ??= new Pptx({ client: this.client }))
   }
 
   private _platform?: Platform
@@ -14435,6 +14489,7 @@ export class Run2 extends HeyApiClient {
       maxBusinessAttempts?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       reserveTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       concurrency?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      callTimeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -14452,6 +14507,7 @@ export class Run2 extends HeyApiClient {
             { in: "body", key: "maxBusinessAttempts" },
             { in: "body", key: "reserveTokens" },
             { in: "body", key: "concurrency" },
+            { in: "body", key: "callTimeoutMs" },
           ],
         },
       ],

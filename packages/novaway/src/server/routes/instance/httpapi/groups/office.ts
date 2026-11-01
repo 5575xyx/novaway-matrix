@@ -72,9 +72,45 @@ export const OfficePptxTemplateFillPayload = Schema.Struct({
   ),
 })
 
+/**
+ * PPTX 文本原地编辑：只改指定形状的某一段文字，其余 zip 条目原样拷贝。
+ * 这是「改一个字就改一个 shape」的落点 —— UI 的画布编辑和 Agent 的
+ * office_pptx_edit 工具都走这一条。
+ */
+export const OfficePptxEditPayload = Schema.Struct({
+  /** 工作区相对路径，可以是任意位置的 .pptx */
+  path: Schema.String,
+  edits: Schema.Array(
+    Schema.Struct({
+      slide: Schema.Number,
+      shapeId: Schema.optional(Schema.String),
+      shapeName: Schema.optional(Schema.String),
+      paragraph: Schema.optional(Schema.Number),
+      text: Schema.String,
+    }),
+  ),
+})
+
+export const OfficePptxEditResponse = Schema.Struct({
+  path: Schema.String,
+  bytes: Schema.Number,
+  changed: Schema.Array(Schema.String),
+  applied: Schema.Array(
+    Schema.Struct({
+      slide: Schema.Number,
+      shapeId: Schema.String,
+      shapeName: Schema.optional(Schema.String),
+      paragraph: Schema.Number,
+      previous: Schema.String,
+      text: Schema.String,
+    }),
+  ),
+})
+
 export const OfficePaths = {
   artifact: `${root}/artifact`,
   pptxTemplateFill: `${root}/pptx-template-fill`,
+  pptxEdit: `${root}/pptx-edit`,
 } as const
 
 export const OfficeApi = HttpApi.make("office").add(
@@ -114,6 +150,19 @@ export const OfficeApi = HttpApi.make("office").add(
           summary: "Fill PPTX template",
           description:
             "Fill a native PPTX template by replacing slide text runs and save the generated deck into the workspace office folder.",
+        }),
+      ),
+      HttpApiEndpoint.post("editPptxText", OfficePaths.pptxEdit, {
+        query: WorkspaceRoutingQuery,
+        payload: OfficePptxEditPayload,
+        success: described(OfficePptxEditResponse, "Edited PPTX"),
+        error: HttpApiError.BadRequest,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "office.pptx.edit",
+          summary: "Edit PPTX slide text",
+          description:
+            "Rewrite the text of specific shapes inside an existing PPTX. Only the touched slide XML is re-encoded; every other zip entry is copied byte-for-byte, so layouts, media and animations stay intact.",
         }),
       ),
     )

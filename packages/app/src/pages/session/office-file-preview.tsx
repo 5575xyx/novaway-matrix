@@ -27,7 +27,12 @@ export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
 }
 
 /** 共享给各渲染器的 base64 载荷:切文件时整块替换。 */
-export type OfficeFilePreviewProps = { path: string; base64: string }
+export type OfficeFilePreviewProps = {
+  path: string
+  base64: string
+  /** 画布内改字写回文件后通知上层重读，预览才能看到新内容。 */
+  onEdited?: () => void
+}
 
 /**
  * 右栏文件预览分发器(对齐 ZCode 的 PreviewPaneContent):
@@ -45,7 +50,7 @@ export const OfficeFilePreview: Component<OfficeFilePreviewProps> = (props) => (
       <DocxFilePreview base64={props.base64} />
     </Match>
     <Match when={props.path.toLowerCase().endsWith(".pptx")}>
-      <PptxFilePreview base64={props.base64} path={props.path} />
+      <PptxFilePreview base64={props.base64} path={props.path} onEdited={props.onEdited} />
     </Match>
     <Match when={props.path.toLowerCase().endsWith(".xlsx")}>
       <XlsxFilePreview base64={props.base64} />

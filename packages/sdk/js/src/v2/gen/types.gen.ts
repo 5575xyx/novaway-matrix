@@ -1527,6 +1527,7 @@ export type Config = {
     auto_delegate?: boolean
     team_orchestration?: boolean
     team_concurrency?: number
+    team_call_timeout_ms?: number
     team_default_mode?: "off" | "auto" | "selected"
     team_default_ids?: Array<string>
     defer_loading?: boolean
@@ -11586,6 +11587,55 @@ export type OfficePptxTemplateFillResponses = {
 
 export type OfficePptxTemplateFillResponse = OfficePptxTemplateFillResponses[keyof OfficePptxTemplateFillResponses]
 
+export type OfficePptxEditData = {
+  body?: {
+    path: string
+    edits: Array<{
+      slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      shapeId?: string
+      shapeName?: string
+      paragraph?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      text: string
+    }>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/pptx-edit"
+}
+
+export type OfficePptxEditErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePptxEditError = OfficePptxEditErrors[keyof OfficePptxEditErrors]
+
+export type OfficePptxEditResponses = {
+  /**
+   * Edited PPTX
+   */
+  200: {
+    path: string
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    changed: Array<string>
+    applied: Array<{
+      slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      shapeId: string
+      shapeName?: string
+      paragraph: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      previous: string
+      text: string
+    }>
+  }
+}
+
+export type OfficePptxEditResponse = OfficePptxEditResponses[keyof OfficePptxEditResponses]
+
 export type OfficePlatformStatusData = {
   body?: never
   path?: never
@@ -18243,6 +18293,7 @@ export type RunExecuteData = {
     maxBusinessAttempts?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     reserveTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     concurrency?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    callTimeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
   path: {
     runID: string

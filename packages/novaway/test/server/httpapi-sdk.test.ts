@@ -166,6 +166,43 @@ async function pptxTemplateBytes() {
   return new Uint8Array(await (await writer.close()).arrayBuffer())
 }
 
+/**
+ * 原地改字用的最小 PPTX：两页 + 一张图片。
+ * 第二页与图片是「不该被动到」的对照组，用来验证只重写了被点中的那一页。
+ */
+const PPTX_EDIT_SLIDE_ONE = [
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+  '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">',
+  "<p:cSld><p:spTree>",
+  '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>',
+  '<p:spPr><a:xfrm><a:off x="838200" y="365125"/><a:ext cx="10515600" cy="1325563"/></a:xfrm></p:spPr>',
+  "<p:txBody><a:bodyPr/><a:lstStyle/>",
+  '<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="en-US" sz="4400" b="1"/><a:t>Old Title</a:t></a:r></a:p>',
+  '<a:p><a:pPr lvl="0"/><a:r><a:rPr lang="en-US" sz="2000"/><a:t>Old Subtitle</a:t></a:r><a:endParaRPr lang="en-US"/></a:p>',
+  "</p:txBody></p:sp>",
+  "</p:spTree></p:cSld></p:sld>",
+].join("")
+
+const PPTX_EDIT_SLIDE_TWO = [
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+  '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">',
+  "<p:cSld><p:spTree>",
+  '<p:sp><p:nvSpPr><p:cNvPr id="4" name="Second 2"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>',
+  '<p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1000" cy="1000"/></a:xfrm></p:spPr>',
+  "<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Second Page</a:t></a:r></a:p></p:txBody>",
+  "</p:sp></p:spTree></p:cSld></p:sld>",
+].join("")
+
+const PPTX_EDIT_IMAGE = "UNTOUCHED_IMAGE_BYTES"
+
+async function pptxTextEditFixture() {
+  const writer = new ZipWriter(new BlobWriter("application/zip"))
+  await writer.add("ppt/slides/slide1.xml", new TextReader(PPTX_EDIT_SLIDE_ONE))
+  await writer.add("ppt/slides/slide2.xml", new TextReader(PPTX_EDIT_SLIDE_TWO))
+  await writer.add("ppt/media/image1.png", new TextReader(PPTX_EDIT_IMAGE))
+  return new Uint8Array(await (await writer.close()).arrayBuffer())
+}
+
 async function zipEntryBytes(bytes: Uint8Array, filename: string) {
   const reader = new ZipReader(new BlobReader(new Blob([Buffer.from(bytes)])))
   try {
@@ -499,6 +536,76 @@ describe("HttpApi SDK", () => {
         expect(Buffer.from(image).toString()).toBe("SDK_IMAGE")
         expect(Buffer.from(chart).toString()).toContain("<c:v>160</c:v>")
         expect(artifacts.data?.map((item) => item.filename)).toContain("filled-template.pptx")
+      }),
+  )
+
+  httpapiInstance(
+    "edits pptx text in place and leaves every other zip entry byte-identical",
+    { serverPath: "raw", git: false },
+    ({ sdk, directory }) =>
+      Effect.gen(function* () {
+        const original = yield* call(() => pptxTextEditFixture())
+        yield* AppFileSystem.Service.use((fs) => fs.writeFile(path.join(directory, "deck.pptx"), original))
+
+        const edited = yield* call(() =>
+          sdk.office.pptx.edit({
+            directory,
+            path: "deck.pptx",
+            edits: [{ slide: 1, shapeId: "2", paragraph: 1, text: "New Subtitle" }],
+          }),
+        )
+        const saved = yield* AppFileSystem.Service.use((fs) => fs.readFile(path.join(directory, "deck.pptx")))
+        const slide1 = yield* call(() => zipEntryBytes(saved, "ppt/slides/slide1.xml"))
+        const slide2 = yield* call(() => zipEntryBytes(saved, "ppt/slides/slide2.xml"))
+        const image = yield* call(() => zipEntryBytes(saved, "ppt/media/image1.png"))
+        const xml = Buffer.from(slide1).toString()
+
+        expect(edited.response.status).toBe(200)
+        expect(edited.data?.changed).toEqual(["ppt/slides/slide1.xml"])
+        expect(edited.data?.applied?.[0]).toMatchObject({
+          slide: 1,
+          shapeId: "2",
+          paragraph: 1,
+          previous: "Old Subtitle",
+          text: "New Subtitle",
+        })
+        expect(xml).toContain("New Subtitle")
+        // 只有第 2 段被换掉：另一段原文、段落属性、字体属性都还在。
+        expect(xml).toContain("Old Title")
+        expect(xml).toContain('<a:pPr algn="ctr"/>')
+        expect(xml).toContain('<a:rPr lang="en-US" sz="2000"/>')
+        expect(Buffer.from(slide2).toString()).toBe(PPTX_EDIT_SLIDE_TWO)
+        expect(Buffer.from(image).toString()).toBe(PPTX_EDIT_IMAGE)
+      }),
+  )
+
+  httpapiInstance(
+    "rejects pptx text edits that match nothing",
+    { serverPath: "raw", git: false },
+    ({ sdk, directory }) =>
+      Effect.gen(function* () {
+        const original = yield* call(() => pptxTextEditFixture())
+        yield* AppFileSystem.Service.use((fs) => fs.writeFile(path.join(directory, "deck.pptx"), original))
+
+        const missingPage = yield* call(() =>
+          sdk.office.pptx.edit({
+            directory,
+            path: "deck.pptx",
+            edits: [{ slide: 9, shapeId: "2", text: "nope" }],
+          }),
+        )
+        const missingShape = yield* call(() =>
+          sdk.office.pptx.edit({
+            directory,
+            path: "deck.pptx",
+            edits: [{ slide: 1, shapeId: "99", text: "nope" }],
+          }),
+        )
+        const unchanged = yield* AppFileSystem.Service.use((fs) => fs.readFile(path.join(directory, "deck.pptx")))
+
+        expect(missingPage.response.status).toBe(400)
+        expect(missingShape.response.status).toBe(400)
+        expect(Buffer.from(unchanged)).toEqual(Buffer.from(original))
       }),
   )
 

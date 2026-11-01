@@ -681,18 +681,26 @@ export function FileTabContent(props: { tab: string }) {
    * 项目外的文件服务端读不到(工作区边界),桌面端改走本地 base64 通道。
    */
   const officePath = createMemo(() => (isOfficePreviewPath(path()) ? path() : undefined))
-  const [officeBase64] = createResource(officePath, async (target) => {
-    try {
-      if (file.isExternal(target) && platform.readLocalFileBase64) {
-        return (await platform.readLocalFileBase64(target)) ?? ""
+  // 画布内改字会原地重写这份文件，预览得重读一遍才看得到新内容。
+  const [officeReload, setOfficeReload] = createSignal(0)
+  const [officeBase64] = createResource(
+    () => {
+      const target = officePath()
+      return target ? { target, reload: officeReload() } : undefined
+    },
+    async (source) => {
+      try {
+        if (file.isExternal(source.target) && platform.readLocalFileBase64) {
+          return (await platform.readLocalFileBase64(source.target)) ?? ""
+        }
+        const result = await sdk.client.file.read({ path: source.target, encoding: "base64" })
+        return result.data?.content ?? ""
+      } catch {
+        // 读取失败渲染空内容即可;资源 reject 会沿渲染树抛穿,把整个面板带崩。
+        return ""
       }
-      const result = await sdk.client.file.read({ path: target, encoding: "base64" })
-      return result.data?.content ?? ""
-    } catch {
-      // 读取失败渲染空内容即可;资源 reject 会沿渲染树抛穿,把整个面板带崩。
-      return ""
-    }
-  })
+    },
+  )
   // 项目外的图片:文本通道没有内容,同样走本地 base64 通道。
   const [externalImageBase64] = createResource(
     createMemo(() => {
@@ -1140,7 +1148,13 @@ export function FileTabContent(props: { tab: string }) {
                             </div>
                           }
                         >
-                          {(value) => <OfficeFilePreview path={path()!} base64={value()} />}
+                          {(value) => (
+                            <OfficeFilePreview
+                              path={path()!}
+                              base64={value()}
+                              onEdited={() => setOfficeReload(officeReload() + 1)}
+                            />
+                          )}
                         </Show>
                       </Match>
                       <Match when={state()?.loaded}>

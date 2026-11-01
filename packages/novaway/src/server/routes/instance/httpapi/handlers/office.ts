@@ -1,13 +1,14 @@
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
-import { mkdir, readdir, stat, writeFile } from "fs/promises"
+import { mkdir, readFile, readdir, rename, stat, writeFile } from "fs/promises"
 import path from "path"
 import { InstanceState } from "@/effect/instance-state"
 import { OfficePlatform } from "@/office/platform"
+import { editPptxText } from "@novaway/core/office/pptx-text-edit"
 import { fillPptxTemplateText } from "@/util/office-document"
 import { InstanceHttpApi } from "../api"
-import { OfficeArtifactPayload, OfficePptxTemplateFillPayload } from "../groups/office"
+import { OfficeArtifactPayload, OfficePptxEditPayload, OfficePptxTemplateFillPayload } from "../groups/office"
 
 const kindDir = {
   document: "documents",
@@ -131,10 +132,53 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       }
     })
 
+    /**
+     * 原地改 PPTX 文字：只重写被点中的那几个 shape，其它 zip 条目逐字节拷贝。
+     * 写回用「临时文件 + rename」——用户正拿 PowerPoint 打开这份文件时，
+     * 直接覆盖会让他拿到半个文件。
+     */
+    const editPptx = Effect.fn("OfficeHttpApi.editPptxText")(function* (ctx: {
+      payload: typeof OfficePptxEditPayload.Type
+    }) {
+      const relative = ctx.payload.path
+        .split(String.fromCharCode(92))
+        .join("/")
+        .replace(/^(?:\.\/)+/, "")
+        .replace(/^\/+/, "")
+      if (!relative.toLowerCase().endsWith(".pptx") || ctx.payload.edits.length === 0)
+        return yield* new HttpApiError.BadRequest({})
+
+      const state = yield* InstanceState.context
+      const workspace = state.worktree === "/" ? state.directory : state.worktree
+      const target = path.join(workspace, relative)
+      if (!AppFileSystem.contains(workspace, target)) return yield* new HttpApiError.BadRequest({})
+
+      // 解析失败（页码不存在、形状没找到）是用户的输入问题，回 400 而不是 500。
+      const result = yield* Effect.tryPromise({
+        try: async () => {
+          const bytes = new Uint8Array(await readFile(target))
+          const edited = await editPptxText({ bytes, edits: ctx.payload.edits })
+          const temp = `${target}.novaway-edit-${Date.now()}`
+          await writeFile(temp, edited.bytes)
+          await rename(temp, target)
+          return edited
+        },
+        catch: () => new HttpApiError.BadRequest({}),
+      })
+
+      return {
+        path: relative,
+        bytes: result.bytes.length,
+        changed: result.changed,
+        applied: result.applied,
+      }
+    })
+
     return handlers
       .handle("listArtifacts", listArtifacts)
       .handle("saveArtifact", saveArtifact)
       .handle("fillPptxTemplate", fillPptxTemplate)
+      .handle("editPptxText", editPptx)
   }),
 )
 
