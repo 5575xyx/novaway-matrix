@@ -425,6 +425,10 @@ export const Info = Schema.Struct({
         description:
           "团队编排的并发上限：同一次运行里同时推进的团队数，超出的团队排队。默认 3。执行接口显式传 concurrency 时以请求为准。",
       }),
+      team_call_timeout_ms: Schema.optional(PositiveInt).annotate({
+        description:
+          "单次队长 / 验证器调用的零进展上限（毫秒）：超过就按超时处理，团队记 failed，验证记 unverified。缺省 30 分钟。它挡的是「挂住」，不是「慢」；成本控制用预算里的 wallMs。",
+      }),
       team_default_mode: Schema.optional(Schema.Literals(["off", "auto", "selected"])).annotate({
         description:
           "新会话的默认团队模式（指定团队 | Auto），只决定选择器的初始值：用户仍可随时改。显式选择的会话、子会话不受影响；总控关闭时不生效。",

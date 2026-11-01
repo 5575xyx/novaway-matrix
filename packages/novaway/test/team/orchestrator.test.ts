@@ -1171,4 +1171,120 @@ describe("team orchestrator", () => {
       expect(failure?.payload?.attempts).toBe(3)
     }),
   )
+
+  /**
+   * 零进展上限（§9）。没有它，一个挂住的队长调用会让整次运行永远停在 running：
+   * 用户看到「正在跑」，事件流不再增长，取消之外没有任何出路。
+   */
+  it.live("a dispatch that never progresses ends the team as a timeout", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_timeout"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "队长永远不回话",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const team = yield* runs.addTeam({ runID: run.id })
+
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: () => Effect.never,
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+        dispatchTimeoutMs: 50,
+      })
+
+      expect(result.state).toBe("failed")
+      const after = (yield* runs.teams(run.id))[0]
+      expect(after.phase).toBe("failed")
+      // 裁决与「没做到」分开：超时说得出是超时。
+      expect(after.verdict?.verdict).toBe("timeout")
+      const event = (yield* runs.events({ runID: run.id })).find(
+        (item) => item.kind === "team.failed" && item.payload?.kind === "timeout",
+      )
+      expect(event?.payload?.timeoutMs).toBe(50)
+      // 预占必须被释放：超时不是「花掉了这笔钱」。
+      const usage = yield* (yield* LedgerService).usage({ runID: run.id, cap: { tokens: 100_000 } })
+      expect(usage.reserved).toBe(0)
+    }),
+  )
+
+  it.effect("a failed dispatch says why it failed instead of folding everything into one message", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_failure_kind"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "提供方挂了",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      yield* runs.addTeam({ runID: run.id })
+
+      yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: () => Effect.fail(new Error("AI_APICallError: fetch failed")),
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      const after = (yield* runs.teams(run.id))[0]
+      expect(after.verdict?.verdict).toBe("provider")
+      const event = (yield* runs.events({ runID: run.id })).find((item) => item.kind === "team.failed")
+      expect(event?.payload).toMatchObject({ kind: "provider", message: "AI_APICallError: fetch failed" })
+    }),
+  )
+
+  it.live("a verifier that never answers leaves the criterion unverified, never unpassed-as-passed", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_verify_timeout"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "验证器卡住",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const team = yield* runs.addTeam({ runID: run.id })
+      const acceptance = yield* verification.register({
+        runID: run.id,
+        taskID: "t1",
+        specID: "login",
+        text: "登录接口返回 200",
+        kind: "test",
+        owner: team.id,
+      })
+
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) => Effect.succeed(report(input.team.id)),
+        verify: () => Effect.never,
+        verifyTimeoutMs: 50,
+        maxRounds: 1,
+      })
+
+      const line = result.summary.lines.find((item) => item.acceptance.id === acceptance.id)
+      expect(line?.outcome).toBe("unverified")
+      expect(result.summary.pass).toBe(0)
+      expect(result.state).not.toBe("done")
+      const records = yield* verification.verifications(run.id)
+      // 超时有自己的验证器版本：回放里能看出「这不是一次判断，这是没等到判断」。
+      expect(records.at(-1)).toMatchObject({ outcome: "unverified", verifierVersion: "verifier-timeout" })
+      const event = (yield* runs.events({ runID: run.id })).find((item) => item.kind === "verification.failed")
+      expect(event?.payload?.kind).toBe("timeout")
+    }),
+  )
 })

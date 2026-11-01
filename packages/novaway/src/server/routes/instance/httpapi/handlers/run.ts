@@ -1121,6 +1121,14 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               reserveTokens: ctx.payload.reserveTokens,
               // 请求没指定并发时用项目级上限；两者都没有就是调度器的默认值（3）。
               concurrency: ctx.payload.concurrency ?? cfg.experimental?.team_concurrency,
+              // 零进展上限：请求 > 项目配置 > 调度器默认。验证比队长短，但同一个值足够 ——
+              // 它挡的是「挂住」，不是「慢」。
+              ...(ctx.payload.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms
+                ? {
+                    dispatchTimeoutMs: ctx.payload.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
+                    verifyTimeoutMs: ctx.payload.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
+                  }
+                : {}),
             })
             .pipe(
               Effect.catchCause((cause) =>

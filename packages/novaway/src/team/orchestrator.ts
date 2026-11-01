@@ -1,8 +1,9 @@
-import { Cause, Context, Effect, Exit, Layer } from "effect"
+import { Cause, Context, Effect, Exit, Layer, Option } from "effect"
 import { Service as TeamLedgerService, defaultLayer as ledgerLayer } from "./ledger"
 import { Service as TeamOpLogService, defaultLayer as opLogLayer } from "./op-log"
 import { summarize as attributeUsage } from "./attribution"
 import { depsOf, normalize, stillValid, versions, type Dep } from "./artifacts"
+import { classify, type Failure, type FailureKind } from "./failure"
 import { Service as TeamRunService, defaultLayer as runLayer, isTerminal, type RunState, type RunTeam } from "./run"
 import { describe as describeAddressing, type Problem } from "./roster"
 import {
@@ -99,6 +100,18 @@ export type Integrator = () => Effect.Effect<IntegrationOutcome>
 /** 缺省并发：同时派发的团队数（§4.5）。 */
 export const DEFAULT_CONCURRENCY = 3
 
+/**
+ * 零进展上限（§9）。一次队长调用 30 分钟毫无结果，基本只有一种解释：它挂住了。
+ *
+ * 这不是「跑得久就算超时」：只要模型还在推进（工具调用、流式输出），会话会持续给信号；
+ * 这里挡住的是**完全没有进展**。真正的成本控制是运行级的 `budget.wallMs`，
+ * 它管「值不值得继续花钱」，这里只管「还活着吗」。
+ */
+export const DEFAULT_DISPATCH_TIMEOUT_MS = 30 * 60_000
+
+/** 验证是一次单轮判断，比队长快得多；同样的理由，只是上限更短。 */
+export const DEFAULT_VERIFY_TIMEOUT_MS = 10 * 60_000
+
 export type Dispatcher = (input: DispatchInput) => Effect.Effect<Report, unknown>
 export type Verifier = (input: VerifyInput) => Effect.Effect<VerificationResult, unknown>
 
@@ -135,6 +148,15 @@ export type Options = {
   maxBusinessAttempts?: number
   /** 格式重试上限（§7.2）：读不出报告的回复最多重问几次，与业务额度分开计数。 */
   maxFormatRetries?: number
+  /**
+   * 单次队长调用的零进展上限（§9）。缺省 30 分钟。
+   *
+   * 超时按「这一轮没有交付」处理：团队记 `failed`，裁决是 `timeout`，
+   * 事件里带结构化原因 —— 与「没有做到」区分开，用户才知道该重试还是该改要求。
+   */
+  dispatchTimeoutMs?: number
+  /** 单次验证调用的零进展上限；超时记为 `unverified`，不是 `fail`。 */
+  verifyTimeoutMs?: number
   /** 同时派发的团队数上限；缺省 3（§4.5），超出的团队排队等下一批。 */
   concurrency?: number
   /** 每次派发前预占的 token 数，返回后按实际用量结算。 */
@@ -241,6 +263,32 @@ export const layer = Layer.effect(
       const maxRounds = input.maxRounds ?? 3
       const maxBusiness = input.maxBusinessAttempts ?? 6
       const maxFormat = input.maxFormatRetries ?? 3
+      const dispatchTimeout = input.dispatchTimeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS
+      const verifyTimeout = input.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS
+
+      /**
+       * 一次验证的落点：有结论 / 没结论。
+       *
+       * 「没结论」有两种来源 —— 验证器报错、验证器超时 —— 它们都不进 `pass`，
+       * 也都不是 `fail`。收成一个类型，是为了让主循环与合并后重验用同一套判定，
+       * 不至于一处超时、另一处就一直挂着。
+       */
+      type Settled =
+        | { kind: "result"; value: VerificationResult }
+        | { kind: "no-conclusion"; failure: Failure }
+      const settleVerify = (
+        exit: Exit.Exit<Option.Option<VerificationResult>, unknown>,
+        fallback: FailureKind,
+      ): Settled => {
+        if (Exit.isFailure(exit)) return { kind: "no-conclusion", failure: classify(exit.cause, fallback) }
+        if (Option.isNone(exit.value))
+          return {
+            kind: "no-conclusion",
+            failure: { kind: "timeout", message: "验证超过 " + verifyTimeout + " ms 没有结论" },
+          }
+        return { kind: "result", value: exit.value.value }
+      }
+
       /**
        * 墙钟上限（§7.3）：只在轮次与派发批次之间检查。
        *
@@ -473,26 +521,42 @@ export const layer = Layer.effect(
             })
 
             const dispatched = yield* Effect.exit(
-              input.dispatch({
-                team,
-                round,
-                acceptance: teamLines,
-                feedback: feedback.get(team.id),
-              }),
+              input
+                .dispatch({
+                  team,
+                  round,
+                  acceptance: teamLines,
+                  feedback: feedback.get(team.id),
+                })
+                // 零进展上限（§9）：挂住的调用不会一直占着这次运行。
+                .pipe(Effect.timeoutOption(dispatchTimeout)),
             )
 
             if (Exit.isFailure(dispatched)) {
               yield* ledger.settle({ id: reservation.value.id, tokens: 0 })
-              yield* runs.updateTeam({ id: team.id, phase: "failed" })
+              const failure = classify(dispatched.cause)
+              yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: failure.kind } })
               yield* runs.appendEvent({
                 runID: input.runID,
                 kind: "team.failed",
-                payload: { teamID: team.id, round, message: message(dispatched.cause) },
+                payload: { teamID: team.id, round, kind: failure.kind, message: failure.message },
               })
               return
             }
 
-            const next = dispatched.value
+            // 超时也是「没有交付」，但它不是模型的判定：单独一种裁决，别混进 unknown。
+            if (Option.isNone(dispatched.value)) {
+              yield* ledger.settle({ id: reservation.value.id, tokens: 0 })
+              yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: "timeout", timeoutMs: dispatchTimeout } })
+              yield* runs.appendEvent({
+                runID: input.runID,
+                kind: "team.failed",
+                payload: { teamID: team.id, round, kind: "timeout", reason: "timeout", timeoutMs: dispatchTimeout },
+              })
+              return
+            }
+
+            const next = dispatched.value.value
             yield* ledger.settle({
               id: reservation.value.id,
               tokens: next.usage?.tokens,
@@ -550,40 +614,60 @@ export const layer = Layer.effect(
           if (input.commit) {
             const committed = yield* Effect.exit(input.commit())
             if (Exit.isFailure(committed)) {
-              yield* runs.updateTeam({ id: team.id, phase: "failed" })
+              const failure = classify(committed.cause, "commit")
+              yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: "commit" } })
               yield* runs.appendEvent({
                 runID: input.runID,
                 kind: "team.failed",
-                payload: { teamID: team.id, round, reason: "commit", message: message(committed.cause) },
+                payload: { teamID: team.id, round, reason: "commit", kind: failure.kind, message: failure.message },
               })
               return
             }
           }
           const snapshot = yield* input.snapshot()
-          for (const acceptance of teamLines) {
-            const result = yield* Effect.exit(input.verify({ acceptance, report, team, round }))
-            if (Exit.isFailure(result)) {
-              // 验证器本身出错 -> 未验证，而不是失败，更不是通过。
+          /**
+           * 验证没给出结论（验证器出错 / 超时）。
+           *
+           * 结论只能是 `unverified`：不是「没做到」，更不是「通过」。事件里带上结构化原因，
+           * 回放与门禁才分得清「产品有问题」和「验证器坏了」。
+           */
+          const recordUnverified = (acceptance: Acceptance, failure: Failure) =>
+            Effect.gen(function* () {
               yield* recordVerification({
                 acceptanceID: acceptance.id,
                 snapshotID: snapshot,
-                verifierVersion: "verifier-error",
+                verifierVersion: failure.kind === "timeout" ? "verifier-timeout" : "verifier-error",
                 outcome: "unverified",
-                measured: message(result.cause),
+                measured: failure.message,
                 attempt: round,
                 owner: team.id,
               })
+              yield* runs.appendEvent({
+                runID: input.runID,
+                kind: "verification.failed",
+                payload: { acceptanceID: acceptance.id, attempt: round, kind: failure.kind, teamID: team.id },
+              })
+            })
+
+          for (const acceptance of teamLines) {
+            const result = yield* Effect.exit(
+              input.verify({ acceptance, report, team, round }).pipe(Effect.timeoutOption(verifyTimeout)),
+            )
+            const settled = settleVerify(result, "verifier")
+            if (settled.kind === "no-conclusion") {
+              yield* recordUnverified(acceptance, settled.failure)
               continue
             }
-            yield* chargeVerification(team.id, result.value)
+            const value = settled.value
+            yield* chargeVerification(team.id, value)
             yield* recordVerification({
               acceptanceID: acceptance.id,
-              snapshotID: result.value.snapshotID ?? snapshot,
-              verifierVersion: result.value.verifierVersion ?? "v1",
-              outcome: result.value.outcome,
-              measured: result.value.measured,
-              evidenceRef: result.value.evidenceRef,
-              ...(result.value.reused ? { reused: true } : {}),
+              snapshotID: value.snapshotID ?? snapshot,
+              verifierVersion: value.verifierVersion ?? "v1",
+              outcome: value.outcome,
+              measured: value.measured,
+              evidenceRef: value.evidenceRef,
+              ...(value.reused ? { reused: true } : {}),
               attempt: round,
               owner: team.id,
             })
@@ -753,10 +837,11 @@ export const layer = Layer.effect(
             if (Exit.isFailure(committed)) {
               // 提交失败意味着集成会合到旧内容：那之后的「通过」不能算交付。
               commitBroken = true
+              const failure = classify(committed.cause, "commit")
               yield* runs.appendEvent({
                 runID: input.runID,
                 kind: "integration.commit_failed",
-                payload: { message: message(committed.cause) },
+                payload: { kind: failure.kind, message: failure.message },
               })
             }
           }
@@ -805,10 +890,11 @@ export const layer = Layer.effect(
       // 集成已经在循环里做过（全部交付时）；这里只记录最终结果。
       // 失败不算「跑完」—— 冲突要么返工要么由人接手，绝不能落进 done。
       if (integration && Exit.isFailure(integration)) {
+        const failure = classify(integration.cause)
         yield* runs.appendEvent({
           runID: input.runID,
           kind: "integration.failed",
-          payload: { message: message(integration.cause) },
+          payload: { kind: failure.kind, message: failure.message },
         })
       } else if (integration) {
         const outcome = integration.value
@@ -839,24 +925,36 @@ export const layer = Layer.effect(
       // 但「合并后才暴露的问题」正是返工该发生的地方。第二次仍失败就照实记 partial。
       const recheckAll = (snapshot: string, teamByID: Map<string, RunTeam>) =>
         Effect.gen(function* () {
-          const recordResult = (
-            acceptance: Acceptance,
-            result: Exit.Exit<VerificationResult, unknown>,
-            fallbackVersion: string,
-            teamID: string,
-          ) =>
+          const recordResult = (acceptance: Acceptance, settled: Settled, fallbackVersion: string, teamID: string) =>
             Effect.gen(function* () {
-              if (Exit.isSuccess(result)) yield* chargeVerification(teamID, result.value)
+              if (settled.kind === "no-conclusion") {
+                // 重验没有结论：同样是 unverified，带上它是超时还是验证器坏了。
+                yield* recordVerification({
+                  acceptanceID: acceptance.id,
+                  snapshotID: snapshot,
+                  verifierVersion: settled.failure.kind === "timeout" ? "verifier-timeout" : "verifier-error",
+                  outcome: "unverified",
+                  measured: settled.failure.message,
+                  attempt: rounds + 1,
+                  owner: teamID,
+                })
+                yield* runs.appendEvent({
+                  runID: input.runID,
+                  kind: "verification.failed",
+                  payload: { acceptanceID: acceptance.id, attempt: rounds + 1, kind: settled.failure.kind, teamID },
+                })
+                return
+              }
+              const value = settled.value
+              yield* chargeVerification(teamID, value)
               yield* recordVerification({
                 acceptanceID: acceptance.id,
-                snapshotID: Exit.isSuccess(result) ? (result.value.snapshotID ?? snapshot) : snapshot,
-                verifierVersion: Exit.isSuccess(result)
-                  ? (result.value.verifierVersion ?? fallbackVersion)
-                  : "verifier-error",
-                outcome: Exit.isSuccess(result) ? result.value.outcome : "unverified",
-                measured: Exit.isSuccess(result) ? result.value.measured : message(result.cause),
-                evidenceRef: Exit.isSuccess(result) ? result.value.evidenceRef : undefined,
-                ...(Exit.isSuccess(result) && result.value.reused ? { reused: true } : {}),
+                snapshotID: value.snapshotID ?? snapshot,
+                verifierVersion: value.verifierVersion ?? fallbackVersion,
+                outcome: value.outcome,
+                measured: value.measured,
+                evidenceRef: value.evidenceRef,
+                ...(value.reused ? { reused: true } : {}),
                 attempt: rounds + 1,
                 owner: teamID,
               })
@@ -876,10 +974,12 @@ export const layer = Layer.effect(
                 })
                 continue
               }
-              const merged = yield* Effect.exit(input.verifyMerged({ acceptance, snapshotID: snapshot }))
+              const merged = yield* Effect.exit(
+                input.verifyMerged({ acceptance, snapshotID: snapshot }).pipe(Effect.timeoutOption(verifyTimeout)),
+              )
               // 全局验收不属于任何团队：成本记在运行上（actor 用 runID），
               // 免得把「合并后才验的那几条」摊给某一支队。
-              yield* recordResult(acceptance, merged, "merged", input.runID)
+              yield* recordResult(acceptance, settleVerify(merged, "verifier"), "merged", input.runID)
               continue
             }
             const team = teamByID.get(acceptance.owner)
@@ -900,8 +1000,10 @@ export const layer = Layer.effect(
               summary: "",
               claims: [],
             }
-            const recheck = yield* Effect.exit(input.verify({ acceptance, report, team, round: rounds + 1 }))
-            yield* recordResult(acceptance, recheck, "v1", team.id)
+            const recheck = yield* Effect.exit(
+              input.verify({ acceptance, report, team, round: rounds + 1 }).pipe(Effect.timeoutOption(verifyTimeout)),
+            )
+            yield* recordResult(acceptance, settleVerify(recheck, "verifier"), "v1", team.id)
           }
         })
 
@@ -950,10 +1052,11 @@ export const layer = Layer.effect(
           const committed = yield* Effect.exit(input.commit())
           if (Exit.isFailure(committed)) {
             commitBroken = true
+            const failure = classify(committed.cause, "commit")
             yield* runs.appendEvent({
               runID: input.runID,
               kind: "integration.commit_failed",
-              payload: { message: message(committed.cause) },
+              payload: { kind: failure.kind, message: failure.message },
             })
           }
         }

@@ -479,6 +479,11 @@ export const RunExecutePayload = Schema.Struct({
   maxBusinessAttempts: Schema.optional(Schema.Number),
   reserveTokens: Schema.optional(Schema.Number),
   concurrency: Schema.optional(Schema.Number),
+  /**
+   * 单次队长 / 验证器调用的零进展上限（毫秒）。缺省 30 分钟 / 10 分钟。
+   * 它是「还活着吗」的兜底，不是成本控制 —— 成本上限是预算里的 `wallMs`。
+   */
+  callTimeoutMs: Schema.optional(Schema.Number),
 })
 
 export const RunWorktreeCleanup = Schema.Struct({
