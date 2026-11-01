@@ -1,6 +1,6 @@
 import { describe, expect, it as test } from "bun:test"
 import { Effect } from "effect"
-import { Service as OpLogService, defaultLayer as OpLogLayer, idempotencyKey } from "@/team/op-log"
+import { Service as OpLogService, defaultLayer as OpLogLayer, idempotencyKey, lockKey } from "@/team/op-log"
 import { ToolOp } from "@/session/tool-op"
 import { SessionID } from "@/session/schema"
 import { TestInstance } from "../fixture/fixture"
@@ -105,5 +105,29 @@ describe("tool op replay decision", () => {
   test("refuses to continue when the previous outcome is unknown", () => {
     expect(ToolOp.decide("write", op("unknown")).kind).toBe("fail")
     expect(ToolOp.decide("write", op("started")).kind).toBe("fail")
+  })
+})
+
+describe("tool write lock key", () => {
+  test("all sessions of one team share a key: a team has one worktree", () => {
+    const scope = { runID: "run_1", taskID: "rt_1" }
+    // 队长与成员是两个会话，写的是同一份工作区 —— 锁必须落在同一把钥匙上。
+    expect(lockKey(scope, "ses_captain")).toBe(lockKey(scope, "ses_member"))
+    expect(lockKey(scope, "ses_captain")).toBe("run:run_1:task:rt_1")
+  })
+
+  test("different teams in the same run do not share a key", () => {
+    expect(lockKey({ runID: "run_1", taskID: "rt_1" }, "a")).not.toBe(lockKey({ runID: "run_1", taskID: "rt_2" }, "a"))
+  })
+
+  test("outside a run the session is the key, so unrelated chats never block each other", () => {
+    expect(lockKey(undefined, "ses_a")).toBe("session:ses_a")
+    expect(lockKey(undefined, "ses_a")).not.toBe(lockKey(undefined, "ses_b"))
+  })
+
+  test("a scoped session without a team id falls back to the run itself", () => {
+    // 运行根会话（没有团队坐标）也不能和别的运行共用钥匙。
+    expect(lockKey({ runID: "run_1" }, "ses_root")).toBe("run:run_1:task:-")
+    expect(lockKey({ runID: "run_1" }, "ses_root")).not.toBe(lockKey({ runID: "run_2" }, "ses_root"))
   })
 })

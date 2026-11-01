@@ -58,6 +58,20 @@ function stable(value: unknown): string {
   return "{" + entries.map(([key, item]) => JSON.stringify(key) + ":" + stable(item)).join(",") + "}"
 }
 
+/**
+ * 工具写锁的钥匙（§10.1「团队内单写者」）。
+ *
+ * 同一队的成员是两个会话、共用一个 worktree：按会话加锁等于没锁 ——
+ * 两人各自持有一把「独占」锁，同时改同一个文件。所以运行内按**团队坐标**加锁，
+ * 运行外才退回会话（那边的写本来就只影响自己）。
+ *
+ * 没有团队坐标的会话（比如队长的临时助手）与队长共用本队的钥匙：它写的是同一份工作区。
+ */
+export function lockKey(scope: Scope | undefined, sessionID: string): string {
+  if (!scope) return "session:" + sessionID
+  return "run:" + scope.runID + ":task:" + (scope.taskID ?? "-")
+}
+
 export type OpOutcome = "started" | "succeeded" | "failed" | "unknown"
 
 export type Op = {

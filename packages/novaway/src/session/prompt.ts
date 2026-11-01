@@ -61,6 +61,7 @@ import { ToolOp } from "./tool-op"
 import { Service as HookServiceService, defaultLayer as HookServiceLayer } from "@/hook/service"
 import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
+import * as TeamOpLog from "@/team/op-log"
 import { Service as TeamOpLogService, defaultLayer as TeamOpLogLayer, idempotencyKey } from "@/team/op-log"
 import * as TeamDenials from "@/team/denials"
 import { Service as TeamWriterService, defaultLayer as TeamWriterLayer } from "@/team/writer"
@@ -1388,7 +1389,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               Effect.gen(function* () {
                 const ctx = context(args, options)
                 const mode = Tool.concurrencySafe(item, args) ? "read" : "write"
-                const release = toolLock ? yield* toolLock.acquire(input.session.id, mode) : Effect.void
+                // 锁的钥匙是工作区而不是会话（§10.1「团队内单写者」）：同一队的成员
+                // 共用一个 worktree，按会话加锁等于没锁。规则写在 op-log 里，可单独测。
+                const scoped = teamOps ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
+                const lockKey = TeamOpLog.lockKey(scoped, input.session.id)
+                const release = toolLock ? yield* toolLock.acquire(lockKey, mode) : Effect.void
                 return yield* Effect.gen(function* () {
                   const capability = item.capabilities
                   yield* capability?.validateInput?.(args, ctx) ?? Effect.void
@@ -1435,7 +1440,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
                   // 运行策略（§11.1）：只读运行不允许改工作区。判定放在 hook 之后、
                   // 执行之前 —— 用 hook 可能改写过的参数判定，且被拒绝的调用不会留下操作日志。
-                  const scoped = teamOps ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
                   if (scoped) {
                     const verdict = TeamPolicy.decide(
                       {
