@@ -237,6 +237,12 @@ export const RunTeamView = Schema.Struct({
   dependsOn: Schema.Array(Schema.Number),
   /** 团队 worktree 目录；缺失表示这次运行在会话目录里跑（非 git 仓库等）。 */
   worktree: Schema.optional(Schema.String),
+
+  /**
+   * 这次团队声明的任务范围（§11.1）：相对运行目录的路径前缀，只收紧写操作。
+   * 缺失表示没声明，不额外限制。
+   */
+  scope: Schema.optional(Schema.Array(Schema.String)),
   /**
    * 产物与版本（§8.6）：版本由产物内容决定。下游记录的是具体版本，
    * 上游一变，下游的旧结论就失效 —— 界面能看出「它交付的是哪一版」。

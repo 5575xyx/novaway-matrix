@@ -3750,6 +3750,7 @@ export type RunTeamView = {
   verdict?: unknown
   dependsOn: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
   worktree?: string
+  scope?: Array<string>
   artifacts?: Array<{
     name: string
     version: string

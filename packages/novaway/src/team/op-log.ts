@@ -27,6 +27,15 @@ export type Scope = {
    * （改策略等于改计划，得重新批准、重新登记）。缺失按只读处理。
    */
   readOnly?: boolean
+  /**
+   * 这次团队声明的任务范围（§11.1）：相对 `root` 的路径前缀。
+   *
+   * 与策略一起登记，理由相同：一次运行内范围不会变（改范围等于改计划），
+   * 而工具漏斗是热路径。空表示不限 —— 只有写操作会被它拦。
+   */
+  paths?: readonly string[]
+  /** 相对路径的基准目录（团队 worktree；没有 worktree 时是运行目录）。 */
+  root?: string
 }
 
 /**
@@ -141,6 +150,8 @@ export const layer = Layer.effect(
         ...(input.taskID ? { taskID: input.taskID } : {}),
         ...(input.attempt !== undefined ? { attempt: input.attempt } : {}),
         ...(input.readOnly !== undefined ? { readOnly: input.readOnly } : {}),
+        ...(input.paths?.length ? { paths: [...input.paths] } : {}),
+        ...(input.root ? { root: input.root } : {}),
       })
     })
 

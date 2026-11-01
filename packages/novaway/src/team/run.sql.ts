@@ -146,6 +146,14 @@ export const TeamRunTeamTable = sqliteTable(
      * 名册版本、打回意见与省略项。逐轮历史在 `context.manifest` 事件里。
      */
     context_manifest: text({ mode: "json" }).$type<Record<string, unknown>>(),
+
+    /**
+     * 这次团队声明的任务范围（§11.1，相对运行目录的路径前缀）。
+     *
+     * 存在团队行上而不是只留在计划 JSON 里：计划可以改版、团队行不会重建，
+     * 派发与工具拦截读的都是团队行 —— 范围得跟着派发走，而不是跟着某一份计划走。
+     */
+    scope: text({ mode: "json" }).$type<string[]>(),
     depends_on: text({ mode: "json" }).$type<unknown[]>(),
     artifacts_out: text({ mode: "json" }).$type<unknown[]>(),
     usage: text({ mode: "json" }).$type<Record<string, unknown>>(),

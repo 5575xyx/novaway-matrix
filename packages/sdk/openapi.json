@@ -50108,6 +50108,12 @@
           "worktree": {
             "type": "string"
           },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "artifacts": {
             "type": "array",
             "items": {

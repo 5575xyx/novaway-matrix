@@ -259,6 +259,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             verdict: team.verdict,
             dependsOn: team.dependsOn ?? [],
             worktree: team.worktree,
+            // 范围是这次团队被允许写的地方（§11.1）：界面要能回答「它为什么被拦」。
+            ...(team.scope?.length ? { scope: team.scope } : {}),
             artifacts: artifactsOf(team.artifactsOut),
             context: toContext(team.contextManifest),
             // 任务板只回这四项：看板要的是一次能扫完的进度，不是任务的全文。
@@ -583,6 +585,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 ...(roster ? { rosterSnapshot: roster as unknown as Record<string, unknown> } : {}),
                 dependsOn: team.dependsOn ? [...team.dependsOn] : [],
                 worktree: worktree.kind === "created" ? worktree.worktree.directory : undefined,
+                // 范围随团队行一起落库（§11.1）：派发与工具拦截读的是团队行，
+                // 不是某一版计划 —— 计划改版不会重建团队行。
+                ...(team.scope?.length ? { scope: [...team.scope] } : {}),
               })
             }
           }
@@ -748,7 +753,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               employeeID: member?.employee.id,
             }
           }
-          const policy = TeamPolicy.fromPlan(run.plan)
+          /**
+           * 策略按团队算（§11.1）：只读是运行级的，路径范围是团队级的。
+           * 基准目录与派发目录一致 —— 范围里写的是相对仓库根的路径，
+           * 换个基准就等于换了一条规则。
+           */
+          const policyFor = (team: { scope?: readonly string[] } | undefined, directory?: string) =>
+            TeamPolicy.fromPlan(run.plan, team, directory ?? run.directory)
           // 团队 worktree 存在时，成员在那里工作，证据也绑定在那里创建时的提交上。
           // 没有 worktree（非 git 仓库、空仓库）则退回实例目录的快照。
           const teamDirectory = teamRows.find((team) => team.worktree)?.worktree
@@ -908,7 +919,15 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 agent: captain,
                 ...(dispatchDirectory ? { directory: dispatchDirectory } : {}),
                 title: "队长 · 第 " + input.round + " 轮",
-                scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
+                scope: {
+                  runID: run.id,
+                  taskID: input.team.id,
+                  attempt: input.round,
+                  readOnly: policyFor(input.team, dispatchDirectory).readOnly,
+                  ...(input.team.scope?.length
+                    ? { paths: input.team.scope, root: dispatchDirectory ?? run.directory }
+                    : {}),
+                },
                 ...(attributed ? { employeeID: attributed } : {}),
                 ...(captainModel ? { model: captainModel } : {}),
                 prompt: TeamEffective.compose(person, context.prompt),
@@ -1004,7 +1023,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 agent: verifierFor(input.team),
                 ...(teamWorktree ? { directory: teamWorktree } : {}),
                 title: "验证 · " + input.acceptance.id,
-                scope: { runID: run.id, taskID: input.acceptance.id, attempt: input.round, readOnly: policy.readOnly },
+                scope: {
+                  runID: run.id,
+                  taskID: input.acceptance.id,
+                  attempt: input.round,
+                  readOnly: policyFor(input.team, teamWorktree ?? run.directory).readOnly,
+                },
                 prompt: TeamVerifier.prompt(input.acceptance, input.report),
               })
               const text = verified.text
@@ -1033,7 +1057,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 agent: verifierFor(undefined),
                 ...(directory ? { directory } : {}),
                 title: "合并验收 · " + input.acceptance.id,
-                scope: { runID: run.id, taskID: input.acceptance.id, attempt: 1, readOnly: policy.readOnly },
+                scope: {
+                  runID: run.id,
+                  taskID: input.acceptance.id,
+                  attempt: 1,
+                  readOnly: policyFor(undefined, directory ?? run.directory).readOnly,
+                },
                 prompt: TeamVerifier.prompt(input.acceptance, {
                   claims: [{ text: "合并后的代码（" + input.snapshotID + "）" }],
                 }),

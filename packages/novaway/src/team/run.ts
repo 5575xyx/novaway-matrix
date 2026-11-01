@@ -122,6 +122,11 @@ export type RunTeam = {
   report?: Record<string, unknown>
   verdict?: Record<string, unknown>
   worktree?: string
+  /**
+   * 这次团队声明的任务范围（§11.1）：相对运行目录的路径前缀，只能收紧写操作。
+   * 空表示没声明（不额外限制）。
+   */
+  scope?: string[]
   rosterSnapshot?: Record<string, unknown>
   /** 最近一次派发投喂给队长的上下文清单（§6.4）；逐轮历史在事件里。 */
   contextManifest?: Record<string, unknown>
@@ -223,6 +228,7 @@ export interface Interface {
     contextManifest?: Record<string, unknown>
     dependsOn?: number[]
     worktree?: string
+    scope?: string[]
   }) => Effect.Effect<RunTeam>
   readonly teams: (runID: string) => Effect.Effect<RunTeam[]>
   readonly updateTeam: (input: {
@@ -291,6 +297,7 @@ const toTeam = (row: typeof TeamRunTeamTable.$inferSelect): RunTeam => ({
   worktree: row.worktree ?? undefined,
   rosterSnapshot: row.roster_snapshot ?? undefined,
   contextManifest: row.context_manifest ?? undefined,
+  scope: (row.scope as string[] | null) ?? undefined,
   dependsOn: (row.depends_on as number[] | null) ?? [],
   artifactsOut: (row.artifacts_out as unknown[] | null) ?? [],
   usage: row.usage ?? undefined,
@@ -510,6 +517,7 @@ export const layer = Layer.effect(
         roundCaptain: 0,
         rosterSnapshot: input.rosterSnapshot,
         contextManifest: input.contextManifest,
+        ...(input.scope ? { scope: [...input.scope] } : {}),
         dependsOn: input.dependsOn ?? [],
         artifactsOut: [],
         worktree: input.worktree,
@@ -529,6 +537,7 @@ export const layer = Layer.effect(
               round_captain: 0,
               roster_snapshot: team.rosterSnapshot ?? null,
               context_manifest: team.contextManifest ?? null,
+              scope: team.scope ?? null,
               depends_on: team.dependsOn,
               artifacts_out: team.artifactsOut,
               worktree: team.worktree ?? null,

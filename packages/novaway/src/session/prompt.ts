@@ -1438,7 +1438,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   const scoped = teamOps ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
                   if (scoped) {
                     const verdict = TeamPolicy.decide(
-                      { readOnly: scoped.readOnly ?? true },
+                      {
+                        readOnly: scoped.readOnly ?? true,
+                        ...(scoped.paths?.length ? { paths: scoped.paths } : {}),
+                        ...(scoped.root ? { root: scoped.root } : {}),
+                      },
                       { tool: item.id, capabilities: item.capabilities, args: effective },
                     )
                     if (verdict.kind === "deny") {

@@ -156,4 +156,24 @@ describe("dispatch context manifest", () => {
       expect(rows[0].contextManifest?.brief).toBe(manifest.brief)
     }),
   )
+
+  it.effect("the team's declared path scope is persisted with the team row", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_scope"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "只改这几个目录",
+      })
+      const team = yield* runs.addTeam({ runID: run.id, scope: ["src/team", "test/team"] })
+      const rows = yield* runs.teams(run.id)
+      // 范围跟着团队行走（§11.1）：派发与工具拦截读的是这一行，不是某一版计划。
+      expect(rows[0].id).toBe(team.id)
+      expect(rows[0].scope).toEqual(["src/team", "test/team"])
+      // 没声明范围的团队读回来是 undefined，而不是空数组 —— 两者在策略里含义不同。
+      const plain = yield* runs.addTeam({ runID: run.id })
+      expect((yield* runs.teams(run.id)).find((item) => item.id === plain.id)?.scope).toBeUndefined()
+    }),
+  )
 })
