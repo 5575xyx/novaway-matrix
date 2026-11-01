@@ -178,9 +178,56 @@ const skillAssetsMap = await createEmbeddedSkillAssetsBundle()
 // extract them on first launch and point opentui at the extracted dir. The native lib
 // differs per target, so this is built inside the per-target loop.
 type OtuiAssetEntry = { key: string; abs: string }
+
+/**
+ * 定位某个包里的文件（tree-sitter 的 wasm、各平台原生库）。
+ *
+ * 以前是直接按 bun 隔离存储的固定深度(`coreDir/../../../..`)拼出 `.bun` 再 glob。
+ * 那个路径只在 isolated 布局下成立：一旦 node_modules 是 hoisted（CI 上就是这样），
+ * 它会落到仓库外，一条都扫不到 —— publish-npm 就挂在这里
+ * （`missing web-tree-sitter/tree-sitter.wasm in bun store`）。所以改成三层兜底：
+ *   1. 模块解析 `<pkg>/package.json`：bun/node 的解析算法自己处理嵌套/提升/isolated；
+ *   2. 手工向上找 `node_modules/<pkg>`：包没通过 exports 暴露 package.json 时仍可用；
+ *   3. 最后才扫 bun 的 `.bun` 隔离目录（老布局）。
+ * 全都失败就把尝试过的路径打出来，省得下次再靠猜。
+ */
+function locatePackageFile(name: string, file: string, roots: string[], store: string): string {
+  const tried: string[] = []
+  for (const root of roots) {
+    for (const spec of [`${name}/package.json`, name]) {
+      try {
+        const abs = path.join(path.dirname(Bun.resolveSync(spec, root)), file)
+        if (fs.existsSync(abs)) return abs
+        tried.push(`${abs} (解析 ${spec},from ${root})`)
+      } catch (error) {
+        tried.push(`${spec} (from ${root}): ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`)
+      }
+    }
+    let cur = root
+    while (true) {
+      const abs = path.join(cur, "node_modules", name, file)
+      if (fs.existsSync(abs)) return abs
+      const parent = path.dirname(cur)
+      if (parent === cur) break
+      cur = parent
+    }
+    tried.push(`node_modules/${name}/${file} (自 ${root} 逐级向上)`)
+  }
+  const pattern = `${name.replaceAll("/", "+")}@*/node_modules/${name}/${file}`
+  tried.push(`${pattern} (扫描 ${store})`)
+  if (fs.existsSync(store)) {
+    const found = [...new Bun.Glob(pattern).scanSync({ cwd: store, absolute: true })][0]
+    if (found) return found
+  }
+  throw new Error(`找不到 ${name}/${file}，已尝试：\n  - ${tried.join("\n  - ")}`)
+}
+
 function otuiAssetEntries(parserWorker: string, item: { os: string; arch: string; abi?: "musl" }): OtuiAssetEntry[] {
   const coreDir = path.dirname(parserWorker)
-  const bunStore = path.resolve(coreDir, "../../../..") // .../.bun
+  // bun 隔离存储根（isolated 布局）：<repo>/node_modules/.bun/<entry>/node_modules/<pkg>
+  const bunStore = path.resolve(coreDir, "../../../..")
+  // 解析起点：@opentui/core 真实目录（能顺着它找到 optional 平台包），再退到本包目录。
+  const roots = [coreDir, dir]
   // parser.worker.js is also a Bun entrypoint (compiled/bundled for the actual worker
   // spawn via OTUI_TREE_SITTER_WORKER_PATH). Embedding the SAME path with type:"file"
   // conflicts (Bun parses it as a module). We only need a copy under OTUI_ASSET_ROOT so
@@ -195,22 +242,16 @@ function otuiAssetEntries(parserWorker: string, item: { os: string; arch: string
   for (const f of new Bun.Glob("**/*").scanSync({ cwd: assetsDir })) {
     entries.push({ key: `@opentui/core/assets/${f.replaceAll("\\", "/")}`, abs: path.join(assetsDir, f) })
   }
-  const wts = [
-    ...new Bun.Glob("web-tree-sitter@*/node_modules/web-tree-sitter/tree-sitter.wasm").scanSync({
-      cwd: bunStore,
-      absolute: true,
-    }),
-  ][0]
-  if (!wts) throw new Error("missing web-tree-sitter/tree-sitter.wasm in bun store")
-  entries.push({ key: "web-tree-sitter/tree-sitter.wasm", abs: wts })
+  entries.push({
+    key: "web-tree-sitter/tree-sitter.wasm",
+    abs: locatePackageFile("web-tree-sitter", "tree-sitter.wasm", roots, bunStore),
+  })
   const nativeFile = item.os === "win32" ? "opentui.dll" : item.os === "darwin" ? "libopentui.dylib" : "libopentui.so"
   const suffix = item.abi === "musl" ? "-musl" : ""
   const pkg = `@opentui/core-${item.os}-${item.arch}${suffix}`
-  const storePkg = `@opentui+core-${item.os}-${item.arch}${suffix}`
-  const nativeAbs = [
-    ...new Bun.Glob(`${storePkg}@*/node_modules/${pkg}/${nativeFile}`).scanSync({ cwd: bunStore, absolute: true }),
-  ][0]
-  if (!nativeAbs) throw new Error(`missing opentui native lib ${pkg}/${nativeFile} in bun store`)
+  const nativeAbs = locatePackageFile(pkg, nativeFile, roots, bunStore)
+  // CI 上出过"资源找不到"的坑：打一行实际解析结果，下次挂了能直接看出用的是哪套 node_modules。
+  console.log(`  otui native: ${path.relative(dir, nativeAbs)}`)
   entries.push({ key: `${pkg}/${nativeFile}`, abs: nativeAbs })
   return entries
 }
