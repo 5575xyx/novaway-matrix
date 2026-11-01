@@ -33,6 +33,9 @@ export function fromLive(input: {
     order: index,
     // 活团队没有「这个人能不能被 Auto 自动派活」的声明：一律按最严格的 false。
     canAutoDispatch: false,
+    // 会话成员没有员工库里的模型 / 岗位说明覆盖，能冻结的只有它的 agent：
+    // 派发时用的就是它，写进快照才能解释「这份报告是哪个 agent 产出的」。
+    effective: { agent: member.agent },
   }))
   return { profileID: input.teamID, name: input.name, version: 1, captain: captain.sessionID, roster }
 }

@@ -38,6 +38,7 @@ import {
 import { Service as MissionService } from "@/team/mission"
 import { normalize as normalizeArtifacts } from "@/team/artifacts"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
+import * as TeamEffective from "@/team/effective"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
@@ -739,6 +740,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             const member = roster?.roster.find((entry) => entry.employee.id === roster.captain)
             return {
               roster,
+              entry: member,
               job: member?.employee.job,
               members: roster ? rosterBrief(roster) : [],
               // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下：
@@ -846,7 +848,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
           const dispatch = (input: DispatchInput) =>
             Effect.gen(function* () {
-              const { roster, job: captainJob, members, employeeID: captainEmployeeID } = captainOf(input.team)
+              const {
+                roster,
+                entry: captainEntry,
+                job: captainJob,
+                members,
+                employeeID: captainEmployeeID,
+              } = captainOf(input.team)
               // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下（§10.3）。
               const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
               const attributed = captain === captainJob ? captainEmployeeID : undefined
@@ -888,13 +896,22 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               // 等于让两个团队在同一份文件上互相踩。没有 worktree（非 git 仓库）就退回
               // 会话默认目录，绝不借用别的团队的。
               const dispatchDirectory = input.team.worktree
+              /**
+               * 名册里写的岗位说明与模型要真的用上（§5.4 / §11.1）。
+               *
+               * 只有「实际派发的队长就是名册里的队长」时才套用：用户点名换了人，
+               * 拿原来那个人的岗位说明和模型去跑，等于把活派给了另一个人还挂着旧名字。
+               */
+              const person = attributed ? captainEntry : undefined
+              const captainModel = TeamEffective.parseModel(person?.employee.model)
               const captainRun = yield* runAgent({
                 agent: captain,
                 ...(dispatchDirectory ? { directory: dispatchDirectory } : {}),
                 title: "队长 · 第 " + input.round + " 轮",
                 scope: { runID: run.id, taskID: input.team.id, attempt: input.round, readOnly: policy.readOnly },
                 ...(attributed ? { employeeID: attributed } : {}),
-                prompt: context.prompt,
+                ...(captainModel ? { model: captainModel } : {}),
+                prompt: TeamEffective.compose(person, context.prompt),
               })
               const text = captainRun.text
               const usage = { tokens: captainRun.usage.tokens, cost: captainRun.usage.cost }

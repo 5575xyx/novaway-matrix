@@ -5,6 +5,7 @@ import { BackgroundJob } from "@/background/job"
 import { Bus } from "@/bus"
 import { Session } from "@/session/session"
 import { SessionID, MessageID } from "../session/schema"
+import { ModelID, ProviderID } from "../provider/schema"
 import { MessageV2 } from "../session/message-v2"
 import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
@@ -18,7 +19,8 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamRunService } from "@/team/run"
 import { Service as TeamOpLogService } from "@/team/op-log"
-import { identify as identifyEmployee } from "@/team/identity"
+import * as teamIdentity from "@/team/identity"
+import * as TeamEffective from "@/team/effective"
 import { snapshotFrom } from "@/team/profile"
 import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
 import { create as createWorktree } from "./worktree-helper"
@@ -306,13 +308,22 @@ export const TaskTool = Tool.define(
         run && teamRuns && teamScope?.taskID
           ? (yield* teamRuns.teams(run.id)).find((team) => team.id === teamScope.taskID)
           : undefined
-      const employeeID = identifyEmployee({
-        roster: dispatchedTeam ? snapshotFrom(dispatchedTeam.rosterSnapshot) : undefined,
-        // 队长的父会话就是运行根会话；成员派生的子代理不按名字重新指认，只继承。
-        captain: !!run && parent.parentID === run.sessionID,
+      const roster = dispatchedTeam ? snapshotFrom(dispatchedTeam.rosterSnapshot) : undefined
+      // 队长的父会话就是运行根会话；成员派生的子代理不按名字重新指认，只继承。
+      const captain = !!run && parent.parentID === run.sessionID
+      const employeeID = teamIdentity.identify({
+        roster,
+        captain,
         name: params.name,
         parentEmployeeID: parent.employeeID,
       })
+      /**
+       * 派给名册里某个人时，用**那个人的**岗位说明与模型（§5.4 / §11.1）。
+       *
+       * 指认与取配置走同一个 `resolve()`：归属记在小林名下、提示词却是通用的，
+       * 这份报告事后就没法解释成「小林按他的岗位说明做的」。
+       */
+      const person = captain ? teamIdentity.resolve({ roster, name: params.name }) : undefined
       const runID = teamScope?.runID ?? parent.runID
 
       const nextSession =
@@ -436,10 +447,19 @@ export const TaskTool = Tool.define(
       const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(Effect.orDie)
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
 
-      const model = next.model ?? {
-        modelID: msg.info.modelID,
-        providerID: msg.info.providerID,
-      }
+      /**
+       * 员工声明的模型优先于 agent 的默认模型。
+       *
+       * fork 例外：fork 的目的是复用父会话的请求前缀（含提示词缓存），换模型会让
+       * 缓存整段失效，fork 也就不再便宜 —— 那里的优先级留给 `next.model`。
+       */
+      const declaredModel = !forkMode ? TeamEffective.parseModel(person?.employee.model) : undefined
+      const model = declaredModel
+        ? { providerID: ProviderID.make(declaredModel.providerID), modelID: ModelID.make(declaredModel.modelID) }
+        : (next.model ?? {
+            modelID: msg.info.modelID,
+            providerID: msg.info.providerID,
+          })
       const metadata = {
         parentSessionId: ctx.sessionID,
         sessionId: nextSession.id,
@@ -457,7 +477,10 @@ export const TaskTool = Tool.define(
       const runCancel = yield* EffectBridge.make()
 
       const runTask = Effect.fn("TaskTool.runTask")(function* () {
-        const parts = yield* ops.resolvePromptParts(forkMode ? forkDirective(params.prompt) : params.prompt)
+        // fork 不追加岗位说明：fork 的意义是「和父会话同一段前缀」，改了就白 fork。
+        const parts = yield* ops.resolvePromptParts(
+          forkMode ? forkDirective(params.prompt) : TeamEffective.compose(person, params.prompt),
+        )
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
           sessionID: nextSession.id,

@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from "effect"
 import { and, asc, eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { EmployeeTable, TeamProfileMemberTable, TeamProfileTable } from "./run.sql"
+import { of as effectiveOf, type Effective } from "./effective"
 
 /**
  * 团队模板（§5.2）：编制表 + 员工。
@@ -64,6 +65,13 @@ export type RosterEntry = {
   duty?: string
   order: number
   canAutoDispatch: boolean
+  /**
+   * 冻结那一刻这个人**实际生效**的配置（§5.4）。
+   *
+   * 只有快照有，活名册里没有：它是「这历史报告当时按什么跑的」的答案，
+   * 不是「这个人现在该怎么派」的答案。
+   */
+  effective?: Effective
 }
 
 /** 发起运行时复制进 `roster_snapshot` 的只读快照。 */
@@ -205,6 +213,25 @@ const builtin = {
 }
 
 /**
+ * 快照里的 `effective` 同样是不可信输入：缺字段、旧版本没有、手改过都要能读。
+ * 读不出来就当没有 —— 快照仍然可用，只是这一条「当时按什么跑的」解释不了。
+ */
+function readEffective(value: unknown): Effective | undefined {
+  if (!value || typeof value !== "object") return undefined
+  const agent: unknown = Reflect.get(value, "agent")
+  if (typeof agent !== "string") return undefined
+  const model: unknown = Reflect.get(value, "model")
+  const promptHash: unknown = Reflect.get(value, "promptHash")
+  const skills: unknown = Reflect.get(value, "skills")
+  return {
+    agent,
+    ...(typeof model === "string" ? { model } : {}),
+    ...(typeof promptHash === "string" ? { promptHash } : {}),
+    ...(Array.isArray(skills) ? { skills: skills.filter((item): item is string => typeof item === "string") } : {}),
+  }
+}
+
+/**
  * 从 `roster_snapshot` 这类落库的 `unknown` 里读回快照。
  *
  * 快照是运行时自己写的，但仍按「不可信输入」解析：历史运行读过旧版本数据、
@@ -240,6 +267,8 @@ export function snapshotFrom(value: unknown): Snapshot | undefined {
     const role: unknown = Reflect.get(raw, "role")
     const duty: unknown = Reflect.get(raw, "duty")
     const canAutoDispatch: unknown = Reflect.get(raw, "canAutoDispatch")
+    const effective: unknown = Reflect.get(raw, "effective")
+    const frozen = readEffective(effective)
     roster.push({
       employee: {
         id,
@@ -256,6 +285,7 @@ export function snapshotFrom(value: unknown): Snapshot | undefined {
       duty: typeof duty === "string" ? duty : undefined,
       order,
       canAutoDispatch: canAutoDispatch === true,
+      ...(frozen ? { effective: frozen } : {}),
     })
   }
   return { profileID, name, version, captain, roster: roster.sort((a, b) => a.order - b.order) }
@@ -498,7 +528,9 @@ export const layer = Layer.effect(
         name: profile.name,
         version: profile.version,
         captain: profile.captainMember,
-        roster: entries.map((entry) => ({ ...entry, employee: { ...entry.employee } })),
+        // `effective` 与 `employee` 一起冻结：之后改员工的模型或岗位说明，
+        // 这一次运行的历史报告仍然解释得通（§5.4「模板是复制，不是绑定」）。
+        roster: entries.map((entry) => ({ ...entry, employee: { ...entry.employee }, effective: effectiveOf(entry) })),
       }
     })
 

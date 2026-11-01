@@ -89,7 +89,7 @@ function stubOps(): TaskPromptOps {
 }
 
 /** 根会话 → 队长会话（带员工与运行归属）→ 一次 task 派发。 */
-const seed = Effect.fn("TaskAttribution.seed")(function* () {
+const seed = Effect.fn("TaskAttribution.seed")(function* (declared?: { model?: string; prompt?: string }) {
   const session = yield* Session.Service
   const runs = yield* TeamRun
   const ops = yield* TeamOpLog
@@ -112,7 +112,7 @@ const seed = Effect.fn("TaskAttribution.seed")(function* () {
           canAutoDispatch: true,
         },
         {
-          employee: { id: "emp_review", name: "小林", job: "general", archived: false },
+          employee: { id: "emp_review", name: "小林", job: "general", archived: false, ...(declared ?? {}) },
           role: "worker",
           order: 1,
           canAutoDispatch: true,
@@ -178,6 +178,78 @@ describe("tool.task attribution", () => {
       expect(children).toHaveLength(1)
       // 按名册姓名指认：这次工作记在小林名下，并带着同一次运行的坐标。
       expect(children[0]).toMatchObject({ employeeID: "emp_review", runID: run.id })
+    }),
+  )
+
+  it.instance("a named member runs with that person's own instructions and model", () =>
+    Effect.gen(function* () {
+      const { captain, assistant } = yield* seed({ model: "test/other-model", prompt: "只找安全问题" })
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const base = stubOps()
+      const seen: SessionPrompt.PromptInput[] = []
+      const ops: TaskPromptOps = {
+        ...base,
+        prompt: (input) => Effect.flatMap(Effect.sync(() => (seen.push(input), input)), base.prompt),
+      }
+
+      yield* def.execute(
+        { description: "审查下载流程", prompt: "review the download flow", subagent_type: "general", name: "小林" },
+        {
+          sessionID: captain.id,
+          messageID: assistant.id,
+          agent: "general",
+          abort: new AbortController().signal,
+          extra: { promptOps: ops },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      expect(seen).toHaveLength(1)
+      // 名册里写的模型真的被用上了，而不是只存在库里给人看。
+      expect(String(seen[0].model?.providerID)).toBe("test")
+      expect(String(seen[0].model?.modelID)).toBe("other-model")
+      const text = seen[0].parts.map((part) => (part.type === "text" ? part.text : "")).join("")
+      // 岗位说明排在任务前面：模型先知道自己是谁，再读要做什么。
+      expect(text).toContain("只找安全问题")
+      expect(text).toContain("review the download flow")
+      expect(text.indexOf("只找安全问题")).toBeLessThan(text.indexOf("review the download flow"))
+    }),
+  )
+
+  it.instance("without a declared instruction the task prompt is untouched", () =>
+    Effect.gen(function* () {
+      const { captain, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const base = stubOps()
+      const seen: SessionPrompt.PromptInput[] = []
+      const ops: TaskPromptOps = {
+        ...base,
+        prompt: (input) => Effect.flatMap(Effect.sync(() => (seen.push(input), input)), base.prompt),
+      }
+
+      yield* def.execute(
+        { description: "审查下载流程", prompt: "review the download flow", subagent_type: "general", name: "小林" },
+        {
+          sessionID: captain.id,
+          messageID: assistant.id,
+          agent: "general",
+          abort: new AbortController().signal,
+          extra: { promptOps: ops },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      const text = seen[0].parts.map((part) => (part.type === "text" ? part.text : "")).join("")
+      expect(text).toBe("review the download flow")
+      // 没声明模型：沿用父消息的模型，不改写。
+      expect(String(seen[0].model?.providerID)).toBe("test")
+      expect(String(seen[0].model?.modelID)).toBe("test-model")
     }),
   )
 

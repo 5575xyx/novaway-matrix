@@ -93,6 +93,88 @@ type Detail = {
   summary: { pass: number; fail: number; unverified: number; stale: number; verdict: string }
 }
 
+/**
+ * 一条更窄的端到端：这次的名册来自模板，且队长**声明了自己的岗位说明与模型**。
+ *
+ * 之前这两个字段只存在库里：`Employee.model` / `Employee.prompt` 从没被读过，
+ * 内置「代码审查团队」五个人拿到的提示词一模一样。这里用一个只有「岗位说明里才有的句子」
+ * 做匹配：模型没收到这句话，就拿不到报告，运行会以格式问题失败 —— 断言的是真实链路。
+ */
+const templateRunTest = () =>
+  Effect.gen(function* () {
+    const llm = yield* TestLLMServer
+    const dir = yield* tmpdirScoped({ git: true })
+    yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)))
+
+    const session = (yield* (yield* post(dir, "/session", { title: "template run" })).json) as { id: string }
+    const person = (yield* (
+      yield* post(dir, "/team/employee", {
+        directory: dir,
+        name: "安全审查",
+        job: "general",
+        // 只有这一句能证明岗位说明真的进了请求：改任何一处都会让匹配落空。
+        prompt: "只找安全问题：注入、越权、凭据泄漏。",
+        model: "test/test-model",
+      })
+    ).json) as { id: string }
+    const profile = (yield* (
+      yield* post(dir, "/team/profile", {
+        directory: dir,
+        name: "安全组",
+        captain: person.id,
+        members: [{ employeeID: person.id }],
+      })
+    ).json) as { profile: { id: string } }
+
+    const created = (yield* (
+      yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "审查一次变更" })
+    ).json) as { run: { id: string } }
+    const id = created.run.id
+    yield* post(dir, `/run/${id}/plan`, {
+      directory: dir,
+      teams: [{ name: "安全组", profileID: profile.profile.id }],
+    })
+    const planned = (yield* (yield* get(dir, `/run/${id}`)).json) as Detail
+    const teamID = planned.teams[0].id
+    const acceptance = (yield* (
+      yield* post(dir, `/run/${id}/acceptance`, {
+        directory: dir,
+        specID: "security",
+        text: "没有凭据泄漏",
+        kind: "rubric",
+        owner: teamID,
+      })
+    ).json) as { id: string }
+    yield* post(dir, `/run/${id}/approve`, {
+      directory: dir,
+      planVersion: planned.run.planVersion,
+      budget: { tokens: 100_000 },
+    })
+
+    const report = JSON.stringify({
+      summary: "没有发现问题",
+      claims: [{ acceptanceID: acceptance.id, text: "检查了注入与越权", evidence: "src/a.ts:1" }],
+      done: true,
+    })
+    const verdict = JSON.stringify({ outcome: "pass", measured: "无泄漏", evidence: "src/a.ts:1" })
+    for (let i = 0; i < 3; i++)
+      yield* llm.textMatch((hit) => JSON.stringify(hit.body).includes("只找安全问题：注入、越权、凭据泄漏。"), report)
+    for (let i = 0; i < 6; i++) yield* llm.textMatch((hit) => JSON.stringify(hit.body).includes("你只做一件事"), verdict)
+
+    expect((yield* post(dir, `/run/${id}/execute`, { directory: dir })).status).toBe(200)
+
+    let detail: Detail | undefined
+    for (let i = 0; i < 150; i++) {
+      detail = (yield* (yield* get(dir, `/run/${id}`)).json) as Detail
+      if (["done", "partial", "failed", "exceeded", "cancelled", "blocked"].includes(detail.run.state)) break
+      yield* Effect.sleep("200 millis")
+    }
+    expect(detail?.run).toMatchObject({ state: "done" })
+    // 名册里的岗位说明真的发给了模型，而不只是存在库里。
+    const hits = yield* llm.hits
+    expect(hits.some((hit) => JSON.stringify(hit.body).includes("【你的岗位说明 · 安全审查（general）】"))).toBe(true)
+  })
+
 describe("team run end-to-end", () => {
   it.live(
     "plans, approves, dispatches, verifies and settles a run",
@@ -177,5 +259,7 @@ describe("team run end-to-end", () => {
       }),
     120_000,
   )
+
+  it.live("a template roster reaches the model with the captain's own instructions", templateRunTest, 120_000)
 })
 

@@ -1,4 +1,4 @@
-import type { Snapshot } from "./profile"
+import type { RosterEntry, Snapshot } from "./profile"
 
 /**
  * 派发时的「这次活记在谁名下」（§10.3）。
@@ -24,10 +24,20 @@ export function identify(input: {
   readonly parentEmployeeID?: string
 }): string | undefined {
   if (!input.captain) return input.parentEmployeeID
+  return resolve({ roster: input.roster, name: input.name })?.employee.id
+}
+
+/**
+ * 按名字找出名册里的那个人；同名多人返回 `undefined`（指错了比不指认更糟）。
+ *
+ * 与 `identify()` 共用同一套匹配规则：归属与「用谁的岗位说明」必须是同一个人，
+ * 两处各写一遍匹配，迟早会在重名、空格、大小写这些边界上分叉。
+ */
+export function resolve(input: { readonly roster?: Snapshot; readonly name?: string }): RosterEntry | undefined {
   const name = input.name?.trim()
   if (!name || !input.roster) return undefined
   const hits = input.roster.roster.filter((entry) => entry.employee.name === name)
-  return hits.length === 1 ? hits[0].employee.id : undefined
+  return hits.length === 1 ? hits[0] : undefined
 }
 
 export * as TeamIdentity from "./identity"

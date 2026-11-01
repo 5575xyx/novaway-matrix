@@ -82,6 +82,12 @@ describe("team profile", () => {
         snapshot.roster.map((entry) => entry.employee.id),
       )
 
+      // 「当时按什么跑的」跟着快照一起落库、一起读回（§5.4 的 effective 块）。
+      expect(restored?.roster[0].effective).toEqual(snapshot.roster[0].effective)
+      // 内置模板里人人都写了岗位说明，所以每条都冻结了它的哈希，且和原文对得上。
+      expect(snapshot.roster.every((entry) => entry.effective?.promptHash?.startsWith("sha256:"))).toBe(true)
+      expect(snapshot.roster[0].effective?.agent).toBe(snapshot.roster[0].employee.job)
+
       // 缺字段 / 类型不对：当没有，而不是拿半份名册派发。
       expect(snapshotFrom(undefined)).toBeUndefined()
       expect(snapshotFrom("snap")).toBeUndefined()
