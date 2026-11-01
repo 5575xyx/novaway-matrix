@@ -98,7 +98,15 @@ type Deps = {
   resolveAppPath: (appName: string) => Promise<string | null>
   loadingWindowComplete: () => void
   runUpdater: (alertOnFail: boolean) => Promise<void> | void
-  checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
+  checkUpdate: (options?: { manual?: boolean }) => Promise<{
+    updateAvailable: boolean
+    version?: string
+    downloaded?: boolean
+    failed?: boolean
+  }>
+  downloadUpdate: () => Promise<{ updateAvailable: boolean; version?: string; downloaded?: boolean; failed?: boolean }>
+  updateStatus: () => unknown
+  setAutoUpdate: (enabled: boolean) => void
   installUpdate: () => Promise<void> | void
   setBackgroundColor: (color: string) => void
   minimizeWindow: () => void
@@ -133,7 +141,12 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("resolve-app-path", (_event: IpcMainInvokeEvent, appName: string) => deps.resolveAppPath(appName))
   ipcMain.on("loading-window-complete", () => deps.loadingWindowComplete())
   ipcMain.handle("run-updater", (_event: IpcMainInvokeEvent, alertOnFail: boolean) => deps.runUpdater(alertOnFail))
-  ipcMain.handle("check-update", () => deps.checkUpdate())
+  ipcMain.handle("check-update", (_event: IpcMainInvokeEvent, options?: { manual?: boolean }) =>
+    deps.checkUpdate(options),
+  )
+  ipcMain.handle("update:download", () => deps.downloadUpdate())
+  ipcMain.handle("update:status", () => deps.updateStatus())
+  ipcMain.handle("update:auto-enabled", (_event: IpcMainInvokeEvent, enabled: boolean) => deps.setAutoUpdate(enabled))
   ipcMain.handle("install-update", () => deps.installUpdate())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
   // 窗口控制：ZCode 在 Header 里内联自绘最小化/最大化/关闭，不用 Windows 原生 titleBarOverlay。
@@ -744,6 +757,14 @@ export function sendMenuCommand(win: BrowserWindow, id: string) {
 // 更新已下载:推给渲染进程,由应用内 toast(而非主进程原生对话框)提示用户。
 export function sendUpdateAvailable(win: BrowserWindow, info: { version?: string }) {
   win.webContents.send("update-available", info)
+}
+
+/**
+ * 每次更新状态变化（检查中 / 有新版本 / 下载中 percent / 已下载 / 出错）都推一次。
+ * 渲染进程据此画那颗更新按钮和进度条 —— 进度由主进程驱动，切页面不会丢。
+ */
+export function sendUpdateStatus(win: BrowserWindow, status: unknown) {
+  win.webContents.send("update-status", status)
 }
 
 export function sendDeepLinks(win: BrowserWindow, urls: string[]) {

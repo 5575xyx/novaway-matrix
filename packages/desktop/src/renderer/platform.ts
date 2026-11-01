@@ -183,11 +183,29 @@ export function createPlatform(): Platform {
 
     storage,
 
-    checkUpdate: async () => {
+    checkUpdate: async (options) => {
       const config = await window.api.getWindowConfig().catch(() => ({ updaterEnabled: false }))
       if (!config.updaterEnabled) return { updateAvailable: false }
-      return window.api.checkUpdate()
+      return window.api.checkUpdate(options)
     },
+
+    downloadUpdate: async () => {
+      const config = await window.api.getWindowConfig().catch(() => ({ updaterEnabled: false }))
+      if (!config.updaterEnabled) return { updateAvailable: false }
+      return window.api.downloadUpdate()
+    },
+
+    // 主进程是更新的唯一事实来源；这里只把状态流原样转给应用层。
+    // 检查中 / 有新版本 / 下载进度 / 已下载都由主进程推，切页面不会丢。
+    onUpdateStatus: (cb) => window.api.onUpdateStatus(cb),
+
+    updateStatus: async () => {
+      const config = await window.api.getWindowConfig().catch(() => ({ updaterEnabled: false }))
+      if (!config.updaterEnabled) return { stage: "idle" }
+      return window.api.updateStatus()
+    },
+
+    setAutoUpdate: (enabled) => window.api.setAutoUpdate(enabled),
 
     // 主进程后台下载完更新会推 update-available;这里原样转成应用层事件。
     // 主进程用「有没有 listener」判断能不能走应用内 toast(见 main/updater.ts)。

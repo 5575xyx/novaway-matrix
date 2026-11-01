@@ -34,6 +34,8 @@ import { TextField } from "@novaway/ui/text-field"
 import { getFilename } from "@novaway/core/util/path"
 import { Session, type Message, type QuestionRequest } from "@novaway/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
+import { canCheckUpdate, checkForUpdate, configureUpdate, downloadUpdate, installUpdate, updateState } from "@/context/update"
+import { DialogUpdateNotes } from "@/components/dialog-update-notes"
 import { branchChannel as branchChannelOf } from "@/utils/session-library"
 import { useSettings } from "@/context/settings"
 import { createStore, produce, reconcile } from "solid-js/store"
@@ -490,51 +492,87 @@ export default function Layout(props: ParentProps) {
     setLocale(next)
   }
 
+  // 更新状态是应用级的（见 context/update.ts）：检查中 / 有新版本 / 下载 percent /
+  // 已下载都由桌面端主进程驱动，切页面不会重置成"空闲"。
+  configureUpdate({ platform, t: language.t })
+
+  const updateButtonLabel = () => {
+    const state = updateState
+    switch (state.stage) {
+      case "checking":
+        return language.t("update.checking")
+      case "downloading":
+        return `${state.percent}%`
+      case "available":
+      case "downloaded":
+        return state.version ? `${language.t("update.ready.label")} ${state.version}` : language.t("update.ready.label")
+      default:
+        return language.t("update.ready.label")
+    }
+  }
+
+  const updateButtonTooltip = () => {
+    const state = updateState
+    switch (state.stage) {
+      case "checking":
+        return language.t("update.checking.tooltip")
+      case "downloading":
+        return language.t("update.downloading.tooltip", { percent: state.percent })
+      case "available":
+        return language.t("update.available.tooltip")
+      case "downloaded":
+        return language.t("update.ready.tooltip")
+      default:
+        return language.t("update.ready.label")
+    }
+  }
+
+  const updateButtonVisible = () => {
+    const state = updateState
+    // 下载完成 → 一律显示（自动检查也一样，和改造前一致）。
+    if (state.stage === "downloaded") return true
+    // 检查中 / 有新版本 / 下载中只在「用户自己点的检查」时显示；
+    // 启动或定时触发的自动检查保持静默，查到就自己下，下完按钮才出现。
+    if (!state.manual) return false
+    return state.stage === "checking" || state.stage === "available" || state.stage === "downloading"
+  }
+
+  const updateButtonBusy = () => updateState.stage === "checking" || updateState.stage === "downloading"
+
+  // icon 组件基础色是 foreground-subtle；绿色按钮上要显式换成白色。
+  const updateIconColor = () => (updateState.stage === "checking" ? "var(--foreground-subtle)" : "#fff")
+
+  // 点按钮先看「这次更新改了什么」：manual 路径在「有新版本」时点开是下载，
+  // 自动路径在「已下载」时点开是安装。两者都先弹更新说明。
+  const onUpdateButtonClick = () => {
+    const stage = updateState.stage
+    if (stage !== "available" && stage !== "downloaded") return
+    const action = stage === "available" ? "download" : "install"
+    dialog.show(() => (
+      <DialogUpdateNotes
+        version={updateState.version}
+        notes={updateState.notes}
+        action={action}
+        busy={updateButtonBusy()}
+        onAction={() => {
+          dialog.close()
+          void (action === "download" ? downloadUpdate() : installUpdate())
+        }}
+      />
+    ))
+  }
+
   const useUpdatePolling = () =>
     onMount(() => {
-      if (!platform.checkUpdate || !platform.updateAndRestart) return
+      if (!canCheckUpdate()) return
 
-      let toastId: number | undefined
       let interval: ReturnType<typeof setInterval> | undefined
-
-      // 更新提示可能来自两处:定时轮询(web/手动)与主进程的 download 完成推送(桌面端)。
-      // 共用同一个 toastId,保证同一时刻只有一条提示。
-      const showUpdate = (version?: string) => {
-        if (toastId !== undefined) return
-        toastId = showToast({
-          persistent: true,
-          icon: "download",
-          title: language.t("toast.update.title"),
-          description: language.t("toast.update.description", { version: version ?? "" }),
-          actions: [
-            {
-              label: language.t("toast.update.action.installRestart"),
-              onClick: async () => {
-                await platform.updateAndRestart!()
-              },
-            },
-            {
-              label: language.t("toast.update.action.notYet"),
-              onClick: "dismiss",
-            },
-          ],
-        })
-      }
-
-      const pollUpdate = () =>
-        platform.checkUpdate!().then(({ updateAvailable, version }) => {
-          if (!updateAvailable) return
-          showUpdate(version)
-        })
-
-      // 桌面端:主进程后台下载完成后主动推送(取代了老式原生 dialog)。这个推送早于
-      // 这里的轮询,所以收到后立即提示,不必等下一次 checkUpdate。
-      const disposeUpdateReady = platform.onUpdateReady?.((event) => {
-        showUpdate(event.version)
-      })
 
       createEffect(() => {
         if (!settings.ready()) return
+
+        // 开关状态同步给主进程：启动检查在主进程里跑，只关渲染进程的轮询等于没关。
+        void platform.setAutoUpdate?.(settings.updates.startup())
 
         if (!settings.updates.startup()) {
           if (interval === undefined) return
@@ -544,12 +582,11 @@ export default function Layout(props: ParentProps) {
         }
 
         if (interval !== undefined) return
-        void pollUpdate()
-        interval = setInterval(pollUpdate, 10 * 60 * 1000)
+        void checkForUpdate()
+        interval = setInterval(() => void checkForUpdate(), 10 * 60 * 1000)
       })
 
       onCleanup(() => {
-        disposeUpdateReady?.()
         if (interval === undefined) return
         clearInterval(interval)
       })
@@ -2497,6 +2534,51 @@ export default function Layout(props: ParentProps) {
               顶带这一行原本只有右上角一个收起按钮，logo 右边这片空白正好放它（用户指定的位置）。
               用胶囊形态，不额外撑出一条工具栏。 */}
           <ModeSwitchButton compact onSelect={(mode) => layout.mode.select(mode.id)} />
+          {/* 更新入口：紧挨着 logo 所在的那条图标栏。
+              检查中 → 灰色"检查中"；查到新版本 → 绿色"更新 vX"（点一下开始下载）；
+              下载中 → 绿色进度条 + 百分比（进度由主进程推，切页面继续走）；
+              下完 → 绿色"更新 vX"（点一下安装并重启）。
+              状态放在应用级 store 里（context/update.ts），所以从设置页发起检查、
+              然后切回会话页，看到的还是"检查中"，不会重置。
+              顶带是窗口拖拽区，但 index.css 已把其中的 button 统一设成 no-drag。 */}
+          <Show when={updateButtonVisible()}>
+            <Tooltip value={updateButtonTooltip()} placement="bottom">
+              <button
+                type="button"
+                data-component="update-ready-button"
+                data-stage={updateState.stage}
+                class="relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden rounded-full px-2 text-12-medium shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-[filter,color,background-color] hover:brightness-110 disabled:opacity-70"
+                classList={{
+                  // 下载中/可下载/已下载用绿色实心；检查中用中性色，避免"有新版本"的误读。
+                  "bg-[#16a34a] text-white": updateState.stage === "available" || updateState.stage === "downloaded",
+                  "border border-border bg-surface text-foreground-subtle": updateState.stage === "checking",
+                  "bg-[#15803d] text-white": updateState.stage === "downloading",
+                }}
+                aria-label={updateButtonTooltip()}
+                disabled={updateButtonBusy()}
+                onClick={onUpdateButtonClick}
+              >
+                {/* 下载进度：一条从左侧填充的浅色层，百分比文本叠在上面。 */}
+                <Show when={updateState.stage === "downloading"}>
+                  <span
+                    class="pointer-events-none absolute inset-y-0 left-0 bg-white/25 transition-[width] duration-300"
+                    style={{ width: `${updateState.percent}%` }}
+                  />
+                </Show>
+                {/* 检查中给一个转圈，避免"点了没反应"的观感。 */}
+                <Show
+                  when={updateState.stage === "checking"}
+                  fallback={<Icon name="download" size="small" style={updateIconColor()} />}
+                >
+                  <span
+                    class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    style={{ color: "var(--foreground-subtle)" }}
+                  />
+                </Show>
+                <span class="relative whitespace-nowrap">{updateButtonLabel()}</span>
+              </button>
+            </Tooltip>
+          </Show>
           {/* 导航控件（设置 → 通用 → 高级 → 导航控件）：前进/后退就放在工作模式选择右边，
               和模式胶囊同一行。以前这两个按钮只在全局标题栏存在，标题栏移除后开关就"没反应"了；
               现在由这里承接，关掉开关整组消失。 */}

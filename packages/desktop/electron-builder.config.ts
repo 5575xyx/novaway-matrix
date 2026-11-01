@@ -55,6 +55,12 @@ const selfPublish = (() => {
 
 const getBase = (): Configuration => ({
   artifactName: "novaway-desktop-${os}-${arch}.${ext}",
+  // 更新说明完全自己写：release-notes.md 的内容会被写进 latest.yml 的 releaseNotes，
+  // 客户端「检查更新」时拿到并显示在更新详情弹窗里（见 src/main/updater.ts）。
+  // 不发版时也必须有这个文件，否则 electron-builder 会报找不到资源。
+  releaseInfo: {
+    releaseNotesFile: "release-notes.md",
+  },
   directories: {
     output: "dist",
     buildResources: "resources",

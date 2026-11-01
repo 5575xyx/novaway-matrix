@@ -1,5 +1,4 @@
 import { Component, Show, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
-import { createStore } from "solid-js/store"
 import { Button } from "@novaway/ui/button"
 import { AiFixButton } from "./ai-fix-button"
 import { Icon } from "@novaway/ui/icon"
@@ -11,6 +10,7 @@ import { useNavigate } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform, type DisplayBackend } from "@/context/platform"
+import { canCheckUpdate, checkForUpdate, updateState } from "@/context/update"
 import { useGlobalSync } from "@/context/global-sync"
 import { useGlobalSDK } from "@/context/global-sdk"
 import {
@@ -91,63 +91,31 @@ export const SettingsGeneral: Component = () => {
   const navigate = useNavigate()
   const layout = useLayout()
   const settings = useSettings()
-  const [store, setStore] = createStore({
-    checking: false,
-  })
 
   const linux = createMemo(() => platform.platform === "desktop" && platform.os === "linux")
   const desktop = createMemo(() => platform.platform === "desktop")
 
-  const check = () => {
-    if (!platform.checkUpdate) return
-    setStore("checking", true)
-
-    void platform
-      .checkUpdate()
-      .then((result) => {
-        if (!result.updateAvailable) {
-          showToast({
-            variant: "success",
-            icon: "circle-check",
-            title: language.t("settings.updates.toast.latest.title"),
-            description: language.t("settings.updates.toast.latest.description", { version: platform.version ?? "" }),
-          })
-          return
-        }
-
-        const actions = platform.updateAndRestart
-          ? [
-              {
-                label: language.t("toast.update.action.installRestart"),
-                onClick: async () => {
-                  await platform.updateAndRestart!()
-                },
-              },
-              {
-                label: language.t("toast.update.action.notYet"),
-                onClick: "dismiss" as const,
-              },
-            ]
-          : [
-              {
-                label: language.t("toast.update.action.notYet"),
-                onClick: "dismiss" as const,
-              },
-            ]
-
-        showToast({
-          persistent: true,
-          icon: "download",
-          title: language.t("toast.update.title"),
-          description: language.t("toast.update.description", { version: result.version ?? "" }),
-          actions,
-        })
+  // 检查中/下载中的状态放在应用级 store 里（context/update.ts）：
+  // 在这里点「立即检查」，切到会话页时侧栏的更新按钮仍然显示「检查中」，
+  // 查到新版本也由那颗按钮接着提示下载，不会因为离开设置页就变回原样。
+  const check = async () => {
+    if (!canCheckUpdate()) return
+    await checkForUpdate({ manual: true })
+    if (updateState.stage === "up-to-date") {
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("settings.updates.toast.latest.title"),
+        description: language.t("settings.updates.toast.latest.description", { version: platform.version ?? "" }),
       })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err)
-        showToast({ title: language.t("common.requestFailed"), description: message })
+      return
+    }
+    if (updateState.stage === "error") {
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: updateState.error ?? "",
       })
-      .finally(() => setStore("checking", false))
+    }
   }
 
   const themeOptions = createMemo<ThemeOption[]>(() => theme.ids().map((id) => ({ id, name: theme.name(id) })))
@@ -616,8 +584,13 @@ export const SettingsGeneral: Component = () => {
           title={language.t("settings.updates.row.check.title")}
           description={language.t("settings.updates.row.check.description")}
         >
-          <Button size="small" variant="secondary" disabled={store.checking || !platform.checkUpdate} onClick={check}>
-            {store.checking
+          <Button
+            size="small"
+            variant="secondary"
+            disabled={updateState.checking || !canCheckUpdate()}
+            onClick={check}
+          >
+            {updateState.checking
               ? language.t("settings.updates.action.checking")
               : language.t("settings.updates.action.checkNow")}
           </Button>

@@ -10,6 +10,27 @@ export type SqliteMigrationProgress = { type: "InProgress"; value: number } | { 
 
 export type WslConfig = { enabled: boolean }
 
+/**
+ * 自动更新的状态机（主进程是唯一事实来源）。
+ *
+ * `available` 在检查完成时立刻发出，不等下载 —— 否则用户点「检查更新」后
+ * 要等安装包下完才有任何反馈。
+ *
+ * `origin` 区分「谁触发的」：启动/定时检查（auto）只在下完后才让更新按钮出现，
+ * 用户手动点「检查更新」（manual）则从「检查中」开始就显示在侧栏。
+ * `notes` 是本次更新的说明，来自打包时写入 latest.yml 的 releaseNotes
+ * （见 packages/desktop/release-notes.md）。
+ */
+export type UpdateStatus = (
+  | { stage: "idle" }
+  | { stage: "checking" }
+  | { stage: "available"; version: string }
+  | { stage: "downloading"; version: string; percent: number; transferred: number; total: number }
+  | { stage: "downloaded"; version: string }
+  | { stage: "up-to-date" }
+  | { stage: "error"; message?: string }
+) & { origin?: "auto" | "manual"; notes?: string }
+
 export type LinuxDisplayBackend = "wayland" | "auto"
 export type TitlebarTheme = {
   mode: "light" | "dark"
@@ -140,6 +161,8 @@ export type ElectronAPI = {
   onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void
   onUpdateAvailable: (cb: (info: { version?: string }) => void) => () => void
+  /** 更新状态流：检查中 → 有新版本 → 下载中(percent) → 已下载。主进程是唯一事实来源。 */
+  onUpdateStatus: (cb: (status: UpdateStatus) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
   onNotificationClick: (cb: (href?: string) => void) => () => void
 
@@ -184,7 +207,23 @@ export type ElectronAPI = {
   onWindowMaximizedChange: (cb: (maximized: boolean) => void) => () => void
   loadingWindowComplete: () => void
   runUpdater: (alertOnFail: boolean) => Promise<void>
-  checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
+  checkUpdate: (options?: { manual?: boolean }) => Promise<{
+    updateAvailable: boolean
+    version?: string
+    downloaded?: boolean
+    failed?: boolean
+  }>
+  /** 下载安装包（手动检查更新里用户点「下载」时调用）。进度通过 onUpdateStatus 推回。 */
+  downloadUpdate: () => Promise<{
+    updateAvailable: boolean
+    version?: string
+    downloaded?: boolean
+    failed?: boolean
+  }>
+  /** 拉一次当前更新状态（窗口重载 / 切页面后同步用）。 */
+  updateStatus: () => Promise<UpdateStatus>
+  /** 「启动时检查更新」开关，持久化到主进程。 */
+  setAutoUpdate: (enabled: boolean) => Promise<void> | void
   installUpdate: () => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
   // file:// 地址转成本地文件预览协议，iframe 才能嵌入本机 HTML

@@ -20,6 +20,7 @@ import {
   sendMenuCommand,
   sendSqliteMigrationProgress,
   sendUpdateAvailable,
+  sendUpdateStatus,
   setMainWindow,
 } from "./ipc"
 import { initLogging } from "./logging"
@@ -44,7 +45,17 @@ import {
   setBackgroundColor,
   setDockIcon,
 } from "./windows"
-import { checkUpdate, checkForUpdates, installUpdate, setupAutoUpdater } from "./updater"
+import {
+  autoUpdateEnabled,
+  checkUpdate,
+  checkForUpdates,
+  downloadUpdate,
+  getUpdateStatus,
+  installUpdate,
+  setAutoUpdateEnabled,
+  setUpdateStatusPublisher,
+  setupAutoUpdater,
+} from "./updater"
 import { Deferred, Effect, Fiber } from "effect"
 
 const APP_NAMES: Record<string, string> = {
@@ -354,8 +365,13 @@ const main = Effect.gen(function* () {
     wslPath: async (path, mode) => wslPath(path, mode),
     resolveAppPath: async (appName) => resolveAppPath(appName),
     loadingWindowComplete: () => Deferred.doneUnsafe(loadingComplete, Effect.void),
-    runUpdater: async (alertOnFail) => checkForUpdates(alertOnFail, killSidecar, notifyRendererUpdateReady),
-    checkUpdate: async () => checkUpdate(),
+    runUpdater: async (alertOnFail) =>
+      // 手动检查：只查到「有新版本」，下载由用户在更新按钮上点，进度实时可见。
+      checkForUpdates(alertOnFail, killSidecar, notifyRendererUpdateReady, { download: false }),
+    checkUpdate: async (options?: { manual?: boolean }) => checkUpdate(options),
+    downloadUpdate: async () => downloadUpdate(),
+    updateStatus: () => getUpdateStatus(),
+    setAutoUpdate: (enabled) => setAutoUpdateEnabled(enabled),
     installUpdate: async () => installUpdate(killSidecar),
     setBackgroundColor: (color) => setBackgroundColor(color),
     // 窗口控制交给渲染层（Header 内联自绘，对齐 ZCode）；win32 不再使用原生 titleBarOverlay。
@@ -378,6 +394,13 @@ const main = Effect.gen(function* () {
   setDockIcon()
   createTray()
   setupAutoUpdater()
+  // 更新状态实时推给渲染进程（检查中 / 有新版本 / 下载进度 / 已下载）。
+  // 窗口还没建好时推不出去，渲染进程挂载后会主动拉一次当前状态。
+  setUpdateStatusPublisher((status) => {
+    const win = mainWindow
+    if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
+    sendUpdateStatus(win, status)
+  })
 
   const needsMigration = ((): boolean => {
     if (process.env.NovaWay_DB === ":memory:") return false
@@ -552,7 +575,7 @@ const main = Effect.gen(function* () {
     createMenu({
       trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
       checkForUpdates: () => {
-        void checkForUpdates(true, killSidecar, notifyRendererUpdateReady)
+        void checkForUpdates(true, killSidecar, notifyRendererUpdateReady, { download: false })
       },
       reload: () => mainWindow?.reload(),
       relaunch: () => {
@@ -577,9 +600,11 @@ const main = Effect.gen(function* () {
 
   overlay?.close()
 
-  // 不阻塞首屏加载;检查会在后台下载,下载完成后推给渲染进程弹应用内 toast,
-  // 用户点"安装并重启"才真正安装(装完由安装器 --force-run 直接拉起新版本)。
-  void checkForUpdates(false, killSidecar, notifyRendererUpdateReady)
+  // 不阻塞首屏加载;启动检查会立刻把「有新版本」推给渲染进程（侧栏按钮随即可见），
+  // 安装包在后台下完再推「已下载」，用户点「安装并重启」才真正安装
+  // (装完由安装器 --force-run 直接拉起新版本)。
+  // 设置里关掉「启动时检查更新」后这里不再检查（开关持久化在主进程 store）。
+  if (autoUpdateEnabled()) void checkForUpdates(false, killSidecar, notifyRendererUpdateReady, { download: true })
 })
 
 Effect.runFork(main)

@@ -52,6 +52,11 @@ const api: ElectronAPI = {
     ipcRenderer.on("update-available", handler)
     return () => ipcRenderer.removeListener("update-available", handler)
   },
+  onUpdateStatus: (cb) => {
+    const handler = (_: unknown, status: import("./types").UpdateStatus) => cb(status)
+    ipcRenderer.on("update-status", handler)
+    return () => ipcRenderer.removeListener("update-status", handler)
+  },
   onDeepLink: (cb) => {
     const handler = (_: unknown, urls: string[]) => cb(urls)
     ipcRenderer.on("deep-link", handler)
@@ -98,7 +103,10 @@ const api: ElectronAPI = {
   },
   loadingWindowComplete: () => ipcRenderer.send("loading-window-complete"),
   runUpdater: (alertOnFail) => ipcRenderer.invoke("run-updater", alertOnFail),
-  checkUpdate: () => ipcRenderer.invoke("check-update"),
+  checkUpdate: (options) => ipcRenderer.invoke("check-update", options),
+  downloadUpdate: () => ipcRenderer.invoke("update:download"),
+  updateStatus: () => ipcRenderer.invoke("update:status"),
+  setAutoUpdate: (enabled) => ipcRenderer.invoke("update:auto-enabled", enabled),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
   toPreviewUrl: (url) => toLocalFileUrl(url),
