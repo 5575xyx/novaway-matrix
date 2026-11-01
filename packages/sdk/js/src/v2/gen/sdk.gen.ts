@@ -6882,7 +6882,39 @@ export class Pptx extends HeyApiClient {
         shapeId?: string
         shapeName?: string
         paragraph?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-        text: string
+        text?: string
+        style?: {
+          bold?: boolean
+          italic?: boolean
+          underline?: boolean
+          size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          color?: string
+          align?: "l" | "ctr" | "r" | "just"
+          font?: string
+        }
+        cell?: {
+          row: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          col: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        }
+      }>
+      shapes?: Array<{
+        slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        shapeId?: string
+        shapeName?: string
+        box?: {
+          x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        }
+        rotation?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }>
+      images?: Array<{
+        slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        shapeId?: string
+        shapeName?: string
+        dataBase64: string
+        mime: string
       }>
     },
     options?: Options<never, ThrowOnError>,
@@ -6896,6 +6928,8 @@ export class Pptx extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "path" },
             { in: "body", key: "edits" },
+            { in: "body", key: "shapes" },
+            { in: "body", key: "images" },
           ],
         },
       ],

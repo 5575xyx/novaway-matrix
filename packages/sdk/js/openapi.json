@@ -15384,14 +15384,273 @@
                           },
                           "text": {
                             "type": "string"
+                          },
+                          "cell": {
+                            "type": "object",
+                            "properties": {
+                              "row": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["NaN"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["-Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity", "-Infinity", "NaN"]
+                                  }
+                                ]
+                              },
+                              "col": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["NaN"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["-Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity", "-Infinity", "NaN"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["row", "col"],
+                            "additionalProperties": false
                           }
                         },
                         "required": ["slide", "shapeId", "paragraph", "previous", "text"],
                         "additionalProperties": false
                       }
+                    },
+                    "shapes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "slide": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "shapeId": {
+                            "type": "string"
+                          },
+                          "shapeName": {
+                            "type": "string"
+                          },
+                          "box": {
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["NaN"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["-Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity", "-Infinity", "NaN"]
+                                  }
+                                ]
+                              },
+                              "y": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["NaN"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["-Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity", "-Infinity", "NaN"]
+                                  }
+                                ]
+                              },
+                              "w": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["NaN"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["-Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity", "-Infinity", "NaN"]
+                                  }
+                                ]
+                              },
+                              "h": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["NaN"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["-Infinity"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity", "-Infinity", "NaN"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["x", "y", "w", "h"],
+                            "additionalProperties": false
+                          },
+                          "rotation": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["slide", "shapeId"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "slide": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["NaN"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["-Infinity"]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "shapeId": {
+                            "type": "string"
+                          },
+                          "shapeName": {
+                            "type": "string"
+                          },
+                          "mediaPath": {
+                            "type": "string"
+                          },
+                          "rId": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["slide", "shapeId", "mediaPath", "rId"],
+                        "additionalProperties": false
+                      }
                     }
                   },
-                  "required": ["path", "bytes", "changed", "applied"],
+                  "required": ["path", "bytes", "changed", "applied", "shapes", "images"],
                   "additionalProperties": false,
                   "description": "Edited PPTX"
                 }
@@ -15479,14 +15738,321 @@
                         },
                         "text": {
                           "type": "string"
+                        },
+                        "style": {
+                          "type": "object",
+                          "properties": {
+                            "bold": {
+                              "type": "boolean"
+                            },
+                            "italic": {
+                              "type": "boolean"
+                            },
+                            "underline": {
+                              "type": "boolean"
+                            },
+                            "size": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "color": {
+                              "type": "string"
+                            },
+                            "align": {
+                              "type": "string",
+                              "enum": ["l", "ctr", "r", "just"]
+                            },
+                            "font": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "cell": {
+                          "type": "object",
+                          "properties": {
+                            "row": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "col": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            }
+                          },
+                          "required": ["row", "col"],
+                          "additionalProperties": false
                         }
                       },
-                      "required": ["slide", "text"],
+                      "required": ["slide"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "shapes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "slide": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "shapeId": {
+                          "type": "string"
+                        },
+                        "shapeName": {
+                          "type": "string"
+                        },
+                        "box": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "y": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "w": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "h": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            }
+                          },
+                          "required": ["x", "y", "w", "h"],
+                          "additionalProperties": false
+                        },
+                        "rotation": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["slide"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "images": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "slide": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "shapeId": {
+                          "type": "string"
+                        },
+                        "shapeName": {
+                          "type": "string"
+                        },
+                        "dataBase64": {
+                          "type": "string"
+                        },
+                        "mime": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["slide", "dataBase64", "mime"],
                       "additionalProperties": false
                     }
                   }
                 },
-                "required": ["path", "edits"],
+                "required": ["path"],
                 "additionalProperties": false
               }
             }

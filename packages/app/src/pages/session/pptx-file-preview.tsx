@@ -35,8 +35,50 @@ import {
   type SlideElementAnchor,
 } from "@/utils/element-comment"
 import { base64ToBytes } from "@/pages/session/office-file-preview"
+import { PptxFormatBar, PptxShapeFrame, PptxTextEditor } from "@/pages/session/pptx-canvas-editor"
+import { readPptxLayout, type PptxBox, type PptxLayoutNode, type PptxTextStyle } from "@novaway/core/office/pptx-edit"
 
 type PptxDoc = PresentationData
+
+/** 原地编辑的请求体：文字/格式、几何、图片三类，可以一次只发其中一类。 */
+type EditPayload = {
+  edits?: Array<{
+    slide: number
+    shapeId?: string
+    shapeName?: string
+    paragraph?: number
+    text?: string
+    style?: PptxTextStyle
+    cell?: { row: number; col: number }
+  }>
+  shapes?: Array<{ slide: number; shapeId?: string; shapeName?: string; box?: PptxBox; rotation?: number }>
+  images?: Array<{ slide: number; shapeId?: string; shapeName?: string; dataBase64: string; mime: string }>
+}
+
+/**
+ * 撤销用的反向样式：只还原「本次真正改过」的字段。
+ * 之前没有值的（比如原本没设颜色）没法还原成「没设」，只能保持现状。
+ */
+function revertStyle(previous: PptxTextStyle, patch: PptxTextStyle): PptxTextStyle {
+  const out: PptxTextStyle = {}
+  if (patch.bold !== undefined) out.bold = previous.bold === true
+  if (patch.italic !== undefined) out.italic = previous.italic === true
+  if (patch.underline !== undefined) out.underline = previous.underline === true
+  if (patch.size !== undefined && previous.size !== undefined) out.size = previous.size
+  if (patch.color !== undefined && previous.color !== undefined) out.color = previous.color
+  if (patch.align !== undefined && previous.align !== undefined) out.align = previous.align
+  if (patch.font !== undefined && previous.font !== undefined) out.font = previous.font
+  return out
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = ""
+  const chunk = 0x8000
+  for (let index = 0; index < bytes.length; index += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk))
+  }
+  return btoa(binary)
+}
 
 async function openPptx(base64: string): Promise<PptxDoc> {
   const buffer = base64ToBytes(base64).buffer as ArrayBuffer
@@ -69,6 +111,33 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
   // 画布内直接改字：paragraphs 与 XML 里的 <a:p> 一一对应，逐段回写。
   const [drafting, setDrafting] = createSignal<string[]>()
   const [saving, setSaving] = createSignal(false)
+  // 拖动/缩放时的实时几何：框跟着鼠标走，松手才落盘。
+  const [liveBox, setLiveBox] = createSignal<PptxBox>()
+  // 撤销栈：每一步存的是「反向操作」，点撤销就原样再发一次。
+  const [history, setHistory] = createSignal<Array<{ label: string; revert: EditPayload }>>([])
+
+  // XML 侧的真相：真实字号/颜色/对齐、单元格、图片关系都在这里。
+  // 渲染器只负责「画」，编辑要改的属性得从原始 XML 读。
+  const [layout] = createResource(
+    () => props.base64,
+    (value) => readPptxLayout(base64ToBytes(value)),
+  )
+  const layoutNode = createMemo<PptxLayoutNode | undefined>(() => {
+    const anchor = target()
+    const nodes = layout()
+    if (!anchor || !nodes) return undefined
+    const sameSlide = nodes.filter((node) => node.slide === anchor.slide)
+    // 先按 id 对，对不上再按形状名 —— 渲染器的 id 与 cNvPr@id 通常一致，
+    // 但对不上时要能退化到名字，而不是直接失去编辑能力。
+    if (anchor.shapeId) {
+      const byId = sameSlide.find((node) => node.shapeId === anchor.shapeId)
+      if (byId) return byId
+    }
+    return anchor.name ? sameSlide.find((node) => node.shapeName === anchor.name) : undefined
+  })
+  const targetBox = createMemo(() => liveBox() ?? layoutNode()?.box ?? target()?.box)
+  const targetStyles = createMemo(() => layoutNode()?.styles ?? [])
+  const targetParagraphs = createMemo(() => layoutNode()?.paragraphs ?? target()?.paragraphs ?? [])
 
   let mainMount: HTMLDivElement | undefined
   // ref 走 signal:主视图容器在 <Show> 内挂载,普通变量在 effect 里读不到挂载时机。
@@ -108,6 +177,32 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
   })
   const displayScale = createMemo(() => fitScale() * zoom())
 
+  // 换文件后撤销栈立刻作废：里面的反向操作指向的是上一份文件的形状。
+  createEffect(
+    on(
+      () => props.path,
+      () => {
+        setHistory([])
+        setTarget(undefined)
+        setDrafting(undefined)
+        setLiveBox(undefined)
+      },
+      { defer: true },
+    ),
+  )
+
+  // 文件被重写后（onEdited → 重新读字节）丢掉拖动时的临时几何，改用新读出来的坐标。
+  createEffect(
+    on(
+      () => props.base64,
+      () => {
+        setLiveBox(undefined)
+        setDrafting(undefined)
+      },
+      { defer: true },
+    ),
+  )
+
   // 换页/换文件后锚点立刻失效：它描述的是「第 N 页上的某个形状」，页面一变就对不上。
   createEffect(
     on(
@@ -140,6 +235,8 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
     materializeSlideNodes(value, slide)
     const node = hitTestNodes(slide.nodes, point)
     setComment("")
+    setDrafting(undefined)
+    setLiveBox(undefined)
     setTarget(
       node
         ? anchorOf(node, page() + 1, value)
@@ -147,41 +244,119 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
     )
   }
 
-  /** 点中带文字的形状 → 进入画布内改字：每一段一个输入框，改完只回写变化的段落。 */
-  const startInlineEdit = () => {
-    const anchor = target()
-    if (anchor?.kind !== "shape" || !anchor.shapeId || !anchor.paragraphs?.length) return
-    setDrafting([...anchor.paragraphs])
+  /** 这一块能不能直接拖：整页和组合没有独立坐标，形状/图片/表格都可以。 */
+  const movable = () => {
+    const kind = target()?.kind
+    return !!layoutNode() && kind !== "slide" && kind !== "group"
   }
 
-  const saveInlineEdit = async () => {
+  const shapeRef = () => {
     const anchor = target()
-    const next = drafting()
-    if (!anchor?.shapeId || !next || !props.path) return
-    const edits = next
-      .map((text, index) => ({ slide: anchor.slide, shapeId: anchor.shapeId, paragraph: index, text }))
-      .filter((item) => item.text !== (anchor.paragraphs?.[item.paragraph] ?? ""))
-    if (edits.length === 0) {
-      setDrafting(undefined)
-      return
-    }
+    const id = layoutNode()?.shapeId ?? anchor?.shapeId
+    if (!anchor || !id) return undefined
+    return { slide: anchor.slide, shapeId: id }
+  }
 
+  /** 发一次原地编辑；给了 revert 就记进撤销栈（撤销 = 把反向操作再发一次）。 */
+  const runEdit = async (payload: EditPayload, label: string, revert?: EditPayload) => {
+    if (!props.path) return false
     setSaving(true)
     try {
-      await sdk.client.office.pptx.edit({ directory: sdk.directory, path: props.path, edits })
-      showToast({ title: "已保存", description: "只改了这一块的文字，其它页与素材未动。" })
-      setDrafting(undefined)
-      setTarget(undefined)
-      setPicking(false)
+      await sdk.client.office.pptx.edit({ directory: sdk.directory, path: props.path, ...payload })
+      if (revert) setHistory((items) => [...items.slice(-19), { label, revert }])
       props.onEdited?.()
+      return true
     } catch (error) {
       showToast({
         title: "保存失败",
-        description: error instanceof Error ? error.message : "这个形状没法原地改字。",
+        description: error instanceof Error ? error.message : "这块内容没法原地修改。",
       })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  const undo = async () => {
+    const entry = history().at(-1)
+    if (!entry) return
+    setHistory((items) => items.slice(0, -1))
+    if (await runEdit(entry.revert, entry.label)) showToast({ title: "已撤销", description: entry.label })
+  }
+
+  /** 拖动/缩放松手：写回几何（只动这一个块）。 */
+  const commitBox = async (box: PptxBox) => {
+    const ref = shapeRef()
+    const previous = layoutNode()?.box
+    if (!ref || !previous) {
+      setLiveBox(undefined)
+      return
+    }
+    // 成功后不清 liveBox：等新字节回来、layout 一更新再撤，
+    // 否则框会先跳回旧位置再跳过去。
+    const ok = await runEdit({ shapes: [{ ...ref, box }] }, "移动/缩放", { shapes: [{ ...ref, box: previous }] })
+    if (!ok) setLiveBox(undefined)
+  }
+
+  /** 旋转：写回 `<a:xfrm rot>`，单位度。 */
+  const commitRotation = async (rotation: number) => {
+    const ref = shapeRef()
+    const previous = layoutNode()?.rotation ?? 0
+    if (!ref) return
+    await runEdit({ shapes: [{ ...ref, rotation }] }, "旋转", { shapes: [{ ...ref, rotation: previous }] })
+  }
+
+  /** 格式：整块统一改；正在改字时只改当前这一段。 */
+  const applyStyle = async (patch: PptxTextStyle, paragraph?: number) => {
+    const ref = shapeRef()
+    if (!ref) return
+    const styles = targetStyles()
+    const indices = paragraph === undefined ? targetParagraphs().map((_, index) => index) : [paragraph]
+    if (indices.length === 0) return
+    await runEdit({ edits: indices.map((index) => ({ ...ref, paragraph: index, style: patch })) }, "改格式", {
+      edits: indices.map((index) => ({ ...ref, paragraph: index, style: revertStyle(styles[index] ?? {}, patch) })),
+    })
+  }
+
+  /** 原地改字：逐段对比，只把改过的段落发上去。 */
+  let editTexts: string[] = []
+  const startInlineEdit = () => {
+    if (drafting()) return
+    const paragraphs = targetParagraphs()
+    if (target()?.kind !== "shape" || !target()?.shapeId || paragraphs.length === 0) return
+    setComment("")
+    editTexts = [...paragraphs]
+    setDrafting([...paragraphs])
+  }
+
+  const saveInlineEdit = async () => {
+    const ref = shapeRef()
+    const next = editTexts
+    const previous = targetParagraphs()
+    if (!ref || !next) return
+    setDrafting(undefined)
+    const edits = next
+      .map((text, index) => ({ ...ref, paragraph: index, text }))
+      .filter((item) => item.text !== (previous[item.paragraph] ?? ""))
+    if (edits.length === 0) return
+    const ok = await runEdit({ edits }, "改文字", {
+      edits: previous.map((text, index) => ({ ...ref, paragraph: index, text })),
+    })
+    if (ok) {
+      showToast({ title: "已保存", description: "只改了这一块的文字，其它页与素材未动。" })
+      setPicking(false)
+    }
+  }
+
+  /** 替换图片：新图作为独立媒体条目写进包里，旧图不动。 */
+  let imageInput: HTMLInputElement | undefined
+  const chooseImage = () => imageInput?.click()
+  const applyImage = async (file: File | undefined) => {
+    const ref = shapeRef()
+    if (!ref || !file) return
+    const dataBase64 = bytesToBase64(new Uint8Array(await file.arrayBuffer()))
+    const ok = await runEdit({ images: [{ ...ref, dataBase64, mime: file.type || "image/png" }] }, "替换图片")
+    if (ok) showToast({ title: "已替换图片", description: "版式与其它素材未变。" })
   }
 
   const addCommentToConversation = () => {
@@ -282,6 +457,7 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                     width: `${pageSize().width * displayScale()}px`,
                     height: `${pageSize().height * displayScale()}px`,
                   }}
+                  onDblClick={() => startInlineEdit()}
                 >
                   <div
                     ref={mainMount}
@@ -293,7 +469,8 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                     }}
                   />
                   {/* 准星层：盖在渲染结果上接管点击，只在选取模式下存在。
-                      放在缩放到最终尺寸的盒子里，点击坐标就是屏幕坐标。 */}
+                      放在缩放到最终尺寸的盒子里，点击坐标就是屏幕坐标。
+                      双击 = 直接进画布改字（和 PowerPoint 一样）。 */}
                   <Show when={picking()}>
                     <div
                       data-component="pptx-pick-layer"
@@ -301,143 +478,65 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                       onClick={pickAt}
                     />
                   </Show>
-                  {/* 画布内改字：输入框就压在被框住的那块位置，改完写回 slideN.xml。 */}
-                  <Show when={drafting() && target()?.box}>
-                    <div
-                      data-component="pptx-inline-editor"
-                      class="absolute z-30 flex flex-col gap-0.5 overflow-auto rounded-[2px] border-2 border-emerald-400 bg-white/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
-                      style={{
-                        left: `${(target()?.box?.x ?? 0) * displayScale()}px`,
-                        top: `${(target()?.box?.y ?? 0) * displayScale()}px`,
-                        width: `${Math.max(120, (target()?.box?.w ?? 0) * displayScale())}px`,
-                        height: `${Math.max(40, (target()?.box?.h ?? 0) * displayScale())}px`,
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          event.preventDefault()
-                          setDrafting(undefined)
-                          return
-                        }
-                        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                          event.preventDefault()
-                          void saveInlineEdit()
-                        }
-                      }}
-                    >
-                      <For each={drafting()}>
-                        {(text, index) => (
-                          <input
-                            value={text}
-                            ref={(element) => {
-                              // 挂载时 Solid 还没把它插进 DOM，下一帧再抢焦点。
-                              if (index() === 0) queueMicrotask(() => element.focus())
-                            }}
-                            onFocus={(event) => event.currentTarget.select()}
-                            onInput={(event) => {
-                              const value = event.currentTarget.value
-                              setDrafting((current) =>
-                                (current ?? []).map((item, at) => (at === index() ? value : item)),
-                              )
-                            }}
-                            class="w-full rounded-[2px] border border-transparent bg-transparent px-1 py-0.5 text-black outline-none focus:border-emerald-400 focus:bg-emerald-50"
-                            style={{ "font-size": `${Math.min(28, Math.max(12, displayScale() * 18))}px` }}
-                          />
-                        )}
-                      </For>
-                    </div>
-                  </Show>
-                  {/* 选中框：位置按 displayScale 换算回屏幕像素，只是给人看的，不挡点击。 */}
-                  <Show when={target()?.box}>
+                  {/* 选中框：可以拖动整块，八个把手改尺寸；松手才写回文件。 */}
+                  <Show when={targetBox()}>
                     {(box) => (
-                      <div
-                        class="pointer-events-none absolute z-20 border-2 border-emerald-400 bg-emerald-400/10"
-                        style={{
-                          left: `${box().x * displayScale()}px`,
-                          top: `${box().y * displayScale()}px`,
-                          width: `${box().w * displayScale()}px`,
-                          height: `${box().h * displayScale()}px`,
-                        }}
+                      <PptxShapeFrame
+                        box={box()}
+                        scale={displayScale()}
+                        rotation={layoutNode()?.rotation}
+                        movable={movable()}
+                        onLive={setLiveBox}
+                        onCommit={(next) => void commitBox(next)}
+                        onRotate={(degrees) => void commitRotation(degrees)}
                       />
                     )}
+                  </Show>
+                  {/* 原地改字：半透明画布压在被框住的位置，字体字号照 XML 里的实际值。 */}
+                  <Show when={drafting() && targetBox()}>
+                    <PptxTextEditor
+                      box={targetBox()!}
+                      scale={displayScale()}
+                      paragraphs={drafting()!}
+                      styles={targetStyles()}
+                      onInput={(index, text) => {
+                        editTexts[index] = text
+                      }}
+                      onSave={() => void saveInlineEdit()}
+                      onCancel={() => setDrafting(undefined)}
+                    />
                   </Show>
                 </div>
               </div>
             </div>
           </div>
-          {/* 元素评论：选中后写一句话，挂到输入框上方，发送时随消息带给模型。 */}
+          {/* 元素面板：选中后可以直接改（画布拖动/改字/格式/换图），也可以写一句话交给 AI。 */}
           <Show when={target()}>
             {(anchor) => (
               <div class="flex shrink-0 flex-col gap-2 border-t border-border bg-panel px-3 py-2.5">
                 <div class="flex min-w-0 items-center gap-1.5">
                   <Icon name="window-cursor" size="small" class="shrink-0 text-foreground-subtle" />
                   <span class="truncate text-12-medium text-foreground">{slideElementLabel(anchor())}</span>
+                  <Show when={history().length > 0}>
+                    <button
+                      type="button"
+                      data-action="pptx-undo"
+                      class="ml-1 shrink-0 rounded px-1.5 py-0.5 text-11-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground disabled:opacity-40"
+                      disabled={saving()}
+                      title={`撤销：${history().at(-1)?.label ?? ""}`}
+                      onClick={() => void undo()}
+                    >
+                      撤销
+                    </button>
+                  </Show>
                   <span class="ml-auto shrink-0 text-11-regular text-foreground-subtlest">
-                    说一句要改什么，发送后由 AI 改这一页
+                    {drafting() ? "⌘/Ctrl+Enter 保存，Esc 取消" : "拖动可移动，双击可直接改字"}
                   </span>
                 </div>
-                {/* 直接改字：画布上压一层输入框，回车/点保存写回 slideN.xml（只动这一块）。 */}
-                <Show
-                  when={drafting()}
-                  fallback={
-                    <>
-                      <textarea
-                        value={comment()}
-                        onInput={(event) => setComment(event.currentTarget.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape") {
-                            event.preventDefault()
-                            setTarget(undefined)
-                            return
-                          }
-                          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                            event.preventDefault()
-                            addCommentToConversation()
-                          }
-                        }}
-                        placeholder="例如：这张卡片换成蓝绿色；标题字号再大一点…"
-                        class="min-h-14 w-full resize-y rounded-lg border border-border bg-background p-2 text-12-regular leading-relaxed text-foreground outline-none transition-colors focus:border-border-hover"
-                      />
-                      <div class="flex items-center gap-2">
-                        <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
-                          添加到对话后可在输入框继续补充
-                        </span>
-                        <Show
-                          when={
-                            props.path && anchor().kind === "shape" && anchor().shapeId && anchor().paragraphs?.length
-                          }
-                        >
-                          <button
-                            type="button"
-                            data-action="pptx-inline-start"
-                            title="直接在画布上改这段文字，只改这一个形状"
-                            class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                            onClick={startInlineEdit}
-                          >
-                            直接改字
-                          </button>
-                        </Show>
-                        <button
-                          type="button"
-                          class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                          onClick={() => setTarget(undefined)}
-                        >
-                          取消
-                        </button>
-                        <button
-                          type="button"
-                          data-action="pptx-pick-add"
-                          class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20"
-                          onClick={addCommentToConversation}
-                        >
-                          添加到对话
-                        </button>
-                      </div>
-                    </>
-                  }
-                >
+                <Show when={drafting()}>
                   <div class="flex items-center gap-2">
                     <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
-                      改动只写回这一块的文字，其它页与素材不动；⌘/Ctrl+Enter 保存
+                      改动只写回这一块的文字，其它页与素材不动
                     </span>
                     <button
                       type="button"
@@ -457,9 +556,88 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                     </button>
                   </div>
                 </Show>
+                <Show when={!drafting()}>
+                  <Show when={targetParagraphs().length > 0}>
+                    <PptxFormatBar
+                      style={targetStyles()[0] ?? {}}
+                      disabled={saving()}
+                      onChange={(patch) => void applyStyle(patch)}
+                    />
+                  </Show>
+                  <textarea
+                    value={comment()}
+                    onInput={(event) => setComment(event.currentTarget.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault()
+                        setTarget(undefined)
+                        return
+                      }
+                      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault()
+                        addCommentToConversation()
+                      }
+                    }}
+                    placeholder="例如：这张卡片换成蓝绿色；标题字号再大一点…"
+                    class="min-h-12 w-full resize-y rounded-lg border border-border bg-background p-2 text-12-regular leading-relaxed text-foreground outline-none transition-colors focus:border-border-hover"
+                  />
+                  <div class="flex items-center gap-2">
+                    <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
+                      改不动的地方写一句，发送后由 AI 改这一页
+                    </span>
+                    <Show when={props.path && anchor().kind === "shape" && targetParagraphs().length > 0}>
+                      <button
+                        type="button"
+                        data-action="pptx-inline-start"
+                        title="直接在画布上改这段文字，只改这一个形状"
+                        class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                        onClick={startInlineEdit}
+                      >
+                        改字
+                      </button>
+                    </Show>
+                    <Show when={props.path && anchor().kind === "picture"}>
+                      <button
+                        type="button"
+                        data-action="pptx-replace-image"
+                        title="换一张图片，位置和尺寸保持不变"
+                        class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                        onClick={chooseImage}
+                      >
+                        换图
+                      </button>
+                    </Show>
+                    <button
+                      type="button"
+                      class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                      onClick={() => setTarget(undefined)}
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      data-action="pptx-pick-add"
+                      class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20"
+                      onClick={addCommentToConversation}
+                    >
+                      添加到对话
+                    </button>
+                  </div>
+                </Show>
               </div>
             )}
           </Show>
+          <input
+            ref={imageInput}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+            class="hidden"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ""
+              void applyImage(file)
+            }}
+          />
           {/* 底部翻页/缩放条(对齐 ZCode 的 1/14 与缩放控件)。 */}
           <div class="flex h-10 shrink-0 items-center gap-3 border-t border-border px-3">
             <div class="flex min-w-0 flex-1 items-center">

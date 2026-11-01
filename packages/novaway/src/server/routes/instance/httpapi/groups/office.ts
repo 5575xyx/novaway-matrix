@@ -73,21 +73,62 @@ export const OfficePptxTemplateFillPayload = Schema.Struct({
 })
 
 /**
- * PPTX 文本原地编辑：只改指定形状的某一段文字，其余 zip 条目原样拷贝。
+ * PPTX 原地编辑：文字、格式、几何、图片替换，全部只重写被点中的那个块。
  * 这是「改一个字就改一个 shape」的落点 —— UI 的画布编辑和 Agent 的
  * office_pptx_edit 工具都走这一条。
  */
+export const OfficePptxStyle = Schema.Struct({
+  bold: Schema.optional(Schema.Boolean),
+  italic: Schema.optional(Schema.Boolean),
+  underline: Schema.optional(Schema.Boolean),
+  size: Schema.optional(Schema.Number),
+  color: Schema.optional(Schema.String),
+  align: Schema.optional(Schema.Literals(["l", "ctr", "r", "just"])),
+  font: Schema.optional(Schema.String),
+})
+
 export const OfficePptxEditPayload = Schema.Struct({
   /** 工作区相对路径，可以是任意位置的 .pptx */
   path: Schema.String,
-  edits: Schema.Array(
-    Schema.Struct({
-      slide: Schema.Number,
-      shapeId: Schema.optional(Schema.String),
-      shapeName: Schema.optional(Schema.String),
-      paragraph: Schema.optional(Schema.Number),
-      text: Schema.String,
-    }),
+  /** 文字/格式：text 省略表示只改样式 */
+  edits: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        slide: Schema.Number,
+        shapeId: Schema.optional(Schema.String),
+        shapeName: Schema.optional(Schema.String),
+        paragraph: Schema.optional(Schema.Number),
+        text: Schema.optional(Schema.String),
+        style: Schema.optional(OfficePptxStyle),
+        cell: Schema.optional(Schema.Struct({ row: Schema.Number, col: Schema.Number })),
+      }),
+    ),
+  ),
+  /** 几何：位置/尺寸（EMU）+ 旋转（度） */
+  shapes: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        slide: Schema.Number,
+        shapeId: Schema.optional(Schema.String),
+        shapeName: Schema.optional(Schema.String),
+        box: Schema.optional(
+          Schema.Struct({ x: Schema.Number, y: Schema.Number, w: Schema.Number, h: Schema.Number }),
+        ),
+        rotation: Schema.optional(Schema.Number),
+      }),
+    ),
+  ),
+  /** 图片替换：新图片以 base64 传入，会作为新媒体条目进包 */
+  images: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        slide: Schema.Number,
+        shapeId: Schema.optional(Schema.String),
+        shapeName: Schema.optional(Schema.String),
+        dataBase64: Schema.String,
+        mime: Schema.String,
+      }),
+    ),
   ),
 })
 
@@ -103,6 +144,25 @@ export const OfficePptxEditResponse = Schema.Struct({
       paragraph: Schema.Number,
       previous: Schema.String,
       text: Schema.String,
+      cell: Schema.optional(Schema.Struct({ row: Schema.Number, col: Schema.Number })),
+    }),
+  ),
+  shapes: Schema.Array(
+    Schema.Struct({
+      slide: Schema.Number,
+      shapeId: Schema.String,
+      shapeName: Schema.optional(Schema.String),
+      box: Schema.optional(Schema.Struct({ x: Schema.Number, y: Schema.Number, w: Schema.Number, h: Schema.Number })),
+      rotation: Schema.optional(Schema.Number),
+    }),
+  ),
+  images: Schema.Array(
+    Schema.Struct({
+      slide: Schema.Number,
+      shapeId: Schema.String,
+      shapeName: Schema.optional(Schema.String),
+      mediaPath: Schema.String,
+      rId: Schema.String,
     }),
   ),
 })

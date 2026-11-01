@@ -11590,12 +11590,44 @@ export type OfficePptxTemplateFillResponse = OfficePptxTemplateFillResponses[key
 export type OfficePptxEditData = {
   body?: {
     path: string
-    edits: Array<{
+    edits?: Array<{
       slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       shapeId?: string
       shapeName?: string
       paragraph?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-      text: string
+      text?: string
+      style?: {
+        bold?: boolean
+        italic?: boolean
+        underline?: boolean
+        size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        color?: string
+        align?: "l" | "ctr" | "r" | "just"
+        font?: string
+      }
+      cell?: {
+        row: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        col: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    }>
+    shapes?: Array<{
+      slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      shapeId?: string
+      shapeName?: string
+      box?: {
+        x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+      rotation?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    images?: Array<{
+      slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      shapeId?: string
+      shapeName?: string
+      dataBase64: string
+      mime: string
     }>
   }
   path?: never
@@ -11630,6 +11662,29 @@ export type OfficePptxEditResponses = {
       paragraph: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       previous: string
       text: string
+      cell?: {
+        row: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        col: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    }>
+    shapes: Array<{
+      slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      shapeId: string
+      shapeName?: string
+      box?: {
+        x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+      rotation?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    images: Array<{
+      slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      shapeId: string
+      shapeName?: string
+      mediaPath: string
+      rId: string
     }>
   }
 }

@@ -5,7 +5,7 @@ import { mkdir, readFile, readdir, rename, stat, writeFile } from "fs/promises"
 import path from "path"
 import { InstanceState } from "@/effect/instance-state"
 import { OfficePlatform } from "@/office/platform"
-import { editPptxText } from "@novaway/core/office/pptx-text-edit"
+import { editPptx as applyPptxEdit } from "@novaway/core/office/pptx-edit"
 import { fillPptxTemplateText } from "@/util/office-document"
 import { InstanceHttpApi } from "../api"
 import { OfficeArtifactPayload, OfficePptxEditPayload, OfficePptxTemplateFillPayload } from "../groups/office"
@@ -133,7 +133,8 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
     })
 
     /**
-     * 原地改 PPTX 文字：只重写被点中的那几个 shape，其它 zip 条目逐字节拷贝。
+     * 原地改 PPTX：文字、格式、几何、图片替换，只重写被点中的那几个块，
+     * 其它 zip 条目逐字节拷贝。
      * 写回用「临时文件 + rename」——用户正拿 PowerPoint 打开这份文件时，
      * 直接覆盖会让他拿到半个文件。
      */
@@ -145,7 +146,10 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
         .join("/")
         .replace(/^(?:\.\/)+/, "")
         .replace(/^\/+/, "")
-      if (!relative.toLowerCase().endsWith(".pptx") || ctx.payload.edits.length === 0)
+      const edits = ctx.payload.edits ?? []
+      const shapes = ctx.payload.shapes ?? []
+      const images = ctx.payload.images ?? []
+      if (!relative.toLowerCase().endsWith(".pptx") || edits.length + shapes.length + images.length === 0)
         return yield* new HttpApiError.BadRequest({})
 
       const state = yield* InstanceState.context
@@ -157,7 +161,18 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       const result = yield* Effect.tryPromise({
         try: async () => {
           const bytes = new Uint8Array(await readFile(target))
-          const edited = await editPptxText({ bytes, edits: ctx.payload.edits })
+          const edited = await applyPptxEdit({
+            bytes,
+            textEdits: edits,
+            shapeEdits: shapes,
+            imageEdits: images.map((image) => ({
+              slide: image.slide,
+              shapeId: image.shapeId,
+              shapeName: image.shapeName,
+              mime: image.mime,
+              data: new Uint8Array(Buffer.from(image.dataBase64, "base64")),
+            })),
+          })
           const temp = `${target}.novaway-edit-${Date.now()}`
           await writeFile(temp, edited.bytes)
           await rename(temp, target)
@@ -170,7 +185,15 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
         path: relative,
         bytes: result.bytes.length,
         changed: result.changed,
-        applied: result.applied,
+        applied: result.textApplied,
+        shapes: result.shapeApplied,
+        images: result.imageApplied.map((item) => ({
+          slide: item.slide,
+          shapeId: item.shapeId,
+          shapeName: item.shapeName,
+          mediaPath: item.mediaPath,
+          rId: item.rId,
+        })),
       }
     })
 

@@ -580,6 +580,43 @@ describe("HttpApi SDK", () => {
   )
 
   httpapiInstance(
+    "moves and restyles a pptx shape without touching other slides",
+    { serverPath: "raw", git: false },
+    ({ sdk, directory }) =>
+      Effect.gen(function* () {
+        const original = yield* call(() => pptxTextEditFixture())
+        yield* AppFileSystem.Service.use((fs) => fs.writeFile(path.join(directory, "deck.pptx"), original))
+
+        const moved = yield* call(() =>
+          sdk.office.pptx.edit({
+            directory,
+            path: "deck.pptx",
+            shapes: [{ slide: 1, shapeId: "2", box: { x: 1, y: 2, w: 3, h: 4 } }],
+          }),
+        )
+        const styled = yield* call(() =>
+          sdk.office.pptx.edit({
+            directory,
+            path: "deck.pptx",
+            edits: [{ slide: 1, shapeId: "2", paragraph: 0, style: { bold: true, size: 32, color: "FF0000" } }],
+          }),
+        )
+        const saved = yield* AppFileSystem.Service.use((fs) => fs.readFile(path.join(directory, "deck.pptx")))
+        const slide1 = Buffer.from(yield* call(() => zipEntryBytes(saved, "ppt/slides/slide1.xml"))).toString()
+        const slide2 = yield* call(() => zipEntryBytes(saved, "ppt/slides/slide2.xml"))
+
+        expect(moved.response.status).toBe(200)
+        expect(moved.data?.shapes?.[0]).toMatchObject({ shapeId: "2", box: { x: 1, y: 2, w: 3, h: 4 } })
+        expect(styled.response.status).toBe(200)
+        expect(slide1).toContain('<a:off x="1" y="2"/>')
+        expect(slide1).toContain('<a:ext cx="3" cy="4"/>')
+        expect(slide1).toContain('sz="3200"')
+        expect(slide1).toContain('<a:srgbClr val="FF0000"/>')
+        expect(Buffer.from(slide2).toString()).toBe(PPTX_EDIT_SLIDE_TWO)
+      }),
+  )
+
+  httpapiInstance(
     "rejects pptx text edits that match nothing",
     { serverPath: "raw", git: false },
     ({ sdk, directory }) =>
