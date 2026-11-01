@@ -329,6 +329,60 @@ Write Godot gameplay scripts.
   )
 
   it.live(
+    "keeps the chosen avatar on the agent file and in its runtime options",
+    Effect.gen(function* () {
+      const tmp = yield* tmpdirEffect({ config: { formatter: false, lsp: false } })
+
+      const saved = yield* Effect.promise(() =>
+        Promise.resolve(
+          app().request("/settings/agents/avatar-agent", {
+            method: "PUT",
+            headers: {
+              "x-opencode-directory": tmp.path,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              data: { description: "Avatar picker smoke test.", mode: "subagent", avatar: "plum" },
+              content: "You are a test agent.",
+            }),
+          }),
+        ),
+      )
+      expect(saved.status).toBe(200)
+
+      const listed = yield* Effect.promise(() =>
+        Promise.resolve(
+          app().request("/settings/agents", {
+            headers: { "x-opencode-directory": tmp.path },
+          }),
+        ),
+      )
+      expect(listed.status).toBe(200)
+      const files = (yield* Effect.promise(() => listed.json())) as Array<{
+        name: string
+        data: Record<string, unknown>
+      }>
+      expect(files.find((file) => file.name === "avatar-agent")?.data.avatar).toBe("plum")
+
+      // 界面读的是运行时 options：frontmatter 里的自定义字段会被归一化进 options，
+      // 头像选择因此能在设置列表、团队页、详情里统一生效。
+      const agents = yield* Effect.promise(() =>
+        Promise.resolve(
+          app().request("/agent", {
+            headers: { "x-opencode-directory": tmp.path },
+          }),
+        ),
+      )
+      expect(agents.status).toBe(200)
+      const list = (yield* Effect.promise(() => agents.json())) as Array<{
+        name: string
+        options?: Record<string, unknown>
+      }>
+      expect(list.find((agent) => agent.name === "avatar-agent")?.options?.avatar).toBe("plum")
+    }),
+  )
+
+  it.live(
     "finds project instruction using the same upward lookup as sessions",
     Effect.gen(function* () {
       const tmp = yield* tmpdirEffect({ config: { formatter: false, lsp: false } })
