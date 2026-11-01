@@ -151,7 +151,7 @@ import {
   TeamDeleteTool,
   TeamListTool,
 } from "./task-tools"
-import { TeamRunTool } from "./team-run"
+import { TeamRunStatusTool, TeamRunTool } from "./team-run"
 import * as TeamSwitch from "@/team/switch"
 import { Global } from "@novaway/core/global"
 import * as ExtensionLoader from "@/extension/loader"
@@ -277,6 +277,8 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
     maxResultBytes: 200_000,
   },
   team_run: { concurrencySafe: false },
+  // 查运行状态是只读的：不推进、不花钱，重跑结果相同。
+  team_run_status: { readOnly: true, concurrencySafe: true, idempotent: true },
   team_create: { concurrencySafe: false },
   team_delete: { concurrencySafe: false },
   team_list: { readOnly: true, concurrencySafe: true, idempotent: true },
@@ -553,6 +555,7 @@ export const layer: Layer.Layer<
     const worktreeExitTool = yield* WorktreeExitTool
     // team_run 只依赖可选服务，内部用 serviceOption 解析；没有团队服务时它会自己拒绝。
     const teamRunTool = yield* TeamRunTool
+    const teamRunStatusTool = yield* TeamRunStatusTool
     const teamTool = yield* optional(TeamServiceInterface, TeamCreateTool)
     const teamDeleteTool = yield* optional(TeamServiceInterface, TeamDeleteTool)
     const teamListTool = yield* optional(TeamServiceInterface, TeamListTool)
@@ -771,6 +774,7 @@ export const layer: Layer.Layer<
           workflow: workflow ? Tool.init(workflow) : Effect.succeed(undefined),
           orchestrator: orchestrator ? Tool.init(orchestrator) : Effect.succeed(undefined),
           team_run: Tool.init(teamRunTool),
+          team_run_status: Tool.init(teamRunStatusTool),
           team_create: teamTool ? Tool.init(teamTool) : Effect.succeed(undefined),
           team_delete: teamDeleteTool ? Tool.init(teamDeleteTool) : Effect.succeed(undefined),
           team_list: teamListTool ? Tool.init(teamListTool) : Effect.succeed(undefined),
@@ -901,7 +905,7 @@ export const layer: Layer.Layer<
           tool.goal!,
           tool.workflow!,
           tool.orchestrator!,
-          ...(teamOrchestrationEnabled ? [tool.team_run] : []),
+          ...(teamOrchestrationEnabled ? [tool.team_run, tool.team_run_status] : []),
           tool.team_create!,
           tool.team_delete,
           tool.team_list,

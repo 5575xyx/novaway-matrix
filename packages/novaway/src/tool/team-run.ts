@@ -5,6 +5,7 @@ import { Service as TeamRunService } from "@/team/run"
 import { Service as TeamVerificationService } from "@/team/verification"
 import { Service as TeamMissionService } from "@/team/mission"
 import { Service as SessionService } from "@/session/session"
+import { Service as TeamOpLogService } from "@/team/op-log"
 import { fromLive } from "@/team/roster"
 import { attachMission, prepareWorktree } from "@/team/setup"
 import * as TeamSwitch from "@/team/switch"
@@ -261,8 +262,107 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             needsApproval
               ? "Ask the user to review and approve it in the Runs page; it will not start on its own."
               : "The user can start it from the Runs page.",
+            // 运行是分叉出去的：告诉模型怎么查，而不是让它下次凭记忆下结论。
+            "Check progress with team_run_status instead of assuming it finished.",
           ].join("\n"),
           metadata: { runID: run.id, state: needsApproval ? "awaiting_approval" : "planned" },
+        }
+      }).pipe(Effect.orDie),
+  }),
+)
+
+/**
+ * `team_run_status`：主智能体怎么知道「那次运行后来怎么样了」（§13）。
+ *
+ * 运行是分叉出去的，`team_run` 在计划落库后就返回了句柄；之后用户批准、执行、返工、
+ * 合并都发生在别处。没有这个入口，模型只能靠猜 —— 而猜测会变成「已经修好了」这种假汇报。
+ *
+ * 三条约束：
+ * 1. **只答自己发起的运行。** 会话里只能查本会话创建的运行，不提供跨会话检索。
+ * 2. **只回结论与计数，不回内容。** 报告原文、命令、路径一概不出：它们可能很长，
+ *    也可能夹带不该进日志的东西（与运行页、回放同一条约束）。
+ * 3. **说话要跟着状态走。** 「等批准」「正在跑」「需要核对副作用」是三种不同的下一步，
+ *    不能都回一句「进行中」。
+ */
+export const TeamRunStatusParameters = Schema.Struct({
+  runID: Schema.optional(Schema.String).annotate({
+    description: "The run to inspect. Defaults to the newest run created from this session.",
+  }),
+})
+
+export const TeamRunStatusTool = Tool.define<typeof TeamRunStatusParameters, { runID?: string; state?: string }, never>(
+  "team_run_status",
+  Effect.succeed({
+    description: [
+      "Check a team run started from this session: state, per-team phase, verification counts and whether",
+      "any tool operation still needs human review. Returns facts only — never the captain's report text.",
+      "Use it instead of assuming a run finished; a run that produced nothing ends as partial, never done.",
+    ].join(" "),
+    parameters: TeamRunStatusParameters,
+    capabilities: { readOnly: true, concurrencySafe: true, idempotent: true },
+    execute: (params: Schema.Schema.Type<typeof TeamRunStatusParameters>, ctx: Tool.Context) =>
+      Effect.gen(function* () {
+        const runs = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
+        const verification = Option.getOrUndefined(yield* Effect.serviceOption(TeamVerificationService))
+        const opLog = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
+        if (!runs) return { title: "Team runs unavailable", output: "Team orchestration is not enabled in this runtime.", metadata: {} }
+
+        const run = params.runID
+          ? yield* runs.get(params.runID)
+          : (yield* runs.list({ sessionID: ctx.sessionID }))[0]
+        if (!run)
+          return {
+            title: "No team run",
+            output: params.runID
+              ? `No run with id ${params.runID} in this workspace.`
+              : "This session has not started a team run yet.",
+            metadata: {},
+          }
+        // 只答本会话发起的运行：跨会话查别人的运行等于让模型读到了不属于它的上下文。
+        if (run.sessionID !== ctx.sessionID)
+          return {
+            title: "No team run",
+            output: `Run ${run.id} was not started from this session.`,
+            metadata: {},
+          }
+
+        const [teams, summary, pending] = yield* Effect.all([
+          runs.teams(run.id),
+          verification ? verification.summary({ runID: run.id }) : Effect.succeed(undefined),
+          opLog ? opLog.needsReview(run.id) : Effect.succeed([]),
+        ])
+
+        const next = (() => {
+          if (run.state === "awaiting_approval") return "The user must approve this run in the Runs page before it starts."
+          if (run.state === "planning") return "The plan is incomplete: add acceptance criteria before it can be approved."
+          if (run.state === "running") return "Still running. Check again later."
+          if (run.state === "blocked") return "Stopped on a dependency that will not arrive. Re-running it re-queues failed teams."
+          if (run.state === "needs_review") return "A tool operation has an unknown outcome; verify its side effects before retrying."
+          if (run.state === "done") return "Delivered and verified. Merging is a separate step the user decides."
+          if (run.state === "partial") return "Some acceptance criteria are not verified. Pass never includes unverified items."
+          if (run.state === "failed") return "No deliverable result. Read the reason above; do not report success."
+          if (run.state === "exceeded") return "Stopped on attempts or budget. A new run needs a new approval."
+          if (run.state === "cancelled") return "Cancelled. Nothing is still running."
+          return "Closed."
+        })()
+
+        return {
+          title: `Run ${run.id} · ${run.state}`,
+          output: [
+            `run_id: ${run.id}`,
+            `state: ${run.state}${run.phase ? ` (phase: ${run.phase})` : ""}`,
+            `plan_version: ${run.planVersion}${run.approval ? ` (approved for plan ${run.approval.planVersion})` : " (not approved)"}`,
+            `teams: ${teams.length}${teams.length ? " — " + teams.map((team) => team.phase).join(", ") : ""}`,
+            summary
+              ? `acceptance: pass ${summary.pass}, fail ${summary.fail}, unverified ${summary.unverified}, stale ${summary.stale} (verdict: ${summary.verdict})`
+              : "acceptance: not recorded",
+            `operations_awaiting_review: ${pending.length}`,
+            run.error ? `reason: ${run.error}` : "",
+            `next: ${next}`,
+          ]
+            .filter((line) => line !== "")
+            .join(String.fromCharCode(10)),
+          metadata: { runID: run.id, state: run.state },
         }
       }).pipe(Effect.orDie),
   }),

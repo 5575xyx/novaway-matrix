@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
-import { TeamRunTool } from "../../src/tool/team-run"
+import { TeamRunStatusTool, TeamRunTool } from "../../src/tool/team-run"
 import { Service as TeamService, defaultLayer as TeamLayer } from "@/team/team"
 import { Service as TeamRunService, defaultLayer as RunLayer } from "@/team/run"
 import { Service as VerificationService, defaultLayer as VerificationLayer } from "@/team/verification"
@@ -287,4 +287,109 @@ describe("team_run tool", () => {
       }),
     { timeout: 30_000 },
   )
+
+  /**
+   * 运行是分叉出去的：主智能体要能查到「后来怎么样了」，否则只能猜，
+   * 而猜出来的「已经修好了」会直接写进给用户的汇报。
+   */
+  describe("team_run_status", () => {
+    const seed = Effect.fn("TeamRunStatus.seed")(function* () {
+      const sessions = yield* Session.Service
+      const teams = yield* TeamService
+      const runs = yield* TeamRunService
+      const dir = yield* tmpdirScoped({ git: true })
+      const session = yield* sessions.create({ title: "lead", teamMode: "selected", directory: dir })
+      const team = yield* teams.create({ name: "支付改造", rootSessionID: session.id })
+      yield* teams.addMember({
+        teamID: team.id,
+        sessionID: SessionID.make("ses_status_lead"),
+        name: "小明",
+        agent: "build",
+        role: "lead",
+      })
+      yield* sessions.setTeamMode({ sessionID: session.id, mode: "selected", teamIDs: [team.id] })
+      const tool = yield* TeamRunTool
+      const def = yield* tool.init()
+      const created = yield* def.execute(
+        { team: "支付改造", goal: "把支付重试补上", acceptance: [{ text: "重试三次后放弃" }] },
+        ctx(session.id, dir),
+      )
+      return { session, team, dir, runs, created, teamID: runIDOf(created.metadata) }
+    })
+
+    it.instance(
+      "answers with the newest run of this session and a next step that matches the state",
+      () =>
+        Effect.gen(function* () {
+          const { session, dir, created } = yield* seed()
+          const tool = yield* TeamRunStatusTool
+          const def = yield* tool.init()
+          const status = yield* def.execute({}, ctx(session.id, dir))
+
+          expect(status.metadata.runID).toBe(runIDOf(created.metadata))
+          expect(status.output).toContain("state: running")
+          expect(status.output).toContain("plan_version: 1")
+          expect(status.output).toContain("teams: 1")
+          expect(status.output).toContain("operations_awaiting_review: 0")
+          // 下一步必须和状态对得上，不能一律回一句「进行中」。
+          expect(status.output).toContain("next: Still running")
+        }),
+      { timeout: 30_000 },
+    )
+
+    it.instance(
+      "counts unverified apart from pass, and never quotes the captain",
+      () =>
+        Effect.gen(function* () {
+          const { session, dir, runs, teamID } = yield* seed()
+          const verification = yield* VerificationService
+          const acceptances = yield* verification.list(teamID)
+          yield* verification.record({
+            acceptanceID: acceptances[0].id,
+            snapshotID: "snap_1",
+            verifierVersion: "test",
+            outcome: "unverified",
+          })
+          const tool = yield* TeamRunStatusTool
+          const def = yield* tool.init()
+          const status = yield* def.execute({ runID: teamID }, ctx(session.id, dir))
+          // 未验证不并入通过：这两类分列，结论也不能是 complete。
+          expect(status.output).toContain("pass 0, fail 0, unverified 1, stale 0")
+          expect(status.output).not.toContain("verdict: complete")
+          expect(yield* runs.get(teamID)).toBeDefined()
+        }),
+      { timeout: 30_000 },
+    )
+
+    it.instance(
+      "refuses a run started from another session instead of reading its context",
+      () =>
+        Effect.gen(function* () {
+          const { dir, teamID } = yield* seed()
+          const sessions = yield* Session.Service
+          const other = yield* sessions.create({ title: "别的会话", directory: dir })
+          const tool = yield* TeamRunStatusTool
+          const def = yield* tool.init()
+          const status = yield* def.execute({ runID: teamID }, ctx(other.id, dir))
+          expect(status.output).toContain("was not started from this session")
+          expect(status.metadata.runID).toBeUndefined()
+        }),
+      { timeout: 30_000 },
+    )
+
+    it.instance(
+      "says there is no run yet instead of inventing one",
+      () =>
+        Effect.gen(function* () {
+          const sessions = yield* Session.Service
+          const dir = yield* tmpdirScoped({ git: true })
+          const session = yield* sessions.create({ title: "新会话", directory: dir })
+          const tool = yield* TeamRunStatusTool
+          const def = yield* tool.init()
+          const status = yield* def.execute({}, ctx(session.id, dir))
+          expect(status.output).toContain("has not started a team run yet")
+        }),
+      { timeout: 30_000 },
+    )
+  })
 })
