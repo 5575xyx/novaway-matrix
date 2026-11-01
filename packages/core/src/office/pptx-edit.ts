@@ -128,8 +128,8 @@ export type PptxLayoutNode = {
   paragraphs: string[]
   /** 与 paragraphs 一一对应的格式 */
   styles: PptxTextStyle[]
-  /** 表格单元格（仅 kind === "table"） */
-  cells?: Array<{ row: number; col: number; paragraphs: string[]; styles: PptxTextStyle[] }>
+  /** 表格单元格（仅 kind === "table"），box 是它在页面上的位置 */
+  cells?: Array<{ row: number; col: number; paragraphs: string[]; styles: PptxTextStyle[]; box?: PptxBox }>
   box?: PptxBox
   /** 旋转角度（度） */
   rotation?: number
@@ -234,6 +234,7 @@ export async function readPptxLayout(bytes: Uint8Array, slides?: readonly number
         col: cell.col,
         paragraphs: cell.paragraphs.map((paragraph) => paragraph.text),
         styles: cell.paragraphs.map((paragraph) => paragraphStyle(xml, paragraph)),
+        ...(cell.box ? { box: cell.box } : {}),
       }))
       const hasText =
         paragraphs.some((text) => text.trim()) ||
@@ -278,7 +279,7 @@ type Block = {
 
 type ParagraphBlock = { start: number; end: number; text: string; runs: RunBlock[] }
 type RunBlock = { start: number; end: number; text: string; rPr?: string }
-type CellBlock = { row: number; col: number; paragraphs: ParagraphBlock[] }
+type CellBlock = { row: number; col: number; paragraphs: ParagraphBlock[]; box?: PptxBox }
 
 const BLOCK_TAGS: BlockTag[] = ["graphicFrame", "grpSp", "sp", "pic"]
 
@@ -412,13 +413,31 @@ function tableCells(body: string, base: number): CellBlock[] {
       const txBody = colMatch[0].match(/<a:txBody(?:\s[^>]*)?>([\s\S]*?)<\/a:txBody>/)
       if (txBody) {
         const innerStart = cellStart + (txBody.index ?? 0) + txBody[0].indexOf(">") + 1
-        cells.push({ row, col, paragraphs: paragraphsIn(txBody[1] ?? "", innerStart) })
+        // 单元格自己在页面上的位置：表格框位置 + 行高列宽累加。
+        cells.push({ row, col, paragraphs: paragraphsIn(txBody[1] ?? "", innerStart), box: cellBox(body, row, col) })
       }
       col++
     }
     row++
   }
   return cells
+}
+
+/**
+ * 单元格在页面上的盒子：表格框 `<a:off>/<a:ext>` 加上行高列宽累加。
+ * 列宽 `<a:gridCol w>` 顺序对应列，行高 `<a:tr h>` 对应行；
+ * 本格 h 取本行高、w 取本列宽（合并单元格不特殊处理，以左上角格为准）。
+ */
+function cellBox(body: string, row: number, col: number): PptxBox | undefined {
+  const frame = body.match(/<p:xfrm\b[^>]*>([\s\S]*?)<\/p:xfrm>/)
+  const off = frame?.[1]?.match(/<a:off\s+x="(-?\d+)"\s+y="(-?\d+)"/)
+  if (!off) return undefined
+  const gridCols = [...body.matchAll(/<a:gridCol\b[^>]*\bw="(\d+)"/g)].map((match) => Number(match[1]))
+  const rowHeights = [...body.matchAll(/<a:tr\b[^>]*\bh="(\d+)"/g)].map((match) => Number(match[1]))
+  if (gridCols.length === 0 || rowHeights.length === 0) return undefined
+  const x = Number(off[1]) + gridCols.slice(0, col).reduce((sum, w) => sum + w, 0)
+  const y = Number(off[2]) + rowHeights.slice(0, row).reduce((sum, h) => sum + h, 0)
+  return { x, y, w: gridCols[col] ?? 0, h: rowHeights[row] ?? 0 }
 }
 
 function paragraphsIn(inner: string, base: number): ParagraphBlock[] {

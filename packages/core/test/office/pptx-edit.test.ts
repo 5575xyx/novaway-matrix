@@ -124,9 +124,9 @@ const SLIDE_ONE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
 <p:spPr><a:xfrm><a:off x="100000" y="200000"/><a:ext cx="300000" cy="400000"/></a:xfrm></p:spPr></p:pic>
 <p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="5" name="表格 4"/><p:cNvGraphicFramePr/></p:nvGraphicFramePr>
-<p:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="1000000"/></p:xfrm>
-<a:graphic><a:graphicData><a:tbl><a:tr><a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="zh-CN"/><a:t>表头A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>表头B</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-<a:tr><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>数值1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>数值2</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>
+<p:xfrm><a:off x="100000" y="500000"/><a:ext cx="2000000" cy="1000000"/></p:xfrm>
+<a:graphic><a:graphicData><a:tbl><a:tblGrid><a:gridCol w="1000000"/><a:gridCol w="1000000"/></a:tblGrid><a:tr h="500000"><a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="zh-CN"/><a:t>表头A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>表头B</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+<a:tr h="500000"><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>数值1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:rPr lang="zh-CN"/><a:t>数值2</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>
 </p:spTree></p:cSld></p:sld>`
 
 const PRESENTATION = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:p="x"/>`
@@ -207,6 +207,23 @@ describe("editPptx 文本", () => {
     expect(cells.find((cell) => cell.row === 1 && cell.col === 0)?.paragraphs).toEqual(["数值 42"])
     expect(cells.find((cell) => cell.row === 0 && cell.col === 0)?.paragraphs).toEqual(["表头A"])
     expect(cells.find((cell) => cell.row === 1 && cell.col === 1)?.paragraphs).toEqual(["数值2"])
+  })
+
+  test("读布局：每个单元格带上自己在页面上的盒子（表格框位置 + 行高列宽累加）", async () => {
+    const layout = await readPptxLayout(fixture(), [1])
+    const cells = layout.find((shape) => shape.shapeId === "5")?.cells ?? []
+    expect(cells.find((cell) => cell.row === 0 && cell.col === 0)?.box).toEqual({
+      x: 100000,
+      y: 500000,
+      w: 1000000,
+      h: 500000,
+    })
+    expect(cells.find((cell) => cell.row === 1 && cell.col === 1)?.box).toEqual({
+      x: 1100000,
+      y: 1000000,
+      w: 1000000,
+      h: 500000,
+    })
   })
 
   test("其它条目逐字节原样：图片、presentation.xml 的本地记录在结果里原封不动", async () => {

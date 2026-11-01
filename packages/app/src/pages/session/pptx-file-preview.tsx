@@ -138,6 +138,15 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
   const targetBox = createMemo(() => liveBox() ?? layoutNode()?.box ?? target()?.box)
   const targetStyles = createMemo(() => layoutNode()?.styles ?? [])
   const targetParagraphs = createMemo(() => layoutNode()?.paragraphs ?? target()?.paragraphs ?? [])
+  // 表格：当前点中的单元格（画布上点表格的某个格子 → 编辑框落在那个格子上）。
+  const [activeCell, setActiveCell] = createSignal<{ row: number; col: number }>()
+  const activeCellData = createMemo(() => {
+    const cell = activeCell()
+    if (!cell) return undefined
+    return layoutNode()?.cells?.find((item) => item.row === cell.row && item.col === cell.col)
+  })
+  // 点中单元格后，选中框/改字框都落在格子上而不是整个表格。
+  const activeBox = createMemo(() => liveBox() ?? activeCellData()?.box ?? targetBox())
 
   let mainMount: HTMLDivElement | undefined
   // ref 走 signal:主视图容器在 <Show> 内挂载,普通变量在 effect 里读不到挂载时机。
@@ -186,6 +195,7 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
         setTarget(undefined)
         setDrafting(undefined)
         setLiveBox(undefined)
+        setActiveCell(undefined)
       },
       { defer: true },
     ),
@@ -211,6 +221,7 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
         setTarget(undefined)
         setComment("")
         setDrafting(undefined)
+        setActiveCell(undefined)
       },
       { defer: true },
     ),
@@ -234,6 +245,20 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
     // 懒加载的幻灯片此刻才解析形状树；materializeSlideNodes 自带幂等标记
     materializeSlideNodes(value, slide)
     const node = hitTestNodes(slide.nodes, point)
+    // 表格：再算一次落在哪个格子上（格子盒子来自 layout 的行高列宽累加）。
+    const anchor = node ? anchorOf(node, page() + 1, value) : undefined
+    const cellNode = anchor
+      ? layout()?.find((item) => item.slide === anchor.slide && item.shapeId === anchor.shapeId)
+      : undefined
+    const cellBox = cellNode?.cells?.find(
+      (item) =>
+        item.box &&
+        point.x >= item.box.x &&
+        point.x <= item.box.x + item.box.w &&
+        point.y >= item.box.y &&
+        point.y <= item.box.y + item.box.h,
+    )
+    setActiveCell(cellBox ? { row: cellBox.row, col: cellBox.col } : undefined)
     setComment("")
     setDrafting(undefined)
     setLiveBox(undefined)
@@ -306,10 +331,22 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
     await runEdit({ shapes: [{ ...ref, rotation }] }, "旋转", { shapes: [{ ...ref, rotation: previous }] })
   }
 
-  /** 格式：整块统一改；正在改字时只改当前这一段。 */
+  /** 格式：整块统一改；点中表格格子时只改这个格子；正在改字时只改当前这一段。 */
   const applyStyle = async (patch: PptxTextStyle, paragraph?: number) => {
     const ref = shapeRef()
     if (!ref) return
+    // 表格格子：格式落到 cell 上，样式取格子自己的。
+    const cell = activeCellData()
+    if (cell) {
+      await runEdit(
+        { edits: [{ ...ref, cell: { row: cell.row, col: cell.col }, style: patch }] },
+        `改表格格式 r${cell.row}c${cell.col}`,
+        {
+          edits: [{ ...ref, cell: { row: cell.row, col: cell.col }, style: revertStyle(cell.styles[0] ?? {}, patch) }],
+        },
+      )
+      return
+    }
     const styles = targetStyles()
     const indices = paragraph === undefined ? targetParagraphs().map((_, index) => index) : [paragraph]
     if (indices.length === 0) return
@@ -318,10 +355,19 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
     })
   }
 
-  /** 原地改字：逐段对比，只把改过的段落发上去。 */
+  /** 原地改字：逐段对比，只把改过的段落发上去。表格里带上 cell 定位。 */
   let editTexts: string[] = []
   const startInlineEdit = () => {
     if (drafting()) return
+    const node = layoutNode()
+    const cell = activeCellData()
+    // 形状走整块段落；表格必须先点中某个格子（没有格子信息就没法定位）。
+    if (node?.kind === "table" && cell) {
+      setComment("")
+      editTexts = [...cell.paragraphs]
+      setDrafting(cell.paragraphs.length > 0 ? cell.paragraphs : [""])
+      return
+    }
     const paragraphs = targetParagraphs()
     if (target()?.kind !== "shape" || !target()?.shapeId || paragraphs.length === 0) return
     setComment("")
@@ -332,9 +378,30 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
   const saveInlineEdit = async () => {
     const ref = shapeRef()
     const next = editTexts
-    const previous = targetParagraphs()
+    const cell = activeCellData()
     if (!ref || !next) return
     setDrafting(undefined)
+    // 表格：只发这个格子；revert 用保存前的格子文本。
+    if (ref.shapeId && cell && layoutNode()?.kind === "table") {
+      const edits = next.map((text, index) => ({
+        ...ref,
+        paragraph: index,
+        text,
+        cell: { row: cell.row, col: cell.col },
+      }))
+      const changed = edits.filter((item) => item.text !== (cell.paragraphs[item.paragraph] ?? ""))
+      if (changed.length === 0) return
+      const revert = cell.paragraphs.map((text, index) => ({
+        ...ref,
+        paragraph: index,
+        text,
+        cell: { row: cell.row, col: cell.col },
+      }))
+      const ok = await runEdit({ edits: changed }, `改表格 r${cell.row}c${cell.col}`, { edits: revert })
+      if (ok) showToast({ title: "已保存", description: "只改了这一个单元格。" })
+      return
+    }
+    const previous = targetParagraphs()
     const edits = next
       .map((text, index) => ({ ...ref, paragraph: index, text }))
       .filter((item) => item.text !== (previous[item.paragraph] ?? ""))
@@ -478,14 +545,15 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                       onClick={pickAt}
                     />
                   </Show>
-                  {/* 选中框：可以拖动整块，八个把手改尺寸；松手才写回文件。 */}
-                  <Show when={targetBox()}>
+                  {/* 选中框：可以拖动整块，八个把手改尺寸；松手才写回文件。
+                      表格点中某个格子时，框落在格子上（拖动格子没有意义，只作定位）。 */}
+                  <Show when={activeBox()}>
                     {(box) => (
                       <PptxShapeFrame
                         box={box()}
                         scale={displayScale()}
                         rotation={layoutNode()?.rotation}
-                        movable={movable()}
+                        movable={movable() && !activeCellData()}
                         onLive={setLiveBox}
                         onCommit={(next) => void commitBox(next)}
                         onRotate={(degrees) => void commitRotation(degrees)}
@@ -493,12 +561,12 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                     )}
                   </Show>
                   {/* 原地改字：半透明画布压在被框住的位置，字体字号照 XML 里的实际值。 */}
-                  <Show when={drafting() && targetBox()}>
+                  <Show when={drafting() && activeBox()}>
                     <PptxTextEditor
-                      box={targetBox()!}
+                      box={activeBox()!}
                       scale={displayScale()}
                       paragraphs={drafting()!}
-                      styles={targetStyles()}
+                      styles={activeCellData()?.styles ?? targetStyles()}
                       onInput={(index, text) => {
                         editTexts[index] = text
                       }}
@@ -557,9 +625,9 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                   </div>
                 </Show>
                 <Show when={!drafting()}>
-                  <Show when={targetParagraphs().length > 0}>
+                  <Show when={targetParagraphs().length > 0 || (layoutNode()?.kind === "table" && activeCellData())}>
                     <PptxFormatBar
-                      style={targetStyles()[0] ?? {}}
+                      style={(activeCellData()?.styles ?? targetStyles())[0] ?? {}}
                       disabled={saving()}
                       onChange={(patch) => void applyStyle(patch)}
                     />
@@ -585,7 +653,13 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
                     <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
                       改不动的地方写一句，发送后由 AI 改这一页
                     </span>
-                    <Show when={props.path && anchor().kind === "shape" && targetParagraphs().length > 0}>
+                    <Show
+                      when={
+                        props.path &&
+                        (anchor().kind === "shape" || (anchor().kind === "table" && !!activeCellData())) &&
+                        (anchor().kind === "table" || targetParagraphs().length > 0)
+                      }
+                    >
                       <button
                         type="button"
                         data-action="pptx-inline-start"
