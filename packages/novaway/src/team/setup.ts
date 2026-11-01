@@ -89,7 +89,7 @@ export function cleanupMission(
  */
 export function prepareWorktree(
   deps: { runs: RunInterface },
-  input: { runID: string; base: string; name: string },
+  input: { runID: string; base: string; name: string; ordinal?: number },
 ): Effect.Effect<Created | Skipped> {
   return Effect.gen(function* () {
     const created = yield* Effect.promise(() => createTeamWorktree(input))

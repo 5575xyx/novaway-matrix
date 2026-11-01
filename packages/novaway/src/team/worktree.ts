@@ -129,6 +129,14 @@ export async function create(input: {
   base: string
   runID: string
   name: string
+  /**
+   * 这是本次运行里的第几个团队（从 0 起）。
+   *
+   * 分支名必须唯一，而 `slug` 会把所有非 ASCII 名字压成空串（中文队名一律退化成
+   * `team`）—— 不带上序号，第二个团队会撞上第一个的分支，`git worktree add` 直接失败，
+   * 那个团队就没有副本可跑（成员会落回用户的工作区）。
+   */
+  ordinal?: number
   /** 测试可覆盖；生产走全局数据目录。 */
   root?: string
 }): Promise<Created | Skipped> {
@@ -140,11 +148,13 @@ export async function create(input: {
 
   const run = slug(input.runID)
   const name = slug(input.name)
+  // 第一队保持旧名字（`novaway/team/<run>/<team>`），后面的队加序号区分。
+  const suffix = input.ordinal ? "-" + (input.ordinal + 1) : ""
   // 时间后缀避免同一运行里重复建目录时互相踩（重试、重新执行）。
-  const candidate = run + "-" + name + "-" + Date.now().toString(36)
+  const candidate = run + "-" + name + suffix + "-" + Date.now().toString(36)
   const base = input.root ?? path.join(Global.Path.data, "worktree", "teams")
   const directory = path.join(base, candidate)
-  const branch = "novaway/team/" + run + "/" + name
+  const branch = "novaway/team/" + run + "/" + name + suffix
 
   await fs.mkdir(base, { recursive: true })
   const added = await git(repo, ["worktree", "add", "-b", branch, directory, sha])

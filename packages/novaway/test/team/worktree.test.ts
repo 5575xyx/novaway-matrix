@@ -44,6 +44,21 @@ describe("team worktree", () => {
     expect(git(base, ["branch", "--list", result.worktree.branch]).stdout.trim()).toBe("")
   })
 
+  test("two teams in one run never share a branch, even when their names slug to the same thing", async () => {
+    const base = await repo()
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-team-root-"))
+    // 中文队名经 slug 后都是 `team`：分支名如果只由 slug 组成，第二个团队会建不出副本，
+    // 悄悄回落到用户工作区里跑 —— 序号必须参与命名。
+    const first = await create({ base, runID: "run_dup", name: "写作组", ordinal: 0, root })
+    const second = await create({ base, runID: "run_dup", name: "校对组", ordinal: 1, root })
+    expect(first.kind).toBe("created")
+    expect(second.kind).toBe("created")
+    if (first.kind !== "created" || second.kind !== "created") return
+    expect(second.worktree.branch).not.toBe(first.worktree.branch)
+    expect(first.worktree.directory).not.toBe(second.worktree.directory)
+    expect(git(base, ["branch", "--list", "novaway/team/run-dup/*"]).stdout.trim().split("\n").length).toBe(2)
+  })
+
   test("refuses to invent a snapshot when the base is not a repository", async () => {
     const plain = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-team-plain-"))
     const skipped = await create({ base: plain, runID: "run_x", name: "t" })

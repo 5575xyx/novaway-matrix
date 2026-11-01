@@ -134,8 +134,14 @@ export type Options = {
   runID: string
   dispatch: Dispatcher
   verify: Verifier
-  /** 当前代码快照，验证结果与它绑定。 */
-  snapshot: () => Effect.Effect<string>
+  /**
+   * 当前代码快照，验证结果与它绑定。
+   *
+   * 给了目录就取那个目录的 HEAD —— 每个团队必须拿**自己**副本的快照：
+   * 两队并行时共用一个快照，后一队的「通过」会被判成过期，重做到轮次用尽。
+   * 不给目录是合并后的重验：由调用方决定看哪个目录（集成目录）。
+   */
+  snapshot: (directory?: string) => Effect.Effect<string>
   /**
    * 把团队工作区里未提交的改动落成提交（§10.1）。
    *
@@ -624,7 +630,8 @@ export const layer = Layer.effect(
               return
             }
           }
-          const snapshot = yield* input.snapshot()
+          // 没有副本的团队在自己的工作区里跑：快照也要取那里，才和 `verify` 一致。
+          const snapshot = yield* input.snapshot(team.worktree ?? run.directory)
           /**
            * 验证没给出结论（验证器出错 / 超时）。
            *

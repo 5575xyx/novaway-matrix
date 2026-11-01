@@ -341,8 +341,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
      * 规则与事件在 `setup.prepareWorktree`：会话里的 `team_run` 也走同一份实现，
      * 两条发起路径的隔离行为才不会一边一个样。
      */
-    const ensureWorktree = (base: string, runID: string, name: string) =>
-      prepareWorktree({ runs }, { base, runID, name })
+    const ensureWorktree = (base: string, runID: string, name: string, ordinal?: number) =>
+      prepareWorktree({ runs }, { base, runID, name, ordinal })
 
     /**
      * 按 id 取运行，并核对它属于请求的工作区。
@@ -567,9 +567,10 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             // 归属持久目标时，团队从目标工作区的 HEAD 起分支：接着上次做到的地方往下做。
             const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
             const base = mission?.worktree ?? run.directory
-            for (const team of ctx.payload.teams) {
+            for (const [index, team] of ctx.payload.teams.entries()) {
               // 每个团队一份 worktree：团队成员之间共享，团队之间隔离（§10.1）。
-              const worktree = yield* ensureWorktree(base, run.id, team.name)
+              // 带上团队序号：中文队名的 slug 会退化成同一个 `team`，分支名必须靠序号区分。
+              const worktree = yield* ensureWorktree(base, run.id, team.name, index)
               // 计划里点了模板，就在这一刻把模板复制成快照（§5.2）：之后改模板不影响
               // 这次运行，派发时也才有「该派给谁」可对账（§9）。
               const roster = team.profileID ? yield* profiles.snapshot(team.profileID) : undefined
@@ -1118,7 +1119,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               verifyMerged,
               integrate,
               signal: controller.signal,
-              snapshot: () => snapshotOf(teamDirectory).pipe(Effect.map((id) => id ?? "unknown")),
+              // 快照按团队取：两队并行时共用一个快照，会把这个团队的「通过」判成过期。
+              snapshot: (directory?: string) =>
+                snapshotOf(directory ?? teamDirectory).pipe(Effect.map((id) => id ?? "unknown")),
               maxRounds: ctx.payload.maxRounds,
               maxBusinessAttempts: ctx.payload.maxBusinessAttempts,
               reserveTokens: ctx.payload.reserveTokens,
