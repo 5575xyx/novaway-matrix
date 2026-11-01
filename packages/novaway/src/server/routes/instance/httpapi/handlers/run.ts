@@ -11,6 +11,7 @@ import {
   type VerifyInput,
 } from "@/team/orchestrator"
 import { TeamVerifier } from "@/team/verifier"
+import { TeamReport } from "@/team/report"
 import * as TeamContext from "@/team/context"
 import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } from "@/team/profile"
 import * as TeamRoster from "@/team/roster"
@@ -181,7 +182,6 @@ const toRun = (run: TeamRun) => {
 }
 
 /** 从模型输出里取出第一个 JSON 对象；取不到就当作「未验证」，绝不默认通过。 */
-const parseJSON = TeamVerifier.parseJSON
 
 export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handlers) =>
   Effect.gen(function* () {
@@ -897,28 +897,22 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 prompt: context.prompt,
               })
               const text = captainRun.text
-              const parsed = parseJSON(text)
-              const claims = Array.isArray(parsed?.claims)
-                ? (parsed!.claims as Array<Record<string, unknown>>).map((claim) => ({
-                    acceptanceID: typeof claim.acceptanceID === "string" ? claim.acceptanceID : undefined,
-                    text: typeof claim.text === "string" ? claim.text : "",
-                    evidence: typeof claim.evidence === "string" ? claim.evidence : undefined,
-                  }))
-                : []
+              const usage = { tokens: captainRun.usage.tokens, cost: captainRun.usage.cost }
+              const read = TeamReport.parse(text)
+              if (!read.ok)
+                return {
+                  teamID: input.team.id,
+                  // 用量按这次派发的实际消耗结算：不填的话账本只能记成「用量不明」（§7.1）。
+                  usage,
+                  // 读不出来时字段留空：调度器看到 `malformed` 会重问，不会拿这份空报告去验证。
+                  summary: "",
+                  claims: [],
+                  malformed: read.reason,
+                } satisfies Report
               return {
                 teamID: input.team.id,
-                // 用量按这次派发的实际消耗结算：不填的话账本只能记成「用量不明」（§7.1）。
-                usage: { tokens: captainRun.usage.tokens, cost: captainRun.usage.cost },
-                summary: typeof parsed?.summary === "string" ? parsed.summary : text.slice(0, 500),
-                claims,
-                artifacts: Array.isArray(parsed?.artifacts)
-                  ? (parsed!.artifacts as Array<Record<string, unknown>>).map((artifact, index) => ({
-                      name: typeof artifact.name === "string" ? artifact.name : "artifact-" + index,
-                      version: typeof artifact.version === "number" ? artifact.version : 1,
-                      hash: typeof artifact.hash === "string" ? artifact.hash : undefined,
-                    }))
-                  : [],
-                done: parsed?.done === true,
+                usage,
+                ...read.report,
               } satisfies Report
             })
 

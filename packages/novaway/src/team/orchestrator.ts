@@ -42,6 +42,13 @@ export type Report = {
   /** 本次派发实际消耗；`cost` 只在提供方权威回报时有值。 */
   usage?: { tokens?: number; cost?: number }
   done?: boolean
+  /**
+   * 这次回复读不出报告（§8.4）：值是一句结构性的原因，不是模型原文。
+   *
+   * 有它就说明「这一轮不算数」，调度器会重新问一次，并且**不消耗业务额度** ——
+   * 格式问题不是「没做到」，混进 business 计数会让用户看到错误的失败原因。
+   */
+  malformed?: string
 }
 
 export type VerificationResult = {
@@ -126,6 +133,8 @@ export type Options = {
   commit?: () => Effect.Effect<void, unknown>
   maxRounds?: number
   maxBusinessAttempts?: number
+  /** 格式重试上限（§7.2）：读不出报告的回复最多重问几次，与业务额度分开计数。 */
+  maxFormatRetries?: number
   /** 同时派发的团队数上限；缺省 3（§4.5），超出的团队排队等下一批。 */
   concurrency?: number
   /** 每次派发前预占的 token 数，返回后按实际用量结算。 */
@@ -231,6 +240,7 @@ export const layer = Layer.effect(
       const reserveTokens = input.reserveTokens ?? 4000
       const maxRounds = input.maxRounds ?? 3
       const maxBusiness = input.maxBusinessAttempts ?? 6
+      const maxFormat = input.maxFormatRetries ?? 3
       /**
        * 墙钟上限（§7.3）：只在轮次与派发批次之间检查。
        *
@@ -435,49 +445,92 @@ export const layer = Layer.effect(
           }
 
           const teamLines = acceptances.filter((acceptance) => acceptance.owner === team.id)
-          const reservation = yield* Effect.exit(
-            ledger.reserve({ runID: input.runID, actor: team.id, tokens: reserveTokens, cap: dispatchCap }),
-          )
-          if (Exit.isFailure(reservation)) {
-            // 预算不足不是团队的错：记 exceeded，让整体结论走「超限」。
-            yield* runs.updateTeam({ id: team.id, phase: "exceeded" })
-            yield* runs.appendEvent({ runID: input.runID, kind: "budget.exceeded", payload: { teamID: team.id } })
-            return
-          }
 
-          yield* runs.updateTeam({ id: team.id, phase: "running", roundCaptain: round })
-          yield* runs.appendEvent({
-            runID: input.runID,
-            kind: "team.dispatched",
-            payload: { teamID: team.id, round, acceptance: teamLines.length },
-          })
+          /**
+           * 派发 + 结算。格式读不出来时**重新问一次**（§8.4）：
+           *
+           * - 每次都真的跑了一轮队长，所以每次都要预占与结算（钱是花掉的）；
+           * - 但格式问题不消耗业务额度，只加 `attempts.formatRetry`；
+           * - 连续读不出超过上限，才按「格式错误」判这一队失败 —— 原因是格式，不是没做到。
+           */
+          let report: Report | undefined
+          while (!report) {
+            const reservation = yield* Effect.exit(
+              ledger.reserve({ runID: input.runID, actor: team.id, tokens: reserveTokens, cap: dispatchCap }),
+            )
+            if (Exit.isFailure(reservation)) {
+              // 预算不足不是团队的错：记 exceeded，让整体结论走「超限」。
+              yield* runs.updateTeam({ id: team.id, phase: "exceeded" })
+              yield* runs.appendEvent({ runID: input.runID, kind: "budget.exceeded", payload: { teamID: team.id } })
+              return
+            }
 
-          const dispatched = yield* Effect.exit(
-            input.dispatch({
-              team,
-              round,
-              acceptance: teamLines,
-              feedback: feedback.get(team.id),
-            }),
-          )
-
-          if (Exit.isFailure(dispatched)) {
-            yield* ledger.settle({ id: reservation.value.id, tokens: 0 })
-            yield* runs.updateTeam({ id: team.id, phase: "failed" })
+            yield* runs.updateTeam({ id: team.id, phase: "running", roundCaptain: round })
             yield* runs.appendEvent({
               runID: input.runID,
-              kind: "team.failed",
-              payload: { teamID: team.id, round, message: message(dispatched.cause) },
+              kind: "team.dispatched",
+              payload: { teamID: team.id, round, acceptance: teamLines.length },
             })
-            return
-          }
 
-          const report = dispatched.value
-          yield* ledger.settle({
-            id: reservation.value.id,
-            tokens: report.usage?.tokens,
-            ...(report.usage?.cost !== undefined ? { cost: report.usage.cost } : {}),
-          })
+            const dispatched = yield* Effect.exit(
+              input.dispatch({
+                team,
+                round,
+                acceptance: teamLines,
+                feedback: feedback.get(team.id),
+              }),
+            )
+
+            if (Exit.isFailure(dispatched)) {
+              yield* ledger.settle({ id: reservation.value.id, tokens: 0 })
+              yield* runs.updateTeam({ id: team.id, phase: "failed" })
+              yield* runs.appendEvent({
+                runID: input.runID,
+                kind: "team.failed",
+                payload: { teamID: team.id, round, message: message(dispatched.cause) },
+              })
+              return
+            }
+
+            const next = dispatched.value
+            yield* ledger.settle({
+              id: reservation.value.id,
+              tokens: next.usage?.tokens,
+              ...(next.usage?.cost !== undefined ? { cost: next.usage.cost } : {}),
+            })
+            if (!next.malformed) {
+              report = next
+              break
+            }
+
+            attempts.formatRetry += 1
+            // 计数落库：重启恢复后不能把已经用掉的格式重试重新送一遍。
+            yield* runs.update({ runID: input.runID, attempts: { ...attempts } })
+            yield* runs.appendEvent({
+              runID: input.runID,
+              kind: "team.format_retry",
+              payload: { teamID: team.id, round, attempt: attempts.formatRetry, max: maxFormat, reason: next.malformed },
+            })
+            if (attempts.formatRetry >= maxFormat) {
+              yield* runs.updateTeam({
+                id: team.id,
+                phase: "failed",
+                verdict: { verdict: "format", reason: next.malformed, attempts: attempts.formatRetry },
+              })
+              yield* runs.appendEvent({
+                runID: input.runID,
+                kind: "team.failed",
+                payload: {
+                  teamID: team.id,
+                  round,
+                  reason: "format",
+                  message: next.malformed,
+                  attempts: attempts.formatRetry,
+                },
+              })
+              return
+            }
+          }
           // 产物版本由内容决定（§8.6）：下游记下自己依赖的**具体版本**，
           // 上游一变，下游的「通过」就不是现在这件事的结论了。
           const artifacts = normalize(report.artifacts)

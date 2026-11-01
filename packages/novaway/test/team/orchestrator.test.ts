@@ -1091,4 +1091,84 @@ describe("team orchestrator", () => {
       expect(downstream.id).toBeTruthy()
     }),
   )
+
+  it.effect("re-asks when the captain reply is unreadable, without spending business attempts", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_format"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "队长第一次没按格式回话",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const team = yield* runs.addTeam({ runID: run.id })
+      yield* verification.register({ runID: run.id, specID: "a", text: "验收", kind: "test", owner: team.id })
+
+      const dispatched: Array<{ round: number; attempt: number }> = []
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) => {
+          dispatched.push({ round: input.round, attempt: dispatched.length + 1 })
+          // 前两次只回一句客套话（读不出报告），第三次才是正常报告。
+          return Effect.succeed(dispatched.length < 3 ? { ...report(input.team.id), claims: [], malformed: "回复里没有可解析的 JSON 对象" } : report(input.team.id))
+        },
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      expect(dispatched).toHaveLength(3)
+      // 三次派发都发生在同一轮：格式重试不该把运行推进到下一轮。
+      expect(new Set(dispatched.map((item) => item.round)).size).toBe(1)
+      // 最终仍然交付，而且业务尝试没有被格式问题消耗。
+      expect(result.state).toBe("done")
+      expect((yield* runs.get(run.id))?.attempts).toEqual({ business: 0, formatRetry: 2 })
+      const retries = (yield* runs.events({ runID: run.id })).filter((item) => item.kind === "team.format_retry")
+      expect(retries).toHaveLength(2)
+      expect(retries[0].payload?.reason).toContain("JSON")
+    }),
+  )
+
+  it.effect("fails the team as a format problem after the retry limit", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_format_limit"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "队长一直不按格式回话",
+        budget: { tokens: 100_000 },
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "alpha" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100_000 }, by: "user" })
+      const team = yield* runs.addTeam({ runID: run.id })
+
+      let dispatched = 0
+      const result = yield* orchestrator.execute({
+        runID: run.id,
+        snapshot: () => Effect.succeed("snap_1"),
+        dispatch: (input) => {
+          dispatched += 1
+          return Effect.succeed({ ...report(input.team.id), claims: [], malformed: "缺少 summary / claims / done" })
+        },
+        verify: () => Effect.succeed({ outcome: "pass" as const }),
+      })
+
+      // 上限 3：第三次仍读不出来就判这一队失败，原因是格式，不是「没做到」。
+      expect(dispatched).toBe(3)
+      expect(result.state).toBe("failed")
+      const after = (yield* runs.teams(run.id))[0]
+      expect(after.phase).toBe("failed")
+      expect(after.verdict?.verdict).toBe("format")
+      const failure = (yield* runs.events({ runID: run.id })).find(
+        (item) => item.kind === "team.failed" && item.payload?.reason === "format",
+      )
+      expect(failure?.payload?.attempts).toBe(3)
+    }),
+  )
 })
