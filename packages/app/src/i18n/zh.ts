@@ -109,6 +109,7 @@ export const dict = {
   "run.action.retry": "重试",
   "run.action.retryHint": "这次运行卡在一个不会到来的依赖上；重试会重新派发失败过的团队，已交付的团队不再重跑。",
   "run.reason": "停下来的原因：{{reason}}",
+"run.team.scope": "写入范围：{{paths}}",
   "run.action.cancel": "取消运行",
   "run.action.openSession": "打开会话",
   "run.action.openSessionHint": "阻塞与待复核要在会话里处理：看卡在哪、补输入或换方案。",

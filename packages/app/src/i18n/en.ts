@@ -108,6 +108,7 @@ export const dict = {
   "run.action.retryHint":
     "This run is blocked on a dependency that will never arrive. Retrying re-dispatches the teams that failed; delivered teams are not re-run.",
   "run.reason": "Why it stopped: {{reason}}",
+"run.team.scope": "Write scope: {{paths}}",
   "run.action.cancel": "Cancel run",
   "run.action.openSession": "Open session",
   "run.action.openSessionHint":

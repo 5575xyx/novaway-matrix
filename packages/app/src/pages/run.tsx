@@ -1453,6 +1453,10 @@ export const RunPage: Component<{
                           title={[
                             team.worktree ?? "",
                             (team.artifacts ?? []).map((item) => item.name + "@" + item.version).join(" "),
+                            // 任务范围（§11.1）：越界写会被拦下，界面要能回答「为什么」。
+                            team.scope?.length
+                              ? t("run.team.scope", { paths: (team.scope ?? []).join("、") })
+                              : "",
                           ]
                             .filter(Boolean)
                             .join(String.fromCharCode(10))}
