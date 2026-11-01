@@ -332,7 +332,11 @@ export const TaskTool = Tool.define(
         (yield* sessions.create(
           {
             parentID: ctx.sessionID,
-            ...(isolated ? { directory: isolated.directory } : {}),
+            // 沿用父会话的工作目录：团队运行时父会话在 worktree 里，成员留在实例
+            // 目录里干活的话，产物既进不了团队分支，也会写进用户还没提交的工作区。
+            ...((isolated?.directory ?? parent?.directory ?? ctx.directory)
+              ? { directory: isolated?.directory ?? parent?.directory ?? ctx.directory }
+              : {}),
             // Agent declaration wins; otherwise inherit the parent's mode so a
             // plan-mode session cannot silently spawn an editing subagent.
             ...(next.permissionMode || parent.permissionMode

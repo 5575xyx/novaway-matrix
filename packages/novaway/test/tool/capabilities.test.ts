@@ -41,6 +41,14 @@ describe("builtin capabilities", () => {
     }
   })
 
+  it("keeps the dispatcher out of the workspace lock", async () => {
+    // `task` 会等一整轮子代理跑完；它若占用团队单写者队列/工作区锁，子代理的
+    // 写操作就永远排不到 —— 整个运行会挂在 running。这两个标记是那条边界的唯一依据。
+    const { CAPABILITIES } = await import("../../src/tool/registry")
+    expect(CAPABILITIES.task.workspace).toBe(false)
+    for (const id of ["write", "edit", "bash"]) expect(CAPABILITIES[id].workspace).not.toBe(false)
+  })
+
   it("treats the shell as read-only only for safe commands", async () => {
     const { CAPABILITIES } = await import("../../src/tool/registry")
     const check = CAPABILITIES.bash.concurrencySafe as (args: unknown) => boolean

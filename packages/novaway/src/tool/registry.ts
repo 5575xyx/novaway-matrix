@@ -256,7 +256,9 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   // Independent subagents operate on separate child sessions; the tool prompt
   // explicitly asks the model to launch them in parallel. Keep the interrupt
   // policy (a new user message blocks rather than cancels workers).
-  task: { concurrencySafe: true, interrupt: "block" },
+  // `task` 不直接读写工作区：它只是把活派给子代理。它持锁等整轮子代理跑完，
+  // 而同队子代理的写操作需要同一把锁 —— 两边互等，运行会一直挂在 running。
+  task: { concurrencySafe: true, interrupt: "block", workspace: false },
   orchestrator: { concurrencySafe: false },
   question: { concurrencySafe: false },
   plan_exit: { concurrencySafe: false },

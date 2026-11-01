@@ -930,6 +930,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 },
                 ...(attributed ? { employeeID: attributed } : {}),
                 ...(captainModel ? { model: captainModel } : {}),
+                // 队长可以派活：子代理默认禁 `task`，而派给名册里的人正是队长的职责。
+                // 成员拿不到这条 —— 派生权限只继承 deny，不会把队长的放行传下去。
+                permission: [{ permission: "task", pattern: "*", action: "allow" }],
                 prompt: TeamEffective.compose(person, context.prompt),
               })
               const text = captainRun.text

@@ -1393,7 +1393,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 // 共用一个 worktree，按会话加锁等于没锁。规则写在 op-log 里，可单独测。
                 const scoped = teamOps ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
                 const lockKey = TeamOpLog.lockKey(scoped, input.session.id)
-                const release = toolLock ? yield* toolLock.acquire(lockKey, mode) : Effect.void
+                // 只给真正碰工作区的工具加锁：`task` 是派发器，持锁等子代理跑完，
+                // 而子代理的写操作要同一把锁 —— 互相等待会把运行挂死。
+                const release =
+                  toolLock && item.capabilities?.workspace !== false
+                    ? yield* toolLock.acquire(lockKey, mode)
+                    : Effect.void
                 return yield* Effect.gen(function* () {
                   const capability = item.capabilities
                   yield* capability?.validateInput?.(args, ctx) ?? Effect.void
@@ -1504,8 +1509,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                   const executeTool = item.execute(effective, ctx)
                   // 有编排坐标的写操作串行执行：worktree 隔离挡不住同队两人同时改
                   // index / lock 文件，也挡不住测试读到别人未完成的改动。
+                  // 派发器（`task`）不算写操作：它不碰工作区，却要等一整轮子代理跑完。
+                  // 把它也塞进单写者队列，子代理的写操作会永远排在它后面 —— 互相等待。
                   const runTool =
-                    opScope && teamWriters
+                    opScope && teamWriters && item.capabilities?.workspace !== false
                       ? teamWriters.serial({ runID: opScope.runID, actor: ctx.sessionID }, executeTool)
                       : executeTool
                   const result = yield* runTool.pipe(

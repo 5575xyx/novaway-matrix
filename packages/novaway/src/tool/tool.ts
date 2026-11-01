@@ -68,6 +68,14 @@ export interface Capabilities {
   checkPermissions?: (args: unknown, ctx: Context) => Effect.Effect<"allow" | "ask" | "deny">
   /** Behaviour when the user submits a new message while this tool is running. */
   interrupt?: "cancel" | "block"
+  /**
+   * 这个工具是否直接读写工作区（默认 `true`）。
+   *
+   * 团队内的单写者锁按「工作区」加锁；派发器（`task`）本身不碰文件，却会
+   * 等一整轮子代理跑完 —— 它持锁期间子代理的写操作永远等不到释放（互相等待）。
+   * 把它标成 `false`，锁只落在真正改文件的调用上。
+   */
+  workspace?: boolean
   /** Defer the full schema until the model searches for it. */
   deferLoading?: boolean
   /** Keep the full schema in the first prompt even when deferred loading is on. */

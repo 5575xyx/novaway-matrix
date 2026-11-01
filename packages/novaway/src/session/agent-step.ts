@@ -3,6 +3,7 @@ import { Session } from "./session"
 import { Agent } from "../agent/agent"
 import { MessageID, SessionID } from "./schema"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
+import type { Permission } from "../permission"
 import { ModelID, ProviderID } from "../provider/schema"
 import type { Interface as TeamInterface } from "../team/team"
 import type { SessionPrompt } from "./prompt"
@@ -44,6 +45,14 @@ export interface RunAgentInput {
    * 没给就跟着父会话走 —— 一个人派生出来的助手，工时算这个人的。
    */
   readonly employeeID?: string
+  /**
+   * 追加到派生会话上的权限规则（最后一条生效）。
+   *
+   * 团队队长必须能派活：子代理默认被禁止调用 `task`（防止无限套娃），但队长的
+   * 全部职责就是 `task` 派给名册里的人。这条由调用方显式放开，而不是在派生
+   * 权限里开一个全局例外 —— 普通子代理仍然不能自己再生子代理。
+   */
+  readonly permission?: Permission.Ruleset
 }
 
 /**
@@ -159,16 +168,23 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
       const child = yield* sessions.create(
         {
           parentID: parentSessionID,
-          ...(input.directory ? { directory: input.directory } : {}),
+          // 父会话换了工作目录（团队 worktree / 用户改过 cwd）时，派生会话必须跟着：
+          // 不跟，子代理就回到实例目录里干活，产物和证据都不在同一个副本上。
+          ...((input.directory ?? parent?.directory)
+            ? { directory: (input.directory ?? parent?.directory)! }
+            : {}),
           title: input.title ?? `${resolvedName} (workflow step)`,
           ...(parent?.permissionMode ? { permissionMode: parent.permissionMode } : {}),
-          permission: next
-            ? deriveSubagentSessionPermission({
-                parentSessionPermission: parent?.permission ?? [],
-                parentAgent,
-                subagent: next,
-              })
-            : (parent?.permission ?? []),
+          permission: [
+            ...(next
+              ? deriveSubagentSessionPermission({
+                  parentSessionPermission: parent?.permission ?? [],
+                  parentAgent,
+                  subagent: next,
+                })
+              : (parent?.permission ?? [])),
+            ...(input.permission ?? []),
+          ],
         },
         {
           ...(employeeID ? { employeeID } : {}),
