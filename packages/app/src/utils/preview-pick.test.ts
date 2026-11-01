@@ -70,3 +70,18 @@ test("组装成 composer 的文件上下文条目", () => {
   expect(item.preview).toBe("h1.title")
   expect(item.comment).toContain("div.toolbox > h1.title")
 })
+
+test("用户写了评论时，先把那句话亮给模型，再给元素说明", () => {
+  const withComment = pickedElementComment(element, "  标题改成深蓝色  ")
+  expect(withComment.startsWith("用户对「h1.title」的修改要求：\n标题改成深蓝色")).toBe(true)
+  expect(withComment).toContain("div.toolbox > h1.title")
+  // 没写评论时不出现空句子
+  expect(pickedElementComment(element)).not.toContain("修改要求")
+})
+
+test("页面元素没有行号，落到 commentOrigin=file，不跳 review 面板", () => {
+  const item = buildPickedContextItem("src/index.html", element, "卡片间距大一点")
+  expect(item.commentOrigin).toBe("file")
+  expect(item.comment).toContain("卡片间距大一点")
+  expect("commentID" in item).toBe(false)
+})

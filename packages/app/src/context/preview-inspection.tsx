@@ -32,6 +32,9 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
 
     const [ready, setReady] = createSignal(false)
     const [armed, setArmed] = createSignal(false)
+    // 选中的元素先挂在这里等用户写评论：以前点一下就立刻塞进输入框，
+    // 用户只能事后在正文里补「我是说那个蓝色按钮」—— 指代全靠猜。
+    const [pending, setPending] = createSignal<PickedElement>()
     let frame: HTMLIFrameElement | undefined
 
     // 换了地址 iframe 会重建，握手与开关联动都要一起复位；同时上报新地址的源，
@@ -41,6 +44,7 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
       (next) => {
         setReady(false)
         setArmed(false)
+        setPending(undefined)
         void window.api?.setPreviewInspectorOrigin?.(httpOrigin(next))
       },
     )
@@ -57,10 +61,19 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
       )
     }
 
-    const addPicked = (element: PickedElement) => {
+    /**
+     * 用户在评论框里确认后调用：元素 + 那句话一起进 composer。
+     * 预览地址能映射到工作区文件时加成文件上下文（chip 挂在输入框上方）；
+     * 映射不到（dev server 的虚拟路径）就把元素说明追加进输入框正文。
+     */
+    const commit = (comment: string) => {
+      const element = pending()
+      if (!element) return
+      setPending(undefined)
+
       const absolute = previewFilePath(preview.url())
       if (absolute) {
-        prompt.context.add(buildPickedContextItem(relativeToWorkspace(absolute, props.directory()), element))
+        prompt.context.add(buildPickedContextItem(relativeToWorkspace(absolute, props.directory()), element, comment))
         showToast({
           title: language.t("preview.pick.added"),
           description: language.t("preview.pick.addedHint"),
@@ -68,7 +81,7 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
         return
       }
 
-      appendPromptText(pickedElementComment(element))
+      appendPromptText(pickedElementComment(element, comment))
       showToast({
         title: language.t("preview.pick.added"),
         description: language.t("preview.pick.appendedHint"),
@@ -95,7 +108,7 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
 
       if (!isPickElement(data)) return
       setArmed(false)
-      addPicked(data.element)
+      setPending(data.element)
     }
 
     window.addEventListener("message", onMessage)
@@ -106,6 +119,7 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
       frame = element
       setReady(false)
       setArmed(false)
+      setPending(undefined)
     }
 
     const toggle = () => {
@@ -123,6 +137,12 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
       armed,
       toggle,
       setFrame,
+      /** 已选中、等用户写评论的元素 */
+      pending,
+      commit,
+      cancel() {
+        setPending(undefined)
+      },
     }
   },
 })

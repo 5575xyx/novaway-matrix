@@ -73,14 +73,21 @@ function styleList(element: PickedElement): string[] {
     .map(([name, value]) => `${name}: ${clip(value, 120)};`)
 }
 
-/** 发给模型的元素说明：中性描述，用户自己的修改要求写在正文里 */
-export function pickedElementComment(element: PickedElement): string {
-  const lines = [
+/**
+ * 发给模型的元素说明：中性描述，用户自己的修改要求写在正文里。
+ * 用户写了评论时先亮出那句话 —— 模型先看到「要改什么」，再看元素长什么样。
+ */
+export function pickedElementComment(element: PickedElement, comment?: string): string {
+  const lines: string[] = []
+  const request = comment?.trim()
+  if (request) lines.push(`用户对「${pickedElementLabel(element)}」的修改要求：`, request, "")
+
+  lines.push(
     "下面是我在预览里选中的元素，请基于它修改页面：",
     "",
     `- CSS 路径: ${element.cssPath}`,
     `- 标签与属性: <${element.tag}${attributeList(element) ? ` ${attributeList(element)}` : ""}>`,
-  ]
+  )
 
   const text = clip(element.text, 300)
   if (text) lines.push(`- 文本内容: ${text}`)
@@ -106,16 +113,20 @@ export function pickedElementComment(element: PickedElement): string {
 export function buildPickedContextItem(
   path: string,
   element: PickedElement,
+  comment?: string,
 ): {
   type: "file"
   path: string
   comment: string
   preview: string
+  commentOrigin: "file"
 } {
   return {
     type: "file",
     path,
-    comment: pickedElementComment(element),
+    comment: pickedElementComment(element, comment),
     preview: pickedElementLabel(element),
+    // 页面元素没有行号，落到「文件」这一侧：点 chip 不会去找 review 面板里的行级评论
+    commentOrigin: "file",
   }
 }

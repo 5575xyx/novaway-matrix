@@ -2,13 +2,14 @@ import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Spinner } from "@novaway/ui/spinner"
 import { Tooltip } from "@novaway/ui/tooltip"
-import { createSignal, onCleanup, on, createEffect, Show } from "solid-js"
+import { createSignal, onCleanup, on, createEffect, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { usePreview } from "@/context/preview"
 import { usePreviewInspection } from "@/context/preview-inspection"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { normalizePreviewUrl } from "@/utils/preview-url"
+import { pickedElementLabel, type PickedElement } from "@/utils/preview-pick"
 
 const IFRAME_SANDBOX =
   "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads allow-pointer-lock"
@@ -264,6 +265,82 @@ ${url()}
             </div>
           </div>
         </Show>
+        {/* 选中元素后先写一句评论，再决定要不要挂到对话上。
+            以前点完立刻加进输入框，用户只能事后补「我是说那个蓝色按钮」。 */}
+        <Show when={inspection.pending()} keyed>
+          {(element) => (
+            <PickCommentCard
+              element={element}
+              onAdd={(comment) => inspection.commit(comment)}
+              onCancel={() => inspection.cancel()}
+            />
+          )}
+        </Show>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 元素评论卡：贴在预览区底部。
+ * 内容为空也允许添加 —— 相当于「就是这块，你自己看」，模型仍能拿到元素说明。
+ */
+function PickCommentCard(props: { element: PickedElement; onAdd: (comment: string) => void; onCancel: () => void }) {
+  const language = useLanguage()
+  const [draft, setDraft] = createSignal("")
+  let area: HTMLTextAreaElement | undefined
+
+  onMount(() => area?.focus())
+
+  return (
+    <div
+      data-component="preview-pick-comment"
+      class="absolute inset-x-3 bottom-3 z-20 mx-auto flex max-w-[560px] flex-col gap-2 rounded-xl border border-border bg-popover p-3 shadow-[var(--shadow-md)]"
+    >
+      <div class="flex min-w-0 items-center gap-1.5">
+        <Icon name="window-cursor" size="small" class="shrink-0 text-foreground-subtle" />
+        <span class="truncate text-12-medium text-foreground">{pickedElementLabel(props.element)}</span>
+        <span class="ml-auto shrink-0 text-11-regular text-foreground-subtlest">
+          {language.t("preview.pick.commentTitle")}
+        </span>
+      </div>
+      <textarea
+        ref={area}
+        value={draft()}
+        onInput={(event) => setDraft(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault()
+            props.onCancel()
+            return
+          }
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault()
+            props.onAdd(draft())
+          }
+        }}
+        placeholder={language.t("preview.pick.commentPlaceholder")}
+        class="min-h-16 w-full resize-y rounded-lg border border-border bg-background p-2 text-12-regular leading-relaxed text-foreground outline-none transition-colors focus:border-border-hover"
+      />
+      <div class="flex items-center gap-2">
+        <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
+          {language.t("preview.pick.commentHint")}
+        </span>
+        <button
+          type="button"
+          class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+          onClick={() => props.onCancel()}
+        >
+          {language.t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          data-action="preview-pick-add"
+          class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20"
+          onClick={() => props.onAdd(draft())}
+        >
+          {language.t("preview.pick.add")}
+        </button>
       </div>
     </div>
   )

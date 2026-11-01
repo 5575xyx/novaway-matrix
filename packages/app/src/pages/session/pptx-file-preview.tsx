@@ -1,11 +1,14 @@
 import {
   buildPresentation,
+  materializeSlideNodes,
   parseZipLazyMedia,
   RECOMMENDED_ZIP_LIMITS,
   renderSlide,
   type PresentationData,
   type SlideHandle,
+  type SlideNode,
   type SlideRendererOptions,
+  type TextBody,
 } from "@aiden0z/pptx-renderer/browser"
 import {
   createEffect,
@@ -18,8 +21,18 @@ import {
   Show,
   type Component,
 } from "solid-js"
+import { Icon } from "@novaway/ui/icon"
 import { Spinner } from "@novaway/ui/spinner"
+import { showToast } from "@novaway/ui/toast"
 import { useLanguage } from "@/context/language"
+import { usePrompt } from "@/context/prompt"
+import {
+  elementCommentItem,
+  hitTestNodes,
+  slideElementDetail,
+  slideElementLabel,
+  type SlideElementAnchor,
+} from "@/utils/element-comment"
 import { base64ToBytes } from "@/pages/session/office-file-preview"
 
 type PptxDoc = PresentationData
@@ -34,14 +47,23 @@ async function openPptx(base64: string): Promise<PptxDoc> {
  * PPT 真实渲染(@aiden0z/pptx-renderer,ZCode 同款引擎):
  * 左侧缩略图栏(懒渲染)+ 右侧单页主视图 + 底部翻页/缩放条。
  * 主视图与缩略图共享 mediaUrlCache,内嵌图片的 blob URL 只解析一次。
+ *
+ * 传了 `path`（工作区相对路径）才有「选取元素 + 评论」：点中某一页上的形状/图片/表格，
+ * 写一句要改什么，作为文件上下文挂到输入框上方，发送后由 AI 落回这一页。
  */
-export const PptxFilePreview: Component<{ base64: string }> = (props) => {
+export const PptxFilePreview: Component<{ base64: string; path?: string }> = (props) => {
   const language = useLanguage()
+  const prompt = usePrompt()
   const [doc] = createResource(() => props.base64, openPptx)
   const [page, setPage] = createSignal(0)
   // zoom=1 表示"适宽";± 按钮在其上乘系数。
   const [zoom, setZoom] = createSignal(1)
   const [mainSize, setMainSize] = createSignal({ width: 0, height: 0 })
+
+  // 元素选取：picking 是"准星已举起"，target 是"已经点中、正等着写评论"。
+  const [picking, setPicking] = createSignal(false)
+  const [target, setTarget] = createSignal<SlideElementAnchor>()
+  const [comment, setComment] = createSignal("")
 
   let mainMount: HTMLDivElement | undefined
   // ref 走 signal:主视图容器在 <Show> 内挂载,普通变量在 effect 里读不到挂载时机。
@@ -80,6 +102,63 @@ export const PptxFilePreview: Component<{ base64: string }> = (props) => {
     return Math.min((size.width - 48) / box.width, (size.height - 24) / box.height)
   })
   const displayScale = createMemo(() => fitScale() * zoom())
+
+  // 换页/换文件后锚点立刻失效：它描述的是「第 N 页上的某个形状」，页面一变就对不上。
+  createEffect(
+    on(
+      page,
+      () => {
+        setTarget(undefined)
+        setComment("")
+      },
+      { defer: true },
+    ),
+  )
+
+  /**
+   * 主视图上的一次点击 → 幻灯片坐标 → 命中的形状。
+   * 外框尺寸正好是 `pageSize × displayScale`，所以用外框 rect 反算即可，
+   * 不必关心滚动位置和内层 transform。点空白处按「整页」起一条评论。
+   */
+  const pickAt = (event: MouseEvent & { currentTarget: HTMLElement }) => {
+    const value = presentation()
+    if (!value) return
+    const slide = value.slides[page()]
+    if (!slide || displayScale() <= 0) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const point = {
+      x: (event.clientX - rect.left) / displayScale(),
+      y: (event.clientY - rect.top) / displayScale(),
+    }
+    // 懒加载的幻灯片此刻才解析形状树；materializeSlideNodes 自带幂等标记
+    materializeSlideNodes(value, slide)
+    const node = hitTestNodes(slide.nodes, point)
+    setComment("")
+    setTarget(
+      node
+        ? anchorOf(node, page() + 1, value)
+        : { slide: page() + 1, kind: "slide", slideSize: { w: value.width, h: value.height } },
+    )
+  }
+
+  const addCommentToConversation = () => {
+    const anchor = target()
+    if (!anchor || !props.path) return
+    prompt.context.add(
+      elementCommentItem({
+        path: props.path,
+        label: slideElementLabel(anchor),
+        anchor: slideElementLabel(anchor),
+        detail: slideElementDetail(anchor),
+        comment: comment(),
+      }),
+    )
+    setTarget(undefined)
+    setComment("")
+    setPicking(false)
+    showToast({ title: "已添加到对话", description: "在输入框补充一句后发送，AI 会按评论改这一页。" })
+    document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
+  }
 
   // 主视图:翻页/缩放变化时重渲染当前页。
   createEffect(
@@ -155,7 +234,7 @@ export const PptxFilePreview: Component<{ base64: string }> = (props) => {
             <div ref={setMainViewport} class="relative min-w-0 flex-1 overflow-auto bg-background-weak">
               <div class="flex min-h-full min-w-full items-center justify-center p-3">
                 <div
-                  class="shrink-0 overflow-hidden bg-background shadow-md"
+                  class="relative shrink-0 overflow-hidden bg-background shadow-md"
                   style={{
                     width: `${pageSize().width * displayScale()}px`,
                     height: `${pageSize().height * displayScale()}px`,
@@ -170,13 +249,109 @@ export const PptxFilePreview: Component<{ base64: string }> = (props) => {
                       height: `${pageSize().height}px`,
                     }}
                   />
+                  {/* 准星层：盖在渲染结果上接管点击，只在选取模式下存在。
+                      放在缩放到最终尺寸的盒子里，点击坐标就是屏幕坐标。 */}
+                  <Show when={picking()}>
+                    <div
+                      data-component="pptx-pick-layer"
+                      class="absolute inset-0 z-10 cursor-crosshair"
+                      onClick={pickAt}
+                    />
+                  </Show>
+                  {/* 选中框：位置按 displayScale 换算回屏幕像素，只是给人看的，不挡点击。 */}
+                  <Show when={target()?.box}>
+                    {(box) => (
+                      <div
+                        class="pointer-events-none absolute z-20 border-2 border-emerald-400 bg-emerald-400/10"
+                        style={{
+                          left: `${box().x * displayScale()}px`,
+                          top: `${box().y * displayScale()}px`,
+                          width: `${box().w * displayScale()}px`,
+                          height: `${box().h * displayScale()}px`,
+                        }}
+                      />
+                    )}
+                  </Show>
                 </div>
               </div>
             </div>
           </div>
+          {/* 元素评论：选中后写一句话，挂到输入框上方，发送时随消息带给模型。 */}
+          <Show when={target()}>
+            {(anchor) => (
+              <div class="flex shrink-0 flex-col gap-2 border-t border-border bg-panel px-3 py-2.5">
+                <div class="flex min-w-0 items-center gap-1.5">
+                  <Icon name="window-cursor" size="small" class="shrink-0 text-foreground-subtle" />
+                  <span class="truncate text-12-medium text-foreground">{slideElementLabel(anchor())}</span>
+                  <span class="ml-auto shrink-0 text-11-regular text-foreground-subtlest">
+                    说一句要改什么，发送后由 AI 改这一页
+                  </span>
+                </div>
+                <textarea
+                  value={comment()}
+                  onInput={(event) => setComment(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault()
+                      setTarget(undefined)
+                      return
+                    }
+                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault()
+                      addCommentToConversation()
+                    }
+                  }}
+                  placeholder="例如：这张卡片换成蓝绿色；标题字号再大一点…"
+                  class="min-h-14 w-full resize-y rounded-lg border border-border bg-background p-2 text-12-regular leading-relaxed text-foreground outline-none transition-colors focus:border-border-hover"
+                />
+                <div class="flex items-center gap-2">
+                  <span class="min-w-0 flex-1 truncate text-11-regular text-foreground-subtlest">
+                    添加到对话后可在输入框继续补充
+                  </span>
+                  <button
+                    type="button"
+                    class="rounded-lg px-2.5 py-1.5 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                    onClick={() => setTarget(undefined)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    data-action="pptx-pick-add"
+                    class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20"
+                    onClick={addCommentToConversation}
+                  >
+                    添加到对话
+                  </button>
+                </div>
+              </div>
+            )}
+          </Show>
           {/* 底部翻页/缩放条(对齐 ZCode 的 1/14 与缩放控件)。 */}
-          <div class="flex h-10 shrink-0 items-center justify-center gap-3 border-t border-border px-3">
-            <div class="flex items-center gap-1">
+          <div class="flex h-10 shrink-0 items-center gap-3 border-t border-border px-3">
+            <div class="flex min-w-0 flex-1 items-center">
+              <Show when={props.path}>
+                <button
+                  type="button"
+                  data-action="pptx-pick-toggle"
+                  title={picking() ? "退出元素选取" : "选取元素并评论"}
+                  aria-pressed={picking()}
+                  onClick={() => {
+                    setPicking(!picking())
+                    setTarget(undefined)
+                  }}
+                  class="flex items-center gap-1 rounded-md px-2 py-1 text-ui-xs transition-colors hover:bg-hover hover:text-foreground"
+                  classList={{
+                    "bg-hover text-foreground": picking(),
+                    "text-foreground-subtle": !picking(),
+                  }}
+                >
+                  <Icon name="window-cursor" size="small" class="shrink-0" />
+                  <span class="truncate">选取元素</span>
+                </button>
+              </Show>
+            </div>
+            <div class="flex shrink-0 items-center gap-1">
               <button
                 type="button"
                 class="grid size-6 place-items-center rounded text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground disabled:opacity-40"
@@ -231,6 +406,48 @@ export const PptxFilePreview: Component<{ base64: string }> = (props) => {
       )}
     </Show>
   )
+}
+
+/** 命中的形状节点 → 评论锚点（页码 + 名称 + 文字 + 几何，坐标用幻灯片单位）。 */
+function anchorOf(node: SlideNode, slide: number, presentation: PresentationData): SlideElementAnchor {
+  return {
+    slide,
+    kind: node.nodeType,
+    name: node.name,
+    text: nodeText(node),
+    box: { x: node.position.x, y: node.position.y, w: node.size.w, h: node.size.h },
+    slideSize: { w: presentation.width, h: presentation.height },
+  }
+}
+
+/** 形状取自身文字；表格按行列拼成一行一格，图片/图表没有可读文字。 */
+function nodeText(node: SlideNode) {
+  if (node.nodeType === "shape") return bodyText(node.textBody)
+  if (node.nodeType === "table") {
+    return node.rows
+      .map((row) =>
+        row.cells
+          .map((cell) => bodyText(cell.textBody))
+          .filter(Boolean)
+          .join(" | "),
+      )
+      .filter(Boolean)
+      .join("\n")
+  }
+  return undefined
+}
+
+function bodyText(body: TextBody | undefined) {
+  if (!body) return ""
+  return body.paragraphs
+    .map((paragraph) =>
+      paragraph.runs
+        .map((run) => run.text)
+        .join("")
+        .trim(),
+    )
+    .filter(Boolean)
+    .join("\n")
 }
 
 /** 缩略图:进入视口才真正渲染幻灯片(与大视图同引擎、同媒体缓存)。 */

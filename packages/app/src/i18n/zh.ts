@@ -706,6 +706,10 @@ export const dict = {
   "preview.pick.added": "已添加到对话",
   "preview.pick.addedHint": "可在对话框里补充要改什么，然后发送",
   "preview.pick.appendedHint": "元素说明已追加到输入框，补充要改什么后发送",
+  "preview.pick.commentTitle": "对这个元素说点什么",
+  "preview.pick.commentPlaceholder": "要改什么？例如：把这个标题换成深蓝色、卡片间距再大一点",
+  "preview.pick.commentHint": "添加到对话后，可在输入框继续补充，然后发送",
+  "preview.pick.add": "添加到对话",
 
   "sidePane.tab.preview": "预览",
   "sidePane.tab.files": "文件",

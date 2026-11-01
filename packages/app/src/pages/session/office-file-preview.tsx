@@ -45,7 +45,7 @@ export const OfficeFilePreview: Component<OfficeFilePreviewProps> = (props) => (
       <DocxFilePreview base64={props.base64} />
     </Match>
     <Match when={props.path.toLowerCase().endsWith(".pptx")}>
-      <PptxFilePreview base64={props.base64} />
+      <PptxFilePreview base64={props.base64} path={props.path} />
     </Match>
     <Match when={props.path.toLowerCase().endsWith(".xlsx")}>
       <XlsxFilePreview base64={props.base64} />
