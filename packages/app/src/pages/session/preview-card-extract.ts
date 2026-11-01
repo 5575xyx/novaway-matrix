@@ -429,6 +429,36 @@ function matchChangedFilePath(reference: PreviewFileReference, changedFilePaths:
 export const PREVIEW_CARD_CANDIDATE_LIMIT = 15
 export const PREVIEW_CARD_VISIBLE_LIMIT = 10
 
+/**
+ * 产物卡的「交付物层级」。一张卡代表一次交付，而一轮任务往往顺带写出一堆中间素材
+ * （分镜 SVG、notes md、backup 副本）—— 模型在正文里逐个列出来，卡片就全铺开了，
+ * 用户看到的是一面文件墙，反而找不到真正要的那份。
+ *
+ * 规则：一轮里只保留层级最高的那一档。
+ *   3 = 可交付文档（pptx / docx / xlsx / pdf）—— 生成 PPT 就只留 PPT，生成 Word 就只留 Word
+ *   2 = 可交互产物（html 原型 / 本地服务）
+ *   1 = Markdown 正文
+ *   0 = 图片
+ * 同一档内允许多张（一次交付两个 pptx 是合理的），跨档一律丢弃低档。
+ */
+const DELIVERABLE_TIER = { delegate: 3, interactive: 2, text: 1, image: 0 } as const
+
+function deliverableTier(candidate: PreviewCardCandidate): number {
+  if (candidate.kind === "server" || candidate.kind === "html") return DELIVERABLE_TIER.interactive
+  const path = (candidate.path ?? candidate.title).toLowerCase()
+  if (/\.(pptx?|docx?|xlsx?|csv|pdf)$/.test(path)) return DELIVERABLE_TIER.delegate
+  if (/\.(md|markdown|txt)$/.test(path)) return DELIVERABLE_TIER.text
+  return DELIVERABLE_TIER.image
+}
+
+export function selectPrimaryDeliverables(candidates: readonly PreviewCardCandidate[]): PreviewCardCandidate[] {
+  if (candidates.length <= 1) return [...candidates]
+  const top = Math.max(...candidates.map(deliverableTier))
+  const kept = candidates.filter((candidate) => deliverableTier(candidate) === top)
+  // 全是图片时（比如只问了"这张图怎么样"）保留原样，不因为规则把唯一的信息也砍掉。
+  return kept.length > 0 ? kept : [...candidates]
+}
+
 export interface BuildPreviewCardsInput {
   /** 本轮全部 assistant 正文(text 段按顺序拼接) */
   turnText: string

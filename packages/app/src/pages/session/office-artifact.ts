@@ -189,13 +189,16 @@ function findHeading(lines: string[], label: string) {
   return lines.findIndex((line) => new RegExp(`^#{1,6}\\s*${escapeRegExp(label)}\\s*$`).test(line.trim()))
 }
 
-function artifactTitle(body: string, slides: OfficeSlide[] = []) {
-  const deckHeading = body
-    .split("\n")
-    .map((line) => line.trim().match(/^#{2,6}\s+(.+?)\s*#*$/)?.[1])
-    .find((value): value is string => !!value && !/^第\s*\d+\s*页/.test(value) && !/^(?:PPT\s*)?需求确认$/.test(value))
-  if (deckHeading) return cleanTitle(deckHeading)
+/**
+ * 流程性小标题：模型写报告时习惯先来一段「## 交付结论」「## 概述」，这些词说明的是
+ * *文档结构*，不是*交付物叫什么*。以前取第一个 `##` 当标题，产物卡就会显示成
+ * 「交付结论」—— 用户看到的是一个没有任何信息量的框。这里把它们排除掉。
+ */
+const PROCESS_HEADING =
+  /^(?:交付结论|交付说明|结论|总结|概述|摘要|正文|目录|说明|内容|输出|结果|要点|背景|目标|汇报|报告正文)$/
 
+function artifactTitle(body: string, slides: OfficeSlide[] = []) {
+  // PPT 优先用封面标题：封面上写的就是这份稿子的名字，比正文里的小标题可信。
   if (slides.length > 0) {
     const coverTitle = slides[0]?.content
       .split("\n")
@@ -210,12 +213,28 @@ function artifactTitle(body: string, slides: OfficeSlide[] = []) {
     if (coverTitle) return cleanTitle(coverTitle)
   }
 
+  const deckHeading = body
+    .split("\n")
+    .map((line) => line.trim().match(/^#{2,6}\s+(.+?)\s*#*$/)?.[1])
+    .find(
+      (value): value is string =>
+        !!value &&
+        !/^第\s*\d+\s*页/.test(value) &&
+        !/^(?:PPT\s*)?需求确认$/.test(value) &&
+        !PROCESS_HEADING.test(cleanTitle(value)),
+    )
+  if (deckHeading) return cleanTitle(deckHeading)
+
   const heading = body
     .split("\n")
     .map((line) => line.trim().match(/^#{1,6}\s+(.+?)\s*#*$/)?.[1])
     .find(
       (value): value is string =>
-        !!value && value !== "办公产物" && value !== "可沉淀记忆/可进化建议" && !/^第\s*\d+\s*页/.test(value),
+        !!value &&
+        value !== "办公产物" &&
+        value !== "可沉淀记忆/可进化建议" &&
+        !/^第\s*\d+\s*页/.test(value) &&
+        !PROCESS_HEADING.test(cleanTitle(value)),
     )
   if (heading) return cleanTitle(heading)
 

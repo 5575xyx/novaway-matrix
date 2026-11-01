@@ -5,6 +5,8 @@ import {
   extractAnswerFileReferences,
   extractAnswerWebsites,
   projectCitationText,
+  selectPrimaryDeliverables,
+  type PreviewCardCandidate,
 } from "./preview-card-extract"
 
 const WS = "E:/proj"
@@ -247,5 +249,64 @@ describe("projectCitationText", () => {
 
   test("无冒号快速返回", () => {
     expect(projectCitationText("纯文本正文", { streaming: true })).toBe("纯文本正文")
+  })
+})
+
+describe("selectPrimaryDeliverables（一张卡只代表一份交付物）", () => {
+  const file = (path: string): PreviewCardCandidate => ({
+    kind: "file",
+    url: "",
+    path: `/ws/${path}`,
+    title: path.split("/").at(-1)!,
+    subtitle: path,
+  })
+  const html = (): PreviewCardCandidate => ({
+    kind: "html",
+    url: "file:///ws/proto.html",
+    path: "/ws/proto.html",
+    title: "proto.html",
+    subtitle: "proto.html",
+  })
+  const server = (): PreviewCardCandidate => ({
+    kind: "server",
+    url: "http://localhost:3000",
+    title: "localhost:3000",
+    subtitle: "http://localhost:3000",
+  })
+
+  // 真实回归：让模型做一份 PPT，正文里把 8 张分镜 SVG、notes md、prompt 副本
+  // 和最终 pptx 全引用了一遍，卡片铺成一面墙，真正要交付的那份反而找不着。
+  test("生成 PPT 时只留 pptx，中间素材全部丢掉", () => {
+    const result = selectPrimaryDeliverables([
+      file("projects/x/svg_final/01_cover.svg"),
+      file("projects/x/svg_final/02_positioning.svg"),
+      file("projects/x/notes/total.md"),
+      file("projects/x/exports/deck.pptx"),
+    ])
+    expect(result.map((item) => item.title)).toEqual(["deck.pptx"])
+  })
+
+  test("生成 Word 时只留 docx", () => {
+    const result = selectPrimaryDeliverables([file("a.png"), file("notes.md"), file("报告.docx")])
+    expect(result.map((item) => item.title)).toEqual(["报告.docx"])
+  })
+
+  test("同一档可以有多张：一次交付两个 pptx 都保留", () => {
+    const result = selectPrimaryDeliverables([file("a.pptx"), file("b.pptx"), file("c.svg")])
+    expect(result.map((item) => item.title)).toEqual(["a.pptx", "b.pptx"])
+  })
+
+  test("没有可交付文档时，交互产物优先于 Markdown 与图片", () => {
+    expect(selectPrimaryDeliverables([file("a.png"), file("readme.md"), server(), html()])).toHaveLength(2)
+    expect(selectPrimaryDeliverables([file("a.png"), file("readme.md")]).map((i) => i.title)).toEqual(["readme.md"])
+  })
+
+  test("只有图片时原样保留（不能把唯一的信息也砍掉）", () => {
+    expect(selectPrimaryDeliverables([file("a.png"), file("b.jpg")])).toHaveLength(2)
+  })
+
+  test("空输入与单张卡直接返回", () => {
+    expect(selectPrimaryDeliverables([])).toEqual([])
+    expect(selectPrimaryDeliverables([file("a.png")])).toHaveLength(1)
   })
 })

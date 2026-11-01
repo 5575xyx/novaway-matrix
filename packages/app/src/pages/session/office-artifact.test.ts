@@ -350,6 +350,26 @@ describe("extractOfficeArtifact", () => {
     expect(artifact?.title).toBe("小学数学教学PPT")
     expect(artifact?.filename).toBe("小学数学教学PPT.md")
   })
+
+  // 真实反馈：产物卡标题显示成「交付结论」，用户看到的是一个没有任何信息量的框。
+  // 那是因为 artifactTitle 取了正文里第一个 `##` 小标题，而模型习惯先写「## 交付结论」。
+  test("流程性小标题不会被当成产品名", () => {
+    const artifact = extractOfficeArtifact(
+      [
+        "# 办公产物",
+        "",
+        "## 交付结论",
+        "",
+        "已根据工作区内容完成 8 页产品宣传 PPT 的生成。",
+        "",
+        "## 产品定位与价值主张",
+        "",
+        "让关键业务环节更高效。",
+      ].join("\n"),
+    )
+
+    expect(artifact?.title).toBe("产品定位与价值主张")
+  })
 })
 
 describe("rebuildOfficeArtifact", () => {

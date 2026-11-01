@@ -74,6 +74,9 @@ import { useQueryOptions } from "@/context/global-sync"
 import { agentDisplayName } from "@/utils/agent"
 import { pathKey } from "@/utils/path-key"
 import { useOfficeAgent } from "@/pages/session/office-agent-context"
+import { OfficePptTemplateGallery } from "@/components/office-ppt-template-gallery"
+import { officePptTemplateName } from "@/pages/session/office-export"
+import { openCustomPptTemplateDialog } from "@/pages/session/office-custom-template"
 import { ProjectSwitcherChip } from "@/components/project-switcher"
 import { officeAgentScenario } from "@/pages/session/office-agent-scenarios"
 import { transformOfficePrompt } from "@/pages/session/office-agent-prompt"
@@ -1906,6 +1909,37 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   </span>
                   <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtle" />
                 </button>
+                {/* 生成前就能锁模板：以前只能在产物生成完之后、从卡片里再换一次模板重导，
+                    等于「先让模型随便做一版，再挑风格」，用户根本没得选。 */}
+                <Show when={office.activeID() === "ppt"}>
+                  <button
+                    type="button"
+                    data-component="prompt-office-ppt-template"
+                    data-action="prompt-office-ppt-template"
+                    title="选择 PPT 模板"
+                    class="flex h-7 min-w-0 max-w-[220px] items-center gap-1.5 rounded-[8px] px-2 text-13-regular text-foreground transition-colors hover:bg-hover"
+                    style={control()}
+                    onClick={() =>
+                      dialog.show(() => (
+                        <OfficePptTemplateGallery
+                          current={office.pptTemplate()}
+                          onSelect={(template) => {
+                            office.selectPptTemplate(template)
+                            dialog.close()
+                          }}
+                          onCustom={() => {
+                            dialog.close()
+                            openCustomPptTemplateDialog({ office, dialog })
+                          }}
+                        />
+                      ))
+                    }
+                  >
+                    <Icon name="layout-bottom" size="small" class="shrink-0 text-foreground-subtle" />
+                    <span class="truncate">{officePptTemplateName(office.pptTemplate())}</span>
+                    <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtle" />
+                  </button>
+                </Show>
               </Show>
             </Show>
             {/* 电脑控制快捷插入：与 agent 选择器并列。

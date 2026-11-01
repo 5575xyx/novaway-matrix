@@ -49,7 +49,8 @@ export function officeAgentSyntheticText(input: {
     `开始处理前请优先调用 skill 工具加载「${scenario.skillName}」Skill，并按该 Skill 的流程组织结果。`,
     "输出中必须把正文和长期沉淀建议分开：正文使用「# 办公产物」作为一级标题；末尾使用「# 可沉淀记忆/可进化建议」作为一级标题，并分别列出「可沉淀记忆」「可进化建议」「需要用户确认」。",
     "不要把未确认的偏好写成确定事实。",
-    "产物引用协议：正文写完后，另起一行为每个交付文件输出一条 :nova-file-citation{path=相对路径}（一行一条；path 用相对工作区的路径写法；Word/Excel/PPT/PDF/图片文档都适用）。系统会据此在回执下方生成可点击的产物卡片，用户点开即可预览，所以每个真正交付的文件都不要漏标。",
+    "产物引用协议：正文写完后，另起一行为**最终交付文件**输出一条 :nova-file-citation{path=相对路径}（一行一条；path 用相对工作区的路径写法；Word/Excel/PPT/PDF/图片文档都适用）。系统会据此在回执下方生成可点击的产物卡片。",
+    "只给最终交付物出引用：一次任务交付 PPT 就只引用那份 .pptx，交付 Word 就只引用那份 .docx。分镜/中间 SVG、notes、backup 副本、中间 JSON 这些过程素材一律不要出引用——它们会把真正要交付的那份淹掉。",
   ]
 
   if (input.quickMode) {

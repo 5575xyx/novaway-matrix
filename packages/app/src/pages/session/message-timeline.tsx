@@ -83,6 +83,7 @@ import {
   normalizePathForCompare,
   PREVIEW_CARD_VISIBLE_LIMIT,
   projectCitationText,
+  selectPrimaryDeliverables,
   type PreviewCardCandidate,
 } from "./preview-card-extract"
 import { usePreview } from "@/context/preview"
@@ -103,14 +104,12 @@ import { isTodoDone } from "./status-panel/todo-section"
 import { extractOfficeArtifact, visibleOfficeMessage, type OfficeArtifact, type OfficeSlide } from "./office-artifact"
 import {
   bytesToBase64,
-  createCustomPptTemplate,
   createOfficeExportFile,
   createOfficeHtmlExportFile,
   isRealPptxTemplate,
   officeArtifactKind,
   officePptTemplateDescription,
   officePptTemplateName,
-  officePptTemplates,
   type OfficePptTemplateChoice,
 } from "./office-export"
 import { createOfficeExportFileFromPptxTemplate } from "./office-ppt-template-fill"
@@ -122,6 +121,8 @@ import {
   officePptxTemplateFillFilename,
 } from "./office-template-fill"
 import { OfficeSlideEditor } from "./office-slide-editor"
+import { OfficePptTemplateGallery } from "@/components/office-ppt-template-gallery"
+import { openCustomPptTemplateDialog } from "./office-custom-template"
 import { createOfficeSlideRevisionPrompt } from "./office-slide-revise"
 import { OfficeDataEditor } from "./office-data-editor"
 import { OfficeDesignEditor } from "./office-design-editor"
@@ -950,12 +951,17 @@ export function MessageTimeline(props: {
         }
       }
 
-      const candidates = buildPreviewCardCandidates({
-        turnText,
-        workspacePath: directory,
-        changedFilePaths,
-        bashUrls,
-      }).filter((candidate) => !candidate.path || !isExcludedPath(candidate.path))
+      // 只留最终交付物：生成 PPT 就只留 pptx，生成 Word 就只留 docx。
+      // 中间素材（分镜 SVG、notes md、backup 副本）不单独出卡 —— 它们堆在一起
+      // 会把真正要交付的那份淹掉（见 selectPrimaryDeliverables 的说明）。
+      const candidates = selectPrimaryDeliverables(
+        buildPreviewCardCandidates({
+          turnText,
+          workspacePath: directory,
+          changedFilePaths,
+          bashUrls,
+        }),
+      ).filter((candidate) => !candidate.path || !isExcludedPath(candidate.path))
       if (candidates.length === 0) continue
       const signature = JSON.stringify(candidates)
       result.set(message.id, { signature, candidates })
@@ -2087,12 +2093,25 @@ export function MessageTimeline(props: {
     const office = useOfficeAgent()
     const kind = () => officeArtifactKind(input.artifact, input.agent)
     const quality = () => evaluateOfficeArtifactQuality(input.artifact, kind())
+    /** 卡片左侧的类型图标 —— 让「这是份 PPT 还是 Word」在一眼之间可辨。 */
+    const deliverableIcon = () => {
+      if (input.artifact.slides.length > 0) return "lu-presentation"
+      if (kind() === "data") return "lu-table"
+      if (kind() === "web") return "lu-globe"
+      if (kind() === "design") return "lu-square-pen"
+      return "lu-file-text"
+    }
+    /** 副标题只说「交付物是什么」：以前那句「已识别 N 页 PPT 大纲，可预览、复制或导出 PPTX」
+        把三个按钮的名字又念了一遍，信息量为零。 */
+    const deliverableSummary = () => {
+      if (input.artifact.slides.length > 0) return `PPTX · ${input.artifact.slides.length} 页`
+      if (kind() === "data") return "XLSX 表格"
+      if (kind() === "web") return "HTML 网页"
+      if (kind() === "design") return "视觉设计稿"
+      return "DOCX 文档"
+    }
     const pptTemplate = () => office.pptTemplate()
     const setPptTemplate = (template: OfficePptTemplateChoice) => office.selectPptTemplate(template)
-    const selectedCustomTemplate = createMemo(() => {
-      const template = office.pptTemplate()
-      return typeof template === "object" ? template : undefined
-    })
     const fillPlan = createMemo(() => officePptxFillPlanFromArtifact(input.artifact))
     const fillSummary = createMemo(() => officePptxFillPlanSummary(fillPlan()))
     const [savedPath, setSavedPath] = createSignal("")
@@ -2195,70 +2214,37 @@ export function MessageTimeline(props: {
       inputElement.click()
     }
 
-    function openCustomTemplateDialog() {
-      const [draft, setDraft] = createSignal("高端黑金商务风，深色封面，金色强调，页面简洁、有留白，适合正式汇报。")
-      const preview = createMemo(() => createCustomPptTemplate(draft(), input.artifact.title))
-      const apply = () => {
-        const template = preview()
-        office.selectPptTemplate(template)
-        dialog.close()
-        showToast({ title: "自定义模板已生成", description: template.name })
-      }
-
+    /**
+     * 模板画廊：封面图直接铺出来挑，而不是在 60 行纯文字里猜「Swiss Grid」长什么样。
+     * 「AI 自定义」和「上传自己的 .pptx」也收在同一个入口里。
+     */
+    function openTemplateGallery() {
       dialog.show(() => (
-        <Dialog title="自定义 PPT 模板" class="w-full max-w-[680px] mx-auto">
-          <div class="flex flex-col gap-4 px-6 pb-5">
-            <div class="rounded-[8px] border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
-              <div class="text-13-medium text-foreground">模板设计提示词</div>
-              <div class="mt-1 text-12-regular leading-relaxed text-foreground-subtle">
-                请描述你想要的 PPT 风格、主题、配色、行业气质和页面感觉，例如“科技蓝、赛博霓虹、适合 AI 产品发布”。
-              </div>
-            </div>
-            <textarea
-              value={draft()}
-              onInput={(event) => setDraft(event.currentTarget.value)}
-              class="min-h-[128px] w-full resize-y rounded-[8px] border border-border bg-background p-3 text-13-regular leading-relaxed text-foreground outline-none transition-colors focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/25"
-            />
-            <div class="grid gap-3 rounded-[8px] border border-border bg-surface/70 p-3">
-              <div class="flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="truncate text-13-medium text-foreground">{preview().name}</div>
-                  <div class="mt-1 line-clamp-2 text-12-regular text-foreground-subtle">{preview().description}</div>
-                </div>
-                <div class="flex shrink-0 items-center gap-1.5">
-                  <For
-                    each={[
-                      preview().visual.coverBg,
-                      preview().visual.accent,
-                      preview().visual.accent2,
-                      preview().visual.pageBg,
-                    ]}
-                  >
-                    {(color) => (
-                      <span
-                        class="size-5 rounded-[6px] border border-border"
-                        style={{ "background-color": `#${color}` }}
-                      />
-                    )}
-                  </For>
-                </div>
-              </div>
-            </div>
-            <div class="flex justify-end gap-2">
-              <Button variant="ghost" size="large" onClick={() => dialog.close()}>
-                取消
-              </Button>
-              <button
-                type="button"
-                class="rounded-[8px] border border-emerald-300/45 bg-emerald-300 px-4 py-2 text-13-medium text-black shadow-[0_10px_26px_rgba(16,185,129,0.18)] transition-all hover:-translate-y-px hover:bg-emerald-200 active:translate-y-0 active:scale-[0.98]"
-                onClick={apply}
-              >
-                生成并使用
-              </button>
-            </div>
-          </div>
-        </Dialog>
+        <OfficePptTemplateGallery
+          current={pptTemplate()}
+          busy={fillTemplate.isPending}
+          onSelect={(template) => {
+            setPptTemplate(template)
+            dialog.close()
+          }}
+          onCustom={() => {
+            dialog.close()
+            openCustomTemplateDialog()
+          }}
+          onUpload={() => {
+            dialog.close()
+            selectPptxTemplateFile()
+          }}
+        />
       ))
+    }
+
+    function openCustomTemplateDialog() {
+      openCustomPptTemplateDialog({
+        office,
+        dialog,
+        title: input.artifact.title,
+      })
     }
 
     function openArtifactEditor() {
@@ -2347,84 +2333,37 @@ export function MessageTimeline(props: {
     }
 
     return (
-      <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-emerald-300/20 bg-emerald-300/[0.06] px-3 py-2.5">
+      // 交付卡片只回答一个问题：「这份东西叫什么、下一步做什么」。
+      // 以前这里还挂着「质量：可交付 · 结构完整，可以导出或保存」——那句永远为真的话
+      // 不提供任何决策信息，只占掉标题的位置。质量检查本身没删：只有真的查出问题时
+      // 才以一行琥珀色提醒出现（见下面的 review 分支）。
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-border bg-surface/60 px-3 py-2">
         <div class="flex min-w-0 items-center gap-2">
-          <div class="grid size-7 shrink-0 place-items-center rounded-[8px] border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
-            <Icon name="pencil-line" size="small" />
+          <div class="grid size-7 shrink-0 place-items-center rounded-[8px] border border-border bg-background text-foreground-subtle">
+            <Icon name={deliverableIcon()} size="small" />
           </div>
           <div class="min-w-0">
             <div class="truncate text-12-medium text-foreground">{input.artifact.title}</div>
-            <div class="text-11-regular text-foreground-subtle">
-              {input.artifact.slides.length > 0
-                ? `已识别 ${input.artifact.slides.length} 页 PPT 大纲，可预览、复制或导出 PPTX`
-                : "已识别为办公产物，可单独复制或导出 DOCX"}
-            </div>
-            <div class="mt-1 flex min-w-0 items-center gap-1.5">
-              <span
-                class="shrink-0 rounded-[6px] border px-1.5 py-0.5 text-10-medium"
-                classList={{
-                  "border-emerald-300/30 bg-emerald-300/10 text-emerald-100": quality().status === "ready",
-                  "border-amber-300/35 bg-amber-300/10 text-amber-100": quality().status === "review",
-                }}
-              >
-                质量：{quality().label}
-              </span>
-              <span class="truncate text-10-regular text-foreground-subtle" title={quality().summary}>
-                {quality().summary}
-              </span>
-            </div>
+            <div class="truncate text-11-regular text-foreground-subtle">{deliverableSummary()}</div>
+            <Show when={quality().status === "review"}>
+              <div class="mt-0.5 truncate text-10-regular text-amber-600" title={quality().summary}>
+                质量提醒：{quality().summary}
+              </div>
+            </Show>
           </div>
         </div>
         <div class="flex shrink-0 items-center gap-2">
           <Show when={input.artifact.slides.length > 0}>
-            <DropdownMenu placement="top-start" gutter={6}>
-              <DropdownMenu.Trigger
-                as="button"
-                type="button"
-                class="group inline-flex min-w-[164px] items-center justify-between gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground outline-none transition-colors hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
-                title={officePptTemplateDescription(pptTemplate())}
-              >
-                <span class="text-11-regular text-foreground-subtle">模板</span>
-                <span class="min-w-0 flex-1 truncate text-left">{officePptTemplateName(pptTemplate())}</span>
-                <Icon
-                  name="chevron-down"
-                  size="small"
-                  class="shrink-0 text-foreground-subtlest transition-transform group-data-[expanded]:rotate-180"
-                />
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content class="max-h-[320px] overflow-y-auto" style={{ "min-width": "220px" }}>
-                  <DropdownMenu.Item onSelect={() => setPptTemplate("auto")}>
-                    <DropdownMenu.ItemLabel>自动匹配</DropdownMenu.ItemLabel>
-                    <DropdownMenu.ItemDescription>根据当前 PPT 主题自动选择模板</DropdownMenu.ItemDescription>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item onSelect={openCustomTemplateDialog}>
-                    <DropdownMenu.ItemLabel>自定义模板</DropdownMenu.ItemLabel>
-                    <DropdownMenu.ItemDescription>根据风格、主题和样式描述生成模板</DropdownMenu.ItemDescription>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Separator />
-                  <Show when={selectedCustomTemplate()}>
-                    {(template) => (
-                      <>
-                        <DropdownMenu.Item onSelect={() => setPptTemplate(template())}>
-                          <DropdownMenu.ItemLabel>{template().name}</DropdownMenu.ItemLabel>
-                          <DropdownMenu.ItemDescription>{template().description}</DropdownMenu.ItemDescription>
-                        </DropdownMenu.Item>
-                        <DropdownMenu.Separator />
-                      </>
-                    )}
-                  </Show>
-                  <For each={officePptTemplates}>
-                    {(template) => (
-                      <DropdownMenu.Item onSelect={() => setPptTemplate(template.id)}>
-                        <DropdownMenu.ItemLabel>{template.name}</DropdownMenu.ItemLabel>
-                        <DropdownMenu.ItemDescription>{template.description}</DropdownMenu.ItemDescription>
-                      </DropdownMenu.Item>
-                    )}
-                  </For>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu>
+            <button
+              type="button"
+              class="group inline-flex min-w-[168px] items-center justify-between gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground outline-none transition-colors hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
+              title={officePptTemplateDescription(pptTemplate())}
+              onClick={openTemplateGallery}
+            >
+              <span class="text-11-regular text-foreground-subtle">模板</span>
+              <span class="min-w-0 flex-1 truncate text-left">{officePptTemplateName(pptTemplate())}</span>
+              <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtlest" />
+            </button>
           </Show>
           <Show when={input.artifact.slides.length > 0}>
             <button type="button" class={actionButton} onClick={() => previewOfficeSlides(input.artifact)}>
@@ -2432,95 +2371,6 @@ export function MessageTimeline(props: {
               <span>预览页</span>
             </button>
           </Show>
-          <Show when={input.artifact.slides.length > 0}>
-            <button type="button" class={actionButton} onClick={() => editOfficeSlides(input.artifact)}>
-              <Icon name="pencil-line" size="small" class="transition-transform duration-150 group-hover:scale-110" />
-              <span>编辑页</span>
-            </button>
-          </Show>
-          <Show when={kind() === "data" || kind() === "design" || kind() === "web"}>
-            <button type="button" class={actionButton} onClick={openArtifactEditor}>
-              <Icon name="edit" size="small" />
-              <span>{kind() === "data" ? "编辑表格" : kind() === "design" ? "编辑设计" : "预览网页"}</span>
-            </button>
-          </Show>
-          <button type="button" class={actionButton} onClick={() => copyOfficeArtifact(input.artifact)}>
-            <Icon name="copy" size="small" class="transition-transform duration-150 group-hover:scale-110" />
-            <span>复制产物</span>
-          </button>
-          <button
-            type="button"
-            class={actionButton}
-            disabled={!savedPath()}
-            onClick={openArtifactHistory}
-            title={savedPath() ? "查看并恢复历史版本" : "请先保存到项目"}
-          >
-            <Icon name="archive" size="small" />
-            <span>历史版本</span>
-          </button>
-          <button
-            type="button"
-            class={actionButton}
-            classList={{
-              "border-emerald-300/55 bg-emerald-300/[0.08] text-emerald-100": office.pptAnimationEnabled(),
-            }}
-            onClick={() => office.setPptAnimationEnabled(!office.pptAnimationEnabled())}
-            title={office.pptAnimationEnabled() ? "当前导出会写入对象级动画" : "当前导出不会写入对象级动画"}
-          >
-            <Icon name="sliders" size="small" />
-            <span>{office.pptAnimationEnabled() ? "动画开" : "动画关"}</span>
-          </button>
-          <button
-            type="button"
-            class={actionButton}
-            classList={{
-              "border-emerald-300/55 bg-emerald-300/[0.08] text-emerald-100": office.pptNarrationEnabled(),
-            }}
-            onClick={() => office.setPptNarrationEnabled(!office.pptNarrationEnabled())}
-            title={office.pptNarrationEnabled() ? "已生成旁白会嵌入导出 PPTX" : "当前导出不嵌入旁白"}
-          >
-            <Icon name="bubble-5" size="small" />
-            <span>{office.pptNarrationEnabled() ? "旁白开" : "旁白关"}</span>
-          </button>
-          <button
-            type="button"
-            class={actionButton}
-            onClick={() => downloadOfficeArtifact(input.artifact, pptTemplate())}
-          >
-            <Icon name="download" size="small" class="transition-transform duration-150 group-hover:translate-y-0.5" />
-            <span>{input.artifact.slides.length > 0 ? "导出 PPTX" : "导出 DOCX"}</span>
-          </button>
-          <Show when={input.artifact.slides.length === 0}>
-            <button type="button" class={actionButton} onClick={() => downloadOfficeHtmlArtifact(input.artifact)}>
-              <Icon name="code" size="small" class="transition-transform duration-150 group-hover:scale-110" />
-              <span>导出 HTML</span>
-            </button>
-          </Show>
-          <Show when={input.artifact.slides.length > 0}>
-            <button
-              type="button"
-              class={actionButton}
-              disabled={fillTemplate.isPending}
-              onClick={selectPptxTemplateFile}
-              title={fillSummary()}
-            >
-              <Icon
-                name={fillTemplate.isPending ? "status" : "layout-bottom"}
-                size="small"
-                class="transition-transform duration-150 group-hover:scale-110"
-              />
-              <span>{fillTemplate.isPending ? "套版中" : "套用PPTX模板"}</span>
-            </button>
-          </Show>
-          <button
-            type="button"
-            class={actionButton}
-            disabled={saveWorkflow.isPending}
-            onClick={() => saveWorkflow.mutate()}
-          >
-            <Icon name="branch" size="small" />
-            <span>{saveWorkflow.isPending ? "保存中" : "存为工作流"}</span>
-          </button>
           <button type="button" class={primaryActionButton} disabled={save.isPending} onClick={() => save.mutate()}>
             <Icon
               name={save.isPending ? "status" : "check"}
@@ -2529,6 +2379,69 @@ export function MessageTimeline(props: {
             />
             <span>{save.isPending ? "保存中" : "保存到项目"}</span>
           </button>
+          {/* 次级操作收进「⋯」：以前这里并排十二个按钮，谁都突出不了，常用的
+              「预览 / 保存」反而要在一排里找。现在主行只留这两三个，其余按用途分组收起来。 */}
+          <DropdownMenu placement="bottom-end" gutter={6}>
+            <DropdownMenu.Trigger as={IconButton} icon="dot-grid" variant="ghost" aria-label="更多操作" />
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content style={{ "min-width": "224px" }}>
+                <DropdownMenu.Item onSelect={() => downloadOfficeArtifact(input.artifact, pptTemplate())}>
+                  <Icon name="download" size="small" />
+                  <DropdownMenu.ItemLabel>
+                    {input.artifact.slides.length > 0 ? "导出 PPTX" : "导出 DOCX"}
+                  </DropdownMenu.ItemLabel>
+                </DropdownMenu.Item>
+                <Show when={input.artifact.slides.length === 0}>
+                  <DropdownMenu.Item onSelect={() => downloadOfficeHtmlArtifact(input.artifact)}>
+                    <Icon name="code-lines" size="small" />
+                    <DropdownMenu.ItemLabel>导出 HTML</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </Show>
+                <Show when={input.artifact.slides.length > 0}>
+                  <DropdownMenu.Separator />
+                  <DropdownMenu.Item onSelect={() => editOfficeSlides(input.artifact)}>
+                    <Icon name="pencil-line" size="small" />
+                    <DropdownMenu.ItemLabel>逐页编辑</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item disabled={fillTemplate.isPending} onSelect={selectPptxTemplateFile}>
+                    <Icon name="layout-bottom" size="small" />
+                    <DropdownMenu.ItemLabel>
+                      {fillTemplate.isPending ? "套版中" : "套用 PPTX 模板"}
+                    </DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={() => office.setPptAnimationEnabled(!office.pptAnimationEnabled())}>
+                    <Icon name="sliders" size="small" />
+                    <DropdownMenu.ItemLabel>动画：{office.pptAnimationEnabled() ? "开" : "关"}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={() => office.setPptNarrationEnabled(!office.pptNarrationEnabled())}>
+                    <Icon name="bubble-5" size="small" />
+                    <DropdownMenu.ItemLabel>旁白：{office.pptNarrationEnabled() ? "开" : "关"}</DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </Show>
+                <Show when={kind() === "data" || kind() === "design" || kind() === "web"}>
+                  <DropdownMenu.Item onSelect={openArtifactEditor}>
+                    <Icon name="edit-small-2" size="small" />
+                    <DropdownMenu.ItemLabel>
+                      {kind() === "data" ? "编辑表格" : kind() === "design" ? "编辑设计" : "预览网页"}
+                    </DropdownMenu.ItemLabel>
+                  </DropdownMenu.Item>
+                </Show>
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item onSelect={() => copyOfficeArtifact(input.artifact)}>
+                  <Icon name="copy" size="small" />
+                  <DropdownMenu.ItemLabel>复制产物</DropdownMenu.ItemLabel>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item disabled={!savedPath()} onSelect={openArtifactHistory}>
+                  <Icon name="archive" size="small" />
+                  <DropdownMenu.ItemLabel>{savedPath() ? "历史版本" : "历史版本（先保存）"}</DropdownMenu.ItemLabel>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item disabled={saveWorkflow.isPending} onSelect={() => saveWorkflow.mutate()}>
+                  <Icon name="branch" size="small" />
+                  <DropdownMenu.ItemLabel>{saveWorkflow.isPending ? "保存中" : "存为工作流"}</DropdownMenu.ItemLabel>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu>
         </div>
       </div>
     )
