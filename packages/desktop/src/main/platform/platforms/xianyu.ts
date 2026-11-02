@@ -61,6 +61,7 @@ export class XianyuPlatform extends PlatformBase {
   readonly name = "闲鱼"
   readonly loginUrl = LOGIN_URL
   readonly cookieCheckField = "unb"
+  readonly profileUrl = "https://www.goofish.com/personal"
 
   private windowTimers = new Map<number, NodeJS.Timeout>()
 

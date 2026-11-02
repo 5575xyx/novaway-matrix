@@ -14,6 +14,7 @@ import { SessionRevert } from "@/session/revert"
 import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { Service as PlanApprovalService } from "@/session/plan-approval"
+import { Service as DocumentReviewService } from "@/session/document-review"
 import * as InstanceState from "@/effect/instance-state"
 import { SessionSummary } from "@/session/summary"
 import { SessionPortability } from "@/session/portability"
@@ -35,6 +36,7 @@ import {
   MessagesQuery,
   PermissionResponsePayload,
   PlanApprovalReplyPayload,
+  DocumentReviewReplyPayload,
   TempFileCleanPayload,
   PromptPayload,
   RevertPayload,
@@ -312,6 +314,42 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return ok
     })
 
+    const documentReview = Effect.fn("SessionHttpApi.documentReview")(function* (ctx: {
+      params: { sessionID: SessionID }
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      const service = yield* DocumentReviewService
+      const list = yield* service.list(ctx.params.sessionID)
+      return list.map((item) => ({
+        id: item.id as string,
+        sessionID: item.sessionID as string,
+        messageID: (item.messageID ?? undefined) as string | undefined,
+        path: item.path,
+        kind: item.kind,
+        title: item.title,
+        version: item.version,
+        summary: item.summary,
+        highlights: [...item.highlights],
+        questions: [...item.questions],
+        lines: item.lines,
+        createdAt: item.createdAt,
+      }))
+    })
+
+    const documentReviewReply = Effect.fn("SessionHttpApi.documentReviewReply")(function* (ctx: {
+      params: { sessionID: SessionID; requestID: string }
+      payload: typeof DocumentReviewReplyPayload.Type
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      const service = yield* DocumentReviewService
+      const feedback = ctx.payload.feedback?.trim()
+      return yield* service.reply({
+        id: ctx.params.requestID as never,
+        decision: ctx.payload.decision,
+        ...(feedback ? { feedback } : {}),
+      })
+    })
+
     const tempFilesClean = Effect.fn("SessionHttpApi.tempFilesClean")(function* (ctx: {
       params: { sessionID: SessionID }
       payload: typeof TempFileCleanPayload.Type
@@ -582,6 +620,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("tempFiles", tempFiles)
       .handle("planApproval", planApproval)
       .handle("planApprovalReply", planApprovalReply)
+      .handle("documentReview", documentReview)
+      .handle("documentReviewReply", documentReviewReply)
       .handle("tempFilesClean", tempFilesClean)
       .handle("background", background)
       .handle("backgroundCancel", backgroundCancel)

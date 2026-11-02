@@ -88,6 +88,44 @@ export interface PlatformPublishResult {
   url?: string
 }
 
+export type PublishKind = "video" | "image_text" | "article"
+
+export type PublishStatus = "pending" | "running" | "success" | "failed" | "unsupported" | "cancelled"
+
+export interface PublishBatchInput {
+  kind: PublishKind
+  title: string
+  description: string
+  filePaths: string[]
+  tags?: string[]
+  scheduleTime?: number
+}
+
+export interface PublishAccountResult {
+  accountId: string
+  platform: string
+  nickname: string
+  status: PublishStatus
+  progress: number
+  message: string
+  url?: string
+  error?: string
+  updatedAt: number
+}
+
+export interface PublishBatch {
+  id: string
+  input: PublishBatchInput
+  results: PublishAccountResult[]
+  startedAt: number
+  finishedAt?: number
+}
+
+export interface PublishProgressEvent {
+  batchId: string
+  result: PublishAccountResult
+}
+
 export interface ElectronCookie {
   name: string
   value: string
@@ -103,9 +141,17 @@ export interface PlatformAPI {
   getSupportedPlatforms: () => Promise<{ id: string; name: string }[]>
   addAccount: (platformType: string) => Promise<{ success: boolean; account?: PlatformAccount; error?: string }>
   removeAccount: (id: string) => Promise<{ success: boolean }>
-  checkLogin: (id: string) => Promise<{ valid: boolean }>
-  batchCheckLogin: (ids: string[]) => Promise<{ id: string; valid: boolean }[]>
+  checkLogin: (id: string) => Promise<{ valid: boolean; nickname?: string; avatar?: string }>
+  batchCheckLogin: (ids: string[]) => Promise<{ id: string; valid: boolean; nickname?: string; avatar?: string }[]>
+  /** 只补昵称/头像，不改登录状态。不传 ids 表示全部账号。 */
+  refreshProfiles: (ids?: string[]) => Promise<{ accounts: PlatformAccount[] }>
   publish: (input: { accountId: string; publishInput: PlatformPublishInput }) => Promise<PlatformPublishResult>
+  /** 一站式发布：多账号（可跨平台）一次提交，进度走 onPublishProgress。 */
+  publishBatch: (input: { accountIds: string[]; input: PublishBatchInput }) => Promise<{ ok: boolean; error?: string }>
+  cancelPublish: () => Promise<{ ok: boolean }>
+  getPublishBatches: () => Promise<PublishBatch[]>
+  onPublishProgress: (cb: (event: PublishProgressEvent) => void) => () => void
+  onPublishFinished: (cb: (batch: PublishBatch | { error: string }) => void) => () => void
   createWebview: (webViewId: number, cookies: ElectronCookie[]) => Promise<{ success: boolean; error?: string }>
   destroyWebview: (webViewId: number) => Promise<{ success: boolean }>
   getGroups: () => Promise<PlatformAccountGroup[]>

@@ -29,8 +29,8 @@ export type UpdateSnapshot = {
   /**
    * 这一次是用户手动触发的吗。
    *
-   * 自动检查（启动 / 定时）保持"静默"：查到就自己下载，按钮等下载完成才出现，
-   * 跟改造前一样。手动检查才把「检查中 → 有新版本 → 下载中」全程显示在侧栏。
+   * 自动检查（启动 / 定时轮询）保持"静默"：查到就由主进程自己下载，按钮等下载完成
+   * 才出现。手动检查才把「检查中 → 有新版本 → 下载中」全程显示在侧栏。
    */
   manual: boolean
   /** 本次更新的说明（打包时写进 latest.yml 的 releaseNotes）。 */
@@ -41,6 +41,15 @@ let currentPlatform: Platform | undefined
 let translate: Translate = (key) => key
 let subscribed = false
 let lastToast = ""
+/**
+ * 本进程里是否真的见过「下载中」。
+ *
+ * 用来区分「上次运行留下的安装包」和「本进程刚下完」：前者只点亮按钮、
+ * 不再弹「安装并重启」的 toast，否则每次开机都被提醒一次；后者才值得提醒。
+ */
+let sawDownloading = false
+/** 用户已经点了「安装并重启」：这期间的下载/就绪状态不用再弹提示。 */
+let installing = false
 
 const created = createRoot(() => {
   const [state, setState] = createStore<UpdateSnapshot>({
@@ -121,11 +130,15 @@ function apply(status: UpdateStatus) {
     case "downloading":
       // 自动下载已经开始：之前那条「下载更新」的提示就不该再出现。
       clearAvailableTimer()
+      sawDownloading = true
       setState({ ...base, stage: "downloading", version: status.version, percent: status.percent, checking: false })
       return
-    case "downloaded":
+    case "downloaded": {
       clearAvailableTimer()
       setState({ ...base, stage: "downloaded", version: status.version, percent: 100, checking: false })
+      // 没经过「下载中」就变成「已下载」，说明是上次运行留下的安装包：
+      // 只点亮按钮（见 updateButtonVisible），不再提醒一遍。正在安装时也不用弹。
+      if (!sawDownloading || installing) return
       toastOnce(`downloaded:${status.version}`, () =>
         showToast({
           persistent: true,
@@ -139,6 +152,7 @@ function apply(status: UpdateStatus) {
         }),
       )
       return
+    }
     case "up-to-date":
       clearAvailableTimer()
       setState({ ...base, stage: "up-to-date", checking: false, percent: 0 })
@@ -182,8 +196,14 @@ export async function checkForUpdate(options?: { manual?: boolean }) {
       apply({ stage: "up-to-date" })
       return
     }
-    if (result.downloaded) apply({ stage: "downloaded", version: result.version ?? "" })
-    else apply({ stage: "available", version: result.version ?? "" })
+    if (result.downloaded) {
+      apply({ stage: "downloaded", version: result.version ?? "" })
+      return
+    }
+    // 检查期间后台可能已经开下了（自动检查查到就下）。这时别再写回「有新版本」，
+    // 否则进度条会闪回一个"待下载"的状态。
+    if (updateState.stage === "downloading") return
+    apply({ stage: "available", version: result.version ?? "" })
   } catch (error) {
     apply({ stage: "error", message: error instanceof Error ? error.message : String(error) })
   }
@@ -206,5 +226,8 @@ export async function downloadUpdate() {
 
 /** 安装并重启（会退出进程，正常情况下不会返回）。 */
 export async function installUpdate() {
+  // 安装前主进程可能要"认领"一下缓存里的安装包，会短暂推「下载中 → 已下载」；
+  // 这期间不要弹完成提示，用户已经在装了。
+  installing = true
   await currentPlatform?.updateAndRestart?.()
 }

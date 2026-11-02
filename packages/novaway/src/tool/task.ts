@@ -218,12 +218,6 @@ export const TaskTool = Tool.define(
       // 后台并行开关:配置 experimental.background_subagents 优先(可被 /后台并行 命令切换并持久化),
       // 未设置时回退到运行时 flag(默认开)。
       const bgEnabled = cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
-      const runInBackground = params.background === true
-      if (runInBackground && !bgEnabled) {
-        return yield* Effect.fail(
-          new Error("后台子代理已被禁用。用 /后台并行 命令开启,或设置 experimental.background_subagents=true。"),
-        )
-      }
 
       if (!ctx.extra?.bypassAgentCheck) {
         yield* ctx.ask({
@@ -263,6 +257,16 @@ export const TaskTool = Tool.define(
       const next = yield* agent.get(agentName)
       if (!next) {
         return yield* Effect.fail(new Error(`Unknown agent type: ${agentName} is not a valid agent type`))
+      }
+      // Agent definitions may declare `background: true` (the verification
+      // agent does). Unless the caller explicitly asks for foreground, such
+      // agents run asynchronously like Claude Code's built-in verifier.
+      const runInBackground =
+        params.background === true || (params.background === undefined && next.background === true)
+      if (runInBackground && !bgEnabled) {
+        return yield* Effect.fail(
+          new Error("后台子代理已被禁用。用 /后台并行 命令开启,或设置 experimental.background_subagents=true。"),
+        )
       }
 
       const session = taskID

@@ -18,13 +18,17 @@ All from repo root unless noted.
 | `bun dev .`                                   | Run against NovaWay repo itself            |
 | `./script/generate.ts`                        | Regenerate SDK + OpenAPI after API changes |
 | `bun run --cwd packages/novaway test:httpapi` | HttpApi exerciser gates                    |
+| `bun run --cwd packages/novaway gate:release` | Release gate (checks before publishing)    |
+| `bun run --cwd packages/novaway eval:memory`  | Memory subsystem eval tests                |
+| `bun run --cwd packages/novaway eval:task`    | Task subsystem eval tests                  |
 
 Root convenience scripts: `bun dev:desktop`, `bun dev:web`, `bun dev:console`, `bun dev:storybook` (see root `package.json`).
 
 Tests cannot run from root (`bunfig.toml` guard `do-not-run-tests-from-root`). Run from package dir:
 
 ```
-cd packages/novaway && bun test --timeout 30000
+cd packages/novaway && bun run test        # uses package.json timeout (120s)
+cd packages/novaway && bun run test:ci     # JUnit report to .artifacts/unit/
 ```
 
 Fastest verification loop: `lint -> typecheck -> test`.
@@ -47,7 +51,7 @@ Fastest verification loop: `lint -> typecheck -> test`.
 | `packages/web`         | — (private)          | Landing site (Astro)                            |
 | `packages/console/app` | — (private)          | Console web app                                 |
 
-Also present: `storybook`, `slack`, `script`, `sdk-v2-latest`, `enterprise`, `function`, `http-recorder`, plus `console/{core,function,mail,resource}`. Note: `packages/containers`, `docs`, `extensions` have no package.json and are not workspace packages.
+Also present: `storybook`, `slack`, `script`, `sdk-v2-latest`, `enterprise`, `function`, `http-recorder`, `identity` (icons only, not a workspace package), plus `console/{app,core,function,mail,resource}`. Note: `packages/containers`, `docs`, `extensions` have no package.json and are not workspace packages.
 
 Infra: SST (Cloudflare home) in `infra/` + `sst.config.ts`.
 Entrypoint paths: `packages/novaway/src/index.ts` is the main CLI.

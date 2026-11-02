@@ -27,6 +27,9 @@ export interface StoredAccount {
 const ACCOUNTS_KEY = "platform.accounts"
 const ACCOUNT_GROUPS_KEY = "platform.accountGroups"
 const PUBLISH_RECORDS_KEY = "platform.publishRecords"
+/** 一站式发布的批次历史（最多保留最近 30 批，避免把 store 撑大）。 */
+const PUBLISH_BATCHES_KEY = "platform.publishBatches"
+const MAX_PUBLISH_BATCHES = 30
 
 const store = getStore("novaway.platform")
 
@@ -163,4 +166,19 @@ export function editAccountGroup(data: Partial<AccountGroup>): void {
     Object.assign(group, data)
     store.set(ACCOUNT_GROUPS_KEY, groups)
   }
+}
+
+// ---------------------------------------------------------------------------
+// 一站式发布历史
+// ---------------------------------------------------------------------------
+
+export function getPublishBatches(): import("./publish/types").PublishBatch[] {
+  return (store.get(PUBLISH_BATCHES_KEY) as import("./publish/types").PublishBatch[]) || []
+}
+
+/** 落一条发布批次；只保留最近 N 条。 */
+export function savePublishBatch(batch: import("./publish/types").PublishBatch): void {
+  const batches = getPublishBatches().filter((item) => item.id !== batch.id)
+  batches.unshift(batch)
+  store.set(PUBLISH_BATCHES_KEY, batches.slice(0, MAX_PUBLISH_BATCHES))
 }

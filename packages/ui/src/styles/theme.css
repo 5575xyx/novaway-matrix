@@ -366,6 +366,12 @@
   --syntax-diff-add: #3a8437;
   --syntax-diff-delete: #ca2d17;
   --syntax-diff-unknown: #ff0000;
+  /* 旧 token 名（diff-changes / 变更摘要用）一直没定义，`color: var(--diff-added)`
+     落到无效值，+/- 计数就退化成继承的灰色。这里别名到语法色，浅/深色都跟着走。 */
+  --diff-added: var(--syntax-diff-add);
+  --diff-removed: var(--syntax-diff-delete);
+  --diff-added-foreground: var(--syntax-diff-add);
+  --diff-removed-foreground: var(--syntax-diff-delete);
   --markdown-heading: #d68c27;
   --markdown-text: #1a1a1a;
   --markdown-link: #3b7dd8;

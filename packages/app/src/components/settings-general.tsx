@@ -343,6 +343,18 @@ export const SettingsGeneral: Component = () => {
             引导会立刻影响当前这轮（在下一个安全边界生效），排队要等这轮跑完。
             对齐 Qoder 的 Settings → General → "Send while running"。 */}
         <SettingsRow
+          title={language.t("settings.general.row.liveFileFollow.title")}
+          description={language.t("settings.general.row.liveFileFollow.description")}
+        >
+          <div data-action="settings-live-file-follow">
+            <Switch
+              checked={settings.general.liveFileFollow()}
+              onChange={(checked) => settings.general.setLiveFileFollow(checked)}
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
           title={language.t("settings.general.row.followup.title")}
           description={language.t("settings.general.row.followup.description")}
         >

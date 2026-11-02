@@ -40,6 +40,7 @@ import { OfficeSetupTool } from "./office-setup"
 import { OfficePptxEditTool, OfficePptxReadTool } from "./office-pptx"
 import { TempFilesTool } from "./temp_files"
 import { VerifyTool } from "./verify"
+import { ReviewDocumentTool } from "./review"
 import {
   ComputerClickTool,
   ComputerFocusTool,
@@ -48,6 +49,7 @@ import {
   ComputerScreenshotTool,
   ComputerScrollTool,
   ComputerTypeTool,
+  ComputerWaitForWindowTool,
   ComputerWindowsTool,
 } from "./computer"
 import { MemoryTool } from "./memory"
@@ -133,6 +135,7 @@ import { ClientCapabilities } from "@/effect/client-capabilities"
 import { Auth } from "@/auth"
 import { Goal } from "@/session/goal"
 import { PlanApproval } from "@/session/plan-approval"
+import { DocumentReview } from "@/session/document-review"
 import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
 import { Service as TeamServiceInterface, defaultLayer as TeamLayer } from "@/team/team"
 import { Service as AgentTaskListServiceInterface, defaultLayer as AgentTaskListLayer } from "@/team/task-list"
@@ -186,6 +189,8 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   cleanup_temp_files: { concurrencySafe: false, destructive: true, idempotent: true },
   // 验证命令会重新跑测试/lint：不是只读，也不保证幂等（可能写缓存、起服务）。
   run_verification: { concurrencySafe: false },
+  // 文档评审会阻塞等待用户：同一时刻只能有一份在等，重跑等价（不会改文件）。
+  review_document: { concurrencySafe: false, idempotent: true, interrupt: "block", workspace: false },
   // 计划模式的状态切换：重跑结果相同。
   plan: { concurrencySafe: false, idempotent: true },
   // 工作流引擎会派生会话，重跑会重复派发。
@@ -193,6 +198,7 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   // 电脑操作与人共用一个桌面：既非只读也不幂等（点击可能下单）。
   computer_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true },
   computer_windows: { readOnly: true, concurrencySafe: false, idempotent: true },
+  computer_wait_for_window: { readOnly: true, concurrencySafe: false, idempotent: true },
   computer_move: { concurrencySafe: false },
   computer_click: { concurrencySafe: false, destructive: true },
   computer_type: { concurrencySafe: false, destructive: true },
@@ -528,6 +534,7 @@ export const layer: Layer.Layer<
     const pluginInstall = yield* PluginInstallTool
     const tempFilesTool = yield* TempFilesTool
     const verifyTool = yield* VerifyTool
+    const reviewDocument = yield* ReviewDocumentTool
     const computerScreenshot = yield* ComputerScreenshotTool
     const computerClick = yield* ComputerClickTool
     const computerMove = yield* ComputerMoveTool
@@ -535,6 +542,7 @@ export const layer: Layer.Layer<
     const computerKey = yield* ComputerKeyTool
     const computerScroll = yield* ComputerScrollTool
     const computerWindows = yield* ComputerWindowsTool
+    const computerWaitForWindow = yield* ComputerWaitForWindowTool
     const computerFocus = yield* ComputerFocusTool
     const generateimagetool = yield* GenerateImageTool
     const generatevideotool = yield* GenerateVideoTool
@@ -745,6 +753,7 @@ export const layer: Layer.Layer<
           plugin_install: Tool.init(pluginInstall),
           cleanup_temp_files: Tool.init(tempFilesTool),
           run_verification: Tool.init(verifyTool),
+          review_document: Tool.init(reviewDocument),
           computer_screenshot: Tool.init(computerScreenshot),
           computer_click: Tool.init(computerClick),
           computer_move: Tool.init(computerMove),
@@ -752,6 +761,7 @@ export const layer: Layer.Layer<
           computer_key: Tool.init(computerKey),
           computer_scroll: Tool.init(computerScroll),
           computer_windows: Tool.init(computerWindows),
+          computer_wait_for_window: Tool.init(computerWaitForWindow),
           computer_focus: Tool.init(computerFocus),
           patch: Tool.init(patchtool),
           notebook_edit: Tool.init(notebookEdit),
@@ -873,6 +883,7 @@ export const layer: Layer.Layer<
           tool.plugin_install,
           tool.cleanup_temp_files,
           tool.run_verification,
+          tool.review_document,
           ...(computerControlEnabled
             ? [
                 tool.computer_screenshot,
@@ -882,6 +893,7 @@ export const layer: Layer.Layer<
                 tool.computer_key,
                 tool.computer_scroll,
                 tool.computer_windows,
+                tool.computer_wait_for_window,
                 tool.computer_focus,
               ]
             : []),
@@ -1104,6 +1116,9 @@ export const layer: Layer.Layer<
         if (deny.has(tool.id)) return false
         if (toolOverrides[tool.id] === false) return false
         if (!browserEnabled && (tool.id.startsWith("browser_") || tool.id === PdfCreateTool.id)) return false
+        // 文档评审是主会话向用户本人要拍板的通道；子代理走 plan_approval，
+        // 拿到 review_document 只会在没人能点卡片的会话里干等。
+        if (tool.id === ReviewDocumentTool.id && input.agent.mode === "subagent") return false
         // Deferred tools stay out of the request until tool_search activates
         // them for this session.
         if (deferEnabled && tool.capabilities?.deferLoading && !activated?.has(tool.id)) return false
@@ -1196,6 +1211,7 @@ export const layer: Layer.Layer<
   Layer.provide(ActivationLayer),
   Layer.provide(ReadState.defaultLayer),
   Layer.provide(PlanApproval.defaultLayer),
+  Layer.provide(DocumentReview.defaultLayer),
   Layer.provide(CronDefaultLayer),
 )
 

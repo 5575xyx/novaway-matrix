@@ -120,7 +120,6 @@
  * 不用 var(--surface)：它在浅色主题里偏蓝灰，整片聊天区会发蓝。
  */
 [data-slot="session-turn-assistant-content"],
-[data-slot="session-turn-thinking"],
 [data-component="session-turn-diffs-group"] {
   width: fit-content !important;
   max-width: 100% !important;
@@ -313,6 +312,29 @@
   }
 }
 
+/* 项目分组展开：列表整体轻微下落淡入。收起仍是瞬时的（高度需要实测，
+ * 这里不引入 grid-template-rows 那一套，展开时给一次短促的入场就够读）。 */
+@keyframes sidebar-group-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidebar-group-enter {
+  animation: sidebar-group-in 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-group-enter {
+    animation: none;
+  }
+}
+
 /* 不用 fill 模式：动画结束后回到自然样式（transform: none），
  * 否则残留的 transform 会给内部绝对定位元素新建一个包含块。 */
 .session-stage-enter {
@@ -363,6 +385,38 @@
   &::-webkit-scrollbar-thumb {
     background-color: var(--border-hover);
     border-radius: 9999px;
+  }
+}
+
+/* ===== 状态面板收起态：实时滚动播报 =====
+ * 收起后只留一条胶囊，但要能持续说"现在在干什么"：后台任务数、正在执行的待办标题。
+ * 轨道里放两份相同的文本，位移 -50% 就是无缝循环。
+ */
+@keyframes status-panel-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+[data-component="status-panel-ticker"] {
+  mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
+}
+
+[data-component="status-panel-ticker-track"] {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: status-panel-ticker-scroll var(--ticker-ms, 12s) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="status-panel-ticker-track"] {
+    animation: none;
   }
 }
 
@@ -729,6 +783,53 @@
   animation: dot-breathe 1.8s ease-in-out infinite;
 }
 
+/* ── 输入框上方的「实时跟随」开关 ──────────────────────────────────
+ *
+ * 正在跟随某个写盘时，圆点外面套一圈向外扩散的绿环；点击开关时，
+ * 整颗胶囊向外散开一圈淡绿——两者都是"这一下确实在发生"的反馈，
+ * 幅度压得比较小，不会在工作区里抢注意力。
+ */
+@keyframes live-follow-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  70%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.live-follow-ping {
+  animation: live-follow-ping 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes live-follow-flash {
+  0% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+
+.live-follow-flash {
+  /* 颜色跟随当前状态文字色：开着是绿、关着是灰，不需要组件再判断一次。 */
+  background-color: currentColor;
+  animation: live-follow-flash 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-follow-ping,
+  .live-follow-flash {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 .novaway-spinner {
   animation: novaway-spin 0.8s linear infinite;
 }
@@ -966,7 +1067,6 @@
 
 /* 助手小卡片:更温和的底、更明显的圆角与轻阴影(原型 12px 圆角 + 浮起)。 */
 [data-slot="session-turn-assistant-content"],
-[data-slot="session-turn-thinking"],
 [data-component="session-turn-diffs-group"] {
   border-radius: 12px !important;
   padding: 10px 14px !important;
@@ -1203,6 +1303,23 @@
   line-height: 1.5;
 }
 
+/* 服务仍在运行：任务结束后它可能还占着端口。用绿色标签明确告诉用户，
+   而不是只给一个看起来像普通产物卡的链接。 */
+[data-component="session-turn-preview"] [data-preview-tone="online"] {
+  --preview-tone: var(--syntax-success, #16a34a);
+}
+
+[data-slot="preview-card-online"] {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--syntax-success) 30%, transparent);
+  background: color-mix(in oklab, var(--syntax-success) 10%, transparent);
+  color: var(--syntax-success);
+  padding: 1px 8px;
+  font-size: var(--font-size-ui-xs);
+  line-height: 1.5;
+}
+
 /* ===== 变更摘要卡:同样给一点色彩 =====
  * 标题前的图标用绿色块、"本次调整 N 个文件"的增删数字保留语义色,
  * 让产物链路的消息流里有一处明显"有东西产出"的信号。 */
@@ -1327,4 +1444,220 @@
   [data-slot="reasoning-part-indicator"] [data-slot="icon-svg"][class*="animate-pulse"] {
     animation: none;
   }
+}
+
+/* ===== 文档评审卡（PRD / 计划 / 方案）=====
+ * 与 ZCode 的「计划」卡同构：标题 + 覆盖内容 + 查看完整文档；
+ * 通过 / 调整是卡片里的按钮，点了直接回复代理，不用回聊天框。
+ */
+[data-component="document-review-card"] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 12px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+[data-slot="document-review-head"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-slot="document-review-kind"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--foreground-subtle);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+[data-slot="document-review-meta-group"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-slot="document-review-wait"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--syntax-warning, #d97706);
+  font-size: 11px;
+}
+
+[data-slot="document-review-meta"] {
+  color: var(--foreground-subtlest);
+  font-size: 11px;
+}
+
+[data-slot="document-review-title"] {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+[data-slot="document-review-path"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  color: var(--foreground-subtle);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+[data-slot="document-review-path"] span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-slot="document-review-path"]:hover {
+  background: var(--hover, color-mix(in oklab, var(--foreground) 6%, transparent));
+  color: var(--foreground);
+}
+
+[data-slot="document-review-summary"] {
+  color: var(--foreground-subtle);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+[data-slot="document-review-list"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-slot="document-review-list"] li {
+  display: flex;
+  gap: 8px;
+  color: var(--foreground-subtle);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+[data-slot="document-review-dot"] {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 30%, transparent);
+}
+
+[data-slot="document-review-questions"],
+[data-slot="document-review-feedback"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--foreground) 3%, transparent);
+}
+
+[data-slot="document-review-questions-title"] {
+  color: var(--foreground-subtlest);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+[data-slot="document-review-question"],
+[data-slot="document-review-feedback-text"] {
+  color: var(--foreground-subtle);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+[data-slot="document-review-status"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+[data-slot="document-review-status"][data-tone="approved"] {
+  color: var(--syntax-diff-add, #16a34a);
+}
+
+[data-slot="document-review-status"][data-tone="revise"] {
+  color: var(--syntax-warning, #d97706);
+}
+
+[data-slot="document-review-status"][data-tone="muted"] {
+  color: var(--foreground-subtlest);
+}
+
+[data-slot="document-review-actions"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+[data-slot="document-review-revise"] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+[data-slot="document-review-textarea"] {
+  width: 100%;
+  resize: vertical;
+  min-height: 68px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+}
+
+[data-slot="document-review-textarea"]:focus {
+  border-color: var(--border-focus, var(--border));
+}
+
+[data-slot="document-review-revise-footer"] {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-slot="document-review-hint"] {
+  color: var(--foreground-subtlest);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+[data-component="document-review-card"][data-state="approved"] {
+  border-color: color-mix(in oklab, var(--syntax-diff-add, #16a34a) 30%, var(--border));
 }

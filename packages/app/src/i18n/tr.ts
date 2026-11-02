@@ -711,6 +711,9 @@ export const dict = {
     "Zaman çizelgesinde düzenleme, yazma ve yama araç bileşenlerini varsayılan olarak genişletilmiş göster",
 
   "settings.general.row.showSessionProgressBar.title": "Oturum ilerleme çubuğunu göster",
+  "settings.general.row.liveFileFollow.title": "Dosya yazımlarını canlı izle",
+  "settings.general.row.liveFileFollow.description":
+    "Ajan yazarken dosyayı yan panelde otomatik aç, içeriği yazıldıkça göster ve bitince kapat",
   "settings.general.row.showSessionProgressBar.description":
     "Ajan çalışırken oturumun üst kısmında animasyonlu ilerleme çubuğunu göster",
 

@@ -491,16 +491,22 @@ export namespace MessageComment {
 }
 
 /**
- * 按轮折叠过程:当一轮的"最终结果文本"开始流式输出时,把此前全部过程行(思考、工具、
- * 待办清单卡、中间旁白)折成一张 TurnFold 卡,外面只留收尾文本和产物卡(文件变更/预览)。
- * 之后若继续调工具(结果文本不再是末尾),折叠卡自然消失、回到展开;下一轮收尾文本
- * 出现时再折叠。出错、被中断、无收尾文本或无过程行的轮次不折叠。
+ * 按轮折叠过程:轮次**结束后**,把全部过程行(思考、工具、待办清单卡、中间旁白)
+ * 折成一张 TurnFold 卡,外面只留收尾文本和产物卡(文件变更/预览)。
+ * 运行中的轮次不折叠(见 FoldOptions.isTurnActive) —— 否则模型输出一段旁白再继续
+ * 调工具时,折叠卡会反复展开/收起,过程区一直在跳。
+ * 出错、被中断、无收尾文本或无过程行的轮次不折叠。
  */
 export namespace TurnFold {
   export type FoldOptions = {
     getPart: (messageID: string, partID: string) => Part | undefined
     /** 该轮的起止时间,取自助手消息的 time.created / time.completed;缺一项就出不了耗时。 */
     turnTime: (userMessageID: string) => { start?: number; end?: number }
+    /**
+     * 该轮是否仍在运行。运行中一律不折叠 —— 否则"模型输出一段收尾文字 → 又去调工具"
+     * 会让折叠卡一秒展开、一秒收起，过程区反复跳动。折叠只在轮次真正结束后发生。
+     */
+    isTurnActive?: (userMessageID: string) => boolean
   }
 
   /** 属于"过程"的行:可被折进 TurnFold 卡。 */
@@ -511,6 +517,14 @@ export namespace TurnFold {
   const partsOf = (group: PartGroup, options: FoldOptions): Part[] => {
     const refs = group.type === "part" ? [group.ref] : group.refs
     return refs.map((ref) => options.getPart(ref.messageID, ref.partID)).filter((part): part is Part => !!part)
+  }
+
+  /** 面向用户的交互卡（提问 / 文档评审）始终留在折叠区外，用户随时能点。 */
+  const interactive = (row: TimelineRow.TimelineRow, options: FoldOptions) => {
+    if (row._tag !== "AssistantPart") return false
+    return partsOf(row.group, options).some(
+      (part) => part.type === "tool" && (part.tool === "question" || part.tool === "review_document"),
+    )
   }
 
   export function fold(rows: TimelineRow.TimelineRow[], options: FoldOptions): TimelineRow.TimelineRow[] {
@@ -531,6 +545,9 @@ export namespace TurnFold {
     const foldBucket = (bucket: Bucket): TimelineRow.TimelineRow[] => {
       const body = bucket.rows
       if (bucket.id === undefined) return body
+      // 运行中的轮次不折叠：过程区保持展开，轮尾的"工作中 · X"负责显示进度。
+      // 这样不会因为中间旁白/继续调工具而反复折叠又展开。
+      if (options.isTurnActive?.(bucket.id) === true) return body
       // 出错或被中断/压缩的轮次:保持原样,让用户看得到发生了什么。
       if (body.some((row) => row._tag === "Error" || row._tag === "TurnDivider")) return body
 
@@ -548,7 +565,9 @@ export namespace TurnFold {
         endIndex -= 1
       }
       const finalRun = body.slice(endIndex, cut)
-      const processRows = body.slice(0, endIndex).filter((row) => PROCESS_TAGS.has(row._tag))
+      const processRows = body
+        .slice(0, endIndex)
+        .filter((row) => PROCESS_TAGS.has(row._tag) && !interactive(row, options))
       if (finalRun.length === 0 || processRows.length === 0) return body
 
       const time = options.turnTime(bucket.id)
@@ -558,6 +577,10 @@ export namespace TurnFold {
       let folded = false
       const out: TimelineRow.TimelineRow[] = []
       for (const row of body) {
+        if (interactive(row, options)) {
+          out.push(row)
+          continue
+        }
         if (PROCESS_TAGS.has(row._tag) && !finalRun.includes(row)) {
           if (!folded) {
             folded = true
@@ -713,9 +736,12 @@ export namespace TodoGrouping {
     for (const row of rows) {
       if (row._tag === "AssistantPart") {
         const parts = groupPartsOf(row.group, options.getPart)
-        // question 是面向用户的交互点:永远渲染在聊天区顶层,绝不能被吸进
-        // 折叠的待办区间(否则被卡住时提问会被藏起来)。它像用户消息一样断开区间。
-        if (parts.some((part) => part.type === "tool" && part.tool === "question")) {
+        // question / review_document 是面向用户的交互点:永远渲染在聊天区顶层,
+        // 绝不能被吸进折叠的待办区间(否则被卡住等用户点时卡片会被藏起来)。
+        // 它们像用户消息一样断开区间。
+        if (
+          parts.some((part) => part.type === "tool" && (part.tool === "question" || part.tool === "review_document"))
+        ) {
           flush()
           out.push(row)
           continue

@@ -10,8 +10,16 @@ import {
   type PublishRecord,
 } from "../PlatformBase"
 
-const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+import { requestJson, PLATFORM_USER_AGENT } from "../request"
+import { capturePageProfile, type PageProfile } from "../profile-capture"
+
+const DEFAULT_USER_AGENT = PLATFORM_USER_AGENT
+
+/** 视频号助手右上角账号区。 */
+const WXSPH_CAPTURE_HINTS = {
+  nicknameSelectors: [".finder-nickname", ".account-info .name", ".header-account .name"],
+  avatarSelectors: [".finder-avatar img", ".account-info img", ".header-account img"],
+}
 
 function convertCookieToJson(cookies: any): string {
   let arr: Cookie[]
@@ -34,6 +42,8 @@ export class WxSphPlatform extends PlatformBase {
   readonly name = "微信视频号"
   readonly loginUrl = "https://channels.weixin.qq.com"
   readonly cookieCheckField = "sessionid"
+  readonly profileUrl = "https://channels.weixin.qq.com/platform"
+  readonly profileHints = WXSPH_CAPTURE_HINTS
 
   private defaultUserAgent = DEFAULT_USER_AGENT
   private getUserInfoUrl = "https://channels.weixin.qq.com/cgi-bin/mmfinderassistant-bin/auth/auth_data"
@@ -78,7 +88,10 @@ export class WxSphPlatform extends PlatformBase {
       const winRes = await this.createAuthorizationWindow(authModel === "view" ? cookies : null)
       const { winContentsId, partition } = winRes
       const newCookies = await this.filterCookie(winContentsId, partition)
-      const userInfo = await this.getUserInfo(newCookies)
+      // 登录窗口停在视频号助手（页面上有视频号昵称/头像）；接口被拒时用页面兜底。
+      const win = this.windowMap[winContentsId]
+      const page = win ? await capturePageProfile(win, WXSPH_CAPTURE_HINTS) : undefined
+      const userInfo = await this.getUserInfo(newCookies, page)
 
       if (authModel === "login") {
         const win = this.windowMap[winContentsId]
@@ -236,37 +249,51 @@ export class WxSphPlatform extends PlatformBase {
 
   async getUserInfo(
     cookies: Cookie[],
+    page?: PageProfile,
   ): Promise<{ authorId: string; nickname: string; avatar: string; fansCount: number }> {
     const cookieString = convertCookieToJson(cookies)
-    const res = await this.makeRequest(this.getUserInfoUrl, {
-      method: "POST",
-      headers: {
-        Origin: "https://channels.weixin.qq.com",
-        Referer: "https://channels.weixin.qq.com/platform",
-        Cookie: cookieString,
-      },
-    })
-    if (res.errCode === 0) {
-      return {
-        authorId: res.data.finderUser.uniqId ?? "",
-        nickname: res.data.finderUser.nickname ?? "",
-        avatar: res.data.finderUser.headImgUrl ?? "",
-        fansCount: res.data.finderUser.fansCount ?? 0,
+    let api: { authorId: string; nickname: string; avatar: string; fansCount: number } | undefined
+    try {
+      const res = await this.makeRequest(this.getUserInfoUrl, {
+        method: "POST",
+        headers: {
+          Origin: "https://channels.weixin.qq.com",
+          Referer: "https://channels.weixin.qq.com/platform",
+          Cookie: cookieString,
+        },
+      })
+      if (res.errCode === 0) {
+        api = {
+          authorId: res.data.finderUser.uniqId ?? "",
+          nickname: res.data.finderUser.nickname ?? "",
+          avatar: res.data.finderUser.headImgUrl ?? "",
+          fansCount: res.data.finderUser.fansCount ?? 0,
+        }
       }
+    } catch (error) {
+      console.warn("[wxSph] getUserInfo request failed:", String(error))
     }
-    throw new Error(res.data?.errMsg ?? "未知错误")
+
+    const result = {
+      authorId: api?.authorId || page?.uid || "",
+      nickname: api?.nickname || page?.nickname || "",
+      avatar: api?.avatar || page?.avatar || "",
+      fansCount: api?.fansCount || 0,
+    }
+    if (!result.authorId && !result.nickname) throw new Error("获取用户信息失败")
+    return result
   }
 
   private async makeRequest(url: string, options: { method: string; headers: Record<string, string> }): Promise<any> {
-    const res = await fetch(url, {
-      method: options.method,
+    const res = await requestJson(url, {
+      method: options.method as "GET" | "POST",
       headers: {
         "Content-Type": "application/json",
         ...options.headers,
       },
-      ...(options.method === "POST" ? { body: "{}" } : {}),
+      ...(options.method === "POST" ? { body: {} } : {}),
     })
-    return await res.json()
+    return res.data
   }
 
   // ---- PlatformBase 接口实现 ----

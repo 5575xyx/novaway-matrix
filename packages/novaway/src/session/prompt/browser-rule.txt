@@ -41,8 +41,12 @@ tool_search("select:browser_*")
 
 ## 截图口径
 - 网页 / HTML 验证 → `browser_screenshot`
-- 只有验证原生桌面应用（资源管理器、IDE、系统设置等）才用 `computer_screenshot`；
-  它截的是整块屏幕，不要拿它截网页
+- 只有验证原生桌面应用（资源管理器、IDE、系统设置、刚启动的桌面程序等）才用
+  `computer_screenshot`，并且**传 `window: "窗口标题"`**：它只截那个窗口，
+  窗口在后台也能截，不需要先 `computer_focus`、更不要为了截图把窗口切到前台。
+- 启动桌面应用后，先 `computer_wait_for_window("窗口标题", timeout_ms)` 等窗口真的出现，
+  再截图。后台任务返回 job_id 不算启动成功；等待超时就回去读启动命令的输出并修复。
+- 只有确实要观察整个桌面（例如判断两个窗口的层叠关系）才省略 `window` 截整屏。
 
 ## 约定
 - 验证刚生成的 HTML 直接用 file://，不必先起 dev server；要真服务时才起本地端口

@@ -19,6 +19,7 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { SelectionActionMenu } from "@/pages/session/selection-action-menu"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import "@/components/session/knowledge-tool"
+import "@/components/session/review-document-card"
 import { useNavigate } from "@solidjs/router"
 import { useMutation, useQueryClient } from "@tanstack/solid-query"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
@@ -503,7 +504,8 @@ function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
   }
 
   // 本地服务可能已经停了（前台命令超时被回收 / 用户手动停了任务）。
-  // 探测一次给卡片打个"服务已停止"的标签，避免用户点开才发现是死链。
+  // 探测一次给卡片打个标签：停了的服务不再出现在产物区（用户看到"服务已停止"的
+  // 死链只会困惑），还在跑的标成"服务运行中"，让用户知道任务结束后它仍占着端口。
   const [offline, setOffline] = createSignal<Record<string, boolean>>({})
   createEffect(() => {
     for (const target of props.targets) {
@@ -518,105 +520,110 @@ function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
         .finally(() => clearTimeout(timer))
     }
   })
+  const visibleTargets = createMemo(() =>
+    props.targets.filter((target) => target.kind !== "server" || offline()[target.url] !== true),
+  )
 
   return (
-    <div data-slot="session-turn-preview" data-component="session-turn-preview" class="flex w-full flex-col gap-3">
-      <For each={props.targets}>
-        {(target) => (
-          <div
-            data-preview-kind={target.kind}
-            data-preview-tone={target.kind === "server" && offline()[target.url] ? "offline" : tone(target)}
-            aria-label={`${language.t("sidePane.tab.preview")} ${target.title}`}
-            title={target.kind === "server" ? target.url : target.path}
-            class="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border bg-surface p-3 pr-3.5 text-foreground transition-all duration-150 hover:-translate-y-px hover:border-border-hover"
-            onClick={() => open(target)}
-          >
-            <span
-              data-slot="preview-card-icon"
-              class="flex size-11 shrink-0 items-center justify-center rounded-[10px]"
+    <Show when={visibleTargets().length > 0}>
+      <div data-slot="session-turn-preview" data-component="session-turn-preview" class="flex w-full flex-col gap-3">
+        <For each={visibleTargets()}>
+          {(target) => (
+            <div
+              data-preview-kind={target.kind}
+              data-preview-tone={target.kind === "server" && offline()[target.url] === false ? "online" : tone(target)}
+              aria-label={`${language.t("sidePane.tab.preview")} ${target.title}`}
+              title={target.kind === "server" ? target.url : target.path}
+              class="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border bg-surface p-3 pr-3.5 text-foreground transition-all duration-150 hover:-translate-y-px hover:border-border-hover"
+              onClick={() => open(target)}
             >
-              <Show
-                when={target.kind === "server"}
-                fallback={
-                  <FileIcon node={{ path: target.title, type: "file" }} style={{ width: "24px", height: "24px" }} />
-                }
+              <span
+                data-slot="preview-card-icon"
+                class="flex size-11 shrink-0 items-center justify-center rounded-[10px]"
               >
-                <Icon name="globe" size="medium" />
-              </Show>
-            </span>
-            <span class="flex min-w-0 flex-1 flex-col gap-1">
-              <span class="truncate text-ui-base font-medium leading-5">{target.title}</span>
-              <span class="flex min-w-0 items-center gap-2">
-                <span data-slot="preview-card-subtitle" class="truncate text-ui-base leading-5">
-                  {subtitle(target)}
-                </span>
-                <Show when={target.kind === "server" && offline()[target.url]}>
-                  <span data-slot="preview-card-offline">{language.t("session.previewCard.offline")}</span>
+                <Show
+                  when={target.kind === "server"}
+                  fallback={
+                    <FileIcon node={{ path: target.title, type: "file" }} style={{ width: "24px", height: "24px" }} />
+                  }
+                >
+                  <Icon name="globe" size="medium" />
                 </Show>
               </span>
-            </span>
-            <div
-              data-slot="preview-card-open"
-              class="flex h-8 shrink-0 items-center overflow-hidden rounded-lg border transition-colors"
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                class="flex h-full cursor-pointer items-center rounded-none border-0 bg-transparent py-0 pl-3 pr-2 text-ui-base font-medium"
-                onClick={() => open(target)}
+              <span class="flex min-w-0 flex-1 flex-col gap-1">
+                <span class="truncate text-ui-base font-medium leading-5">{target.title}</span>
+                <span class="flex min-w-0 items-center gap-2">
+                  <span data-slot="preview-card-subtitle" class="truncate text-ui-base leading-5">
+                    {subtitle(target)}
+                  </span>
+                  <Show when={target.kind === "server" && offline()[target.url] === false}>
+                    <span data-slot="preview-card-online">{language.t("session.previewCard.online")}</span>
+                  </Show>
+                </span>
+              </span>
+              <div
+                data-slot="preview-card-open"
+                class="flex h-8 shrink-0 items-center overflow-hidden rounded-lg border transition-colors"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
               >
-                {language.t("common.open")}
-              </button>
-              <span data-slot="preview-card-open-divider" class="h-4 w-px shrink-0" />
-              <DropdownMenu placement="top" gutter={6}>
-                <DropdownMenu.Trigger
-                  class="flex h-full !w-6 cursor-pointer items-center justify-center rounded-none border-0 bg-transparent p-0"
-                  aria-label={language.t("session.previewCard.openOptions")}
-                  title={language.t("session.previewCard.openOptions")}
+                <button
+                  type="button"
+                  class="flex h-full cursor-pointer items-center rounded-none border-0 bg-transparent py-0 pl-3 pr-2 text-ui-base font-medium"
+                  onClick={() => open(target)}
                 >
-                  <Icon name="chevron-down" size="small" />
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content class="w-44">
-                    <Show
-                      when={target.kind !== "file"}
-                      fallback={
-                        <Show when={target.path}>
-                          {(path) => (
-                            <>
-                              <Show when={revealInExplorer}>
-                                <DropdownMenu.Item onSelect={() => void revealInExplorer?.(path())}>
-                                  <Icon name="folder" size="small" />
-                                  <span>{language.t("session.filePreview.revealInExplorer")}</span>
+                  {language.t("common.open")}
+                </button>
+                <span data-slot="preview-card-open-divider" class="h-4 w-px shrink-0" />
+                <DropdownMenu placement="top" gutter={6}>
+                  <DropdownMenu.Trigger
+                    class="flex h-full !w-6 cursor-pointer items-center justify-center rounded-none border-0 bg-transparent p-0"
+                    aria-label={language.t("session.previewCard.openOptions")}
+                    title={language.t("session.previewCard.openOptions")}
+                  >
+                    <Icon name="chevron-down" size="small" />
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content class="w-44">
+                      <Show
+                        when={target.kind !== "file"}
+                        fallback={
+                          <Show when={target.path}>
+                            {(path) => (
+                              <>
+                                <Show when={revealInExplorer}>
+                                  <DropdownMenu.Item onSelect={() => void revealInExplorer?.(path())}>
+                                    <Icon name="folder" size="small" />
+                                    <span>{language.t("session.filePreview.revealInExplorer")}</span>
+                                  </DropdownMenu.Item>
+                                </Show>
+                                <DropdownMenu.Item onSelect={() => copy(path())}>
+                                  <Icon name="copy" size="small" />
+                                  <span>{language.t("session.filePreview.copyAbsolutePath")}</span>
                                 </DropdownMenu.Item>
-                              </Show>
-                              <DropdownMenu.Item onSelect={() => copy(path())}>
-                                <Icon name="copy" size="small" />
-                                <span>{language.t("session.filePreview.copyAbsolutePath")}</span>
-                              </DropdownMenu.Item>
-                            </>
-                          )}
-                        </Show>
-                      }
-                    >
-                      <DropdownMenu.Item onSelect={() => platform.openLink(target.url)}>
-                        <Icon name="square-arrow-top-right" size="small" />
-                        <span>{language.t("preview.openExternal")}</span>
-                      </DropdownMenu.Item>
-                      <DropdownMenu.Item onSelect={() => copy(target.url)}>
-                        <Icon name="copy" size="small" />
-                        <span>{language.t("session.previewCard.copyLink")}</span>
-                      </DropdownMenu.Item>
-                    </Show>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu>
+                              </>
+                            )}
+                          </Show>
+                        }
+                      >
+                        <DropdownMenu.Item onSelect={() => platform.openLink(target.url)}>
+                          <Icon name="square-arrow-top-right" size="small" />
+                          <span>{language.t("preview.openExternal")}</span>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item onSelect={() => copy(target.url)}>
+                          <Icon name="copy" size="small" />
+                          <span>{language.t("session.previewCard.copyLink")}</span>
+                        </DropdownMenu.Item>
+                      </Show>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu>
+              </div>
             </div>
-          </div>
-        )}
-      </For>
-    </div>
+          )}
+        </For>
+      </div>
+    </Show>
   )
 }
 
@@ -1167,10 +1174,11 @@ export function MessageTimeline(props: {
       getPart: getMsgPart,
       liveStatus: (content) => liveTodoStatusByContent()?.get(content),
     })
-    // 按轮折叠过程:跑完的轮次把过程折成一张卡,只留最终结果。
+    // 按轮折叠过程:只有跑完的轮次才折;运行中保持展开,避免过程区反复跳。
     const folded = TurnFold.fold(grouped, {
       getPart: getMsgPart,
       turnTime: (id) => turnTimeByUserMessage().get(id) ?? {},
+      isTurnActive: (id) => working() && activeMessageID() === id,
     })
     return reuseTimelineRows(previous, [...folded, new TimelineRow.BottomSpacer()])
   })

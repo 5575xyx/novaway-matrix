@@ -10,9 +10,16 @@ import {
   type AccountStats,
   type PublishRecord,
 } from "../PlatformBase"
+import { requestJson, PLATFORM_USER_AGENT } from "../request"
+import { capturePageProfile, type PageProfile } from "../profile-capture"
 
-const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+const DEFAULT_USER_AGENT = PLATFORM_USER_AGENT
+
+/** 创作者中心右上角账号区。 */
+const DOUYIN_CAPTURE_HINTS = {
+  nicknameSelectors: [".semi-navigation-header-user .name", ".user-name", ".account-name", ".semi-avatar + span"],
+  avatarSelectors: [".semi-navigation-header-user img", ".user-avatar img", ".account-avatar img"],
+}
 
 function waitFor(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -39,6 +46,8 @@ export class DouyinPlatform extends PlatformBase {
   readonly name = "抖音"
   readonly loginUrl = "https://creator.douyin.com/"
   readonly cookieCheckField = "sessionid"
+  readonly profileUrl = "https://creator.douyin.com/creator-micro/home"
+  readonly profileHints = DOUYIN_CAPTURE_HINTS
 
   private defaultUserAgent = DEFAULT_USER_AGENT
   private getUserInfoUrl = "https://creator.douyin.com/web/api/media/user/info/"
@@ -63,14 +72,21 @@ export class DouyinPlatform extends PlatformBase {
         return null
       }
 
-      const userInfo = await this.execGetUserInfo(data.cookie)
+      // 登录窗口里已经抓过一次（页面 + 接口合并），这里直接用，不重复请求。
+      const userInfo = data.userInfo
 
       const loginCookie = typeof data.cookie === "string" ? data.cookie : JSON.stringify(data.cookie)
+
+      // 没有 uid 说明这次登录没拿到身份：不建空账号，否则列表里会出现无头像无名的僵尸行。
+      if (!userInfo?.authorId) {
+        console.warn("[douyin] login succeeded but profile is empty")
+        return null
+      }
 
       return {
         loginCookie,
         uid: userInfo.authorId,
-        nickname: userInfo.nickname,
+        nickname: userInfo.nickname || userInfo.authorId,
         avatar: userInfo.avatar,
         fansCount: userInfo.fansCount || 0,
       }
@@ -96,7 +112,10 @@ export class DouyinPlatform extends PlatformBase {
     try {
       const cookieArr = await this.filterCookie(winContentsId, partition)
       const localStorageStr = await this.filterLocalStorage(winContentsId)
-      const userInfo = await this.getUserInfo(cookieArr)
+      // 窗口此刻停在创作者中心（页面上有昵称/头像）；接口被风控拒时用页面这份兜底。
+      const win = this.windowMap[winContentsId]
+      const page = win ? await capturePageProfile(win, DOUYIN_CAPTURE_HINTS) : undefined
+      const userInfo = await this.getUserInfo(cookieArr, page)
 
       return {
         success: true,
@@ -330,64 +349,57 @@ export class DouyinPlatform extends PlatformBase {
   }
 
   /**
-   * 获取用户信息
+   * 获取用户信息。
+   *
+   * `page` 是登录窗口里抓到的资料：creator 的 user/info 接口经常因为风控返回
+   * `status_code != 0`，此时旧实现会直接抛错，账号就只剩空昵称空头像。
+   * 页面那份一定是对的（用户眼里看到的正是它），优先于接口。
    */
   async getUserInfo(
     cookies: Cookie[],
+    page?: PageProfile,
   ): Promise<{ uid: string; authorId: string; nickname: string; avatar: string; fansCount: number }> {
     const cookieString = convertCookieToJson(cookies)
-    const res = await this.makeRequest(this.getUserInfoUrl, {
-      method: "GET",
-      headers: { Cookie: cookieString },
-    })
+    let api: Partial<{ uid: string; authorId: string; nickname: string; avatar: string; fansCount: number }> = {}
 
-    if (res.status_code === 0) {
-      return {
-        uid: res.user.sec_uid,
-        authorId: res.user.unique_id !== "" ? res.user.unique_id : res.user.uid,
-        nickname: res.user.nickname ?? "",
-        avatar: res.user.avatar_thumb?.url_list?.[0] ?? "",
-        fansCount: res.user.follower_count ?? 0,
+    try {
+      const res = await this.makeRequest(this.getUserInfoUrl, {
+        method: "GET",
+        headers: { Cookie: cookieString, Referer: this.loginUrl },
+      })
+      if (res?.status_code === 0) {
+        api = {
+          uid: res.user.sec_uid,
+          authorId: res.user.unique_id !== "" ? res.user.unique_id : res.user.uid,
+          nickname: res.user.nickname ?? "",
+          avatar: res.user.avatar_thumb?.url_list?.[0] ?? "",
+          fansCount: res.user.follower_count ?? 0,
+        }
       }
+    } catch (error) {
+      console.warn("[douyin] getUserInfo request failed:", String(error))
     }
 
-    throw new Error(res.status_msg ?? "获取用户信息失败")
+    const result = {
+      uid: api.uid || page?.uid || "",
+      authorId: api.authorId || page?.uid || "",
+      nickname: api.nickname || page?.nickname || "",
+      avatar: api.avatar || page?.avatar || "",
+      fansCount: api.fansCount || 0,
+    }
+    if (!result.authorId) throw new Error("获取用户信息失败")
+    return result
   }
 
   /**
-   * 通过cookie字符串获取用户信息（用于login()中的第二次调用）
-   */
-  private async execGetUserInfo(
-    cookieStr: string,
-  ): Promise<{ uid: string; authorId: string; nickname: string; avatar: string; fansCount: number }> {
-    const cookieString = convertCookieToJson(cookieStr)
-    const res = await this.makeRequest(this.getUserInfoUrl, {
-      method: "GET",
-      headers: { Cookie: cookieString },
-    })
-
-    if (res.status_code === 0) {
-      return {
-        uid: res.user.sec_uid,
-        authorId: res.user.unique_id !== "" ? res.user.unique_id : res.user.uid,
-        nickname: res.user.nickname ?? "",
-        avatar: res.user.avatar_thumb?.url_list?.[0] ?? "",
-        fansCount: res.user.follower_count ?? 0,
-      }
-    }
-
-    throw new Error(res.status_msg ?? "获取用户信息失败")
-  }
-
-  /**
-   * 通用请求方法
+   * 通用请求方法（Chromium 网络栈，见 ../request.ts 顶部的说明）。
    */
   private async makeRequest(url: string, options: { method: string; headers: Record<string, string> }): Promise<any> {
-    const res = await fetch(url, {
-      method: options.method,
+    const res = await requestJson(url, {
+      method: options.method as "GET" | "POST",
       headers: options.headers,
     })
-    return await res.json()
+    return res.data
   }
 
   // ---- PlatformBase 接口实现 ----

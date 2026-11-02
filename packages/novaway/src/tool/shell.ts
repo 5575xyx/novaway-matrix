@@ -33,6 +33,9 @@ const MAX_METADATA_LENGTH = 30_000
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000
 // 硬上限 30 分钟。模型传一个离谱的 timeout 不该把会话无限挂在工具调用上。
 const MAX_TIMEOUT_MS = 30 * 60 * 1000
+// 后台命令启动后的观察窗口：跑满这个时间还活着才算"started"；
+// 早退/早报错直接把真实输出还给模型，避免它凭一个 job_id 就宣布成功。
+const BACKGROUND_STABILITY_MS = 2_500
 
 /**
  * 明显是"常驻服务"的命令。
@@ -805,6 +808,40 @@ const definition = (kind: ShellKind) =>
               })
 
               if (isBackground) {
+                // 启动即成功是假象：很多桌面端/服务在 1-2 秒内就因为 DLL、端口、依赖
+                // 问题退出。给模型一个短的观察窗口，把早退的真实输出直接还给它，
+                // 它才有机会在本轮内修好，而不是回一句"已在后台启动"。
+                const stability = yield* background.wait({ id: info.id, timeout: BACKGROUND_STABILITY_MS })
+                const job = stability.info
+                const exit = typeof job?.metadata?.exit === "number" ? job.metadata.exit : null
+                const failed = job?.status === "error" || (exit !== null && exit !== 0)
+                if (!stability.timedOut) {
+                  return {
+                    title: params.description,
+                    metadata: {
+                      output: job?.output ?? job?.error ?? "(no output)",
+                      exit,
+                      truncated: false,
+                      description: params.description,
+                      background: true,
+                      jobID: info.id,
+                      command: params.command,
+                      ...(autoBackground ? { autoBackground: true } : {}),
+                    },
+                    output: [
+                      `background: true`,
+                      `job_id: ${info.id}`,
+                      `status: ${job?.status ?? "completed"}`,
+                      `exit: ${exit ?? "unknown"}`,
+                      "",
+                      failed
+                        ? "<background_start_failed>后台命令启动后立刻退出（非 0 退出码或错误状态）。先读下面的输出定位原因并修复，不要把这次启动当成成功报给用户。</background_start_failed>"
+                        : "<background_exited>后台命令在观察窗口内自行结束（退出码 0）。如果用户要的是常驻服务，这说明它没有真正启动。</background_exited>",
+                      "",
+                      job?.output ?? job?.error ?? "(no output)",
+                    ].join("\n"),
+                  }
+                }
                 return {
                   title: params.description,
                   metadata: {
@@ -820,11 +857,15 @@ const definition = (kind: ShellKind) =>
                   output: [
                     `background: true`,
                     `job_id: ${info.id}`,
+                    `status: running`,
+                    `liveness: still running ${BACKGROUND_STABILITY_MS}ms after start`,
                     `command: ${params.command}`,
                     "",
                     autoBackground
-                      ? "This looks like a long-lived server, so it was started in the background automatically. It keeps running (see the status panel to stop it); open the URL from the preview card when you are done checking."
+                      ? "This looks like a long-lived server, so it was started in the background automatically. It keeps running (see the status panel to stop it)."
                       : "The command is running in the background. Watch or stop it from the status panel.",
+                    "This is still NOT proof the app is usable. Before reporting success, verify the user-visible result: open the URL, or list windows and capture the target window with computer_screenshot(window: ...). If the process exits later, read its output and fix the cause.",
+                    ...(job?.output?.trim() ? ["", "initial_output:", job.output.trim().slice(0, 4_000)] : []),
                   ].join("\n"),
                 }
               }

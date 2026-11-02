@@ -9,6 +9,7 @@ import {
   type AccountStats,
   type PublishRecord,
 } from "../PlatformBase"
+import { requestJson, PLATFORM_USER_AGENT } from "../request"
 
 const LOGIN_URL = "https://passport.bilibili.com/login"
 const COOKIE_URL = "https://www.bilibili.com"
@@ -17,8 +18,7 @@ const CHECK_INTERVAL_MS = 1200
 const PROFILE_WAIT_MS = 1000
 const PROFILE_TIMEOUT_MS = 8000
 const LOGIN_COOKIE_CANDIDATES = ["SESSDATA", "bili_jct", "DedeUserID"]
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+const USER_AGENT = PLATFORM_USER_AGENT
 
 function safeDecodeURIComponent(value: string) {
   try {
@@ -68,6 +68,7 @@ export class BilibiliPlatform extends PlatformBase {
   readonly name = "B站"
   readonly loginUrl = LOGIN_URL
   readonly cookieCheckField = "SESSDATA"
+  readonly profileUrl = "https://member.bilibili.com/platform/home"
 
   async login(): Promise<{
     loginCookie: string
@@ -331,23 +332,21 @@ export class BilibiliPlatform extends PlatformBase {
     const cookieHeader = this.buildCookieHeader(cookies)
     if (!cookieHeader) return { uid: "", nickname: "", avatar: "" }
 
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), PROFILE_TIMEOUT_MS)
     try {
-      const response = await fetch("https://api.bilibili.com/x/web-interface/nav", {
+      const response = await requestJson("https://api.bilibili.com/x/web-interface/nav", {
         method: "GET",
         headers: {
           Accept: "application/json, text/plain, */*",
           Referer: "https://www.bilibili.com/",
           Origin: "https://www.bilibili.com",
           Cookie: cookieHeader,
-          "User-Agent": USER_AGENT,
         },
-        signal: controller.signal,
+        timeoutMs: PROFILE_TIMEOUT_MS,
       })
       if (!response.ok) return { uid: "", nickname: "", avatar: "" }
 
-      const json = (await response.json().catch(() => null)) as any
+      // requestJson 已经尝试过 JSON 解析；失败时 data 是原始文本。
+      const json = (typeof response.data === "object" ? response.data : null) as any
       const data = json?.data || {}
       const result = {
         uid: this.normalizeField(data.mid),
@@ -359,8 +358,6 @@ export class BilibiliPlatform extends PlatformBase {
     } catch (error) {
       console.warn("[bilibili] fetchProfileByCookies failed:", String(error))
       return { uid: "", nickname: "", avatar: "" }
-    } finally {
-      clearTimeout(timer)
     }
   }
 

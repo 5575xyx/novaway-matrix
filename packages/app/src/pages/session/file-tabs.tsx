@@ -43,6 +43,8 @@ import { createSessionTabs } from "@/pages/session/helpers"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { isImagePreviewPath, isOfficePreviewPath, OfficeFilePreview } from "@/pages/session/office-file-preview"
 import { buildSelectionQuote } from "@/pages/session/side-chat-seed"
+import { liveWritePath, liveWriteTick } from "@/pages/session/live-write"
+import { createPacedContent } from "@/utils/typewriter"
 
 // 换行符常量：源码里直接写字面换行会变成跨行字符串，读起来也容易出错。
 const NEWLINE = String.fromCharCode(10)
@@ -261,6 +263,15 @@ export function FileTabContent(props: { tab: string }) {
   )
   const contents = createMemo(() => state()?.content?.content ?? "")
   const cacheKey = createMemo(() => sampledChecksum(contents()))
+  /**
+   * AI 正在写这个文件时用打字机节奏揭示内容（见 createPacedContent）。
+   *
+   * 观察窗口由会话页的 watcher 事件打点（live-write.ts）：只有「会话运行中 + 这个文件
+   * 刚被写过」才播动画 —— 用户自己打开文件、或会话已结束时，都是直出最新全文。
+   * 观察窗口结束（超时）后 contents() 与揭示值自动合拢，不需要任何清理动作。
+   */
+  const liveWrite = createMemo(() => (liveWritePath() === path() ? true : undefined))
+  const typedContents = createPacedContent(contents, () => !!liveWrite())
   // 有改动时默认看"改了什么"；仍可切回文件内容（改动的文件也要能编辑）。
   const [viewMode, setViewMode] = createSignal<"diff" | "file">("diff")
   // 办公文件是二进制，diff 渲染器没有可展示的行；直接走只读预览。
@@ -275,14 +286,32 @@ export function FileTabContent(props: { tab: string }) {
   // 切换文件时把 Markdown 恢复成阅读视图（对齐 ZCode：打开 .md 默认就是渲染后的样子）。
   createEffect(
     on(path, (next) => {
+      forcedFollowPath = undefined
       if (!/\.(md|markdown|mdx)$/i.test(next ?? "")) return
       setViewMode("file")
       setMarkdownMode("preview")
     }),
   )
 
+  /**
+   * 开始跟写时强制切到「文件」视图（每个文件一次）。
+   *
+   * 改**已有**文件时，预览默认停在「改动」对照上 —— 那是看结果的视角，
+   * 看不到内容一句句长出来。跟写期间先切到文件内容，让打字机可见；
+   * 用户之后仍可自己切回对照。一个文件只强制一次，避免跟写窗口反复开关时抢视图。
+   */
+  let forcedFollowPath: string | undefined
+  createEffect(() => {
+    if (!liveWrite()) return
+    const current = path()
+    if (!current || forcedFollowPath === current) return
+    forcedFollowPath = current
+    setViewMode("file")
+  })
+
   const showDiff = () =>
     !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path()) && !isImagePreviewPath(path())
+  // 跟写期间行号跟随打字机揭示的行数增长（draft 在跟写时同步 typedContents，见下方 effect）。
   const [draft, setDraft] = createSignal("")
   const lineNumbers = createMemo(() => Array.from({ length: draft().split("\n").length }, (_, index) => index + 1))
   const [saving, setSaving] = createSignal(false)
@@ -406,6 +435,9 @@ export function FileTabContent(props: { tab: string }) {
   const saveEditing = async () => {
     const p = path()
     if (!p || saving()) return
+    // 跟写期间编辑器里可能是「打字机还没打完」的半截内容：禁止自动保存把它写回磁盘。
+    // 判据是前缀关系 —— 用户真编辑过的草稿不会是磁盘内容的严格前缀。
+    if (liveWrite() && draft() !== contents() && contents().startsWith(draft())) return
     if (saveTimer) {
       clearTimeout(saveTimer)
       saveTimer = undefined
@@ -436,6 +468,8 @@ export function FileTabContent(props: { tab: string }) {
   const saveStatus = createMemo(() => {
     if (saving()) return "saving"
     if (saveError()) return "error"
+    // 跟写期间 draft 落后于磁盘是**预期**的（打字机还在打），不能提示「未保存」。
+    if (liveWrite() && contents().startsWith(draft())) return "saved"
     if (draft() !== contents()) return "dirty"
     return "saved"
   })
@@ -683,6 +717,19 @@ export function FileTabContent(props: { tab: string }) {
   const officePath = createMemo(() => (isOfficePreviewPath(path()) ? path() : undefined))
   // 画布内改字会原地重写这份文件，预览得重读一遍才看得到新内容。
   const [officeReload, setOfficeReload] = createSignal(0)
+  // 跟写期间（AI 正在产出 office 文件）watcher 每次写盘都重取 base64，
+  // 预览像浏览器一样跟着刷新；平时仍只在打开/画布改字时读一次。
+  // 依赖里带 tick 而不是只带路径：同一份文件被连写多次时路径不变，
+  // 只看路径的依赖收不到第二次通知。
+  createEffect(
+    on(
+      () => [officePath(), liveWritePath(), liveWriteTick()] as const,
+      ([target]) => {
+        if (!target || liveWritePath() !== target) return
+        setOfficeReload((value) => value + 1)
+      },
+    ),
+  )
   const [officeBase64] = createResource(
     () => {
       const target = officePath()
@@ -794,9 +841,12 @@ export function FileTabContent(props: { tab: string }) {
     }),
   )
 
+  // 编辑器内容跟随「打字机版」内容（不跟写时它等价于 contents，重写会直接跳最新）。
+  // 只保留这一个同步点：同时再挂一个 `on(contents)` 会在整块写入的瞬间先把全文塞进
+  // 编辑器、把随后逐字揭示的内容又盖回去，观感是先跳到底再往回缩。
   createEffect(
-    on(contents, () => {
-      setDraft(contents())
+    on(typedContents, () => {
+      setDraft(typedContents())
     }),
   )
 
@@ -1075,7 +1125,9 @@ export function FileTabContent(props: { tab: string }) {
                       >
                         <ScrollView class="h-full">
                           <div class="mx-auto w-full max-w-3xl px-6 py-5">
-                            <Markdown text={contents()} cacheKey={cacheKey()} onFileOpen={openLinkedFile} />
+                            {/* 跟写期间用打字机版内容：Markdown 渲染器本身按块缓存，
+                                递增文本只会重渲染正在生长的尾块。 */}
+                            <Markdown text={typedContents()} cacheKey={cacheKey()} onFileOpen={openLinkedFile} />
                           </div>
                         </ScrollView>
                       </Match>

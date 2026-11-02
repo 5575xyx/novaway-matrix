@@ -110,6 +110,14 @@ declare global {
       }>
       setKeepAwake?: (enabled: boolean) => Promise<boolean>
       keepAwakeEnabled?: boolean
+      /** 选择本地文件（发布弹窗选视频/图片，桌面端才有的能力）。 */
+      openFilePicker?: (opts?: {
+        multiple?: boolean
+        title?: string
+        defaultPath?: string
+        accept?: string[]
+        extensions?: string[]
+      }) => Promise<string | string[] | null>
       toPreviewUrl?: (url: string) => string
       setPreviewInspectorOrigin?: (origin: string) => Promise<void>
     }

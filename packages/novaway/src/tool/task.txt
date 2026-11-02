@@ -20,3 +20,4 @@ Usage notes:
 6. The agent's result is input, not ground truth. Verify anything load-bearing (a claimed fix, a claimed test pass) before reporting it to the user.
 7. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
 8. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
+9. `verification` is the independent read-only verifier. After non-trivial work (3+ file edits, backend/API, dependency or CI changes), call it before telling the user the task is complete. Its final line decides completion: `VERDICT: PASS` (done), `FAIL` (fix and verify again), `PARTIAL` (state what could not be verified). Never substitute your own summary for its verdict.

@@ -28,7 +28,8 @@ export function createChildStoreManager(input: {
   translate: (key: string, vars?: Record<string, string | number>) => string
   queryOptions: QueryOptionsApi
   global: {
-    provider: ProviderListResponse
+    /** 全局供应商目录（bootstrap 一次拉全量，目录只是它的一个可能覆盖）。 */
+    provider: () => ProviderListResponse
   }
 }) {
   const children: Record<string, [Store<State>, SetStoreFunction<State>]> = {}
@@ -174,13 +175,8 @@ export function createChildStoreManager(input: {
           const initialMeta = meta[0].value
           const initialIcon = icon[0].value
 
-          const [pathQuery, mcpQuery, lspQuery, providerQuery] = useQueries(() => ({
-            queries: [
-              input.queryOptions.path(key),
-              input.queryOptions.mcp(key),
-              input.queryOptions.lsp(key),
-              input.queryOptions.providers(key),
-            ],
+          const [pathQuery, mcpQuery, lspQuery] = useQueries(() => ({
+            queries: [input.queryOptions.path(key), input.queryOptions.mcp(key), input.queryOptions.lsp(key)],
           }))
 
           const child = createStore<State>({
@@ -188,14 +184,10 @@ export function createChildStoreManager(input: {
             projectMeta: initialMeta,
             icon: initialIcon,
             get provider_ready() {
-              return !providerQuery.isLoading
+              return true
             },
             get provider() {
-              const EMPTY = { all: [], connected: [], default: {} }
-              if (providerQuery.isLoading) return EMPTY
-              if (providerQuery.data?.all.length === 0 && input.global.provider.all.length > 0)
-                return input.global.provider
-              return providerQuery.data ?? EMPTY
+              return this.provider_project ?? input.global.provider()
             },
             config: {},
             get path() {

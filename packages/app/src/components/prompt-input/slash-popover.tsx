@@ -44,8 +44,8 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
           props.setSlashPopoverRef(el)
         }}
         class="absolute inset-x-0 -top-2 -translate-y-full origin-bottom-left max-h-80 min-h-10
-                 overflow-auto flex flex-col p-2 rounded-[12px]
-                 bg-popover shadow-[var(--shadow-md)]"
+                 z-30 overflow-auto flex flex-col p-2 rounded-[12px]
+                 border border-border bg-popover shadow-[var(--shadow-md)]"
         onMouseDown={(e) => e.preventDefault()}
       >
         <Switch>

@@ -28,6 +28,7 @@ export class KwaiPlatform extends PlatformBase {
   readonly name = "快手"
   readonly loginUrl = KWAI_LOGIN_URL
   readonly cookieCheckField = "kuaishou.server.web_st"
+  readonly profileUrl = "https://cp.kuaishou.com/profile"
 
   private async withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
     let timer: NodeJS.Timeout | undefined

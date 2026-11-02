@@ -9,15 +9,24 @@ import {
   type AccountStats,
   type PublishRecord,
 } from "../PlatformBase"
+import { requestJson, PLATFORM_USER_AGENT } from "../request"
+import { capturePageProfile, type PageProfile } from "../profile-capture"
 
-const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+const DEFAULT_USER_AGENT = PLATFORM_USER_AGENT
+
+/** 创作者中心首页右上角的账号区（不同版本类名不同，按优先级试）。 */
+const XHS_CAPTURE_HINTS = {
+  nicknameSelectors: [".user-info .name", ".user-name", ".header-user .name", ".account-info .name"],
+  avatarSelectors: [".user-info img.avatar", ".user-avatar img", ".header-user img", ".account-info img"],
+}
 
 export class XhsPlatform extends PlatformBase {
   readonly id = "xhs"
   readonly name = "小红书"
   readonly loginUrl = "https://creator.xiaohongshu.com/"
   readonly cookieCheckField = "access-token"
+  readonly profileUrl = "https://creator.xiaohongshu.com/new/home"
+  readonly profileHints = XHS_CAPTURE_HINTS
 
   private defaultUserAgent = DEFAULT_USER_AGENT
   private loginUrlHome = "https://www.xiaohongshu.com/"
@@ -38,13 +47,18 @@ export class XhsPlatform extends PlatformBase {
       const result = await this.loginOrView("login")
       if (!result.success || !result.cookies) return null
 
-      const userInfo = await this.getUserInfo(result.cookies)
-      const loginCookie = JSON.stringify(result.cookies)
+      const userInfo = result.userInfo
+      // 身份拿不到就别建记录：空 uid 会在账号列表里留下一条"登录了但没有名字"的僵尸账号，
+      // 而且下次 addOrUpdateAccount 会按空 uid 匹配到别的账号上。
+      if (!userInfo?.platformUserId) {
+        console.warn("[xhs] login succeeded but profile is empty")
+        return null
+      }
 
       return {
-        loginCookie,
+        loginCookie: JSON.stringify(result.cookies),
         uid: userInfo.platformUserId,
-        nickname: userInfo.nickname,
+        nickname: userInfo.nickname || userInfo.platformUserId,
         avatar: userInfo.avatar,
         fansCount: userInfo.fansCount || 0,
       }
@@ -59,10 +73,13 @@ export class XhsPlatform extends PlatformBase {
       const winRes = await this.createAuthorizationWindow(authModel === "view" ? existingCookies || null : null)
       const { winContentsId, partition } = winRes
       const newCookies = await this.filterCookie(winContentsId, partition)
-      const userInfo = await this.getUserInfo(newCookies)
+      // 登录窗口此刻停在创作者中心首页：先从页面抓一份资料（页面一定渲染了昵称头像），
+      // 再用接口补粉丝数等指标。接口被风控拒绝时页面这份就是唯一来源。
+      const win = BrowserWindow.fromId(winContentsId)
+      const page = win ? await capturePageProfile(win, XHS_CAPTURE_HINTS) : undefined
+      const userInfo = await this.getUserInfo(newCookies, page)
 
       if (authModel === "login") {
-        const win = BrowserWindow.fromId(winContentsId)
         if (win && !win.isDestroyed()) win.close()
         this.prevWebSession = ""
       }
@@ -159,40 +176,42 @@ export class XhsPlatform extends PlatformBase {
     }
   }
 
-  async getUserInfo(cookies: Cookie[]): Promise<PlatformAccountInfo> {
+  async getUserInfo(cookies: Cookie[], page?: PageProfile): Promise<PlatformAccountInfo> {
     const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ")
 
     let userData: any = {}
     let fansData: any = {}
 
     try {
-      const res = await fetch(this.getUserInfoUrl, {
+      // 走 Electron net（Chromium 栈）：Node 的原生 fetch 会被 edith 直接 406。
+      const res = await requestJson(this.getUserInfoUrl, {
         headers: {
           Cookie: cookieStr,
-          Referer: this.loginUrl,
+          Referer: this.loginUrlHome,
         },
       })
-      if (res.ok) userData = await res.json()
+      if (res.ok) userData = res.data || {}
     } catch {
-      // ignore
+      // 接口失败不是致命问题：页面抓取那份还能用
     }
 
     try {
-      const res = await fetch(this.getFansInfoUrl, {
+      const res = await requestJson(this.getFansInfoUrl, {
         headers: {
           Cookie: cookieStr,
           Referer: this.loginUrl,
         },
       })
-      if (res.ok) fansData = await res.json()
+      if (res.ok) fansData = res.data || {}
     } catch {
       // ignore
     }
 
+    // 页面 > 接口：页面上是用户此刻真正登录的那个账号，接口可能因为风控返回空。
     return {
-      platformUserId: userData.data?.user_id || "",
-      nickname: userData.data?.nickname || "",
-      avatar: userData.data?.imageb || "",
+      platformUserId: userData.data?.user_id || page?.uid || "",
+      nickname: userData.data?.nickname || page?.nickname || "",
+      avatar: userData.data?.imageb || page?.avatar || "",
       fansCount: fansData.data?.fans_count || 0,
     }
   }
@@ -200,10 +219,15 @@ export class XhsPlatform extends PlatformBase {
   async detectLogin(cookies: Cookie[]): Promise<boolean> {
     try {
       const info = await this.getUserInfo(cookies)
-      return !!info.platformUserId
+      if (info.platformUserId) return true
     } catch {
-      return false
+      /* 接口被风控时继续走页面兜底 */
     }
+    // edith 接口按指纹拒绝请求（406）时，登录状态其实是好的。
+    // 这时用登录态页面确认一次：页面上能看到 uid 或头像才算已登录，
+    // 只有标题/占位文案不算（未登录会跳登录页，那里没有这两样）。
+    const page = await this.captureProfileFromPage(cookies).catch(() => null)
+    return !!(page?.platformUserId || page?.avatar)
   }
 
   async getAccountInfo(cookies: Cookie[]): Promise<PlatformAccountInfo> {
@@ -214,7 +238,7 @@ export class XhsPlatform extends PlatformBase {
     const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ")
     try {
       const endpoint = "https://edith.xiaohongshu.com/web_api/sns/v2/note"
-      const res = await fetch(endpoint, {
+      const res = await requestJson(endpoint, {
         method: "POST",
         headers: {
           Cookie: cookieStr,
@@ -222,18 +246,18 @@ export class XhsPlatform extends PlatformBase {
           Referer: this.loginUrl,
           Origin: this.loginUrl,
         },
-        body: JSON.stringify({
+        body: {
           title: input.title,
           desc: input.description,
           tags: input.tags,
           filePaths: input.filePaths,
-        }),
+        },
       })
-      const data = await res.json()
-      if (data.success) {
+      const data = res.data as any
+      if (data?.success) {
         return { success: true, platformPostId: data.data?.id, url: data.data?.url }
       }
-      return { success: false, error: data.msg || "发布失败" }
+      return { success: false, error: data?.msg || `发布失败（HTTP ${res.status}）` }
     } catch (err: any) {
       return { success: false, error: err.message }
     }

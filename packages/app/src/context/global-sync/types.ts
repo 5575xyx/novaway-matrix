@@ -40,6 +40,8 @@ export type State = {
   icon: string | undefined
   provider_ready: boolean
   provider: ProviderListResponse
+  /** 项目配置自己改过供应商时，目录级列表；没有覆盖就沿用全局目录。 */
+  provider_project?: ProviderListResponse
   config: Config
   path: Path
   session: Session[]

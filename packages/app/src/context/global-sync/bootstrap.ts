@@ -184,6 +184,18 @@ export const loadProvidersQuery = (directory: string | null, sdk: OpencodeClient
     queryFn: () => retry(() => sdk.provider.list().then((x) => normalizeProviderList(x.data!))),
   })
 
+/**
+ * 供应商目录是全局的（models.dev + 本机 auth），只有项目配置显式改了供应商相关
+ * 字段时才需要按目录再拉一次。没有覆盖就不拉 —— 那份列表带全部模型元数据，
+ * 一次好几 MB，每个项目各拉一遍是切项目卡顿的主要来源之一。
+ */
+export function projectProviderOverride(config: Config | undefined) {
+  if (!config) return false
+  return (
+    config.provider !== undefined || config.enabled_providers !== undefined || config.disabled_providers !== undefined
+  )
+}
+
 export const loadAgentsQuery = (directory: string | null, sdk: OpencodeClient) =>
   queryOptions({
     queryKey: [directory, "agents"],
@@ -232,7 +244,17 @@ export async function bootstrapDirectory(input: {
           .ensureQueryData(loadAgentsQuery(input.directory, input.sdk))
           .then((data) => input.setStore("agent", data)),
       () =>
-        retry(() => input.sdk.config.get().then((x) => input.setStore("config", reconcile(x.data!, { merge: false })))),
+        retry(() => input.sdk.config.get()).then((x) => {
+          const config = x.data ?? {}
+          input.setStore("config", reconcile(config, { merge: false }))
+          if (!projectProviderOverride(config)) {
+            if (input.store.provider_project) input.setStore("provider_project", undefined)
+            return Promise.resolve()
+          }
+          return input.queryClient
+            .fetchQuery(loadProvidersQuery(input.directory, input.sdk))
+            .then((data) => input.setStore("provider_project", reconcile(data)))
+        }),
       () => retry(() => input.sdk.session.status().then((x) => input.setStore("session_status", x.data!))),
       !seededProject &&
         (() => retry(() => input.sdk.project.current()).then((x) => input.setStore("project", x.data!.id))),
@@ -305,15 +327,6 @@ export async function bootstrapDirectory(input: {
         ),
       () => Promise.resolve(input.loadSessions(input.directory)),
       () => input.queryClient.fetchQuery(loadMcpQuery(input.directory, input.sdk)),
-      () =>
-        input.queryClient.fetchQuery(loadProvidersQuery(input.directory, input.sdk)).catch((err) => {
-          const project = getFilename(input.directory)
-          showToast({
-            variant: "error",
-            title: input.translate("toast.project.reloadFailed.title", { project }),
-            description: formatServerError(err, input.translate),
-          })
-        }),
     ].filter(Boolean) as (() => Promise<any>)[]
 
     await waitForPaint()

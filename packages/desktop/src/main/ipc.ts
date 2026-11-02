@@ -42,6 +42,11 @@ import {
   PlatformLoginManager,
   getSupportedPlatforms,
   getPlatform,
+  resolveProfile,
+  runPublishBatch,
+  getPublishBatches,
+  savePublishBatch,
+  type PublishInput,
 } from "./platform"
 import { appIconPath, setPreviewInspectorOrigin, setTitlebar, updateTitlebar } from "./windows"
 import { getLogger } from "./logging"
@@ -52,6 +57,8 @@ const pickerFilters = (ext?: string[]) => {
 }
 
 let mainWindowRef: BrowserWindow | null = null
+/** 当前正在跑的发布批次（同一时刻只允许一个，见 platform:publish-batch）。 */
+let activePublish: AbortController | undefined
 const activeNotifications = new Set<Notification>()
 
 function liveWebContents(win: BrowserWindow | null) {
@@ -630,12 +637,36 @@ export function registerIpcHandlers(deps: Deps) {
       return { success: false, error: result.error || "登录失败" }
     }
 
+    // 登录窗口里没抓到昵称/头像时（页面还没渲染完、或平台改版），
+    // 这里用 cookie 再补一次：接口 → 隐藏窗口读页面。
+    let nickname = result.nickname || ""
+    let avatar = result.avatar || ""
+    let uid = result.uid || ""
+    if (!nickname || !avatar || !uid) {
+      const patch = await resolveProfile(platform, {
+        uid,
+        nickname,
+        avatar,
+        cookies: result.loginCookie || "",
+        fansCount: result.fansCount || 0,
+      }).catch(() => ({} as any))
+      nickname = patch.nickname || nickname
+      avatar = patch.avatar || avatar
+      uid = uid || patch.uid || ""
+    }
+
+    // 连 uid 都拿不到：说明这次登录并没有真正建立可用身份。
+    // 不写空账号——否则账号列表里会出现一条"登录成功却什么都没"的僵尸行。
+    if (!uid) {
+      return { success: false, error: "登录成功但未能读取账号信息，请重新登录" }
+    }
+
     const saved = addOrUpdateAccount(
-      { platform: platformType, uid: result.uid || "" },
+      { platform: platformType, uid },
       {
-        account: result.uid || "",
-        nickname: result.nickname || "",
-        avatar: result.avatar || "",
+        account: uid,
+        nickname: nickname || uid,
+        avatar,
         cookies: result.loginCookie || "",
         status: "valid",
         fansCount: result.fansCount || 0,
@@ -662,20 +693,17 @@ export function registerIpcHandlers(deps: Deps) {
     const valid = await platform.detectLogin(cookies)
     updateAccountStatus(id, valid ? "valid" : "expired")
     if (valid) {
-      const accountInfo = await platform.getAccountInfo(cookies).catch(() => null)
-      if (accountInfo) {
-        updateAccountInfo(id, {
-          nickname: accountInfo.nickname,
-          avatar: accountInfo.avatar,
-          fansCount: accountInfo.fansCount || 0,
-        })
-      }
+      // 巡检顺便补资料：旧版本迁移过来的记录里昵称/头像是空的，
+      // 用户点一次"一键检测"就该自动长回来。
+      const patch = await resolveProfile(platform, account).catch(() => ({} as any))
+      if (Object.keys(patch).length > 0) updateAccountInfo(id, patch)
+      return { valid, nickname: patch.nickname, avatar: patch.avatar }
     }
     return { valid }
   })
 
   ipcMain.handle("platform:batch-check-login", async (_event, ids: string[]) => {
-    const results: { id: string; valid: boolean }[] = []
+    const results: { id: string; valid: boolean; nickname?: string; avatar?: string }[] = []
     const checkOne = async (id: string) => {
       const account = getAccount(id)
       if (!account) return { id, valid: false }
@@ -684,24 +712,46 @@ export function registerIpcHandlers(deps: Deps) {
         const cookies: Electron.Cookie[] = JSON.parse(account.cookies)
         const valid = await platform.detectLogin(cookies)
         updateAccountStatus(id, valid ? "valid" : "expired")
+        let nickname: string | undefined
+        let avatar: string | undefined
         if (valid) {
-          const accountInfo = await platform.getAccountInfo(cookies).catch(() => null)
-          if (accountInfo) {
-            updateAccountInfo(id, {
-              nickname: accountInfo.nickname,
-              avatar: accountInfo.avatar,
-              fansCount: accountInfo.fansCount || 0,
-            })
-          }
+          const patch = await resolveProfile(platform, account).catch(() => ({} as any))
+          if (Object.keys(patch).length > 0) updateAccountInfo(id, patch)
+          nickname = patch.nickname
+          avatar = patch.avatar
         }
-        return { id, valid }
+        return { id, valid, nickname, avatar }
       } catch {
         updateAccountStatus(id, "login_failed")
         return { id, valid: false }
       }
     }
     const allResults = await Promise.all(ids.map(checkOne))
-    return allResults
+    results.push(...allResults)
+    return results
+  })
+
+  /**
+   * 只补资料，不改登录状态。给账号列表做"空昵称/空头像"的自愈用：
+   * 迁移过来的老记录一打开工作台就自动补全，不需要用户手动点巡检。
+   */
+  ipcMain.handle("platform:refresh-profiles", async (_event, ids?: string[]) => {
+    const targets = (ids && ids.length > 0 ? ids : getAccounts().map((account) => account.id))
+      .map((id) => getAccount(id))
+      .filter((account): account is NonNullable<typeof account> => !!account && !!account.cookies)
+    if (targets.length === 0) return { accounts: getAccounts() }
+
+    // 串行执行：每个平台可能要开一次隐藏窗口，并发开一堆窗口反而更容易被风控。
+    for (const account of targets) {
+      try {
+        const platform = getPlatform(account.platform)
+        const patch = await resolveProfile(platform, account)
+        if (Object.keys(patch).length > 0) updateAccountInfo(account.id, patch)
+      } catch (error) {
+        console.warn("[platform:refresh-profiles] failed for", account.id, String(error))
+      }
+    }
+    return { accounts: getAccounts() }
   })
 
   ipcMain.handle("platform:get-groups", async () => {
@@ -743,6 +793,71 @@ export function registerIpcHandlers(deps: Deps) {
     const platform = getPlatform(account.platform)
     const cookies: Electron.Cookie[] = JSON.parse(account.cookies)
     return platform.publish(input.publishInput, cookies)
+  })
+
+  /**
+   * 一站式发布：一次输入 → 多个账号（可跨平台）。
+   *
+   * 立刻返回通知器 id，进度通过 `platform:publish-progress` 逐条推给渲染层；
+   * 批次结束后写入历史，前端可随时用 `platform:get-publish-batches` 取回。
+   * 同一时刻只允许一个批次在跑：多个批次会用同一个 store 抢写，还会互相抢窗口焦点。
+   */
+  ipcMain.handle(
+    "platform:publish-batch",
+    async (event, payload: { accountIds: string[]; input: PublishInput }) => {
+      if (activePublish) return { ok: false, error: "已有发布任务在进行中" }
+      const accounts = payload.accountIds
+        .map((id) => getAccount(id))
+        .filter((account): account is NonNullable<typeof account> => !!account)
+        .map((account) => ({
+          id: account.id,
+          platform: account.platform,
+          nickname: account.nickname,
+          cookies: account.cookies,
+        }))
+      if (accounts.length === 0) return { ok: false, error: "没有可发布的账号" }
+
+      const controller = new AbortController()
+      activePublish = controller
+      const sender = event.sender
+
+      void runPublishBatch(
+        accounts,
+        payload.input,
+        ({ batchId, result }) => {
+          if (sender.isDestroyed()) return
+          try {
+            sender.send("platform:publish-progress", { batchId, result })
+          } catch {
+            /* 窗口已关闭：批次继续跑完并落盘即可 */
+          }
+        },
+        controller.signal,
+      )
+        .then((batch) => {
+          savePublishBatch(batch)
+          if (!sender.isDestroyed()) sender.send("platform:publish-finished", batch)
+        })
+        .catch((error) => {
+          if (!sender.isDestroyed()) {
+            sender.send("platform:publish-finished", { error: error instanceof Error ? error.message : String(error) })
+          }
+        })
+        .finally(() => {
+          if (activePublish === controller) activePublish = undefined
+        })
+
+      return { ok: true }
+    },
+  )
+
+  ipcMain.handle("platform:cancel-publish", async () => {
+    activePublish?.abort()
+    return { ok: true }
+  })
+
+  ipcMain.handle("platform:get-publish-batches", async () => {
+    return getPublishBatches()
   })
 }
 

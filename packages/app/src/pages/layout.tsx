@@ -34,7 +34,14 @@ import { TextField } from "@novaway/ui/text-field"
 import { getFilename } from "@novaway/core/util/path"
 import { Session, type Message, type QuestionRequest } from "@novaway/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
-import { canCheckUpdate, checkForUpdate, configureUpdate, downloadUpdate, installUpdate, updateState } from "@/context/update"
+import {
+  canCheckUpdate,
+  checkForUpdate,
+  configureUpdate,
+  downloadUpdate,
+  installUpdate,
+  updateState,
+} from "@/context/update"
 import { DialogUpdateNotes } from "@/components/dialog-update-notes"
 import { branchChannel as branchChannelOf } from "@/utils/session-library"
 import { useSettings } from "@/context/settings"
@@ -567,6 +574,11 @@ export default function Layout(props: ParentProps) {
       if (!canCheckUpdate()) return
 
       let interval: ReturnType<typeof setInterval> | undefined
+      // 本次会话是否已经有过一次「开机检查」。开机那次由主进程负责（见
+      // desktop/main/index.ts 的 autoUpdateEnabled 分支），渲染层再查一遍就是
+      // 同一个 latest.yml 打两次 —— 还会把正在后台下载的状态短暂覆盖成「有新版本」。
+      // 只有用户中途把开关重新打开时，才需要立刻补一次。
+      let checkedOnLaunch = false
 
       createEffect(() => {
         if (!settings.ready()) return
@@ -582,7 +594,8 @@ export default function Layout(props: ParentProps) {
         }
 
         if (interval !== undefined) return
-        void checkForUpdate()
+        if (checkedOnLaunch) void checkForUpdate()
+        checkedOnLaunch = true
         interval = setInterval(() => void checkForUpdate(), 10 * 60 * 1000)
       })
 
@@ -2876,7 +2889,7 @@ export default function Layout(props: ParentProps) {
                           <ProjectMenu project={proj} ctx={projectSidebarCtx} />
                         </div>
                         <Show when={isExpanded()}>
-                          <div class="flex flex-col gap-0.5">
+                          <div class="flex flex-col gap-0.5 sidebar-group-enter">
                             <ProjectTaskList
                               project={proj}
                               sidebarExpanded={() => layout.sidebar.expanded()}

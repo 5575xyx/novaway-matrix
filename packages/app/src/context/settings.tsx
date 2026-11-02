@@ -41,6 +41,11 @@ export interface Settings {
     shellToolPartsExpanded: boolean
     editToolPartsExpanded: boolean
     showSessionProgressBar: boolean
+    /**
+     * 实时跟随 AI 写盘：会话运行中文件被写入时自动在右侧「文件」区打开（或切换到）
+     * 最新写的那个，预览用打字机节奏揭示内容；本轮结束后自动收起**因跟随而打开**的标签。
+     */
+    liveFileFollow: boolean
   }
   updates: {
     startup: boolean
@@ -147,6 +152,7 @@ const defaultSettings: Settings = {
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
     showSessionProgressBar: false,
+    liveFileFollow: true,
   },
   updates: {
     startup: true,
@@ -301,6 +307,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         ),
         setShowSessionProgressBar(value: boolean) {
           setStore("general", "showSessionProgressBar", value)
+        },
+        liveFileFollow: withFallback(
+          () => store.general?.liveFileFollow,
+          defaultSettings.general.liveFileFollow,
+        ),
+        setLiveFileFollow(value: boolean) {
+          setStore("general", "liveFileFollow", value)
         },
       },
       office: {

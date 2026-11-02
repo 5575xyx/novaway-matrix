@@ -296,6 +296,22 @@ describe("deferred tools", () => {
 })
 
 describe("tool.registry", () => {
+  it.instance("offers review_document to primary agents only", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const agents = yield* Agent.Service
+      const build = yield* agents.get("build")
+      const general = yield* agents.get("general")
+      const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
+
+      const primary = yield* registry.tools({ ...ref, agent: build })
+      expect(primary.some((tool) => tool.id === "review_document")).toBe(true)
+
+      const sub = yield* registry.tools({ ...ref, agent: general })
+      expect(sub.some((tool) => tool.id === "review_document")).toBe(false)
+    }),
+  )
+
   it.instance("hides repo research tools unless experimental", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service

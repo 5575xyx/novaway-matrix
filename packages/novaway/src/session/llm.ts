@@ -169,6 +169,33 @@ const live: Layer.Layer<
         "</delegation>",
       ].join("\n")
 
+      // 验收契约：非平凡改动必须由独立的只读 verification 子代理给结论。
+      // 与循环里的完成门禁配套；subagent / small 调用不注入。
+      const VERIFICATION_DIRECTIVE = [
+        "<verification>",
+        "在把非平凡任务（3 处以上文件编辑、后端/API 行为、依赖或 CI 改动、用户会实际运行的东西）报告为完成之前，必须做一次独立验收：",
+        '1. 调用 task 工具，subagent_type 填 "verification"。它是只读的，不会替你改代码。',
+        "2. 像交接工作一样把原始需求、改了哪些文件、要证明的用户可见行为、预期要跑的命令都告诉它。",
+        "3. 不要把自己的总结当成验收结果。只看它的最后一行 VERDICT：",
+        "   - PASS：可以报告完成，并引用它实际跑过的命令与输出。",
+        "   - FAIL：修掉失败项，然后重新验收。",
+        "   - PARTIAL：明确告诉用户哪些没能验证、为什么。",
+        "小范围、纯本地编辑不需要验收。后台任务返回的 job_id、写入成功、代码“看起来对”，都不是功能可用的证据。",
+        "</verification>",
+      ].join("\n")
+
+      // 文档评审契约：需要用户拍板的交付物走卡片，而不是在聊天里问「可以吗」。
+      // 与 review_document 工具配套；subagent / small 调用不注入。
+      const DOCUMENT_REVIEW_DIRECTIVE = [
+        "<document-review>",
+        "当你产出一份需要用户拍板的文档（PRD、实施计划、技术方案、规格说明、评审报告）时：",
+        "1. 先把完整内容写进工作区文件（例如 docs/... 或 .novaway/plans/...），不要把正文只留在聊天里。",
+        "2. 写完立刻调用 review_document，给出 path、kind、title、version、summary（一两句）、highlights（3-8 条要点）、questions（需要用户拍板的待确认项）。不要在聊天框里再问「这样可以吗」。",
+        "3. 用户的结论会作为工具结果返回：approved 才进入下一步（例如按计划实施）；revise 就按 feedback 修改文档，然后再次调用 review_document；pending 说明用户还没看，停下等用户，不要擅自开始实施。",
+        "只有确实需要用户决策的文档才走评审；代码改动、普通问答不需要。",
+        "</document-review>",
+      ].join("\n")
+
       const systemParts = [
         // 语言指令(最高优先级,置顶)
         LANGUAGE_DIRECTIVE,
@@ -179,6 +206,12 @@ const live: Layer.Layer<
         ...(input.agent.mode !== "subagent" && !input.small && cfg.experimental?.auto_delegate === true
           ? [AUTO_DELEGATE_DIRECTIVE]
           : []),
+        // 完成前验收契约：默认开启，可用 experimental.verification_agent=false 关闭。
+        ...(input.agent.mode !== "subagent" && !input.small && cfg.experimental?.verification_agent !== false
+          ? [VERIFICATION_DIRECTIVE]
+          : []),
+        // 文档评审契约：主代理产出需要拍板的文档时走 review_document。
+        ...(input.agent.mode !== "subagent" && !input.small ? [DOCUMENT_REVIEW_DIRECTIVE] : []),
         // any custom prompt passed into this call
         ...input.system,
         // any custom prompt from last user message

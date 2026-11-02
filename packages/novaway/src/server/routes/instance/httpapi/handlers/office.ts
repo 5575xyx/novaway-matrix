@@ -3,7 +3,10 @@ import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { mkdir, readFile, readdir, rename, stat, writeFile } from "fs/promises"
 import path from "path"
+import { Bus } from "@/bus"
 import { InstanceState } from "@/effect/instance-state"
+import { File } from "@/file"
+import { FileWatcher } from "@/file/watcher"
 import { OfficePlatform } from "@/office/platform"
 import { editPptx as applyPptxEdit } from "@novaway/core/office/pptx-edit"
 import { fillPptxTemplateText } from "@/util/office-document"
@@ -30,6 +33,21 @@ const kindByDir = Object.fromEntries(Object.entries(kindDir).map(([kind, dir]) =
 export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (handlers) =>
   Effect.gen(function* () {
     const platform = yield* OfficePlatform.Service
+    const bus = yield* Bus.Service
+
+    /**
+     * Office 产物落盘后广播「文件已更新」。
+     *
+     * 和 write/edit 工具口径一致：右侧面板的实时跟随、预览刷新都靠这个事件驱动。
+     * 原地改字走「临时文件 + rename」——文件监听器只看到 temp 的增删，拿不到
+     * 「这份产物改好了」的稳定信号；另外两条直接覆盖写也统一走这里，口径一致。
+     * 广播失败不该让保存失败，所以用 ignore 兜住。
+     */
+    const announceWrite = (absolute: string, existed: boolean) =>
+      Effect.gen(function* () {
+        yield* bus.publish(File.Event.Edited, { file: absolute })
+        yield* bus.publish(FileWatcher.Event.Updated, { file: absolute, event: existed ? "change" : "add" })
+      }).pipe(Effect.ignore)
 
     const listArtifacts = Effect.fn("OfficeHttpApi.listArtifacts")(function* () {
       const state = yield* InstanceState.context
@@ -77,10 +95,17 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       const bytes = Buffer.from(ctx.payload.contentBase64, "base64")
       if (!bytes.length) return yield* new HttpApiError.BadRequest({})
 
+      const existed = yield* Effect.promise(() =>
+        stat(target).then(
+          () => true,
+          () => false,
+        ),
+      )
       yield* Effect.promise(async () => {
         await mkdir(path.dirname(target), { recursive: true })
         await writeFile(target, bytes)
       })
+      yield* announceWrite(target, existed)
 
       const relativePath = path.relative(state.worktree === "/" ? state.directory : state.worktree, target)
       const artifact = yield* platform.registerArtifact({
@@ -120,10 +145,17 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       )
       if (!bytes.length) return yield* new HttpApiError.BadRequest({})
 
+      const templateExisted = yield* Effect.promise(() =>
+        stat(target).then(
+          () => true,
+          () => false,
+        ),
+      )
       yield* Effect.promise(async () => {
         await mkdir(path.dirname(target), { recursive: true })
         await writeFile(target, bytes)
       })
+      yield* announceWrite(target, templateExisted)
 
       return {
         path: path.relative(workspace, target),
@@ -180,6 +212,9 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
         },
         catch: () => new HttpApiError.BadRequest({}),
       })
+
+      // 原地改字/换图同样算一次写盘（原有文件，事件为 change）。
+      yield* announceWrite(target, true)
 
       return {
         path: relative,

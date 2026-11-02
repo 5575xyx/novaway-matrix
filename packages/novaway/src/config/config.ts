@@ -417,6 +417,10 @@ export const Info = Schema.Struct({
         description:
           "主代理自动判断复杂请求能否拆成并行子任务，并按需创建团队、选择不同 AI 员工并行执行。默认开；false 可关闭这段编排指令。",
       }),
+      verification_agent: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "非平凡改动（3 处以上编辑、后端/API、依赖或 CI）在报告完成前，强制由独立的只读 verification 子代理验收，并注入 VERDICT 契约。默认开；false 可关闭整个验收门禁与提示词。",
+      }),
       team_orchestration: Schema.optional(Schema.Boolean).annotate({
         description:
           "团队编排总控（与上面的 teams 特性含义不同：那个表示团队工具是否加载）。关闭后 team_run 不再注入、团队选择器隐藏、运行不可被启动；已建的计划与历史保留，已在跑的运行不会被停掉。默认开。",

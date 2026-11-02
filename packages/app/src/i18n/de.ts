@@ -648,6 +648,9 @@ export const dict = {
   "settings.general.row.editToolPartsExpanded.description":
     "Edit-, Write- und Patch-Tool-Abschnitte standardmäßig in der Timeline ausgeklappt anzeigen",
   "settings.general.row.showSessionProgressBar.title": "Sitzungsfortschrittsleiste anzeigen",
+  "settings.general.row.liveFileFollow.title": "Datei-Schreibvorgängen live folgen",
+  "settings.general.row.liveFileFollow.description":
+    "Die vom Agenten geschriebene Datei automatisch im Seitenbereich öffnen, den Inhalt tippend anzeigen und nach Fertigstellung einklappen",
   "settings.general.row.showSessionProgressBar.description":
     "Die animierte Fortschrittsleiste oben in der Sitzung anzeigen, wenn der Agent arbeitet",
   "settings.general.row.wayland.title": "Natives Wayland verwenden",

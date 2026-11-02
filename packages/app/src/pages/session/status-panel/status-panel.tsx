@@ -10,6 +10,8 @@ export type StatusPanelSection = {
   id: string
   title: string
   summary?: JSX.Element
+  /** 收起态滚动播报的实时短句（如「1 个后台任务运行中」「正在执行：xxx」）。 */
+  ticker?: () => string | undefined
   defaultOpen?: boolean
   bodyHeight?: string
   children: JSX.Element
@@ -29,7 +31,14 @@ export function shouldMountStatusPanel(sections: readonly { id: string }[]): boo
 // 「记忆与进化」已从面板移除（全局能力，不该占会话状态的位置，见 pages/session.tsx）。
 // context 卡已退出面板：占用显示在输入框工具条（session-context-usage，对齐 ZCode 的
 // ChatContextUsage），明细仍在审查面板的 context 标签里。
-const ALWAYS_VISIBLE_SECTIONS = new Set(["git", "background", "temp-files", "plan-approval", "hooks"])
+const ALWAYS_VISIBLE_SECTIONS = new Set([
+  "git",
+  "background",
+  "temp-files",
+  "document-review",
+  "plan-approval",
+  "hooks",
+])
 
 export function visibleStatusSections<T extends { id: string }>(sections: readonly T[], running: boolean): T[] {
   if (running) return [...sections]
@@ -41,7 +50,7 @@ export function visibleStatusSections<T extends { id: string }>(sections: readon
 // 运行相关的区块在「从无到有」时自动展开一次(对齐 ZCode:任务触及某块功能时,
 // 用户直接看到内容,而不是一行收着的摘要)。只在出现瞬间触发:用户随后手动收起
 // 不会被再次顶开;git/context 等常驻区块不自动展开,保持默认折叠。
-const AUTO_EXPAND_SECTIONS = new Set(["todo", "hooks", "plan-approval", "agents"])
+const AUTO_EXPAND_SECTIONS = new Set(["todo", "hooks", "document-review", "plan-approval", "agents"])
 
 export function SessionStatusPanel(props: { sections: StatusPanelSection[] }): JSX.Element {
   return (
@@ -178,13 +187,39 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
   )
 }
 
-const CapsuleBody = (props: { sections: StatusPanelSection[] }): JSX.Element => (
-  <>
-    <Icon name="status" size="small" class="text-foreground-subtle shrink-0" />
-    <For each={props.sections}>
-      {(section) => (
-        <span class="min-w-0 truncate text-ui-sm tabular-nums text-foreground-subtle">{section.summary}</span>
-      )}
-    </For>
-  </>
-)
+const CapsuleBody = (props: { sections: StatusPanelSection[] }): JSX.Element => {
+  // 收起态优先播报"现在正在干什么"；没有实时短句时退回原来的数字摘要。
+  const tickerText = createMemo(() =>
+    props.sections
+      .map((section) => section.ticker?.())
+      .filter((value): value is string => !!value)
+      .join(" · "),
+  )
+  return (
+    <>
+      <Icon name="status" size="small" class="text-foreground-subtle shrink-0" />
+      <Show
+        when={tickerText()}
+        fallback={
+          <For each={props.sections}>
+            {(section) => (
+              <span class="min-w-0 truncate text-ui-sm tabular-nums text-foreground-subtle">{section.summary}</span>
+            )}
+          </For>
+        }
+      >
+        <span data-component="status-panel-ticker" class="w-[min(60vw,232px)] min-w-0 overflow-hidden">
+          <span
+            data-component="status-panel-ticker-track"
+            style={{ "--ticker-ms": `${Math.max(9, Math.ceil(tickerText().length * 0.4))}s` }}
+          >
+            <span class="pr-6">{tickerText()}</span>
+            <span class="pr-6" aria-hidden="true">
+              {tickerText()}
+            </span>
+          </span>
+        </span>
+      </Show>
+    </>
+  )
+}

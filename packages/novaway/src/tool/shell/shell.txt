@@ -11,6 +11,7 @@ IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO N
 ${commandSection}
 
 - Set `background: true` for long-lived commands (dev servers, file watchers, daemons). The call returns immediately with a `job_id`; the user can watch live output and stop it in the status panel.
+- A returned `job_id` is NOT proof the command works. Before telling the user it started, verify the real outcome: the process is still alive and the user-visible result exists (open the URL / call `computer_wait_for_window` then screenshot the target window / see the expected log line). If it exited or printed an error, read the output and fix it in the same turn. Never report "started" from the job id alone.
 
 # Git and GitHub
 - Only commit, amend, push, or create PRs when explicitly requested.

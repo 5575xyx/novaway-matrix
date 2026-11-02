@@ -70,7 +70,6 @@ import { extensionEnabled } from "@/components/extension-config"
 import { officePluginEntries } from "@/pages/home/office-plugins"
 import { ImagePreview } from "@novaway/ui/image-preview"
 import { useQueries } from "@tanstack/solid-query"
-import { useQueryOptions } from "@/context/global-sync"
 import { agentDisplayName } from "@/utils/agent"
 import { pathKey } from "@/utils/path-key"
 import { useOfficeAgent } from "@/pages/session/office-agent-context"
@@ -135,7 +134,6 @@ const hiddenSlashCommandIDs = new Set([
 
 export const PromptInput: Component<PromptInputProps> = (props) => {
   const sdk = useSDK()
-  const queryOptions = useQueryOptions()
 
   const sync = useSync()
   const globalSync = useGlobalSync()
@@ -296,6 +294,32 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
   const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
   const working = createMemo(() => sync.data.session_working(params.id ?? ""))
+  // 输入框左上角的「工作中 · X」：与聊天区的轮首指示同一套文案，
+  // 让用户在盯着输入框等待/准备插话时也知道任务还在跑、已经跑了多久。
+  const [workStartedAt, setWorkStartedAt] = createSignal<number>()
+  const [workNow, setWorkNow] = createSignal(Date.now())
+  createEffect(
+    on(working, (running, previous) => {
+      if (!running) return
+      if (!previous) setWorkStartedAt(Date.now())
+      setWorkNow(Date.now())
+    }),
+  )
+  createEffect(() => {
+    if (!working()) return
+    const timer = setInterval(() => setWorkNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+  const workLabel = createMemo(() => {
+    const start = workStartedAt()
+    if (start === undefined) return language.t("session.turn.fold.working")
+    const seconds = Math.max(0, Math.floor((workNow() - start) / 1000))
+    if (seconds < 60) return language.t("session.turn.fold.workingSec", { seconds })
+    return language.t("session.turn.fold.workingMinSec", {
+      minutes: Math.floor(seconds / 60),
+      seconds: seconds % 60,
+    })
+  })
   /*
    * 打开旧会话时对齐「角色 ↔ 档位」。
    *
@@ -1612,17 +1636,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     }
   }
 
-  const [agentsQuery, globalProvidersQuery, providersQuery] = useQueries(() => ({
-    queries: [
-      queryOptions.agents(pathKey(sdk.directory)),
-      queryOptions.providers(null),
-      queryOptions.providers(pathKey(sdk.directory)),
-    ],
-  }))
-
-  const agentsLoading = () => agentsQuery.isLoading
+  // 智能体、供应商列表已经由目录 bootstrap 写进 sync store，这里只需要就绪状态。
+  // 之前用 useQueries 订阅是为了拿 isLoading，但那份数据每次通知都会被 Solid
+  // 深拷贝一遍 —— 供应商目录动辄上千个模型，切项目时会白卡几百毫秒。
+  const agentsLoading = () => sync.data.agent.length === 0 && sync.data.status !== "complete"
   const agentsShouldFadeIn = createMemo((prev) => prev ?? agentsLoading())
-  const providersLoading = () => agentsLoading() || providersQuery.isLoading || globalProvidersQuery.isLoading
+  const providersLoading = () => agentsLoading() || !providers.ready()
   const providersShouldFadeIn = createMemo((prev) => prev ?? providersLoading())
 
   const [promptReady] = createResource(
@@ -1822,6 +1841,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         />
         <Show when={store.mode === "normal" || store.mode === "shell"}>
           <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 overflow-hidden whitespace-nowrap border-b border-border">
+            <Show when={working()}>
+              <span
+                data-component="prompt-working"
+                class="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap px-1.5 text-13-regular text-foreground-subtle"
+              >
+                <Icon name="lu-loader" size="small" class="shrink-0 animate-spin" />
+                <span class="tabular-nums">{workLabel()}</span>
+              </span>
+            </Show>
             <ProjectSwitcherChip />
             <Show when={store.mode === "shell"}>
               <div class="flex items-center gap-1.5 min-w-0">

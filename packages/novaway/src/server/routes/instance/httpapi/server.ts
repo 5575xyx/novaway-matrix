@@ -120,6 +120,7 @@ import { runHandlers } from "./handlers/run"
 import { teamHandlers } from "./handlers/team"
 import { ExtensionLayer } from "@/extension"
 import { defaultLayer as PlanApprovalLayer } from "@/session/plan-approval"
+import { defaultLayer as DocumentReviewLayer } from "@/session/document-review"
 import { defaultLayer as HookServiceLayer } from "@/hook/service"
 import { defaultLayer as TeamLayer } from "@/team/team"
 import { defaultLayer as TeamMissionLayer } from "@/team/mission"
@@ -282,6 +283,7 @@ export function createRoutes(
       Command.defaultLayer,
       ExtensionLayer,
       PlanApprovalLayer,
+      DocumentReviewLayer,
       HookServiceLayer,
       TeamLayer,
       AgentTaskListLayer,

@@ -33,5 +33,16 @@ export function getSupportedPlatforms(): { id: string; name: string }[] {
 }
 
 export { PlatformLoginManager } from "./login"
+export { resolveProfile, mergeProfile } from "./profile"
+export { getDriver, supportsKind, DRIVERS, type PublishDriver } from "./publish/drivers"
+export { runPublishBatch, type PublishAccount } from "./publish/runner"
+export type {
+  PublishBatch,
+  PublishInput,
+  PublishKind,
+  PublishAccountResult,
+  PublishProgressEvent,
+  PublishStatus,
+} from "./publish/types"
 export * from "./store"
 export * from "./PlatformBase"

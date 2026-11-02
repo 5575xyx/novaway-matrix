@@ -22,6 +22,7 @@ import {
   loadPathQuery,
   loadProjectsQuery,
   loadProvidersQuery,
+  projectProviderOverride,
 } from "./global-sync/bootstrap"
 import { createChildStoreManager } from "./global-sync/child-store"
 import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./global-sync/event-reducer"
@@ -220,9 +221,22 @@ function createGlobalSync() {
     translate: language.t,
     queryOptions: queryOptionsApi,
     global: {
-      provider: globalStore.provider,
+      provider: () => globalStore.provider,
     },
   })
+
+  /**
+   * 供应商目录刷新（`catalog.updated`）：全局目录由查询缓存统一失效；
+   * 目录自己只在项目配置有覆盖时才需要重拉，否则读全局就够了。
+   */
+  async function refreshProjectProviders(directory: string) {
+    const key = directoryKey(directory)
+    const [store, setStore] = children.peek(directory, { bootstrap: false })
+    if (!projectProviderOverride(store.config)) return
+    const data = await queryClient.fetchQuery(queryOptionsApi.providers(key)).catch(() => undefined)
+    if (!data) return
+    setStore("provider_project", reconcile(data))
+  }
 
   async function loadSessions(directory: string) {
     const key = directoryKey(directory)
@@ -396,7 +410,10 @@ function createGlobalSync() {
         void queryClient.fetchQuery(queryOptionsApi.lsp(key))
       },
       loadProviders: () => {
-        void queryClient.fetchQuery(queryOptionsApi.providers(key))
+        // 目录级事件里说的"目录变了"其实来自全局模型目录（免费模型 live 发现），
+        // 全局那份查询失效即可让所有目录跟着更新；项目有覆盖时再单独重拉。
+        void queryClient.invalidateQueries({ queryKey: [null, "providers"] })
+        void refreshProjectProviders(directory)
       },
     })
   })

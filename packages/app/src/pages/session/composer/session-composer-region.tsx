@@ -18,6 +18,7 @@ import { isSessionFresh } from "@/pages/session/fresh-session"
 import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
+import { SessionLiveFollowChip } from "@/pages/session/composer/session-live-follow-chip"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionInterruptedBar } from "@/pages/session/composer/session-interrupted-bar"
 import { SessionContextWarning } from "@/components/session-context-warning"
@@ -275,20 +276,24 @@ export function SessionComposerRegion(props: {
                 />
               </Show>
               {/*
-                运行中时告诉用户"现在发出去会怎样"。
-
-                对齐 Qoder：它在运行中把 Queue / Steer 当成一个需要**明确知道**的选择
-                （文档里专门有一节讲两者区别）。我们两种模式的实际行为差别很大
-                （一个立刻影响当前这轮、一个等这轮结束），不提示的话用户只能靠猜。
-                只在运行中显示，空闲时不占位置。
+                运行中时告诉用户"现在发出去会怎样"（对齐 Qoder：Queue / Steer 差别很大，
+                一个立刻影响这轮、一个等这轮结束，不提示的话用户只能靠猜），
+                同时在最右侧摆一个「实时跟随」开关（见 session-live-follow-chip）：
+                跟随是自动行为，不给可见的状态入口，用户只会觉得右栏自己在乱弹。
+                只在运行中出现，空闲时不占位置；跟输入框同一行右对齐。
               */}
-              <Show when={props.followup?.live() && props.followup.items.length === 0}>
-                <p
-                  data-slot="composer-followup-hint"
-                  class="px-1 pb-1.5 text-right text-ui-xs text-foreground-subtlest"
-                >
-                  {language.t(props.followup!.queue() ? "session.composer.queueHint" : "session.composer.steerHint")}
-                </p>
+              <Show when={props.followup?.live()}>
+                <div data-slot="composer-status-row" class="flex items-center justify-end gap-2 px-1 pb-1.5">
+                  <Show when={props.followup!.items.length === 0}>
+                    <p
+                      data-slot="composer-followup-hint"
+                      class="min-w-0 truncate text-ui-xs text-foreground-subtlest"
+                    >
+                      {language.t(props.followup!.queue() ? "session.composer.queueHint" : "session.composer.steerHint")}
+                    </p>
+                  </Show>
+                  <SessionLiveFollowChip sessionID={route.params.id ?? ""} />
+                </div>
               </Show>
               <Show
                 when={child()}

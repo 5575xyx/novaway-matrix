@@ -15,6 +15,7 @@ function AccountItem(props: {
   onCheckLogin: () => void
   onRemove: () => void
 }) {
+  const platform = usePlatformAccounts()
   const info = () => PLATFORM_LIST.find((p) => p.id === props.account.platform)
   const [showMenu, setShowMenu] = createSignal(false)
   const [menuPos, setMenuPos] = createSignal({ x: 0, y: 0 })
@@ -60,13 +61,18 @@ function AccountItem(props: {
       <div class="relative size-8 shrink-0 rounded-full bg-background-alt flex items-center justify-center overflow-hidden">
         {props.account.avatar ? (
           <img src={props.account.avatar} alt="" class="size-full object-cover" />
+        ) : info()?.icon ? (
+          // 没有头像：用平台图标兜底。比"空圆"或昵称首字更能说明这是哪个平台。
+          <img src={info()?.icon} alt="" class="size-5 object-contain opacity-70" />
         ) : (
           <span class="text-12-regular text-foreground-subtle">{props.account.nickname?.charAt(0)}</span>
         )}
         <span class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background`} />
       </div>
       <div class="flex-1 min-w-0">
-        <div class="text-13-medium text-foreground truncate leading-tight">{props.account.nickname}</div>
+        <div class="text-13-medium text-foreground truncate leading-tight">
+          {platform.displayName(props.account)}
+        </div>
         <div class="flex items-center gap-1 mt-0.5">
           <img src={info()?.icon} alt="" class="size-3" />
           <span class="text-11-regular text-foreground-subtlest">{info()?.name}</span>

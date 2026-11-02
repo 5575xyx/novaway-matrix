@@ -156,6 +156,11 @@ export function useBackgroundSection(
       id: "background",
       title: language.t("statusPanel.background.title"),
       summary: <span class="tabular-nums">{backgroundJobStat(remaining())}</span>,
+      // 收起态实时播报：任务结束后如果还有服务/脚本在跑，胶囊会一直提示。
+      ticker: () => {
+        const running = remaining().filter((job) => job.status === "running").length
+        return running > 0 ? language.t("statusPanel.ticker.background", { count: running }) : undefined
+      },
       defaultOpen: false,
       children: (
         <div class="flex flex-col gap-0.5 pb-1">

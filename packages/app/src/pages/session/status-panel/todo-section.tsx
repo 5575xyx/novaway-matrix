@@ -96,6 +96,11 @@ export function useTodoSection(): () => StatusPanelSection | null {
           {current.done}/{current.total}
         </>
       ),
+      // 收起态实时播报当前正在执行的那一条待办。
+      ticker: () => {
+        const running = todos().find((todo) => todo.status === "in_progress")
+        return running ? language.t("statusPanel.ticker.todo", { title: running.content }) : undefined
+      },
       defaultOpen: false,
       bodyHeight: "max-h-64",
       children: (

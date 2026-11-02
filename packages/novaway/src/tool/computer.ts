@@ -15,6 +15,19 @@ function ask(ctx: Tool.Context, action: string, detail: string) {
 
 const text = (value: unknown) => JSON.stringify(value, null, 2)
 
+const ScreenshotParameters = Schema.Struct({
+  window: Schema.optional(Schema.String).annotate({
+    description: "Window title (or part of it) to capture, e.g. the app name shown in the title bar",
+  }),
+})
+
+const WaitWindowParameters = Schema.Struct({
+  title: Schema.String.annotate({ description: "Window title or part of it, e.g. the app name" }),
+  timeout_ms: Schema.optional(Schema.Number).annotate({
+    description: "Maximum wait in milliseconds (default 30000)",
+  }),
+})
+
 /**
  * 电脑控制工具组。
  *
@@ -26,16 +39,20 @@ export const ComputerScreenshotTool = Tool.define(
   Effect.gen(function* () {
     return {
       description:
-        "Capture the whole screen and return it as an image. Use it before and after desktop actions to verify the result. For web pages (including local HTML) use browser_screenshot instead — it captures only the page, not the user's desktop.",
-      parameters: Schema.Struct({}),
-      execute: (_params: {}, ctx: Tool.Context) =>
+        "Capture a window (preferred) or the whole screen. Pass `window` with a title or part of it to capture only that window — it works while the window is in the background, so do not call computer_focus first. Use this for native desktop apps; for web pages (including local HTML) use browser_screenshot instead. Omit `window` only when the whole desktop is genuinely the target.",
+      parameters: ScreenshotParameters,
+      execute: (params: Schema.Schema.Type<typeof ScreenshotParameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
-          yield* ask(ctx, "screenshot", "capture screen")
-          const shot = yield* Effect.promise(() => Computer.screenshot())
+          yield* ask(ctx, "screenshot", params.window ? `window: ${params.window}` : "capture screen")
+          const shot = yield* Effect.promise(() =>
+            params.window ? Computer.screenshotWindow(params.window) : Computer.screenshot(),
+          )
           return {
-            title: "Screenshot",
-            metadata: { mime: shot.mime },
-            output: "Screenshot captured.",
+            title: params.window ? `Screenshot: ${params.window}` : "Screenshot",
+            metadata: { mime: shot.mime, mode: shot.mode, window: shot.window },
+            output: params.window
+              ? `Captured window "${params.window}" (${shot.mode ?? "window"}).`
+              : "Screenshot captured.",
             attachments: [
               { type: "file" as const, mime: shot.mime, url: "data:" + shot.mime + ";base64," + shot.base64 },
             ],
@@ -154,6 +171,35 @@ export const ComputerWindowsTool = Tool.define(
             title: list.length + " windows",
             metadata: { count: list.length, windows: list },
             output: list.length === 0 ? "No visible windows." : list.map((item) => "- " + item.title).join("\n"),
+          }
+        }),
+    }
+  }),
+)
+
+export const ComputerWaitForWindowTool = Tool.define(
+  "computer_wait_for_window",
+  Effect.gen(function* () {
+    return {
+      description:
+        "Wait until a window whose title contains the given text appears. Use this after launching a desktop app: a running background job is not proof the app opened. If this times out, read the launch job output and fix the failure instead of reporting success.",
+      parameters: WaitWindowParameters,
+      execute: (params: Schema.Schema.Type<typeof WaitWindowParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          const timeoutMs = Math.min(Math.max(params.timeout_ms ?? 30_000, 500), 120_000)
+          yield* ask(ctx, "wait_window", `${params.title} (${timeoutMs}ms)`)
+          const result = yield* Effect.promise(() => Computer.waitForWindow(params.title, timeoutMs))
+          return {
+            title: result.found
+              ? `Window found: ${result.window?.title ?? params.title}`
+              : `Window not found: ${params.title}`,
+            metadata: { found: result.found, waitedMs: result.waitedMs, window: result.window },
+            output: result.found
+              ? `Window appeared after ${result.waitedMs}ms: ${result.window?.title ?? params.title}`
+              : [
+                  `<window_not_found>No window matching "${params.title}" appeared within ${result.waitedMs}ms.</window_not_found>`,
+                  "This is NOT success. Read the background job output for the launch command, fix the cause, and try again before reporting to the user.",
+                ].join("\n"),
           }
         }),
     }

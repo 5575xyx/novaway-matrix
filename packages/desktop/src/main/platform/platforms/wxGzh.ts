@@ -9,6 +9,7 @@ import {
   type AccountStats,
   type PublishRecord,
 } from "../PlatformBase"
+import { capturePageProfile, waitForSelector } from "../profile-capture"
 
 const LOGIN_URL = "https://mp.weixin.qq.com/"
 const COOKIE_URL = "https://mp.weixin.qq.com"
@@ -17,6 +18,12 @@ const CHECK_INTERVAL_MS = 1200
 const PROFILE_WAIT_MS = 1200
 const PROFILE_TIMEOUT_MS = 8000
 const LOGIN_COOKIE_CANDIDATES = ["slave_sid", "slave_user", "data_bizuin", "bizuin"]
+/** 后台首页右上角的账号区。 */
+const WXGZH_CAPTURE_HINTS = {
+  nicknameSelectors: [".weui-desktop-account__info-name", ".account_meta_primary", ".weui-desktop-account__nickname"],
+  avatarSelectors: [".weui-desktop-account__info-avatar img", ".account_meta img"],
+}
+
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
@@ -53,6 +60,7 @@ export class WxGzhPlatform extends PlatformBase {
   readonly name = "微信公众号"
   readonly loginUrl = LOGIN_URL
   readonly cookieCheckField = "slave_sid"
+  readonly profileUrl = "https://mp.weixin.qq.com/cgi-bin/home"
 
   async login(): Promise<{
     loginCookie: string
@@ -233,87 +241,28 @@ export class WxGzhPlatform extends PlatformBase {
     }
   }
 
+  /**
+   * 从后台首页抓账号资料。
+   *
+   * 之前是一段写死的脚本 + 固定等 1.2s：页面首屏还没渲染完就取，经常只拿到
+   * "公众号"这种占位文案（存储里那条空昵称记录就是这么来的）。
+   * 现在先等账号区真的出现，再用通用抓取（DOM 选择器 + wx.cgiData 扫描）。
+   */
   private async captureProfile(win: BrowserWindow): Promise<WxGzhProfile> {
     try {
       if (win.isDestroyed()) return { uid: "", nickname: "", avatar: "" }
-      await this.wait(PROFILE_WAIT_MS)
+      await waitForSelector(
+        win,
+        ".weui-desktop-account__info-name, .account_meta_primary, .weui-desktop-account__info-avatar img",
+        PROFILE_TIMEOUT_MS,
+      )
       if (win.isDestroyed()) return { uid: "", nickname: "", avatar: "" }
 
-      const script = `(() => {
-        const pick = (value) => (typeof value === 'string' ? value.trim() : '');
-        const toAbsolute = (url) => {
-          const text = pick(url);
-          if (!text) return '';
-          if (text.startsWith('//')) return 'https:' + text;
-          if (/^https?:\\/\\//i.test(text)) return text;
-          return '';
-        };
-
-        const result = { uid: '', nickname: '', avatar: '' };
-        const pickByPath = (obj, paths) => {
-          if (!obj || typeof obj !== 'object') return '';
-          for (const path of paths) {
-            const keys = path.split('.');
-            let cur = obj;
-            let ok = true;
-            for (const key of keys) {
-              if (!cur || typeof cur !== 'object' || !(key in cur)) { ok = false; break; }
-              cur = cur[key];
-            }
-            if (ok) {
-              const text = pick(cur);
-              if (text) return text;
-            }
-          }
-          return '';
-        };
-
-        const wxData = (window.wx && (window.wx.cgiData || window.wx.data)) || {};
-        const cgiData = window.cgiData || {};
-        const appData = window.__INITIAL_STATE__ || {};
-
-        const datasets = [wxData, cgiData, appData];
-        for (const source of datasets) {
-          if (!result.uid) {
-            result.uid = pickByPath(source, ['user_name', 'username', 'userName', 'bizuin', 'data_bizuin', 'slave_user', 'fakeid']);
-          }
-          if (!result.nickname) {
-            result.nickname = pickByPath(source, ['nick_name', 'nickname', 'nickName', 'user_nickname', 'name']);
-          }
-          if (!result.avatar) {
-            result.avatar = toAbsolute(pickByPath(source, ['headimg', 'head_img', 'avatar', 'headImg']));
-          }
-        }
-
-        if (!result.nickname) {
-          const title = pick(document.title).replace(/微信公众平台/g, '').replace(/[-|_].*$/, '').trim();
-          if (title && title !== '首页') result.nickname = title;
-        }
-
-        if (!result.nickname) {
-          const nameNode = document.querySelector('.weui-desktop-account__info-name, .account_meta_primary');
-          const text = pick(nameNode && nameNode.textContent);
-          if (text) result.nickname = text;
-        }
-
-        if (!result.avatar) {
-          const avatarNode = document.querySelector('.weui-desktop-account__info-avatar img, .account_meta img');
-          const src = avatarNode ? avatarNode.getAttribute('src') || '' : '';
-          result.avatar = toAbsolute(src);
-        }
-
-        return result;
-      })()`
-
-      const profile = (await Promise.race([
-        win.webContents.executeJavaScript(script, true),
-        this.wait(PROFILE_TIMEOUT_MS).then(() => null),
-      ])) as Partial<WxGzhProfile> | null
-
+      const page = await capturePageProfile(win, WXGZH_CAPTURE_HINTS)
       const result = {
-        uid: this.normalizeField(profile?.uid),
-        nickname: this.normalizeField(profile?.nickname),
-        avatar: this.normalizeAvatar(profile?.avatar),
+        uid: this.normalizeField(page.uid),
+        nickname: this.normalizeField(page.nickname),
+        avatar: this.normalizeAvatar(page.avatar),
       }
       console.debug("[wxGzh] captureProfile result:", JSON.stringify(result))
       return result

@@ -27,9 +27,14 @@ export function useProviders() {
     }
     return globalSync.data.provider
   }
+  // 供应商目录加载完成（全局那份一开始是空表）。项目覆盖是后到的增量，
+  // 不该把输入框一直卡在加载态。
+  const ready = () => providers().all.length > 0
+
   return {
     all: () => providers().all,
     default: () => providers().default,
+    ready,
     popular: () => providers().all.filter((p) => popularProviderSet.has(p.id)),
     connected: () => {
       const connected = new Set(providers().connected)

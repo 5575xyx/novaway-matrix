@@ -110,6 +110,26 @@ export const PlanApprovalReplyPayload = Schema.Struct({
   feedback: Schema.optional(Schema.String),
 })
 
+export const DocumentReviewPending = Schema.Struct({
+  id: Schema.String,
+  sessionID: Schema.String,
+  messageID: Schema.optional(Schema.String),
+  path: Schema.String,
+  kind: Schema.String,
+  title: Schema.String,
+  version: Schema.optional(Schema.String),
+  summary: Schema.optional(Schema.String),
+  highlights: Schema.Array(Schema.String),
+  questions: Schema.Array(Schema.String),
+  lines: Schema.optional(Schema.Number),
+  createdAt: Schema.Number,
+}).annotate({ identifier: "DocumentReviewPending" })
+
+export const DocumentReviewReplyPayload = Schema.Struct({
+  decision: Schema.Literals(["approved", "revise"]),
+  feedback: Schema.optional(Schema.String),
+}).annotate({ identifier: "DocumentReviewReplyPayload" })
+
 export const ForkPayload = Schema.Struct(Struct.omit(Session.ForkInput.fields, ["sessionID"]))
 export const InitPayload = Schema.Struct({
   modelID: ModelID,
@@ -154,6 +174,8 @@ export const SessionPaths = {
   tempFilesClean: `${root}/:sessionID/temp-files/clean`,
   planApproval: `${root}/:sessionID/plan-approval`,
   planApprovalReply: `${root}/:sessionID/plan-approval/:requestID`,
+  documentReview: `${root}/:sessionID/document-review`,
+  documentReviewReply: `${root}/:sessionID/document-review/:requestID`,
   share: `${root}/:sessionID/share`,
   export: `${root}/:sessionID/export`,
   import: `${root}/import`,
@@ -380,6 +402,31 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.planApproval.reply",
             summary: "Approve or reject a plan",
             description: "Resolve a pending plan approval request from the lead session.",
+          }),
+        ),
+        HttpApiEndpoint.get("documentReview", SessionPaths.documentReview, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(DocumentReviewPending), "Documents waiting for review"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.documentReview.list",
+            summary: "List pending document reviews",
+            description: "PRDs, plans and specs waiting for the user to approve or request changes.",
+          }),
+        ),
+        HttpApiEndpoint.post("documentReviewReply", SessionPaths.documentReviewReply, {
+          params: { sessionID: SessionID, requestID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          payload: DocumentReviewReplyPayload,
+          success: described(Schema.Boolean, "Reply accepted"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.documentReview.reply",
+            summary: "Approve a document or request changes",
+            description: "Resolve a pending document review. `revise` carries the user's feedback to the agent.",
           }),
         ),
         HttpApiEndpoint.post("tempFilesClean", SessionPaths.tempFilesClean, {

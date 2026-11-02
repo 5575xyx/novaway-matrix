@@ -32,6 +32,7 @@ import { SessionCompaction } from "@/session/compaction"
 import { SessionRevert } from "@/session/revert"
 import { SessionSummary } from "@/session/summary"
 import { SessionPrompt } from "@/session/prompt"
+import { DocumentReview } from "@/session/document-review"
 import { Instruction } from "@/session/instruction"
 import { LLM } from "@/session/llm"
 import { LSP } from "@/lsp/lsp"
@@ -118,6 +119,7 @@ export const AppLayer = Layer.mergeAll(
   Database.defaultLayer,
   Truncate.defaultLayer,
   ToolRegistry.defaultLayer,
+  DocumentReview.defaultLayer,
   Format.defaultLayer,
   Project.defaultLayer,
   Vcs.defaultLayer,

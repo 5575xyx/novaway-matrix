@@ -118,7 +118,21 @@ const api: ElectronAPI = {
     removeAccount: (id: string) => ipcRenderer.invoke("platform:remove-account", id),
     checkLogin: (id: string) => ipcRenderer.invoke("platform:check-login", id),
     batchCheckLogin: (ids: string[]) => ipcRenderer.invoke("platform:batch-check-login", ids),
+    refreshProfiles: (ids?: string[]) => ipcRenderer.invoke("platform:refresh-profiles", ids),
     publish: (input: any) => ipcRenderer.invoke("platform:publish", input),
+    publishBatch: (input) => ipcRenderer.invoke("platform:publish-batch", input),
+    cancelPublish: () => ipcRenderer.invoke("platform:cancel-publish"),
+    getPublishBatches: () => ipcRenderer.invoke("platform:get-publish-batches"),
+    onPublishProgress: (cb) => {
+      const handler = (_: unknown, event: import("./types").PublishProgressEvent) => cb(event)
+      ipcRenderer.on("platform:publish-progress", handler)
+      return () => ipcRenderer.removeListener("platform:publish-progress", handler)
+    },
+    onPublishFinished: (cb) => {
+      const handler = (_: unknown, batch: import("./types").PublishBatch | { error: string }) => cb(batch)
+      ipcRenderer.on("platform:publish-finished", handler)
+      return () => ipcRenderer.removeListener("platform:publish-finished", handler)
+    },
     createWebview: (webViewId: number, cookies: any[]) =>
       ipcRenderer.invoke("platform:create-webview", { webViewId, cookies }),
     destroyWebview: (webViewId: number) => ipcRenderer.invoke("platform:destroy-webview", webViewId),

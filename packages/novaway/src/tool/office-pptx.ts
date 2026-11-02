@@ -14,6 +14,9 @@ import { readFile, rename, writeFile } from "fs/promises"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { editPptx, readPptxLayout } from "@novaway/core/office/pptx-edit"
 import { InstanceState } from "@/effect/instance-state"
+import { Bus } from "@/bus"
+import { File } from "@/file"
+import { FileWatcher } from "@/file/watcher"
 import * as Tool from "./tool"
 
 const permissionRoot = (instance: { directory: string; worktree: string }) =>
@@ -184,9 +187,10 @@ const MIME_BY_EXT: Record<string, string> = {
   svg: "image/svg+xml",
 }
 
-export const OfficePptxEditTool = Tool.define<typeof EditParameters, Record<string, never>, never>(
+export const OfficePptxEditTool = Tool.define<typeof EditParameters, Record<string, never>, Bus.Service>(
   "office_pptx_edit",
   Effect.gen(function* () {
+    const bus = yield* Bus.Service
     return {
       description: [
         "Edit a PPTX in place: rewrite paragraph text, change font formatting, move/resize/rotate shapes, or swap a picture.",
@@ -238,6 +242,12 @@ export const OfficePptxEditTool = Tool.define<typeof EditParameters, Record<stri
             await rename(temp, filepath)
             return edited
           })
+
+          // 和 write/edit 工具一样显式广播一次写盘事件：这里落盘走「临时文件 + rename」，
+          // 文件监听器看到的是 temp 的 add/unlink（且可能被忽略规则吞掉），
+          // 前端拿不到稳定的「这份产物改好了」信号，右侧跟随/预览就刷不出来。
+          yield* bus.publish(File.Event.Edited, { file: filepath })
+          yield* bus.publish(FileWatcher.Event.Updated, { file: filepath, event: "change" })
 
           const lines: string[] = []
           for (const item of result.textApplied) {

@@ -73,6 +73,7 @@ import { useGitSection } from "@/pages/session/status-panel/git-section"
 import { useTodoSection } from "@/pages/session/status-panel/todo-section"
 import { useBackgroundSection } from "@/pages/session/status-panel/background-section"
 import { useAgentsSection } from "@/pages/session/status-panel/agents-section"
+import { useDocumentReviewSection } from "@/pages/session/status-panel/document-review-section"
 import { usePlanApprovalSection } from "@/pages/session/status-panel/plan-approval-section"
 import { useHooksSection } from "@/pages/session/status-panel/hooks-section"
 import { useTempFilesSection } from "@/pages/session/status-panel/temp-files-section"
@@ -81,7 +82,7 @@ import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
-import { resolveWorkspacePath, shouldAutoOpenHtml } from "@/utils/preview-sources"
+import { resolveWorkspacePath, shouldAutoOpenHtml, isExcludedPath } from "@/utils/preview-sources"
 import { isLocalPreviewUrl, normalizePreviewUrl } from "@/utils/preview-url"
 import { Persist, persisted } from "@/utils/persist"
 import { extractPromptFromParts } from "@/utils/prompt"
@@ -89,6 +90,15 @@ import { same } from "@/utils/same"
 import { formatServerError } from "@/utils/server-errors"
 import { replayAnimation } from "@/utils/mount-transition"
 import { isSessionFresh } from "@/pages/session/fresh-session"
+import { markLiveWrite } from "@/pages/session/live-write"
+import {
+  IDLE,
+  beginFollow,
+  endFollow,
+  followTab,
+  liveFollowState,
+  setLiveFollowState,
+} from "@/pages/session/live-follow"
 import { SessionDiffProvider, type SessionDiffStyle } from "@/context/session-diff"
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 
@@ -489,6 +499,7 @@ export default function Page() {
   // 否则同一个 worker 会在右侧出现两遍（团队代理 + 后台任务）。
   const agents = useAgentsSection(() => params.id ?? "")
   const backgroundSection = useBackgroundSection(() => params.id ?? "", agents.memberSessionIDs)
+  const documentReviewSection = useDocumentReviewSection(() => params.id ?? "")
   const planApprovalSection = usePlanApprovalSection(() => params.id ?? "")
   const hooksSection = useHooksSection(() => params.id ?? "")
   const tempFilesSection = useTempFilesSection(() => params.id ?? "")
@@ -505,6 +516,7 @@ export default function Page() {
     visibleStatusSections(
       [
         hooksSection(),
+        documentReviewSection(),
         planApprovalSection(),
         agents.section(),
         backgroundSection(),
@@ -914,7 +926,9 @@ export default function Page() {
   }
 
   // 切会话：重放内容区入场，把"骨架屏 → 时间线"的切换裹进同一段淡入里。
-  createEffect(on(sessionKey, () => enterStage(), { defer: true }))
+  // 首次挂载也播一次：项目切换会整棵会话树重建（DirectoryLayout 按目录 keyed），
+  // 没有这段淡入时旧内容直接"闪断"成新内容；240ms 的交叉淡入把硬切换读成一次过渡。
+  createEffect(on(sessionKey, () => enterStage()))
 
   // 新建任务：从空态直接进会话时，让底部输入框滑下来。已有的会话之间切换不做这个动作
   // （那时输入框本来就在底部，再滑一次是噪音）。
@@ -1034,6 +1048,52 @@ export default function Page() {
     ),
   )
 
+  /**
+   * 实时跟随写盘（设置 → 通用 → 实时跟随文件写入）。
+   *
+   * 会话运行中，模型每写一个文件就把右栏切到该文件的预览：内容按打字机节奏长出来
+   * （live-write 打点 + file-tabs 的 createPacedContent），这一轮结束由下面的
+   * idle effect 统一收尾。用户一碰面板就接管（见 live-follow 的注释），
+   * 自动逻辑不再抢焦点、也不会替用户收面板。
+   *
+   * 切换目标做 250ms 合并：模型常常连写十几个文件，逐个切标签会闪成走马灯；
+   * 合并后只跟最后落盘的那个，观感是"跟着最新产物走"。
+   */
+  let followTimer: ReturnType<typeof setTimeout> | undefined
+  let followPending: string | undefined
+  const cancelFollow = () => {
+    if (followTimer) clearTimeout(followTimer)
+    followTimer = undefined
+    followPending = undefined
+  }
+  const switchFollow = (tab: string) => {
+    setLiveFollowState(beginFollow(liveFollowState(), layout.sidePane.opened()))
+    const step = followTab(liveFollowState(), tab)
+    setLiveFollowState(step.state)
+    if (step.state.hijacked) return
+    void tabs().open(tab)
+    tabs().setActive(tab)
+    layout.sidePane.add("preview")
+    // 上一个自动标签在这一刻才关：先切走再关，避免中途把用户眼前的内容清空。
+    for (const stale of step.close) tabs().close(stale)
+  }
+  const followWrite = (raw: string) => {
+    if (!settings.general.liveFileFollow()) return
+    if (!untrack(() => sync.data.session_working(params.id ?? ""))) return
+    const normalized = untrack(() => file.normalize(raw))
+    if (!normalized || isExcludedPath(normalized)) return
+    followPending = file.tab(normalized)
+    if (followTimer) clearTimeout(followTimer)
+    followTimer = setTimeout(() => {
+      followTimer = undefined
+      const target = followPending
+      followPending = undefined
+      if (!target) return
+      if (!untrack(() => sync.data.session_working(params.id ?? ""))) return
+      switchFollow(target)
+    }, 250)
+  }
+
   createEffect(
     on(
       sessionKey,
@@ -1041,10 +1101,19 @@ export default function Page() {
         setStore("messageId", undefined)
         setStore("changes", "git")
         setUi("pendingMessage", undefined)
+        // 切走任务时跟随窗口作废：否则下一条任务的第一笔写盘会沿用上一条的
+        // wasOpen/接管标记（可能永远不再自动展开，或在结束时关掉不该关的面板）。
+        cancelFollow()
+        setLiveFollowState(IDLE)
       },
       { defer: true },
     ),
   )
+
+  onCleanup(() => {
+    cancelFollow()
+    setLiveFollowState(IDLE)
+  })
 
   const stopVcs = sdk.event.listen((evt) => {
     if (evt.details.type !== "file.watcher.updated") return
@@ -1054,6 +1123,10 @@ export default function Page() {
         : undefined
     const file = typeof props?.file === "string" ? props.file : undefined
     if (!file || file.startsWith(".git/")) return
+    // 会话运行中的写盘：给文件预览一个短暂的「正在跟写」标记（打字机揭示用）。
+    // 会话结束后的 watcher 事件（用户自己在编辑器里保存）不触发。
+    if (untrack(() => sync.data.session_working(params.id ?? ""))) markLiveWrite(file)
+    followWrite(file)
     refreshVcs()
   })
   onCleanup(stopVcs)
@@ -1189,10 +1262,35 @@ export default function Page() {
 
   createEffect(
     on(
+      () => settings.general.liveFileFollow(),
+      (next, prev) => {
+        // 运行中把开关关掉，意图是"现在就停"：不等这一轮结束，立刻收掉
+        // 跟随自己打开的标签/面板。空闲时状态是 IDLE，这一步自然是空操作。
+        if (next || prev === undefined) return
+        cancelFollow()
+        const result = endFollow(liveFollowState())
+        setLiveFollowState(result.state)
+        for (const tab of result.close) tabs().close(tab)
+        if (result.closePane) layout.sidePane.close()
+      },
+      { defer: true },
+    ),
+  )
+
+  createEffect(
+    on(
       () => sync.data.session_status[params.id ?? ""]?.type,
       (next, prev) => {
         if (next !== "idle" || prev === undefined || prev === "idle") return
         refreshVcs()
+        // 这一轮结束：收掉跟随期间自动打开的标签；面板是跟随替用户开的才收起
+        // （用户自己开着的一律不动，见 live-follow 的三条边界）。
+        // 还要取消尚未落地的合并任务：否则它会在 idle 之后打开一个没人收的标签。
+        cancelFollow()
+        const result = endFollow(liveFollowState())
+        setLiveFollowState(result.state)
+        for (const tab of result.close) tabs().close(tab)
+        if (result.closePane) layout.sidePane.close()
       },
       { defer: true },
     ),

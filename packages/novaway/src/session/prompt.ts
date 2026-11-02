@@ -54,6 +54,7 @@ import { ConfigDream } from "@/config/dream"
 import { ConfigMarkdown } from "@/config/markdown"
 import { SessionSummary } from "./summary"
 import { SessionMemoryNotes } from "./memory-notes"
+import { collectEdits, evaluateVerificationGate, parseVerificationReport } from "./verify-gate"
 import { NamedError } from "@novaway/core/util/error"
 import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
@@ -96,6 +97,7 @@ import { BackgroundJob } from "@/background/job"
 import { ToolBudget } from "./tool-budget"
 import { contextBudget, pendingTokens } from "./overflow"
 import { PlanApproval } from "./plan-approval"
+import { DocumentReview } from "./document-review"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2 } from "@novaway/core/event"
@@ -130,6 +132,12 @@ const MAX_LENGTH_CONTINUATIONS = 2
  * that always fails cannot trap the turn forever.
  */
 const MAX_STOP_HOOK_BLOCKS = 3
+/**
+ * A non-trivial turn without a passing verification verdict is bounced back
+ * to the model. Bound it like the Stop hook: after a couple of attempts the
+ * user gets the answer instead of an endless verifier loop.
+ */
+const MAX_VERIFICATION_BLOCKS = 2
 
 const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (goalService: any, sessionId: string) {
   if (!goalService) return ""
@@ -752,6 +760,7 @@ export const layer = Layer.effect(
         return yield* Effect.failCause(result.cause)
       })
     const planApproval = Option.getOrUndefined(yield* Effect.serviceOption(PlanApproval.Service))
+    const documentReview = Option.getOrUndefined(yield* Effect.serviceOption(DocumentReview.Service))
     const git = yield* Effect.serviceOption(Git.Service)
     const truncate = yield* Truncate.Service
     const image = yield* Image.Service
@@ -799,6 +808,8 @@ export const layer = Layer.effect(
       // Release anything a subagent is blocked on, otherwise its fiber would
       // keep a pending plan approval alive after the turn is cancelled.
       if (planApproval) yield* planApproval.clear(sessionID).pipe(Effect.ignore)
+      // 文档评审同样是「代理在等用户」：停止后不放开，会一直挂在评审工具里。
+      if (documentReview) yield* documentReview.clear(sessionID).pipe(Effect.ignore)
       yield* state.cancel(sessionID)
     })
 
@@ -3441,6 +3452,7 @@ ${text}
       let autoCompactions = 0
       let lengthContinuations = 0
       let stopHookBlocks = 0
+      let verificationBlocks = 0
       const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
       let loopModel: Provider.Model | undefined = undefined
       // 「继续任务」：上一轮请求失败/被意外切断后，用户点继续时不能把上一条 assistant
@@ -3665,6 +3677,124 @@ ${text}
                 continue
               }
               yield* slog.warn("stop hook still blocking after limit", { blocks: stopHookBlocks })
+            }
+          }
+          // 非平凡改动必须由独立的只读 verification 子代理给结论。
+          // 只认最后一次编辑之后完成的验收；旧的 PASS 不能给新改动背书。
+          if ((yield* config.get()).experimental?.verification_agent !== false) {
+            const verifierAgent = yield* agents.get("verification")
+            const owner = msgs.findLast(
+              (message) =>
+                message.info.role === "user" &&
+                message.parts.some((part) => part.type === "text" && part.synthetic !== true),
+            )
+            if (verifierAgent && owner?.info.role === "user") {
+              const ownerIndex = msgs.indexOf(owner)
+              const since = owner.info.time.created
+              const children = yield* sessions.children(sessionID)
+              // 委派出去的改动也算这一轮的改动，否则「让子代理改三个文件」
+              // 会从完成门禁下面溜过去。
+              const delegatedEdits = yield* Effect.forEach(
+                children.filter((item) => item.agent !== "verification" && item.time.created >= since),
+                (child) =>
+                  MessageV2.filterCompactedEffect(child.id).pipe(
+                    Effect.map((items) => collectEdits(items, { since, cwd: child.directory })),
+                    Effect.catchCause(() => Effect.succeed([])),
+                  ),
+                { concurrency: 4 },
+              )
+              const edits = [
+                ...collectEdits(ownerIndex >= 0 ? msgs.slice(ownerIndex) : msgs, {
+                  since,
+                  cwd: session.directory,
+                }),
+                ...delegatedEdits.flat(),
+              ]
+              if (edits.length > 0) {
+                const verifications = []
+                for (const child of children.filter((item) => item.agent === "verification")) {
+                  const history = yield* MessageV2.filterCompactedEffect(child.id).pipe(
+                    Effect.catchCause(() => Effect.succeed([] as MessageV2.WithParts[])),
+                  )
+                  const completed = history.filter(
+                    (message) => message.info.role === "assistant" && message.info.time.completed !== undefined,
+                  )
+                  const last = completed.at(-1)
+                  if (last) {
+                    // The verifier may split its report across several
+                    // assistant turns (one per tool round); join them so the
+                    // evidence written before the final VERDICT still counts.
+                    const text = completed
+                      .flatMap((message) => message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])))
+                      .join("\n")
+                    const report = parseVerificationReport(text)
+                    const info = last.info
+                    const completedAt =
+                      info.role === "assistant" ? (info.time.completed ?? info.time.created) : info.time.created
+                    verifications.push({
+                      verdict: report.verdict,
+                      completedAt,
+                      summary: (report.violations.length > 0
+                        ? report.violations
+                        : report.checks.map((check) => `${check.title}: ${check.result ?? "?"}`)
+                      )
+                        .join("; ")
+                        .slice(0, 600),
+                    })
+                  } else {
+                    const state = yield* status.get(child.id)
+                    const running = state.type !== "idle"
+                    verifications.push({
+                      verdict: "UNVERIFIED" as const,
+                      completedAt: running ? 0 : Date.now(),
+                      running,
+                      summary: running ? "verification is still running" : "verification produced no final report",
+                    })
+                  }
+                }
+                const userText = owner.parts
+                  .flatMap((part) => (part.type === "text" && part.synthetic !== true ? [part.text] : []))
+                  .join("\n")
+                const decision = evaluateVerificationGate({ edits, verifications, userText })
+                if (decision.action === "require" && verificationBlocks < MAX_VERIFICATION_BLOCKS) {
+                  verificationBlocks++
+                  const feedback: MessageV2.User = {
+                    id: MessageID.ascending(),
+                    sessionID,
+                    role: "user",
+                    time: { created: Date.now() },
+                    agent: lastUser.agent,
+                    model: lastUser.model,
+                  }
+                  yield* sessions.updateMessage(feedback)
+                  yield* sessions.updatePart({
+                    id: PartID.ascending(),
+                    messageID: feedback.id,
+                    sessionID,
+                    type: "text",
+                    synthetic: true,
+                    text: decision.message,
+                  } satisfies MessageV2.TextPart)
+                  step++
+                  continue
+                }
+                if (decision.action === "require") {
+                  yield* slog.warn("verification gate still failing after limit", {
+                    blocks: verificationBlocks,
+                    reason: decision.reason,
+                    files: decision.files,
+                  })
+                  // Never let a hard cap silently turn "unverified" into
+                  // "done": surface it so the user knows the result is not
+                  // backed by an independent pass.
+                  yield* bus.publish(Session.Event.Error, {
+                    sessionID,
+                    error: new NamedError.Unknown({
+                      message: `Verification was required for ${decision.files.length} changed file(s), but the gate stopped after ${MAX_VERIFICATION_BLOCKS} attempts (${decision.reason}). Treat the result as unverified.`,
+                    }).toObject(),
+                  })
+                }
+              }
             }
           }
           yield* slog.info("exiting loop")

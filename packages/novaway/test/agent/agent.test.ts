@@ -62,6 +62,27 @@ it.instance("returns default native agents when no config", () =>
   }),
 )
 
+it.instance("verification agent is a read-only, background subagent", () =>
+  Effect.gen(function* () {
+    const verification = yield* load((svc) => svc.get("verification"))
+    expect(verification).toBeDefined()
+    expect(verification?.mode).toBe("subagent")
+    expect(verification?.native).toBe(true)
+    expect(verification?.background).toBe(true)
+    expect(verification?.tools).toContain("read")
+    expect(verification?.tools).toContain("run_verification")
+    expect(verification?.tools).toContain("bash")
+    expect(verification?.tools).not.toContain("write")
+    expect(verification?.disallowedTools).toContain("edit")
+    expect(verification?.disallowedTools).toContain("task")
+    expect(evalPerm(verification, "edit")).toBe("deny")
+    expect(evalPerm(verification, "write")).toBe("deny")
+    expect(evalPerm(verification, "bash")).toBe("allow")
+    expect(evalPerm(verification, "shell")).toBe("allow")
+    expect(verification?.prompt).toContain("VERDICT: PASS")
+  }),
+)
+
 it.instance("build agent has correct default properties", () =>
   Effect.gen(function* () {
     const build = yield* load((svc) => svc.get("build"))

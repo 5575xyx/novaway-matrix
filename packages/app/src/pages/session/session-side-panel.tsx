@@ -35,6 +35,7 @@ import { SidePaneBackgroundOutput } from "@/pages/session/side-pane-background"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
+import { hijackLiveFollow } from "@/pages/session/live-follow"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
 const sidePaneTabs: Array<{
@@ -293,6 +294,9 @@ export function SessionSidePanel(props: {
       aria-label={language.t("session.panel.reviewAndFiles")}
       aria-hidden={!open()}
       inert={!open()}
+      // 用户碰面板（点标签/拖宽度/在预览里选字）= 接管：实时跟随立刻让位，
+      // 不再自动切换文件，这一轮结束时也不会替用户把面板收起来（见 live-follow.ts）。
+      onPointerDown={() => hijackLiveFollow()}
       class="relative shrink-0 h-full flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
       classList={{
         // 边框宽度也要过渡：收起时 border-width 归 0，只过渡 width 的话 1px 边框会瞬移。

@@ -187,7 +187,7 @@ describe("TurnFold.fold", () => {
     expect(folded.durationMs).toBe(5000)
   })
 
-  test("active turn folds as soon as the trailing result text starts streaming", () => {
+  test("active turn stays unfolded even when trailing result text is streaming", () => {
     const parts = [[toolPart(1000, 2000)], [textPart("result")]]
     const rows = [
       new TimelineRow.UserMessage({ userMessageID: "msg_user", anchor: true, previousUserMessage: false }),
@@ -198,12 +198,10 @@ describe("TurnFold.fold", () => {
     const out = TurnFold.fold(rows, {
       getPart: fixtureMap(parts),
       turnTime: () => ({ start: 1000 }),
+      isTurnActive: (id) => id === "msg_user",
     })
 
-    expect(out.map((row) => row._tag)).toEqual(["UserMessage", "TurnFold", "AssistantPart"])
-    const folded = out.at(1)! as TimelineRowByTag<"TurnFold">
-    expect(folded.rows.map((row) => row._tag)).toEqual(["AssistantPart"])
-    expect(folded.durationMs).toBeUndefined()
+    expect(out.map((row) => row._tag)).toEqual(["UserMessage", "AssistantPart", "AssistantPart"])
   })
 
   test("active turn without trailing result text stays unfolded", () => {

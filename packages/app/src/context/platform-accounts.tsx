@@ -1,5 +1,7 @@
 import { createContext, createMemo, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
+import type { PublishBatch, PublishBatchInput, PublishProgressEvent } from "@/pages/pulse/publish-types"
+import { accountDisplayName } from "@/pages/pulse/account-name"
 import xhsIcon from "@/assets/platform-icons/xhs.svg"
 import douyinIcon from "@/assets/platform-icons/douyin.svg"
 import bilibiliIcon from "@/assets/platform-icons/bilibili.svg"
@@ -150,7 +152,17 @@ interface PlatformAccountsContextValue {
   platformTags: () => string[]
   checkAllLogins: () => Promise<{ id: string; platform: string; nickname: string; avatar: string; valid: boolean }[]>
   checkSingleLogin: (id: string) => Promise<boolean>
+  /** 补全缺失的昵称/头像（迁移过来的老记录常见），完成后刷新列表。 */
+  refreshProfiles: (ids?: string[]) => Promise<void>
+  /** 账号显示名：昵称 → 平台账号 → 平台名，避免列表出现空白行。 */
+  displayName: (account: PlatformAccount) => string
   publish: (accountId: string, input: any) => Promise<any>
+  /** 一站式发布：多账号（可跨平台）一次提交，进度从 onPublishProgress 回来。 */
+  publishBatch: (accountIds: string[], input: PublishBatchInput) => Promise<{ ok: boolean; error?: string }>
+  cancelPublish: () => Promise<void>
+  publishBatches: () => Promise<PublishBatch[]>
+  onPublishProgress: (cb: (event: PublishProgressEvent) => void) => () => void
+  onPublishFinished: (cb: (batch: PublishBatch | { error: string }) => void) => () => void
 }
 
 const PlatformAccountsContext = createContext<PlatformAccountsContextValue>(null!)
@@ -262,8 +274,8 @@ export function PlatformAccountsProvider(props: { children: any }) {
           output.push({
             id: account.id,
             platform: account.platform,
-            nickname: account.nickname,
-            avatar: account.avatar,
+            nickname: result.nickname ?? account.nickname,
+            avatar: result.avatar ?? account.avatar,
             valid: result.valid,
           })
         } catch {
@@ -277,6 +289,8 @@ export function PlatformAccountsProvider(props: { children: any }) {
           })
         }
       }
+      // 巡检时主进程会顺手补昵称/头像：拉一遍，列表才能立刻显示新资料。
+      await refreshAccounts()
       setStore("loading", false)
       return output
     }
@@ -287,6 +301,7 @@ export function PlatformAccountsProvider(props: { children: any }) {
       for (const r of results) {
         setStore("accounts", (a) => a.id === r.id, "status", r.valid ? "valid" : "expired")
       }
+      await refreshAccounts()
       setStore("loading", false)
       return results.map((r) => {
         const acc = currentAccounts.find((a) => a.id === r.id)
@@ -317,12 +332,66 @@ export function PlatformAccountsProvider(props: { children: any }) {
     if (!(window as any).api?.platform?.checkLogin) return false
     const result = await (window as any).api.platform.checkLogin(id)
     setStore("accounts", (a) => a.id === id, "status", result.valid ? "valid" : "expired")
+    // 单账号巡检同样会补资料，拉一遍让头像/昵称立即出现。
+    await refreshAccounts()
     return result.valid
   }
+
+  /**
+   * 补全缺失的昵称/头像。
+   *
+   * 旧版本（XYMT-AUTO 迁移）存下来的账号可能只有 cookie、没有名字和头像：
+   * 这些资料要靠"接口/页面"再抓一次才能补上。做成幂等 + 后台跑，不阻塞界面。
+   */
+  const refreshProfiles = async (ids?: string[]) => {
+    const api = (window as any).api?.platform
+    if (!api?.refreshProfiles) return
+    const targets = ids ?? store.accounts.filter((a) => !a.nickname || !a.avatar).map((a) => a.id)
+    if (targets.length === 0) return
+    try {
+      const result = await api.refreshProfiles(targets)
+      if (Array.isArray(result?.accounts)) setStore("accounts", result.accounts)
+      else await refreshAccounts()
+    } catch {
+      // 补资料是增强，失败保持原样
+    }
+  }
+
+  const displayName = (account: PlatformAccount) =>
+    accountDisplayName(account, PLATFORM_LIST.find((p) => p.id === account.platform)?.name)
 
   const publish = async (accountId: string, input: any) => {
     if (!(window as any).api?.platform?.publish) return null
     return (window as any).api.platform.publish({ accountId, publishInput: input })
+  }
+
+  const publishBatch = async (accountIds: string[], input: PublishBatchInput) => {
+    const api = (window as any).api?.platform
+    if (!api?.publishBatch) return { ok: false, error: "当前环境不支持发布（需要桌面端）" }
+    return api.publishBatch({ accountIds, input })
+  }
+
+  const cancelPublish = async () => {
+    await (window as any).api?.platform?.cancelPublish?.()
+  }
+
+  const publishBatches = async (): Promise<PublishBatch[]> => {
+    const api = (window as any).api?.platform
+    if (!api?.getPublishBatches) return []
+    const batches = await api.getPublishBatches()
+    return Array.isArray(batches) ? batches : []
+  }
+
+  const onPublishProgress = (cb: (event: PublishProgressEvent) => void) => {
+    const api = (window as any).api?.platform
+    if (!api?.onPublishProgress) return () => {}
+    return api.onPublishProgress(cb)
+  }
+
+  const onPublishFinished = (cb: (batch: PublishBatch | { error: string }) => void) => {
+    const api = (window as any).api?.platform
+    if (!api?.onPublishFinished) return () => {}
+    return api.onPublishFinished(cb)
   }
 
   return (
@@ -344,7 +413,14 @@ export function PlatformAccountsProvider(props: { children: any }) {
         platformTags,
         checkAllLogins,
         checkSingleLogin,
+        refreshProfiles,
+        displayName,
         publish,
+        publishBatch,
+        cancelPublish,
+        publishBatches,
+        onPublishProgress,
+        onPublishFinished,
       }}
     >
       {props.children}

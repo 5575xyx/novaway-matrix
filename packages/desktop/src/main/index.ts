@@ -48,6 +48,7 @@ import {
 import {
   autoUpdateEnabled,
   checkUpdate,
+  checkUpdateAuto,
   checkForUpdates,
   downloadUpdate,
   getUpdateStatus,
@@ -368,7 +369,10 @@ const main = Effect.gen(function* () {
     runUpdater: async (alertOnFail) =>
       // 手动检查：只查到「有新版本」，下载由用户在更新按钮上点，进度实时可见。
       checkForUpdates(alertOnFail, killSidecar, notifyRendererUpdateReady, { download: false }),
-    checkUpdate: async (options?: { manual?: boolean }) => checkUpdate(options),
+    // 渲染层发起的检查：手动只查到「有新版本」等用户点下载；
+    // 自动（启动/定时）查到就自己下，和启动检查保持一致。
+    checkUpdate: async (options?: { manual?: boolean }) =>
+      options?.manual ? checkUpdate(options) : checkUpdateAuto(),
     downloadUpdate: async () => downloadUpdate(),
     updateStatus: () => getUpdateStatus(),
     setAutoUpdate: (enabled) => setAutoUpdateEnabled(enabled),

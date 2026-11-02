@@ -24,7 +24,14 @@ export type ComputerStatus = {
   reason?: string
 }
 
-export type Screenshot = { path: string; base64: string; mime: string }
+export type Screenshot = {
+  path: string
+  base64: string
+  mime: string
+  /** 截图方式：整屏 / 指定窗口（PrintWindow 可在后台截，不需要切前台）。 */
+  mode?: "screen" | "print-window" | "screen-region" | "window"
+  window?: { title: string; width?: number; height?: number }
+}
 export type WindowInfo = { title: string; id?: string; pid?: number }
 export type MouseButton = "left" | "right" | "middle"
 
@@ -241,7 +248,81 @@ async function windowsScreenshot(): Promise<Screenshot> {
   await powershell(script)
   const buffer = await fs.readFile(file)
   await fs.rm(file, { force: true })
-  return { path: file, base64: buffer.toString("base64"), mime: "image/png" }
+  return { path: file, base64: buffer.toString("base64"), mime: "image/png", mode: "screen" }
+}
+
+/**
+ * 只截指定窗口（按标题模糊匹配）。
+ *
+ * Windows 用 PrintWindow(PW_RENDERFULLCONTENT)：不需要把窗口切到前台，也不会把
+ * 盖在它上面的其它窗口一起截进来；Electron/Chromium 等自绘窗口也能拿到内容。
+ * 如果 PrintWindow 失败（少数老式/受保护的窗口），退回按窗口矩形做区域截图。
+ * macOS / Linux 分别用 screencapture -R 与 ImageMagick import -window 的窗口级能力。
+ */
+async function windowsScreenshotWindow(title: string): Promise<Screenshot> {
+  const file = path.join(os.tmpdir(), "novaway-window-" + process.pid + "-" + Date.now() + ".png")
+  const nl = String.fromCharCode(10)
+  const escapedTitle = title.replace(/'/g, "''")
+  const escapedFile = file.split(String.fromCharCode(92)).join(String.fromCharCode(92, 92))
+  const script = [
+    "Add-Type -AssemblyName System.Drawing",
+    'Add-Type -TypeDefinition @"',
+    "using System;",
+    "using System.Runtime.InteropServices;",
+    "public class NovaShot {",
+    "  [StructLayout(LayoutKind.Sequential)]",
+    "  public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }",
+    '  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);',
+    '  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);',
+    '  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);',
+    '  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);',
+    '  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();',
+    "}",
+    '"@',
+    "[NovaShot]::SetProcessDPIAware() | Out-Null",
+    "$needle = '" + escapedTitle + "'",
+    '$p = Get-Process | Where-Object { $_.MainWindowTitle -and $_.MainWindowTitle -like ("*" + $needle + "*") } | Select-Object -First 1',
+    'if (-not $p) { Write-Output "NOVA_WINDOW_NOT_FOUND"; return }',
+    "$h = $p.MainWindowHandle",
+    'if ($h -eq 0) { Write-Output "NOVA_WINDOW_HANDLE_MISSING"; return }',
+    // 最小化的窗口先无激活地还原（SW_SHOWNOACTIVATE=4），不抢用户焦点。
+    "if ([NovaShot]::IsIconic($h)) { [NovaShot]::ShowWindow($h, 4) | Out-Null; Start-Sleep -Milliseconds 250 }",
+    "$r = New-Object NovaShot+RECT",
+    "[NovaShot]::GetWindowRect($h, [ref]$r) | Out-Null",
+    "$w = $r.Right - $r.Left",
+    "$ht = $r.Bottom - $r.Top",
+    'if ($w -le 0 -or $ht -le 0) { Write-Output "NOVA_WINDOW_RECT_EMPTY"; return }',
+    "$bmp = New-Object System.Drawing.Bitmap $w, $ht",
+    "$g = [System.Drawing.Graphics]::FromImage($bmp)",
+    "$hdc = $g.GetHdc()",
+    "$ok = [NovaShot]::PrintWindow($h, $hdc, 2)",
+    "$g.ReleaseHdc($hdc)",
+    '$mode = "print-window"',
+    'if (-not $ok) { $g.CopyFromScreen($r.Left, $r.Top, 0, 0, (New-Object System.Drawing.Size $w, $ht)); $mode = "screen-region" }',
+    '$bmp.Save("' + escapedFile + '", [System.Drawing.Imaging.ImageFormat]::Png)',
+    "$g.Dispose()",
+    "$bmp.Dispose()",
+    'Write-Output ("NOVA_WINDOW_OK|" + $mode + "|" + $w + "|" + $ht)',
+  ].join(nl)
+  const output = await powershell(script)
+  if (output.includes("NOVA_WINDOW_NOT_FOUND")) throw new Error('No window matching "' + title + '"')
+  if (output.includes("NOVA_WINDOW_HANDLE_MISSING")) throw new Error('Window matching "' + title + '" has no handle')
+  if (output.includes("NOVA_WINDOW_RECT_EMPTY"))
+    throw new Error('Window matching "' + title + '" has no visible bounds')
+  const match = output.match(/NOVA_WINDOW_OK\|([^|]+)\|(\d+)\|(\d+)/)
+  const buffer = await fs.readFile(file)
+  await fs.rm(file, { force: true })
+  return {
+    path: file,
+    base64: buffer.toString("base64"),
+    mime: "image/png",
+    mode: match?.[1] === "screen-region" ? "screen-region" : "print-window",
+    window: {
+      title,
+      width: match ? Number(match[2]) : undefined,
+      height: match ? Number(match[3]) : undefined,
+    },
+  }
 }
 
 async function windowsWindows(): Promise<WindowInfo[]> {
@@ -307,7 +388,42 @@ async function macScreenshot(): Promise<Screenshot> {
   await exec("screencapture", ["-x", "-t", "png", file], { timeout: TIMEOUT })
   const buffer = await fs.readFile(file)
   await fs.rm(file, { force: true })
-  return { path: file, base64: buffer.toString("base64"), mime: "image/png" }
+  return { path: file, base64: buffer.toString("base64"), mime: "image/png", mode: "screen" }
+}
+
+async function macScreenshotWindow(title: string): Promise<Screenshot> {
+  const file = path.join(os.tmpdir(), "novaway-window-" + process.pid + "-" + Date.now() + ".png")
+  const bounds = (
+    await osascript(
+      [
+        "on run argv",
+        "set needle to item 1 of argv",
+        'tell application "System Events"',
+        "repeat with p in (every process whose background only is false)",
+        "try",
+        "repeat with w in windows of p",
+        "try",
+        "if (name of w as text) contains needle then",
+        "set pos to position of w",
+        "set sz to size of w",
+        'return ((item 1 of pos) as text) & "," & ((item 2 of pos) as text) & "," & ((item 1 of sz) as text) & "," & ((item 2 of sz) as text)',
+        "end if",
+        "end try",
+        "end repeat",
+        "end try",
+        "end repeat",
+        "end tell",
+        'return ""',
+        "end run",
+      ],
+      [title],
+    )
+  ).trim()
+  if (!bounds) throw new Error('No window matching "' + title + '"')
+  await exec("screencapture", ["-x", "-o", "-R" + bounds, file], { timeout: TIMEOUT })
+  const buffer = await fs.readFile(file)
+  await fs.rm(file, { force: true })
+  return { path: file, base64: buffer.toString("base64"), mime: "image/png", mode: "screen-region", window: { title } }
 }
 
 async function macWindows(): Promise<WindowInfo[]> {
@@ -338,7 +454,18 @@ async function linuxScreenshot(): Promise<Screenshot> {
   else await exec("import", ["-window", "root", file], { timeout: TIMEOUT })
   const buffer = await fs.readFile(file)
   await fs.rm(file, { force: true })
-  return { path: file, base64: buffer.toString("base64"), mime: "image/png" }
+  return { path: file, base64: buffer.toString("base64"), mime: "image/png", mode: "screen" }
+}
+
+async function linuxScreenshotWindow(title: string): Promise<Screenshot> {
+  const file = path.join(os.tmpdir(), "novaway-window-" + process.pid + "-" + Date.now() + ".png")
+  const ids = (await xdotool(["search", "--name", title]).catch(() => "")).split(/\s+/).filter(Boolean)
+  if (ids.length === 0) throw new Error('No window matching "' + title + '"')
+  if (!(await which("import"))) throw new Error("Window screenshots on Linux require ImageMagick (import)")
+  await exec("import", ["-window", ids[ids.length - 1], file], { timeout: TIMEOUT })
+  const buffer = await fs.readFile(file)
+  await fs.rm(file, { force: true })
+  return { path: file, base64: buffer.toString("base64"), mime: "image/png", mode: "window", window: { title } }
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +478,19 @@ export async function screenshot(): Promise<Screenshot> {
   if (current === "macos") return macScreenshot()
   if (current === "linux") return linuxScreenshot()
   throw new Error("Screenshot is not supported on this platform")
+}
+
+/**
+ * 按窗口标题截取单个窗口，不把窗口切到前台。
+ * 验证桌面应用时优先用它：只截目标界面，也不会把整个桌面/其它窗口带进来。
+ */
+export async function screenshotWindow(title: string): Promise<Screenshot> {
+  if (!title.trim()) throw new Error("Window title is required")
+  const current = platform()
+  if (current === "windows") return windowsScreenshotWindow(title.trim())
+  if (current === "macos") return macScreenshotWindow(title.trim())
+  if (current === "linux") return linuxScreenshotWindow(title.trim())
+  throw new Error("Window screenshots are not supported on this platform")
 }
 
 export async function click(input: { x: number; y: number; button?: MouseButton }) {
@@ -461,6 +601,29 @@ export async function windows(): Promise<WindowInfo[]> {
     return result
   }
   return []
+}
+
+/**
+ * 等一个窗口出现（按标题模糊匹配）。
+ *
+ * 启动桌面应用后，"后台任务还在跑"不等于应用起来了：Electron/Java 进程常常先活着，
+ * 几秒后才因为资源构建失败而退出。这个等待入口让模型有一个明确的成功信号 ——
+ * 窗口真的出现在窗口列表里 —— 再去截图和汇报。
+ */
+export async function waitForWindow(
+  title: string,
+  timeoutMs = 30_000,
+  intervalMs = 750,
+): Promise<{ found: boolean; waitedMs: number; window?: WindowInfo }> {
+  const startedAt = Date.now()
+  const needle = title.trim().toLowerCase()
+  if (!needle) throw new Error("Window title is required")
+  while (Date.now() - startedAt <= timeoutMs) {
+    const match = (await windows()).find((item) => item.title.toLowerCase().includes(needle))
+    if (match) return { found: true, waitedMs: Date.now() - startedAt, window: match }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+  return { found: false, waitedMs: Date.now() - startedAt }
 }
 
 export async function focus(title: string) {
