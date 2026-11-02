@@ -1190,6 +1190,13 @@ export const RunPage: Component<{
                       </Show>
                       <div class="mt-1 flex flex-wrap items-center gap-1.5">
                         <Tag>{runStateLabel(data().run)}</Tag>
+                        {/*
+                          §4.3：头部要同时给运行状态与当前阶段。阶段只做展示
+                          （调度器不拿它做判断），但它回答「现在卡在哪一步」。
+                        */}
+                        <Show when={data().run.phase}>
+                          {(phase) => <Tag title={t("run.phaseHint")}>{t(`run.phase.${phase()}`)}</Tag>}
+                        </Show>
                         <Tag>{data().run.mode}</Tag>
                         {/* 只读 / 可写是这次运行的实际授权，不是提示词里的承诺。 */}
                         <Tag title={t("run.policy.hint")}>
@@ -1480,6 +1487,17 @@ export const RunPage: Component<{
                             <span class={blocker.swappable ? "text-foreground-subtlest" : "text-warning"}>
                               {blocker.swappable ? t("run.blocked.swappable") : t("run.blocked.noSwap")}
                             </span>
+                            {/* §4.3：每个阻塞都能一键跳到对应会话处理，看板只给结论。 */}
+                            <Show when={props.onOpenSession}>
+                              <Button
+                                variant="ghost"
+                                size="small"
+                                title={t("run.action.openSessionHint")}
+                                onClick={() => props.onOpenSession?.(data().run.sessionID)}
+                              >
+                                {t("run.action.openSession")}
+                              </Button>
+                            </Show>
                           </div>
                         )}
                       </For>

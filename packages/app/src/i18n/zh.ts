@@ -93,6 +93,12 @@ export const dict = {
   "run.state.planning": "规划中",
   "run.state.awaiting_approval": "等待批准",
   "run.state.running": "执行中",
+  "run.phase.executing": "派发与执行",
+  "run.phase.reviewing": "验证与裁决",
+  "run.phase.reworking": "返工",
+  "run.phase.merging": "集成合并",
+  "run.phase.verify-merged": "合并后重验",
+  "run.phaseHint": "运行级阶段，只用于展示；真正推进的是各团队自己的阶段。",
   "run.state.blocked": "阻塞",
   "run.state.paused": "已暂停",
   // 「已验证交付」而不是「已完成」：done 只说明交付成立，不代表已经合进主干。

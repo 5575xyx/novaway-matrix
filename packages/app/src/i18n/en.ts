@@ -95,6 +95,12 @@ export const dict = {
   "run.state.planning": "Planning",
   "run.state.awaiting_approval": "Awaiting approval",
   "run.state.running": "Running",
+  "run.phase.executing": "Dispatching",
+  "run.phase.reviewing": "Reviewing",
+  "run.phase.reworking": "Rework",
+  "run.phase.merging": "Merging",
+  "run.phase.verify-merged": "Re-verifying merged tree",
+  "run.phaseHint": "Run-level phase, display only; each team drives its own progress.",
   "run.state.blocked": "Blocked",
   "run.state.paused": "Paused",
   // 「已验证交付」而不是「已完成」：done 只说明交付成立，不代表已经合进主干。
