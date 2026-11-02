@@ -13,6 +13,8 @@ import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
 import { createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js"
 import { PageHeader } from "@/components/page-header"
+import { RunGuide, type GuideStep } from "@/components/run-guide"
+import { guideStates } from "@/components/run-guide.steps"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 
@@ -433,8 +435,7 @@ export const RunPage: Component<{
       setCommandOpen(false)
     })
 
-  const acceptanceFor = (acceptanceID: string) =>
-    (detail()?.acceptances ?? []).find((item) => item.id === acceptanceID)
+  const acceptanceFor = (acceptanceID: string) => (detail()?.acceptances ?? []).find((item) => item.id === acceptanceID)
 
   const hasWorktrees = createMemo(() => (detail()?.teams ?? []).some((team) => !!team.worktree))
   /** 当前运行属于哪个目标：编号只给人看，悬停给出目标描述。 */
@@ -576,9 +577,7 @@ export const RunPage: Component<{
   )
   /** 任务板（§5.5）：按团队摊平，只回答「做什么、到哪一步、谁在做」。 */
   const board = createMemo(() =>
-    (detail()?.teams ?? []).flatMap((team) =>
-      (team.tasks ?? []).map((task) => ({ teamID: team.id, ...task })),
-    ),
+    (detail()?.teams ?? []).flatMap((team) => (team.tasks ?? []).map((task) => ({ teamID: team.id, ...task }))),
   )
   // 与后端同一条规则：批准前、以及批准后还没开工（running 且没有 phase）时可以改授权。
   // 会话里点名的团队会自动批准并落在 running，所以这一段不能漏 —— 否则界面上就没法放宽。
@@ -628,8 +627,7 @@ export const RunPage: Component<{
         hint: t("run.step.reviewHint"),
       }
     // 计划还没建好时（API / 命令行发起），这里没有按钮可点：先说实话，别落到「失败」。
-    if (run.state === "planning")
-      return { title: t("run.step.planningTitle"), hint: t("run.step.planningHint") }
+    if (run.state === "planning") return { title: t("run.step.planningTitle"), hint: t("run.step.planningHint") }
     if (run.state === "awaiting_approval")
       return {
         title: t("run.step.approveTitle", { count: String(teams) }),
@@ -685,11 +683,55 @@ export const RunPage: Component<{
             ? { label: t("run.action.merge"), busy: "merge", run: merge }
             : undefined,
       }
-    if (run.state === "exceeded")
-      return { title: t("run.step.exceededTitle"), hint: t("run.step.exceededHint") }
-    if (run.state === "cancelled")
-      return { title: t("run.step.cancelledTitle"), hint: t("run.step.cancelledHint") }
+    if (run.state === "exceeded") return { title: t("run.step.exceededTitle"), hint: t("run.step.exceededHint") }
+    if (run.state === "cancelled") return { title: t("run.step.cancelledTitle"), hint: t("run.step.cancelledHint") }
     return { title: t("run.step.failedTitle"), hint: t("run.step.failedHint") }
+  })
+
+  /**
+   * 使用引导的步骤条（§4.3）。
+   *
+   * 它和「现在该做什么」分工不同：那一句回答「此刻点哪里」，这一条回答
+   * 「一共几步、走到哪了、后面还有什么」。状态只影响高亮，说明文字是静态的，
+   * 点开就能看到每一步在做什么 —— 新用户不必先去读文档。
+   */
+  const guideSteps = createMemo<GuideStep[]>(() => {
+    const data = detail()
+    if (!data) return []
+    const run = data.run
+    return guideStates({
+      state: run.state,
+      mergeState: run.mergeState,
+      accepted: (data.summary?.lines?.length ?? 0) > 0,
+      hasWorktrees: hasWorktrees(),
+    }).map((step) => ({
+      id: step.id,
+      state: step.state,
+      title: t("run.guide." + step.id + ".title"),
+      hint: t("run.guide." + step.id + ".hint"),
+    }))
+  })
+
+  /**
+   * 空状态的三步：第一条先看有没有团队模板。
+   *
+   * 没有模板时，新建按钮根本不出现 —— 与其让人点一个不存在的入口，
+   * 不如把「先建模板」写成第一步并标成当前。
+   */
+  const emptySteps = createMemo(() => [
+    { text: t("run.empty.step1"), done: profiles().length > 0 },
+    { text: t("run.empty.step2"), done: false },
+    { text: t("run.empty.step3"), done: false },
+  ])
+
+  /**
+   * 只读提醒：最常见的误解是「跑完了怎么没改我的代码」。
+   * 只在开工前说 —— 开工后改授权需要重新批准，说了也做不了。
+   */
+  const guideNote = createMemo(() => {
+    const run = detail()?.run
+    if (!run || !canChangePolicy() || !run.readOnly) return undefined
+    return t("run.guide.readOnly")
   })
 
   return (
@@ -809,7 +851,9 @@ export const RunPage: Component<{
           </Show>
           <Show
             when={runs().length > 0}
-            fallback={<div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty.title")}</div>}
+            fallback={
+              <div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty.title")}</div>
+            }
           >
             <For each={runs()}>
               {(run) => (
@@ -976,10 +1020,19 @@ export const RunPage: Component<{
                 <div class="mt-1 text-ui-xs text-foreground-subtle">
                   {profiles().find((item) => item.id === profileID())?.description ?? t("run.new.hint")}
                 </div>
-                {/* 先说清顺序：创建 ≠ 开始跑。不写这一句，用户填完表单会以为活已经派下去了。 */}
-                <div class="mt-2 rounded-md border border-border bg-surface px-2.5 py-2 text-ui-xs leading-relaxed text-foreground-subtle">
-                  {t("run.new.steps")}
-                </div>
+                {/* 先说清顺序：创建 ≠ 开始跑。不写这一步，用户填完表单会以为活已经派下去了。 */}
+                <ol class="mt-2 flex flex-col gap-1.5 rounded-md border border-border bg-surface px-2.5 py-2 text-ui-xs leading-relaxed text-foreground-subtle">
+                  <For each={[t("run.new.step1"), t("run.new.step2"), t("run.new.step3")]}>
+                    {(text, index) => (
+                      <li class="flex items-start gap-2">
+                        <span class="mt-px grid size-4 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] text-primary">
+                          {index() + 1}
+                        </span>
+                        <span>{text}</span>
+                      </li>
+                    )}
+                  </For>
+                </ol>
               </div>
               <label class="flex flex-col gap-1">
                 <span class="text-ui-xs text-foreground-subtle">{t("run.new.template")}</span>
@@ -1125,6 +1178,29 @@ export const RunPage: Component<{
                   <div class="w-full max-w-md rounded-xl border border-border bg-surface p-5 text-center">
                     <div class="text-15-medium text-foreground">{t("run.empty.title")}</div>
                     <div class="mt-1 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty.hint")}</div>
+                    <div class="mt-3 text-left text-ui-xs text-foreground-subtle">{t("run.empty.steps")}</div>
+                    <ol class="mt-1 flex flex-col gap-1.5 text-left text-ui-xs leading-relaxed text-foreground-subtle">
+                      <For each={emptySteps()}>
+                        {(step, index) => (
+                          <li class="flex items-start gap-2">
+                            <span
+                              class="mt-px grid size-4 shrink-0 place-items-center rounded-full text-[10px]"
+                              classList={{
+                                "bg-success/15 text-success": step.done,
+                                "bg-primary/15 text-primary": !step.done && index() === (profiles().length > 0 ? 1 : 0),
+                                "bg-border text-foreground-subtle":
+                                  !step.done && index() !== (profiles().length > 0 ? 1 : 0),
+                              }}
+                            >
+                              <Show when={step.done} fallback={index() + 1}>
+                                <Icon name="circle-check" size="small" />
+                              </Show>
+                            </span>
+                            <span>{step.text}</span>
+                          </li>
+                        )}
+                      </For>
+                    </ol>
                     <Show
                       when={profiles().length > 0}
                       fallback={
@@ -1149,23 +1225,30 @@ export const RunPage: Component<{
                   */}
                   <Show when={nextStep()}>
                     {(step) => (
-                      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2">
-                        <div class="min-w-0 flex-1">
-                          <div class="text-15-medium text-foreground">{step().title}</div>
-                          <div class="mt-0.5 text-ui-xs leading-relaxed text-foreground-subtle">{step().hint}</div>
+                      <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+                        {/* 步骤条：先让人看到全局，再读「现在该做什么」。 */}
+                        <RunGuide steps={guideSteps()} />
+                        <div class="flex flex-wrap items-center gap-3 border-t border-border pt-2">
+                          <div class="min-w-0 flex-1">
+                            <div class="text-15-medium text-foreground">{step().title}</div>
+                            <div class="mt-0.5 text-ui-xs leading-relaxed text-foreground-subtle">{step().hint}</div>
+                            <Show when={guideNote()}>
+                              {(note) => <div class="mt-1 text-ui-xs leading-relaxed text-warning">{note()}</div>}
+                            </Show>
+                          </div>
+                          <Show when={step().action}>
+                            {(action) => (
+                              <Button
+                                variant="primary"
+                                size="small"
+                                disabled={busy() !== ""}
+                                onClick={() => void action().run()}
+                              >
+                                {busy() === action().busy ? t("run.action.working") : action().label}
+                              </Button>
+                            )}
+                          </Show>
                         </div>
-                        <Show when={step().action}>
-                          {(action) => (
-                            <Button
-                              variant="primary"
-                              size="small"
-                              disabled={busy() !== ""}
-                              onClick={() => void action().run()}
-                            >
-                              {busy() === action().busy ? t("run.action.working") : action().label}
-                            </Button>
-                          )}
-                        </Show>
                       </div>
                     )}
                   </Show>
@@ -1269,20 +1352,28 @@ export const RunPage: Component<{
 
                   <div class="grid grid-cols-4 gap-2">
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.passHint")}>{t("run.metric.pass")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.passHint")}>
+                        {t("run.metric.pass")}
+                      </div>
                       <div class="text-18-medium text-success">{summary()?.pass ?? 0}</div>
                     </div>
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.failHint")}>{t("run.metric.fail")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.failHint")}>
+                        {t("run.metric.fail")}
+                      </div>
                       <div class="text-18-medium text-destructive">{summary()?.fail ?? 0}</div>
                     </div>
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.unverifiedHint")}>{t("run.metric.unverified")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.unverifiedHint")}>
+                        {t("run.metric.unverified")}
+                      </div>
                       {/* 未验证用警示色，不是绿色也不是灰色：它不是通过。 */}
                       <div class="text-18-medium text-warning">{summary()?.unverified ?? 0}</div>
                     </div>
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.staleHint")}>{t("run.metric.stale")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.staleHint")}>
+                        {t("run.metric.stale")}
+                      </div>
                       <div class="text-18-medium text-warning">{summary()?.stale ?? 0}</div>
                     </div>
                   </div>
@@ -1459,7 +1550,12 @@ export const RunPage: Component<{
                           {t("run.denials.title", { count: String(data().denials.length) })}
                         </div>
                         {/* 放行是人的决定：模型没有接口把自己被拒的动作重新打开。 */}
-                        <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void allowDenied()}>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          disabled={busy() !== ""}
+                          onClick={() => void allowDenied()}
+                        >
                           {t("run.denials.clear")}
                         </Button>
                       </div>
@@ -1643,9 +1739,7 @@ export const RunPage: Component<{
                                   {/* 档位由调度器按改动面判定：点开提示能看到它为什么验得轻 / 重（§19.1）。 */}
                                   <Show when={line.tier}>
                                     {(tier) => (
-                                      <Tag title={line.tierReason ?? t("run.tierHint")}>
-                                        {t(`run.tier.${tier()}`)}
-                                      </Tag>
+                                      <Tag title={line.tierReason ?? t("run.tierHint")}>{t(`run.tier.${tier()}`)}</Tag>
                                     )}
                                   </Show>
                                   <Show when={acceptanceFor(line.acceptanceID)?.verifier}>
@@ -1734,16 +1828,17 @@ export const RunPage: Component<{
                             team.worktree ?? "",
                             (team.artifacts ?? []).map((item) => item.name + "@" + item.version).join(" "),
                             // 任务范围（§11.1）：越界写会被拦下，界面要能回答「为什么」。
-                            team.scope?.length
-                              ? t("run.team.scope", { paths: (team.scope ?? []).join("、") })
-                              : "",
+                            team.scope?.length ? t("run.team.scope", { paths: (team.scope ?? []).join("、") }) : "",
                           ]
                             .filter(Boolean)
                             .join(String.fromCharCode(10))}
                         >
                           {team.id + " · " + team.phase}
                           {team.dependsOn.length > 0
-                            ? " · " + t("run.team.deps", { deps: team.dependsOn.map((dep) => "#" + (numeric(dep) + 1)).join("、") })
+                            ? " · " +
+                              t("run.team.deps", {
+                                deps: team.dependsOn.map((dep) => "#" + (numeric(dep) + 1)).join("、"),
+                              })
                             : ""}
                         </Tag>
                       )}
@@ -1757,7 +1852,9 @@ export const RunPage: Component<{
                   <Show when={board().length > 0}>
                     <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
                       <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
-                        <span class="text-foreground-subtlest">{t("run.tasks.title", { count: String(board().length) })}</span>
+                        <span class="text-foreground-subtlest">
+                          {t("run.tasks.title", { count: String(board().length) })}
+                        </span>
                         <span class="min-w-0 flex-1 truncate text-foreground-subtlest">{t("run.tasks.hint")}</span>
                       </div>
                       <For each={board()}>
@@ -1851,7 +1948,9 @@ export const RunPage: Component<{
                               <For each={chain().steps}>
                                 {(step) => (
                                   <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
-                                    <span class="w-10 shrink-0 text-foreground-subtlest">{"#" + numeric(step.seq)}</span>
+                                    <span class="w-10 shrink-0 text-foreground-subtlest">
+                                      {"#" + numeric(step.seq)}
+                                    </span>
                                     <span class="min-w-0 flex-1 truncate">{step.kind}</span>
                                     <Show when={step.teamID}>
                                       {(teamID) => <span class="shrink-0 text-foreground-subtlest">{teamID()}</span>}
@@ -1861,9 +1960,7 @@ export const RunPage: Component<{
                                         {t("run.replay.round", { round: numeric(step.round!) })}
                                       </span>
                                     </Show>
-                                    <Show when={step.outcome}>
-                                      {(outcome) => <Tag>{outcome()}</Tag>}
-                                    </Show>
+                                    <Show when={step.outcome}>{(outcome) => <Tag>{outcome()}</Tag>}</Show>
                                   </div>
                                 )}
                               </For>

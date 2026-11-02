@@ -137,7 +137,8 @@ export const dict = {
   "run.merge.state.unmerged": "Not merged",
   "run.merge.state.merged": "Merged",
   "run.merge.state.merge_failed": "Last merge failed",
-  "run.merge.stateHint": "Merging is a separate action: a finished run only means the delivery passed acceptance; merging into your branch is up to you.",
+  "run.merge.stateHint":
+    "Merging is a separate action: a finished run only means the delivery passed acceptance; merging into your branch is up to you.",
   "run.merge.failed": "Merge did not happen.",
   "run.switch.off":
     "Team orchestration is turned off: history and plans stay editable, but no new run can start (running ones keep going).",
@@ -164,10 +165,42 @@ export const dict = {
   "run.action.start": "Start",
   "run.action.working": "Working…",
   "run.empty.title": "No runs yet",
+  "run.empty.steps": "First time? Three steps:",
+  "run.empty.step1": "Prepare a team template: create one or adjust members on the Teams page in the left sidebar.",
+  "run.empty.step2":
+    "Come back and create a run: write the goal and acceptances, with checkable locations where possible.",
+  "run.empty.step3":
+    "Approve the plan, then press Start. Read the verdict, and merge into your branch only when you are happy.",
   "run.empty.hint":
     "A team run goes plan → your approval → execute. Create one, write down what must be true when it is done, then follow the step shown at the top.",
   "run.empty.action": "New run",
   "run.empty.noProfile": "No team template yet. Create a team on the Teams page first, then start a run.",
+  "run.guide.title": "Guide",
+  "run.guide.position": "Step {{current}} of {{total}}",
+  "run.guide.finished": "All done",
+  "run.guide.waiting": "Waiting for the plan",
+  "run.guide.close": "Hide this step's explanation",
+  "run.guide.state.done": "Done",
+  "run.guide.state.current": "You are here",
+  "run.guide.state.todo": "Later",
+  "run.guide.state.attention": "Needs your attention",
+  "run.guide.goal.title": "Goal",
+  "run.guide.goal.hint":
+    "When creating a run, say what to achieve and how we know it is done (acceptance). Another session verifies it independently: checkable locations (file, command, test name) are what make a pass possible.",
+  "run.guide.approve.title": "Approve",
+  "run.guide.approve.hint":
+    "Approving means agreeing to this plan and budget. Approving dispatches nothing by itself; changing the plan or budget invalidates the old approval.",
+  "run.guide.execute.title": "Execute",
+  "run.guide.execute.hint":
+    "Teams work in their own copies, so your working tree stays untouched. Verification and rework advance automatically; press Cancel any time to stop.",
+  "run.guide.verdict.title": "Verdict",
+  "run.guide.verdict.hint":
+    "Pass, fail and unverified are counted separately: unverified is not a pass. Every line opens to show the code snapshot and evidence it is bound to.",
+  "run.guide.merge.title": "Merge",
+  "run.guide.merge.hint":
+    "Finishing only means the delivery passed acceptance; the code is still on the integration branch. Press Merge to bring it into your checked-out branch.",
+  "run.guide.readOnly":
+    "This run is read-only: teams will not modify your files. If you meant to change code, allow writes on the left before starting.",
   "run.step.reviewTitle": "Review {{count}} tool call(s) with unknown outcome first",
   "run.step.reviewHint":
     "A restart cut these calls off. Confirm one by one whether they actually ran; the run cannot continue until they are resolved.",
@@ -191,11 +224,14 @@ export const dict = {
   "run.step.doneHint":
     "The changes live on a separate integration branch; your working tree is unchanged. Click Merge when you are happy, or Discard to drop it.",
   "run.step.doneHintNoMerge": "This run left no mergeable branch: the conclusion lives only in the evidence below.",
-  "run.step.doneHintMerged": "This run is already merged into your branch. The worktree copy is still around; clean it up when you no longer need it.",
-  "run.step.doneHintMergeFailed": "The last merge did not go through; the reason is shown above. Fix the working tree and merge again.",
+  "run.step.doneHintMerged":
+    "This run is already merged into your branch. The worktree copy is still around; clean it up when you no longer need it.",
+  "run.step.doneHintMergeFailed":
+    "The last merge did not go through; the reason is shown above. Fix the working tree and merge again.",
   "run.step.partialTitle": "Finished — only some acceptances passed",
   "run.step.partialHint": "The failing lines say why below. You may merge or not — merging ships this partial result.",
-  "run.step.partialHintMerged": "This partial result is already merged into your branch; the failing lines still say why below.",
+  "run.step.partialHintMerged":
+    "This partial result is already merged into your branch; the failing lines still say why below.",
   "run.step.exceededTitle": "Out of budget",
   "run.step.exceededHint":
     "The run stopped at its budget and dispatched nothing further. Create a new run with a larger budget to continue.",
@@ -242,8 +278,10 @@ export const dict = {
   "run.new.template": "Team template",
   "run.new.title": "Code review run",
   "run.new.hint": "One captain and four reviewers, each on a different angle.",
-  "run.new.steps":
-    "Three steps: say what to achieve → write down how we know it is done (acceptance) → approve and start. Review the result, then merge if you are happy.",
+  "run.new.step1":
+    "Say what to achieve and how we know it is done (acceptance). Another session verifies it independently.",
+  "run.new.step2": "After creating, approve the plan first: this step only creates the run and dispatches nothing.",
+  "run.new.step3": "Then press Start. When it finishes, read the verdict and merge only if you are happy.",
   "run.new.goal": "Goal",
   "run.new.goalPlaceholder": "What should this review cover? e.g. review the current diff for this branch",
   "run.new.acceptance": "Acceptance",
