@@ -1,0 +1,65 @@
+/* 工作线图的流向（§4.3）：边上的虚线段沿「发出 → 收到」方向前进。
+ *
+ * 用 stroke-dashoffset 而不是位移动画：路径是贝塞尔曲线，位移只能近似方向，
+ * 而 dashoffset 天然沿路径走 —— 派发向右、干活向右、产物交回向左，
+ * 方向由路径本身的起点决定，不需要为回边单独翻转。
+ * 边的 dasharray 周期统一 14px（5 9 / 2 12），节点的流动环是 12px（6 6），各自循环都不跳。
+ */
+@keyframes team-edge-flow {
+  from {
+    stroke-dashoffset: var(--flow-period, 14px);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 节点在动时的呼吸光：只描边、不动文字 ——
+   文字跟着一起闪会看不清「这一步叫什么」；
+   描边本身是流动的虚线，把「这一步在往前走」也画在节点自己身上。 */
+@keyframes team-node-halo {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes team-node-flow {
+  from {
+    stroke-dashoffset: 12px;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.team-edge-flow {
+  animation: team-edge-flow var(--flow-duration, 1.1s) linear infinite;
+}
+
+/* 已完成的边还在流，但慢下来：它回答「产物交回去了」，不是「正在忙」。 */
+.team-edge-flow-settled {
+  --flow-duration: 2.6s;
+}
+
+/* 还没轮到的边：结构仍然可读，但只在背景里缓慢流动。 */
+.team-edge-flow-idle {
+  --flow-duration: 4s;
+}
+
+.team-node-halo {
+  stroke-dasharray: 6 6;
+  animation:
+    team-node-halo 1.8s ease-in-out infinite,
+    team-node-flow 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-edge-flow,
+  .team-node-halo {
+    animation: none;
+  }
+}

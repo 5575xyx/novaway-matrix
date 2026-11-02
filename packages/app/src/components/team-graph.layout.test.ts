@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { layoutLane, participants } from "./team-graph.layout"
+import { edgeFlow, layoutLane, participants } from "./team-graph.layout"
 
 const member = (id: string, name: string, role: "captain" | "worker" = "worker") => ({
   id,
@@ -61,6 +61,22 @@ describe("layoutLane", () => {
     expect(lane.nodes.filter((node) => node.kind === "member")).toHaveLength(2)
     expect(lane.edges).toHaveLength(0)
     expect(lane.participants).toBe(0)
+  })
+
+  test("flow level follows the edge state: running is fastest, finished slows down", () => {
+    const lane = layoutLane({
+      id: "t1",
+      name: "审查队",
+      phase: "executing",
+      round: 1,
+      members: [member("cap", "队长", "captain"), member("a", "阿甲"), member("b", "阿乙")],
+      tasks: [task("1", "completed", "阿甲"), task("2", "in_progress", "阿乙")],
+    })
+    const edge = (id: string) => lane.edges.find((item) => item.id === id)!
+    expect(edgeFlow(edge("assign:1"))).toBe("settled")
+    expect(edgeFlow(edge("assign:2"))).toBe("active")
+    // 阿甲的任务全部完成：交付回边已经走完，慢速流动（回边按认领人分组）。
+    expect(edgeFlow(edge("deliver:阿甲"))).toBe("settled")
   })
 
   test("round number travels with every node and edge so rework is not mixed with round one", () => {

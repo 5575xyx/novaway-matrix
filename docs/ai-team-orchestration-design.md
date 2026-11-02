@@ -2924,7 +2924,8 @@ LangGraph Studio 都把「此刻在做什么」放在主视图：用户不该先
 | 文件 | 内容 |
 | ---- | ---- |
 | `components/team-graph.layout.ts` | 纯布局：队长 → 任务 → 认领人 → 交付回边，轮次随节点与边一起带出 |
-| `components/team-graph.tsx` | SVG 渲染：状态配色、进行中的节点与边做脉冲、交付用虚线回边、轮次徽标 |
+| `components/team-graph.tsx` | SVG 渲染：状态配色、进行中的节点套呼吸光、交付用虚线回边、轮次徽标 |
+| `components/team-graph.css` | 流向动效：虚线沿路径前进，三种速度对应三种状态；`prefers-reduced-motion` 下停用 |
 | `pages/team.tsx` | 左栏改成群聊式团队列表；主区默认「工作线」页签，群聊退到第二页签 |
 | `groups/run.ts` / `handlers/run.ts` | `RunTeamView.members`（名册快照）与 `RunTaskView.ownerName/ownerJob/ownerRole` |
 
@@ -2942,6 +2943,9 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 4. **轮次跟着节点与边走。** 返工轮次用不同颜色的徽标标出，避免「第 2 轮的任务」和「第 1 轮」混在一张图里。
 5. **哪条工作线都看得到人。** 列表里为最近五条各拉一次详情（不随轮询重拉），显示「几个人参与、是谁」；
    选中哪条就只轮询哪条，图的实时进度只刷一条线。
+6. **流向就是状态，不另加图例解释。** 每条边上都有一层沿路径前进的虚线：正在做的最快，已完成的慢下来，
+   还没轮到的只在背景里缓慢流动。方向由路径本身的起点决定（派发与干活向左→右、产物交回右→左），
+   不需要为回边额外翻转。档位由 `edgeFlow()` 统一计算并有测试，不散落在各处的 `classList` 里。
 
 **点开节点看「谁做了什么」（2026-11-03 追加，§4.3）**
 

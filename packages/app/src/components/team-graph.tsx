@@ -4,12 +4,14 @@ import { useLanguage } from "@/context/language"
 import {
   NODE_HEIGHT,
   NODE_WIDTH,
+  edgeFlow,
   layoutRun,
   type GraphEdge,
   type GraphLane,
   type GraphLaneInput,
   type GraphNode,
 } from "./team-graph.layout"
+import "./team-graph.css"
 
 /**
  * 工作线图（§4.3）。
@@ -37,6 +39,15 @@ const EDGE_TONE: Record<GraphEdge["kind"], string> = {
   work: "stroke-primary/60",
   deliver: "stroke-success/70",
 }
+
+/**
+ * 流动层的颜色：底边说明「有这条路」，流动层说明「正在往哪走」。
+ *
+ * 正在走的边一律用主色 —— 此刻的注意力只该有一种颜色；
+ * 走完的交付回边转成功色，其余走完的边退成低对比，图才不吵。
+ */
+const flowTone = (edge: GraphEdge) =>
+  edge.active ? "stroke-primary" : edge.kind === "deliver" ? "stroke-success" : "stroke-foreground-subtlest"
 
 const ROUND_TONE = [
   "text-primary border-primary/40 bg-primary/10",
@@ -124,6 +135,7 @@ export function TeamGraph(props: {
               <span>{t("team.graph.legend.assign")}</span>
               <span>{t("team.graph.legend.work")}</span>
               <span>{t("team.graph.legend.deliver")}</span>
+              <span>{t("team.graph.legend.flow")}</span>
               <Show when={props.onSelect}>
                 <span class="ml-auto">{t("team.graph.selectHint")}</span>
               </Show>
@@ -174,23 +186,44 @@ function LaneGraph(props: { lane: GraphLane; selected?: string; onSelect?: (node
         </marker>
       </defs>
       <For each={props.lane.edges}>
-        {(edge) => (
-          <path
-            d={edgePath(edge, byID())}
-            fill="none"
-            class={EDGE_TONE[edge.kind]}
-            classList={{ "animate-pulse": edge.active, "opacity-60": edge.kind === "deliver" }}
-            stroke-width={edge.kind === "deliver" ? 1.2 : 1.4}
-            stroke-dasharray={edge.kind === "deliver" ? "5 4" : undefined}
-            marker-end={"url(#arrow-" + props.lane.id + ")"}
-          />
+        {(edge, index) => (
+          <g>
+            {/* 底边：只说明「有这条路」，箭头挂在它上面，流动层不重复画箭头。 */}
+            <path
+              d={edgePath(edge, byID())}
+              fill="none"
+              class={EDGE_TONE[edge.kind]}
+              classList={{ "opacity-60": edge.kind === "deliver" }}
+              stroke-width={edge.kind === "deliver" ? 1.2 : 1.4}
+              stroke-dasharray={edge.kind === "deliver" ? "5 4" : undefined}
+              marker-end={"url(#arrow-" + props.lane.id + ")"}
+            />
+            {/* 流动层：沿 from → to 前进。正在做的边亮而快，做完的边慢下来，
+                还没轮到的边只在背景里缓慢流动 —— 三种速度就是三种状态。 */}
+            <path
+              d={edgePath(edge, byID())}
+              fill="none"
+              class={flowTone(edge)}
+              classList={{
+                "team-edge-flow": true,
+                "team-edge-flow-settled": edgeFlow(edge) === "settled",
+                "team-edge-flow-idle": edgeFlow(edge) === "idle",
+                "opacity-60": edgeFlow(edge) === "settled",
+                "opacity-30": edgeFlow(edge) === "idle",
+              }}
+              stroke-width={edge.active ? 2 : 1.4}
+              stroke-linecap="round"
+              stroke-dasharray={edge.kind === "deliver" ? "2 12" : "5 9"}
+              /* 负延迟把相邻边错开，流的是一条「波」而不是整张图一起眨眼。 */
+              style={{ "animation-delay": `-${(index() * 0.22).toFixed(2)}s` }}
+            />
+          </g>
         )}
       </For>
       <For each={props.lane.nodes}>
         {(node) => (
           <g
             classList={{
-              "animate-pulse": node.status === "in_progress",
               "cursor-pointer": !!props.onSelect,
             }}
             role={props.onSelect ? "button" : undefined}
@@ -203,6 +236,19 @@ function LaneGraph(props: { lane: GraphLane; selected?: string; onSelect?: (node
               props.onSelect(node)
             }}
           >
+            {/* 正在跑的节点外面套一圈呼吸光：只动描边，文字保持不动。 */}
+            <Show when={node.status === "active" || node.status === "in_progress"}>
+              <rect
+                x={node.x - 4}
+                y={node.y - 4}
+                width={NODE_WIDTH + 8}
+                height={NODE_HEIGHT + 8}
+                rx="11"
+                fill="none"
+                stroke-width="1.5"
+                class="stroke-primary team-node-halo"
+              />
+            </Show>
             <Show when={props.selected === node.id}>
               <rect
                 x={node.x - 3}

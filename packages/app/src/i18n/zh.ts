@@ -180,6 +180,7 @@ export const dict = {
   "team.graph.legend.assign": "实线：派发任务",
   "team.graph.legend.work": "细线：谁在做",
   "team.graph.legend.deliver": "虚线：产物交回队长",
+  "team.graph.legend.flow": "流动方向：任务正往哪走",
   "team.graph.selectHint": "点节点看这一步是谁在做、验收过没过",
   "team.drill.close": "关闭",
   "team.drill.unclaimedTitle": "还没人认领的任务",

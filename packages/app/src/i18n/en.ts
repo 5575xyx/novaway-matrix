@@ -192,6 +192,7 @@ export const dict = {
   "team.graph.legend.assign": "solid: task dispatched",
   "team.graph.legend.work": "thin: who is doing it",
   "team.graph.legend.deliver": "dashed: result returned to the captain",
+  "team.graph.legend.flow": "flow: which way the work is moving",
   "team.graph.selectHint": "Click a node to see who owns this step and whether its checks pass",
   "team.drill.close": "Close",
   "team.drill.unclaimedTitle": "Unclaimed tasks",

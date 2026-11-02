@@ -65,6 +65,19 @@ export type GraphEdge = {
   done: boolean
 }
 
+/**
+ * 边上的流动档位（§4.3）：正在做 → 快，已完成 → 慢，还没轮到 → 背景里最慢。
+ *
+ * 这一档只由状态决定，不交给界面去猜：否则「有动画就是进行中」这条口径
+ * 会在各处的 classList 里各写一遍，慢慢就漂了。
+ */
+export type EdgeFlow = "active" | "settled" | "idle"
+
+export function edgeFlow(edge: GraphEdge): EdgeFlow {
+  if (edge.active) return "active"
+  return edge.done ? "settled" : "idle"
+}
+
 export type GraphLane = {
   id: string
   name: string
