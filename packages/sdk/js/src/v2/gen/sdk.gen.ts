@@ -53,6 +53,7 @@ import type {
   DatabaseTablesResponses,
   DatabaseTestConnectionErrors,
   DatabaseTestConnectionResponses,
+  DocumentReviewReplyPayload,
   ElicitationListResponses,
   ElicitationRejectErrors,
   ElicitationRejectResponses,
@@ -488,6 +489,8 @@ import type {
   RunMergeErrors,
   RunMergeResponses,
   RunMetricsResponses,
+  RunOpReviewErrors,
+  RunOpReviewResponses,
   RunPlanErrors,
   RunPlanResponses,
   RunPolicyErrors,
@@ -514,6 +517,10 @@ import type {
   SessionDeleteResponses,
   SessionDelivery,
   SessionDiffResponses,
+  SessionDocumentReviewListErrors,
+  SessionDocumentReviewListResponses,
+  SessionDocumentReviewReplyErrors,
+  SessionDocumentReviewReplyResponses,
   SessionExportErrors,
   SessionExportResponses,
   SessionForkErrors,
@@ -9284,6 +9291,89 @@ export class PlanApproval extends HeyApiClient {
   }
 }
 
+export class DocumentReview extends HeyApiClient {
+  /**
+   * List pending document reviews
+   *
+   * PRDs, plans and specs waiting for the user to approve or request changes.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      SessionDocumentReviewListResponses,
+      SessionDocumentReviewListErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/document-review",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Approve a document or request changes
+   *
+   * Resolve a pending document review. `revise` carries the user's feedback to the agent.
+   */
+  public reply<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      requestID: string
+      directory?: string
+      workspace?: string
+      documentReviewReplyPayload?: DocumentReviewReplyPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "requestID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "documentReviewReplyPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionDocumentReviewReplyResponses,
+      SessionDocumentReviewReplyErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/document-review/{requestID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Background extends HeyApiClient {
   /**
    * Cancel background job
@@ -10489,6 +10579,11 @@ export class Session3 extends HeyApiClient {
   private _planApproval?: PlanApproval
   get planApproval(): PlanApproval {
     return (this._planApproval ??= new PlanApproval({ client: this.client }))
+  }
+
+  private _documentReview?: DocumentReview
+  get documentReview(): DocumentReview {
+    return (this._documentReview ??= new DocumentReview({ client: this.client }))
   }
 
   private _background?: Background
@@ -14205,6 +14300,49 @@ export class Denials extends HeyApiClient {
   }
 }
 
+export class Op extends HeyApiClient {
+  /**
+   * Resolve an unknown tool operation
+   *
+   * Record the human verdict for an operation whose outcome is unknown: 'succeeded' (it happened; the same call is never re-run) or 'abandoned' (it did not happen; a retry may run). Only unknown/started operations can be reviewed.
+   */
+  public review<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      opID: string
+      directory?: string
+      workspace?: string
+      verdict?: "succeeded" | "abandoned"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "opID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "verdict" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunOpReviewResponses, RunOpReviewErrors, ThrowOnError>({
+      url: "/run/{runID}/ops/{opID}/review",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Run2 extends HeyApiClient {
   /**
    * List team runs
@@ -14699,6 +14837,11 @@ export class Run2 extends HeyApiClient {
   private _denials?: Denials
   get denials(): Denials {
     return (this._denials ??= new Denials({ client: this.client }))
+  }
+
+  private _op?: Op
+  get op(): Op {
+    return (this._op ??= new Op({ client: this.client }))
   }
 }
 

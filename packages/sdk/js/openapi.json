@@ -23570,6 +23570,174 @@
         ]
       }
     },
+    "/session/{sessionID}/document-review": {
+      "get": {
+        "tags": ["session"],
+        "operationId": "session.documentReview.list",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documents waiting for review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentReviewPending1"
+                  },
+                  "description": "Documents waiting for review"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "PRDs, plans and specs waiting for the user to approve or request changes.",
+        "summary": "List pending document reviews",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.documentReview.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionID}/document-review/{requestID}": {
+      "post": {
+        "tags": ["session"],
+        "operationId": "session.documentReview.reply",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "requestID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reply accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Reply accepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Resolve a pending document review. `revise` carries the user's feedback to the agent.",
+        "summary": "Approve a document or request changes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentReviewReplyPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.documentReview.reply({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/session/{sessionID}/temp-files/clean": {
       "post": {
         "tags": ["session"],
@@ -33855,6 +34023,103 @@
         ]
       }
     },
+    "/run/{runID}/ops/{opID}/review": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.op.review",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "opID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reviewed run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Record the human verdict for an operation whose outcome is unknown: 'succeeded' (it happened; the same call is never re-run) or 'abandoned' (it did not happen; a retry may run). Only unknown/started operations can be reviewed.",
+        "summary": "Resolve an unknown tool operation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "verdict": {
+                    "type": "string",
+                    "enum": ["succeeded", "abandoned"]
+                  }
+                },
+                "required": ["verdict"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.op.review({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run/{runID}/events": {
       "get": {
         "tags": ["Team runs"],
@@ -34208,6 +34473,12 @@
           },
           {
             "$ref": "#/components/schemas/EventInstallationUpdate-failed"
+          },
+          {
+            "$ref": "#/components/schemas/EventDocument_reviewRequested"
+          },
+          {
+            "$ref": "#/components/schemas/EventDocument_reviewResolved"
           },
           {
             "$ref": "#/components/schemas/EventBrowserNavigated"
@@ -35452,6 +35723,101 @@
           }
         },
         "required": ["id", "worktree", "time", "sandboxes"],
+        "additionalProperties": false
+      },
+      "DocumentReviewID": {
+        "type": "string"
+      },
+      "DocumentReviewPending": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/DocumentReviewID"
+          },
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "messageID": {
+            "type": "string",
+            "pattern": "^msg"
+          },
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["prd", "plan", "spec", "design", "report", "other"]
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "sessionID", "path", "kind", "title", "highlights", "questions", "createdAt"],
         "additionalProperties": false
       },
       "Pty": {
@@ -36976,6 +37342,12 @@
               },
               {
                 "$ref": "#/components/schemas/EventInstallationUpdate-failed"
+              },
+              {
+                "$ref": "#/components/schemas/EventDocument_reviewRequested"
+              },
+              {
+                "$ref": "#/components/schemas/EventDocument_reviewResolved"
               },
               {
                 "$ref": "#/components/schemas/EventBrowserNavigated"
@@ -38558,6 +38930,9 @@
                 "type": "boolean"
               },
               "auto_delegate": {
+                "type": "boolean"
+              },
+              "verification_agent": {
                 "type": "boolean"
               },
               "team_orchestration": {
@@ -47416,6 +47791,109 @@
         "required": ["id", "sessionID", "plan", "createdAt"],
         "additionalProperties": false
       },
+      "DocumentReviewPending1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "messageID": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "sessionID", "path", "kind", "title", "highlights", "questions", "createdAt"],
+        "additionalProperties": false
+      },
+      "DocumentReviewReplyPayload": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["approved", "revise"]
+          },
+          "feedback": {
+            "type": "string"
+          }
+        },
+        "required": ["decision"],
+        "additionalProperties": false
+      },
       "SessionTempFileCleanResult": {
         "type": "object",
         "properties": {
@@ -51568,6 +52046,9 @@
       "RunUnknownOpView": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string"
+          },
           "tool": {
             "type": "string"
           },
@@ -51604,7 +52085,7 @@
             ]
           }
         },
-        "required": ["tool", "outcome", "startedAt"],
+        "required": ["id", "tool", "outcome", "startedAt"],
         "additionalProperties": false
       },
       "RunDetail": {
@@ -53114,6 +53595,90 @@
           }
         },
         "required": ["id", "serverName", "message", "mode", "at"],
+        "additionalProperties": false
+      },
+      "DocumentReviewPending2": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/DocumentReviewID"
+          },
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "messageID": {
+            "type": "string",
+            "pattern": "^msg"
+          },
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["prd", "plan", "spec", "design", "report", "other"]
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "sessionID", "path", "kind", "title", "highlights", "questions", "createdAt"],
         "additionalProperties": false
       },
       "SyncEventMessageUpdated": {
@@ -56158,6 +56723,58 @@
               }
             },
             "required": ["version", "reason"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventDocument_reviewRequested": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["document_review.requested"]
+          },
+          "properties": {
+            "$ref": "#/components/schemas/DocumentReviewPending"
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventDocument_reviewResolved": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["document_review.resolved"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/DocumentReviewID"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "decision": {
+                "type": "string",
+                "enum": ["approved", "revise", "pending", "cancelled"]
+              },
+              "feedback": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "sessionID", "decision"],
             "additionalProperties": false
           }
         },

@@ -60,6 +60,55 @@ describe("team op-log", () => {
     }),
   )
 
+  it.effect("reviewing an unknown operation closes the question and decides the retry", () =>
+    Effect.gen(function* () {
+      const ops = yield* OpLogService
+      const id = runID()
+      const happened = idempotencyKey({ scope: { runID: id }, tool: "bash", args: { command: "git push" } })
+      const missed = idempotencyKey({ scope: { runID: id }, tool: "write", args: { path: "a" } })
+      const first = yield* ops.begin({ runID: id, tool: "bash", idempotencyKey: happened })
+      const second = yield* ops.begin({ runID: id, tool: "write", idempotencyKey: missed })
+      yield* ops.markUnknown({ runID: id, olderThanMs: 0 })
+      expect((yield* ops.needsReview(id)).length).toBe(2)
+
+      // 人核对之后：一个落过地，一个没有。
+      const kept = yield* ops.review({ runID: id, id: first.op.id, verdict: "succeeded" })
+      expect(kept?.outcome).toBe("succeeded")
+      const dropped = yield* ops.review({ runID: id, id: second.op.id, verdict: "abandoned" })
+      expect(dropped?.outcome).toBe("abandoned")
+      // 复核完就不再挡路 —— 运行可以从 needs_review 回到可续跑。
+      expect(yield* ops.needsReview(id)).toEqual([])
+
+      // 落地过的那条：同键调用仍然不重跑。
+      const replay = yield* ops.begin({ runID: id, tool: "bash", idempotencyKey: happened })
+      expect(replay.replayed).toBe(true)
+      expect(replay.op.outcome).toBe("succeeded")
+      // 确认没落地的那条：同键调用可以真的执行（这是人的决定，不是自动重试）。
+      const retry = yield* ops.begin({ runID: id, tool: "write", idempotencyKey: missed })
+      expect(retry.replayed).toBe(false)
+      expect(retry.op.outcome).toBe("started")
+      expect(ToolOp.decide("write", undefined).kind).toBe("execute")
+      // 重试途中再崩溃：恢复照样把它判成 unknown，而不是「有过记录」就算知道结果。
+      yield* ops.markUnknown({ runID: id, olderThanMs: 0 })
+      expect((yield* ops.needsReview(id)).map((op) => op.outcome)).toEqual(["unknown"])
+    }),
+  )
+
+  it.effect("a settled operation cannot be rewritten by a review", () =>
+    Effect.gen(function* () {
+      const ops = yield* OpLogService
+      const id = runID()
+      const key = idempotencyKey({ scope: { runID: id }, tool: "write", args: { path: "a" } })
+      const first = yield* ops.begin({ runID: id, tool: "write", idempotencyKey: key })
+      yield* ops.finish({ id: first.op.id, outcome: "failed" })
+      // 复核不是「修正历史」：已经有结论的事实原样返回。
+      const reviewed = yield* ops.review({ runID: id, id: first.op.id, verdict: "abandoned" })
+      expect(reviewed?.outcome).toBe("failed")
+      // 别的运行的同名 id 也不该被改。
+      expect(yield* ops.review({ runID: "run_other", id: first.op.id, verdict: "abandoned" })).toBeUndefined()
+    }),
+  )
+
   it.instance("scope is per session and can be cleared", () =>
     Effect.gen(function* () {
       const ops = yield* OpLogService
@@ -81,7 +130,7 @@ describe("team op-log", () => {
 })
 
 describe("tool op replay decision", () => {
-  const op = (outcome: "started" | "succeeded" | "failed" | "unknown") => ({
+  const op = (outcome: "started" | "succeeded" | "failed" | "unknown" | "abandoned") => ({
     id: "op_1",
     runID: "run_1",
     tool: "write",
@@ -105,6 +154,11 @@ describe("tool op replay decision", () => {
   test("refuses to continue when the previous outcome is unknown", () => {
     expect(ToolOp.decide("write", op("unknown")).kind).toBe("fail")
     expect(ToolOp.decide("write", op("started")).kind).toBe("fail")
+  })
+
+  test("executes again only when a human confirmed the call never happened", () => {
+    // `abandoned` 是人给出的结论，不是自动重试：只有它允许同一个键再跑一次。
+    expect(ToolOp.decide("write", op("abandoned")).kind).toBe("execute")
   })
 })
 

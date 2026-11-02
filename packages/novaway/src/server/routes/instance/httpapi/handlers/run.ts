@@ -292,6 +292,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           }),
           // 待核对的操作（§8.5）：只回结构与时间，不回传参数原文 —— 参数里常有命令与凭据。
           needsReview: unknownOps.map((op) => ({
+            // 只回结构：id 是复核用的句柄，参数原文（命令/路径/凭据）仍然不出接口。
+            id: op.id,
             tool: op.tool,
             outcome: op.outcome,
             ...(op.taskID ? { taskID: op.taskID } : {}),
@@ -688,6 +690,10 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
           // 未批准不能跑；已经在跑也不能再起一份。
           if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          // 还有结果不明的工具操作时不能续跑（§8.5）：先复核副作用，再决定要不要重试。
+          // 带着未知项开跑，等于用猜测覆盖已经发生的事 —— 重复扣款、重复推送都从这里来。
+          if ((yield* opLog.needsReview(run.id)).length > 0)
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
           /**
            * 批准必须匹配**当前**这一版计划（§13.1）。
            *
@@ -1338,6 +1344,45 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               phase: null,
               endedAt: Date.now(),
               terminalReason: "user-cancelled",
+            })
+          }
+          return (yield* detail(run.id))!
+        }),
+      )
+      /**
+       * 复核一条「结果不明」的工具操作（§8.5）。
+       *
+       * `needs_review` 不能是一条死路：人核对完副作用之后要能把结论写回去，
+       * 否则「这个工具到底执行了没有」在系统里永远没有答案，运行也永远回不到可续跑的状态。
+       * 复核本身不重放任何调用：`succeeded` 让同键调用永远跳过，`abandoned` 才允许下一次真的执行。
+       */
+      .handle("reviewRunOp", (ctx) =>
+        Effect.gen(function* () {
+          // 先定性遗留运行：`started` 得先变 `unknown`，复核的才是同一批记录。
+          yield* recoverStale(ctx.query.directory)
+          const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
+          const ops = yield* opLog.list(run.id)
+          const op = ops.find((item) => item.id === ctx.params.opID)
+          if (!op) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          // 已有结论的事实不能被复核改写：这不是「修正历史」的接口。
+          if (op.outcome !== "unknown" && op.outcome !== "started")
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const reviewed = yield* opLog.review({ runID: run.id, id: op.id, verdict: ctx.payload.verdict })
+          if (!reviewed) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          // 只记结构：工具名与结论，不记参数原文（里面常有命令与凭据）。
+          yield* runs.appendEvent({
+            runID: run.id,
+            kind: "op.reviewed",
+            payload: { opID: op.id, tool: op.tool, verdict: ctx.payload.verdict },
+          })
+          // 最后一项复核完 → 不再是「待核对」：回到 paused，等用户点继续。
+          // 停在 needs_review 会让看板一直显示「还有结果不明的操作」，与事实不符。
+          if (run.state === "needs_review" && (yield* opLog.needsReview(run.id)).length === 0) {
+            yield* runs.update({
+              runID: run.id,
+              state: "paused",
+              error: null,
+              terminalReason: "reviewed",
             })
           }
           return (yield* detail(run.id))!

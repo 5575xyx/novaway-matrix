@@ -440,7 +440,7 @@ describe("team HttpApi", () => {
     Effect.gen(function* () {
       type Detail = {
         run: { id: string; state: string; error?: string }
-        needsReview: Array<{ tool: string; outcome: string; startedAt: number }>
+        needsReview: Array<{ id: string; tool: string; outcome: string; startedAt: number }>
       }
       /** 造一次「上一个进程跑到一半被杀」的运行：库里还停在 running + executing，时间戳是旧的。 */
       const interrupted = (dir: string, sessionID: string) =>
@@ -493,7 +493,7 @@ describe("team HttpApi", () => {
       expect(review.run.state).toBe("needs_review")
       expect(review.run.error).toContain("结果不明")
       // 只回结构与时间，不回传参数原文。
-      expect(review.needsReview).toEqual([{ tool: "bash", outcome: "unknown", startedAt: 1 }])
+      expect(review.needsReview).toEqual([{ id: "op_" + reviewID, tool: "bash", outcome: "unknown", startedAt: 1 }])
     }),
   )
 

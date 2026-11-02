@@ -72,7 +72,14 @@ export function lockKey(scope: Scope | undefined, sessionID: string): string {
   return "run:" + scope.runID + ":task:" + (scope.taskID ?? "-")
 }
 
-export type OpOutcome = "started" | "succeeded" | "failed" | "unknown"
+/**
+ * 操作结果。
+ *
+ * `unknown` 是「执行了没有」本身不知道；`abandoned` 是人复核之后给出的结论：
+ * 这次调用**没有落地**，同一个键可以重新执行。两者都不参与自动重试 ——
+ * 区别只在于「谁来定这个性」：前者等复核，后者已经有人定了。
+ */
+export type OpOutcome = "started" | "succeeded" | "failed" | "unknown" | "abandoned"
 
 export type Op = {
   id: string
@@ -94,7 +101,8 @@ export type BeginResult = {
    * 该幂等键此前已有记录：
    * - `succeeded` / `failed`：不需要再执行，直接沿用结果；
    * - `started`：同键调用仍在进行中，视为并发重复；
-   * - `unknown`：上次执行结果不明，必须复核。
+   * - `unknown`：上次执行结果不明，必须复核；
+   * - `abandoned`：复核确认没有落地，重置为 `started` 后**重新执行**（这里回 `false`）。
    */
   replayed: boolean
 }
@@ -111,7 +119,7 @@ export interface Interface {
   }) => Effect.Effect<BeginResult>
   readonly finish: (input: {
     id: string
-    outcome: Exclude<OpOutcome, "started">
+    outcome: Exclude<OpOutcome, "started" | "abandoned">
     effect?: Record<string, unknown>
   }) => Effect.Effect<Op | undefined>
   /** 启动恢复：把超时仍停留在 `started` 的操作判为 `unknown`，返回条数。 */
@@ -120,6 +128,20 @@ export interface Interface {
   readonly list: (runID: string) => Effect.Effect<Op[]>
   /** 需要复核的操作；主智能体在汇报前必须处理掉这些项。 */
   readonly needsReview: (runID: string) => Effect.Effect<Op[]>
+  /**
+   * 人工复核：给一条「结果不明」的操作定性。
+   *
+   * - `succeeded`：调用确实落地了 —— 同键重放会被跳过，不会重复执行；
+   * - `abandoned`：调用没有落地 —— 同键的下一次调用可以真的执行。
+   *
+   * 只能复核 `started` / `unknown` 的记录：已经有结论的事实不能被改写。
+   * 返回 `undefined` 表示这条记录不属于该运行（或不存在）。
+   */
+  readonly review: (input: {
+    runID: string
+    id: string
+    verdict: "succeeded" | "abandoned"
+  }) => Effect.Effect<Op | undefined>
   /**
    * 登记「这个子会话属于哪次运行/哪个任务」。
    *
@@ -219,7 +241,38 @@ export const layer = Layer.effect(
                 and(eq(TeamRunOpTable.run_id, input.runID), eq(TeamRunOpTable.idempotency_key, input.idempotencyKey)),
               )
               .all()[0]
-            if (existing) return { op: toOp(existing), replayed: true }
+            if (existing) {
+              if (existing.outcome === "abandoned") {
+                // 复核确认上一次没有落地：同一个键可以重新执行。
+                // 重置为 `started` 而不是删记录 —— 这次执行途中再崩溃，恢复仍然会把它
+                // 判成 `unknown`，而不是因为「有过一条记录」就假装知道结果。
+                const startedAt = Date.now()
+                tx.update(TeamRunOpTable)
+                  .set({
+                    outcome: "started",
+                    started_at: startedAt,
+                    finished_at: null,
+                    session_id: input.sessionID ?? null,
+                    effect: input.effect ?? null,
+                    lease_epoch: input.leaseEpoch ?? null,
+                  })
+                  .where(eq(TeamRunOpTable.id, existing.id))
+                  .run()
+                return {
+                  op: {
+                    ...toOp(existing),
+                    outcome: "started",
+                    startedAt,
+                    finishedAt: undefined,
+                    sessionID: input.sessionID,
+                    effect: input.effect,
+                    leaseEpoch: input.leaseEpoch,
+                  },
+                  replayed: false,
+                }
+              }
+              return { op: toOp(existing), replayed: true }
+            }
             const op: Op = {
               id: generateId(),
               runID: input.runID,
@@ -327,7 +380,31 @@ export const layer = Layer.effect(
       return ops.filter((op) => op.outcome === "unknown" || op.outcome === "started")
     })
 
-    return Service.of({ begin, finish, markUnknown, get, list, needsReview, scope, unscope, scopeOf })
+    const review: Interface["review"] = Effect.fn("TeamOpLog.review")(function* (input) {
+      return yield* Effect.sync(() =>
+        Database.transaction(
+          (tx): Op | undefined => {
+            const row = tx
+              .select()
+              .from(TeamRunOpTable)
+              .where(and(eq(TeamRunOpTable.id, input.id), eq(TeamRunOpTable.run_id, input.runID)))
+              .all()[0]
+            if (!row) return undefined
+            // 只有「还没定性」的记录能复核：已经成功/失败的事实不能被这次复核改写。
+            if (row.outcome !== "unknown" && row.outcome !== "started") return toOp(row)
+            const finishedAt = Date.now()
+            tx.update(TeamRunOpTable)
+              .set({ outcome: input.verdict, finished_at: finishedAt })
+              .where(eq(TeamRunOpTable.id, row.id))
+              .run()
+            return { ...toOp(row), outcome: input.verdict, finishedAt }
+          },
+          { behavior: "immediate" },
+        ),
+      )
+    })
+
+    return Service.of({ begin, finish, markUnknown, get, list, needsReview, review, scope, unscope, scopeOf })
   }),
 )
 

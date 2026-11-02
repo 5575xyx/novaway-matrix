@@ -161,7 +161,7 @@ const TRANSITIONS: Record<RunState, readonly RunState[]> = {
   failed: [],
   exceeded: [],
   cancelled: [],
-  needs_review: ["running", "partial", "failed", "cancelled"],
+  needs_review: ["running", "paused", "partial", "failed", "cancelled"],
 }
 
 export class InvalidTransition extends Error {

@@ -9,7 +9,8 @@ import type { Op } from "@/team/op-log"
  * - 没有历史记录 → 正常执行；
  * - 上次成功或失败 → **不重跑**，把「已经执行过」如实告诉模型；
  * - 上次停在 `started`（进程被杀）或已被判为 `unknown` → 拒绝继续，
- *   交给人核对副作用（`needs_review`），因为此时「执行了没有」本身未知。
+ *   交给人核对副作用（`needs_review`），因为此时「执行了没有」本身未知；
+ * - 人工复核确认为 `abandoned`（没有落地）→ 可以执行：这是人的决定，不是自动重试。
  */
 export type Replay =
   | { kind: "execute" }
@@ -18,6 +19,7 @@ export type Replay =
 
 export function decide(tool: string, previous: Op | undefined): Replay {
   if (!previous) return { kind: "execute" }
+  if (previous.outcome === "abandoned") return { kind: "execute" }
   if (previous.outcome === "unknown" || previous.outcome === "started") {
     return {
       kind: "fail",

@@ -377,6 +377,8 @@ export const RunDenialClearResult = Schema.Struct({
  * 会话、开始时刻 —— 参数原文可能带命令与凭据，按既有约束不出接口。
  */
 export const RunUnknownOpView = Schema.Struct({
+  /** 复核接口用的句柄：没有它，界面上这几行只能看、不能处理。 */
+  id: Schema.String,
   tool: Schema.String,
   outcome: Schema.String,
   taskID: Schema.optional(Schema.String),
@@ -447,6 +449,16 @@ export const RunApprovePayload = Schema.Struct({
  */
 export const RunPolicyPayload = Schema.Struct({
   readOnly: Schema.Boolean,
+})
+
+/**
+ * 复核结果不明的工具操作（§8.5）。
+ *
+ * 只有两种结论，因为它们对应两种不同的重试语义：
+ * `succeeded` = 调用落地了（同键永不重跑）；`abandoned` = 没有落地（同键可以执行）。
+ */
+export const RunOpReviewPayload = Schema.Struct({
+  verdict: Schema.Literals(["succeeded", "abandoned"]),
 })
 
 export const RunAcceptancePayload = Schema.Struct({
@@ -675,6 +687,26 @@ export const RunApi = HttpApiGroup.make("run")
         identifier: "run.cancel",
         summary: "Cancel the run",
         description: "Stop dispatching, keep what already happened, then settle the run as cancelled.",
+      }),
+    ),
+    /**
+     * 复核一条结果不明的工具操作（§8.5）。
+     *
+     * `needs_review` 的出路不能只有取消：人核对完副作用之后，要能把这个结论写回去，
+     * 否则「执行了没有」在系统里永远没有答案，运行也永远回不到可续跑的状态。
+     */
+    HttpApiEndpoint.post("reviewRunOp", `${root}/:runID/ops/:opID/review`, {
+      params: { runID: Schema.String, opID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: RunOpReviewPayload,
+      success: described(RunDetail, "Reviewed run"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.op.review",
+        summary: "Resolve an unknown tool operation",
+        description:
+          "Record the human verdict for an operation whose outcome is unknown: 'succeeded' (it happened; the same call is never re-run) or 'abandoned' (it did not happen; a retry may run). Only unknown/started operations can be reviewed.",
       }),
     ),
     HttpApiEndpoint.get("runEvents", `${root}/:runID/events`, {

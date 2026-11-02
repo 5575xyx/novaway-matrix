@@ -377,6 +377,20 @@ export const RunPage: Component<{
     })
 
   /**
+   * 复核一条结果不明的工具操作（§8.5）。
+   *
+   * 人核对完副作用之后的结论只有两种，它们决定的是「同一个调用要不要重跑」：
+   * 执行过 → 同键永远跳过；没有执行 → 允许重试。界面不做猜测，也不提供「跳过复核」。
+   */
+  const reviewOp = (opID: string, verdict: "succeeded" | "abandoned") =>
+    act("review", async () => {
+      const runID = selected()
+      if (!runID) return
+      await sdk.client.run.op.review({ runID, opID, directory: props.directory, verdict })
+      setNotice(t("run.review.recorded"))
+    })
+
+  /**
    * 注册一条命令类验收（§6.2 / §19.1）。
    *
    * 命令只在待人写的这里进入系统：注册之后界面不会再回显它 —— 命令行常带凭据，
@@ -562,6 +576,9 @@ export const RunPage: Component<{
     if (!run) return false
     // 与后端同一条规则：未批准不跑；已经在执行时也不再显示按钮（重复执行会派发两遍）。
     if (TERMINAL.has(run.state) || run.state === "awaiting_approval") return false
+    // 结果不明的工具操作没核对完之前不许续跑（后端同样拒绝）：按钮不出现，
+    // 该做的是在上面那几行里核对副作用，而不是再点一次执行。
+    if ((detail()?.needsReview?.length ?? 0) > 0) return false
     return !(run.state === "running" && run.phase)
   })
 
@@ -1208,6 +1225,25 @@ export const RunPage: Component<{
                             <span class="min-w-0 flex-1 truncate">
                               {t("run.review.startedAt", { time: new Date(numeric(op.startedAt)).toLocaleString() })}
                             </span>
+                            {/* 核对结论要能写回去：否则这个面板只能看、不能处理，运行永远续不上。 */}
+                            <Button
+                              variant="ghost"
+                              size="small"
+                              disabled={busy() !== ""}
+                              title={t("run.review.happenedHint")}
+                              onClick={() => void reviewOp(op.id, "succeeded")}
+                            >
+                              {t("run.review.happened")}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="small"
+                              disabled={busy() !== ""}
+                              title={t("run.review.missedHint")}
+                              onClick={() => void reviewOp(op.id, "abandoned")}
+                            >
+                              {t("run.review.missed")}
+                            </Button>
                           </div>
                         )}
                       </For>

@@ -54,6 +54,8 @@ export type Event =
   | EventInstallationUpdated
   | EventInstallationUpdateAvailable
   | EventInstallationUpdateFailed
+  | EventDocumentReviewRequested
+  | EventDocumentReviewResolved
   | EventBrowserNavigated
   | EventVcsBranchUpdated
   | EventWorkspaceReady
@@ -454,6 +456,23 @@ export type Project = {
     initialized?: number
   }
   sandboxes: Array<string>
+}
+
+export type DocumentReviewId = string
+
+export type DocumentReviewPending = {
+  id: DocumentReviewId
+  sessionID: string
+  messageID?: string
+  path: string
+  kind: "prd" | "plan" | "spec" | "design" | "report" | "other"
+  title: string
+  version?: string
+  summary?: string
+  highlights: Array<string>
+  questions: Array<string>
+  lines?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type Pty = {
@@ -945,6 +964,8 @@ export type GlobalEvent = {
     | EventInstallationUpdated
     | EventInstallationUpdateAvailable
     | EventInstallationUpdateFailed
+    | EventDocumentReviewRequested
+    | EventDocumentReviewResolved
     | EventBrowserNavigated
     | EventVcsBranchUpdated
     | EventWorkspaceReady
@@ -1525,6 +1546,7 @@ export type Config = {
     disable_paste_summary?: boolean
     background_subagents?: boolean
     auto_delegate?: boolean
+    verification_agent?: boolean
     team_orchestration?: boolean
     team_concurrency?: number
     team_call_timeout_ms?: number
@@ -3059,6 +3081,26 @@ export type PlanApprovalPending1 = {
   createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
+export type DocumentReviewPending1 = {
+  id: string
+  sessionID: string
+  messageID?: string
+  path: string
+  kind: string
+  title: string
+  version?: string
+  summary?: string
+  highlights: Array<string>
+  questions: Array<string>
+  lines?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type DocumentReviewReplyPayload = {
+  decision: "approved" | "revise"
+  feedback?: string
+}
+
 export type SessionTempFileCleanResult = {
   removed: Array<string>
   skipped: Array<{
@@ -3843,6 +3885,7 @@ export type RunDenialView = {
 }
 
 export type RunUnknownOpView = {
+  id: string
   tool: string
   outcome: string
   taskID?: string
@@ -4035,6 +4078,21 @@ export type ElicitationRequest1 = {
   }
   at: number | "NaN" | "Infinity" | "-Infinity"
   completed?: boolean
+}
+
+export type DocumentReviewPending2 = {
+  id: DocumentReviewId
+  sessionID: string
+  messageID?: string
+  path: string
+  kind: "prd" | "plan" | "spec" | "design" | "report" | "other"
+  title: string
+  version?: string
+  summary?: string
+  highlights: Array<string>
+  questions: Array<string>
+  lines?: number | "NaN" | "Infinity" | "-Infinity"
+  createdAt: number | "NaN" | "Infinity" | "-Infinity"
 }
 
 export type SyncEventMessageUpdated = {
@@ -4949,6 +5007,23 @@ export type EventInstallationUpdateFailed = {
   properties: {
     version: string
     reason: string
+  }
+}
+
+export type EventDocumentReviewRequested = {
+  id: string
+  type: "document_review.requested"
+  properties: DocumentReviewPending
+}
+
+export type EventDocumentReviewResolved = {
+  id: string
+  type: "document_review.resolved"
+  properties: {
+    id: DocumentReviewId
+    sessionID: string
+    decision: "approved" | "revise" | "pending" | "cancelled"
+    feedback?: string
   }
 }
 
@@ -14365,6 +14440,77 @@ export type SessionPlanApprovalReplyResponses = {
 export type SessionPlanApprovalReplyResponse =
   SessionPlanApprovalReplyResponses[keyof SessionPlanApprovalReplyResponses]
 
+export type SessionDocumentReviewListData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/document-review"
+}
+
+export type SessionDocumentReviewListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionDocumentReviewListError = SessionDocumentReviewListErrors[keyof SessionDocumentReviewListErrors]
+
+export type SessionDocumentReviewListResponses = {
+  /**
+   * Documents waiting for review
+   */
+  200: Array<DocumentReviewPending1>
+}
+
+export type SessionDocumentReviewListResponse =
+  SessionDocumentReviewListResponses[keyof SessionDocumentReviewListResponses]
+
+export type SessionDocumentReviewReplyData = {
+  body?: DocumentReviewReplyPayload
+  path: {
+    sessionID: string
+    requestID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/document-review/{requestID}"
+}
+
+export type SessionDocumentReviewReplyErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionDocumentReviewReplyError = SessionDocumentReviewReplyErrors[keyof SessionDocumentReviewReplyErrors]
+
+export type SessionDocumentReviewReplyResponses = {
+  /**
+   * Reply accepted
+   */
+  200: boolean
+}
+
+export type SessionDocumentReviewReplyResponse =
+  SessionDocumentReviewReplyResponses[keyof SessionDocumentReviewReplyResponses]
+
 export type SessionTempFilesCleanData = {
   body?: {
     paths?: Array<string>
@@ -18509,6 +18655,43 @@ export type RunCancelResponses = {
 }
 
 export type RunCancelResponse = RunCancelResponses[keyof RunCancelResponses]
+
+export type RunOpReviewData = {
+  body?: {
+    verdict: "succeeded" | "abandoned"
+  }
+  path: {
+    runID: string
+    opID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/ops/{opID}/review"
+}
+
+export type RunOpReviewErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunOpReviewError = RunOpReviewErrors[keyof RunOpReviewErrors]
+
+export type RunOpReviewResponses = {
+  /**
+   * Reviewed run
+   */
+  200: RunDetail
+}
+
+export type RunOpReviewResponse = RunOpReviewResponses[keyof RunOpReviewResponses]
 
 export type RunEventsData = {
   body?: never

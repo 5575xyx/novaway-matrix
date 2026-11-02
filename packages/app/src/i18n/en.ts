@@ -69,7 +69,8 @@ export const dict = {
   "run.metrics.coverage": "covered {{covered}}/{{runs}}",
   "run.metrics.overrun": "{{n}} overruns",
   "run.metrics.cost": "cost {{n}} ({{runs}} reported)",
-  "run.metrics.costHint": "Cost counts only runs with authoritative provider reports; runs without one are neither estimated nor counted as zero.",
+  "run.metrics.costHint":
+    "Cost counts only runs with authoritative provider reports; runs without one are neither estimated nor counted as zero.",
   "run.metrics.round": "round {{round}} × {{runs}}",
   "run.metrics.rework": "{{n}} rejections",
   "run.metrics.failureRate": "Dispatch failures {{failed}}/{{dispatched}} ({{percent}}%)",
@@ -77,9 +78,11 @@ export const dict = {
   "run.metrics.blocked": "{{n}} blocked runs ({{percent}}%)",
   "run.metrics.blockedUnknown": "Blocked rate: no event records",
   "run.metrics.unavailable": "Not computable: {{metric}} — {{reason}}",
-  "run.metrics.verification": "Verification spend {{percent}}% ({{dispatch}} dispatch / {{verification}} verification tokens)",
+  "run.metrics.verification":
+    "Verification spend {{percent}}% ({{dispatch}} dispatch / {{verification}} verification tokens)",
   "run.metrics.verificationUnknown": "Verification share: no settled entries that record the purpose yet",
-  "run.metrics.verificationPartial": "({{n}} historic runs have ledger rows without a purpose; the share only covers new records)",
+  "run.metrics.verificationPartial":
+    "({{n}} historic runs have ledger rows without a purpose; the share only covers new records)",
   "run.replay.toggle": "Decision chain",
   "run.replay.hint":
     "Replay only restores the events and evidence of that moment; it does not claim a re-run would end the same way.",
@@ -103,12 +106,13 @@ export const dict = {
   "run.state.needs_review": "Needs review",
   "run.action.execute": "Execute",
   "run.action.resume": "Resume",
-  "run.action.resumeHint": "The last execution was interrupted by a restart; resuming dispatches the queued teams again and leaves delivered ones as they are.",
+  "run.action.resumeHint":
+    "The last execution was interrupted by a restart; resuming dispatches the queued teams again and leaves delivered ones as they are.",
   "run.action.retry": "Retry",
   "run.action.retryHint":
     "This run is blocked on a dependency that will never arrive. Retrying re-dispatches the teams that failed; delivered teams are not re-run.",
   "run.reason": "Why it stopped: {{reason}}",
-"run.team.scope": "Write scope: {{paths}}",
+  "run.team.scope": "Write scope: {{paths}}",
   "run.action.cancel": "Cancel run",
   "run.action.openSession": "Open session",
   "run.action.openSessionHint":
@@ -132,14 +136,23 @@ export const dict = {
   "run.events.hint":
     "Read-only log used to replay why the run reached its conclusion. Only kinds and times are shown; payloads stay local.",
   "run.review.title": "{{count}} tool call(s) with unknown outcome",
-  "run.review.hint": "A restart cut these calls off: they may or may not have run. The run will not resume by itself until the side effects (files, processes, commits) are checked.",
+  "run.review.hint":
+    "A restart cut these calls off: they may or may not have run. The run will not resume by itself until the side effects (files, processes, commits) are checked.",
   "run.review.startedAt": "started {{time}}",
+  "run.review.happened": "Checked: it ran",
+  "run.review.missed": "Checked: it did not run",
+  "run.review.happenedHint":
+    "The call did happen (files/processes/commits show it). The same call will never be re-run.",
+  "run.review.missedHint":
+    "The call did not happen. The same call may run again — this is your verdict after checking, not an automatic retry.",
+  "run.review.recorded": "Review recorded",
   "run.tasks.title": "Task board ({{count}})",
   "run.tasks.hint": "Progress only: a board entry is a coordination note, not proof that a session is running it.",
   "run.tasks.owner": "owner: {{owner}}",
   "run.blocked.title": "Blocked ({{count}})",
   "run.denials.title": "{{count}} action(s) denied in this run",
-  "run.denials.hint": "A denial lasts for the rest of this run: the same action is never asked twice. Swapping in another person does not help either.",
+  "run.denials.hint":
+    "A denial lasts for the rest of this run: the same action is never asked twice. Swapping in another person does not help either.",
   "run.denials.clear": "Allow and ask again",
   "run.denials.cleared": "Cleared {{count}} denial(s)",
   "run.blocked.swappable": "another member may get past this",
@@ -218,7 +231,8 @@ export const dict = {
   "run.metric.stale": "Stale evidence",
   "run.acceptance.empty": "No acceptance lines registered yet.",
   "run.acceptance.command": "Add a command check",
-  "run.acceptance.commandHint": "The exit code is the verdict: 0 passes, non-zero fails, a timeout stays unverified. You write the command; it is never echoed back because it often carries credentials.",
+  "run.acceptance.commandHint":
+    "The exit code is the verdict: 0 passes, non-zero fails, a timeout stays unverified. You write the command; it is never echoed back because it often carries credentials.",
   "run.acceptance.commandText": "What this line has to prove (e.g. unit tests pass)",
   "run.acceptance.commandRun": "Command to run (e.g. bun test)",
   "run.acceptance.commandTimeout": "Timeout (seconds, 0 = default 120)",
@@ -767,6 +781,27 @@ export const dict = {
   "statusPanel.background.kind.subscribe": "subscribe",
   "statusPanel.background.kind.shell": "shell",
   "statusPanel.background.kind.orchestrator": "plan",
+  "session.review.title": "Waiting for review",
+  "session.review.kind.prd": "PRD",
+  "session.review.kind.plan": "Plan",
+  "session.review.kind.spec": "Spec",
+  "session.review.kind.design": "Design",
+  "session.review.kind.report": "Report",
+  "session.review.kind.other": "Document",
+  "session.review.lines": "{{count}} lines",
+  "session.review.questions": "Open questions",
+  "session.review.open": "Review document",
+  "session.review.approve": "Approve",
+  "session.review.revise": "Request changes",
+  "session.review.reviseHint":
+    "Describe what to change. Submitting sends the feedback to the agent, which revises the document and submits it again.",
+  "session.review.revisePlaceholder": "e.g. use phone + OTP for login; drop the community module from the MVP…",
+  "session.review.approved": "Approved — continuing",
+  "session.review.revising": "Feedback sent — revising",
+  "session.review.pending": "Waiting for review",
+  "session.review.cancelled": "Review cancelled",
+  "session.review.stale": "This review request is no longer pending",
+  "session.review.approveFailed": "Could not send the review decision",
   "statusPanel.planApproval.title": "Plan awaiting approval",
   "statusPanel.planApproval.approve": "Approve",
   "statusPanel.planApproval.reject": "Reject",
@@ -794,6 +829,8 @@ export const dict = {
   "statusPanel.agents.tasksIdleHint":
     "These tasks only exist on the board — no AI employee is executing them. For parallel work, have the lead launch subagents with the task tool.",
   "statusPanel.background.running": "Running",
+  "statusPanel.ticker.background": "{{count}} background task(s) running",
+  "statusPanel.ticker.todo": "Working on: {{title}}",
   "statusPanel.background.completed": "Done",
   "statusPanel.background.failed": "Failed",
   "statusPanel.background.cancelled": "Stopped",
@@ -1205,7 +1242,7 @@ export const dict = {
   "prompt.computer.hint": "Insert a ready-to-run computer control request",
   "prompt.computer.screenshot": "Look at the screen",
   "prompt.computer.screenshot.prompt":
-    "Take a screenshot of the current screen and describe what you see before doing anything else.",
+    "Capture the target window (it can stay in the background), describe what you see, then continue.",
   "prompt.computer.click": "Click somewhere",
   "prompt.computer.click.prompt": "Take a screenshot first, then click the element I describe below:",
   "prompt.computer.type": "Type text",
@@ -1540,6 +1577,7 @@ export const dict = {
   "session.evidence.previous": "Previous screenshot",
   "session.evidence.next": "Next screenshot",
   "session.previewCard.offline": "Service stopped",
+  "session.previewCard.online": "Service running",
   "session.error.aborted.title": "Request stopped",
   "session.error.aborted.hint": "The response was interrupted. Send the message again to continue.",
   "session.error.rateLimit.title": "Model service is rate limited",
@@ -1633,6 +1671,13 @@ export const dict = {
   "session.selection.askSideChat": "Ask in side conversation",
   "session.composer.steerHint": "Task is running · sending will steer it",
   "session.composer.queueHint": "Task is running · sending will queue for the next turn",
+  "session.composer.liveFollow.label": "Live follow",
+  "session.composer.liveFollow.active": "Following",
+  "session.composer.liveFollow.taken": "Taken over",
+  "session.composer.liveFollow.enableHint":
+    "Turn on live follow: reveal file edits in the side pane as the agent writes them",
+  "session.composer.liveFollow.disableHint":
+    "Turn off live follow: the side pane will no longer open automatically",
   "session.followupDock.summary.one": "{{count}} queued message",
   "session.followupDock.summary.other": "{{count}} queued messages",
   "session.followupDock.sendNow": "Send now",
@@ -2250,6 +2295,9 @@ export const dict = {
   "settings.general.row.showSessionProgressBar.title": "Show session progress bar",
   "settings.general.row.showSessionProgressBar.description":
     "Display the animated progress bar at the top of the session when the agent is working",
+  "settings.general.row.liveFileFollow.title": "Follow file writes live",
+  "settings.general.row.liveFileFollow.description":
+    "Open the file being written in the side pane as the agent writes it, reveal the content as it types, and collapse when done",
 
   "settings.general.row.wayland.title": "Use native Wayland",
   "settings.general.row.wayland.description": "Disable X11 fallback on Wayland. Requires restart.",
@@ -2448,7 +2496,8 @@ export const dict = {
   "settings.agents.field.avatar": "Avatar",
   "settings.agents.field.avatar.auto": "Auto (from name)",
   "settings.agents.field.avatar.pick": "Use this avatar",
-  "settings.agents.field.avatar.hint": "Avatars are generated offline and saved with the AI employee, so the same face shows in lists, teams, and conversations.",
+  "settings.agents.field.avatar.hint":
+    "Avatars are generated offline and saved with the AI employee, so the same face shows in lists, teams, and conversations.",
   "settings.agents.detail.prompt.empty":
     "This built-in agent does not define a separate prompt. It is driven by its mode, description, and built-in permission rules.",
   "settings.agents.detail.prompt.inherited":
