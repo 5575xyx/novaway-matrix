@@ -33,8 +33,10 @@ export function RunLive(props: {
     <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-background px-3 py-2">
       <div class="flex flex-wrap items-center gap-1.5 text-ui-xs">
         <Icon name="lu-activity" size="small" class="text-foreground-subtle" />
-        <span class="text-foreground">{t(`run.state.${props.state}`)}</span>
-        <Show when={props.phase}>{(phase) => <Tag>{t(`run.phase.${phase()}`)}</Tag>}</Show>
+        {/* 顶部卡片已经有一颗状态标签：这里只说「走到哪一步」，不重复同一句话。 */}
+        <span class="text-foreground">
+          {props.phase ? t(`run.phase.${props.phase}`) : t(`run.state.${props.state}`)}
+        </span>
         <Tag>{t("run.live.round", { round: String(Math.round(Number(props.round))) })}</Tag>
         <span class="ml-auto text-foreground-subtlest">{t("run.live.updated", { time: time() })}</span>
       </div>
