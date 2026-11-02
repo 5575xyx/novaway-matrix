@@ -883,18 +883,37 @@ export const layer = Layer.effect(
             // `integrate()` 给的是团队名（profileID ?? id），这里换回团队行。
             const conflicted = teams.find((team) => (team.profileID ?? team.id) === outcome.team)
             if (conflicted) {
-              feedback.set(conflicted.id, [
+              const notes = [
                 "合并冲突：" +
                   (outcome.files.length > 0 ? outcome.files.join("、") : "（未列出文件）") +
                   "。请与上游团队协调后重新交付，不要覆盖别人的改动。",
-              ])
+              ]
+              feedback.set(conflicted.id, notes)
               yield* runs.updateTeam({ id: conflicted.id, phase: "rework" })
+              // 打回也要进事件：只有 team.conflict 的话，事后回放看不出「谁被退回了、
+              // 拿到了什么意见」，而这正是下一轮重做的依据。
+              yield* runs.appendEvent({
+                runID: input.runID,
+                kind: "team.rework",
+                payload: {
+                  teamID: conflicted.id,
+                  round: rounds,
+                  reason: "integration-conflict",
+                  notes,
+                  files: outcome.files,
+                  attempts: attempts.business,
+                },
+              })
             }
             yield* runs.appendEvent({
               runID: input.runID,
               kind: "team.conflict",
               payload: { team: outcome.team, files: outcome.files, round: rounds },
             })
+            // 打回写的是库里的阶段，本地 `teams` 还是打回前的样子。不刷新的话，
+            // 下一轮开头「rework → queued」的扫描会漏掉它，那一轮就空转过去 ——
+            // 轮次照常消耗，冲突团队却一次都没被重新派发。
+            teams = yield* runs.teams(input.runID)
             continue
           }
           break
@@ -1043,6 +1062,22 @@ export const layer = Layer.effect(
         // 收尾阶段也可能很长（重验、返工、再集成）：取消在这里同样要生效，
         // 否则用户点停止之后还要等它把这一整段跑完。
         if (cancelled()) return yield* finishCancelled(yield* runs.teams(input.runID))
+        /**
+         * 超限之后不再返工。
+         *
+         * 合并后的返工本质上也是一次派发：预算/墙钟已经用完却在这里又派一轮，
+         * 等于把硬上限变成建议。已经在主循环因超限停下的（`exceeded`）直接进入结算；
+         * 收尾阶段的验证也可能把成本推过上限，同样在这里刹住。
+         */
+        if (!exceeded) {
+          const spent = yield* limitHit()
+          if (spent) {
+            yield* stopForLimit(yield* runs.teams(input.runID), spent)
+            exceeded = true
+            break
+          }
+        }
+        if (exceeded) break
         const snapshot = mergeSnapshot
         teams = yield* runs.teams(input.runID)
         const teamByID = new Map(teams.map((team) => [team.id, team]))
@@ -1059,7 +1094,10 @@ export const layer = Layer.effect(
           entry.failed.push({ text: line.acceptance.text, outcome: line.outcome })
           responsible.set(line.acceptance.owner, entry)
         }
-        if (mergeReworked || responsible.size === 0 || attempts.business >= maxBusiness) break
+        // 已经超限的团队不返工：它们连一次派发都没拿到额度，再派一轮只会
+        // 反复撞同一个上限，把「预算不足」写成一串没有意义的失败记录。
+        const starved = teams.some((team) => team.phase === "exceeded")
+        if (mergeReworked || starved || responsible.size === 0 || attempts.business >= maxBusiness) break
 
         // 只重试一次：责任团队退回、重跑、提交、重新集成，然后在新快照上再验一遍。
         mergeReworked = true
