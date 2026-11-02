@@ -442,6 +442,8 @@ export const dict = {
   "team.members": "成员",
   "team.membersHint": "选择 AI 员工，每人都对应一个独立会话。",
   "team.control.title": "团队编排",
+  "team.control.more": "并发、默认模式与默认团队",
+  "team.control.less": "收起运行设置",
   "team.control.concurrency": "并发上限",
   "team.control.defaultMode": "默认模式",
   "team.control.default.off": "不启用",

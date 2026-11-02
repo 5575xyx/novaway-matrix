@@ -473,6 +473,8 @@ export const dict = {
   "team.members": "Members",
   "team.membersHint": "Pick AI employees. Each becomes its own session.",
   "team.control.title": "Team orchestration",
+  "team.control.more": "Concurrency, default mode and teams",
+  "team.control.less": "Hide run settings",
   "team.control.concurrency": "Concurrency",
   "team.control.defaultMode": "Default mode",
   "team.control.default.off": "Off",

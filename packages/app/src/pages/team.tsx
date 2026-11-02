@@ -150,6 +150,8 @@ export const TeamPage: Component<{
   const [teamDefaultMode, setTeamDefaultMode] = createSignal<"off" | "auto" | "selected">("off")
   const [teamDefaultIDs, setTeamDefaultIDs] = createSignal<string[]>([])
   const [controlBusy, setControlBusy] = createSignal(false)
+  // 运行设置默认收起：总控开关在，并发与默认模式收进「设置」，不占左栏。
+  const [showControl, setShowControl] = createSignal(false)
   let feed: HTMLDivElement | undefined
 
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
@@ -502,59 +504,69 @@ export const TeamPage: Component<{
                 onChange={(value) => void updateControl({ team_orchestration: value })}
               />
             </div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-ui-xs text-foreground-subtle">{t("team.control.concurrency")}</span>
-              <select
-                class="h-7 rounded-[6px] border border-border bg-surface px-1 text-ui-xs text-foreground outline-none disabled:opacity-50"
-                value={String(teamConcurrency())}
-                disabled={controlBusy()}
-                onChange={(event) => void updateControl({ team_concurrency: Number(event.currentTarget.value) })}
-              >
-                <For each={[1, 2, 3, 4, 5]}>{(count) => <option value={String(count)}>{count}</option>}</For>
-              </select>
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-ui-xs text-foreground-subtle">{t("team.control.defaultMode")}</span>
-              <select
-                class="h-7 rounded-[6px] border border-border bg-surface px-1 text-ui-xs text-foreground outline-none disabled:opacity-50"
-                value={teamDefaultMode()}
-                disabled={controlBusy() || !orchestrationOn()}
-                onChange={(event) =>
-                  void updateControl({ team_default_mode: event.currentTarget.value as "off" | "auto" | "selected" })
-                }
-              >
-                <option value="off">{t("team.control.default.off")}</option>
-                <option value="auto">{t("team.control.default.auto")}</option>
-                <option value="selected">{t("team.control.default.selected")}</option>
-              </select>
-            </div>
-            <Show when={orchestrationOn() && teamDefaultMode() === "selected"}>
-              <div class="flex flex-col gap-1">
-                <Show
-                  when={teams().length > 0}
-                  fallback={<div class="text-ui-xs text-foreground-subtlest">{t("team.control.default.empty")}</div>}
+            <button
+              type="button"
+              class="flex items-center gap-1 text-left text-ui-xs text-foreground-subtle transition-colors hover:text-foreground"
+              onClick={() => setShowControl((open) => !open)}
+            >
+              <Icon name={showControl() ? "chevron-down" : "chevron-right"} size="small" />
+              {showControl() ? t("team.control.less") : t("team.control.more")}
+            </button>
+            <Show when={showControl()}>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-ui-xs text-foreground-subtle">{t("team.control.concurrency")}</span>
+                <select
+                  class="h-7 rounded-[6px] border border-border bg-surface px-1 text-ui-xs text-foreground outline-none disabled:opacity-50"
+                  value={String(teamConcurrency())}
+                  disabled={controlBusy()}
+                  onChange={(event) => void updateControl({ team_concurrency: Number(event.currentTarget.value) })}
                 >
-                  <For each={teams()}>
-                    {(team) => (
-                      <button
-                        type="button"
-                        class="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 text-left text-ui-xs transition-colors hover:bg-hover"
-                        onClick={() => toggleDefaultTeam(team.id)}
-                      >
-                        <span class="min-w-0 truncate text-foreground-subtle">{team.name}</span>
-                        <Icon
-                          name={teamDefaultIDs().includes(team.id) ? "circle-check" : "lu-circle"}
-                          classList={{
-                            "shrink-0 text-12": true,
-                            "text-primary": teamDefaultIDs().includes(team.id),
-                            "text-foreground-subtlest": !teamDefaultIDs().includes(team.id),
-                          }}
-                        />
-                      </button>
-                    )}
-                  </For>
-                </Show>
+                  <For each={[1, 2, 3, 4, 5]}>{(count) => <option value={String(count)}>{count}</option>}</For>
+                </select>
               </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-ui-xs text-foreground-subtle">{t("team.control.defaultMode")}</span>
+                <select
+                  class="h-7 rounded-[6px] border border-border bg-surface px-1 text-ui-xs text-foreground outline-none disabled:opacity-50"
+                  value={teamDefaultMode()}
+                  disabled={controlBusy() || !orchestrationOn()}
+                  onChange={(event) =>
+                    void updateControl({ team_default_mode: event.currentTarget.value as "off" | "auto" | "selected" })
+                  }
+                >
+                  <option value="off">{t("team.control.default.off")}</option>
+                  <option value="auto">{t("team.control.default.auto")}</option>
+                  <option value="selected">{t("team.control.default.selected")}</option>
+                </select>
+              </div>
+              <Show when={orchestrationOn() && teamDefaultMode() === "selected"}>
+                <div class="flex flex-col gap-1">
+                  <Show
+                    when={teams().length > 0}
+                    fallback={<div class="text-ui-xs text-foreground-subtlest">{t("team.control.default.empty")}</div>}
+                  >
+                    <For each={teams()}>
+                      {(team) => (
+                        <button
+                          type="button"
+                          class="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 text-left text-ui-xs transition-colors hover:bg-hover"
+                          onClick={() => toggleDefaultTeam(team.id)}
+                        >
+                          <span class="min-w-0 truncate text-foreground-subtle">{team.name}</span>
+                          <Icon
+                            name={teamDefaultIDs().includes(team.id) ? "circle-check" : "lu-circle"}
+                            classList={{
+                              "shrink-0 text-12": true,
+                              "text-primary": teamDefaultIDs().includes(team.id),
+                              "text-foreground-subtlest": !teamDefaultIDs().includes(team.id),
+                            }}
+                          />
+                        </button>
+                      )}
+                    </For>
+                  </Show>
+                </div>
+              </Show>
             </Show>
             <div class="text-ui-xs leading-relaxed text-foreground-subtlest">
               {orchestrationOn() ? t("team.control.on") : t("team.control.off")}
@@ -1102,7 +1114,9 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                         value={draft().job}
                         onChange={(event) => setDraft({ ...draft(), job: event.currentTarget.value })}
                       >
-                        <For each={props.agents}>{(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}</For>
+                        <For each={props.agents}>
+                          {(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}
+                        </For>
                       </select>
                       <select
                         class="h-9 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
@@ -1162,7 +1176,9 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
               value={job()}
               onChange={(event) => setJob(event.currentTarget.value)}
             >
-              <For each={props.agents}>{(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}</For>
+              <For each={props.agents}>
+                {(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}
+              </For>
             </select>
           </div>
           <input
@@ -1627,7 +1643,9 @@ function DialogCreateTeam(props: {
             value={lead()}
             onChange={(event) => setLead(event.currentTarget.value)}
           >
-            <For each={props.agents}>{(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}</For>
+            <For each={props.agents}>
+              {(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}
+            </For>
           </select>
         </div>
         <div class="flex flex-col gap-2">
@@ -1664,7 +1682,8 @@ function DialogCreateTeam(props: {
                 )}
               </For>
             </div>
-          </Show>          <div class="grid max-h-56 grid-cols-2 gap-1 overflow-y-auto">
+          </Show>{" "}
+          <div class="grid max-h-56 grid-cols-2 gap-1 overflow-y-auto">
             <For each={candidates()}>
               {(agent) => (
                 <button
@@ -1684,13 +1703,9 @@ function DialogCreateTeam(props: {
                     class="size-7 shrink-0 rounded-lg object-cover"
                   />
                   <span class="flex min-w-0 flex-1 flex-col">
-                    <span class="truncate text-ui-base text-foreground">
-                      {agentLabel(agent.name, props.agents)}
-                    </span>
+                    <span class="truncate text-ui-base text-foreground">{agentLabel(agent.name, props.agents)}</span>
                     <Show when={agentCategory(agent)}>
-                      {(category) => (
-                        <span class="truncate text-ui-xs text-foreground-subtlest">{category()}</span>
-                      )}
+                      {(category) => <span class="truncate text-ui-xs text-foreground-subtlest">{category()}</span>}
                     </Show>
                   </span>
                   <Show when={picked().includes(agent.name)}>
