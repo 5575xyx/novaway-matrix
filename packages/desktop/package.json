@@ -1,7 +1,7 @@
 {
   "name": "@novaway/desktop",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.2.5",
   "type": "module",
   "license": "MIT",
   "homepage": "https://novaway.ai",
