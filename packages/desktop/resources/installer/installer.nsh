@@ -110,11 +110,36 @@
 # 这里刻意不 `!insertmacro StartApp`:那个宏第一行是 `Var /GLOBAL startAppArgs`,而
 # installSection.nsh 结尾的 doStartApp 会再插一次同一个宏,重复声明 Var 会让 makensis
 # 直接报 "variable startAppArgs already declared"。所以直接调 StdUtils 起进程。
+#
+# 再补一个坑:更新路径下,installSection 在卸载旧版本**之前**就判断 keepShortcuts,
+# 那时旧 exe 还在,所以 keepShortcuts 恒为 "true";而 addDesktopLink/addStartMenuLink
+# 在 keepShortcuts=="true" 且新旧快捷方式路径没变时什么都不做 —— 也就是说更新从不
+# 重建 .lnk。旧 .lnk 指向的 exe 在「文件原子替换」阶段被整目录搬走又搬回,图标缓存
+# 一旦失效,Explorer 解析 .lnk 时如果目标暂时解析不到,就弹「快捷方式所指的项目
+# NovaWay.exe 已经更改或移动……是否删除该快捷方式?」,用户点「是」桌面图标就没了。
+# 所以更新装完在这里把桌面/开始菜单快捷方式强制重建一次,彻底规避。
 !macro customInstall
   ${if} ${isUpdated}
+    # 只在快捷方式还存在时重建:用户自己删掉图标的话不擅自复活
+    ${if} ${FileExists} "$newDesktopLink"
+      ${ifNot} ${isNoDesktopShortcut}
+        Delete "$newDesktopLink"
+        CreateShortCut "$newDesktopLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+        ClearErrors
+        WinShell::SetLnkAUMI "$newDesktopLink" "${APP_ID}"
+      ${endIf}
+    ${endIf}
+    # 开始菜单快捷方式同理,一并重建
+    ${if} ${FileExists} "$newStartMenuLink"
+      Delete "$newStartMenuLink"
+      CreateShortCut "$newStartMenuLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+      ClearErrors
+      WinShell::SetLnkAUMI "$newStartMenuLink" "${APP_ID}"
+    ${endIf}
+    System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
     HideWindow
     ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--updated"
-  ${endif}
+  ${endIf}
 !macroend
 
 # 用自定义完成页替换默认完成页(默认那份在有/无 runAfterFinish 时行为不同,这里统一接管):
