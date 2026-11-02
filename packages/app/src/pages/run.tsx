@@ -93,6 +93,14 @@ export const RunPage: Component<{
   const [missionDiff, setMissionDiff] = createSignal<MissionDiffView | undefined>(undefined)
   // 展开中的验收项：点一下看证据，再点一下收起。
   const [openLine, setOpenLine] = createSignal<string | undefined>(undefined)
+  // 通过项默认收起：第一屏只放「需要你看的」，全部通过也不占地方。
+  const [showPassed, setShowPassed] = createSignal(false)
+  // 次要信息（目标、用量、团队、任务、事件、回放）收进一个折叠区。
+  const [showDetails, setShowDetails] = createSignal(false)
+  // 新建表单里「范围 / 约束 / 持久目标」是可选的高级项，默认收起。
+  const [showNewAdvanced, setShowNewAdvanced] = createSignal(false)
+  // 左栏只留主操作；授权、清理、取消这些低频动作收进「更多」。
+  const [showMore, setShowMore] = createSignal(false)
   // 命令类验收（§19.1）：命令由人写进去，注册后界面不再回显它。
   const [commandOpen, setCommandOpen] = createSignal(false)
   const [commandText, setCommandText] = createSignal("")
@@ -580,11 +588,40 @@ export const RunPage: Component<{
     onCleanup(() => clearInterval(metricsTimer))
   })
 
+  /**
+   * 运行列表里的状态点。
+   *
+   * 只用一个颜色点，不再加一排标签：列表要能一眼扫过，颜色回答「要不要点开它」。
+   * 警示色留给「需要你处理」和「还没跑完」；终态失败是灰的 —— 它不需要你做什么。
+   */
+  const runDot = (run: { state: string; phase?: string }) => ({
+    "bg-success": run.state === "done",
+    "bg-warning": run.state === "partial" || run.state === "needs_review" || run.state === "awaiting_approval",
+    "bg-primary": run.state === "running" || run.state === "blocked" || run.state === "paused",
+    "bg-border":
+      run.state === "failed" || run.state === "cancelled" || run.state === "exceeded" || run.state === "planning",
+  })
   const stateLabel = (state: string) => t(`run.state.${state}`)
   // 同一个目标可以有多次运行：列表里标出目标编号，才知道几次运行在往下做同一件事。
   const missionLabel = (missionID: string | null | undefined) =>
     missionID ? missions().find((mission) => mission.id === missionID)?.label : undefined
   const summary = createMemo(() => detail()?.summary)
+  /**
+   * 验收台账的显示顺序：先看没过的，再看没验的，最后是通过的。
+   *
+   * 台账原来按注册顺序排，用户要滚过一大片绿色才找到真正要看的那一条。
+   * 顺序不影响证据本身，只影响「第一眼看到什么」—— 这正是看板该承担的事。
+   */
+  const RANK: Record<string, number> = { fail: 0, stale: 1, unverified: 2, pass: 3 }
+  const rankedLines = createMemo(() =>
+    [...(detail()?.summary.lines ?? [])].sort((a, b) => (RANK[a.outcome] ?? 9) - (RANK[b.outcome] ?? 9)),
+  )
+  const visibleLines = createMemo(() =>
+    showPassed() ? rankedLines() : rankedLines().filter((line) => line.outcome !== "pass"),
+  )
+  const hiddenPassCount = createMemo(() =>
+    showPassed() ? 0 : rankedLines().filter((line) => line.outcome === "pass").length,
+  )
   /** 某条验收项的验证记录；按落库顺序显示，最新一次在最后。 */
   const evidenceFor = (acceptanceID: string) =>
     (detail()?.verifications ?? []).filter((record) => record.acceptanceID === acceptanceID)
@@ -647,6 +684,19 @@ export const RunPage: Component<{
   const liveTeams = createMemo<LiveTeam[]>(() =>
     (detail()?.teams ?? []).map((team) => ({ id: team.id, name: teamName(team), phase: team.phase })),
   )
+  /**
+   * 左栏「更多」里有没有东西。
+   *
+   * 没有可选动作时连入口都不出现 —— 一个点开是空的菜单比没有菜单更糟。
+   */
+  const hasMoreActions = createMemo(() => {
+    const run = detail()?.run
+    if (!run) return false
+    if (canChangePolicy()) return true
+    if (run.state === "blocked" || run.state === "needs_review") return true
+    if (TERMINAL.has(run.state) && hasWorktrees()) return true
+    return !TERMINAL.has(run.state) && !(run.state === "running" && !run.phase)
+  })
   /** 只有「等批准」才需要计划预览：批准之后看的是执行进度，不是同一份计划。 */
   const showPlanReview = createMemo(() => detail()?.run.state === "awaiting_approval")
   /**
@@ -857,6 +907,7 @@ export const RunPage: Component<{
           <Show when={detail()}>
             {(data) => (
               <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
+                {/* 主操作只有这一个；其余都是「要不要做」的选择，收进「更多」。 */}
                 <Show when={nextStep()?.action}>
                   {(action) => (
                     <Button
@@ -870,65 +921,79 @@ export const RunPage: Component<{
                     </Button>
                   )}
                 </Show>
-                {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
-                <Show when={canChangePolicy()}>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    class="w-full justify-start"
-                    title={t("run.policy.hint")}
-                    disabled={busy() !== ""}
-                    onClick={() => void setPolicy(!data().run.readOnly)}
+                <Show when={hasMoreActions()}>
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                    onClick={() => setShowMore((open) => !open)}
                   >
-                    {data().run.readOnly ? t("run.policy.allowWrites") : t("run.policy.makeReadOnly")}
-                  </Button>
+                    <Icon name={showMore() ? "chevron-down" : "chevron-right"} size="small" />
+                    {t("run.action.more")}
+                  </button>
                 </Show>
-                <Show when={data().run.state === "blocked" || data().run.state === "needs_review"}>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    class="w-full justify-start"
-                    title={t("run.action.openSessionHint")}
-                    disabled={!props.onOpenSession}
-                    onClick={() => props.onOpenSession?.(data().run.sessionID)}
+                <Show when={showMore()}>
+                  {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
+                  <Show when={canChangePolicy()}>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="w-full justify-start"
+                      title={t("run.policy.hint")}
+                      disabled={busy() !== ""}
+                      onClick={() => void setPolicy(!data().run.readOnly)}
+                    >
+                      {data().run.readOnly ? t("run.policy.allowWrites") : t("run.policy.makeReadOnly")}
+                    </Button>
+                  </Show>
+                  <Show when={data().run.state === "blocked" || data().run.state === "needs_review"}>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="w-full justify-start"
+                      title={t("run.action.openSessionHint")}
+                      disabled={!props.onOpenSession}
+                      onClick={() => props.onOpenSession?.(data().run.sessionID)}
+                    >
+                      {t("run.action.openSession")}
+                    </Button>
+                  </Show>
+                  <Show when={TERMINAL.has(data().run.state) && hasWorktrees() && data().run.mergeState !== "merged"}>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="w-full justify-start"
+                      title={t("run.action.mergeHint")}
+                      disabled={busy() !== ""}
+                      onClick={() => void merge()}
+                    >
+                      {busy() === "merge" ? t("run.action.merging") : t("run.action.merge")}
+                    </Button>
+                  </Show>
+                  <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="w-full justify-start"
+                      title={t("run.action.cleanupHint")}
+                      disabled={busy() !== ""}
+                      onClick={() => void cleanup()}
+                    >
+                      {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
+                    </Button>
+                  </Show>
+                  <Show
+                    when={!TERMINAL.has(data().run.state) && !(data().run.state === "running" && !data().run.phase)}
                   >
-                    {t("run.action.openSession")}
-                  </Button>
-                </Show>
-                <Show when={TERMINAL.has(data().run.state) && hasWorktrees() && data().run.mergeState !== "merged"}>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    class="w-full justify-start"
-                    title={t("run.action.mergeHint")}
-                    disabled={busy() !== ""}
-                    onClick={() => void merge()}
-                  >
-                    {busy() === "merge" ? t("run.action.merging") : t("run.action.merge")}
-                  </Button>
-                </Show>
-                <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    class="w-full justify-start"
-                    title={t("run.action.cleanupHint")}
-                    disabled={busy() !== ""}
-                    onClick={() => void cleanup()}
-                  >
-                    {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
-                  </Button>
-                </Show>
-                <Show when={!TERMINAL.has(data().run.state) && !(data().run.state === "running" && !data().run.phase)}>
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    class="w-full justify-start"
-                    disabled={busy() !== ""}
-                    onClick={() => void cancel()}
-                  >
-                    {t("run.action.cancel")}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="w-full justify-start"
+                      disabled={busy() !== ""}
+                      onClick={() => void cancel()}
+                    >
+                      {t("run.action.cancel")}
+                    </Button>
+                  </Show>
                 </Show>
               </div>
             )}
@@ -947,10 +1012,14 @@ export const RunPage: Component<{
                   classList={{ "bg-surface": run.id === selected() }}
                   onClick={() => setSelected(run.id)}
                 >
-                  <span class="w-full truncate text-ui-base text-foreground">{run.goal}</span>
-                  <span class="w-full truncate text-ui-xs text-foreground-subtle">
+                  {/* 状态点：列表里先看「哪次还需要人」，再读标题。 */}
+                  <span class="flex w-full items-center gap-1.5">
+                    <span class="size-1.5 shrink-0 rounded-full" classList={runDot(run)} />
+                    <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">{run.goal}</span>
+                  </span>
+                  <span class="w-full truncate pl-3 text-ui-xs text-foreground-subtle">
                     {missionLabel(run.missionID) ? missionLabel(run.missionID) + " · " : ""}
-                    {runStateLabel(run)} · {run.mode}
+                    {runStateLabel(run)}
                   </span>
                 </button>
               )}
@@ -1155,52 +1224,66 @@ export const RunPage: Component<{
                 />
                 <span class="text-ui-xs text-foreground-subtlest">{t("run.new.acceptanceHint")}</span>
               </label>
-              <div class="grid gap-3 sm:grid-cols-2">
+              {/*
+                范围、约束、持久目标都是「有就写，没有也能跑」的可选项。
+                默认展开会让第一次用的人以为全都要填；收起来，需要时再点开。
+              */}
+              <button
+                type="button"
+                class="flex items-center gap-1.5 self-start text-ui-xs text-foreground-subtle transition-colors hover:text-foreground"
+                onClick={() => setShowNewAdvanced((open) => !open)}
+              >
+                <Icon name={showNewAdvanced() ? "chevron-down" : "chevron-right"} size="small" />
+                {showNewAdvanced() ? t("run.new.advancedHide") : t("run.new.advanced")}
+              </button>
+              <Show when={showNewAdvanced()}>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <label class="flex flex-col gap-1">
+                    <span class="text-ui-xs text-foreground-subtle">{t("run.new.scope")}</span>
+                    <textarea
+                      class="min-h-16 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                      rows={2}
+                      value={scope()}
+                      placeholder={t("run.new.scopePlaceholder")}
+                      onInput={(event) => setScope(event.currentTarget.value)}
+                    />
+                  </label>
+                  <label class="flex flex-col gap-1">
+                    <span class="text-ui-xs text-foreground-subtle">{t("run.new.constraints")}</span>
+                    <textarea
+                      class="min-h-16 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                      rows={2}
+                      value={constraints()}
+                      placeholder={t("run.new.constraintsPlaceholder")}
+                      onInput={(event) => setConstraints(event.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+                <span class="-mt-2 text-ui-xs text-foreground-subtlest">{t("run.new.briefHint")}</span>
                 <label class="flex flex-col gap-1">
-                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.scope")}</span>
-                  <textarea
-                    class="min-h-16 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
-                    rows={2}
-                    value={scope()}
-                    placeholder={t("run.new.scopePlaceholder")}
-                    onInput={(event) => setScope(event.currentTarget.value)}
-                  />
+                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.mission")}</span>
+                  <select
+                    class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                    value={missionID()}
+                    onChange={(event) => setMissionID(event.currentTarget.value)}
+                  >
+                    <option value="">{t("run.new.missionNone")}</option>
+                    <For each={missions()}>
+                      {(mission) => <option value={mission.id}>{mission.label + " · " + mission.goal}</option>}
+                    </For>
+                    <option value={NEW_MISSION}>{t("run.new.missionNew")}</option>
+                  </select>
+                  <Show when={missionID() === NEW_MISSION}>
+                    <input
+                      class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                      value={missionGoal()}
+                      placeholder={t("run.new.missionGoalPlaceholder")}
+                      onInput={(event) => setMissionGoal(event.currentTarget.value)}
+                    />
+                  </Show>
+                  <span class="text-ui-xs text-foreground-subtlest">{t("run.new.missionHint")}</span>
                 </label>
-                <label class="flex flex-col gap-1">
-                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.constraints")}</span>
-                  <textarea
-                    class="min-h-16 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
-                    rows={2}
-                    value={constraints()}
-                    placeholder={t("run.new.constraintsPlaceholder")}
-                    onInput={(event) => setConstraints(event.currentTarget.value)}
-                  />
-                </label>
-              </div>
-              <span class="-mt-2 text-ui-xs text-foreground-subtlest">{t("run.new.briefHint")}</span>
-              <label class="flex flex-col gap-1">
-                <span class="text-ui-xs text-foreground-subtle">{t("run.new.mission")}</span>
-                <select
-                  class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
-                  value={missionID()}
-                  onChange={(event) => setMissionID(event.currentTarget.value)}
-                >
-                  <option value="">{t("run.new.missionNone")}</option>
-                  <For each={missions()}>
-                    {(mission) => <option value={mission.id}>{mission.label + " · " + mission.goal}</option>}
-                  </For>
-                  <option value={NEW_MISSION}>{t("run.new.missionNew")}</option>
-                </select>
-                <Show when={missionID() === NEW_MISSION}>
-                  <input
-                    class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
-                    value={missionGoal()}
-                    placeholder={t("run.new.missionGoalPlaceholder")}
-                    onInput={(event) => setMissionGoal(event.currentTarget.value)}
-                  />
-                </Show>
-                <span class="text-ui-xs text-foreground-subtlest">{t("run.new.missionHint")}</span>
-              </label>
+              </Show>
               <div class="flex flex-wrap items-center gap-3">
                 <label class="flex items-center gap-2">
                   <span class="text-ui-xs text-foreground-subtle">{t("run.new.budget")}</span>
@@ -1310,6 +1393,94 @@ export const RunPage: Component<{
                   <Show when={nextStep()}>
                     {(step) => (
                       <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+                        {/* 目标在最上面：先确认「这次在做什么」，再看步骤与下一步。 */}
+                        <div class="flex items-start gap-2">
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate text-15-medium text-foreground">{data().run.goal}</div>
+                            {/* 用户自己声明的范围与约束（§5.3）：它们确实进了队长提示词，这里可回看。 */}
+                            <Show when={data().run.brief}>
+                              {(brief) => (
+                                <div
+                                  class="mt-0.5 truncate text-ui-xs text-foreground-subtle"
+                                  title={[brief().scope?.join("、"), brief().constraints?.join("、"), brief().context]
+                                    .filter(Boolean)
+                                    .join(" ｜ ")}
+                                >
+                                  {t("run.brief", {
+                                    scope: (brief().scope ?? []).join("、") || t("run.brief.none"),
+                                    constraints: (brief().constraints ?? []).join("、") || t("run.brief.none"),
+                                  })}
+                                </div>
+                              )}
+                            </Show>
+                            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                              <Tag>{runStateLabel(data().run)}</Tag>
+                              {/*
+                                §4.3：头部要同时给运行状态与当前阶段。阶段只做展示
+                                （调度器不拿它做判断），但它回答「现在卡在哪一步」。
+                              */}
+                              <Show when={data().run.phase}>
+                                {(phase) => <Tag title={t("run.phaseHint")}>{t(`run.phase.${phase()}`)}</Tag>}
+                              </Show>
+                              {/*
+                                模式、授权、轮次、计划版本不再占用头部：它们回答的是「这次运行是怎么配的」，
+                                不是「现在该做什么」。放进下面的详情区，需要时再看。
+                              */}
+                              {/*
+                                合并状态单独一颗标签（§4.3）：`done` 说的是「交付通过验收」，
+                                不是「已经合进你的分支」。没有这一颗，刷新之后看板就答不上「合没合」。
+                              */}
+                              <Show when={TERMINAL.has(data().run.state) || data().run.mergeState !== "unmerged"}>
+                                <Tag
+                                  class={data().run.mergeState === "merge_failed" ? "text-destructive" : undefined}
+                                  title={t("run.merge.stateHint")}
+                                >
+                                  {t(`run.merge.state.${data().run.mergeState}`)}
+                                </Tag>
+                              </Show>
+                              {/*
+                                §4.3：头部要同时给「预算用了多少 / 上限」与墙钟。
+                                预算按承诺量（已结算 + 用量不明 + 在途预占）算 —— 只报已结算会让
+                                「还剩多少」在运行中一直是假的。
+                              */}
+                              <Show when={data().run.usage}>
+                                {(usage) => (
+                                  <Tag title={t("run.usage.capHint")}>
+                                    {t("run.usage.cap", {
+                                      used: (
+                                        numeric(usage().reserved) +
+                                        numeric(usage().settled) +
+                                        numeric(usage().unknown)
+                                      ).toLocaleString(),
+                                      cap: numeric(usage().cap).toLocaleString(),
+                                    })}
+                                  </Tag>
+                                )}
+                              </Show>
+                              <Show when={data().run.startedAt}>
+                                {(started) => (
+                                  <Tag title={t("run.wall.hint")}>
+                                    {t("run.wall", {
+                                      time: elapsed(numeric(data().run.endedAt ?? Date.now()) - numeric(started())),
+                                    })}
+                                  </Tag>
+                                )}
+                              </Show>
+                            </div>
+                            {/*
+                              终态/阻塞的原因：接口一直有 `run.error`，界面却从不显示 ——
+                              用户只看到「失败」两个字，不知道是名册坏了、集成冲突还是没交付。
+                              这里只放内核写下的那句总结（团队 id / 原因），不放任何事件原文。
+                            */}
+                            <Show when={data().run.error}>
+                              {(reason) => (
+                                <div class="mt-1 text-ui-xs text-foreground-subtle" title={reason()}>
+                                  {t("run.reason", { reason: reason() })}
+                                </div>
+                              )}
+                            </Show>
+                          </div>
+                        </div>
                         {/* 步骤条：先让人看到全局，再读「现在该做什么」。 */}
                         <RunGuide steps={guideSteps()} />
                         <div class="flex flex-col gap-2 border-t border-border pt-2">
@@ -1364,260 +1535,31 @@ export const RunPage: Component<{
                       </div>
                     )}
                   </Show>
-                  <div class="flex items-start gap-2">
-                    <div class="min-w-0 flex-1">
-                      <div class="truncate text-15-medium text-foreground">{data().run.goal}</div>
-                      {/* 用户自己声明的范围与约束（§5.3）：它们确实进了队长提示词，这里可回看。 */}
-                      <Show when={data().run.brief}>
-                        {(brief) => (
-                          <div
-                            class="mt-0.5 truncate text-ui-xs text-foreground-subtle"
-                            title={[brief().scope?.join("、"), brief().constraints?.join("、"), brief().context]
-                              .filter(Boolean)
-                              .join(" ｜ ")}
-                          >
-                            {t("run.brief", {
-                              scope: (brief().scope ?? []).join("、") || t("run.brief.none"),
-                              constraints: (brief().constraints ?? []).join("、") || t("run.brief.none"),
-                            })}
-                          </div>
-                        )}
-                      </Show>
-                      <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                        <Tag>{runStateLabel(data().run)}</Tag>
-                        {/*
-                          §4.3：头部要同时给运行状态与当前阶段。阶段只做展示
-                          （调度器不拿它做判断），但它回答「现在卡在哪一步」。
-                        */}
-                        <Show when={data().run.phase}>
-                          {(phase) => <Tag title={t("run.phaseHint")}>{t(`run.phase.${phase()}`)}</Tag>}
-                        </Show>
-                        <Tag>{data().run.mode}</Tag>
-                        {/* 只读 / 可写是这次运行的实际授权，不是提示词里的承诺。 */}
-                        <Tag title={t("run.policy.hint")}>
-                          {data().run.readOnly ? t("run.policy.readOnly") : t("run.policy.write")}
-                        </Tag>
-                        <Show when={currentMission()}>
-                          {(mission) => (
-                            <Tag title={mission().goal}>
-                              {mission().label + " · " + t(`run.mission.status.${mission().status}`)}
-                            </Tag>
-                          )}
-                        </Show>
-                        <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
-                        {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
-                        {/*
-                          合并状态单独一颗标签（§4.3）：`done` 说的是「交付通过验收」，
-                          不是「已经合进你的分支」。没有这一颗，刷新之后看板就答不上「合没合」。
-                        */}
-                        <Show when={TERMINAL.has(data().run.state) || data().run.mergeState !== "unmerged"}>
-                          <Tag
-                            class={data().run.mergeState === "merge_failed" ? "text-destructive" : undefined}
-                            title={t("run.merge.stateHint")}
-                          >
-                            {t(`run.merge.state.${data().run.mergeState}`)}
-                          </Tag>
-                        </Show>
-                        {/*
-                          §4.3：头部要同时给「预算用了多少 / 上限」与墙钟。
-                          预算按承诺量（已结算 + 用量不明 + 在途预占）算 —— 只报已结算会让
-                          「还剩多少」在运行中一直是假的。
-                        */}
-                        <Show when={data().run.usage}>
-                          {(usage) => (
-                            <Tag title={t("run.usage.capHint")}>
-                              {t("run.usage.cap", {
-                                used: (
-                                  numeric(usage().reserved) +
-                                  numeric(usage().settled) +
-                                  numeric(usage().unknown)
-                                ).toLocaleString(),
-                                cap: numeric(usage().cap).toLocaleString(),
-                              })}
-                            </Tag>
-                          )}
-                        </Show>
-                        <Show when={data().run.startedAt}>
-                          {(started) => (
-                            <Tag title={t("run.wall.hint")}>
-                              {t("run.wall", {
-                                time: elapsed(numeric(data().run.endedAt ?? Date.now()) - numeric(started())),
-                              })}
-                            </Tag>
-                          )}
-                        </Show>
-                      </div>
-                      {/*
-                        终态/阻塞的原因：接口一直有 `run.error`，界面却从不显示 ——
-                        用户只看到「失败」两个字，不知道是名册坏了、集成冲突还是没交付。
-                        这里只放内核写下的那句总结（团队 id / 原因），不放任何事件原文。
-                      */}
-                      <Show when={data().run.error}>
-                        {(reason) => (
-                          <div class="mt-1 text-ui-xs text-foreground-subtle" title={reason()}>
-                            {t("run.reason", { reason: reason() })}
-                          </div>
-                        )}
-                      </Show>
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-4 gap-2">
-                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.passHint")}>
-                        {t("run.metric.pass")}
-                      </div>
-                      <div class="text-18-medium text-success">{summary()?.pass ?? 0}</div>
-                    </div>
-                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.failHint")}>
-                        {t("run.metric.fail")}
-                      </div>
-                      <div class="text-18-medium text-destructive">{summary()?.fail ?? 0}</div>
-                    </div>
-                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.unverifiedHint")}>
-                        {t("run.metric.unverified")}
-                      </div>
-                      {/* 未验证用警示色，不是绿色也不是灰色：它不是通过。 */}
-                      <div class="text-18-medium text-warning">{summary()?.unverified ?? 0}</div>
-                    </div>
-                    <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.staleHint")}>
-                        {t("run.metric.stale")}
-                      </div>
-                      <div class="text-18-medium text-warning">{summary()?.stale ?? 0}</div>
-                    </div>
-                  </div>
-
-                  <Show when={currentMission()}>
-                    {(mission) => (
-                      <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
-                        <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                          <span>{t("run.mission.title", { label: mission().label })}</span>
-                          <Tag title={t("run.mission.statusHint")}>{t(`run.mission.status.${mission().status}`)}</Tag>
-                          <Show when={missionDiff()?.skippedReason}>
-                            {(reason) => <span class="text-warning">{reason()}</span>}
-                          </Show>
-                          <Show when={missionDiff()?.head}>
-                            {(head) => (
-                              <span class="text-foreground-subtlest">
-                                {t("run.mission.head", { sha: head().slice(0, 7) })}
-                              </span>
-                            )}
-                          </Show>
-                          <div class="ml-auto flex items-center gap-1">
-                            <Show when={mission().status !== "done"}>
-                              <Button
-                                variant="ghost"
-                                size="small"
-                                disabled={busy() === "mission"}
-                                onClick={() => void setMissionStatus("done")}
-                              >
-                                {t("run.mission.markDone")}
-                              </Button>
-                            </Show>
-                            <Show when={mission().status !== "abandoned"}>
-                              <Button
-                                variant="ghost"
-                                size="small"
-                                disabled={busy() === "mission"}
-                                onClick={() => void setMissionStatus("abandoned")}
-                              >
-                                {t("run.mission.abandon")}
-                              </Button>
-                            </Show>
-                            <Show when={mission().status !== "active"}>
-                              <Button
-                                variant="ghost"
-                                size="small"
-                                disabled={busy() === "mission"}
-                                onClick={() => void setMissionStatus("active")}
-                              >
-                                {t("run.mission.reopen")}
-                              </Button>
-                            </Show>
-                            <Show when={mission().status === "abandoned" && !!mission().worktree}>
-                              <Button
-                                variant="ghost"
-                                size="small"
-                                disabled={busy() === "mission"}
-                                onClick={() => void cleanupMission()}
-                              >
-                                {t("run.mission.cleanup")}
-                              </Button>
-                            </Show>
-                          </div>
-                        </div>
-                        <Show when={missionDiff()?.files?.length}>
-                          <div class="flex flex-wrap items-center gap-1.5">
-                            <Tag class="text-success">
-                              {"+" + (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.added), 0)}
-                            </Tag>
-                            <Tag class="text-destructive">
-                              {"-" + (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.removed), 0)}
-                            </Tag>
-                            <span class="text-ui-xs text-foreground-subtle">
-                              {t("run.mission.files", { count: String((missionDiff()?.files ?? []).length) })}
-                            </span>
-                          </div>
-                        </Show>
-                        <For each={(missionDiff()?.files ?? []).slice(0, 5)}>
-                          {(file) => (
-                            <div class="flex items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                              <span class="min-w-0 flex-1 truncate">{file.path}</span>
-                              <span class="shrink-0 text-success">{"+" + numeric(file.added)}</span>
-                              <span class="shrink-0 text-destructive">{"-" + numeric(file.removed)}</span>
-                            </div>
-                          )}
-                        </For>
-                        <Show when={(missionDiff()?.files ?? []).length > 5 || missionDiff()?.truncated}>
-                          <span class="text-ui-xs text-foreground-subtlest">{t("run.mission.more")}</span>
-                        </Show>
-                        {/* 未跟踪文件不是已交付：单独说清楚，不并进上面的改动数字。 */}
-                        <Show when={(missionDiff()?.untracked ?? []).length > 0}>
-                          <span class="text-ui-xs text-warning">
-                            {t("run.mission.untracked", { count: String((missionDiff()?.untracked ?? []).length) })}
-                          </span>
-                        </Show>
-                      </div>
-                    )}
-                  </Show>
-
-                  {/*
-                    截断必须可见（§6.4）：自己少给了模型几条，就不能在复盘时怪模型没看到。
-                    清单在每次派发时落库，这里只显示「哪一队、少了什么、为什么」。
+                  <Show when={!showPlanReview()}>
+                    {/*
+                    结论只占一行：通过 / 失败 / 未验证 / 过期。
+                    四块大卡片占了半屏却只说了四个数字；未验证与过期本来也不是「通过」，
+                    所以它们直接写在同一条里，靠颜色区分，不靠格子大小。
                   */}
-                  <Show when={truncations().length > 0}>
-                    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-warning">
-                        {t("run.context.truncated", { count: String(truncations().length) })}
-                      </div>
-                      <For each={truncations()}>
-                        {(item) => (
-                          <div class="text-ui-xs text-foreground-subtle">
-                            {item.teamID +
-                              " · " +
-                              item.kind +
-                              " " +
-                              t("run.context.omitted", { count: String(item.count) })}
-                            <span class="text-foreground-subtlest">{" " + item.reason}</span>
-                          </div>
-                        )}
-                      </For>
-                      <div class="text-ui-xs text-foreground-subtlest">{t("run.context.hint")}</div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-ui-xs">
+                      <span class="text-foreground-subtle" title={t("run.metric.passHint")}>
+                        {t("run.metric.pass")} <b class="text-success">{summary()?.pass ?? 0}</b>
+                      </span>
+                      <span class="text-foreground-subtle" title={t("run.metric.failHint")}>
+                        {t("run.metric.fail")} <b class="text-destructive">{summary()?.fail ?? 0}</b>
+                      </span>
+                      <span class="text-foreground-subtle" title={t("run.metric.unverifiedHint")}>
+                        {t("run.metric.unverified")} <b class="text-warning">{summary()?.unverified ?? 0}</b>
+                      </span>
+                      <span class="text-foreground-subtle" title={t("run.metric.staleHint")}>
+                        {t("run.metric.stale")} <b class="text-warning">{summary()?.stale ?? 0}</b>
+                      </span>
+                      <span class="ml-auto text-foreground-subtlest">
+                        {t(`run.verdict.${summary()?.verdict ?? "pending"}`)}
+                      </span>
                     </div>
                   </Show>
 
-                  {/*
-                    阻塞与拒绝（§11.2）：拒绝不能被静默吞掉。权限类要标出「换成别人也没用」——
-                    换一个「权限更高」的人做同一件事就是提权，只能由用户放行。
-                  */}
-                  {/*
-                    待核对的操作（§8.5）：重启时有工具停在「已开始、结果未写回」。
-                    在清空之前，这次运行不能自动续跑 —— 先把副作用（文件 / 进程 / 提交）核对掉。
-                    只显示工具名与开始时间：参数里常有命令与凭据。
-                  */}
                   <Show when={(data().needsReview ?? []).length > 0}>
                     <div class="flex flex-col gap-1 rounded-lg border border-warning bg-surface px-3 py-2">
                       <div class="text-ui-xs text-warning" title={t("run.review.hint")}>
@@ -1712,377 +1654,570 @@ export const RunPage: Component<{
                     </div>
                   </Show>
 
-                  {/* 成本分两列：已结算只算提供方回报的用量，用量不明单独一列，不冒充实际花费。 */}
-                  <Show when={data().run.usage}>
-                    {(usage) => (
-                      <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
-                        <div class="flex flex-wrap items-center gap-1.5 text-ui-xs">
-                          <span class="text-foreground-subtle">{t("run.usage.budget")}</span>
-                          <Tag title={t("run.usage.capHint")}>
-                            {t("run.usage.cap", {
-                              used: (
-                                numeric(usage().reserved) +
-                                numeric(usage().settled) +
-                                numeric(usage().unknown)
-                              ).toLocaleString(),
-                              cap: numeric(usage().cap).toLocaleString(),
-                            })}
-                          </Tag>
-                          <Show when={usage().overrun}>
-                            <Tag class="text-destructive">{t("run.usage.overrun")}</Tag>
-                          </Show>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                          <span>{t("run.usage.settled", { n: numeric(usage().settled).toLocaleString() })}</span>
-                          <span>{t("run.usage.unknown", { n: numeric(usage().unknown).toLocaleString() })}</span>
-                          <span>{t("run.usage.reserved", { n: numeric(usage().reserved).toLocaleString() })}</span>
-                          {/* 成本只在提供方回报时出现：老运行与免费模型不该显示一个假的 0。 */}
-                          <Show when={usage().cost !== undefined}>
-                            <span title={t("run.usage.costHint")}>
-                              {t("run.usage.cost", { n: numeric(usage().cost ?? 0).toFixed(4) })}
-                            </span>
-                          </Show>
-                        </div>
-                      </div>
-                    )}
-                  </Show>
-
-                  <Show when={(data().run.usage?.byJob ?? []).length > 0}>
+                  <Show when={!showPlanReview()}>
                     <div class="flex flex-col gap-1.5">
-                      <div class="text-ui-xs text-foreground-subtle">{t("run.usage.title")}</div>
-                      <div class="flex flex-wrap items-center gap-1.5">
-                        <For each={data().run.usage?.byJob ?? []}>
-                          {(item) => (
-                            <Tag title={t("run.usage.hint")}>{item.job + " · " + item.committed.toLocaleString()}</Tag>
-                          )}
-                        </For>
-                      </div>
-                      <div class="text-ui-xs text-foreground-subtlest">{t("run.usage.hint")}</div>
-                    </div>
-                  </Show>
-
-                  <div class="flex flex-col gap-1.5">
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="text-ui-xs text-foreground-subtle">{t("run.page.about")}</div>
-                      {/*
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5 text-ui-xs">
+                          <Icon name="checklist" size="small" class="text-foreground-subtle" />
+                          <span class="text-foreground">{t("run.page.about")}</span>
+                          <span class="text-foreground-subtlest">
+                            {t("run.acceptance.count", { count: String(rankedLines().length) })}
+                          </span>
+                        </div>
+                        {/*
                         命令类验收（§19.1）：退出码就是结论，不交给模型去评。
                         命令由人写、由人负责；写完之后界面不再回显它。
                       */}
-                      <Button
-                        variant="ghost"
-                        size="small"
-                        title={t("run.acceptance.commandHint")}
-                        onClick={() => setCommandOpen((open) => !open)}
-                      >
-                        {t("run.acceptance.command")}
-                      </Button>
-                    </div>
-                    <Show when={commandOpen()}>
-                      <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-3 py-2">
-                        <div class="text-ui-xs text-foreground-subtlest">{t("run.acceptance.commandHint")}</div>
-                        <input
-                          class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
-                          value={commandText()}
-                          placeholder={t("run.acceptance.commandText")}
-                          onInput={(event) => setCommandText(event.currentTarget.value)}
-                        />
-                        <input
-                          class="h-8 rounded-md border border-border bg-surface px-2 font-mono text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
-                          value={commandRun()}
-                          placeholder={t("run.acceptance.commandRun")}
-                          onInput={(event) => setCommandRun(event.currentTarget.value)}
-                        />
-                        <div class="flex flex-wrap items-center gap-2">
-                          <span class="text-ui-xs text-foreground-subtle">{t("run.acceptance.commandTimeout")}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="10"
-                            class="h-8 w-24 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
-                            value={commandSeconds()}
-                            onInput={(event) => setCommandSeconds(Number(event.currentTarget.value) || 0)}
-                          />
-                          <Button
-                            variant="primary"
-                            size="small"
-                            disabled={busy() !== "" || !commandText().trim() || !commandRun().trim()}
-                            onClick={() => void addCommandAcceptance()}
-                          >
-                            {t("run.acceptance.commandAdd")}
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          title={t("run.acceptance.commandHint")}
+                          onClick={() => setCommandOpen((open) => !open)}
+                        >
+                          {t("run.acceptance.command")}
+                        </Button>
                       </div>
-                    </Show>
-                    <Show
-                      when={(data().summary.lines ?? []).length > 0}
-                      fallback={
-                        <div class="px-1 py-2 text-ui-xs text-foreground-subtlest">{t("run.acceptance.empty")}</div>
-                      }
-                    >
-                      <For each={data().summary.lines ?? []}>
-                        {(line) => (
-                          <div class="rounded-lg border border-border">
-                            {/*
+                      <Show when={commandOpen()}>
+                        <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-3 py-2">
+                          <div class="text-ui-xs text-foreground-subtlest">{t("run.acceptance.commandHint")}</div>
+                          <input
+                            class="h-8 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                            value={commandText()}
+                            placeholder={t("run.acceptance.commandText")}
+                            onInput={(event) => setCommandText(event.currentTarget.value)}
+                          />
+                          <input
+                            class="h-8 rounded-md border border-border bg-surface px-2 font-mono text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                            value={commandRun()}
+                            placeholder={t("run.acceptance.commandRun")}
+                            onInput={(event) => setCommandRun(event.currentTarget.value)}
+                          />
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-ui-xs text-foreground-subtle">{t("run.acceptance.commandTimeout")}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="10"
+                              class="h-8 w-24 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none focus:border-border-focus"
+                              value={commandSeconds()}
+                              onInput={(event) => setCommandSeconds(Number(event.currentTarget.value) || 0)}
+                            />
+                            <Button
+                              variant="primary"
+                              size="small"
+                              disabled={busy() !== "" || !commandText().trim() || !commandRun().trim()}
+                              onClick={() => void addCommandAcceptance()}
+                            >
+                              {t("run.acceptance.commandAdd")}
+                            </Button>
+                          </div>
+                        </div>
+                      </Show>
+                      <Show
+                        when={rankedLines().length > 0}
+                        fallback={
+                          <div class="rounded-lg border border-dashed border-border px-3 py-2 text-ui-xs text-foreground-subtlest">
+                            {t("run.acceptance.empty")}
+                          </div>
+                        }
+                      >
+                        <Show when={visibleLines().length === 0}>
+                          <div class="flex items-center gap-1.5 text-ui-xs text-success">
+                            <Icon name="circle-check" size="small" />
+                            {t("run.acceptance.allPassed", { count: String(rankedLines().length) })}
+                          </div>
+                        </Show>
+                        <For each={visibleLines()}>
+                          {(line) => (
+                            <div class="rounded-lg border border-border">
+                              {/*
                               每个结论都能点开：验证器、绑定快照、实测值、证据引用。
                               「通过」若看不到依据，就只是一个颜色。
                             */}
-                            <button
-                              type="button"
-                              class="flex w-full items-start gap-2 px-3 py-2 text-left"
-                              title={t("run.evidence.hint")}
-                              onClick={() =>
-                                setOpenLine((current) =>
-                                  current === line.acceptanceID ? undefined : line.acceptanceID,
-                                )
-                              }
-                            >
-                              <span
-                                classList={{
-                                  "mt-1 size-2 shrink-0 rounded-full": true,
-                                  "bg-success": line.outcome === "pass",
-                                  "bg-destructive": line.outcome === "fail",
-                                  "bg-warning": line.outcome !== "pass" && line.outcome !== "fail",
-                                }}
-                              />
-                              <div class="min-w-0 flex-1">
-                                <div class="text-ui-base text-foreground">{line.text}</div>
-                                <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                                  <Tag>{line.outcome}</Tag>
-                                  {/* 档位由调度器按改动面判定：点开提示能看到它为什么验得轻 / 重（§19.1）。 */}
-                                  <Show when={line.tier}>
-                                    {(tier) => (
-                                      <Tag title={line.tierReason ?? t("run.tierHint")}>{t(`run.tier.${tier()}`)}</Tag>
-                                    )}
-                                  </Show>
-                                  <Show when={acceptanceFor(line.acceptanceID)?.verifier}>
-                                    {(verifier) => (
-                                      <Tag title={t("run.acceptance.commandTagHint")}>
-                                        {t("run.acceptance.commandTag", {
-                                          seconds: String(Math.round(numeric(verifier().timeoutMs ?? 0) / 1000)),
-                                        })}
-                                      </Tag>
-                                    )}
-                                  </Show>
-                                  <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
-                                  {/* 驳回时的「建议」是下一步动作，和实测值一样要紧（§4.3）。 */}
-                                  <Show when={line.suggestion}>
-                                    {(suggestion) => (
-                                      <span class="text-foreground-subtle">
-                                        {t("run.evidence.suggestion", { text: suggestion() })}
-                                      </span>
-                                    )}
-                                  </Show>
-                                  <Show when={line.snapshotID}>
-                                    {(snapshot) => <span class="truncate">{snapshot()}</span>}
+                              <button
+                                type="button"
+                                class="flex w-full items-start gap-2 px-3 py-2 text-left"
+                                title={t("run.evidence.hint")}
+                                onClick={() =>
+                                  setOpenLine((current) =>
+                                    current === line.acceptanceID ? undefined : line.acceptanceID,
+                                  )
+                                }
+                              >
+                                <span
+                                  classList={{
+                                    "mt-1 size-2 shrink-0 rounded-full": true,
+                                    "bg-success": line.outcome === "pass",
+                                    "bg-destructive": line.outcome === "fail",
+                                    "bg-warning": line.outcome !== "pass" && line.outcome !== "fail",
+                                  }}
+                                />
+                                <div class="min-w-0 flex-1">
+                                  <div class="text-ui-base text-foreground">{line.text}</div>
+                                  <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                                    <Tag>{line.outcome}</Tag>
+                                    {/* 档位由调度器按改动面判定：点开提示能看到它为什么验得轻 / 重（§19.1）。 */}
+                                    <Show when={line.tier}>
+                                      {(tier) => (
+                                        <Tag title={line.tierReason ?? t("run.tierHint")}>
+                                          {t(`run.tier.${tier()}`)}
+                                        </Tag>
+                                      )}
+                                    </Show>
+                                    <Show when={acceptanceFor(line.acceptanceID)?.verifier}>
+                                      {(verifier) => (
+                                        <Tag title={t("run.acceptance.commandTagHint")}>
+                                          {t("run.acceptance.commandTag", {
+                                            seconds: String(Math.round(numeric(verifier().timeoutMs ?? 0) / 1000)),
+                                          })}
+                                        </Tag>
+                                      )}
+                                    </Show>
+                                    <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
+                                    {/* 驳回时的「建议」是下一步动作，和实测值一样要紧（§4.3）。 */}
+                                    <Show when={line.suggestion}>
+                                      {(suggestion) => (
+                                        <span class="text-foreground-subtle">
+                                          {t("run.evidence.suggestion", { text: suggestion() })}
+                                        </span>
+                                      )}
+                                    </Show>
+                                    <Show when={line.snapshotID}>
+                                      {(snapshot) => <span class="truncate">{snapshot()}</span>}
+                                    </Show>
+                                  </div>
+                                </div>
+                              </button>
+                              <Show when={openLine() === line.acceptanceID}>
+                                <div class="flex flex-col gap-1 border-t border-border px-3 py-2">
+                                  <div class="text-ui-xs text-foreground-subtle">{t("run.evidence.title")}</div>
+                                  <Show
+                                    when={evidenceFor(line.acceptanceID).length > 0}
+                                    fallback={<div class="text-ui-xs text-warning">{t("run.evidence.empty")}</div>}
+                                  >
+                                    <For each={evidenceFor(line.acceptanceID)}>
+                                      {(record) => (
+                                        <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                                          <Tag>{t("run.evidence.attempt", { n: record.attempt })}</Tag>
+                                          <Tag>{record.outcome}</Tag>
+                                          <Show when={record.tier}>
+                                            {(tier) => (
+                                              <Tag title={record.tierReason ?? t("run.tierHint")}>
+                                                {t(`run.tier.${tier()}`)}
+                                              </Tag>
+                                            )}
+                                          </Show>
+                                          <span class="truncate">{record.verifierVersion}</span>
+                                          <span class="truncate">{record.snapshotID}</span>
+                                          <Show when={record.measured}>
+                                            {(measured) => <span class="truncate">{measured()}</span>}
+                                          </Show>
+                                          <Show when={record.suggestion}>
+                                            {(suggestion) => (
+                                              <span class="min-w-0 truncate">
+                                                {t("run.evidence.suggestion", { text: suggestion() })}
+                                              </span>
+                                            )}
+                                          </Show>
+                                          <Show when={record.evidenceRef}>
+                                            {(ref) => <span class="min-w-0 truncate">{ref()}</span>}
+                                          </Show>
+                                          {/* 缓存命中也算证据，但必须看得出它不是这次新验的（§19.1）。 */}
+                                          <Show when={record.reused}>
+                                            <Tag class="text-warning" title={t("run.evidence.reusedHint")}>
+                                              {t("run.evidence.reused")}
+                                            </Tag>
+                                          </Show>
+                                        </div>
+                                      )}
+                                    </For>
                                   </Show>
                                 </div>
-                              </div>
-                            </button>
-                            <Show when={openLine() === line.acceptanceID}>
-                              <div class="flex flex-col gap-1 border-t border-border px-3 py-2">
-                                <div class="text-ui-xs text-foreground-subtle">{t("run.evidence.title")}</div>
-                                <Show
-                                  when={evidenceFor(line.acceptanceID).length > 0}
-                                  fallback={<div class="text-ui-xs text-warning">{t("run.evidence.empty")}</div>}
-                                >
-                                  <For each={evidenceFor(line.acceptanceID)}>
-                                    {(record) => (
-                                      <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                                        <Tag>{t("run.evidence.attempt", { n: record.attempt })}</Tag>
-                                        <Tag>{record.outcome}</Tag>
-                                        <Show when={record.tier}>
-                                          {(tier) => (
-                                            <Tag title={record.tierReason ?? t("run.tierHint")}>
-                                              {t(`run.tier.${tier()}`)}
-                                            </Tag>
-                                          )}
-                                        </Show>
-                                        <span class="truncate">{record.verifierVersion}</span>
-                                        <span class="truncate">{record.snapshotID}</span>
-                                        <Show when={record.measured}>
-                                          {(measured) => <span class="truncate">{measured()}</span>}
-                                        </Show>
-                                        <Show when={record.suggestion}>
-                                          {(suggestion) => (
-                                            <span class="min-w-0 truncate">
-                                              {t("run.evidence.suggestion", { text: suggestion() })}
-                                            </span>
-                                          )}
-                                        </Show>
-                                        <Show when={record.evidenceRef}>
-                                          {(ref) => <span class="min-w-0 truncate">{ref()}</span>}
-                                        </Show>
-                                        {/* 缓存命中也算证据，但必须看得出它不是这次新验的（§19.1）。 */}
-                                        <Show when={record.reused}>
-                                          <Tag class="text-warning" title={t("run.evidence.reusedHint")}>
-                                            {t("run.evidence.reused")}
-                                          </Tag>
-                                        </Show>
-                                      </div>
-                                    )}
-                                  </For>
-                                </Show>
-                              </div>
-                            </Show>
-                          </div>
-                        )}
-                      </For>
-                    </Show>
-                  </div>
-
-                  <div class="flex flex-wrap items-center gap-1.5">
-                    <For each={data().teams}>
-                      {(team) => (
-                        // 有 worktree 就把它挂在提示里：证据绑定的是那个目录的快照；
-                        // 有产物就连版本一起显示 —— 下游依赖的是具体版本，不是「大概那一版」。
-                        <Tag
-                          title={[
-                            team.worktree ?? "",
-                            (team.artifacts ?? []).map((item) => item.name + "@" + item.version).join(" "),
-                            // 任务范围（§11.1）：越界写会被拦下，界面要能回答「为什么」。
-                            team.scope?.length ? t("run.team.scope", { paths: (team.scope ?? []).join("、") }) : "",
-                          ]
-                            .filter(Boolean)
-                            .join(String.fromCharCode(10))}
-                        >
-                          {teamName(team) + " · " + teamPhaseLabel(team.phase)}
-                          {team.dependsOn.length > 0
-                            ? " · " +
-                              t("run.team.deps", {
-                                deps: team.dependsOn.map((dep) => "#" + (numeric(dep) + 1)).join("、"),
-                              })
-                            : ""}
-                        </Tag>
-                      )}
-                    </For>
-                  </div>
-
-                  {/*
-                    任务板（§5.5 / §4.3）：只显示做法与进度。
-                    任务存在不代表有会话正在做 —— 界面上也不替它做这个暗示。
-                  */}
-                  <Show when={board().length > 0}>
-                    <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
-                      <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
-                        <span class="text-foreground-subtlest">
-                          {t("run.tasks.title", { count: String(board().length) })}
-                        </span>
-                        <span class="min-w-0 flex-1 truncate text-foreground-subtlest">{t("run.tasks.hint")}</span>
-                      </div>
-                      <For each={board()}>
-                        {(task) => (
-                          <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                            <Tag>{task.status}</Tag>
-                            <span class="min-w-0 flex-1 truncate">{task.subject}</span>
-                            <span class="shrink-0 text-foreground-subtlest">
-                              {t("run.tasks.owner", { owner: task.owner ?? "—" })}
-                            </span>
-                          </div>
-                        )}
-                      </For>
+                              </Show>
+                            </div>
+                          )}
+                        </For>
+                        <Show when={hiddenPassCount() > 0 || showPassed()}>
+                          <button
+                            type="button"
+                            class="self-start text-ui-xs text-foreground-subtle hover:text-foreground"
+                            onClick={() => setShowPassed((open) => !open)}
+                          >
+                            {showPassed()
+                              ? t("run.acceptance.hidePassed")
+                              : t("run.acceptance.showPassed", { count: String(hiddenPassCount()) })}
+                          </button>
+                        </Show>
+                      </Show>
                     </div>
                   </Show>
 
-                  {/*
-                    事件流（§4.3 / §12）：只读、可展开、按需加载。
-                    只显示种类与时间，不展开 payload —— 里面可能有命令与路径，
-                    它们属于「要复跑时去本地读」的那一类，不该直接铺在界面上。
-                  */}
-                  <div class="flex flex-col gap-1.5">
+                  <div class="flex items-center gap-1.5">
                     <Button
                       variant="ghost"
                       size="small"
                       class="justify-start"
-                      disabled={loadingEvents()}
-                      onClick={() => void toggleEvents(data().run.id)}
+                      onClick={() => setShowDetails((open) => !open)}
                     >
-                      <Icon name={showEvents() ? "chevron-down" : "chevron-right"} size="small" />
-                      {showEvents() ? t("run.events.toggleCount", { count: eventCount() }) : t("run.events.toggle")}
+                      <Icon name={showDetails() ? "chevron-down" : "chevron-right"} size="small" />
+                      {showDetails() ? t("run.details.hide") : t("run.details.show")}
                     </Button>
-                    <Show when={showEvents()}>
-                      <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
-                        <Show
-                          when={events().length > 0}
-                          fallback={<div class="text-ui-xs text-foreground-subtlest">{t("run.events.empty")}</div>}
-                        >
-                          <For each={events()}>
-                            {(event) => (
-                              <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
-                                <span class="w-10 shrink-0 text-foreground-subtlest">{"#" + event.seq}</span>
-                                <span class="min-w-0 flex-1 truncate">{event.kind}</span>
+                  </div>
+                  <Show when={showDetails()}>
+                    <div class="flex flex-col gap-3">
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-xs text-foreground-subtle">
+                        <span>{t("run.info.mode", { mode: data().run.mode })}</span>
+                        <span title={t("run.policy.hint")}>
+                          {data().run.readOnly ? t("run.policy.readOnly") : t("run.policy.write")}
+                        </span>
+                        <span>{t("run.info.round", { round: String(data().run.roundMain) })}</span>
+                        <Show when={Number(data().run.planVersion) > 0}>
+                          <span>{t("run.info.plan", { version: String(data().run.planVersion) })}</span>
+                        </Show>
+                        <Show when={currentMission()}>
+                          {(mission) => <span title={mission().goal}>{mission().label}</span>}
+                        </Show>
+                      </div>
+                      <Show when={currentMission()}>
+                        {(mission) => (
+                          <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                            <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                              <span>{t("run.mission.title", { label: mission().label })}</span>
+                              <Tag title={t("run.mission.statusHint")}>
+                                {t(`run.mission.status.${mission().status}`)}
+                              </Tag>
+                              <Show when={missionDiff()?.skippedReason}>
+                                {(reason) => <span class="text-warning">{reason()}</span>}
+                              </Show>
+                              <Show when={missionDiff()?.head}>
+                                {(head) => (
+                                  <span class="text-foreground-subtlest">
+                                    {t("run.mission.head", { sha: head().slice(0, 7) })}
+                                  </span>
+                                )}
+                              </Show>
+                              <div class="ml-auto flex items-center gap-1">
+                                <Show when={mission().status !== "done"}>
+                                  <Button
+                                    variant="ghost"
+                                    size="small"
+                                    disabled={busy() === "mission"}
+                                    onClick={() => void setMissionStatus("done")}
+                                  >
+                                    {t("run.mission.markDone")}
+                                  </Button>
+                                </Show>
+                                <Show when={mission().status !== "abandoned"}>
+                                  <Button
+                                    variant="ghost"
+                                    size="small"
+                                    disabled={busy() === "mission"}
+                                    onClick={() => void setMissionStatus("abandoned")}
+                                  >
+                                    {t("run.mission.abandon")}
+                                  </Button>
+                                </Show>
+                                <Show when={mission().status !== "active"}>
+                                  <Button
+                                    variant="ghost"
+                                    size="small"
+                                    disabled={busy() === "mission"}
+                                    onClick={() => void setMissionStatus("active")}
+                                  >
+                                    {t("run.mission.reopen")}
+                                  </Button>
+                                </Show>
+                                <Show when={mission().status === "abandoned" && !!mission().worktree}>
+                                  <Button
+                                    variant="ghost"
+                                    size="small"
+                                    disabled={busy() === "mission"}
+                                    onClick={() => void cleanupMission()}
+                                  >
+                                    {t("run.mission.cleanup")}
+                                  </Button>
+                                </Show>
+                              </div>
+                            </div>
+                            <Show when={missionDiff()?.files?.length}>
+                              <div class="flex flex-wrap items-center gap-1.5">
+                                <Tag class="text-success">
+                                  {"+" +
+                                    (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.added), 0)}
+                                </Tag>
+                                <Tag class="text-destructive">
+                                  {"-" +
+                                    (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.removed), 0)}
+                                </Tag>
+                                <span class="text-ui-xs text-foreground-subtle">
+                                  {t("run.mission.files", { count: String((missionDiff()?.files ?? []).length) })}
+                                </span>
+                              </div>
+                            </Show>
+                            <For each={(missionDiff()?.files ?? []).slice(0, 5)}>
+                              {(file) => (
+                                <div class="flex items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                                  <span class="min-w-0 flex-1 truncate">{file.path}</span>
+                                  <span class="shrink-0 text-success">{"+" + numeric(file.added)}</span>
+                                  <span class="shrink-0 text-destructive">{"-" + numeric(file.removed)}</span>
+                                </div>
+                              )}
+                            </For>
+                            <Show when={(missionDiff()?.files ?? []).length > 5 || missionDiff()?.truncated}>
+                              <span class="text-ui-xs text-foreground-subtlest">{t("run.mission.more")}</span>
+                            </Show>
+                            {/* 未跟踪文件不是已交付：单独说清楚，不并进上面的改动数字。 */}
+                            <Show when={(missionDiff()?.untracked ?? []).length > 0}>
+                              <span class="text-ui-xs text-warning">
+                                {t("run.mission.untracked", { count: String((missionDiff()?.untracked ?? []).length) })}
+                              </span>
+                            </Show>
+                          </div>
+                        )}
+                      </Show>
+
+                      {/*
+                    截断必须可见（§6.4）：自己少给了模型几条，就不能在复盘时怪模型没看到。
+                    清单在每次派发时落库，这里只显示「哪一队、少了什么、为什么」。
+                  */}
+                      <Show when={truncations().length > 0}>
+                        <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
+                          <div class="text-ui-xs text-warning">
+                            {t("run.context.truncated", { count: String(truncations().length) })}
+                          </div>
+                          <For each={truncations()}>
+                            {(item) => (
+                              <div class="text-ui-xs text-foreground-subtle">
+                                {item.teamID +
+                                  " · " +
+                                  item.kind +
+                                  " " +
+                                  t("run.context.omitted", { count: String(item.count) })}
+                                <span class="text-foreground-subtlest">{" " + item.reason}</span>
+                              </div>
+                            )}
+                          </For>
+                          <div class="text-ui-xs text-foreground-subtlest">{t("run.context.hint")}</div>
+                        </div>
+                      </Show>
+
+                      {/*
+                    阻塞与拒绝（§11.2）：拒绝不能被静默吞掉。权限类要标出「换成别人也没用」——
+                    换一个「权限更高」的人做同一件事就是提权，只能由用户放行。
+                  */}
+                      {/*
+                    待核对的操作（§8.5）：重启时有工具停在「已开始、结果未写回」。
+                    在清空之前，这次运行不能自动续跑 —— 先把副作用（文件 / 进程 / 提交）核对掉。
+                    只显示工具名与开始时间：参数里常有命令与凭据。
+                  */}
+                      {/* 成本分两列：已结算只算提供方回报的用量，用量不明单独一列，不冒充实际花费。 */}
+                      <Show when={data().run.usage}>
+                        {(usage) => (
+                          <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                            <div class="flex flex-wrap items-center gap-1.5 text-ui-xs">
+                              <span class="text-foreground-subtle">{t("run.usage.budget")}</span>
+                              <Tag title={t("run.usage.capHint")}>
+                                {t("run.usage.cap", {
+                                  used: (
+                                    numeric(usage().reserved) +
+                                    numeric(usage().settled) +
+                                    numeric(usage().unknown)
+                                  ).toLocaleString(),
+                                  cap: numeric(usage().cap).toLocaleString(),
+                                })}
+                              </Tag>
+                              <Show when={usage().overrun}>
+                                <Tag class="text-destructive">{t("run.usage.overrun")}</Tag>
+                              </Show>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                              <span>{t("run.usage.settled", { n: numeric(usage().settled).toLocaleString() })}</span>
+                              <span>{t("run.usage.unknown", { n: numeric(usage().unknown).toLocaleString() })}</span>
+                              <span>{t("run.usage.reserved", { n: numeric(usage().reserved).toLocaleString() })}</span>
+                              {/* 成本只在提供方回报时出现：老运行与免费模型不该显示一个假的 0。 */}
+                              <Show when={usage().cost !== undefined}>
+                                <span title={t("run.usage.costHint")}>
+                                  {t("run.usage.cost", { n: numeric(usage().cost ?? 0).toFixed(4) })}
+                                </span>
+                              </Show>
+                            </div>
+                          </div>
+                        )}
+                      </Show>
+
+                      <Show when={(data().run.usage?.byJob ?? []).length > 0}>
+                        <div class="flex flex-col gap-1.5">
+                          <div class="text-ui-xs text-foreground-subtle">{t("run.usage.title")}</div>
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <For each={data().run.usage?.byJob ?? []}>
+                              {(item) => (
+                                <Tag title={t("run.usage.hint")}>
+                                  {item.job + " · " + item.committed.toLocaleString()}
+                                </Tag>
+                              )}
+                            </For>
+                          </div>
+                          <div class="text-ui-xs text-foreground-subtlest">{t("run.usage.hint")}</div>
+                        </div>
+                      </Show>
+
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <For each={data().teams}>
+                          {(team) => (
+                            // 有 worktree 就把它挂在提示里：证据绑定的是那个目录的快照；
+                            // 有产物就连版本一起显示 —— 下游依赖的是具体版本，不是「大概那一版」。
+                            <Tag
+                              title={[
+                                team.worktree ?? "",
+                                (team.artifacts ?? []).map((item) => item.name + "@" + item.version).join(" "),
+                                // 任务范围（§11.1）：越界写会被拦下，界面要能回答「为什么」。
+                                team.scope?.length ? t("run.team.scope", { paths: (team.scope ?? []).join("、") }) : "",
+                              ]
+                                .filter(Boolean)
+                                .join(String.fromCharCode(10))}
+                            >
+                              {teamName(team) + " · " + teamPhaseLabel(team.phase)}
+                              {team.dependsOn.length > 0
+                                ? " · " +
+                                  t("run.team.deps", {
+                                    deps: team.dependsOn.map((dep) => "#" + (numeric(dep) + 1)).join("、"),
+                                  })
+                                : ""}
+                            </Tag>
+                          )}
+                        </For>
+                      </div>
+
+                      {/*
+                    任务板（§5.5 / §4.3）：只显示做法与进度。
+                    任务存在不代表有会话正在做 —— 界面上也不替它做这个暗示。
+                  */}
+                      <Show when={board().length > 0}>
+                        <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                          <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
+                            <span class="text-foreground-subtlest">
+                              {t("run.tasks.title", { count: String(board().length) })}
+                            </span>
+                            <span class="min-w-0 flex-1 truncate text-foreground-subtlest">{t("run.tasks.hint")}</span>
+                          </div>
+                          <For each={board()}>
+                            {(task) => (
+                              <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                                <Tag>{task.status}</Tag>
+                                <span class="min-w-0 flex-1 truncate">{task.subject}</span>
                                 <span class="shrink-0 text-foreground-subtlest">
-                                  {new Date(Number(event.at) || 0).toLocaleTimeString()}
+                                  {t("run.tasks.owner", { owner: task.owner ?? "—" })}
                                 </span>
                               </div>
                             )}
                           </For>
-                        </Show>
-                        <div class="text-ui-xs text-foreground-subtlest">{t("run.events.hint")}</div>
-                      </div>
-                    </Show>
-                  </div>
-                  {/*
-                    决策链回放（§12）：回答「为什么它认为完成了」。
-                    和「重跑」不是一回事（§8.5）—— 文案里不承诺重新执行会得到同样结果。
+                        </div>
+                      </Show>
+
+                      {/*
+                    事件流（§4.3 / §12）：只读、可展开、按需加载。
+                    只显示种类与时间，不展开 payload —— 里面可能有命令与路径，
+                    它们属于「要复跑时去本地读」的那一类，不该直接铺在界面上。
                   */}
-                  <div class="flex flex-col gap-1.5">
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      class="justify-start"
-                      disabled={loadingReplay()}
-                      onClick={() => void toggleReplay(data().run.id)}
-                    >
-                      <Icon name={showReplay() ? "chevron-down" : "chevron-right"} size="small" />
-                      {t("run.replay.toggle")}
-                    </Button>
-                    <Show when={showReplay() && replayRunID() === data().run.id && replay()}>
-                      {(chain) => (
-                        <div class="flex flex-col gap-2 rounded-lg border border-border px-3 py-2">
-                          <div class="flex flex-wrap items-center gap-1.5">
-                            <Tag>{stateLabel(chain().conclusion.state)}</Tag>
-                            <Tag>{t(`run.replay.verdict.${chain().conclusion.verdict}`)}</Tag>
-                            <span class="text-ui-xs text-foreground-subtle">
-                              {t("run.replay.counts", {
-                                pass: numeric(chain().conclusion.counts.pass),
-                                fail: numeric(chain().conclusion.counts.fail),
-                                unverified: numeric(chain().conclusion.counts.unverified),
-                                stale: numeric(chain().conclusion.counts.stale),
-                              })}
-                            </span>
-                          </div>
-                          {/* 必须照实说的边界：未验证/过期不计入通过、结论是否有事件背书。 */}
-                          <For each={chain().conclusion.notes}>
-                            {(note) => <div class="text-ui-xs text-warning">{note}</div>}
-                          </For>
-                          <Show when={chain().steps.length > 0}>
-                            <div class="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
-                              <For each={chain().steps}>
-                                {(step) => (
+                      <div class="flex flex-col gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          class="justify-start"
+                          disabled={loadingEvents()}
+                          onClick={() => void toggleEvents(data().run.id)}
+                        >
+                          <Icon name={showEvents() ? "chevron-down" : "chevron-right"} size="small" />
+                          {showEvents() ? t("run.events.toggleCount", { count: eventCount() }) : t("run.events.toggle")}
+                        </Button>
+                        <Show when={showEvents()}>
+                          <div class="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+                            <Show
+                              when={events().length > 0}
+                              fallback={<div class="text-ui-xs text-foreground-subtlest">{t("run.events.empty")}</div>}
+                            >
+                              <For each={events()}>
+                                {(event) => (
                                   <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
-                                    <span class="w-10 shrink-0 text-foreground-subtlest">
-                                      {"#" + numeric(step.seq)}
+                                    <span class="w-10 shrink-0 text-foreground-subtlest">{"#" + event.seq}</span>
+                                    <span class="min-w-0 flex-1 truncate">{event.kind}</span>
+                                    <span class="shrink-0 text-foreground-subtlest">
+                                      {new Date(Number(event.at) || 0).toLocaleTimeString()}
                                     </span>
-                                    <span class="min-w-0 flex-1 truncate">{step.kind}</span>
-                                    <Show when={step.teamID}>
-                                      {(teamID) => <span class="shrink-0 text-foreground-subtlest">{teamID()}</span>}
-                                    </Show>
-                                    <Show when={step.round !== undefined}>
-                                      <span class="shrink-0 text-foreground-subtlest">
-                                        {t("run.replay.round", { round: numeric(step.round!) })}
-                                      </span>
-                                    </Show>
-                                    <Show when={step.outcome}>{(outcome) => <Tag>{outcome()}</Tag>}</Show>
                                   </div>
                                 )}
                               </For>
+                            </Show>
+                            <div class="text-ui-xs text-foreground-subtlest">{t("run.events.hint")}</div>
+                          </div>
+                        </Show>
+                      </div>
+                      {/*
+                    决策链回放（§12）：回答「为什么它认为完成了」。
+                    和「重跑」不是一回事（§8.5）—— 文案里不承诺重新执行会得到同样结果。
+                  */}
+                      <div class="flex flex-col gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          class="justify-start"
+                          disabled={loadingReplay()}
+                          onClick={() => void toggleReplay(data().run.id)}
+                        >
+                          <Icon name={showReplay() ? "chevron-down" : "chevron-right"} size="small" />
+                          {t("run.replay.toggle")}
+                        </Button>
+                        <Show when={showReplay() && replayRunID() === data().run.id && replay()}>
+                          {(chain) => (
+                            <div class="flex flex-col gap-2 rounded-lg border border-border px-3 py-2">
+                              <div class="flex flex-wrap items-center gap-1.5">
+                                <Tag>{stateLabel(chain().conclusion.state)}</Tag>
+                                <Tag>{t(`run.replay.verdict.${chain().conclusion.verdict}`)}</Tag>
+                                <span class="text-ui-xs text-foreground-subtle">
+                                  {t("run.replay.counts", {
+                                    pass: numeric(chain().conclusion.counts.pass),
+                                    fail: numeric(chain().conclusion.counts.fail),
+                                    unverified: numeric(chain().conclusion.counts.unverified),
+                                    stale: numeric(chain().conclusion.counts.stale),
+                                  })}
+                                </span>
+                              </div>
+                              {/* 必须照实说的边界：未验证/过期不计入通过、结论是否有事件背书。 */}
+                              <For each={chain().conclusion.notes}>
+                                {(note) => <div class="text-ui-xs text-warning">{note}</div>}
+                              </For>
+                              <Show when={chain().steps.length > 0}>
+                                <div class="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
+                                  <For each={chain().steps}>
+                                    {(step) => (
+                                      <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
+                                        <span class="w-10 shrink-0 text-foreground-subtlest">
+                                          {"#" + numeric(step.seq)}
+                                        </span>
+                                        <span class="min-w-0 flex-1 truncate">{step.kind}</span>
+                                        <Show when={step.teamID}>
+                                          {(teamID) => (
+                                            <span class="shrink-0 text-foreground-subtlest">{teamID()}</span>
+                                          )}
+                                        </Show>
+                                        <Show when={step.round !== undefined}>
+                                          <span class="shrink-0 text-foreground-subtlest">
+                                            {t("run.replay.round", { round: numeric(step.round!) })}
+                                          </span>
+                                        </Show>
+                                        <Show when={step.outcome}>{(outcome) => <Tag>{outcome()}</Tag>}</Show>
+                                      </div>
+                                    )}
+                                  </For>
+                                </div>
+                              </Show>
+                              <div class="text-ui-xs text-foreground-subtlest">{t("run.replay.hint")}</div>
                             </div>
-                          </Show>
-                          <div class="text-ui-xs text-foreground-subtlest">{t("run.replay.hint")}</div>
-                        </div>
-                      )}
-                    </Show>
-                  </div>
+                          )}
+                        </Show>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
               )}
             </Show>
