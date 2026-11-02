@@ -144,6 +144,8 @@ export const dict = {
   "run.empty.noProfile": "还没有可用的团队模板。先到「团队」页建一个团队，再回来发起运行。",
   "run.step.reviewTitle": "先核对 {{count}} 项结果不明的操作",
   "run.step.reviewHint": "进程重启打断了这些调用。在下面的「待核对」里逐条确认它们到底执行了没有，核对完才能继续。",
+  "run.step.planningTitle": "计划还没建好",
+  "run.step.planningHint": "这次运行还没有计划（通常是接口或命令行直接创建的）。等计划生成后，「批准」按钮会出现在这里。",
   "run.step.approveTitle": "计划已就绪，等你批准",
   "run.step.approveHint": "这次运行有 {{count}} 个团队。批准就是同意按这份计划和预算开始；批准后还需要再点一次「开始执行」。",
   "run.step.startTitle": "已批准，点「开始执行」把活派给 {{count}} 个团队",

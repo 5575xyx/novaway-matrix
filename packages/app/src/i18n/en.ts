@@ -155,6 +155,8 @@ export const dict = {
   "run.empty.noProfile": "No team template yet. Create a team on the Teams page first, then start a run.",
   "run.step.reviewTitle": "Review {{count}} tool call(s) with unknown outcome first",
   "run.step.reviewHint": "A restart cut these calls off. Confirm one by one whether they actually ran; the run cannot continue until they are resolved.",
+  "run.step.planningTitle": "The plan is not ready yet",
+  "run.step.planningHint": "This run has no plan yet (usually created through the API or CLI). Once the plan exists, Approve shows up here.",
   "run.step.approveTitle": "The plan is ready — waiting for your approval",
   "run.step.approveHint": "This run has {{count}} team(s). Approving accepts this plan and budget; you still click Start afterwards.",
   "run.step.startTitle": "Approved — click Start to dispatch {{count}} team(s)",

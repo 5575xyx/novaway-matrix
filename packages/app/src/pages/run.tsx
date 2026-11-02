@@ -609,6 +609,9 @@ export const RunPage: Component<{
         title: t("run.step.reviewTitle", { count: String(pending) }),
         hint: t("run.step.reviewHint"),
       }
+    // 计划还没建好时（API / 命令行发起），这里没有按钮可点：先说实话，别落到「失败」。
+    if (run.state === "planning")
+      return { title: t("run.step.planningTitle"), hint: t("run.step.planningHint") }
     if (run.state === "awaiting_approval")
       return {
         title: t("run.step.approveTitle", { count: String(teams) }),
@@ -626,7 +629,8 @@ export const RunPage: Component<{
         title: t("run.step.runningTitle", { round: String(run.roundMain) }),
         hint: t("run.step.runningHint"),
       }
-    if (run.state === "paused")
+    // `needs_review` 且已没有待核对项：能做的和 `paused` 一样 —— 继续。
+    if (run.state === "paused" || run.state === "needs_review")
       return {
         title: t("run.step.resumeTitle"),
         hint: t("run.step.resumeHint"),
