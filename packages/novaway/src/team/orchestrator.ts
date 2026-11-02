@@ -370,6 +370,21 @@ export const layer = Layer.effect(
       const feedback = new Map<string, string[]>()
 
       const cancelled = () => input.signal?.aborted === true
+      /**
+       * 取消信号变成「可以被 race 的中断」。
+       *
+       * 只靠循环检查点是不够的：一次派发已经在跑时，检查点根本没机会执行 ——
+       * 用户点了停止，编排器还要等队长调用自己结束（最坏是零进展上限 30 分钟）。
+       * 这里让在途派发与信号赛跑：信号先到就打断这次派发，收尾仍走三段式。
+       */
+      const stopSignal = Effect.callback<never>((resume) => {
+        const signal = input.signal
+        if (!signal) return resume(Effect.never)
+        if (signal.aborted) return resume(Effect.interrupt)
+        const onAbort = () => resume(Effect.interrupt)
+        signal.addEventListener("abort", onAbort, { once: true })
+        return Effect.sync(() => signal.removeEventListener("abort", onAbort))
+      })
 
       /** 三段式取消：停止新派发 → 记录在途影响 → 才置终态。 */
       const finishCancelled = Effect.fn("TeamOrchestrator.cancelled")(function* (teams: RunTeam[]) {
@@ -527,19 +542,26 @@ export const layer = Layer.effect(
             })
 
             const dispatched = yield* Effect.exit(
-              input
-                .dispatch({
-                  team,
-                  round,
-                  acceptance: teamLines,
-                  feedback: feedback.get(team.id),
-                })
-                // 零进展上限（§9）：挂住的调用不会一直占着这次运行。
-                .pipe(Effect.timeoutOption(dispatchTimeout)),
+              Effect.raceFirst(
+                input
+                  .dispatch({
+                    team,
+                    round,
+                    acceptance: teamLines,
+                    feedback: feedback.get(team.id),
+                  })
+                  // 零进展上限（§9）：挂住的调用不会一直占着这次运行。
+                  .pipe(Effect.timeoutOption(dispatchTimeout)),
+                // 停止请求同样能打断在途派发（见 stopSignal）。
+                stopSignal,
+              ),
             )
 
             if (Exit.isFailure(dispatched)) {
               yield* ledger.settle({ id: reservation.value.id, tokens: 0 })
+              // 被取消打断不是团队的失败：事件里不该留下一条「团队做错了什么」，
+              // 收尾交给三段式取消（finishCancelled 会把未交付的团队记成 cancelled）。
+              if (cancelled()) return
               const failure = classify(dispatched.cause)
               yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: failure.kind } })
               yield* runs.appendEvent({
@@ -553,6 +575,7 @@ export const layer = Layer.effect(
             // 超时也是「没有交付」，但它不是模型的判定：单独一种裁决，别混进 unknown。
             if (Option.isNone(dispatched.value)) {
               yield* ledger.settle({ id: reservation.value.id, tokens: 0 })
+              if (cancelled()) return
               yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: "timeout", timeoutMs: dispatchTimeout } })
               yield* runs.appendEvent({
                 runID: input.runID,

@@ -211,10 +211,14 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     /**
      * 本进程里正在跑的编排器（§8.5）：`cancel` 靠它把停止请求送到真正在干活的那个循环。
      *
+     * 只有控制器不够：编排器只在循环检查点看信号，一次卡住的队长调用会让「停止」
+     * 等满零进展上限（30 分钟）。`sessions` 记下这次运行派生过的会话 —— 队长、验证器、
+     * 成员，取消时逐个打断，在途的模型调用才会真的停下。
+     *
      * 只覆盖本进程：重启后的遗留运行由恢复流程处理成 `paused`；别的进程里在跑的运行
      * 不该由这份内存表假装能停 —— 没有控制器时 `cancel` 退回「直接置终态」的老路。
      */
-    const executions = new Map<string, AbortController>()
+    const executions = new Map<string, { controller: AbortController; sessions: Set<SessionID> }>()
     const recoverStale = (directory: string | undefined) =>
       Effect.gen(function* () {
         const key = directory ?? "*"
@@ -713,6 +717,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             resolvePromptParts: (template) => promptSvc.resolvePromptParts(template),
             prompt: (input) => promptSvc.prompt(input).pipe(Effect.orDie),
           }
+          /**
+           * 这次运行派生过的会话（队长、验证器、成员）。
+           *
+           * 取消要能打断在途的模型调用，就必须知道它们在哪个会话里跑：
+           * 只发 AbortSignal 的话，编排器得等调用自己结束才能走到检查点。
+           */
+          const liveSessions = new Set<SessionID>()
           const runAgent = makeRunAgent({
             ops,
             sessions,
@@ -732,7 +743,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 Effect.catchCause(() => Effect.succeed({ cost: 0, tokens: 0 })),
               ),
             // 子会话一创建就登记编排坐标；之后它跑的任何有副作用工具都会带幂等键。
-            onSession: ({ sessionID, scope }) => (scope ? opLog.scope({ sessionID, ...scope }) : Effect.void),
+            // 同时记进本次运行的活动会话表，取消时用得上。
+            onSession: ({ sessionID, scope }) =>
+              Effect.gen(function* () {
+                liveSessions.add(sessionID)
+                if (scope) yield* opLog.scope({ sessionID, ...scope })
+              }),
           })
 
           // 模板发起时，队长默认用编制里的队长岗位 —— 模板写了谁负责就谁负责。
@@ -1108,7 +1124,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           // 双倍记账，还会互相覆盖状态。登记放在这里（紧接着 fork），中间没有可以让出的点。
           if (executions.has(run.id)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
           const controller = new AbortController()
-          executions.set(run.id, controller)
+          const execution = { controller, sessions: liveSessions }
+          executions.set(run.id, execution)
           yield* orchestrator
             .execute({
               runID: run.id,
@@ -1143,7 +1160,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               // 跑完就摘掉：留下的控制器会让下一次「取消」发到一个已经结束的运行上。
               Effect.ensuring(
                 Effect.sync(() => {
-                  if (executions.get(run.id) === controller) executions.delete(run.id)
+                  if (executions.get(run.id) === execution) executions.delete(run.id)
                 }),
               ),
               Effect.forkIn(scope, { startImmediately: true }),
@@ -1287,9 +1304,24 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
              * 只有它知道这一轮派发到了哪一步。这里直接改状态的话，编排器随后的结算
              * 会把 `cancelled` 覆盖掉 —— 那正是「点了停止却照样跑完」的成因。
              */
-            const controller = executions.get(run.id)
-            if (controller) {
-              controller.abort()
+            const execution = executions.get(run.id)
+            if (execution) {
+              execution.controller.abort()
+              /**
+               * 光发信号不够：编排器只在循环检查点看它，一次在途的队长调用会一直
+               * 挂着（最坏是零进展上限 30 分钟），用户点了停止却要等半小时。
+               * 打断这次运行派生过的会话，在途的模型调用才会真的停下；派发因此
+               * 立刻以中断结束，三段式收尾照旧由编排器完成。
+               *
+               * 这一步放在请求之外：请求一结束它的 fiber 就会被回收，而会话收尾
+               * 还在路上 —— 挂在请求作用域里的取消动作会变成半途而废的中断。
+               */
+              yield* Effect.forEach(
+                [...execution.sessions],
+                // 会话可能已经结束（runner 不在），失败不该让「取消」这个动作本身报错。
+                (sessionID) => promptSvc.cancel(sessionID).pipe(Effect.catchCause(() => Effect.void)),
+                { discard: true },
+              ).pipe(Effect.forkIn(scope, { startImmediately: true }))
               return (yield* detail(run.id))!
             }
             // 没有在跑的编排器（进程重启后的遗留、或状态卡住）：直接收尾。

@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { Effect, Layer, Ref } from "effect"
+import { Deferred, Effect, Fiber, Layer, Ref } from "effect"
 import { Service as OrchestratorService, defaultLayer as OrchestratorLayer, type Report } from "@/team/orchestrator"
 import { Service as RunService, defaultLayer as RunLayer, isTerminal } from "@/team/run"
 import { Service as VerificationService, defaultLayer as VerificationLayer } from "@/team/verification"
@@ -305,6 +305,52 @@ describe("team orchestrator", () => {
       expect(kinds).toContain("cancel.requested")
       expect(kinds).toContain("cancel.settled")
       expect(kinds.indexOf("cancel.requested")).toBeLessThan(kinds.indexOf("cancel.settled"))
+    }),
+  )
+
+  it.effect("a cancel interrupts the dispatch that is already in flight", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const verification = yield* VerificationService
+      const orchestrator = yield* OrchestratorService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_cancel_inflight"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "目标",
+        budget: { tokens: 100_000 },
+      })
+      const team = yield* runs.addTeam({ runID: run.id })
+      yield* verification.register({ runID: run.id, specID: "s", text: "验收", kind: "test", owner: team.id })
+
+      const controller = new AbortController()
+      const started = yield* Deferred.make<void>()
+      // 派发一直不返回（队长卡在模型调用里）：只靠循环检查点的话，
+      // 编排器要等这次派发自己结束才看得到停止请求。
+      const fiber = yield* orchestrator
+        .execute({
+          runID: run.id,
+          signal: controller.signal,
+          snapshot: () => Effect.succeed("snap_1"),
+          dispatch: () =>
+            Effect.gen(function* () {
+              yield* Deferred.succeed(started, undefined)
+              return yield* Effect.never
+            }),
+          verify: () => Effect.succeed({ outcome: "pass" as const }),
+        })
+        .pipe(Effect.forkChild)
+
+      yield* Deferred.await(started)
+      controller.abort()
+      const result = yield* Fiber.join(fiber)
+
+      expect(result.state).toBe("cancelled")
+      const kinds = (yield* runs.events({ runID: run.id })).map((event) => event.kind)
+      expect(kinds).toContain("cancel.settled")
+      // 被打断的派发不是团队的失败：事件里不该留下一条「这一队做错了什么」。
+      expect(kinds).not.toContain("team.failed")
+      expect((yield* runs.teams(run.id))[0].phase).toBe("cancelled")
     }),
   )
 
