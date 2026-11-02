@@ -4,7 +4,7 @@
 
 <h1 align="center">NovaWay Matrix</h1>
 
-<p align="center"><b>One sentence, and AI writes your code, builds your slides, and ships your posts.</b></p>
+<p align="center"><b>One sentence, and AI writes your code, builds your slides, and ships your posts to every platform.</b></p>
 
 <p align="center">An AI coding and office-automation agent in your terminal — built for Chinese LLMs and Chinese workflows.</p>
 
@@ -35,7 +35,7 @@ What you get is more than "a chat box in the terminal":
 - **Projects**: Git staging and commits, branch management, database queries — all in the same interface.
 - **Chinese, natively**: DeepSeek, Qwen, Zhipu GLM and Kimi work out of the box, in a fully Chinese UI.
 
-The same core also powers an **Electron desktop app** and a **floating desktop pet** (see below).
+The same core also powers an **Electron desktop app** (see below), with the operations workspace and one-stop multi-platform publishing.
 
 > Supports **Windows x64** / **macOS** (Apple Silicon and Intel) / **Linux x64**, requires Node.js ≥ 18. npm installs only the binary matching your platform.
 
@@ -97,37 +97,29 @@ Run `novaway` and you'll see a width-adaptive side panel — **five tabs** that 
 
 The chat area supports **multiple tabs** (chat / file preview / diff side by side); `ctrl+p` opens the command palette, `ctrl+alt+k` lists all shortcuts, and `f2` cycles recently used models in an instant.
 
-## Desktop app
+## Desktop highlights
 
-Not a terminal person? NovaWay also ships an **Electron desktop app** (not a thin wrapper) driving the same `novaway` core as a sidecar, with a Chinese UI, 16 languages and auto-update:
+Not a terminal person? NovaWay also ships an **Electron desktop app** — same core, ready out of the box:
 
-**① Workbench window** — the full main window for coding and office conversations; custom server address, deep-link activation, and WSL configuration on Windows.
+> ⚠️ **Windows users, read this first**: [docs/windows-defender.md](docs/windows-defender.md)
+> First install may be blocked by Defender / SmartScreen. Three steps fix it: ① restore the file from Defender's protection history ② add the install directory to exclusions ③ choose "Run anyway" on the SmartScreen prompt.
 
-**② Floating pet** — an AI companion that lives on your desktop, follows your cursor and is always one click away:
-
-- **Two forms**: full and minimal, toggled instantly.
-- **Expand to see**: the task monitor (what the agent is doing right now) plus a notification center.
-- **Skins**: several built-in pet skins, custom colors supported.
-
-### Multi-platform accounts and one-click publishing
-
-The desktop app manages login sessions for major Chinese content platforms and automates publishing, closing the loop with the built-in skills — "generate content → publish":
-
-> Xiaohongshu, Douyin, Kuaishou (with signing), Bilibili, WeChat Official Accounts, WeChat Channels, Xianyu
-
-- **QR / web login** with automatic session capture and validation, batch expiry checks included.
-- **Account grouping** — create, edit and delete groups; move accounts between them.
-- **One-click publish** to any logged-in account — after the copy is written, publishing is one click away.
+- **AI team orchestration** — one task, a whole team of agents working in parallel: a lead breaks down the plan, dispatches by dependency, threads the results back. You state the goal; it staffs the team.
+- **Automated operations** — content goes straight from generation to publishing. Unified account management across seven platforms (Xiaohongshu / Douyin / Kuaishou / Bilibili / Official Accounts / Channels / Xianyu), **one click, every platform**: live per-account progress, one platform failing never blocks the rest, results reviewable any time.
+- **Watch it write** — when the AI edits files, the side panel opens automatically and shows every change character by character, then closes when done. Code, docs, decks — like watching someone type.
+- **Four work modes** — Coding / Office / Creative / Explore, each with its own accent color and agent lineup, one click to switch.
+- **See output instantly** — code, Markdown, PPT / Word / Excel, PDF, images — preview the moment it's generated.
+- **Auto-update** — silent background downloads; once downloaded the button stays until you click install. Installers clean up after themselves, and offline installs of downloaded updates work.
 
 ## Why NovaWay
 
 - **Chinese LLMs out of the box** — DeepSeek, Qwen, Zhipu GLM, Kimi, MiniMax and Xiaomi MiMo each ship with dedicated system prompts: pick a provider, paste the key, start working. Claude, GPT and Gemini work just as well.
-- **Chinese everywhere** — terminal, desktop app, command palette, error messages, all localized with NovaWay branding.
-- **Office skills you can speak to** — PPT (office-ppt), Xiaohongshu ops, WeChat Official Account ops, plus a full document / data / meeting / design / web suite. Describe what you want in plain language.
-- **Multi-agent orchestration** — the Orchestrator breaks big tasks into dependency-aware plans, spawns subagents concurrently in topological order and threads results between them; the pulse-orchestrator ops agent actively drives it for multi-step campaigns.
+- **Chinese everywhere** — terminal, desktop app, command palette, error messages, all localized.
+- **Office skills you can speak to** — PPT, Xiaohongshu ops, WeChat Official Account ops, plus a full document / data / meeting / design / web suite. Describe what you want in plain language.
+- **Multi-agent orchestration** — big tasks become dependency-aware plans, subagents run concurrently, results get threaded together.
 - **Session intelligence** — goals, checkpoints and distillation: the agent remembers, rewinds and reviews itself.
 - **Git integration** — staging, commits, branches, stashes, remote sync and diff viewing, complete in the terminal.
-- **Database management** — multiple connections, tree browsing and SQL queries across the TUI, desktop app and web UI.
+- **Database management** — MySQL / PostgreSQL / SQLite / Redis and more (eight engines), tree browsing + SQL queries.
 - **MCP ecosystem** — context7 (live docs), sequential-thinking, memory, browser and desktop-commander, preconfigured.
 
 ## Built-in agents: a team, each with a craft
@@ -212,6 +204,9 @@ See [docs/knowledge-base.md](packages/novaway/docs/knowledge-base.md) for the fu
 (backend priority, models, scanned PDFs, more mirror variables).
 
 ## Update
+
+- **Desktop app**: in-app auto-update — background downloads, one click to install. No manual work.
+- **Terminal CLI**:
 
 ```bash
 novaway upgrade              # upgrade to the latest version
