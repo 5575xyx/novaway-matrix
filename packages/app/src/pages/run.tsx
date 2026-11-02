@@ -15,6 +15,9 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show, type Component
 import { PageHeader } from "@/components/page-header"
 import { RunGuide, type GuideStep } from "@/components/run-guide"
 import { guideStates } from "@/components/run-guide.steps"
+import { RunLive } from "@/components/run-live"
+import type { LiveTask, LiveTeam } from "@/components/run-live.logic"
+import { RunPlanReview, type PlanReviewTeam } from "@/components/run-plan-review"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 
@@ -435,6 +438,27 @@ export const RunPage: Component<{
       setCommandOpen(false)
     })
 
+  /**
+   * 批准前补一条验收（§4.3）。
+   *
+   * 计划预览里的验收清单是用户做决定的地方：发现「没有验收标准」时，
+   * 最自然的动作是就地补一条，而不是翻到页面底部再找验收台账。
+   * 这里只加 `rubric`（一句可复核的话），命令类验收仍走下面的专用入口。
+   */
+  const addPlanAcceptance = (text: string, owner?: string) =>
+    act("acceptance", async () => {
+      const run = detail()?.run
+      if (!run) return
+      await sdk.client.run.acceptance.add({
+        runID: run.id,
+        directory: props.directory,
+        specID: "plan-" + Date.now().toString(36),
+        text,
+        kind: "rubric",
+        ...(owner ? { owner } : {}),
+      })
+    })
+
   const acceptanceFor = (acceptanceID: string) => (detail()?.acceptances ?? []).find((item) => item.id === acceptanceID)
 
   const hasWorktrees = createMemo(() => (detail()?.teams ?? []).some((team) => !!team.worktree))
@@ -579,6 +603,66 @@ export const RunPage: Component<{
   const board = createMemo(() =>
     (detail()?.teams ?? []).flatMap((team) => (team.tasks ?? []).map((task) => ({ teamID: team.id, ...task }))),
   )
+  /**
+   * 团队在界面上的名字。
+   *
+   * 库里的团队行只有模板 id；直接把 `team_xxx` 摆出来，用户没法把它和
+   * 「刚才在团队页建的那支队」对上。模板还在就显示模板名，找不到才退回编号。
+   */
+  const teamName = (team: { id: string; profileID?: string }) =>
+    profiles().find((item) => item.id === team.profileID)?.name ??
+    t("run.plan.teamFallback", { id: team.profileID ?? team.id })
+  const TEAM_PHASES = new Set([
+    "queued",
+    "running",
+    "executing",
+    "delivered",
+    "rework",
+    "failed",
+    "exceeded",
+    "cancelled",
+  ])
+  const teamPhaseLabel = (phase: string) => (TEAM_PHASES.has(phase) ? t(`run.team.phase.${phase}`) : phase)
+  /** 批准前的计划预览：用运行里已经落库的团队与验收，不额外发请求。 */
+  const planTeams = createMemo<PlanReviewTeam[]>(() =>
+    (detail()?.teams ?? []).map((team) => {
+      const profile = profiles().find((item) => item.id === team.profileID)
+      return {
+        id: team.id,
+        name: teamName(team),
+        ...(profile ? { memberCount: profile.memberCount } : {}),
+        ...(team.scope?.length ? { scope: team.scope } : {}),
+        dependsOn: team.dependsOn,
+      }
+    }),
+  )
+  const liveTasks = createMemo<LiveTask[]>(() =>
+    board().map((task) => ({
+      id: task.id,
+      subject: task.subject,
+      status: task.status,
+      ...(task.owner ? { owner: task.owner } : {}),
+    })),
+  )
+  const liveTeams = createMemo<LiveTeam[]>(() =>
+    (detail()?.teams ?? []).map((team) => ({ id: team.id, name: teamName(team), phase: team.phase })),
+  )
+  /** 只有「等批准」才需要计划预览：批准之后看的是执行进度，不是同一份计划。 */
+  const showPlanReview = createMemo(() => detail()?.run.state === "awaiting_approval")
+  /**
+   * 执行中的实时进度。
+   *
+   * 正在跑（有 phase）时一定显示；被重启打断后 phase 被清空，但任务板还在，
+   * 也把最后的进度留着 —— 不要让人以为「进度没了」。
+   * 「已批准但还没开始」不能显示，否则会被读成已经在跑。
+   */
+  const showLive = createMemo(() => {
+    const run = detail()?.run
+    if (!run) return false
+    if (run.phase) return true
+    if (run.state === "paused" || run.state === "blocked" || run.state === "needs_review") return board().length > 0
+    return false
+  })
   // 与后端同一条规则：批准前、以及批准后还没开工（running 且没有 phase）时可以改授权。
   // 会话里点名的团队会自动批准并落在 running，所以这一段不能漏 —— 否则界面上就没法放宽。
   const canChangePolicy = createMemo(() => {
@@ -1228,24 +1312,52 @@ export const RunPage: Component<{
                       <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface px-3 py-2">
                         {/* 步骤条：先让人看到全局，再读「现在该做什么」。 */}
                         <RunGuide steps={guideSteps()} />
-                        <div class="flex flex-wrap items-center gap-3 border-t border-border pt-2">
-                          <div class="min-w-0 flex-1">
+                        <div class="flex flex-col gap-2 border-t border-border pt-2">
+                          <div class="min-w-0">
                             <div class="text-15-medium text-foreground">{step().title}</div>
                             <div class="mt-0.5 text-ui-xs leading-relaxed text-foreground-subtle">{step().hint}</div>
                             <Show when={guideNote()}>
                               {(note) => <div class="mt-1 text-ui-xs leading-relaxed text-warning">{note()}</div>}
                             </Show>
                           </div>
+                          {/*
+                            批准前先把计划摊开：谁来做、怎样算做到、能不能改文件、花多少预算。
+                            没有这一块，「批准」就只是一个让人心里没底的按钮。
+                          */}
+                          <Show when={showPlanReview()}>
+                            <RunPlanReview
+                              planVersion={data().run.planVersion}
+                              teams={planTeams()}
+                              acceptances={data().acceptances}
+                              readOnly={data().run.readOnly}
+                              budgetTokens={data().run.budget?.tokens}
+                              busy={busy() === "acceptance"}
+                              onAddAcceptance={addPlanAcceptance}
+                            />
+                          </Show>
+                          {/* 执行中：第几轮、做到多少、此刻在做什么。 */}
+                          <Show when={showLive()}>
+                            <RunLive
+                              state={data().run.state}
+                              {...(data().run.phase ? { phase: data().run.phase } : {})}
+                              round={data().run.roundMain}
+                              updatedAt={data().run.updatedAt}
+                              tasks={liveTasks()}
+                              teams={liveTeams()}
+                            />
+                          </Show>
                           <Show when={step().action}>
                             {(action) => (
-                              <Button
-                                variant="primary"
-                                size="small"
-                                disabled={busy() !== ""}
-                                onClick={() => void action().run()}
-                              >
-                                {busy() === action().busy ? t("run.action.working") : action().label}
-                              </Button>
+                              <div class="flex justify-end">
+                                <Button
+                                  variant="primary"
+                                  size="small"
+                                  disabled={busy() !== ""}
+                                  onClick={() => void action().run()}
+                                >
+                                  {busy() === action().busy ? t("run.action.working") : action().label}
+                                </Button>
+                              </div>
                             )}
                           </Show>
                         </div>
@@ -1833,7 +1945,7 @@ export const RunPage: Component<{
                             .filter(Boolean)
                             .join(String.fromCharCode(10))}
                         >
-                          {team.id + " · " + team.phase}
+                          {teamName(team) + " · " + teamPhaseLabel(team.phase)}
                           {team.dependsOn.length > 0
                             ? " · " +
                               t("run.team.deps", {
