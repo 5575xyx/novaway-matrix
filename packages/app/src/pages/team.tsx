@@ -22,6 +22,8 @@ import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js"
 import { PageHeader } from "@/components/page-header"
+import { TeamDrilldown } from "@/components/team-drilldown"
+import { buildDrill, type DrillAcceptance } from "@/components/team-drilldown.logic"
 import { TeamGraph } from "@/components/team-graph"
 import type { GraphLaneInput } from "@/components/team-graph.layout"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -163,6 +165,8 @@ export const TeamPage: Component<{
   // 选中的工作线（一次运行）与它的详情：图画的就是这一次。
   const [lineID, setLineID] = createSignal<string | undefined>(undefined)
   const [lineDetail, setLineDetail] = createSignal<RunDetail | undefined>(undefined)
+  // 图里点中的节点：点谁看谁，换一条工作线就清掉，不让上一条的详情跟着走。
+  const [selectedNode, setSelectedNode] = createSignal<{ laneID: string; nodeID: string } | undefined>(undefined)
   // 每条工作线的实际参与人：只为列表里看得见的那几条拉一次，不跟着轮询刷。
   const [linePeople, setLinePeople] = createSignal<Record<string, string[]>>({})
   let feed: HTMLDivElement | undefined
@@ -281,6 +285,7 @@ export const TeamPage: Component<{
         id: task.id,
         subject: task.subject,
         status: task.status,
+        ...(task.updatedAt ? { updatedAt: numeric(task.updatedAt) } : {}),
         ...(task.owner ? { owner: task.owner } : {}),
         ...(task.ownerName ? { ownerName: task.ownerName } : {}),
         ...(task.ownerJob ? { ownerJob: task.ownerJob } : {}),
@@ -289,6 +294,39 @@ export const TeamPage: Component<{
     })),
   )
   const lineRun = createMemo(() => teamRuns().find((run) => run.id === lineID()))
+
+  /**
+   * 点节点之后的详情：任务 → 认领人，成员 → 他领的所有活，队长 → 整条泳道。
+   *
+   * 验收结论按最近一次验证算（`summary.lines` 已经处理了快照失效与「验过但不算」），
+   * 这里不重新判断，只把结论贴到对应的任务上。
+   */
+  const drill = createMemo(() => {
+    const current = selectedNode()
+    if (!current) return undefined
+    const lane = lineTeams().find((team) => team.id === current.laneID)
+    if (!lane) return undefined
+    const detail = lineDetail()
+    const outcomes = new Map((detail?.summary.lines ?? []).map((line) => [line.acceptanceID, line.outcome]))
+    const acceptances = (detail?.acceptances ?? []).map((acceptance): DrillAcceptance => {
+      const outcome = outcomes.get(acceptance.id)
+      return {
+        id: acceptance.id,
+        ...(acceptance.taskID ? { taskID: acceptance.taskID } : {}),
+        text: acceptance.text,
+        kind: acceptance.kind,
+        ...(outcome ? { outcome } : {}),
+      }
+    })
+    const view = buildDrill({ nodeID: current.nodeID, lane, acceptances })
+    return view ? { view, laneName: lane.name, round: lane.round } : undefined
+  })
+
+  // 换一条工作线：图换了，选中的节点也不再成立。
+  createEffect(() => {
+    lineID()
+    setSelectedNode(undefined)
+  })
 
   /**
    * 最近运行。
@@ -911,7 +949,30 @@ export const TeamPage: Component<{
                                 </div>
                               }
                             >
-                              <TeamGraph teams={lineTeams()} nameOf={(lane) => lane.name} />
+                              <TeamGraph
+                                teams={lineTeams()}
+                                nameOf={(lane) => lane.name}
+                                selected={selectedNode()}
+                                onSelect={(lane, node) => {
+                                  const current = selectedNode()
+                                  setSelectedNode(
+                                    current?.laneID === lane.id && current.nodeID === node.id
+                                      ? undefined
+                                      : { laneID: lane.id, nodeID: node.id },
+                                  )
+                                }}
+                              />
+                              <Show when={drill()}>
+                                {(current) => (
+                                  <TeamDrilldown
+                                    view={current().view}
+                                    laneName={current().laneName}
+                                    round={current().round}
+                                    onClose={() => setSelectedNode(undefined)}
+                                    {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
+                                  />
+                                )}
+                              </Show>
                             </Show>
                           </div>
                         )}

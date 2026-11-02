@@ -3785,6 +3785,8 @@ export type RunTaskView = {
   id: string
   subject: string
   status: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   owner?: string
   ownerName?: string
   ownerJob?: string

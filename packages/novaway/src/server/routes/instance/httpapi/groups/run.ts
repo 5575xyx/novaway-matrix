@@ -232,6 +232,9 @@ export const RunTaskView = Schema.Struct({
   id: Schema.String,
   subject: Schema.String,
   status: Schema.String,
+  /** 建单与最后动过的时间：详情里据此判断「这一步停了多久」，不靠猜。 */
+  createdAt: Schema.Number,
+  updatedAt: Schema.Number,
   /** 认领它的会话；空的表示没有会话在做（看板不假装它在跑）。 */
   owner: Schema.optional(Schema.String),
   /**

@@ -72,49 +72,61 @@ export function TeamGraph(props: {
   teams: readonly GraphLaneInput[]
   /** 团队名来自模板；找不到模板时上层给出可辨认的占位。 */
   nameOf: (lane: { id: string; name: string }) => string
+  /** 点中的节点：图层只负责高亮，详情由上层按点击的节点去取。 */
+  selected?: { laneID: string; nodeID: string }
+  onSelect?: (lane: GraphLaneInput, node: GraphNode) => void
 }): JSX.Element {
   const language = useLanguage()
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
-  const lanes = createMemo(() => layoutRun({ teams: props.teams }))
+  const lanes = createMemo(() =>
+    layoutRun({ teams: props.teams }).map((lane, index) => ({ lane, input: props.teams[index]! })),
+  )
 
   return (
     <div class="flex flex-col gap-3">
       <For each={lanes()}>
-        {(lane) => (
+        {(item) => (
           <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-3 py-2">
             <div class="flex flex-wrap items-center gap-1.5 text-ui-xs">
-              <span class="text-foreground">{props.nameOf(lane)}</span>
+              <span class="text-foreground">{props.nameOf(item.lane)}</span>
               <span
                 classList={{
                   "rounded-full border px-1.5 py-0.5": true,
-                  [ROUND_TONE[(lane.round - 1 + ROUND_TONE.length) % ROUND_TONE.length] ?? ROUND_TONE[0]]: true,
+                  [ROUND_TONE[(item.lane.round - 1 + ROUND_TONE.length) % ROUND_TONE.length] ?? ROUND_TONE[0]]: true,
                 }}
               >
-                {t("team.graph.round", { round: String(lane.round) })}
+                {t("team.graph.round", { round: String(item.lane.round) })}
               </span>
-              <Tag>{t(`run.team.phase.${lane.phase}`)}</Tag>
+              <Tag>{t(`run.team.phase.${item.lane.phase}`)}</Tag>
               <span class="text-foreground-subtle">
-                {lane.participants === 0
+                {item.lane.participants === 0
                   ? t("team.graph.participantsPending")
                   : t("team.graph.participants", {
-                      count: String(lane.participants),
-                      names: lane.nodes
+                      count: String(item.lane.participants),
+                      names: item.lane.nodes
                         .filter((node) => node.kind === "member" && node.status !== "idle")
                         .map((node) => node.label)
                         .join("、"),
                     })}
               </span>
-              <Show when={lane.unassigned > 0}>
-                <span class="text-warning">{t("team.graph.unassigned", { count: String(lane.unassigned) })}</span>
+              <Show when={item.lane.unassigned > 0}>
+                <span class="text-warning">{t("team.graph.unassigned", { count: String(item.lane.unassigned) })}</span>
               </Show>
             </div>
             <div class="overflow-x-auto">
-              <LaneGraph lane={lane} />
+              <LaneGraph
+                lane={item.lane}
+                selected={props.selected?.laneID === item.input.id ? props.selected?.nodeID : undefined}
+                onSelect={props.onSelect ? (node) => props.onSelect?.(item.input, node) : undefined}
+              />
             </div>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-ui-xs text-foreground-subtlest">
               <span>{t("team.graph.legend.assign")}</span>
               <span>{t("team.graph.legend.work")}</span>
               <span>{t("team.graph.legend.deliver")}</span>
+              <Show when={props.onSelect}>
+                <span class="ml-auto">{t("team.graph.selectHint")}</span>
+              </Show>
             </div>
           </div>
         )}
@@ -129,7 +141,7 @@ export function TeamGraph(props: {
  * 节点索引只算一次：每条边都去重建一次 Map，边一多就是平方级的浪费，
  * 而且没有任何理由让「同一个节点的坐标」在两次查找里不同。
  */
-function LaneGraph(props: { lane: GraphLane }): JSX.Element {
+function LaneGraph(props: { lane: GraphLane; selected?: string; onSelect?: (node: GraphNode) => void }): JSX.Element {
   const language = useLanguage()
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
   const statusLabel = (status: string) =>
@@ -176,14 +188,41 @@ function LaneGraph(props: { lane: GraphLane }): JSX.Element {
       </For>
       <For each={props.lane.nodes}>
         {(node) => (
-          <g class={node.status === "in_progress" ? "animate-pulse" : undefined}>
+          <g
+            classList={{
+              "animate-pulse": node.status === "in_progress",
+              "cursor-pointer": !!props.onSelect,
+            }}
+            role={props.onSelect ? "button" : undefined}
+            tabindex={props.onSelect ? 0 : undefined}
+            aria-label={node.label}
+            onClick={() => props.onSelect?.(node)}
+            onKeyDown={(event) => {
+              if (!props.onSelect || (event.key !== "Enter" && event.key !== " ")) return
+              event.preventDefault()
+              props.onSelect(node)
+            }}
+          >
+            <Show when={props.selected === node.id}>
+              <rect
+                x={node.x - 3}
+                y={node.y - 3}
+                width={NODE_WIDTH + 6}
+                height={NODE_HEIGHT + 6}
+                rx="10"
+                fill="none"
+                stroke-width="1"
+                stroke-dasharray="3 3"
+                class="stroke-foreground-subtlest"
+              />
+            </Show>
             <rect
               x={node.x}
               y={node.y}
               width={NODE_WIDTH}
               height={NODE_HEIGHT}
               rx="8"
-              stroke-width={node.kind === "captain" ? 1.6 : 1.2}
+              stroke-width={props.selected === node.id ? 2.4 : node.kind === "captain" ? 1.6 : 1.2}
               class={nodeTone(node)}
             />
             <text x={node.x + 10} y={node.y + 19} class="fill-foreground text-[12px]">

@@ -51398,6 +51398,52 @@
           "status": {
             "type": "string"
           },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
           "owner": {
             "type": "string"
           },
@@ -51412,7 +51458,7 @@
             "enum": ["captain", "worker"]
           }
         },
-        "required": ["id", "subject", "status"],
+        "required": ["id", "subject", "status", "createdAt", "updatedAt"],
         "additionalProperties": false
       },
       "RunTeamMemberView": {

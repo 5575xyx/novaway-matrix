@@ -12,6 +12,8 @@ export type GraphTask = {
   id: string
   subject: string
   status: string
+  /** 最后动过的时间：详情里用来说「这一步停了多久」，不冒充完成时间。 */
+  updatedAt?: number
   owner?: string
   ownerName?: string
   ownerJob?: string

@@ -323,6 +323,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 id: task.id,
                 subject: task.subject,
                 status: task.status,
+                createdAt: task.createdAt,
+                updatedAt: task.updatedAt,
                 ...(task.ownerSessionID ? { owner: task.ownerSessionID } : {}),
                 ...(owner?.name ? { ownerName: owner.name } : {}),
                 ...(owner?.job ? { ownerJob: owner.job } : {}),
