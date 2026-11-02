@@ -482,6 +482,12 @@ export const RunAcceptancePayload = Schema.Struct({
   ),
 })
 
+/**
+ * 执行的高级选项（全是可选的）。
+ *
+ * 界面上点「执行」就是一个空 POST：所以这个结构总是和 `Schema.Null` 一起挂在
+ * 同一 content-type 下（见 executeRun 的 payload），两个都可选，空请求体才解得出来。
+ */
 export const RunExecutePayload = Schema.Struct({
   /** 队长使用的 agent 名；缺省用默认 agent。 */
   captain: Schema.optional(Schema.String),
@@ -628,14 +634,22 @@ export const RunApi = HttpApiGroup.make("run")
     HttpApiEndpoint.post("executeRun", `${root}/:runID/execute`, {
       params: { runID: Schema.String },
       query: WorkspaceRoutingQuery,
-      payload: RunExecutePayload,
+      /**
+       * 请求体可以不带：界面上的「执行」就是一个空 POST。
+       *
+       * 把 `Schema.Null` 与选项结构一起挂在同一 content-type 下，空请求体才会解码成
+       * `null`（否则解码器抛「Expected object, got undefined」，常规路径直接走不通）；
+       * 带选项的调用照旧解析成结构。两者都可选，顺序不影响结果。
+       */
+      payload: [Schema.Null, RunExecutePayload],
       success: described(RunView, "Running"),
       error: [HttpApiError.BadRequest, HttpApiError.NotFound],
     }).annotateMerge(
       OpenApi.annotations({
         identifier: "run.execute",
         summary: "Execute the run",
-        description: "Dispatch to captains in the background and poll run detail for progress.",
+        description:
+          "Dispatch to captains in the background and poll run detail for progress. The request body is optional: every tuning field in it is optional too.",
       }),
     ),
     HttpApiEndpoint.delete("removeRunWorktrees", `${root}/:runID/worktrees`, {

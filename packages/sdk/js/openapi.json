@@ -33608,7 +33608,7 @@
             }
           }
         },
-        "description": "Dispatch to captains in the background and poll run detail for progress.",
+        "description": "Dispatch to captains in the background and poll run detail for progress. The request body is optional: every tuning field in it is optional too.",
         "summary": "Execute the run",
         "requestBody": {
           "content": {

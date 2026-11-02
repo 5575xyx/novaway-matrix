@@ -405,6 +405,27 @@ describe("team HttpApi", () => {
     }),
   )
 
+  it.live("execute accepts an empty body: that is what the board's button sends", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: true })
+      const created = (yield* (
+        yield* post(dir, "/run", { sessionID: "ses_empty_execute", directory: dir, mode: "team", goal: "空请求体" })
+      ).json) as { run: { id: string } }
+      const id = created.run.id
+      yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "alpha" }] })
+      yield* post(dir, `/run/${id}/approve`, { directory: dir, planVersion: 1, budget: { tokens: 10_000 } })
+
+      // 界面上点「执行」就是一次没有请求体的 POST。把它声明成必填结构时，
+      // 这里回的是一句「Expected object, got undefined」，用户看到的正是这个 ——
+      // 常规路径直接走不通。选项全是可选的，请求体也必须可以整个省略。
+      const response = yield* post(dir, `/run/${id}/execute`)
+      expect(response.status).toBe(200)
+      const run = (yield* response.json) as { state: string; phase?: string }
+      expect(run.state).toBe("running")
+      expect(run.phase).toBe("executing")
+    }),
+  )
+
   it.live("an approval only covers the plan version it was given for", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })

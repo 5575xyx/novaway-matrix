@@ -14648,7 +14648,7 @@ export class Run2 extends HeyApiClient {
   /**
    * Execute the run
    *
-   * Dispatch to captains in the background and poll run detail for progress.
+   * Dispatch to captains in the background and poll run detail for progress. The request body is optional: every tuning field in it is optional too.
    */
   public execute<ThrowOnError extends boolean = false>(
     parameters: {

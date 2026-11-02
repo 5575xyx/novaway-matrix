@@ -684,6 +684,12 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       )
       .handle("executeRun", (ctx) =>
         Effect.gen(function* () {
+          /**
+           * 请求体可以不带：界面上的「执行」就是一个空 POST（payload 声明成
+           * `[Null, 选项结构]`，空请求体解成 `null`）。那几个旋钮全是可选的，
+           * 不该挡住那一次点击。
+           */
+          const options = ctx.payload ?? {}
           // 直接点「执行」而不经列表时，也要先把上次遗留的运行定性 —— 否则它会以
           // `running + 过期 phase` 被 `canStart` 拒绝，永远续不上。
           yield* recoverStale(ctx.query.directory)
@@ -890,7 +896,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 employeeID: captainEmployeeID,
               } = captainOf(input.team)
               // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下（§10.3）。
-              const captain = ctx.payload.captain ?? captainJob ?? defaultAgent
+              const captain = options.captain ?? captainJob ?? defaultAgent
               const attributed = captain === captainJob ? captainEmployeeID : undefined
               // 提示词与清单同源（§6.4）：模型看到的字，就是事后审计的字。
               // `run.brief` 是用户声明的范围与约束（§5.3）：不喂进去，用户写了等于没写。
@@ -1029,7 +1035,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
            * 后一队被前一队的岗位验，证据就解释不通了。
            */
           const verifierFor = (team?: (typeof teamRows)[number]) =>
-            ctx.payload.verifier ?? ctx.payload.captain ?? captainOf(team).job ?? defaultAgent
+            options.verifier ?? options.captain ?? captainOf(team).job ?? defaultAgent
 
           // 验证：必须是**另一个会话**的独立判断，且允许回答「未验证」。
           const verify = (input: VerifyInput) =>
@@ -1145,17 +1151,17 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               // 快照按团队取：两队并行时共用一个快照，会把这个团队的「通过」判成过期。
               snapshot: (directory?: string) =>
                 snapshotOf(directory ?? teamDirectory).pipe(Effect.map((id) => id ?? "unknown")),
-              maxRounds: ctx.payload.maxRounds,
-              maxBusinessAttempts: ctx.payload.maxBusinessAttempts,
-              reserveTokens: ctx.payload.reserveTokens,
+              maxRounds: options.maxRounds,
+              maxBusinessAttempts: options.maxBusinessAttempts,
+              reserveTokens: options.reserveTokens,
               // 请求没指定并发时用项目级上限；两者都没有就是调度器的默认值（3）。
-              concurrency: ctx.payload.concurrency ?? cfg.experimental?.team_concurrency,
+              concurrency: options.concurrency ?? cfg.experimental?.team_concurrency,
               // 零进展上限：请求 > 项目配置 > 调度器默认。验证比队长短，但同一个值足够 ——
               // 它挡的是「挂住」，不是「慢」。
-              ...(ctx.payload.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms
+              ...(options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms
                 ? {
-                    dispatchTimeoutMs: ctx.payload.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
-                    verifyTimeoutMs: ctx.payload.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
+                    dispatchTimeoutMs: options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
+                    verifyTimeoutMs: options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
                   }
                 : {}),
             })

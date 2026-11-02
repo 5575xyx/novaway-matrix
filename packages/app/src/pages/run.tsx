@@ -100,7 +100,7 @@ export const RunPage: Component<{
   const loadRuns = async (select?: string) => {
     try {
       const result = await sdk.client.run.list({ directory: props.directory })
-      const list = (result.data ?? []) as RunView[]
+      const list = result.data ?? []
       setRuns(list)
       setError("")
       // 外部点进来指定的运行优先于「之前选的那条」：用户的心智是「打开我刚点的那次」。
@@ -120,7 +120,7 @@ export const RunPage: Component<{
     try {
       const result = await sdk.client.run.detail({ runID, directory: props.directory })
       if (selected() !== runID) return
-      setDetail((result.data ?? undefined) as RunDetail | undefined)
+      setDetail(result.data ?? undefined)
       setError("")
       const missionID = result.data?.run.missionID
       if (missionID) await loadMissionDiff(missionID)
@@ -151,7 +151,7 @@ export const RunPage: Component<{
     setLoadingMetrics(true)
     try {
       const result = await sdk.client.run.metrics({ directory: props.directory })
-      setMetrics((result.data ?? undefined) as RunMetricsView | undefined)
+      setMetrics(result.data ?? undefined)
     } catch {
       setMetrics(undefined)
     } finally {
@@ -170,7 +170,7 @@ export const RunPage: Component<{
     try {
       const result = await sdk.client.run.replay({ runID, directory: props.directory })
       if (selected() !== runID) return
-      setReplay((result.data ?? undefined) as RunReplayView | undefined)
+      setReplay(result.data ?? undefined)
       setReplayRunID(runID)
     } catch {
       setReplay(undefined)
@@ -582,6 +582,85 @@ export const RunPage: Component<{
     return !(run.state === "running" && run.phase)
   })
 
+  /**
+   * 运行状态的人话标签。
+   *
+   * `running` 同时表示「已批准、还没开始」与「正在执行」。只看状态会把「等人点开始」
+   * 说成「执行中」，用户于是以为它已经在跑，也就不明白为什么还要再点一次。
+   */
+  const runStateLabel = (run: { state: string; phase?: string }) =>
+    run.state === "running" && !run.phase ? t("run.state.ready") : t(`run.state.${run.state}`)
+
+  /**
+   * 现在该做什么。
+   *
+   * 看板以前只把状态、轮次、计划版本摆出来，用户得自己推断下一步该点哪里 ——
+   * 于是最常见的结果是「点了执行没反应」或者根本不知道还能点。这里把下一步写成
+   * 一句话 + 一个按钮，其他地方的动作都是可选的高级操作。
+   */
+  const nextStep = createMemo(() => {
+    const data = detail()
+    if (!data) return undefined
+    const run = data.run
+    const teams = data.teams.length
+    const pending = data.needsReview?.length ?? 0
+    if (pending > 0)
+      return {
+        title: t("run.step.reviewTitle", { count: String(pending) }),
+        hint: t("run.step.reviewHint"),
+      }
+    if (run.state === "awaiting_approval")
+      return {
+        title: t("run.step.approveTitle", { count: String(teams) }),
+        hint: t("run.step.approveHint"),
+        action: { label: t("run.action.approve"), busy: "approve", run: approve },
+      }
+    if (run.state === "running" && !run.phase)
+      return {
+        title: t("run.step.startTitle", { count: String(teams) }),
+        hint: t("run.step.startHint"),
+        action: canExecute() ? { label: t("run.action.start"), busy: "execute", run: execute } : undefined,
+      }
+    if (run.state === "running")
+      return {
+        title: t("run.step.runningTitle", { round: String(run.roundMain) }),
+        hint: t("run.step.runningHint"),
+      }
+    if (run.state === "paused")
+      return {
+        title: t("run.step.resumeTitle"),
+        hint: t("run.step.resumeHint"),
+        action: canExecute() ? { label: t("run.action.resume"), busy: "execute", run: execute } : undefined,
+      }
+    if (run.state === "blocked")
+      return {
+        title: t("run.step.retryTitle"),
+        hint: t("run.step.retryHint"),
+        action: canExecute() ? { label: t("run.action.retry"), busy: "execute", run: execute } : undefined,
+      }
+    if (run.state === "done")
+      return {
+        title: t("run.step.doneTitle"),
+        hint: hasWorktrees() ? t("run.step.doneHint") : t("run.step.doneHintNoMerge"),
+        action: hasWorktrees()
+          ? { label: t("run.action.merge"), busy: "merge", run: merge }
+          : undefined,
+      }
+    if (run.state === "partial")
+      return {
+        title: t("run.step.partialTitle"),
+        hint: t("run.step.partialHint"),
+        action: hasWorktrees()
+          ? { label: t("run.action.merge"), busy: "merge", run: merge }
+          : undefined,
+      }
+    if (run.state === "exceeded")
+      return { title: t("run.step.exceededTitle"), hint: t("run.step.exceededHint") }
+    if (run.state === "cancelled")
+      return { title: t("run.step.cancelledTitle"), hint: t("run.step.cancelledHint") }
+    return { title: t("run.step.failedTitle"), hint: t("run.step.failedHint") }
+  })
+
   return (
     <div class="flex h-full min-h-0 flex-col bg-background">
       {/* 「刷新」放在左边栏顶部而不是顶行右侧：右上角是窗口自绘的窗控条。 */}
@@ -614,9 +693,92 @@ export const RunPage: Component<{
               </Button>
             </Show>
           </div>
+          {/*
+            当前运行的操作放在左边栏顶部（页面的操作都在这边，右上角留给窗口控件）。
+            顺序按「现在最该做的事」排，最上面那一个就是下一步。
+          */}
+          <Show when={detail()}>
+            {(data) => (
+              <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
+                <Show when={nextStep()?.action}>
+                  {(action) => (
+                    <Button
+                      variant="primary"
+                      size="small"
+                      class="w-full justify-start"
+                      disabled={busy() !== ""}
+                      onClick={() => void action().run()}
+                    >
+                      {busy() === action().busy ? t("run.action.working") : action().label}
+                    </Button>
+                  )}
+                </Show>
+                {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
+                <Show when={canChangePolicy()}>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    class="w-full justify-start"
+                    title={t("run.policy.hint")}
+                    disabled={busy() !== ""}
+                    onClick={() => void setPolicy(!data().run.readOnly)}
+                  >
+                    {data().run.readOnly ? t("run.policy.allowWrites") : t("run.policy.makeReadOnly")}
+                  </Button>
+                </Show>
+                <Show when={data().run.state === "blocked" || data().run.state === "needs_review"}>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    class="w-full justify-start"
+                    title={t("run.action.openSessionHint")}
+                    disabled={!props.onOpenSession}
+                    onClick={() => props.onOpenSession?.(data().run.sessionID)}
+                  >
+                    {t("run.action.openSession")}
+                  </Button>
+                </Show>
+                <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    class="w-full justify-start"
+                    title={t("run.action.mergeHint")}
+                    disabled={busy() !== ""}
+                    onClick={() => void merge()}
+                  >
+                    {busy() === "merge" ? t("run.action.merging") : t("run.action.merge")}
+                  </Button>
+                </Show>
+                <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    class="w-full justify-start"
+                    title={t("run.action.cleanupHint")}
+                    disabled={busy() !== ""}
+                    onClick={() => void cleanup()}
+                  >
+                    {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
+                  </Button>
+                </Show>
+                <Show when={!TERMINAL.has(data().run.state) && !(data().run.state === "running" && !data().run.phase)}>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    class="w-full justify-start"
+                    disabled={busy() !== ""}
+                    onClick={() => void cancel()}
+                  >
+                    {t("run.action.cancel")}
+                  </Button>
+                </Show>
+              </div>
+            )}
+          </Show>
           <Show
             when={runs().length > 0}
-            fallback={<div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty")}</div>}
+            fallback={<div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty.title")}</div>}
           >
             <For each={runs()}>
               {(run) => (
@@ -629,7 +791,7 @@ export const RunPage: Component<{
                   <span class="w-full truncate text-ui-base text-foreground">{run.goal}</span>
                   <span class="w-full truncate text-ui-xs text-foreground-subtle">
                     {missionLabel(run.missionID) ? missionLabel(run.missionID) + " · " : ""}
-                    {stateLabel(run.state)} · {run.mode}
+                    {runStateLabel(run)} · {run.mode}
                   </span>
                 </button>
               )}
@@ -783,6 +945,10 @@ export const RunPage: Component<{
                 <div class="mt-1 text-ui-xs text-foreground-subtle">
                   {profiles().find((item) => item.id === profileID())?.description ?? t("run.new.hint")}
                 </div>
+                {/* 先说清顺序：创建 ≠ 开始跑。不写这一句，用户填完表单会以为活已经派下去了。 */}
+                <div class="mt-2 rounded-md border border-border bg-surface px-2.5 py-2 text-ui-xs leading-relaxed text-foreground-subtle">
+                  {t("run.new.steps")}
+                </div>
               </div>
               <label class="flex flex-col gap-1">
                 <span class="text-ui-xs text-foreground-subtle">{t("run.new.template")}</span>
@@ -924,13 +1090,54 @@ export const RunPage: Component<{
             <Show
               when={detail()}
               fallback={
-                <div class="flex h-full items-center justify-center text-ui-sm text-foreground-subtle">
-                  {t("run.empty")}
+                <div class="flex h-full items-center justify-center p-6">
+                  <div class="w-full max-w-md rounded-xl border border-border bg-surface p-5 text-center">
+                    <div class="text-15-medium text-foreground">{t("run.empty.title")}</div>
+                    <div class="mt-1 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty.hint")}</div>
+                    <Show
+                      when={profiles().length > 0}
+                      fallback={
+                        <div class="mt-3 text-ui-xs leading-relaxed text-foreground-subtlest">
+                          {t("run.empty.noProfile")}
+                        </div>
+                      }
+                    >
+                      <Button variant="primary" size="small" class="mt-3" onClick={() => setComposing(true)}>
+                        {t("run.empty.action")}
+                      </Button>
+                    </Show>
+                  </div>
                 </div>
               }
             >
               {(data) => (
                 <div class="flex flex-col gap-3 p-4">
+                  {/*
+                    「现在该做什么」放在最上面：一个标题、一句解释、一个按钮。
+                    看板的其他部分都是证据与细节，不该让人先读一遍才知道下一步点哪里。
+                  */}
+                  <Show when={nextStep()}>
+                    {(step) => (
+                      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2">
+                        <div class="min-w-0 flex-1">
+                          <div class="text-15-medium text-foreground">{step().title}</div>
+                          <div class="mt-0.5 text-ui-xs leading-relaxed text-foreground-subtle">{step().hint}</div>
+                        </div>
+                        <Show when={step().action}>
+                          {(action) => (
+                            <Button
+                              variant="primary"
+                              size="small"
+                              disabled={busy() !== ""}
+                              onClick={() => void action().run()}
+                            >
+                              {busy() === action().busy ? t("run.action.working") : action().label}
+                            </Button>
+                          )}
+                        </Show>
+                      </div>
+                    )}
+                  </Show>
                   <div class="flex items-start gap-2">
                     <div class="min-w-0 flex-1">
                       <div class="truncate text-15-medium text-foreground">{data().run.goal}</div>
@@ -951,7 +1158,7 @@ export const RunPage: Component<{
                         )}
                       </Show>
                       <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                        <Tag>{stateLabel(data().run.state)}</Tag>
+                        <Tag>{runStateLabel(data().run)}</Tag>
                         <Tag>{data().run.mode}</Tag>
                         {/* 只读 / 可写是这次运行的实际授权，不是提示词里的承诺。 */}
                         <Tag title={t("run.policy.hint")}>
@@ -980,106 +1187,24 @@ export const RunPage: Component<{
                         )}
                       </Show>
                     </div>
-                    <div class="flex shrink-0 items-center gap-1.5">
-                      {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
-                      <Show when={canChangePolicy()}>
-                        <Button
-                          variant="ghost"
-                          size="small"
-                          title={t("run.policy.hint")}
-                          disabled={busy() !== ""}
-                          onClick={() => void setPolicy(!data().run.readOnly)}
-                        >
-                          {data().run.readOnly ? t("run.policy.allowWrites") : t("run.policy.makeReadOnly")}
-                        </Button>
-                      </Show>
-                      <Show when={data().run.state === "awaiting_approval"}>
-                        <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void approve()}>
-                          {t("run.action.approve")}
-                        </Button>
-                      </Show>
-                      <Show when={canExecute()}>
-                        <Button
-                          variant="primary"
-                          size="small"
-                          title={
-                            data().run.state === "paused"
-                              ? t("run.action.resumeHint")
-                              : data().run.state === "blocked"
-                                ? t("run.action.retryHint")
-                                : undefined
-                          }
-                          disabled={busy() !== ""}
-                          onClick={() => void execute()}
-                        >
-                          {data().run.state === "paused"
-                            ? t("run.action.resume")
-                            : data().run.state === "blocked"
-                              ? t("run.action.retry")
-                              : t("run.action.execute")}
-                        </Button>
-                      </Show>
-                      <Show when={!TERMINAL.has(data().run.state)}>
-                        <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void cancel()}>
-                          {t("run.action.cancel")}
-                        </Button>
-                      </Show>
-                      {/*
-                        停在阻塞 / 待复核时，用户要做的事在会话里：看卡在哪、补输入或换方案。
-                        看板只给结论，不替代处理现场。
-                      */}
-                      <Show when={data().run.state === "blocked" || data().run.state === "needs_review"}>
-                        <Button
-                          variant="ghost"
-                          size="small"
-                          title={t("run.action.openSessionHint")}
-                          disabled={!props.onOpenSession}
-                          onClick={() => props.onOpenSession?.(data().run.sessionID)}
-                        >
-                          {t("run.action.openSession")}
-                        </Button>
-                      </Show>
-                      <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
-                        <Button
-                          variant="primary"
-                          size="small"
-                          title={t("run.action.mergeHint")}
-                          disabled={busy() !== ""}
-                          onClick={() => void merge()}
-                        >
-                          {busy() === "merge" ? t("run.action.merging") : t("run.action.merge")}
-                        </Button>
-                      </Show>
-                      <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
-                        <Button
-                          variant="ghost"
-                          size="small"
-                          title={t("run.action.cleanupHint")}
-                          disabled={busy() !== ""}
-                          onClick={() => void cleanup()}
-                        >
-                          {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
-                        </Button>
-                      </Show>
-                    </div>
                   </div>
 
                   <div class="grid grid-cols-4 gap-2">
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.pass")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.passHint")}>{t("run.metric.pass")}</div>
                       <div class="text-18-medium text-success">{summary()?.pass ?? 0}</div>
                     </div>
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.fail")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.failHint")}>{t("run.metric.fail")}</div>
                       <div class="text-18-medium text-destructive">{summary()?.fail ?? 0}</div>
                     </div>
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.unverified")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.unverifiedHint")}>{t("run.metric.unverified")}</div>
                       {/* 未验证用警示色，不是绿色也不是灰色：它不是通过。 */}
                       <div class="text-18-medium text-warning">{summary()?.unverified ?? 0}</div>
                     </div>
                     <div class="rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-foreground-subtle">{t("run.metric.stale")}</div>
+                      <div class="text-ui-xs text-foreground-subtle" title={t("run.metric.staleHint")}>{t("run.metric.stale")}</div>
                       <div class="text-18-medium text-warning">{summary()?.stale ?? 0}</div>
                     </div>
                   </div>
