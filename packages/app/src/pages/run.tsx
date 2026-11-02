@@ -27,6 +27,19 @@ const TERMINAL = new Set(["done", "partial", "failed", "exceeded", "cancelled"])
 const numeric = (value: number | string) => (typeof value === "number" ? value : 0)
 
 /**
+ * 墙钟耗时（毫秒 → 人话）。
+ *
+ * 只在 `startedAt` 存在时有意义；运行中按当前时间算，终态按 `endedAt` 算。
+ * 分钟以上给「N 分 M 秒」，一分钟以内只给秒 —— 看板要的是量级，不是精确到毫秒的假精度。
+ */
+const elapsed = (ms: number) => {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  return minutes > 0 ? minutes + " 分 " + seconds + " 秒" : seconds + " 秒"
+}
+
+/**
  * 「团队运行」页。
  *
  * 它回答的是「这次交付到底成立吗」，而不是「聊到哪了」：
@@ -470,7 +483,12 @@ export const RunPage: Component<{
       const result = await sdk.client.run.merge({ runID, directory: props.directory })
       const data = result.data
       if (data?.merged) {
-        setNotice(t("run.merge.done", { branch: data.branch ?? "", sha: (data.sha ?? "").slice(0, 12) }))
+        // 重复点击不等于又合了一次：这时只说「早就合过了」，并给出当时的分支。
+        setNotice(
+          data.alreadyMerged
+            ? t("run.merge.already", { branch: data.branch ?? "" })
+            : t("run.merge.done", { branch: data.branch ?? "", sha: (data.sha ?? "").slice(0, 12) }),
+        )
         return
       }
       setNotice("")
@@ -645,18 +663,27 @@ export const RunPage: Component<{
     if (run.state === "done")
       return {
         title: t("run.step.doneTitle"),
-        hint: hasWorktrees() ? t("run.step.doneHint") : t("run.step.doneHintNoMerge"),
-        action: hasWorktrees()
-          ? { label: t("run.action.merge"), busy: "merge", run: merge }
-          : undefined,
+        hint: !hasWorktrees()
+          ? t("run.step.doneHintNoMerge")
+          : run.mergeState === "merged"
+            ? t("run.step.doneHintMerged")
+            : run.mergeState === "merge_failed"
+              ? t("run.step.doneHintMergeFailed")
+              : t("run.step.doneHint"),
+        // 合过之后不再提合并：再说一次就是在制造「还能再合一次」的错觉。
+        action:
+          hasWorktrees() && run.mergeState !== "merged"
+            ? { label: t("run.action.merge"), busy: "merge", run: merge }
+            : undefined,
       }
     if (run.state === "partial")
       return {
         title: t("run.step.partialTitle"),
-        hint: t("run.step.partialHint"),
-        action: hasWorktrees()
-          ? { label: t("run.action.merge"), busy: "merge", run: merge }
-          : undefined,
+        hint: run.mergeState === "merged" ? t("run.step.partialHintMerged") : t("run.step.partialHint"),
+        action:
+          hasWorktrees() && run.mergeState !== "merged"
+            ? { label: t("run.action.merge"), busy: "merge", run: merge }
+            : undefined,
       }
     if (run.state === "exceeded")
       return { title: t("run.step.exceededTitle"), hint: t("run.step.exceededHint") }
@@ -742,7 +769,7 @@ export const RunPage: Component<{
                     {t("run.action.openSession")}
                   </Button>
                 </Show>
-                <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
+                <Show when={TERMINAL.has(data().run.state) && hasWorktrees() && data().run.mergeState !== "merged"}>
                   <Button
                     variant="ghost"
                     size="small"
@@ -1177,6 +1204,46 @@ export const RunPage: Component<{
                         </Show>
                         <Tag>{"第 " + data().run.roundMain + " 轮"}</Tag>
                         {Number(data().run.planVersion) > 0 ? <Tag>{"计划 v" + data().run.planVersion}</Tag> : null}
+                        {/*
+                          合并状态单独一颗标签（§4.3）：`done` 说的是「交付通过验收」，
+                          不是「已经合进你的分支」。没有这一颗，刷新之后看板就答不上「合没合」。
+                        */}
+                        <Show when={TERMINAL.has(data().run.state) || data().run.mergeState !== "unmerged"}>
+                          <Tag
+                            class={data().run.mergeState === "merge_failed" ? "text-destructive" : undefined}
+                            title={t("run.merge.stateHint")}
+                          >
+                            {t(`run.merge.state.${data().run.mergeState}`)}
+                          </Tag>
+                        </Show>
+                        {/*
+                          §4.3：头部要同时给「预算用了多少 / 上限」与墙钟。
+                          预算按承诺量（已结算 + 用量不明 + 在途预占）算 —— 只报已结算会让
+                          「还剩多少」在运行中一直是假的。
+                        */}
+                        <Show when={data().run.usage}>
+                          {(usage) => (
+                            <Tag title={t("run.usage.capHint")}>
+                              {t("run.usage.cap", {
+                                used: (
+                                  numeric(usage().reserved) +
+                                  numeric(usage().settled) +
+                                  numeric(usage().unknown)
+                                ).toLocaleString(),
+                                cap: numeric(usage().cap).toLocaleString(),
+                              })}
+                            </Tag>
+                          )}
+                        </Show>
+                        <Show when={data().run.startedAt}>
+                          {(started) => (
+                            <Tag title={t("run.wall.hint")}>
+                              {t("run.wall", {
+                                time: elapsed(numeric(data().run.endedAt ?? Date.now()) - numeric(started())),
+                              })}
+                            </Tag>
+                          )}
+                        </Show>
                       </div>
                       {/*
                         终态/阻塞的原因：接口一直有 `run.error`，界面却从不显示 ——
@@ -1627,6 +1694,9 @@ export const RunPage: Component<{
                             .join(String.fromCharCode(10))}
                         >
                           {team.id + " · " + team.phase}
+                          {team.dependsOn.length > 0
+                            ? " · " + t("run.team.deps", { deps: team.dependsOn.map((dep) => "#" + (numeric(dep) + 1)).join("、") })
+                            : ""}
                         </Tag>
                       )}
                     </For>

@@ -93,7 +93,7 @@ const providerConfig = (url: string) => ({
 })
 
 type Detail = {
-  run: { id: string; state: string; planVersion: number; error?: string }
+  run: { id: string; state: string; planVersion: number; error?: string; mergeState?: string; mergedAt?: number }
   teams: Array<{ id: string; phase: string; worktree?: string }>
   summary: { pass: number; fail: number; unverified: number; stale: number; verdict: string }
 }
@@ -118,6 +118,10 @@ describe("team run merge", () => {
         const llm = yield* TestLLMServer
         const dir = yield* tmpdirScoped({ git: true })
         yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)))
+        // 测试配置先提交：显式合并拒绝在脏工作区上动手（§10.2），
+        // 留一个未跟踪的 novaway.json 会让「用户点了合并」这一步变成 dirty 拒绝。
+        yield* Effect.promise(() => git(dir, ["add", "-A"]))
+        yield* Effect.promise(() => git(dir, ["commit", "-m", "test config", "--no-verify"]))
 
         const session = (yield* (
           yield* post(dir, "/session", {
@@ -289,6 +293,37 @@ describe("team run merge", () => {
         expect(yield* Effect.promise(() => git(dir, ["rev-parse", "HEAD"]))).toBe(headBefore)
         expect(yield* Effect.promise(() => exists(path.join(dir, "src", "refund.md")))).toBe(false)
         expect(yield* Effect.promise(() => exists(path.join(dir, "src", "policy.md")))).toBe(false)
+        // 跑完不等于合并：`done` 之外还要有独立的合并状态。
+        expect(detail?.run.mergeState).toBe("unmerged")
+
+        // 显式合并：用户点了这一下，代码才进自己的分支。
+        const merged = (yield* (yield* post(dir, `/run/${id}/merge`)).json) as {
+          merged: boolean
+          branch?: string
+          sha?: string
+          alreadyMerged?: boolean
+        }
+        expect(merged.merged).toBe(true)
+        expect(merged.alreadyMerged).toBeUndefined()
+        expect(yield* Effect.promise(() => git(dir, ["rev-parse", "HEAD"]))).not.toBe(headBefore)
+        expect(yield* Effect.promise(() => exists(path.join(dir, "src", "refund.md")))).toBe(true)
+        expect(yield* Effect.promise(() => exists(path.join(dir, "src", "policy.md")))).toBe(true)
+
+        const afterMerge = (yield* (yield* get(dir, `/run/${id}`)).json) as Detail
+        expect(afterMerge.run.mergeState).toBe("merged")
+        expect(typeof afterMerge.run.mergedAt).toBe("number")
+
+        // 再点一次：不产生新的合并，也不能把上一次的 sha 说成这一次的。
+        const headAfterMerge = yield* Effect.promise(() => git(dir, ["rev-parse", "HEAD"]))
+        const again = (yield* (yield* post(dir, `/run/${id}/merge`)).json) as {
+          merged: boolean
+          sha?: string
+          alreadyMerged?: boolean
+        }
+        expect(again.merged).toBe(true)
+        expect(again.alreadyMerged).toBe(true)
+        expect(again.sha).toBe(merged.sha)
+        expect(yield* Effect.promise(() => git(dir, ["rev-parse", "HEAD"]))).toBe(headAfterMerge)
       }),
     240_000,
   )

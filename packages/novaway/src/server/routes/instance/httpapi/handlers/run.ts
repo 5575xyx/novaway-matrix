@@ -173,12 +173,17 @@ const toRun = (run: TeamRun) => {
     attempts: run.attempts,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
+    startedAt: run.startedAt,
+    endedAt: run.endedAt,
     error: run.error,
     terminalReason: run.terminalReason,
     // 缺省只读：界面要能看出来这次运行会不会改工作区。
     readOnly: TeamPolicy.fromPlan(run.plan).readOnly,
     // 用量归属快照（§10.3）：运行结束后才有，运行中缺失是正常的。
     usage: toUsage(run.usage),
+    // 合并是独立动作：`done` 不能替它说话（§3.2）。
+    mergeState: run.mergeState,
+    mergedAt: run.mergedAt,
   }
 }
 
@@ -1248,6 +1253,27 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             })
             return { merged: false, message: `这次运行没有已验证的交付（状态：${run.state}），不提供合并。` }
           }
+          /**
+           * 已经合过了就不再合一次。
+           *
+           * `git merge` 在「已经包含」时返回 0；照常往下走，界面会再报一次
+           * 「已合并到 xxx，提交 yyy」—— 把上一次的动作说成这一次的，那个 sha 也
+           * 不对应任何新动作。看板问的是「合没合」，答案就在运行自己的字段里。
+           */
+          if (run.mergeState === "merged") {
+            const settled = (yield* runs.events({ runID: run.id }))
+              .filter((event) => event.kind === "merge.settled")
+              .at(-1)
+            const mergedBranch = typeof settled?.payload?.branch === "string" ? settled.payload.branch : undefined
+            const mergedSha = typeof settled?.payload?.sha === "string" ? settled.payload.sha : undefined
+            return {
+              merged: true,
+              alreadyMerged: true,
+              ...(mergedBranch ? { branch: mergedBranch } : {}),
+              ...(mergedSha ? { sha: mergedSha } : {}),
+              message: "这次运行已经合并过了，没有发生新的合并。",
+            }
+          }
 
           const merged = (yield* runs.events({ runID: run.id }))
             .filter((event) => event.kind === "integration.merged")
@@ -1265,6 +1291,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
 
           const outcome = yield* Effect.promise(() => mergeInto({ base: run.directory, branch }))
           if (outcome.kind === "conflict") {
+            // 失败的结论也要落库：否则刷新后看板只会显示「未合并」，
+            // 用户看不出「上次试过、冲突退回了」。
+            yield* runs.update({ runID: run.id, mergeState: "merge_failed" })
             yield* runs.appendEvent({
               runID: run.id,
               kind: "merge.refused",
@@ -1273,6 +1302,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             return { merged: false, files: outcome.files, message: outcome.message || "合并冲突，已回退。" }
           }
           if (outcome.kind !== "merged") {
+            yield* runs.update({ runID: run.id, mergeState: "merge_failed" })
             yield* runs.appendEvent({
               runID: run.id,
               kind: "merge.refused",
@@ -1290,6 +1320,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
 
           // 合并成功就是这次运行与用户分支之间的连接点：把提交记下来，
           // 之后问「这次运行到底合了什么」有唯一答案。
+          yield* runs.update({ runID: run.id, mergeState: "merged", mergedAt: Date.now() })
           yield* runs.appendEvent({
             runID: run.id,
             kind: "merge.settled",

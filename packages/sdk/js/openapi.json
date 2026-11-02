@@ -51283,6 +51283,52 @@
               }
             ]
           },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
           "error": {
             "type": "string"
           },
@@ -51294,6 +51340,33 @@
           },
           "usage": {
             "$ref": "#/components/schemas/RunUsageView"
+          },
+          "mergeState": {
+            "type": "string",
+            "enum": ["unmerged", "merged", "merge_failed"]
+          },
+          "mergedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
           }
         },
         "required": [
@@ -51308,7 +51381,8 @@
           "attempts",
           "createdAt",
           "updatedAt",
-          "readOnly"
+          "readOnly",
+          "mergeState"
         ],
         "additionalProperties": false
       },
@@ -52919,6 +52993,9 @@
           },
           "message": {
             "type": "string"
+          },
+          "alreadyMerged": {
+            "type": "boolean"
           }
         },
         "required": ["merged"],

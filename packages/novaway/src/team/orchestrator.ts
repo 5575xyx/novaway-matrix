@@ -279,9 +279,7 @@ export const layer = Layer.effect(
        * 也都不是 `fail`。收成一个类型，是为了让主循环与合并后重验用同一套判定，
        * 不至于一处超时、另一处就一直挂着。
        */
-      type Settled =
-        | { kind: "result"; value: VerificationResult }
-        | { kind: "no-conclusion"; failure: Failure }
+      type Settled = { kind: "result"; value: VerificationResult } | { kind: "no-conclusion"; failure: Failure }
       const settleVerify = (
         exit: Exit.Exit<Option.Option<VerificationResult>, unknown>,
         fallback: FailureKind,
@@ -320,8 +318,7 @@ export const layer = Layer.effect(
             return { reason: "墙钟超出上限（" + wallMs + " ms）", wallMs }
           if (costCap !== undefined) {
             const current = yield* ledger.usage({ runID: input.runID })
-            if (current.settledCost >= costCap)
-              return { reason: "成本超出上限（" + costCap + "）", cost: costCap }
+            if (current.settledCost >= costCap) return { reason: "成本超出上限（" + costCap + "）", cost: costCap }
           }
           return undefined
         })
@@ -482,7 +479,10 @@ export const layer = Layer.effect(
                 tokens: result.usage?.tokens ?? 0,
                 ...(result.usage?.cost !== undefined ? { cost: result.usage.cost } : {}),
               })
-              .pipe(Effect.asVoid, Effect.catchCause(() => Effect.void))
+              .pipe(
+                Effect.asVoid,
+                Effect.catchCause(() => Effect.void),
+              )
           : Effect.void
 
       /** 本轮派发被寻址校验拦下的团队（§9）：收尾时要说清楚，而不是只留一条事件。 */
@@ -504,11 +504,10 @@ export const layer = Layer.effect(
               id: team.id,
               phase: "failed",
               verdict: { verdict: "addressing_failed", members: addressed },
-            })
-            yield* runs.appendEvent({
-              runID: input.runID,
-              kind: "team.addressing_failed",
-              payload: { teamID: team.id, round, reason: describeAddressing(addressed), members: addressed },
+              event: {
+                kind: "team.addressing_failed",
+                payload: { teamID: team.id, round, reason: describeAddressing(addressed), members: addressed },
+              },
             })
             return
           }
@@ -529,16 +528,19 @@ export const layer = Layer.effect(
             )
             if (Exit.isFailure(reservation)) {
               // 预算不足不是团队的错：记 exceeded，让整体结论走「超限」。
-              yield* runs.updateTeam({ id: team.id, phase: "exceeded" })
-              yield* runs.appendEvent({ runID: input.runID, kind: "budget.exceeded", payload: { teamID: team.id } })
+              yield* runs.updateTeam({
+                id: team.id,
+                phase: "exceeded",
+                event: { kind: "budget.exceeded", payload: { teamID: team.id } },
+              })
               return
             }
 
-            yield* runs.updateTeam({ id: team.id, phase: "running", roundCaptain: round })
-            yield* runs.appendEvent({
-              runID: input.runID,
-              kind: "team.dispatched",
-              payload: { teamID: team.id, round, acceptance: teamLines.length },
+            yield* runs.updateTeam({
+              id: team.id,
+              phase: "running",
+              roundCaptain: round,
+              event: { kind: "team.dispatched", payload: { teamID: team.id, round, acceptance: teamLines.length } },
             })
 
             const dispatched = yield* Effect.exit(
@@ -563,11 +565,14 @@ export const layer = Layer.effect(
               // 收尾交给三段式取消（finishCancelled 会把未交付的团队记成 cancelled）。
               if (cancelled()) return
               const failure = classify(dispatched.cause)
-              yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: failure.kind } })
-              yield* runs.appendEvent({
-                runID: input.runID,
-                kind: "team.failed",
-                payload: { teamID: team.id, round, kind: failure.kind, message: failure.message },
+              yield* runs.updateTeam({
+                id: team.id,
+                phase: "failed",
+                verdict: { verdict: failure.kind },
+                event: {
+                  kind: "team.failed",
+                  payload: { teamID: team.id, round, kind: failure.kind, message: failure.message },
+                },
               })
               return
             }
@@ -576,11 +581,14 @@ export const layer = Layer.effect(
             if (Option.isNone(dispatched.value)) {
               yield* ledger.settle({ id: reservation.value.id, tokens: 0 })
               if (cancelled()) return
-              yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: "timeout", timeoutMs: dispatchTimeout } })
-              yield* runs.appendEvent({
-                runID: input.runID,
-                kind: "team.failed",
-                payload: { teamID: team.id, round, kind: "timeout", reason: "timeout", timeoutMs: dispatchTimeout },
+              yield* runs.updateTeam({
+                id: team.id,
+                phase: "failed",
+                verdict: { verdict: "timeout", timeoutMs: dispatchTimeout },
+                event: {
+                  kind: "team.failed",
+                  payload: { teamID: team.id, round, kind: "timeout", reason: "timeout", timeoutMs: dispatchTimeout },
+                },
               })
               return
             }
@@ -598,27 +606,34 @@ export const layer = Layer.effect(
 
             attempts.formatRetry += 1
             // 计数落库：重启恢复后不能把已经用掉的格式重试重新送一遍。
-            yield* runs.update({ runID: input.runID, attempts: { ...attempts } })
-            yield* runs.appendEvent({
+            yield* runs.update({
               runID: input.runID,
-              kind: "team.format_retry",
-              payload: { teamID: team.id, round, attempt: attempts.formatRetry, max: maxFormat, reason: next.malformed },
+              attempts: { ...attempts },
+              event: {
+                kind: "team.format_retry",
+                payload: {
+                  teamID: team.id,
+                  round,
+                  attempt: attempts.formatRetry,
+                  max: maxFormat,
+                  reason: next.malformed,
+                },
+              },
             })
             if (attempts.formatRetry >= maxFormat) {
               yield* runs.updateTeam({
                 id: team.id,
                 phase: "failed",
                 verdict: { verdict: "format", reason: next.malformed, attempts: attempts.formatRetry },
-              })
-              yield* runs.appendEvent({
-                runID: input.runID,
-                kind: "team.failed",
-                payload: {
-                  teamID: team.id,
-                  round,
-                  reason: "format",
-                  message: next.malformed,
-                  attempts: attempts.formatRetry,
+                event: {
+                  kind: "team.failed",
+                  payload: {
+                    teamID: team.id,
+                    round,
+                    reason: "format",
+                    message: next.malformed,
+                    attempts: attempts.formatRetry,
+                  },
                 },
               })
               return
@@ -631,11 +646,10 @@ export const layer = Layer.effect(
             id: team.id,
             report: report as unknown as Record<string, unknown>,
             artifactsOut: artifacts,
-          })
-          yield* runs.appendEvent({
-            runID: input.runID,
-            kind: "team.reported",
-            payload: { teamID: team.id, round, claims: report.claims.length, done: report.done ?? false },
+            event: {
+              kind: "team.reported",
+              payload: { teamID: team.id, round, claims: report.claims.length, done: report.done ?? false },
+            },
           })
 
           // 验收结论只来自验证器；成员报告里的 claims 只用来对照。
@@ -644,11 +658,14 @@ export const layer = Layer.effect(
             const committed = yield* Effect.exit(input.commit())
             if (Exit.isFailure(committed)) {
               const failure = classify(committed.cause, "commit")
-              yield* runs.updateTeam({ id: team.id, phase: "failed", verdict: { verdict: "commit" } })
-              yield* runs.appendEvent({
-                runID: input.runID,
-                kind: "team.failed",
-                payload: { teamID: team.id, round, reason: "commit", kind: failure.kind, message: failure.message },
+              yield* runs.updateTeam({
+                id: team.id,
+                phase: "failed",
+                verdict: { verdict: "commit" },
+                event: {
+                  kind: "team.failed",
+                  payload: { teamID: team.id, round, reason: "commit", kind: failure.kind, message: failure.message },
+                },
               })
               return
             }
@@ -717,11 +734,7 @@ export const layer = Layer.effect(
               id: team.id,
               phase: "delivered",
               verdict: { verdict: "complete", pass: lines.length, round, deps },
-            })
-            yield* runs.appendEvent({
-              runID: input.runID,
-              kind: "team.delivered",
-              payload: { teamID: team.id, round },
+              event: { kind: "team.delivered", payload: { teamID: team.id, round } },
             })
             feedback.delete(team.id)
             return
@@ -738,18 +751,17 @@ export const layer = Layer.effect(
             id: team.id,
             phase: "rework",
             verdict: { verdict: "rework", failing: failing.length, round },
-          })
-          yield* runs.appendEvent({
-            runID: input.runID,
-            kind: "team.rework",
-            payload: {
-              teamID: team.id,
-              round,
-              attempts: attempts.business,
-              notes,
-              // 结构化一份「哪条验收没过」：指标里的「驳回原因 TopN」据此统计，
-              // 不靠解析上面那句给人看的中文。
-              failed: failing.map((line) => ({ text: line.acceptance.text, outcome: line.outcome })),
+            event: {
+              kind: "team.rework",
+              payload: {
+                teamID: team.id,
+                round,
+                attempts: attempts.business,
+                notes,
+                // 结构化一份「哪条验收没过」：指标里的「驳回原因 TopN」据此统计，
+                // 不靠解析上面那句给人看的中文。
+                failed: failing.map((line) => ({ text: line.acceptance.text, outcome: line.outcome })),
+              },
             },
           })
         })
@@ -786,7 +798,11 @@ export const layer = Layer.effect(
             if (deps.length === 0) continue
             const verdict = stillValid(deps, upstream)
             if (verdict.valid) continue
-            yield* runs.updateTeam({ id: team.id, phase: "rework" })
+            yield* runs.updateTeam({
+              id: team.id,
+              phase: "rework",
+              event: { kind: "team.invalidated", payload: { teamID: team.id, broken: verdict.broken } },
+            })
             // 重跑时必须说明「为什么」：不告诉队长上游变了，它会以为自己在重复劳动。
             feedback.set(
               team.id,
@@ -794,11 +810,6 @@ export const layer = Layer.effect(
                 (dep) => "上游产物已更新（团队 " + dep.teamID + " 的 " + dep.name + "），请基于最新版本重新确认结论。",
               ),
             )
-            yield* runs.appendEvent({
-              runID: input.runID,
-              kind: "team.invalidated",
-              payload: { teamID: team.id, broken: verdict.broken },
-            })
             count += 1
           }
           return count
@@ -889,19 +900,21 @@ export const layer = Layer.effect(
                   "。请与上游团队协调后重新交付，不要覆盖别人的改动。",
               ]
               feedback.set(conflicted.id, notes)
-              yield* runs.updateTeam({ id: conflicted.id, phase: "rework" })
               // 打回也要进事件：只有 team.conflict 的话，事后回放看不出「谁被退回了、
-              // 拿到了什么意见」，而这正是下一轮重做的依据。
-              yield* runs.appendEvent({
-                runID: input.runID,
-                kind: "team.rework",
-                payload: {
-                  teamID: conflicted.id,
-                  round: rounds,
-                  reason: "integration-conflict",
-                  notes,
-                  files: outcome.files,
-                  attempts: attempts.business,
+              // 拿到了什么意见」，而这正是下一轮重做的依据。阶段与事件同一个事务。
+              yield* runs.updateTeam({
+                id: conflicted.id,
+                phase: "rework",
+                event: {
+                  kind: "team.rework",
+                  payload: {
+                    teamID: conflicted.id,
+                    round: rounds,
+                    reason: "integration-conflict",
+                    notes,
+                    files: outcome.files,
+                    attempts: attempts.business,
+                  },
                 },
               })
             }
@@ -1103,11 +1116,13 @@ export const layer = Layer.effect(
         mergeReworked = true
         for (const [teamID, entry] of responsible) {
           feedback.set(teamID, entry.notes)
-          yield* runs.updateTeam({ id: teamID, phase: "queued" })
-          yield* runs.appendEvent({
-            runID: input.runID,
-            kind: "team.rework",
-            payload: { teamID, reason: "merged-verification", notes: entry.notes, failed: entry.failed },
+          yield* runs.updateTeam({
+            id: teamID,
+            phase: "queued",
+            event: {
+              kind: "team.rework",
+              payload: { teamID, reason: "merged-verification", notes: entry.notes, failed: entry.failed },
+            },
           })
         }
         rounds += 1
@@ -1202,21 +1217,20 @@ export const layer = Layer.effect(
                 : state === "partial" && addressingFailed.length > 0
                   ? "部分团队未能派发：" + describeAddressing(addressingFailed.flatMap((item) => item.problems))
                   : null,
-      })
-      yield* runs.appendEvent({
-        runID: input.runID,
-        kind: "run.settled",
-        payload: {
-          state,
-          rounds,
-          attempts,
-          pass: summary.pass,
-          fail: summary.fail,
-          unverified: summary.unverified,
-          stale: summary.stale,
-          needsReview: pending.length,
-          addressing: addressingFailed.length,
-          integration: integration ? (Exit.isSuccess(integration) ? integration.value.kind : "failed") : "none",
+        event: {
+          kind: "run.settled",
+          payload: {
+            state,
+            rounds,
+            attempts,
+            pass: summary.pass,
+            fail: summary.fail,
+            unverified: summary.unverified,
+            stale: summary.stale,
+            needsReview: pending.length,
+            addressing: addressingFailed.length,
+            integration: integration ? (Exit.isSuccess(integration) ? integration.value.kind : "failed") : "none",
+          },
         },
       })
 

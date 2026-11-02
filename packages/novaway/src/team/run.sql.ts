@@ -114,6 +114,12 @@ export const TeamRunTable = sqliteTable(
     budget: text({ mode: "json" }).$type<Record<string, unknown>>(),
     usage: text({ mode: "json" }).$type<Record<string, unknown>>(),
     merged_verification: text({ mode: "json" }).$type<Record<string, unknown>>(),
+    /**
+     * 合并状态（§3.2 / §5.3）：`done` 只说明交付成立，合进用户分支是另一个动作。
+     * 存在这里而不是只写事件，是因为看板刷新后仍要能回答「合没合」。
+     */
+    merge_state: text().notNull().default("unmerged"),
+    merged_at: integer(),
     started_at: integer(),
     ended_at: integer(),
     error: text(),

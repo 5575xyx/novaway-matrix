@@ -108,6 +108,73 @@ describe("team run state machine", () => {
     }),
   )
 
+  it.effect("a state change and its cause are written in the same transaction", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_state_tx"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "目标",
+      })
+      yield* runs.update({
+        runID: run.id,
+        state: "cancelled",
+        terminalReason: "user-cancelled",
+        event: { kind: "cancel.settled", payload: { settled: 0 } },
+      })
+      const events = yield* runs.events({ runID: run.id })
+      // 状态与事由一起落库，序号连续：`run.created` → `run.state` → `cancel.settled`。
+      expect(events.map((event) => event.kind)).toEqual(["run.created", "run.state", "cancel.settled"])
+      expect(events.map((event) => event.seq)).toEqual([1, 2, 3])
+      expect(events[1]?.payload).toMatchObject({ to: "cancelled", reason: "user-cancelled" })
+    }),
+  )
+
+  it.effect("a phase change and its event are written together, keyed by the run", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_team_tx"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "目标",
+      })
+      const team = yield* runs.addTeam({ runID: run.id, rosterSnapshot: { roster: [] } })
+      yield* runs.updateTeam({
+        id: team.id,
+        phase: "running",
+        event: { kind: "team.dispatched", payload: { teamID: team.id, round: 1 } },
+      })
+      const events = yield* runs.events({ runID: run.id })
+      expect(events.at(-1)?.kind).toBe("team.dispatched")
+      expect(events.at(-1)?.payload).toMatchObject({ teamID: team.id, round: 1 })
+      const phase = (yield* runs.teams(run.id))[0]?.phase
+      expect(phase).toBe("running")
+    }),
+  )
+
+  it.effect("a failing event rolls the state change back, instead of leaving a run nobody can explain", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_state_tx_fail"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "目标",
+      })
+      // JSON 列写不进 BigInt：事件写失败时，同一个事务里的状态变更也不能留下。
+      const broken = { n: 1n } as unknown as Record<string, unknown>
+      const exit = yield* Effect.exit(
+        runs.update({ runID: run.id, state: "cancelled", event: { kind: "cancel.settled", payload: broken } }),
+      )
+      expect(exit._tag).toBe("Failure")
+      const after = yield* runs.get(run.id)
+      expect(after?.state).toBe("planning")
+      expect((yield* runs.events({ runID: run.id })).map((event) => event.kind)).toEqual(["run.created"])
+    }),
+  )
+
   it.effect("appends events with a gap-free sequence", () =>
     Effect.gen(function* () {
       const runs = yield* RunService

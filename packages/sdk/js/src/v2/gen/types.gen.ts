@@ -3771,10 +3771,14 @@ export type RunView = {
   }
   createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  startedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  endedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   error?: string
   terminalReason?: string
   readOnly: boolean
   usage?: RunUsageView
+  mergeState: "unmerged" | "merged" | "merge_failed"
+  mergedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type RunTaskView = {
@@ -3977,6 +3981,7 @@ export type RunMergeResult = {
   sha?: string
   files?: Array<string>
   message?: string
+  alreadyMerged?: boolean
 }
 
 export type RunDenialClearResult = {

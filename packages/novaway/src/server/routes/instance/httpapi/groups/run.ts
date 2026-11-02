@@ -204,12 +204,22 @@ export const RunView = Schema.Struct({
   attempts: Schema.Struct({ business: Schema.Number, formatRetry: Schema.Number }),
   createdAt: Schema.Number,
   updatedAt: Schema.Number,
+  /** 开始执行的时间：头部用它算墙钟（§4.3）。运行过才有。 */
+  startedAt: Schema.optional(Schema.Number),
+  endedAt: Schema.optional(Schema.Number),
   error: Schema.optional(Schema.String),
   terminalReason: Schema.optional(Schema.String),
   /** 本次运行是否只读；缺省 true（审查运行不能改工作区）。 */
   readOnly: Schema.Boolean,
   /** 用量归属快照（§10.3）：运行结束后写入，运行中可能缺失。 */
   usage: Schema.optional(RunUsageView),
+  /**
+   * 合并状态（§3.2）：`done` 只说明交付通过验收，合进用户分支是另一个动作。
+   * 看板要在刷新之后仍能回答「合没合」，所以它是运行自己的字段，不是一次性提示。
+   */
+  mergeState: Schema.Literals(["unmerged", "merged", "merge_failed"]),
+  /** 合并完成的时间；`merged` 时才有。 */
+  mergedAt: Schema.optional(Schema.Number),
 }).annotate({ identifier: "RunView" })
 
 /**
@@ -522,6 +532,11 @@ export const RunMergeResult = Schema.Struct({
   sha: Schema.optional(Schema.String),
   files: Schema.optional(Schema.Array(Schema.String)),
   message: Schema.optional(Schema.String),
+  /**
+   * 这次运行之前已经合并过：`merged: true` 但**没有发生新的合并**。
+   * 重复点「合并」不该再报一次「已合并到 xxx」，那是把旧动作说成新动作。
+   */
+  alreadyMerged: Schema.optional(Schema.Boolean),
 }).annotate({ identifier: "RunMergeResult" })
 
 export const RunApi = HttpApiGroup.make("run")

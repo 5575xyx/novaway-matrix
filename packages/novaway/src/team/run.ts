@@ -74,6 +74,12 @@ export type Approval = {
   approvedBy: "user" | "main"
 }
 
+/**
+ * 交付、合并两次动作分开（§3.2）：`done` 是「验证通过」，这里记录「合进用户分支」。
+ * `merge_failed` 保留失败结论以便看板回答「上次为什么没合」；再次点击可以重试。
+ */
+export type MergeState = "unmerged" | "merged" | "merge_failed"
+
 export type TeamRun = {
   id: string
   sessionID: SessionID
@@ -94,6 +100,12 @@ export type TeamRun = {
   budget?: Budget
   usage?: Record<string, unknown>
   mergedVerification?: Record<string, unknown>
+  /**
+   * 合并状态（§3.2 / §5.3）。`done` 只说明「本次运行产出了通过验收的交付」，
+   * 合进用户当前分支是另一个动作，必须能单独回答。
+   */
+  mergeState: MergeState
+  mergedAt?: number
   startedAt?: number
   endedAt?: number
   error?: string
@@ -200,12 +212,16 @@ export interface Interface {
     budget?: Budget
     usage?: Record<string, unknown>
     mergedVerification?: Record<string, unknown>
+    mergeState?: MergeState
+    mergedAt?: number | null
     roundMain?: number
     attempts?: Attempts
     error?: string | null
     terminalReason?: string | null
     startedAt?: number
     endedAt?: number
+    /** 与这次写入同一个事务追加的事件（§21.2）：状态与它的事由不能只写一半。 */
+    event?: EventPayload
   }) => Effect.Effect<TeamRun | undefined>
   readonly approve: (input: {
     runID: string
@@ -240,6 +256,8 @@ export interface Interface {
     verdict?: Record<string, unknown>
     artifactsOut?: unknown[]
     usage?: Record<string, unknown>
+    /** 与这次阶段写入同一个事务追加的事件：团队阶段与它的日志不能只写一半。 */
+    event?: EventPayload
   }) => Effect.Effect<RunTeam | undefined>
 }
 
@@ -247,6 +265,53 @@ export class Service extends Context.Service<Service, Interface>()("@NovaWay/Tea
 
 const generateId = (prefix: string) =>
   prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)
+
+type EventInput = {
+  runID: string
+  kind: string
+  payload?: Record<string, unknown>
+  leaseEpoch?: number
+}
+
+/** 调用方要在同一次写入里追加的事件（不含 `runID`：它由写入目标决定）。 */
+export type EventPayload = Omit<EventInput, "runID">
+
+/**
+ * 追加一条事件（在调用方的事务里）。
+ *
+ * 序号取「当前最大 + 1」，必须在写入事务里读 —— 事务外先读再写，两个并发写会拿到
+ * 同一个 seq，事件就乱了。状态变更与它的事件也必须共用这一个事务（§21.2）：
+ * 先改状态、再另起事务写事件，中间崩溃就会留下「状态变了、没人知道为什么」的运行。
+ */
+const appendEventTx = (tx: Database.TxOrDb, input: EventInput): RunEvent => {
+  const last = tx
+    .select()
+    .from(TeamRunEventTable)
+    .where(eq(TeamRunEventTable.run_id, input.runID))
+    .orderBy(desc(TeamRunEventTable.seq))
+    .all()[0]
+  const next: RunEvent = {
+    id: generateId("evt"),
+    runID: input.runID,
+    seq: (last?.seq ?? 0) + 1,
+    at: Date.now(),
+    kind: input.kind,
+    payload: input.payload,
+    leaseEpoch: input.leaseEpoch,
+  }
+  tx.insert(TeamRunEventTable)
+    .values({
+      id: next.id,
+      run_id: next.runID,
+      seq: next.seq,
+      at: next.at,
+      kind: next.kind,
+      payload: next.payload ?? null,
+      lease_epoch: next.leaseEpoch ?? null,
+    })
+    .run()
+  return next
+}
 
 const toRun = (row: typeof TeamRunTable.$inferSelect): TeamRun => ({
   id: row.id,
@@ -267,6 +332,8 @@ const toRun = (row: typeof TeamRunTable.$inferSelect): TeamRun => ({
   budget: (row.budget as Budget | null) ?? undefined,
   usage: row.usage ?? undefined,
   mergedVerification: row.merged_verification ?? undefined,
+  mergeState: (row.merge_state as MergeState | null) ?? "unmerged",
+  mergedAt: row.merged_at ?? undefined,
   startedAt: row.started_at ?? undefined,
   endedAt: row.ended_at ?? undefined,
   error: row.error ?? undefined,
@@ -331,6 +398,7 @@ export const layer = Layer.effect(
         roundMain: 0,
         attempts: { business: 0, formatRetry: 0 },
         budget: input.budget,
+        mergeState: "unmerged",
         createdAt: now,
         updatedAt: now,
       }
@@ -386,41 +454,9 @@ export const layer = Layer.effect(
     })
 
     const appendEvent: Interface["appendEvent"] = Effect.fn("TeamRun.appendEvent")(function* (input) {
-      const event = yield* Effect.sync(() =>
-        Database.transaction(
-          (tx) => {
-            const last = tx
-              .select()
-              .from(TeamRunEventTable)
-              .where(eq(TeamRunEventTable.run_id, input.runID))
-              .orderBy(desc(TeamRunEventTable.seq))
-              .all()[0]
-            const next: RunEvent = {
-              id: generateId("evt"),
-              runID: input.runID,
-              seq: (last?.seq ?? 0) + 1,
-              at: Date.now(),
-              kind: input.kind,
-              payload: input.payload,
-              leaseEpoch: input.leaseEpoch,
-            }
-            tx.insert(TeamRunEventTable)
-              .values({
-                id: next.id,
-                run_id: next.runID,
-                seq: next.seq,
-                at: next.at,
-                kind: next.kind,
-                payload: next.payload ?? null,
-                lease_epoch: next.leaseEpoch ?? null,
-              })
-              .run()
-            return next
-          },
-          { behavior: "immediate" },
-        ),
+      return yield* Effect.sync(() =>
+        Database.transaction((tx) => appendEventTx(tx, input), { behavior: "immediate" }),
       )
-      return event
     })
 
     const update: Interface["update"] = Effect.fn("TeamRun.update")(function* (input) {
@@ -434,8 +470,9 @@ export const layer = Layer.effect(
       const nextState = input.state ?? existing.state
       const now = Date.now()
       yield* Effect.sync(() =>
-        Database.use((db) =>
-          db
+        Database.transaction(
+          (tx) => {
+            tx
             .update(TeamRunTable)
             .set({
               ...(input.state ? { state: input.state } : {}),
@@ -446,6 +483,8 @@ export const layer = Layer.effect(
               ...(input.budget ? { budget: input.budget } : {}),
               ...(input.usage !== undefined ? { usage: input.usage } : {}),
               ...(input.mergedVerification !== undefined ? { merged_verification: input.mergedVerification } : {}),
+              ...(input.mergeState !== undefined ? { merge_state: input.mergeState } : {}),
+              ...(input.mergedAt !== undefined ? { merged_at: input.mergedAt } : {}),
               ...(input.roundMain !== undefined ? { round_main: input.roundMain } : {}),
               ...(input.attempts ? { attempts: input.attempts } : {}),
               ...(input.error !== undefined ? { error: input.error } : {}),
@@ -455,20 +494,26 @@ export const layer = Layer.effect(
               time_updated: now,
             })
             .where(eq(TeamRunTable.id, input.runID))
-            .run(),
+            .run()
+            // 状态与事件同一个事务：不能出现「状态改了、事件没写」（§21.2）。
+            if (input.state && input.state !== existing.state) {
+              appendEventTx(tx, {
+                runID: input.runID,
+                kind: "run.state",
+                payload: {
+                  from: existing.state,
+                  to: nextState,
+                  ...(input.terminalReason ? { reason: input.terminalReason } : {}),
+                },
+              })
+            }
+            // 调用方自己的事件也放进同一个事务：顺序是「状态 → 事件」，与旧行为一致。
+            if (input.event) appendEventTx(tx, { runID: input.runID, ...input.event })
+            return undefined
+          },
+          { behavior: "immediate" },
         ),
       )
-      if (input.state && input.state !== existing.state) {
-        yield* appendEvent({
-          runID: input.runID,
-          kind: "run.state",
-          payload: {
-            from: existing.state,
-            to: nextState,
-            ...(input.terminalReason ? { reason: input.terminalReason } : {}),
-          },
-        })
-      }
       return yield* get(input.runID)
     })
 
@@ -570,28 +615,31 @@ export const layer = Layer.effect(
     })
 
     const updateTeam: Interface["updateTeam"] = Effect.fn("TeamRun.updateTeam")(function* (input) {
-      yield* Effect.sync(() =>
-        Database.use((db) =>
-          db
-            .update(TeamRunTeamTable)
-            .set({
-              ...(input.phase ? { phase: input.phase } : {}),
-              ...(input.roundCaptain !== undefined ? { round_captain: input.roundCaptain } : {}),
-              ...(input.contextManifest !== undefined ? { context_manifest: input.contextManifest } : {}),
-              ...(input.report !== undefined ? { report: input.report } : {}),
-              ...(input.verdict !== undefined ? { verdict: input.verdict } : {}),
-              ...(input.artifactsOut !== undefined ? { artifacts_out: input.artifactsOut } : {}),
-              ...(input.usage !== undefined ? { usage: input.usage } : {}),
-              time_updated: Date.now(),
-            })
-            .where(eq(TeamRunTeamTable.id, input.id))
-            .run(),
+      // 阶段写入与事件写入在同一个事务里：恢复逻辑读的是团队阶段，
+      // 只写了一半会让「它到底派发过没有」变成猜的（§8.5 / §21.2）。
+      return yield* Effect.sync(() =>
+        Database.transaction(
+          (tx) => {
+            tx.update(TeamRunTeamTable)
+              .set({
+                ...(input.phase ? { phase: input.phase } : {}),
+                ...(input.roundCaptain !== undefined ? { round_captain: input.roundCaptain } : {}),
+                ...(input.contextManifest !== undefined ? { context_manifest: input.contextManifest } : {}),
+                ...(input.report !== undefined ? { report: input.report } : {}),
+                ...(input.verdict !== undefined ? { verdict: input.verdict } : {}),
+                ...(input.artifactsOut !== undefined ? { artifacts_out: input.artifactsOut } : {}),
+                ...(input.usage !== undefined ? { usage: input.usage } : {}),
+                time_updated: Date.now(),
+              })
+              .where(eq(TeamRunTeamTable.id, input.id))
+              .run()
+            const row = tx.select().from(TeamRunTeamTable).where(eq(TeamRunTeamTable.id, input.id)).all()[0]
+            if (input.event && row) appendEventTx(tx, { runID: row.run_id, ...input.event })
+            return row ? toTeam(row) : undefined
+          },
+          { behavior: "immediate" },
         ),
       )
-      const rows = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(TeamRunTeamTable).where(eq(TeamRunTeamTable.id, input.id)).all()),
-      )
-      return rows[0] ? toTeam(rows[0]) : undefined
     })
 
     return Service.of({ create, get, list, update, approve, appendEvent, events, addTeam, teams, updateTeam })
