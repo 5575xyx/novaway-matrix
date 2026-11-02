@@ -11,6 +11,7 @@ import {
   defaultLayer as verificationLayer,
   type Acceptance,
   type Summary,
+  type VerificationTier,
 } from "./verification"
 
 /**
@@ -61,6 +62,9 @@ export type VerificationResult = {
   verifierVersion?: string
   /** 结论复用自同一快照上的另一次验证；界面与事件都要标出来（§19.1）。 */
   reused?: boolean
+  /** 验证档位与判定理由（§19.1）；由调度器按改动面判定并随结论落库。 */
+  tier?: VerificationTier
+  tierReason?: string
   /** 验证针对的代码快照；缺省用调度器传入的当前快照。 */
   snapshotID?: string
   /**
@@ -236,6 +240,9 @@ export const layer = Layer.effect(
         attempt: number
         /** 复用同快照结论（§19.1）：事件里也标出来，回放不能把它当成新验证。 */
         reused?: boolean
+        /** 验证档位与理由（§19.1）：档位一律由调度器判定，不接受成员自报。 */
+        tier?: VerificationTier
+        tierReason?: string
         /** 这条验收归谁：团队 id，或全局验收时为运行 id。 */
         owner?: string
       }) =>
@@ -254,6 +261,7 @@ export const layer = Layer.effect(
               ...(entry.evidenceRef ? { hasEvidence: true } : {}),
               ...(entry.suggestion ? { hasSuggestion: true } : {}),
               ...(entry.reused ? { reused: true } : {}),
+              ...(entry.tier ? { tier: entry.tier } : {}),
             },
           })
           return saved
@@ -1033,6 +1041,8 @@ export const layer = Layer.effect(
                 suggestion: value.suggestion,
                 evidenceRef: value.evidenceRef,
                 ...(value.reused ? { reused: true } : {}),
+                tier: value.tier,
+                tierReason: value.tierReason,
                 attempt: rounds + 1,
                 owner: teamID,
               })

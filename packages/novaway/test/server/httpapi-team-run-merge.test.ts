@@ -95,7 +95,14 @@ const providerConfig = (url: string) => ({
 type Detail = {
   run: { id: string; state: string; planVersion: number; error?: string; mergeState?: string; mergedAt?: number }
   teams: Array<{ id: string; phase: string; worktree?: string }>
-  summary: { pass: number; fail: number; unverified: number; stale: number; verdict: string }
+  summary: {
+    pass: number
+    fail: number
+    unverified: number
+    stale: number
+    verdict: string
+    lines?: Array<{ acceptanceID: string; tier?: string; tierReason?: string }>
+  }
 }
 
 type Event = { seq: number; kind: string; payload?: Record<string, unknown> }
@@ -270,6 +277,9 @@ describe("team run merge", () => {
         expect(kinds).toContain("integration.merged")
         // 两条验收分属两个团队，都过了才叫交付。
         expect(detail?.summary).toMatchObject({ pass: 2, fail: 0, unverified: 0, verdict: "complete" })
+        // 每队各改一个文件、且都有可执行命令：调度器判轻档，并把理由一并落库（§19.1）。
+        expect(detail?.summary.lines?.length).toBe(2)
+        expect(detail?.summary.lines?.every((line) => line.tier === "light" && !!line.tierReason)).toBe(true)
         expect(detail?.teams.map((team) => team.phase)).toEqual(["delivered", "delivered"])
 
         // 集成真的合出了东西：集成 worktree 里两个文件都在。

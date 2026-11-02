@@ -104,4 +104,31 @@ describe("verification store: same-snapshot reuse", () => {
       expect(summary.verdict).toBe("failed")
     }),
   )
+
+  it.effect("stores the dispatcher's tier and reason with the verdict", () =>
+    Effect.gen(function* () {
+      const verification = yield* VerificationService
+      const acceptance = yield* verification.register({
+        runID: runID(),
+        specID: "structure",
+        text: "报告里引用的文件都在改动里",
+        kind: "diff",
+      })
+      yield* verification.record({
+        acceptanceID: acceptance.id,
+        snapshotID: "snap_1",
+        verifierVersion: "structure:v1",
+        outcome: "pass",
+        tier: "light",
+        tierReason: "影响面 ≤ 2 个文件：结构校验 + 抽样",
+      })
+      const summary = yield* verification.summary({
+        runID: acceptance.runID,
+        currentSnapshot: "snap_1",
+      })
+      // 档位与理由随结论一起落库：刷新看板后仍然能回答「为什么验得轻」（§19.1）。
+      expect(summary.lines[0]?.verification?.tier).toBe("light")
+      expect(summary.lines[0]?.verification?.tierReason).toContain("结构校验")
+    }),
+  )
 })

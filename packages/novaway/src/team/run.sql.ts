@@ -227,6 +227,14 @@ export const TeamVerificationTable = sqliteTable(
      * 结论，而不是假装又验了一遍。界面必须能看出来，否则缓存就变成了伪造新验证。
      */
     reused: integer().notNull().default(0),
+    /**
+     * 验证档位与判定理由（§19.1）。
+     *
+     * 档位由调度器按「改了什么」算出来，不是成员自报的；把理由一起存下来，
+     * 用户才能在运行详情里看到「这一条为什么验得轻 / 重」，而不是只看到一个缩写。
+     */
+    tier: text(),
+    tier_reason: text(),
     at: integer().notNull(),
   },
   (table) => [

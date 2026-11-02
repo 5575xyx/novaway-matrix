@@ -259,6 +259,75 @@ export async function cumulativeDiff(input: {
   }
 }
 
+/** 文件是否存在（相对目录）。 */
+async function fileExists(directory: string, relative: string) {
+  const stat = await fs.stat(path.join(directory, relative)).catch(() => undefined)
+  return stat?.isFile() === true
+}
+
+function untrackedFiles(status: string) {
+  return status
+    .split("\n")
+    .filter((line) => line.startsWith("?? "))
+    .map((line) => line.slice(3).trim())
+    .filter(Boolean)
+}
+
+/**
+ * 改动文件清单（§19.1）：判定验证档位用。
+ *
+ * 与 `cumulativeDiff()` 的区别是**不截断**：跨模块判断要看全量清单，
+ * 截断之后「改了 6 个包」可能被误判成「只改了一个」。读不到时返回 `undefined`，
+ * 调用方按「没有事实」处理，而不是按「没有改动」处理。
+ */
+export async function changedFiles(input: { directory: string; baseSHA: string }): Promise<string[] | undefined> {
+  const tracked = await git(input.directory, ["diff", "--name-only", input.baseSHA])
+  if (tracked.code !== 0) return undefined
+  const status = await git(input.directory, ["status", "--porcelain"])
+  return [
+    ...new Set([
+      ...tracked.stdout.split("\n").map((line) => line.trim()).filter(Boolean),
+      ...(status.code === 0 ? untrackedFiles(status.stdout) : []),
+    ]),
+  ]
+}
+
+const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
+const SOURCE_FILE = /\.[cm]?[jt]sx?$/
+const TEST_EXTENSIONS = [".test.ts", ".test.tsx", ".test.mts", ".test.cts", ".test.js", ".test.jsx", ".spec.ts"]
+
+/**
+ * 按仓库约定推导受影响的测试（§19.1）。
+ *
+ * 只看两种最常见、可机械判断的约定：
+ * 1. 同目录：`src/a/b.ts` → `src/a/b.test.ts`；
+ * 2. 镜像目录：`src/a/b.ts` → `test/a/b.test.ts`。
+ *
+ * 找不到就返回空数组 —— 「推导不出来」是中档与重档的理由，不是猜一个差集的理由。
+ */
+export async function affectedTests(input: { directory: string; paths: readonly string[] }): Promise<string[]> {
+  const candidates = new Set<string>()
+  for (const raw of input.paths) {
+    const file = raw.replace(/\\/g, "/")
+    if (TEST_FILE.test(file)) {
+      candidates.add(file)
+      continue
+    }
+    if (!SOURCE_FILE.test(file)) continue
+    const base = file.replace(SOURCE_FILE, "")
+    const slash = base.lastIndexOf("/")
+    const directoryPart = slash === -1 ? "" : base.slice(0, slash)
+    const name = slash === -1 ? base : base.slice(slash + 1)
+    for (const extension of TEST_EXTENSIONS) {
+      candidates.add((directoryPart ? directoryPart + "/" : "") + name + extension)
+      if (base.startsWith("src/")) candidates.add("test/" + base.slice("src/".length) + extension)
+    }
+  }
+  const found: string[] = []
+  for (const candidate of candidates) if (await fileExists(input.directory, candidate)) found.push(candidate)
+  return found
+}
+
 /** 删除 worktree 与分支。只清运行自己建的东西，不碰仓库里的其它引用。 */
 export async function remove(input: { base: string; directory: string; branch?: string }) {
   const removed = await git(input.base, ["worktree", "remove", "--force", input.directory])

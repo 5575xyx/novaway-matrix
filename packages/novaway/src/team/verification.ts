@@ -16,6 +16,7 @@ import { sanitizeOptional } from "./evidence"
 
 export type AcceptanceKind = "test" | "diff" | "file" | "rubric" | "human"
 export type Outcome = "pass" | "fail" | "unverified"
+export type VerificationTier = "light" | "medium" | "heavy"
 
 export type Acceptance = {
   id: string
@@ -45,6 +46,10 @@ export type Verification = {
   evidenceRef?: string
   /** 结论是否复用自同一快照上的另一次验证（§19.1）：界面必须标出来。 */
   reused?: boolean
+  /** 验证档位（§19.1）：调度器按改动面判定，成员不能自报。 */
+  tier?: VerificationTier
+  /** 判定理由：用户要能看懂「这一条为什么验得轻 / 重」。 */
+  tierReason?: string
   at: number
 }
 
@@ -151,6 +156,9 @@ export interface Interface {
     attempt?: number
     /** 复用同快照结论时置真（§19.1）；界面据此标注，不能伪装成新验证。 */
     reused?: boolean
+    /** 验证档位与理由（§19.1）：随结论一起落库，刷新后仍然看得到。 */
+    tier?: VerificationTier
+    tierReason?: string
   }) => Effect.Effect<Verification>
   /**
    * 同一快照、同一验证器版本上已有的结论（§19.1）。
@@ -199,6 +207,9 @@ const toVerification = (row: typeof TeamVerificationTable.$inferSelect): Verific
   suggestion: sanitizeOptional(row.suggestion ?? undefined),
   evidenceRef: sanitizeOptional(row.evidence_ref ?? undefined),
   ...(row.reused === 1 ? { reused: true } : {}),
+  // 库里存的是文本：只认这三个值，别的一律当作「没有档位」，不把脏数据带进类型。
+  tier: row.tier === "light" || row.tier === "medium" || row.tier === "heavy" ? row.tier : undefined,
+  tierReason: row.tier_reason ?? undefined,
   at: row.at,
 })
 
@@ -276,6 +287,8 @@ export const layer = Layer.effect(
         suggestion: sanitizeOptional(input.suggestion),
         evidenceRef: sanitizeOptional(input.evidenceRef),
         ...(input.reused ? { reused: true } : {}),
+        tier: input.tier,
+        tierReason: input.tierReason,
         at: Date.now(),
       }
       yield* Effect.sync(() =>
@@ -294,6 +307,8 @@ export const layer = Layer.effect(
               suggestion: verification.suggestion ?? null,
               evidence_ref: verification.evidenceRef ?? null,
               reused: verification.reused === true ? 1 : 0,
+              tier: verification.tier ?? null,
+              tier_reason: verification.tierReason ?? null,
               at: verification.at,
             })
             .run(),

@@ -51783,6 +51783,13 @@
           "reused": {
             "type": "boolean"
           },
+          "tier": {
+            "type": "string",
+            "enum": ["light", "medium", "heavy"]
+          },
+          "tierReason": {
+            "type": "string"
+          },
           "at": {
             "anyOf": [
               {
@@ -51829,6 +51836,13 @@
             "type": "string"
           },
           "snapshotID": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": ["light", "medium", "heavy"]
+          },
+          "tierReason": {
             "type": "string"
           }
         },

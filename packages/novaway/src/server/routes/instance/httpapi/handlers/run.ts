@@ -1,7 +1,9 @@
+import { existsSync } from "node:fs"
+import * as nodePath from "node:path"
 import { Effect, Ref, Scope } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { Service as RunService, canStart, isTerminal, type TeamRun } from "@/team/run"
+import { Service as RunService, canStart, isTerminal, type RunTeam, type TeamRun } from "@/team/run"
 import { Service as VerificationService, type Acceptance } from "@/team/verification"
 import {
   Service as OrchestratorService,
@@ -17,7 +19,9 @@ import { Service as TeamProfileService, brief as rosterBrief, snapshotFrom } fro
 import * as TeamRoster from "@/team/roster"
 import { TeamPolicy } from "@/team/policy"
 import {
+  affectedTests,
   branch as worktreeBranch,
+  changedFiles,
   commit as commitWorktree,
   head as worktreeHead,
   remove as removeWorktree,
@@ -51,6 +55,8 @@ import { Service as AgentTaskListService } from "@/team/task-list"
 import { Service as TeamLedgerService } from "@/team/ledger"
 import * as TeamDenials from "@/team/denials"
 import * as TeamCommandVerifier from "@/team/command-verifier"
+import * as TeamEconomy from "@/team/economy"
+import * as TeamStructure from "@/team/structure"
 import * as TeamRecovery from "@/team/recovery"
 import { Snapshot } from "@/snapshot"
 
@@ -322,6 +328,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             suggestion: item.suggestion,
             evidenceRef: item.evidenceRef,
             ...(item.reused ? { reused: true } : {}),
+            tier: item.tier,
+            tierReason: item.tierReason,
             at: item.at,
           })),
           summary: {
@@ -340,6 +348,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               measured: line.verification?.measured,
               suggestion: line.verification?.suggestion,
               snapshotID: line.verification?.snapshotID,
+              tier: line.verification?.tier,
+              tierReason: line.verification?.tierReason,
             })),
           },
         }
@@ -798,6 +808,71 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             TeamPolicy.fromPlan(run.plan, team, directory ?? run.directory)
           // 团队 worktree 存在时，成员在那里工作，证据也绑定在那里创建时的提交上。
           // 没有 worktree（非 git 仓库、空仓库）则退回实例目录的快照。
+          /**
+           * 每个团队 worktree 的起点提交（§19.1）。
+           *
+           * 建 worktree 时事件里记了 `baseSHA`；目标复用的工作区没有本次事件，
+           * 退回目标自己的固定起点。两者都拿不到时按「没有事实」处理 ——
+           * 不能拿 0 个文件当「没改过」。
+           */
+          const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
+          const worktreeBases = new Map<string, string>()
+          for (const event of yield* runs.events({ runID: run.id })) {
+            if (event.kind !== "worktree.created") continue
+            const directory = Reflect.get(event.payload ?? {}, "directory")
+            const baseSHA = Reflect.get(event.payload ?? {}, "baseSHA")
+            if (typeof directory === "string" && typeof baseSHA === "string") worktreeBases.set(directory, baseSHA)
+          }
+          const baseOf = (team: { worktree?: string }) => {
+            if (!team.worktree) return undefined
+            const recorded = worktreeBases.get(team.worktree)
+            if (recorded) return recorded
+            return mission?.worktree === team.worktree ? mission.baseSHA : undefined
+          }
+          /**
+           * 同一轮里改动清单是固定的：多条验收共享一次 `git diff`，不逐条重复读。
+           * 键里带 `round`，下一轮成员再写文件时不会拿到上一轮的旧清单。
+           */
+          const changeCache = new Map<string, Promise<string[] | undefined>>()
+          const changesOf = (team: RunTeam, round: number) => {
+            const base = baseOf(team)
+            const directory = team.worktree
+            if (!base || !directory) return undefined
+            const key = directory + "|" + base + "|" + round
+            const cached = changeCache.get(key)
+            if (cached) return cached
+            const pending = changedFiles({ directory, baseSHA: base })
+            changeCache.set(key, pending)
+            return pending
+          }
+          /**
+           * 验证档位（§19.1）：由调度器按事实判定，成员怎么描述自己都不影响。
+           *
+           * 事实全部来自仓库：改了几个文件、跨不跨模块、有没有动锁文件 / 迁移、
+           * 能不能按约定找到受影响测试、这条验收有没有可执行命令。
+           * 读不到改动清单时退回团队声明的范围；仍为空就说明「没有事实」，
+           * 规则会按保守路径走，而不是把它当成「只改了一个文件」。
+           */
+          const tierOf = (acceptance: Acceptance, team: RunTeam, round: number) =>
+            Effect.gen(function* () {
+              const directory = team.worktree
+              const pending = changesOf(team, round)
+              const changed = pending ? yield* Effect.promise(() => pending) : undefined
+              const paths = changed ?? team.scope ?? []
+              const affected =
+                changed && changed.length > 0 && directory
+                  ? yield* Effect.promise(() => affectedTests({ directory, paths: changed }))
+                  : []
+              const facts: TeamEconomy.Facts = {
+                kind: acceptance.kind,
+                paths: paths.length,
+                crossModule: TeamEconomy.crossModule(paths),
+                irreversible: TeamEconomy.irreversibleChange(paths),
+                hasAffectedTests: affected.length > 0,
+                hasCommand: TeamCommandVerifier.normalize(acceptance.verifier) !== undefined,
+              }
+              return { decision: TeamEconomy.classify(facts), changed: changed ?? [] }
+            })
           const teamDirectory = teamRows.find((team) => team.worktree)?.worktree
           const instanceSnapshot = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
           /**
@@ -1051,13 +1126,40 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               // 没有 worktree 时不借用别的团队的目录，退回这次运行的默认快照。
               const teamWorktree = input.team.worktree
               const snapshotID = (yield* snapshotOf(teamWorktree)) ?? "unknown"
+              // 档位先于验证方式：轻档可以做结构校验，中 / 重档照常走命令或模型。
+              const tier = yield* tierOf(input.acceptance, input.team, input.round)
+              const spec = TeamCommandVerifier.normalize(input.acceptance.verifier)
+              /**
+               * 轻档结构校验（§19.1）。
+               *
+               * 只对 `file` / `diff` 生效：这两类验收的证据本身就是「某个位置」，
+               * 存在性与改动归属可以机械判断。`rubric` / `human` / `test` 已被
+               * `economy.classify` 抬到中档，不会走到这里 —— 拿格式合规冒充语义成立
+               * 正是这条规则要防的事。
+               */
+              if (!spec && tier.decision.tier === "light" && (input.acceptance.kind === "file" || input.acceptance.kind === "diff")) {
+                const directory = teamWorktree ?? run.directory
+                return {
+                  ...TeamStructure.interpret({
+                    acceptance: input.acceptance,
+                    report: input.report,
+                    changed: tier.changed,
+                    exists: (relative) => existsSync(nodePath.join(directory, relative)),
+                  }),
+                  snapshotID,
+                  usage: {},
+                  tier: tier.decision.tier,
+                  tierReason: tier.decision.reason,
+                } satisfies VerificationResult
+              }
               // 有命令就用命令验：同样的代码、同样的命令，答案不该由一次模型判断决定。
               const command = yield* commandVerify({
                 acceptance: input.acceptance,
                 directory: teamWorktree,
                 snapshotID,
               })
-              if (command) return command
+              if (command)
+                return { ...command, tier: tier.decision.tier, tierReason: tier.decision.reason } satisfies VerificationResult
               const verified = yield* runAgent({
                 agent: verifierFor(input.team),
                 ...(teamWorktree ? { directory: teamWorktree } : {}),
@@ -1077,6 +1179,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 snapshotID,
                 // 验证也要花钱：不计进来的话，预算上限只约束派发，约束不到真相。
                 usage: { tokens: verified.usage.tokens, cost: verified.usage.cost },
+                tier: tier.decision.tier,
+                tierReason: tier.decision.reason,
               } satisfies VerificationResult
             })
 
@@ -1085,13 +1189,21 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           const verifyMerged = (input: { acceptance: Acceptance; snapshotID: string }) =>
             Effect.gen(function* () {
               const directory = (yield* Ref.get(integrated)) ?? teamDirectory
+              // 合并后的全局验收永远是重档（§19.1）：合并会引入任何一支团队都没验过的组合。
+              const tier = TeamEconomy.classify({
+                kind: input.acceptance.kind,
+                paths: 0,
+                merged: true,
+                hasCommand: TeamCommandVerifier.normalize(input.acceptance.verifier) !== undefined,
+              })
               // 合并后的命令验收跑在集成目录上：团队各自通过不代表合起来还通过。
               const command = yield* commandVerify({
                 acceptance: input.acceptance,
                 directory,
                 snapshotID: input.snapshotID,
               })
-              if (command) return command
+              if (command)
+                return { ...command, tier: tier.tier, tierReason: tier.reason } satisfies VerificationResult
               const mergedRun = yield* runAgent({
                 agent: verifierFor(undefined),
                 ...(directory ? { directory } : {}),
@@ -1110,6 +1222,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                 ...TeamVerifier.interpret(mergedRun.text),
                 snapshotID: input.snapshotID,
                 usage: { tokens: mergedRun.usage.tokens, cost: mergedRun.usage.cost },
+                tier: tier.tier,
+                tierReason: tier.reason,
               } satisfies VerificationResult
             })
 

@@ -1640,6 +1640,14 @@ export const RunPage: Component<{
                                 <div class="text-ui-base text-foreground">{line.text}</div>
                                 <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
                                   <Tag>{line.outcome}</Tag>
+                                  {/* 档位由调度器按改动面判定：点开提示能看到它为什么验得轻 / 重（§19.1）。 */}
+                                  <Show when={line.tier}>
+                                    {(tier) => (
+                                      <Tag title={line.tierReason ?? t("run.tierHint")}>
+                                        {t(`run.tier.${tier()}`)}
+                                      </Tag>
+                                    )}
+                                  </Show>
                                   <Show when={acceptanceFor(line.acceptanceID)?.verifier}>
                                     {(verifier) => (
                                       <Tag title={t("run.acceptance.commandTagHint")}>
@@ -1676,6 +1684,13 @@ export const RunPage: Component<{
                                       <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
                                         <Tag>{t("run.evidence.attempt", { n: record.attempt })}</Tag>
                                         <Tag>{record.outcome}</Tag>
+                                        <Show when={record.tier}>
+                                          {(tier) => (
+                                            <Tag title={record.tierReason ?? t("run.tierHint")}>
+                                              {t(`run.tier.${tier()}`)}
+                                            </Tag>
+                                          )}
+                                        </Show>
                                         <span class="truncate">{record.verifierVersion}</span>
                                         <span class="truncate">{record.snapshotID}</span>
                                         <Show when={record.measured}>

@@ -20,6 +20,8 @@ export type Facts = {
   irreversible?: boolean
   /** 是否能推导出受影响的测试。 */
   hasAffectedTests?: boolean
+  /** 这条验收是否真的有可执行命令；没有的话「轻档」只能退回语义复核。 */
+  hasCommand?: boolean
   /** 是否为合并后的全局验收。 */
   merged?: boolean
 }
@@ -44,10 +46,61 @@ export function classify(facts: Facts): Decision {
   // 主观验收至少要人/模型复核，不能只做结构校验。
   if (facts.kind === "rubric" || facts.kind === "human")
     return { tier: "medium", reason: "主观验收：需复核而非结构校验" }
+  // 测试类验收没有可执行命令时，轻档的「结构校验」证明不了测试是否通过：
+  // 宁可升一档做语义复核，也不拿「格式合规」冒充「跑过了」。
+  if (facts.kind === "test" && !facts.hasCommand)
+    return { tier: "medium", reason: "没有可执行的测试命令：退回语义复核" }
   if (facts.kind === "test" && facts.hasAffectedTests && facts.paths > 2)
     return { tier: "medium", reason: "能推导受影响测试：跑子集" }
   if (facts.paths <= 2) return { tier: "light", reason: "影响面 ≤ 2 个文件：结构校验 + 抽样" }
   return { tier: "medium", reason: "影响面超过 2 个文件但未跨模块：跑子集" }
+}
+
+/**
+ * 改动清单 → 模块根（§19.1）。
+ *
+ * `packages/foo/x.ts` 与 `packages/bar/y.ts` 是两个模块；`src/a.ts` 与 `src/b.ts`
+ * 是同一个。没有这个归并，「改了两个文件」会被误读成「跨模块」。
+ */
+export function moduleRoots(paths: readonly string[]): string[] {
+  const roots = paths.map((item) => {
+    const parts = item.replace(/\\/g, "/").split("/").filter(Boolean)
+    if (parts.length === 0) return ""
+    if ((parts[0] === "packages" || parts[0] === "apps" || parts[0] === "examples") && parts[1])
+      return parts.slice(0, 2).join("/")
+    return parts[0]
+  })
+  return [...new Set(roots.filter(Boolean))].sort()
+}
+
+/** 是否跨模块：判定只看路径结构，不看成员怎么说。 */
+export function crossModule(paths: readonly string[]): boolean {
+  return moduleRoots(paths).length > 1
+}
+
+/** 不可逆副作用（§19.1）：装依赖、改数据库迁移都算。写错之后很难靠重跑抹平。 */
+const LOCKFILES = new Set([
+  "bun.lock",
+  "bun.lockb",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "Cargo.lock",
+  "poetry.lock",
+  "uv.lock",
+  "Pipfile.lock",
+  "composer.lock",
+  "Gemfile.lock",
+])
+
+export function irreversibleChange(paths: readonly string[]): boolean {
+  return paths.some((item) => {
+    const normalized = item.replace(/\\/g, "/")
+    const name = normalized.split("/").pop() ?? normalized
+    if (LOCKFILES.has(name)) return true
+    // 迁移脚本：执行过就可能已经改了库，重跑不是「没有发生」。
+    return normalized.split("/").includes("migration")
+  })
 }
 
 /**

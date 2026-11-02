@@ -3848,6 +3848,8 @@ export type RunVerificationView = {
   suggestion?: string
   evidenceRef?: string
   reused?: boolean
+  tier?: "light" | "medium" | "heavy"
+  tierReason?: string
   at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
@@ -3858,6 +3860,8 @@ export type RunSummaryLine = {
   measured?: string
   suggestion?: string
   snapshotID?: string
+  tier?: "light" | "medium" | "heavy"
+  tierReason?: string
 }
 
 export type RunSummaryView = {

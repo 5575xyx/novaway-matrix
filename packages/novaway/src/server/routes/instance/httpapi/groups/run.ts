@@ -319,6 +319,9 @@ export const RunVerificationView = Schema.Struct({
   evidenceRef: Schema.optional(Schema.String),
   /** 复用同快照上的已有结论（§19.1）：界面必须标出来，不能当成新验证。 */
   reused: Schema.optional(Schema.Boolean),
+  /** 验证档位与判定理由（§19.1）：界面要回答「这一条为什么验得轻 / 重」。 */
+  tier: Schema.optional(Schema.Literals(["light", "medium", "heavy"])),
+  tierReason: Schema.optional(Schema.String),
   at: Schema.Number,
 }).annotate({ identifier: "RunVerificationView" })
 
@@ -330,6 +333,9 @@ export const RunSummaryLine = Schema.Struct({
   /** 上一轮验证器给出的修改建议；`pass` 时通常没有。 */
   suggestion: Schema.optional(Schema.String),
   snapshotID: Schema.optional(Schema.String),
+  /** 验证档位与判定理由：验收行上直接显示，不要求用户展开全部验证记录。 */
+  tier: Schema.optional(Schema.Literals(["light", "medium", "heavy"])),
+  tierReason: Schema.optional(Schema.String),
 }).annotate({ identifier: "RunSummaryLine" })
 
 export const RunSummaryView = Schema.Struct({
