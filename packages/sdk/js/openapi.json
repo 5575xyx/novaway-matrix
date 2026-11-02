@@ -51400,9 +51400,39 @@
           },
           "owner": {
             "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "ownerJob": {
+            "type": "string"
+          },
+          "ownerRole": {
+            "type": "string",
+            "enum": ["captain", "worker"]
           }
         },
         "required": ["id", "subject", "status"],
+        "additionalProperties": false
+      },
+      "RunTeamMemberView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["captain", "worker"]
+          }
+        },
+        "required": ["id", "name", "job", "role"],
         "additionalProperties": false
       },
       "RunTeamView": {
@@ -51519,6 +51549,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RunTaskView"
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunTeamMemberView"
             }
           },
           "context": {

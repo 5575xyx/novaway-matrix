@@ -1,5 +1,6 @@
 import type {
   Agent,
+  RunDetail,
   RunView,
   TeamDetail,
   TeamEmployeeRecordView,
@@ -21,6 +22,8 @@ import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js"
 import { PageHeader } from "@/components/page-header"
+import { TeamGraph } from "@/components/team-graph"
+import type { GraphLaneInput } from "@/components/team-graph.layout"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { agentDisplayName } from "@/utils/agent"
@@ -28,6 +31,9 @@ import { agentAvatar } from "@/utils/agent-avatar"
 import { formatRelativeTime } from "@/utils/relative-time"
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+/** 团队头像用名字前两个字：不引入额外图片资源，也足够在列表里区分。 */
+const initials = (name: string) => name.trim().slice(0, 2) || "队"
 
 /**
  * AI 员工的展示名。
@@ -71,14 +77,14 @@ const statusTone = (status: TeamMemberView["status"]) =>
  * `partial` / `needs_review` 用警示色而不是成功色：它们都还没到「已验证交付」，
  * 用绿色会让人以为已经可以合并了（§10.2）。
  */
-const runStateIcon = (state: string) =>
-  state === "done"
-    ? "circle-check"
-    : state === "failed" || state === "exceeded" || state === "cancelled"
-      ? "circle-ban-sign"
-      : state === "running" || state === "blocked" || state === "paused"
-        ? "lu-activity"
-        : "lu-circle"
+/** 工作线列表里的状态点：颜色回答「要不要点开它」，不再多摆一排标签。 */
+const runDot = (run: { state: string }) => ({
+  "bg-success": run.state === "done",
+  "bg-warning": run.state === "partial" || run.state === "needs_review" || run.state === "awaiting_approval",
+  "bg-primary": run.state === "running" || run.state === "blocked" || run.state === "paused",
+  "bg-border":
+    run.state === "failed" || run.state === "cancelled" || run.state === "exceeded" || run.state === "planning",
+})
 
 const runStateTone = (state: string) =>
   state === "done"
@@ -152,6 +158,13 @@ export const TeamPage: Component<{
   const [controlBusy, setControlBusy] = createSignal(false)
   // 运行设置默认收起：总控开关在，并发与默认模式收进「设置」，不占左栏。
   const [showControl, setShowControl] = createSignal(false)
+  // 工作线视图：默认看图，聊天退到第二个页签 —— 团队页首先回答「它干成了什么」。
+  const [view, setView] = createSignal<"lines" | "chat">("lines")
+  // 选中的工作线（一次运行）与它的详情：图画的就是这一次。
+  const [lineID, setLineID] = createSignal<string | undefined>(undefined)
+  const [lineDetail, setLineDetail] = createSignal<RunDetail | undefined>(undefined)
+  // 每条工作线的实际参与人：只为列表里看得见的那几条拉一次，不跟着轮询刷。
+  const [linePeople, setLinePeople] = createSignal<Record<string, string[]>>({})
   let feed: HTMLDivElement | undefined
 
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
@@ -212,6 +225,16 @@ export const TeamPage: Component<{
     onCleanup(() => window.clearInterval(timer))
   })
 
+  // 点开另一条工作线时立刻换图，不等下一次轮询。
+  createEffect(() => {
+    const id = lineID()
+    if (!id) {
+      setLineDetail(undefined)
+      return
+    }
+    if (lineDetail()?.run.id !== id) void loadLineDetail(id)
+  })
+
   createEffect(() => {
     const id = selected()
     if (!id) {
@@ -222,6 +245,10 @@ export const TeamPage: Component<{
     void loadDetail(id)
     void loadTeamRuns(id)
     setTarget("")
+    // 换团队就是换一组工作线：上一条的图和参与人都不再成立。
+    setLineID(undefined)
+    setLineDetail(undefined)
+    primedLines.clear()
   })
 
   createEffect(() => {
@@ -234,8 +261,34 @@ export const TeamPage: Component<{
   })
 
   const workers = createMemo(() => (detail()?.members ?? []).filter((member) => member.role === "worker"))
-  const memberName = (sessionID: string | undefined) =>
-    detail()?.members.find((member) => member.sessionID === sessionID)?.name
+  /** 工作线图的数据：一次运行的每支团队一条泳道。 */
+  const lineTeams = createMemo<GraphLaneInput[]>(() =>
+    (lineDetail()?.teams ?? []).map((team) => ({
+      id: team.id,
+      name:
+        profiles().find((profile) => profile.id === team.profileID)?.name ??
+        t("run.plan.teamFallback", { id: team.id }),
+      phase: team.phase,
+      // 返工轮次要能在图上看出来；没有轮次记录时按第 1 轮画，不编一个更大的数。
+      round: Math.max(1, numeric(team.roundCaptain)),
+      members: (team.members ?? []).map((member) => ({
+        id: member.id,
+        name: member.name,
+        job: member.job,
+        role: member.role,
+      })),
+      tasks: (team.tasks ?? []).map((task) => ({
+        id: task.id,
+        subject: task.subject,
+        status: task.status,
+        ...(task.owner ? { owner: task.owner } : {}),
+        ...(task.ownerName ? { ownerName: task.ownerName } : {}),
+        ...(task.ownerJob ? { ownerJob: task.ownerJob } : {}),
+        ...(task.ownerRole ? { ownerRole: task.ownerRole } : {}),
+      })),
+    })),
+  )
+  const lineRun = createMemo(() => teamRuns().find((run) => run.id === lineID()))
 
   /**
    * 最近运行。
@@ -246,9 +299,58 @@ export const TeamPage: Component<{
   const loadTeamRuns = async (teamID: string) => {
     try {
       const result = await sdk.client.run.list({ directory: props.directory, teamID })
-      setTeamRuns((result.data ?? []) as RunView[])
+      const list = (result.data ?? []) as RunView[]
+      setTeamRuns(list)
+      primeLinePeople(list)
+      // 选中的那条不在列表里（换了团队 / 被删）时退回最新一条：图不能停在上一条线上。
+      const next = list.find((run) => run.id === lineID())?.id ?? list[0]?.id
+      setLineID(next)
+      if (next) await loadLineDetail(next)
+      else setLineDetail(undefined)
     } catch {
       setTeamRuns([])
+    }
+  }
+  /**
+   * 一条工作线的「实际参与人」。
+   *
+   * 只算真正认领过任务的人：名册里有他没干活，不该算进这个数字。
+   * 未认领的任务不算人；任务还没派下去时是空数组，界面说「还没人认领」。
+   */
+  const participantsOf = (detail: RunDetail) => [
+    ...new Set(
+      detail.teams.flatMap((team) => (team.tasks ?? []).flatMap((task) => (task.ownerName ? [task.ownerName] : []))),
+    ),
+  ]
+
+  /**
+   * 选中工作线的详情。
+   *
+   * 图要的是这一条线的节点与状态，只在选中时拉；轮询时只刷这一条，
+   * 不去为列表里每条运行各拉一份详情。
+   */
+  const loadLineDetail = async (runID: string) => {
+    try {
+      const result = await sdk.client.run.detail({ runID, directory: props.directory })
+      if (lineID() !== runID) return
+      const data = result.data
+      setLineDetail(data)
+      if (data) setLinePeople((current) => ({ ...current, [runID]: participantsOf(data) }))
+    } catch {
+      if (lineID() === runID) setLineDetail(undefined)
+    }
+  }
+
+  /** 已经拉过参与人的工作线：列表每 4 秒刷新一次，不能每轮都把详情重拉一遍。 */
+  const primedLines = new Set<string>()
+  const primeLinePeople = (runs: readonly RunView[]) => {
+    for (const run of runs.slice(0, 5)) {
+      if (primedLines.has(run.id)) continue
+      primedLines.add(run.id)
+      void sdk.client.run.detail({ runID: run.id, directory: props.directory }).then((result) => {
+        const data = result.data
+        if (data) setLinePeople((current) => ({ ...current, [run.id]: participantsOf(data) }))
+      })
     }
   }
 
@@ -576,18 +678,30 @@ export const TeamPage: Component<{
             when={teams().length > 0}
             fallback={<div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("team.empty")}</div>}
           >
+            {/*
+              左栏按群聊的方式排：头像、队名、一行副标题（人数 · 最近活动）。
+              点一个进一个，扫描顺序和用户找「那支队」的方式一致。
+            */}
             <For each={teams()}>
               {(team) => (
                 <button
                   type="button"
-                  class="flex w-full flex-col items-start gap-0.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-hover"
+                  class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-hover"
                   classList={{ "bg-surface": team.id === selected() }}
                   onClick={() => setSelected(team.id)}
                 >
-                  <span class="w-full truncate text-ui-base text-foreground">{team.name}</span>
-                  <span class="w-full truncate text-ui-xs text-foreground-subtle">
-                    {t("team.memberCount", { count: team.memberCount })}
+                  <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-ui-xs text-primary">
+                    {initials(team.name)}
                   </span>
+                  <span class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate text-ui-base text-foreground">{team.name}</span>
+                    <span class="truncate text-ui-xs text-foreground-subtle">
+                      {t("team.memberCount", { count: team.memberCount })}
+                      {" · "}
+                      {formatRelativeTime(Number(team.updatedAt) || undefined, Date.now(), language.t)}
+                    </span>
+                  </span>
+                  <span class="size-1.5 shrink-0 rounded-full bg-primary/70" />
                 </button>
               )}
             </For>
@@ -692,128 +806,171 @@ export const TeamPage: Component<{
                       </Show>
                     </Show>
                   </div>
+                </div>
 
-                  <Show when={team().tasks.length > 0}>
-                    <div class="mt-3">
-                      <div class="text-ui-xs text-foreground-subtle">{t("team.tasks")}</div>
-                      <div class="mt-1 flex flex-col gap-0.5">
-                        <For each={team().tasks.slice(0, 8)}>
-                          {(task) => (
-                            <div class="flex min-w-0 items-center gap-1.5">
-                              <Icon
-                                name={
-                                  task.status === "completed"
-                                    ? "circle-check"
-                                    : task.status === "in_progress"
-                                      ? "lu-activity"
-                                      : "lu-circle"
-                                }
-                                size="small"
-                                class={
-                                  task.status === "completed"
-                                    ? "text-success"
-                                    : task.status === "in_progress"
-                                      ? "text-foreground"
-                                      : "text-foreground-subtlest"
-                                }
-                              />
-                              <span class="min-w-0 flex-1 truncate text-ui-xs text-foreground">{task.subject}</span>
-                              <span class="shrink-0 text-ui-xs text-foreground-subtlest">
-                                {memberName(task.ownerSessionID) ?? ""}
-                              </span>
-                            </div>
-                          )}
-                        </For>
-                      </div>
-                    </div>
+                {/*
+                  两个页签：默认是「工作线」——团队页首先要回答「它干成了什么」；
+                  群聊是过程记录，点开才看。不是两个并列的世界，主次很清楚。
+                */}
+                <div class="flex shrink-0 items-center gap-1 border-b border-border px-3 py-1.5">
+                  <For
+                    each={[
+                      { id: "lines" as const, label: t("team.tab.lines") },
+                      { id: "chat" as const, label: t("team.tab.chat") },
+                    ]}
+                  >
+                    {(item) => (
+                      <button
+                        type="button"
+                        class="rounded-md px-2 py-1 text-ui-xs transition-colors"
+                        classList={{
+                          "bg-surface text-foreground": view() === item.id,
+                          "text-foreground-subtle hover:bg-hover": view() !== item.id,
+                        }}
+                        onClick={() => setView(item.id)}
+                      >
+                        {item.label}
+                      </button>
+                    )}
+                  </For>
+                  <Show when={view() === "lines" && props.onOpenRun && lineID()}>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      class="ml-auto"
+                      title={t("team.runs.open")}
+                      onClick={() => props.onOpenRun?.(lineID()!)}
+                    >
+                      {t("team.runs.open")}
+                    </Button>
                   </Show>
+                </div>
 
-                  {/* 运行历史（§4.1）：团队页回答「这支队实际干成过什么」，
-                      点开进入运行看板看验收台账，不在这里重复一份。 */}
-                  <div class="mt-3">
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-ui-xs text-foreground-subtle">{t("team.runs.title")}</span>
-                      <Show when={teamRuns().length > 5}>
-                        <span class="text-ui-xs text-foreground-subtlest">{t("team.runs.recent", { count: 5 })}</span>
+                <Show when={view() === "lines"}>
+                  <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                    <div class="flex flex-col gap-3">
+                      <div class="flex flex-col gap-1">
+                        <div class="text-ui-xs text-foreground-subtle">{t("team.runs.title")}</div>
+                        <Show
+                          when={teamRuns().length > 0}
+                          fallback={<div class="text-ui-xs text-foreground-subtlest">{t("team.runs.empty")}</div>}
+                        >
+                          <For each={teamRuns()}>
+                            {(run) => (
+                              <button
+                                type="button"
+                                class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                                classList={{ "bg-surface": run.id === lineID() }}
+                                onClick={() => setLineID(run.id)}
+                              >
+                                <span class="size-1.5 shrink-0 rounded-full" classList={runDot(run)} />
+                                <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">{run.goal}</span>
+                                {/* 每条工作线都写清「几个人参与、是谁」：这是它和一条普通日志的区别。 */}
+                                <span class="hidden shrink-0 truncate text-ui-xs text-foreground-subtle sm:block">
+                                  {linePeople()[run.id]?.length
+                                    ? t("team.line.people", {
+                                        count: String(linePeople()[run.id].length),
+                                        names: linePeople()[run.id].slice(0, 3).join("、"),
+                                      })
+                                    : t("team.line.peoplePending")}
+                                </span>
+                                <span class="shrink-0 text-ui-xs text-foreground-subtlest">
+                                  {t("run.state." + run.state)}
+                                </span>
+                                <span class="shrink-0 text-ui-xs text-foreground-subtlest">
+                                  {formatRelativeTime(Number(run.updatedAt) || undefined, Date.now(), language.t)}
+                                </span>
+                              </button>
+                            )}
+                          </For>
+                        </Show>
+                      </div>
+
+                      <Show
+                        when={lineDetail()}
+                        fallback={
+                          <div class="rounded-lg border border-dashed border-border px-3 py-6 text-center text-ui-xs text-foreground-subtlest">
+                            {teamRuns().length > 0 ? t("team.line.loading") : t("team.line.noRuns")}
+                          </div>
+                        }
+                      >
+                        {(detail) => (
+                          <div class="flex flex-col gap-2">
+                            <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                              <span class="min-w-0 truncate text-foreground">
+                                {lineRun()?.goal ?? detail().run.goal}
+                              </span>
+                              <Tag class={runStateTone(detail().run.state)}>{t("run.state." + detail().run.state)}</Tag>
+                              <span>{t("run.info.round", { round: String(detail().run.roundMain) })}</span>
+                            </div>
+                            <Show
+                              when={lineTeams().length > 0}
+                              fallback={
+                                <div class="rounded-lg border border-dashed border-border px-3 py-6 text-center text-ui-xs text-foreground-subtlest">
+                                  {t("team.line.noTeams")}
+                                </div>
+                              }
+                            >
+                              <TeamGraph teams={lineTeams()} nameOf={(lane) => lane.name} />
+                            </Show>
+                          </div>
+                        )}
                       </Show>
                     </div>
+                  </div>
+                </Show>
+
+                <Show when={view() === "chat"}>
+                  <div ref={feed} class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
                     <Show
-                      when={teamRuns().length > 0}
-                      fallback={<div class="mt-1 text-ui-xs text-foreground-subtlest">{t("team.runs.empty")}</div>}
+                      when={team().messages.length > 0}
+                      fallback={
+                        <div class="py-6 text-center text-ui-xs text-foreground-subtle">{t("team.noMessages")}</div>
+                      }
                     >
-                      <div class="mt-1 flex flex-col gap-0.5">
-                        <For each={teamRuns().slice(0, 5)}>
-                          {(run) => (
-                            <button
-                              type="button"
-                              class="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-hover disabled:cursor-default"
-                              disabled={!props.onOpenRun}
-                              title={props.onOpenRun ? t("team.runs.open") : undefined}
-                              onClick={() => props.onOpenRun?.(run.id)}
-                            >
-                              <Icon name={runStateIcon(run.state)} size="small" class={runStateTone(run.state)} />
-                              <span class="min-w-0 flex-1 truncate text-ui-xs text-foreground">{run.goal}</span>
-                              <span class="shrink-0 text-ui-xs text-foreground-subtlest">
-                                {t("run.state." + run.state)}
-                              </span>
-                              <span class="shrink-0 text-ui-xs text-foreground-subtlest">
-                                {formatRelativeTime(Number(run.updatedAt) || undefined, Date.now(), language.t)}
-                              </span>
-                            </button>
-                          )}
-                        </For>
+                      <div class="flex flex-col gap-3">
+                        <For each={team().messages}>{(message) => <MessageRow message={message} />}</For>
                       </div>
                     </Show>
                   </div>
-                </div>
 
-                <div ref={feed} class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                  <Show
-                    when={team().messages.length > 0}
-                    fallback={
-                      <div class="py-6 text-center text-ui-xs text-foreground-subtle">{t("team.noMessages")}</div>
-                    }
-                  >
-                    <div class="flex flex-col gap-3">
-                      <For each={team().messages}>{(message) => <MessageRow message={message} />}</For>
+                  <div class="shrink-0 border-t border-border px-4 py-2.5">
+                    <div class="flex items-end gap-2">
+                      <select
+                        class="h-8 shrink-0 rounded-md border border-border bg-surface px-1.5 text-ui-xs text-foreground outline-none"
+                        value={target()}
+                        aria-label={t("team.chat")}
+                        onChange={(event) => setTarget(event.currentTarget.value)}
+                      >
+                        <option value="">{t("team.toEveryone")}</option>
+                        <For each={team().members}>
+                          {(member) => <option value={member.name}>{member.name}</option>}
+                        </For>
+                      </select>
+                      <textarea
+                        class="min-h-8 flex-1 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
+                        rows={1}
+                        value={draft()}
+                        placeholder={t("team.placeholder")}
+                        onInput={(event) => setDraft(event.currentTarget.value)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" || event.shiftKey) return
+                          event.preventDefault()
+                          void send()
+                        }}
+                      />
+                      <Button
+                        variant="primary"
+                        size="small"
+                        disabled={sending() || !draft().trim()}
+                        onClick={() => void send()}
+                      >
+                        {sending() ? t("team.sending") : t("team.send")}
+                      </Button>
                     </div>
-                  </Show>
-                </div>
-
-                <div class="shrink-0 border-t border-border px-4 py-2.5">
-                  <div class="flex items-end gap-2">
-                    <select
-                      class="h-8 shrink-0 rounded-md border border-border bg-surface px-1.5 text-ui-xs text-foreground outline-none"
-                      value={target()}
-                      aria-label={t("team.chat")}
-                      onChange={(event) => setTarget(event.currentTarget.value)}
-                    >
-                      <option value="">{t("team.toEveryone")}</option>
-                      <For each={team().members}>{(member) => <option value={member.name}>{member.name}</option>}</For>
-                    </select>
-                    <textarea
-                      class="min-h-8 flex-1 resize-none rounded-md border border-border bg-surface px-2 py-1.5 text-ui-base text-foreground outline-none placeholder:text-foreground-subtle focus:border-border-focus"
-                      rows={1}
-                      value={draft()}
-                      placeholder={t("team.placeholder")}
-                      onInput={(event) => setDraft(event.currentTarget.value)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter" || event.shiftKey) return
-                        event.preventDefault()
-                        void send()
-                      }}
-                    />
-                    <Button
-                      variant="primary"
-                      size="small"
-                      disabled={sending() || !draft().trim()}
-                      onClick={() => void send()}
-                    >
-                      {sending() ? t("team.sending") : t("team.send")}
-                    </Button>
+                    <div class="mt-1 text-ui-xs text-foreground-subtlest">{t("team.replyHint")}</div>
                   </div>
-                  <div class="mt-1 text-ui-xs text-foreground-subtlest">{t("team.replyHint")}</div>
-                </div>
+                </Show>
               </>
             )}
           </Show>

@@ -256,6 +256,37 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
         // 任务板（§5.5）：运行内创建的任务挂在这个运行团队上，看板才有「做到哪一步」可看。
         const boards = yield* Effect.forEach(teams, (team) => taskList.list(team.id), { concurrency: 1 })
         const tasksOf = new Map(teams.map((team, index) => [team.id, boards[index] ?? []]))
+        /**
+         * 谁在做：任务上的 `owner` 是会话 id，界面要的是名字。
+         *
+         * 会话行记着 `employeeID`，名册快照把人名与岗位冻结在这一版里 —— 两样对起来
+         * 才是「谁在哪一轮做了什么」。会话读不到时退回标题，仍读不到就不编名字。
+         * 只查一次，多个任务共用一个 Owner。
+         */
+        const owners = new Map<string, { name?: string; job?: string; role?: "captain" | "worker" }>()
+        const ownerOf = (team: RunTeam, sessionID: string) =>
+          Effect.gen(function* () {
+            const hit = owners.get(sessionID)
+            if (hit) return hit
+            const session = yield* sessions.get(sessionID as never).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            const roster = snapshotFrom(team.rosterSnapshot)
+            // 活团队的名册里 employee.id 就是成员会话 id；模板发起的运行才靠会话上的 employeeID 对。
+            const entry = roster?.roster.find(
+              (item) => item.employee.id === sessionID || item.employee.id === session?.employeeID,
+            )
+            const resolved = entry
+              ? { name: entry.employee.name, job: entry.employee.job, role: entry.role }
+              : session?.title
+                ? { name: session.title }
+                : {}
+            owners.set(sessionID, resolved)
+            return resolved
+          })
+        for (const team of teams) {
+          for (const task of tasksOf.get(team.id) ?? []) {
+            if (task.ownerSessionID) yield* ownerOf(team, task.ownerSessionID)
+          }
+        }
         const summary = yield* verification.summary({ runID })
         return {
           run: toRun(run),
@@ -278,13 +309,26 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             ...(team.scope?.length ? { scope: team.scope } : {}),
             artifacts: artifactsOf(team.artifactsOut),
             context: toContext(team.contextManifest),
-            // 任务板只回这四项：看板要的是一次能扫完的进度，不是任务的全文。
-            tasks: (tasksOf.get(team.id) ?? []).map((task) => ({
-              id: task.id,
-              subject: task.subject,
-              status: task.status,
-              ...(task.ownerSessionID ? { owner: task.ownerSessionID } : {}),
+            // 名册快照里的人：图视图要用它画「谁参与、谁是队长」，不必再查一遍员工库。
+            members: (snapshotFrom(team.rosterSnapshot)?.roster ?? []).map((entry) => ({
+              id: entry.employee.id,
+              name: entry.employee.name,
+              job: entry.employee.job,
+              role: entry.role,
             })),
+            // 任务板只回这几项：看板要的是一次能扫完的进度，不是任务的全文。
+            tasks: (tasksOf.get(team.id) ?? []).map((task) => {
+              const owner = task.ownerSessionID ? owners.get(task.ownerSessionID) : undefined
+              return {
+                id: task.id,
+                subject: task.subject,
+                status: task.status,
+                ...(task.ownerSessionID ? { owner: task.ownerSessionID } : {}),
+                ...(owner?.name ? { ownerName: owner.name } : {}),
+                ...(owner?.job ? { ownerJob: owner.job } : {}),
+                ...(owner?.role ? { ownerRole: owner.role } : {}),
+              }
+            }),
           })),
           acceptances: acceptances.map((acceptance) => {
             // 命令原文不出接口：它常带凭据，与 hook 命令同一条约束。

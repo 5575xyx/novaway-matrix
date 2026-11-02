@@ -234,7 +234,22 @@ export const RunTaskView = Schema.Struct({
   status: Schema.String,
   /** 认领它的会话；空的表示没有会话在做（看板不假装它在跑）。 */
   owner: Schema.optional(Schema.String),
+  /**
+   * 认领人是谁（来自名册快照）。图为视图要画「任务 → 人」这条边，
+   * 拿会话 id 没法认人；读不到名字时缺省，界面就不编一个。
+   */
+  ownerName: Schema.optional(Schema.String),
+  ownerJob: Schema.optional(Schema.String),
+  ownerRole: Schema.optional(Schema.Literals(["captain", "worker"])),
 }).annotate({ identifier: "RunTaskView" })
+
+/** 名册快照里的人：图视图画「谁参与、谁是队长」，不需要再查员工库。 */
+export const RunTeamMemberView = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  job: Schema.String,
+  role: Schema.Literals(["captain", "worker"]),
+}).annotate({ identifier: "RunTeamMemberView" })
 
 export const RunTeamView = Schema.Struct({
   id: Schema.String,
@@ -260,6 +275,8 @@ export const RunTeamView = Schema.Struct({
   artifacts: Schema.optional(Schema.Array(Schema.Struct({ name: Schema.String, version: Schema.String }))),
   /** 这支队任务板上的条目（§5.5）：看板据此显示「做到哪一步」。 */
   tasks: Schema.optional(Schema.Array(RunTaskView)),
+  /** 这次运行实际用到的名册（§5.2 的快照）：参与人与队长，不随模板改名而变。 */
+  members: Schema.optional(Schema.Array(RunTeamMemberView)),
   /**
    * 最近一次派发的上下文清单（§6.4）。`brief` 就是模型实际看到的字；
    * `truncated` 为真时界面必须显示 —— 「悄悄少给几条」是不允许的。

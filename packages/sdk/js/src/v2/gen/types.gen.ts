@@ -3786,6 +3786,16 @@ export type RunTaskView = {
   subject: string
   status: string
   owner?: string
+  ownerName?: string
+  ownerJob?: string
+  ownerRole?: "captain" | "worker"
+}
+
+export type RunTeamMemberView = {
+  id: string
+  name: string
+  job: string
+  role: "captain" | "worker"
 }
 
 export type RunTeamView = {
@@ -3803,6 +3813,7 @@ export type RunTeamView = {
     version: string
   }>
   tasks?: Array<RunTaskView>
+  members?: Array<RunTeamMemberView>
   context?: {
     acceptance: Array<{
       id: string
