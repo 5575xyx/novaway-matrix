@@ -98,7 +98,7 @@ export async function commit(input: { directory: string; message: string }): Pro
   const added = await git(input.directory, ["add", "-A"])
   if (added.code !== 0) return { kind: "failed", message: added.stderr.trim() || added.stdout.trim() || "git add 失败" }
 
-  const status = await git(input.directory, ["status", "--porcelain"])
+  const status = await git(input.directory, ["status", "--porcelain", "--untracked-files=all"])
   if (status.code !== 0) return { kind: "failed", message: status.stderr.trim() || "无法读取工作区状态" }
   const files = status.stdout
     .split("\n")
@@ -240,7 +240,7 @@ export async function cumulativeDiff(input: {
   }
   files.sort((a, b) => b.added + b.removed - (a.added + a.removed))
 
-  const status = await git(input.directory, ["status", "--porcelain"])
+  const status = await git(input.directory, ["status", "--porcelain", "--untracked-files=all"])
   const untracked =
     status.code === 0
       ? status.stdout
@@ -283,7 +283,7 @@ function untrackedFiles(status: string) {
 export async function changedFiles(input: { directory: string; baseSHA: string }): Promise<string[] | undefined> {
   const tracked = await git(input.directory, ["diff", "--name-only", input.baseSHA])
   if (tracked.code !== 0) return undefined
-  const status = await git(input.directory, ["status", "--porcelain"])
+  const status = await git(input.directory, ["status", "--porcelain", "--untracked-files=all"])
   return [
     ...new Set([
       ...tracked.stdout.split("\n").map((line) => line.trim()).filter(Boolean),
@@ -318,9 +318,13 @@ export async function affectedTests(input: { directory: string; paths: readonly 
     const slash = base.lastIndexOf("/")
     const directoryPart = slash === -1 ? "" : base.slice(0, slash)
     const name = slash === -1 ? base : base.slice(slash + 1)
+    // 单包仓库：src/ → test/；monorepo：<pkg>/src/ → <pkg>/test/。
+    const marker = base.startsWith("src/") ? 0 : base.indexOf("/src/")
+    const mirrored =
+      marker === -1 ? undefined : base.slice(0, marker) + (marker === 0 ? "" : "/") + "test/" + base.slice(marker === 0 ? 4 : marker + 5)
     for (const extension of TEST_EXTENSIONS) {
       candidates.add((directoryPart ? directoryPart + "/" : "") + name + extension)
-      if (base.startsWith("src/")) candidates.add("test/" + base.slice("src/".length) + extension)
+      if (mirrored) candidates.add(mirrored + extension)
     }
   }
   const found: string[] = []

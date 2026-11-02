@@ -3,7 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
-import { commit, create, head, remove, slug } from "@/team/worktree"
+import { affectedTests, changedFiles, commit, create, head, remove, slug } from "@/team/worktree"
 
 const git = (cwd: string, args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8" })
 
@@ -113,6 +113,38 @@ describe("team worktree commit", () => {
     expect(result.kind).toBe("clean")
     // 空提交会让「第几轮改了什么」变得难读，所以不产生。
     expect(await head(created.worktree.directory)).toBe(before)
+  })
+
+  test("reads the full change list against the base commit", async () => {
+    const dir = await repo()
+    const base = git(dir, ["rev-parse", "HEAD"]).stdout.trim()
+    await fs.mkdir(path.join(dir, "src"), { recursive: true })
+    await fs.writeFile(path.join(dir, "src", "new.ts"), "export {}\n")
+    await fs.writeFile(path.join(dir, "a.txt"), "changed\n")
+    const files = await changedFiles({ directory: dir, baseSHA: base })
+    expect(files?.sort()).toEqual(["a.txt", "src/new.ts"])
+  })
+
+  test("derives affected tests by same-directory and src->test mirroring", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-team-affected-"))
+    await fs.mkdir(path.join(dir, "src", "team"), { recursive: true })
+    await fs.mkdir(path.join(dir, "test", "team"), { recursive: true })
+    await fs.mkdir(path.join(dir, "src", "solo"), { recursive: true })
+    await fs.writeFile(path.join(dir, "test", "team", "run.test.ts"), "")
+    await fs.writeFile(path.join(dir, "src", "solo", "alone.test.ts"), "")
+    expect(await affectedTests({ directory: dir, paths: ["src/team/run.ts"] })).toEqual(["test/team/run.test.ts"])
+    expect(await affectedTests({ directory: dir, paths: ["src/solo/alone.ts"] })).toEqual(["src/solo/alone.test.ts"])
+    // 推导不出来时返回空数组，而不是猜一个差集。
+    expect(await affectedTests({ directory: dir, paths: ["src/team/nope.ts"] })).toEqual([])
+  })
+
+  test("mirrors monorepo packages from src to test", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-team-affected-pkg-"))
+    await fs.mkdir(path.join(dir, "packages", "novaway", "test", "team"), { recursive: true })
+    await fs.writeFile(path.join(dir, "packages", "novaway", "test", "team", "run.test.ts"), "")
+    expect(await affectedTests({ directory: dir, paths: ["packages/novaway/src/team/run.ts"] })).toEqual([
+      "packages/novaway/test/team/run.test.ts",
+    ])
   })
 
   test("commits without relying on the user's git identity", async () => {

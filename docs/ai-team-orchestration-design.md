@@ -2709,7 +2709,7 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 | 文件                                                     | 内容                                                              |
 | -------------------------------------------------------- | ----------------------------------------------------------------- |
 | `src/team/economy.ts`                                    | `classify()` 增加「没有命令的 test 不能是轻档」；新增 `moduleRoots()` / `crossModule()` / `irreversibleChange()` |
-| `src/team/worktree.ts`                                   | `changedFiles()`（不截断的改动清单）、`affectedTests()`（同目录 / `test/` 镜像两种约定） |
+| `src/team/worktree.ts`                                   | `changedFiles()`（不截断的改动清单，未跟踪目录按文件展开）、`affectedTests()`（同目录 / `test/` 镜像；单包与 `<pkg>/src/ → <pkg>/test/` 都认） |
 | `src/team/structure.ts`                                  | 轻档结构校验：`path:line` 提取、文件存在性、`diff` 证据必须落在本轮改动里 |
 | `migration/20261102000002_team_verification_tier`        | `team_verification.tier / tier_reason`                             |
 | `handlers/run.ts`                                        | `tierOf()`：从 worktree 起点提交与改动清单算事实；`verify` 在轻档改走结构校验；合并验收固定重档 |
