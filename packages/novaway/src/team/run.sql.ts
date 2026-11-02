@@ -214,6 +214,11 @@ export const TeamVerificationTable = sqliteTable(
     verifier_version: text().notNull(),
     outcome: text().notNull(),
     measured: text(),
+    /**
+     * 验证器给出的下一步建议（§6.3 / §4.3）：驳回时用户要看到「怎么改」，
+     * 而不只是「哪条没过」。模型原文，入库前同样脱敏。
+     */
+    suggestion: text(),
     evidence_ref: text(),
     /**
      * 这一条是不是「复用同快照结果」（§19.1）。

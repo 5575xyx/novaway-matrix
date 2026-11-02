@@ -16,7 +16,10 @@ import type { Report, VerificationResult } from "./orchestrator"
  * 的样本与判定结果，算召回率与误杀率，低于阈值就当作发布门禁不通过。
  */
 
-export type Interpretation = Pick<VerificationResult, "outcome" | "measured" | "evidenceRef" | "verifierVersion">
+export type Interpretation = Pick<
+  VerificationResult,
+  "outcome" | "measured" | "suggestion" | "evidenceRef" | "verifierVersion"
+>
 
 /** 从模型输出里取出第一个 JSON 对象；取不到返回 undefined。 */
 export function parseJSON(text: string): Record<string, unknown> | undefined {
@@ -36,8 +39,10 @@ export function interpret(text: string, version = "agent-v1"): Interpretation {
   const parsed = parseJSON(text)
   const raw = parsed?.outcome
   const measured = typeof parsed?.measured === "string" ? parsed.measured : undefined
+  // 建议只对「没做到」有意义：`pass` 不需要怎么改，`unverified` 该说的是怎么补证据。
+  const suggestion = typeof parsed?.suggestion === "string" ? parsed.suggestion.trim() || undefined : undefined
   const evidenceRef = typeof parsed?.evidence === "string" ? parsed.evidence.trim() : undefined
-  if (raw === "fail") return { outcome: "fail", measured, evidenceRef, verifierVersion: version }
+  if (raw === "fail") return { outcome: "fail", measured, suggestion, evidenceRef, verifierVersion: version }
   if (raw !== "pass") return { outcome: "unverified", measured, evidenceRef, verifierVersion: version }
   if (!evidenceRef) {
     return {
@@ -65,8 +70,10 @@ export function prompt(acceptance: Pick<Acceptance, "text" | "expected">, report
     "【交付方自述】",
     evidence || "（无）",
     "",
+    "判 fail 时，在 suggestion 里写一句可执行的修改建议（改哪个文件、补哪种用例）；判 pass 时省略。",
+    "",
     "只输出 JSON：",
-    '{"outcome":"pass|fail|unverified","measured":"实测结果或原因","evidence":"证据位置"}',
+    '{"outcome":"pass|fail|unverified","measured":"实测结果或原因","evidence":"证据位置","suggestion":"修改建议（仅 fail）"}',
   ]
     .filter(Boolean)
     .join("\n")

@@ -55,6 +55,8 @@ export type Report = {
 export type VerificationResult = {
   outcome: "pass" | "fail" | "unverified"
   measured?: string
+  /** 验证器给出的修改建议（§6.3）：驳回时随打回意见一起交给队长。 */
+  suggestion?: string
   evidenceRef?: string
   verifierVersion?: string
   /** 结论复用自同一快照上的另一次验证；界面与事件都要标出来（§19.1）。 */
@@ -229,6 +231,7 @@ export const layer = Layer.effect(
         verifierVersion: string
         outcome: "pass" | "fail" | "unverified"
         measured?: string
+        suggestion?: string
         evidenceRef?: string
         attempt: number
         /** 复用同快照结论（§19.1）：事件里也标出来，回放不能把它当成新验证。 */
@@ -249,6 +252,7 @@ export const layer = Layer.effect(
               verifierVersion: entry.verifierVersion,
               ...(entry.owner ? { owner: entry.owner } : {}),
               ...(entry.evidenceRef ? { hasEvidence: true } : {}),
+              ...(entry.suggestion ? { hasSuggestion: true } : {}),
               ...(entry.reused ? { reused: true } : {}),
             },
           })
@@ -713,6 +717,7 @@ export const layer = Layer.effect(
               verifierVersion: value.verifierVersion ?? "v1",
               outcome: value.outcome,
               measured: value.measured,
+              suggestion: value.suggestion,
               evidenceRef: value.evidenceRef,
               ...(value.reused ? { reused: true } : {}),
               attempt: round,
@@ -744,7 +749,17 @@ export const layer = Layer.effect(
           attempts.business += 1
           const notes = failing.map((line) => {
             const measured = line.verification?.measured
-            return "未达标：" + line.acceptance.text + "（" + line.outcome + (measured ? "：" + measured : "") + "）"
+            const suggestion = line.verification?.suggestion
+            return (
+              "未达标：" +
+              line.acceptance.text +
+              "（" +
+              line.outcome +
+              (measured ? "：" + measured : "") +
+              "）" +
+              // 建议是「怎么改」，不是「哪里错了」；没有建议时不要编一句。
+              (suggestion ? " 建议：" + suggestion : "")
+            )
           })
           feedback.set(team.id, notes)
           yield* runs.updateTeam({
@@ -1015,6 +1030,7 @@ export const layer = Layer.effect(
                 verifierVersion: value.verifierVersion ?? fallbackVersion,
                 outcome: value.outcome,
                 measured: value.measured,
+                suggestion: value.suggestion,
                 evidenceRef: value.evidenceRef,
                 ...(value.reused ? { reused: true } : {}),
                 attempt: rounds + 1,

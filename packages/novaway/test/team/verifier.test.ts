@@ -29,6 +29,19 @@ describe("team.verifier", () => {
     expect(TeamVerifier.interpret(reply("fail")).outcome).toBe("fail")
   })
 
+  test("a failing verdict carries an actionable suggestion, a passing one does not invent one", () => {
+    // 驳回要能回答「怎么改」（§6.3）：建议随结论一起读回来，正文里的空建议不冒充有建议。
+    const failed = TeamVerifier.interpret(
+      JSON.stringify({ outcome: "fail", measured: "72%", evidence: "coverage.json", suggestion: " 补 refund 边界用例 " }),
+    )
+    expect(failed.outcome).toBe("fail")
+    expect(failed.suggestion).toBe("补 refund 边界用例")
+    const blank = TeamVerifier.interpret(JSON.stringify({ outcome: "fail", measured: "72%", suggestion: "   " }))
+    expect(blank.suggestion).toBeUndefined()
+    const passed = TeamVerifier.interpret(reply("pass", "src/a.ts:12"))
+    expect(passed.suggestion).toBeUndefined()
+  })
+
   test("a missing evidence on the control group is a false kill, not a silent pass", () => {
     const score = TeamVerifier.evaluate([{ name: "good-no-evidence", expected: "pass", reply: reply("pass") }])
     expect(score.falseKill).toBe(1)

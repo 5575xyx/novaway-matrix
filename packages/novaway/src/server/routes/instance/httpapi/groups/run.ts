@@ -314,6 +314,8 @@ export const RunVerificationView = Schema.Struct({
   verifierVersion: Schema.String,
   outcome: Schema.Literals(["pass", "fail", "unverified"]),
   measured: Schema.optional(Schema.String),
+  /** 验证器给出的修改建议（§6.3）：驳回时要能看到「怎么改」，不只是「哪条没过」。 */
+  suggestion: Schema.optional(Schema.String),
   evidenceRef: Schema.optional(Schema.String),
   /** 复用同快照上的已有结论（§19.1）：界面必须标出来，不能当成新验证。 */
   reused: Schema.optional(Schema.Boolean),
@@ -325,6 +327,8 @@ export const RunSummaryLine = Schema.Struct({
   text: Schema.String,
   outcome: Schema.String,
   measured: Schema.optional(Schema.String),
+  /** 上一轮验证器给出的修改建议；`pass` 时通常没有。 */
+  suggestion: Schema.optional(Schema.String),
   snapshotID: Schema.optional(Schema.String),
 }).annotate({ identifier: "RunSummaryLine" })
 

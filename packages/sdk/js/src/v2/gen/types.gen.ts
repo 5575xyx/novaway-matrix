@@ -3845,6 +3845,7 @@ export type RunVerificationView = {
   verifierVersion: string
   outcome: "pass" | "fail" | "unverified"
   measured?: string
+  suggestion?: string
   evidenceRef?: string
   reused?: boolean
   at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -3855,6 +3856,7 @@ export type RunSummaryLine = {
   text: string
   outcome: string
   measured?: string
+  suggestion?: string
   snapshotID?: string
 }
 

@@ -77,4 +77,31 @@ describe("verification store: same-snapshot reuse", () => {
       ).toBeUndefined()
     }),
   )
+
+  it.effect("keeps the verifier's suggestion and hands it back on the summary line", () =>
+    Effect.gen(function* () {
+      const verification = yield* VerificationService
+      const acceptance = yield* verification.register({
+        runID: runID(),
+        specID: "coverage",
+        text: "退款路径的边界用例覆盖率 ≥ 80%",
+        kind: "rubric",
+      })
+      yield* verification.record({
+        acceptanceID: acceptance.id,
+        snapshotID: "snap_1",
+        verifierVersion: "agent-v1",
+        outcome: "fail",
+        measured: "实测 72%",
+        suggestion: "为 payments/refund 补边界用例",
+      })
+      const summary = yield* verification.summary({
+        runID: acceptance.runID,
+        currentSnapshot: "snap_1",
+      })
+      // 驳回不只有实测值，还有下一步怎么做（§4.3 / §6.3）。
+      expect(summary.lines[0]?.verification?.suggestion).toBe("为 payments/refund 补边界用例")
+      expect(summary.verdict).toBe("failed")
+    }),
+  )
 })

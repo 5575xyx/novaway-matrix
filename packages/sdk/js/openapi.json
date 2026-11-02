@@ -51774,6 +51774,9 @@
           "measured": {
             "type": "string"
           },
+          "suggestion": {
+            "type": "string"
+          },
           "evidenceRef": {
             "type": "string"
           },
@@ -51820,6 +51823,9 @@
             "type": "string"
           },
           "measured": {
+            "type": "string"
+          },
+          "suggestion": {
             "type": "string"
           },
           "snapshotID": {

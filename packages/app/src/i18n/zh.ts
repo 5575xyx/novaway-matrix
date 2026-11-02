@@ -284,6 +284,7 @@ export const dict = {
   "run.acceptance.commandTagHint": "这条验收靠命令退出码判定；命令原文不回显。",
   "run.evidence.hint": "点开看这次结论的依据：验证器、快照、实测值与证据引用。",
   "run.evidence.title": "验证记录",
+  "run.evidence.suggestion": "建议：{{text}}",
   "run.evidence.attempt": "第 {{n}} 次",
   "run.evidence.empty": "还没有验证记录 —— 未验证不等于通过。",
   "run.evidence.reused": "复用同快照结果",

@@ -2809,6 +2809,28 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 2. **墙钟从开始执行算，不含等批准。** 等待批准的时间不是运行的耗时，混进去会让「这次跑了多久」失真。
 3. **依赖下标与计划同源。** 依赖按团队在本次运行中的顺序记录，界面只显示序号，不猜团队名字。
 
+**驳回带建议（2026-11-02 追加，§6.3 / §4.3）**
+
+§6.3 要求 `reject` 的每一项都带 `measured` 与 `suggestion`，§4.3 要求看板能回答
+「这条为什么没过、该怎么改」。实现里只有实测值：验证器回答 `fail` 后，打回意见只写着
+「未达标：<验收>（fail：实测）」，队长与用户都得自己猜下一步。
+
+| 文件 | 内容 |
+| ---- | ---- |
+| `src/team/verifier.ts` | 验证提示要求 `fail` 时给出 `suggestion`；`interpret()` 读回并去掉空白项 |
+| `src/team/verification.ts` + 迁移 `20261102000001_team_verification_suggestion` | 验证记录多一列 `suggestion`，入库与读取都脱敏 |
+| `src/team/orchestrator.ts` | `VerificationResult` 透传建议；打回意见追加「建议：…」；事件只记 `hasSuggestion` |
+| `groups/run.ts` / `handlers/run.ts` | `RunVerificationView` / `RunSummaryLine` 暴露 `suggestion` |
+| `pages/run.tsx` | 验收行与证据行显示「建议：…」 |
+| `test/team/verifier.test.ts` / `verification-store.test.ts` | 空白建议不冒充建议；`pass` 不产出建议；建议能随汇总行读回 |
+
+三条口径：
+
+1. **建议只对「没做到」有意义。** `pass` 不需要怎么改；`unverified` 该说的是怎么补证据，
+   不借用修改建议来填。
+2. **没有建议就说没有。** 模型给空串时不落库、界面不渲染，不编一句「请继续努力」。
+3. **建议仍是模型原文。** 与 `measured` 同一条脱敏规则：命令、路径、URL 不进证据文本。
+
 **执行入口一直是 500（2026-11-01 追加，§13.1 / §21.3）**
 
 第一个端到端用例把整条链跑通时才发现：`POST /run/:id/execute` 在真实服务里必然 500。

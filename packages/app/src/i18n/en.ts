@@ -305,6 +305,7 @@ export const dict = {
   "run.acceptance.commandTagHint": "This line is decided by the command exit code; the command itself is never shown.",
   "run.evidence.hint": "Open to see what this conclusion rests on: verifier, snapshot, measured value and evidence.",
   "run.evidence.title": "Verification records",
+  "run.evidence.suggestion": "Suggestion: {{text}}",
   "run.evidence.attempt": "attempt {{n}}",
   "run.evidence.empty": "No verification records yet — unverified is not a pass.",
   "run.evidence.reused": "reused (same snapshot)",

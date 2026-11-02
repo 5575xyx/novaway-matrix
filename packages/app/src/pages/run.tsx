@@ -1650,6 +1650,14 @@ export const RunPage: Component<{
                                     )}
                                   </Show>
                                   <Show when={line.measured}>{(measured) => <span>{measured()}</span>}</Show>
+                                  {/* 驳回时的「建议」是下一步动作，和实测值一样要紧（§4.3）。 */}
+                                  <Show when={line.suggestion}>
+                                    {(suggestion) => (
+                                      <span class="text-foreground-subtle">
+                                        {t("run.evidence.suggestion", { text: suggestion() })}
+                                      </span>
+                                    )}
+                                  </Show>
                                   <Show when={line.snapshotID}>
                                     {(snapshot) => <span class="truncate">{snapshot()}</span>}
                                   </Show>
@@ -1672,6 +1680,13 @@ export const RunPage: Component<{
                                         <span class="truncate">{record.snapshotID}</span>
                                         <Show when={record.measured}>
                                           {(measured) => <span class="truncate">{measured()}</span>}
+                                        </Show>
+                                        <Show when={record.suggestion}>
+                                          {(suggestion) => (
+                                            <span class="min-w-0 truncate">
+                                              {t("run.evidence.suggestion", { text: suggestion() })}
+                                            </span>
+                                          )}
                                         </Show>
                                         <Show when={record.evidenceRef}>
                                           {(ref) => <span class="min-w-0 truncate">{ref()}</span>}

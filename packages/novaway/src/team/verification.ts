@@ -40,6 +40,8 @@ export type Verification = {
   /** 验证器自己出错时也写 unverified：验不了不等于失败，更不等于通过。 */
   outcome: Outcome
   measured?: string
+  /** 验证器给出的下一步建议（§6.3）：驳回时用户要看到「怎么改」。 */
+  suggestion?: string
   evidenceRef?: string
   /** 结论是否复用自同一快照上的另一次验证（§19.1）：界面必须标出来。 */
   reused?: boolean
@@ -144,6 +146,7 @@ export interface Interface {
     verifierVersion: string
     outcome: Outcome
     measured?: string
+    suggestion?: string
     evidenceRef?: string
     attempt?: number
     /** 复用同快照结论时置真（§19.1）；界面据此标注，不能伪装成新验证。 */
@@ -193,6 +196,7 @@ const toVerification = (row: typeof TeamVerificationTable.$inferSelect): Verific
   outcome: row.outcome as Verification["outcome"],
   // 读取时再脱敏一遍：写入前就有脱敏，但旧行是在这条规则之前落库的。
   measured: sanitizeOptional(row.measured ?? undefined),
+  suggestion: sanitizeOptional(row.suggestion ?? undefined),
   evidenceRef: sanitizeOptional(row.evidence_ref ?? undefined),
   ...(row.reused === 1 ? { reused: true } : {}),
   at: row.at,
@@ -268,6 +272,8 @@ export const layer = Layer.effect(
         outcome: input.outcome,
         // 验证器原样输出，可能带着凭据与 URL：入库前脱敏（§11.3）。
         measured: sanitizeOptional(input.measured),
+        // 建议也是模型原文：同样可能夹带命令、路径与凭据，入库前脱敏。
+        suggestion: sanitizeOptional(input.suggestion),
         evidenceRef: sanitizeOptional(input.evidenceRef),
         ...(input.reused ? { reused: true } : {}),
         at: Date.now(),
@@ -285,6 +291,7 @@ export const layer = Layer.effect(
               verifier_version: verification.verifierVersion,
               outcome: verification.outcome,
               measured: verification.measured ?? null,
+              suggestion: verification.suggestion ?? null,
               evidence_ref: verification.evidenceRef ?? null,
               reused: verification.reused === true ? 1 : 0,
               at: verification.at,
