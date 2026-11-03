@@ -296,6 +296,12 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
                   description: team.description,
                   rootSessionID: team.rootSessionID,
                   memberCount: members.length,
+                  // 群聊头像最多叠三个：列表里的头像是「认脸」，不是完整名册。
+                  members: members.slice(0, 3).map((member) => ({
+                    name: member.name,
+                    agent: member.agent,
+                    role: member.role,
+                  })),
                   autoEligible: team.autoEligible,
                   updatedAt: team.updatedAt,
                 }

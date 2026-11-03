@@ -24,6 +24,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, 
 import { PageHeader } from "@/components/page-header"
 import { TeamDrilldown } from "@/components/team-drilldown"
 import { buildDrill, type DrillAcceptance } from "@/components/team-drilldown.logic"
+import { MemberStack, TeamAvatar } from "@/components/team-avatar"
 import { TeamGraph } from "@/components/team-graph"
 import { TeamModelPicker } from "@/components/team-model-picker"
 import { RunConsole } from "@/components/run-console"
@@ -35,9 +36,6 @@ import { agentAvatar } from "@/utils/agent-avatar"
 import { formatRelativeTime } from "@/utils/relative-time"
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
-
-/** 团队头像用名字前两个字：不引入额外图片资源，也足够在列表里区分。 */
-const initials = (name: string) => name.trim().slice(0, 2) || "队"
 
 /**
  * AI 员工的展示名。
@@ -56,7 +54,7 @@ const agentLabel = (name: string, agents: readonly Agent[]) =>
  * 名册里的 `name` 可能是员工自定义的名字，也可能只是 agent id 的回填
  * （建队时没给名字）或 `team-lead` 这种内部占位；后两种一律按展示名说话。
  */
-const memberLabel = (member: TeamMemberView, agents: readonly Agent[]) =>
+const memberLabel = (member: { role: string; name: string; agent: string }, agents: readonly Agent[]) =>
   member.role === "lead" || member.name === member.agent ? agentLabel(member.agent, agents) : member.name
 
 /** 头像与展示名同源：员工配置里挑过头像就按挑的生成。 */
@@ -758,21 +756,19 @@ export const TeamPage: Component<{
             fallback={<div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("team.empty")}</div>}
           >
             {/*
-              左栏按群聊的方式排：头像、队名、一行副标题（人数 · 最近活动）。
-              点一个进一个，扫描顺序和用户找「那支队」的方式一致。
+              左栏按群聊的方式排：团队头像、队名、人数与最近活动，右边叠成员头像。
+              左边回答「是哪支队」，右边回答「里面有谁」，点一个进一个。
             */}
             <For each={teams()}>
               {(team) => (
                 <button
                   type="button"
-                  class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-hover"
-                  classList={{ "bg-surface": team.id === selected() }}
+                  class="flex w-full items-center gap-2.5 rounded-[10px] px-2 py-2 text-left transition-colors hover:bg-hover"
+                  classList={{ "bg-selected": team.id === selected() }}
                   onClick={() => setSelected(team.id)}
                 >
-                  <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-ui-xs text-primary">
-                    {initials(team.name)}
-                  </span>
-                  <span class="flex min-w-0 flex-1 flex-col">
+                  <TeamAvatar name={team.name} />
+                  <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span class="truncate text-ui-base text-foreground">{team.name}</span>
                     <span class="truncate text-ui-xs text-foreground-subtle">
                       {t("team.memberCount", { count: team.memberCount })}
@@ -780,7 +776,12 @@ export const TeamPage: Component<{
                       {formatRelativeTime(Number(team.updatedAt) || undefined, Date.now(), language.t)}
                     </span>
                   </span>
-                  <span class="size-1.5 shrink-0 rounded-full bg-primary/70" />
+                  <MemberStack
+                    members={team.members ?? []}
+                    total={numeric(team.memberCount)}
+                    avatarOf={(agent) => agentAvatarOf(agent, agents())}
+                    labelOf={(member) => memberLabel(member, agents())}
+                  />
                 </button>
               )}
             </For>

@@ -3569,6 +3569,11 @@ export type TeamSummaryView = {
   description?: string
   rootSessionID: string
   memberCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  members: Array<{
+    name: string
+    agent: string
+    role: "lead" | "worker"
+  }>
   autoEligible: boolean
   updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }

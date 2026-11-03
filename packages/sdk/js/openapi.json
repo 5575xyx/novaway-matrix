@@ -49633,6 +49633,26 @@
               }
             ]
           },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "agent": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["lead", "worker"]
+                }
+              },
+              "required": ["name", "agent", "role"],
+              "additionalProperties": false
+            }
+          },
           "autoEligible": {
             "type": "boolean"
           },
@@ -49660,7 +49680,7 @@
             ]
           }
         },
-        "required": ["id", "name", "rootSessionID", "memberCount", "autoEligible", "updatedAt"],
+        "required": ["id", "name", "rootSessionID", "memberCount", "members", "autoEligible", "updatedAt"],
         "additionalProperties": false
       },
       "TeamMessageView": {

@@ -79,6 +79,19 @@ export const TeamSummaryView = Schema.Struct({
   description: Schema.optional(Schema.String),
   rootSessionID: Schema.String,
   memberCount: Schema.Number,
+  /**
+   * 名册里排在最前面的几个人（最多三个）。
+   *
+   * 列表要画群聊头像：人数只够说「几个」，说不出「谁」。只带展示需要的字段，
+   * 完整名册仍然走详情接口，不给列表页背一份会过期的副本。
+   */
+  members: Schema.Array(
+    Schema.Struct({
+      name: Schema.String,
+      agent: Schema.String,
+      role: Schema.Literals(["lead", "worker"]),
+    }),
+  ),
   autoEligible: Schema.Boolean,
   updatedAt: Schema.Number,
 }).annotate({ identifier: "TeamSummaryView" })
