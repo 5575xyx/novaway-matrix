@@ -1,19 +1,19 @@
 ---
 title: Zen
-description: opencode tarafından sağlanan seçilmiş modeller listesi.
+description: novaway tarafından sağlanan seçilmiş modeller listesi.
 ---
 
 import config from "../../../../config.mjs"
 export const console = config.console
 export const email = `mailto:${config.email}`
 
-OpenCode Zen, OpenCode ekibi tarafından test edilip doğrulanmış modellerin bir listesidir.
+NovaWay Zen, NovaWay ekibi tarafından test edilip doğrulanmış modellerin bir listesidir.
 
 :::note
-OpenCode Zen şu anda beta olarak mevcut.
+NovaWay Zen şu anda beta olarak mevcut.
 :::
 
-Zen, OpenCode'daki diğer sağlayıcılar gibi çalışır. OpenCode Zen'de oturum açıp API anahtarınızı alırsınız. Bu **tamamen isteğe bağlıdır** ve OpenCode kullanmak için buna ihtiyacınız yoktur.
+Zen, NovaWay'daki diğer sağlayıcılar gibi çalışır. NovaWay Zen'de oturum açıp API anahtarınızı alırsınız. Bu **tamamen isteğe bağlıdır** ve NovaWay kullanmak için buna ihtiyacınız yoktur.
 
 ---
 
@@ -22,7 +22,7 @@ Zen, OpenCode'daki diğer sağlayıcılar gibi çalışır. OpenCode Zen'de otur
 Piyasada çok sayıda model var, ancak bunların yalnızca birkaçı kodlama ajanı olarak iyi çalışıyor. Ayrıca çoğu sağlayıcı çok farklı şekilde yapılandırılıyor; bu yüzden performans ve kalite de ciddi ölçüde değişiyor.
 
 :::tip
-OpenCode ile iyi çalışan seçili bir model ve sağlayıcı grubunu test ettik.
+NovaWay ile iyi çalışan seçili bir model ve sağlayıcı grubunu test ettik.
 :::
 
 Bu yüzden, OpenRouter gibi bir şey üzerinden model kullanıyorsanız istediğiniz modelin en iyi sürümünü alıp almadığınızdan asla emin olamazsınız.
@@ -33,16 +33,16 @@ Bunu düzeltmek için birkaç şey yaptık:
 2. Ardından, bunların doğru şekilde sunulduğundan emin olmak için birkaç sağlayıcıyla birlikte çalıştık.
 3. Son olarak, model/sağlayıcı kombinasyonlarını benchmark edip gönül rahatlığıyla önerebileceğimiz bir liste çıkardık.
 
-OpenCode Zen, bu modellere erişmenizi sağlayan bir AI ağ geçididir.
+NovaWay Zen, bu modellere erişmenizi sağlayan bir AI ağ geçididir.
 
 ---
 
 ## Nasıl çalışır
 
-OpenCode Zen, OpenCode'daki diğer sağlayıcılar gibi çalışır.
+NovaWay Zen, NovaWay'daki diğer sağlayıcılar gibi çalışır.
 
-1. **<a href={console}>OpenCode Zen</a>**'de oturum açın, faturalandırma bilgilerinizi ekleyin ve API anahtarınızı kopyalayın.
-2. TUI'de `/connect` komutunu çalıştırın, OpenCode Zen'i seçin ve API anahtarınızı yapıştırın.
+1. **<a href={console}>NovaWay Zen</a>**'de oturum açın, faturalandırma bilgilerinizi ekleyin ve API anahtarınızı kopyalayın.
+2. TUI'de `/connect` komutunu çalıştırın, NovaWay Zen'i seçin ve API anahtarınızı yapıştırın.
 3. Önerdiğimiz modellerin listesini görmek için TUI'de `/models` komutunu çalıştırın.
 
 İstek başına ücretlendirilirsiniz ve hesabınıza kredi ekleyebilirsiniz.
@@ -96,7 +96,7 @@ Modellerimize aşağıdaki API uç noktaları aracılığıyla da erişebilirsin
 | DeepSeek V4 Flash Free | deepseek-v4-flash-free | `https://opencode.ai/zen/v1/chat/completions`      | `@ai-sdk/openai-compatible` |
 | Nemotron 3 Super Free  | nemotron-3-super-free  | `https://opencode.ai/zen/v1/chat/completions`      | `@ai-sdk/openai-compatible` |
 
-OpenCode yapılandırmanızdaki [model id](/docs/config/#models) `opencode/<model-id>` biçimini kullanır. Örneğin, GPT 5.5 için yapılandırmanızda `opencode/gpt-5.5` kullanırsınız.
+NovaWay yapılandırmanızdaki [model id](/docs/config/#models) `novaway/<model-id>` biçimini kullanır. Örneğin, GPT 5.5 için yapılandırmanızda `novaway/gpt-5.5` kullanırsınız.
 
 ---
 
@@ -169,10 +169,10 @@ Kredi kartı ücretleri maliyet üzerinden yansıtılır (%4.4 + işlem başına
 
 Ücretsiz modeller:
 
-- DeepSeek V4 Flash Free, sınırlı bir süre için OpenCode'da ücretsizdir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
-- MiniMax M2.5 Free, sınırlı bir süre için OpenCode'da ücretsizdir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
-- Nemotron 3 Super Free, sınırlı bir süre için OpenCode'da ücretsizdir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
-- Big Pickle, sınırlı bir süre için OpenCode'da ücretsiz olan gizli bir modeldir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
+- DeepSeek V4 Flash Free, sınırlı bir süre için NovaWay'da ücretsizdir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
+- MiniMax M2.5 Free, sınırlı bir süre için NovaWay'da ücretsizdir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
+- Nemotron 3 Super Free, sınırlı bir süre için NovaWay'da ücretsizdir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
+- Big Pickle, sınırlı bir süre için NovaWay'da ücretsiz olan gizli bir modeldir. Ekip bu süreyi geri bildirim toplamak ve modeli iyileştirmek için kullanıyor.
 
 Sorularınız varsa <a href={email}>bizimle iletişime geçin</a>.
 
@@ -272,9 +272,9 @@ Kendi anahtarlarınızı kullandığınızda token'lar Zen tarafından değil, d
 
 ## Hedefler
 
-OpenCode Zen'i şunlar için oluşturduk:
+NovaWay Zen'i şunlar için oluşturduk:
 
 1. Kodlama ajanları için en iyi modelleri/sağlayıcıları **kıyaslamak**.
 2. **En yüksek kaliteli** seçeneklere erişmek ve performansı düşürmemek ya da daha ucuz sağlayıcılara yönlendirmemek.
 3. Maliyetine satış yaparak tüm **fiyat düşüşlerini** yansıtmak; yani tek ek ücretimiz işlem ücretlerimizi karşılamak içindir.
-4. Başka herhangi bir kodlama ajanıyla kullanmanıza izin vererek **kilitlenme olmamasını** sağlamak. Ayrıca OpenCode ile her zaman başka herhangi bir sağlayıcıyı da kullanabilmenizi sağlamak.
+4. Başka herhangi bir kodlama ajanıyla kullanmanıza izin vererek **kilitlenme olmamasını** sağlamak. Ayrıca NovaWay ile her zaman başka herhangi bir sağlayıcıyı da kullanabilmenizi sağlamak.

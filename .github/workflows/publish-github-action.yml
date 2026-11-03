@@ -24,7 +24,7 @@ jobs:
 
       - name: Publish
         run: |
-          git config --global user.email "opencode@sst.dev"
-          git config --global user.name "opencode"
+          git config --global user.email "novaway-agent[bot]@users.noreply.github.com"
+          git config --global user.name "novaway-agent[bot]"
           ./script/publish
         working-directory: ./github

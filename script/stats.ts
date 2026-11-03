@@ -73,7 +73,7 @@ async function fetchReleases(): Promise<Release[]> {
   const per = 100
 
   while (true) {
-    const url = `https://api.github.com/repos/anomalyco/opencode/releases?page=${page}&per_page=${per}`
+    const url = `https://api.github.com/repos/5575xyx/novaway-matrix/releases?page=${page}&per_page=${per}`
 
     const response = await fetch(url)
     if (!response.ok) {
@@ -188,15 +188,15 @@ async function save(githubTotal: number, npmDownloads: number) {
   )
 }
 
-console.log("Fetching GitHub releases for anomalyco/opencode...\n")
+console.log("Fetching GitHub releases for 5575xyx/novaway-matrix...\n")
 
 const releases = await fetchReleases()
 console.log(`\nFetched ${releases.length} releases total\n`)
 
 const { total: githubTotal } = calculate(releases)
 
-console.log("Fetching npm all-time downloads for opencode-ai...\n")
-const npmDownloads = await fetchNpmDownloads("opencode-ai")
+console.log("Fetching npm all-time downloads for xymt-novaway...\n")
+const npmDownloads = await fetchNpmDownloads(process.env.NOVAWAY_NPM_PACKAGE || "xymt-novaway")
 console.log(`Fetched npm all-time downloads: ${npmDownloads.toLocaleString()}\n`)
 
 await save(githubTotal, npmDownloads)

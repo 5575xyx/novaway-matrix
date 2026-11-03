@@ -7,14 +7,14 @@
   makeWrapper,
   writableTmpDirAsHomeHook,
   autoPatchelfHook,
-  opencode,
+  novaway,
 }:
 let
   electron = electron_41;
 in
 stdenv.mkDerivation (finalAttrs: {
-  pname = "opencode-desktop";
-  inherit (opencode) version src node_modules;
+  pname = "novaway-desktop";
+  inherit (novaway) version src node_modules;
 
   nativeBuildInputs = [
     bun
@@ -29,7 +29,7 @@ stdenv.mkDerivation (finalAttrs: {
     (lib.getLib stdenv.cc.cc)
   ];
 
-  env = opencode.env // {
+  env = novaway.env // {
     ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
   };
 
@@ -40,7 +40,7 @@ stdenv.mkDerivation (finalAttrs: {
     FILES=(src/main/windows.ts)
     for file in "''${FILES[@]}"; do
       substituteInPlace $BASE_PATH/$file \
-        --replace-fail "process.resourcesPath" "'$out/opt/opencode-desktop/resources'"
+        --replace-fail "process.resourcesPath" "'$out/opt/novaway-desktop/resources'"
     done
   '';
 
@@ -74,15 +74,15 @@ stdenv.mkDerivation (finalAttrs: {
     + lib.optionalString stdenv.hostPlatform.isDarwin ''
       mkdir -p $out/Applications
       mv dist/mac*/*.app $out/Applications
-      makeWrapper "$out/Applications/OpenCode.app/Contents/MacOS/OpenCode" $out/bin/opencode-desktop
+      makeWrapper "$out/Applications/NovaWay.app/Contents/MacOS/NovaWay" $out/bin/novaway-desktop
     ''
     + lib.optionalString stdenv.hostPlatform.isLinux ''
-      mkdir -p $out/opt/opencode-desktop
-      cp -r dist/linux*-unpacked/{resources,LICENSE*} $out/opt/opencode-desktop
-      makeWrapper ${lib.getExe electron} $out/bin/opencode-desktop \
+      mkdir -p $out/opt/novaway-desktop
+      cp -r dist/linux*-unpacked/{resources,LICENSE*} $out/opt/novaway-desktop
+      makeWrapper ${lib.getExe electron} $out/bin/novaway-desktop \
         --inherit-argv0 \
         --set ELECTRON_FORCE_IS_PACKAGED 1 \
-        --add-flags $out/opt/opencode-desktop/resources/app.asar \
+        --add-flags $out/opt/novaway-desktop/resources/app.asar \
         --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}"
     ''
     + ''
@@ -94,8 +94,8 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   meta = {
-    description = "OpenCode Desktop App";
-    mainProgram = "opencode-desktop";
-    inherit (opencode.meta) homepage license platforms;
+    description = "NovaWay Desktop App";
+    mainProgram = "novaway-desktop";
+    inherit (novaway.meta) homepage license platforms;
   };
 })

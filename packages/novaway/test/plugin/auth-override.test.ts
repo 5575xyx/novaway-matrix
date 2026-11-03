@@ -30,7 +30,7 @@ function layer(directory: string, plugins: string[]) {
                 plugin: plugins,
                 plugin_origins: plugins.map((plugin) => ({
                   spec: plugin,
-                  source: path.join(directory, "opencode.json"),
+                  source: path.join(directory, "novaway.json"),
                   scope: "local" as const,
                 })),
               }),
@@ -49,7 +49,7 @@ describe("plugin.auth-override", () => {
       Effect.gen(function* () {
         const tmp = yield* TestInstance
         const fs = yield* AppFileSystem.Service
-        const pluginDir = path.join(tmp.directory, ".opencode", "plugin")
+        const pluginDir = path.join(tmp.directory, ".novaway", "plugin")
 
         yield* fs.writeWithDirs(
           path.join(pluginDir, "custom-copilot-auth.ts"),

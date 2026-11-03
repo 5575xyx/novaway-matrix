@@ -51,7 +51,7 @@ stage("T1 module top-level")
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
-  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".novaway")])),
 })
 
 const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>

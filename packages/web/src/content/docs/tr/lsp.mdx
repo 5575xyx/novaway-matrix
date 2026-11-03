@@ -1,15 +1,15 @@
 ---
 title: LSP Sunucuları
-description: OpenCode, LSP sunucularınızla bütünleşir.
+description: NovaWay, LSP sunucularınızla bütünleşir.
 ---
 
-OpenCode, LLM'in kod tabanınızla etkileşime girmesine yardımcı olmak için Dil Sunucusu Protokolünüzle (LSP) bütünleşir. LLM'ye geri bildirim sağlamak için tanılamayı kullanır.
+NovaWay, LLM'in kod tabanınızla etkileşime girmesine yardımcı olmak için Dil Sunucusu Protokolünüzle (LSP) bütünleşir. LLM'ye geri bildirim sağlamak için tanılamayı kullanır.
 
 ---
 
 ## Yerleşik
 
-OpenCode, popüler diller için çeşitli yerleşik LSP sunucularıyla birlikte gelir:
+NovaWay, popüler diller için çeşitli yerleşik LSP sunucularıyla birlikte gelir:
 
 | LSP Sunucu         | Uzantılar                                                           | Gereksinimler                                                         |
 | ------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -57,7 +57,7 @@ Yukarıdaki dosya uzantılarından biri tespit edildiğinde ve gereksinimler kar
 
 ## Nasıl Çalışır?
 
-opencode bir dosyayı açtığında:
+novaway bir dosyayı açtığında:
 
 1. Dosya uzantısını tüm etkin LSP sunucularına göre kontrol eder.
 2. Henüz çalışmıyorsa uygun LSP sunucusunu başlatır.
@@ -66,9 +66,9 @@ opencode bir dosyayı açtığında:
 
 ## Yapılandırma
 
-LSP sunucularını, opencode yapılandırmanızdaki `lsp` bölümü aracılığıyla özelleştirebilirsiniz.
+LSP sunucularını, novaway yapılandırmanızdaki `lsp` bölümü aracılığıyla özelleştirebilirsiniz.
 
-```json title="opencode.json"
+```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
   "lsp": {}
@@ -93,7 +93,7 @@ Bazı örneklere bakalım.
 
 LSP sunucusunu başlatırken ortam değişkenlerini ayarlamak için `env` özelliğini kullanın:
 
-```json title="opencode.json" {5-7}
+```json title="novaway.json" {5-7}
 {
   "$schema": "https://novaway.ai/config.json",
   "lsp": {
@@ -112,7 +112,7 @@ LSP sunucusunu başlatırken ortam değişkenlerini ayarlamak için `env` özell
 
 Başlatma seçeneklerini LSP sunucusuna iletmek için `initialization` özelliğini kullanın. Bunlar LSP `initialize` isteği sırasında gönderilen sunucuya özel ayarlardır:
 
-```json title="opencode.json" {5-9}
+```json title="novaway.json" {5-9}
 {
   "$schema": "https://novaway.ai/config.json",
   "lsp": {
@@ -137,7 +137,7 @@ Başlatma seçenekleri LSP sunucusuna göre değişir. Mevcut seçenekler için 
 
 **tüm** LSP sunucularını genel olarak devre dışı bırakmak için `lsp`'yi `false` olarak ayarlayın:
 
-```json title="opencode.json" {3}
+```json title="novaway.json" {3}
 {
   "$schema": "https://novaway.ai/config.json",
   "lsp": false
@@ -146,7 +146,7 @@ Başlatma seçenekleri LSP sunucusuna göre değişir. Mevcut seçenekler için 
 
 **Belirli** bir LSP sunucusunu devre dışı bırakmak için `disabled`'yi `true` olarak ayarlayın:
 
-```json title="opencode.json" {5}
+```json title="novaway.json" {5}
 {
   "$schema": "https://novaway.ai/config.json",
   "lsp": {
@@ -163,7 +163,7 @@ Başlatma seçenekleri LSP sunucusuna göre değişir. Mevcut seçenekler için 
 
 Komutu ve dosya uzantılarını belirterek özel LSP sunucuları ekleyebilirsiniz:
 
-```json title="opencode.json" {4-7}
+```json title="novaway.json" {4-7}
 {
   "$schema": "https://novaway.ai/config.json",
   "lsp": {

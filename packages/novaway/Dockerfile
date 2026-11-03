@@ -1,18 +1,11 @@
-FROM alpine AS base
+FROM node:22-alpine
 
-# Disable the runtime transpiler cache by default inside Docker containers.
-# On ephemeral containers, the cache is not useful
-ARG BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
-ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=${BUN_RUNTIME_TRANSPILER_CACHE_PATH}
-RUN apk add libgcc libstdc++ ripgrep
+# 运行期依赖：ripgrep 由 CLI 直接调用。
+RUN apk add --no-cache ripgrep
 
-FROM base AS build-amd64
-COPY dist/opencode-linux-x64-baseline-musl/bin/opencode /usr/local/bin/opencode
+# 安装主包；平台二进制包会按 os/cpu 自动选中（见 script/publish.ts 的 optionalDependencies）。
+ARG NOVAWAY_VERSION=latest
+RUN npm install -g "xymt-novaway@${NOVAWAY_VERSION}"
 
-FROM base AS build-arm64
-COPY dist/opencode-linux-arm64-musl/bin/opencode /usr/local/bin/opencode
-
-ARG TARGETARCH
-FROM build-${TARGETARCH}
-RUN opencode --version
-ENTRYPOINT ["opencode"]
+RUN novaway --version
+ENTRYPOINT ["novaway"]

@@ -19,8 +19,8 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
-      - name: Install opencode
-        run: curl -fsSL https://opencode.ai/install | bash
+      - name: Install novaway
+        run: npm install -g xymt-novaway
 
       - name: Triage issue
         env:
@@ -30,7 +30,7 @@ jobs:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          opencode run --agent triage "The following issue was just opened, triage it:
+          novaway run --agent triage "The following issue was just opened, triage it:
 
           Title: $ISSUE_TITLE
 

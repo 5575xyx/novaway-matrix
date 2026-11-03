@@ -1,22 +1,22 @@
 ---
 title: TUI
-description: Brug af OpenCode-terminalbrugergrænsefladen.
+description: Brug af NovaWay-terminalbrugergrænsefladen.
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components"
 
-OpenCode giver en interaktiv terminalgrænseflade eller TUI til at arbejde med dine projekter med en LLM.
+NovaWay giver en interaktiv terminalgrænseflade eller TUI til at arbejde med dine projekter med en LLM.
 
-At køre OpenCode starter TUI for den nuværende mappe.
+At køre NovaWay starter TUI for den nuværende mappe.
 
 ```bash
-opencode
+novaway
 ```
 
 Eller du kan starte den for en bestemt arbejdsmappe.
 
 ```bash
-opencode /path/to/project
+novaway /path/to/project
 ```
 
 Når du er i TUI, kan du spørge den med en besked.
@@ -57,7 +57,7 @@ Outputtet fra kommandoen tilføjes til samtalen som et værktøjsresultat.
 
 ## Kommandoer
 
-Når du bruger OpenCode TUI, kan du skrive `/` efterfulgt af et kommandonavn for hurtigt at udføre handlinger. For eksempel:
+Når du bruger NovaWay TUI, kan du skrive `/` efterfulgt af et kommandonavn for hurtigt at udføre handlinger. For eksempel:
 
 ```bash frame="none"
 /help
@@ -71,7 +71,7 @@ Her er alle tilgængelige skråstregskommandoer:
 
 ### connect
 
-Tilføj en udbyder til OpenCode. Lader dig vælge fra tilgængelige udbydere og tilføje deres API-nøgler.
+Tilføj en udbyder til NovaWay. Lader dig vælge fra tilgængelige udbydere og tilføje deres API-nøgler.
 
 ```bash frame="none"
 /connect
@@ -117,7 +117,7 @@ Skift visning af værktøjsudførelsesdetaljer.
 
 ### exit
 
-Afslut OpenCode. _Aliaser_: `/quit`, `/q`
+Afslut NovaWay. _Aliaser_: `/quit`, `/q`
 
 ```bash frame="none"
 /exit
@@ -357,7 +357,7 @@ Du kan tilpasse TUI-adfærd gennem `tui.json` (eller `tui.jsonc`).
 ```json title="tui.json"
 {
   "$schema": "https://novaway.ai/tui.json",
-  "theme": "opencode",
+  "theme": "novaway",
   "keybinds": {
     "leader": "ctrl+x"
   },
@@ -369,7 +369,7 @@ Du kan tilpasse TUI-adfærd gennem `tui.json` (eller `tui.jsonc`).
 }
 ```
 
-Dette er adskilt fra `opencode.json`, som konfigurerer server-/kørselstidsadfærd.
+Dette er adskilt fra `novaway.json`, som konfigurerer server-/kørselstidsadfærd.
 
 ### Indstillinger
 

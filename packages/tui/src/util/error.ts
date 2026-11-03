@@ -24,7 +24,7 @@ export function cliErrorMessage(input: unknown): string | undefined {
     return [
       `Model not found: ${field(model, "providerID")}/${field(model, "modelID")}`,
       ...(suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
-      "Try: `NovaWay models` to list available models",
+      "Try: `novaway models` to list available models",
       "Or check your config (NovaWay.json) provider/model names",
     ].join("\n")
   }

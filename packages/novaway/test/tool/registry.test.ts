@@ -50,7 +50,7 @@ import { ClientCapabilities } from "@/effect/client-capabilities"
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
-  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".novaway")])),
 })
 
 const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Layer<Config.Service> = configLayer) =>
@@ -95,7 +95,7 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Lay
     )
 
 const deferConfig = TestConfig.layer({
-  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".novaway")])),
   get: () => Effect.succeed({ experimental: { defer_loading: true } } as never),
 })
 const deferred = testEffect(
@@ -112,7 +112,7 @@ const deferred = testEffect(
 
 // 浏览器控制关掉后，browser_* 与 PDF 打印一起从工具列表消失（设置页/扩展页的开关）。
 const noBrowserConfig = TestConfig.layer({
-  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".novaway")])),
   get: () => Effect.succeed({ browser: { enabled: false } } as never),
 })
 const noBrowser = testEffect(
@@ -129,7 +129,7 @@ const noBrowser = testEffect(
 
 // 团队编排总控关闭后，team_run 不该出现在工具列表里（§13.1）。
 const teamOffConfig = TestConfig.layer({
-  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
+  directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".novaway")])),
   get: () => Effect.succeed({ experimental: { team_orchestration: false } } as never),
 })
 const teamOff = testEffect(
@@ -367,10 +367,10 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("loads tools from .opencode/tool (singular)", () =>
+  it.instance("loads tools from .novaway/tool (singular)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".opencode")
+      const opencode = path.join(test.directory, ".novaway")
       const tool = path.join(opencode, "tool")
       yield* Effect.promise(() => fs.mkdir(tool, { recursive: true }))
       yield* Effect.promise(() =>
@@ -394,10 +394,10 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("ignores non-tool exports in .opencode/tool files", () =>
+  it.instance("ignores non-tool exports in .novaway/tool files", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const tool = path.join(test.directory, ".opencode", "tool")
+      const tool = path.join(test.directory, ".novaway", "tool")
       yield* Effect.promise(() => fs.mkdir(tool, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
@@ -421,10 +421,10 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("loads tools from .opencode/tools (plural)", () =>
+  it.instance("loads tools from .novaway/tools (plural)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".opencode")
+      const opencode = path.join(test.directory, ".novaway")
       const tools = path.join(opencode, "tools")
       yield* Effect.promise(() => fs.mkdir(tools, { recursive: true }))
       yield* Effect.promise(() =>
@@ -451,7 +451,7 @@ describe("tool.registry", () => {
   it.instance("loads Zod-schema custom tools with JSON Schema and validation", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const customTools = path.join(test.directory, ".opencode", "tools")
+      const customTools = path.join(test.directory, ".novaway", "tools")
       const pluginTool = pathToFileURL(path.resolve(import.meta.dir, "../../../plugin/src/tool.ts")).href
       yield* Effect.promise(() => fs.mkdir(customTools, { recursive: true }))
       yield* Effect.promise(() =>
@@ -500,13 +500,13 @@ describe("tool.registry", () => {
   )
 
   it.instance(
-    "preserves Zod arg descriptions from older config-scoped plugin packages",
+    "preserves Zod arg descriptions from config-scoped plugin packages",
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const opencode = path.join(test.directory, ".opencode")
+        const opencode = path.join(test.directory, ".novaway")
         const customTools = path.join(opencode, "tools")
-        const plugin = path.join(opencode, "node_modules", "@opencode-ai", "plugin")
+        const plugin = path.join(opencode, "node_modules", "@novaway", "plugin")
         yield* Effect.promise(() => fs.mkdir(path.join(plugin, "dist"), { recursive: true }))
         yield* Effect.promise(() => fs.mkdir(customTools, { recursive: true }))
         yield* Effect.promise(() =>
@@ -569,7 +569,7 @@ describe("tool.registry", () => {
   it.instance("preserves attachments from structured custom tool results", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const customTools = path.join(test.directory, ".opencode", "tools")
+      const customTools = path.join(test.directory, ".novaway", "tools")
       const pluginTool = pathToFileURL(path.resolve(import.meta.dir, "../../../plugin/src/tool.ts")).href
       yield* Effect.promise(() => fs.mkdir(customTools, { recursive: true }))
       yield* Effect.promise(() =>
@@ -614,7 +614,7 @@ describe("tool.registry", () => {
   it.instance("loads legacy JSON-schema-shaped custom tools with wire schema", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const tools = path.join(test.directory, ".opencode", "tools")
+      const tools = path.join(test.directory, ".novaway", "tools")
       yield* Effect.promise(() => fs.mkdir(tools, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
@@ -646,7 +646,7 @@ describe("tool.registry", () => {
   it.instance("loads tools with external dependencies without crashing", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".opencode")
+      const opencode = path.join(test.directory, ".novaway")
       const tools = path.join(opencode, "tools")
       yield* Effect.promise(() => fs.mkdir(tools, { recursive: true }))
       yield* Effect.promise(() =>

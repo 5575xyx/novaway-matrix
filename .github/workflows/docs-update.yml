@@ -10,7 +10,7 @@ env:
 
 jobs:
   update-docs:
-    if: github.repository == 'sst/opencode'
+    if: github.repository == '5575xyx/novaway-matrix'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       id-token: write
@@ -41,9 +41,9 @@ jobs:
             } >> $GITHUB_OUTPUT
           fi
 
-      - name: Run opencode
+      - name: Run novaway
         if: steps.commits.outputs.has_commits == 'true'
-        uses: sst/opencode/github@2c14fc5586fe0b88e5c04732d2e846769cc35671 # latest
+        uses: 5575xyx/novaway-matrix/github@2c14fc5586fe0b88e5c04732d2e846769cc35671 # latest
         env:
           NOVAWAY_API_KEY: ${{ secrets.NOVAWAY_API_KEY }}
         with:

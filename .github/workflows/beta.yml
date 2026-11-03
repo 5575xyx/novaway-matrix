@@ -27,8 +27,8 @@ jobs:
           novaway-app-id: ${{ vars.NOVAWAY_APP_ID }}
           novaway-app-secret: ${{ secrets.NOVAWAY_APP_SECRET }}
 
-      - name: Install OpenCode
-        run: bun i -g opencode-ai
+      - name: Install NovaWay
+        run: npm install -g xymt-novaway
 
       - name: Sync beta branch
         env:

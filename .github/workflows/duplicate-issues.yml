@@ -19,8 +19,8 @@ jobs:
 
       - uses: ./.github/actions/setup-bun
 
-      - name: Install opencode
-        run: curl -fsSL https://opencode.ai/install | bash
+      - name: Install novaway
+        run: npm install -g xymt-novaway
 
       - name: Check duplicates and compliance
         env:
@@ -35,7 +35,7 @@ jobs:
               "webfetch": "deny"
             }
         run: |
-          opencode run -m opencode/claude-sonnet-4-6 "A new issue has been created:
+          novaway run -m opencode/claude-sonnet-4-6 "A new issue has been created:
 
           Issue number: ${{ github.event.issue.number }}
 
@@ -131,8 +131,8 @@ jobs:
 
       - uses: ./.github/actions/setup-bun
 
-      - name: Install opencode
-        run: curl -fsSL https://opencode.ai/install | bash
+      - name: Install novaway
+        run: npm install -g xymt-novaway
 
       - name: Recheck compliance
         env:
@@ -147,7 +147,7 @@ jobs:
               "webfetch": "deny"
             }
         run: |
-          opencode run -m opencode/claude-sonnet-4-6 "Issue #${{ github.event.issue.number }} was previously flagged as non-compliant and has been edited.
+          novaway run -m opencode/claude-sonnet-4-6 "Issue #${{ github.event.issue.number }} was previously flagged as non-compliant and has been edited.
 
           Lookup this issue with gh issue view ${{ github.event.issue.number }}.
 

@@ -9,7 +9,7 @@ const repoRoot = resolve(scriptDir, "..")
 const templateRoot = resolve(repoRoot, "packages/novaway/src/skill/prompt/office-ppt/templates/presenton")
 const outputRoot = resolve(repoRoot, "packages/app/public/assets/office-ppt-templates/presenton-pptx")
 const deckRoot = resolve(repoRoot, ".tmp/presenton-pptx-deck")
-const opencodeDir = resolve(repoRoot, "packages/novaway")
+const novawayDir = resolve(repoRoot, "packages/novaway")
 const chartScript = join(repoRoot, "script/vendor/presenton-charts/chart-4.5.1.umd.min.js")
 const chartDataLabelsScript = join(repoRoot, "script/vendor/presenton-charts/chartjs-plugin-datalabels-2.2.0.min.js")
 
@@ -110,7 +110,7 @@ for (const family of families) {
   const output = join(outputDir, "template.pptx")
   const result = spawnSync(
     "bun",
-    ["run", "--cwd", opencodeDir, "src/index.ts", "office-ppt", deckDir, "--force", "--output", output],
+    ["run", "--cwd", novawayDir, "src/index.ts", "office-ppt", deckDir, "--force", "--output", output],
     {
       encoding: "utf8",
       stdio: "inherit",

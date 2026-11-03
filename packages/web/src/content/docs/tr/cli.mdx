@@ -1,30 +1,30 @@
 ---
 title: CLI
-description: opencode CLI seçenekleri ve komutları.
+description: novaway CLI seçenekleri ve komutları.
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components"
 
-opencode CLI herhangi bir argüman olmadan çalıştırıldığında varsayılan olarak [TUI](/docs/tui)'yi başlatır.
+novaway CLI herhangi bir argüman olmadan çalıştırıldığında varsayılan olarak [TUI](/docs/tui)'yi başlatır.
 
 ```bash
-opencode
+novaway
 ```
 
-Ancak bu sayfada belgelendiği gibi komutları da kabul eder. Bu, opencode ile programlı olarak etkileşim kurmanıza olanak tanır.
+Ancak bu sayfada belgelendiği gibi komutları da kabul eder. Bu, novaway ile programlı olarak etkileşim kurmanıza olanak tanır.
 
 ```bash
-opencode run "Explain how closures work in JavaScript"
+novaway run "Explain how closures work in JavaScript"
 ```
 
 ---
 
 ### tui
 
-opencode terminal kullanıcı arayüzünü başlatır.
+novaway terminal kullanıcı arayüzünü başlatır.
 
 ```bash
-opencode [project]
+novaway [project]
 ```
 
 #### Bayraklar
@@ -44,36 +44,36 @@ opencode [project]
 
 ## Komutlar
 
-opencode CLI ayrıca aşağıdaki komutlara da sahiptir.
+novaway CLI ayrıca aşağıdaki komutlara da sahiptir.
 
 ---
 
 ### agent
 
-opencode için agent'ları yönetin.
+novaway için agent'ları yönetin.
 
 ```bash
-opencode agent [command]
+novaway agent [command]
 ```
 
 ---
 
 ### attach
 
-`serve` veya `web` komutlarıyla başlatılan, halihazırda çalışan bir opencode arka uç sunucusuna bir terminal ekleyin.
+`serve` veya `web` komutlarıyla başlatılan, halihazırda çalışan bir novaway arka uç sunucusuna bir terminal ekleyin.
 
 ```bash
-opencode attach [url]
+novaway attach [url]
 ```
 
-Bu, TUI öğesinin uzak bir opencode arka ucuyla kullanılmasına olanak tanır. Örneğin:
+Bu, TUI öğesinin uzak bir novaway arka ucuyla kullanılmasına olanak tanır. Örneğin:
 
 ```bash
 # Start the backend server for web/mobile access
-opencode web --port 4096 --hostname 0.0.0.0
+novaway web --port 4096 --hostname 0.0.0.0
 
 # In another terminal, attach the TUI to the running backend
-opencode attach http://10.20.30.40:4096
+novaway attach http://10.20.30.40:4096
 ```
 
 #### Bayraklar
@@ -85,7 +85,7 @@ opencode attach http://10.20.30.40:4096
 | <nobr><code>{"--session"}</code></nobr>  | `-s` | Devam edecek oturum açma bilgileri                                                            |
 | <nobr><code>{"--fork"}</code></nobr>     |      | Devam ederken oturumu çatalla (`--continue` veya `--session` ile kullanın)                    |
 | <nobr><code>{"--password"}</code></nobr> | `-p` | Temel kimlik doğrulama parolası (varsayılan: `NOVAWAY_SERVER_PASSWORD`)                      |
-| <nobr><code>{"--username"}</code></nobr> | `-u` | Temel kimlik doğrulama kullanıcı adı (varsayılan: `NOVAWAY_SERVER_USERNAME` veya `opencode`) |
+| <nobr><code>{"--username"}</code></nobr> | `-u` | Temel kimlik doğrulama kullanıcı adı (varsayılan: `NOVAWAY_SERVER_USERNAME` veya `novaway`) |
 
 ---
 
@@ -94,7 +94,7 @@ opencode attach http://10.20.30.40:4096
 Özel yapılandırmaya sahip yeni bir agent oluşturun.
 
 ```bash
-opencode agent create
+novaway agent create
 ```
 
 Bu komut, özel sistem istemi ve araç yapılandırmasıyla yeni bir agent oluşturma konusunda size yol gösterecektir.
@@ -106,7 +106,7 @@ Bu komut, özel sistem istemi ve araç yapılandırmasıyla yeni bir agent oluş
 Mevcut tüm agent'ları listeleyin.
 
 ```bash
-opencode agent list
+novaway agent list
 ```
 
 ---
@@ -116,20 +116,20 @@ opencode agent list
 Sağlayıcılar için kimlik bilgilerini ve oturum açmayı yönetme komutu.
 
 ```bash
-opencode auth [command]
+novaway auth [command]
 ```
 
 ---
 
 #### login
 
-opencode, [Models.dev](https://models.dev) adresindeki sağlayıcı listesi tarafından desteklenmektedir, dolayısıyla kullanmak istediğiniz herhangi bir sağlayıcı için API anahtarlarını ayarlamak üzere `opencode auth login` kullanabilirsiniz. Bu `~/.local/share/opencode/auth.json`'de saklanıyor.
+novaway, [Models.dev](https://models.dev) adresindeki sağlayıcı listesi tarafından desteklenmektedir, dolayısıyla kullanmak istediğiniz herhangi bir sağlayıcı için API anahtarlarını ayarlamak üzere `novaway auth login` kullanabilirsiniz. Bu `~/.local/share/novaway/auth.json`'de saklanıyor.
 
 ```bash
-opencode auth login
+novaway auth login
 ```
 
-opencode başlatıldığında sağlayıcıları kimlik bilgileri dosyasından yükler. Ayrıca ortam değişkenlerindeki veya projenizdeki `.env` dosyasındaki anahtarları da kullanır.
+novaway başlatıldığında sağlayıcıları kimlik bilgileri dosyasından yükler. Ayrıca ortam değişkenlerindeki veya projenizdeki `.env` dosyasındaki anahtarları da kullanır.
 
 ---
 
@@ -138,13 +138,13 @@ opencode başlatıldığında sağlayıcıları kimlik bilgileri dosyasından y�
 Kimlik bilgileri dosyasında depolanan tüm kimliği doğrulanmış sağlayıcıları listeler.
 
 ```bash
-opencode auth list
+novaway auth list
 ```
 
 Veya kısa versiyonu.
 
 ```bash
-opencode auth ls
+novaway auth ls
 ```
 
 ---
@@ -154,7 +154,7 @@ opencode auth ls
 Bir sağlayıcıyı kimlik bilgileri dosyasından temizleyerek oturumunuzu kapatır.
 
 ```bash
-opencode auth logout
+novaway auth logout
 ```
 
 ---
@@ -164,7 +164,7 @@ opencode auth logout
 Depo otomasyonu için GitHub aracısını yönetin.
 
 ```bash
-opencode github [command]
+novaway github [command]
 ```
 
 ---
@@ -174,7 +174,7 @@ opencode github [command]
 GitHub aracısını deponuza yükleyin.
 
 ```bash
-opencode github install
+novaway github install
 ```
 
 Bu komut gerekli GitHub Actions workflow'unu kurar ve yapılandırma adımlarında size rehberlik eder. [Daha fazla bilgi](/docs/github).
@@ -186,7 +186,7 @@ Bu komut gerekli GitHub Actions workflow'unu kurar ve yapılandırma adımların
 GitHub aracısını çalıştırın. Bu genellikle GitHub Eylemlerinde kullanılır.
 
 ```bash
-opencode github run
+novaway github run
 ```
 
 ##### Bayraklar
@@ -203,7 +203,7 @@ opencode github run
 Model Bağlam Protokolü sunucularını yönetin.
 
 ```bash
-opencode mcp [command]
+novaway mcp [command]
 ```
 
 ---
@@ -213,7 +213,7 @@ opencode mcp [command]
 Yapılandırmanıza bir MCP sunucusu ekleyin.
 
 ```bash
-opencode mcp add
+novaway mcp add
 ```
 
 Bu komut, yerel veya uzak bir MCP sunucusu ekleme konusunda size yol gösterecektir.
@@ -225,13 +225,13 @@ Bu komut, yerel veya uzak bir MCP sunucusu ekleme konusunda size yol gösterecek
 Yapılandırılmış tüm MCP sunucularını ve bağlantı durumlarını listeleyin.
 
 ```bash
-opencode mcp list
+novaway mcp list
 ```
 
 Veya kısa versiyonunu kullanın.
 
 ```bash
-opencode mcp ls
+novaway mcp ls
 ```
 
 ---
@@ -241,7 +241,7 @@ opencode mcp ls
 OAuth'un etkin olduğu bir MCP sunucusuyla kimlik doğrulaması yapın.
 
 ```bash
-opencode mcp auth [name]
+novaway mcp auth [name]
 ```
 
 Sunucu adı belirtmezseniz mevcut OAuth özellikli sunucular arasından seçim yapmanız istenir.
@@ -249,13 +249,13 @@ Sunucu adı belirtmezseniz mevcut OAuth özellikli sunucular arasından seçim y
 Ayrıca OAuth özellikli sunucuları ve bunların kimlik doğrulama durumlarını da listeleyebilirsiniz.
 
 ```bash
-opencode mcp auth list
+novaway mcp auth list
 ```
 
 Veya kısa versiyonunu kullanın.
 
 ```bash
-opencode mcp auth ls
+novaway mcp auth ls
 ```
 
 ---
@@ -265,7 +265,7 @@ opencode mcp auth ls
 MCP sunucusu için OAuth kimlik bilgilerini kaldırın.
 
 ```bash
-opencode mcp logout [name]
+novaway mcp logout [name]
 ```
 
 ---
@@ -275,7 +275,7 @@ opencode mcp logout [name]
 MCP sunucusu için OAuth bağlantı sorunlarının hatalarını ayıklayın.
 
 ```bash
-opencode mcp debug <name>
+novaway mcp debug <name>
 ```
 
 ---
@@ -285,7 +285,7 @@ opencode mcp debug <name>
 Yapılandırılmış sağlayıcıların tüm mevcut modellerini listeleyin.
 
 ```bash
-opencode models [provider]
+novaway models [provider]
 ```
 
 Bu komut, yapılandırdığınız sağlayıcılardaki modelleri `provider/model` formatında listeler.
@@ -295,7 +295,7 @@ Bu, [config dosyanızda](/docs/config/) kullanmanız gereken tam model adını b
 Modelleri bu sağlayıcıya göre filtrelemek için isteğe bağlı olarak bir sağlayıcı kimliğini iletebilirsiniz.
 
 ```bash
-opencode models anthropic
+novaway models anthropic
 ```
 
 #### Bayraklar
@@ -305,36 +305,36 @@ opencode models anthropic
 | <nobr><code>{"--refresh"}</code></nobr> | Modeller.dev'den model önbelleğini yenileyin                                |
 | <nobr><code>{"--verbose"}</code></nobr> | Daha ayrıntılı model çıktısı kullanın (maliyetler gibi meta veriler içerir) |
 
-Önbelleğe alınan model listesini güncellemek için `--refresh` bayrağını kullanın. Bu, bir sağlayıcıya yeni modeller eklendiğinde ve bunları opencode'da görmek istediğinizde kullanışlıdır.
+Önbelleğe alınan model listesini güncellemek için `--refresh` bayrağını kullanın. Bu, bir sağlayıcıya yeni modeller eklendiğinde ve bunları novaway'da görmek istediğinizde kullanışlıdır.
 
 ```bash
-opencode models --refresh
+novaway models --refresh
 ```
 
 ---
 
 ### run
 
-Doğrudan bir istem ileterek opencode'u etkileşimli olmayan modda çalıştırın.
+Doğrudan bir istem ileterek novaway'u etkileşimli olmayan modda çalıştırın.
 
 ```bash
-opencode run [message..]
+novaway run [message..]
 ```
 
 Bu, komut dosyası oluşturma, otomasyon veya TUI'un tamamını başlatmadan hızlı bir yanıt istediğinizde kullanışlıdır. Örneğin.
 
-```bash "opencode run"
-opencode run Explain the use of context in Go
+```bash "novaway run"
+novaway run Explain the use of context in Go
 ```
 
-Ayrıca, her çalıştırmada MCP sunucusunun soğuk önyükleme sürelerini önlemek için çalışan bir `opencode serve` örneğine de ekleyebilirsiniz:
+Ayrıca, her çalıştırmada MCP sunucusunun soğuk önyükleme sürelerini önlemek için çalışan bir `novaway serve` örneğine de ekleyebilirsiniz:
 
 ```bash
 # Start a headless server in one terminal
-opencode serve
+novaway serve
 
 # In another terminal, run commands that attach to it
-opencode run --attach http://localhost:4096 "Explain async/await in JavaScript"
+novaway run --attach http://localhost:4096 "Explain async/await in JavaScript"
 ```
 
 #### Bayraklar
@@ -351,9 +351,9 @@ opencode run --attach http://localhost:4096 "Explain async/await in JavaScript"
 | <nobr><code>{"--file"}</code></nobr>     | `-f` | Mesaja eklenecek dosya(lar)                                                                   |
 | <nobr><code>{"--format"}</code></nobr>   |      | Biçim: varsayılan (biçimlendirilmiş) veya json (ham JSON olayları)                            |
 | <nobr><code>{"--title"}</code></nobr>    |      | Oturumun başlığı (değer sağlanmazsa kısaltılmış bilgi istemi kullanılır)                      |
-| <nobr><code>{"--attach"}</code></nobr>   |      | Çalışan bir opencode sunucusuna ekleyin (ör. http://localhost:4096)                           |
+| <nobr><code>{"--attach"}</code></nobr>   |      | Çalışan bir novaway sunucusuna ekleyin (ör. http://localhost:4096)                           |
 | <nobr><code>{"--password"}</code></nobr> | `-p` | Temel kimlik doğrulama parolası (varsayılan: `NOVAWAY_SERVER_PASSWORD`)                      |
-| <nobr><code>{"--username"}</code></nobr> | `-u` | Temel kimlik doğrulama kullanıcı adı (varsayılan: `NOVAWAY_SERVER_USERNAME` veya `opencode`) |
+| <nobr><code>{"--username"}</code></nobr> | `-u` | Temel kimlik doğrulama kullanıcı adı (varsayılan: `NOVAWAY_SERVER_USERNAME` veya `novaway`) |
 | <nobr><code>{"--dir"}</code></nobr>      |      | Çalıştırılacak dizin veya bağlanırken uzak sunucudaki yol                                     |
 | <nobr><code>{"--variant"}</code></nobr>  |      | Model varyantı (sağlayıcıya özgü muhakeme düzeyi)                                             |
 | <nobr><code>{"--thinking"}</code></nobr> |      | Düşünme bloklarını göster                                                                     |
@@ -363,13 +363,13 @@ opencode run --attach http://localhost:4096 "Explain async/await in JavaScript"
 
 ### serve
 
-API erişimi için headless bir opencode sunucusu başlatır. Tam HTTP arayüzü için [server docs](/docs/server) sayfasına bakın.
+API erişimi için headless bir novaway sunucusu başlatır. Tam HTTP arayüzü için [server docs](/docs/server) sayfasına bakın.
 
 ```bash
-opencode serve
+novaway serve
 ```
 
-Bu, TUI arayüzü olmadan opencode işlevselliğine API erişimi sağlayan bir HTTP sunucusunu başlatır. HTTP temel kimlik doğrulamasını etkinleştirmek için `NOVAWAY_SERVER_PASSWORD` öğesini ayarlayın (kullanıcı adı varsayılan olarak `opencode` şeklindedir).
+Bu, TUI arayüzü olmadan novaway işlevselliğine API erişimi sağlayan bir HTTP sunucusunu başlatır. HTTP temel kimlik doğrulamasını etkinleştirmek için `NOVAWAY_SERVER_PASSWORD` öğesini ayarlayın (kullanıcı adı varsayılan olarak `novaway` şeklindedir).
 
 #### Bayraklar
 
@@ -384,20 +384,20 @@ Bu, TUI arayüzü olmadan opencode işlevselliğine API erişimi sağlayan bir H
 
 ### session
 
-opencode oturumlarını yönetin.
+novaway oturumlarını yönetin.
 
 ```bash
-opencode session [command]
+novaway session [command]
 ```
 
 ---
 
 #### list
 
-Tüm opencode oturumlarını listeleyin.
+Tüm novaway oturumlarını listeleyin.
 
 ```bash
-opencode session list
+novaway session list
 ```
 
 ##### Bayraklar
@@ -411,10 +411,10 @@ opencode session list
 
 ### stats
 
-opencode oturumlarınız için belirteç kullanımı ve maliyet istatistiklerini gösterin.
+novaway oturumlarınız için belirteç kullanımı ve maliyet istatistiklerini gösterin.
 
 ```bash
-opencode stats
+novaway stats
 ```
 
 #### Bayraklar
@@ -433,7 +433,7 @@ opencode stats
 Oturum verilerini JSON olarak dışa aktarın.
 
 ```bash
-opencode export [sessionID]
+novaway export [sessionID]
 ```
 
 Bir oturum kimliği sağlamazsanız mevcut oturumlar arasından seçim yapmanız istenir.
@@ -442,30 +442,30 @@ Bir oturum kimliği sağlamazsanız mevcut oturumlar arasından seçim yapmanız
 
 ### import
 
-Bir JSON dosyasından veya opencode paylaşımından URL oturum verilerini içe aktarın.
+Bir JSON dosyasından veya novaway paylaşımından URL oturum verilerini içe aktarın.
 
 ```bash
-opencode import <file>
+novaway import <file>
 ```
 
-Yerel bir dosyadan veya opencode paylaşımından (URL) içe aktarabilirsiniz.
+Yerel bir dosyadan veya novaway paylaşımından (URL) içe aktarabilirsiniz.
 
 ```bash
-opencode import session.json
-opencode import https://opncd.ai/s/abc123
+novaway import session.json
+novaway import https://opncd.ai/s/abc123
 ```
 
 ---
 
 ### web
 
-Web arayüzüyle başsız bir opencode sunucusu başlatın.
+Web arayüzüyle başsız bir novaway sunucusu başlatın.
 
 ```bash
-opencode web
+novaway web
 ```
 
-Bu, bir HTTP sunucusunu başlatır ve bir web arayüzü aracılığıyla opencode'a erişmek için bir web tarayıcısı açar. HTTP temel kimlik doğrulamasını etkinleştirmek için `NOVAWAY_SERVER_PASSWORD` öğesini ayarlayın (kullanıcı adı varsayılan olarak `opencode` şeklindedir).
+Bu, bir HTTP sunucusunu başlatır ve bir web arayüzü aracılığıyla novaway'a erişmek için bir web tarayıcısı açar. HTTP temel kimlik doğrulamasını etkinleştirmek için `NOVAWAY_SERVER_PASSWORD` öğesini ayarlayın (kullanıcı adı varsayılan olarak `novaway` şeklindedir).
 
 #### Bayraklar
 
@@ -483,7 +483,7 @@ Bu, bir HTTP sunucusunu başlatır ve bir web arayüzü aracılığıyla opencod
 Bir ACP (Ajan İstemci Protokolü) sunucusu başlatın.
 
 ```bash
-opencode acp
+novaway acp
 ```
 
 Bu komut, nd-JSON kullanarak stdin/stdout aracılığıyla iletişim kuran bir ACP sunucusunu başlatır.
@@ -500,10 +500,10 @@ Bu komut, nd-JSON kullanarak stdin/stdout aracılığıyla iletişim kuran bir A
 
 ### uninstall
 
-opencode'u kaldırın ve ilgili tüm dosyaları kaldırın.
+novaway'u kaldırın ve ilgili tüm dosyaları kaldırın.
 
 ```bash
-opencode uninstall
+novaway uninstall
 ```
 
 #### Bayraklar
@@ -519,22 +519,22 @@ opencode uninstall
 
 ### upgrade
 
-opencode'u en son sürüme veya belirli bir sürüme günceller.
+novaway'u en son sürüme veya belirli bir sürüme günceller.
 
 ```bash
-opencode upgrade [target]
+novaway upgrade [target]
 ```
 
 En son sürüme yükseltmek için.
 
 ```bash
-opencode upgrade
+novaway upgrade
 ```
 
 Belirli bir sürüme yükseltmek için:
 
 ```bash
-opencode upgrade v0.1.48
+novaway upgrade v0.1.48
 ```
 
 #### Bayraklar
@@ -547,7 +547,7 @@ opencode upgrade v0.1.48
 
 ## Global bayraklar
 
-opencode CLI aşağıdaki global bayrakları destekler.
+novaway CLI aşağıdaki global bayrakları destekler.
 
 | Bayrak                                     | Kısa | Tanım                                    |
 | ------------------------------------------ | ---- | ---------------------------------------- |
@@ -560,7 +560,7 @@ opencode CLI aşağıdaki global bayrakları destekler.
 
 ## Ortam değişkenleri
 
-opencode ortam değişkenleri kullanılarak yapılandırılabilir.
+novaway ortam değişkenleri kullanılarak yapılandırılabilir.
 
 | Değişken                              | Tip     | Açıklama                                                                    |
 | ------------------------------------- | ------- | --------------------------------------------------------------------------- |
@@ -586,7 +586,7 @@ opencode ortam değişkenleri kullanılarak yapılandırılabilir.
 | `NOVAWAY_CLIENT`                     | string  | Client kimliği (varsayılan: `cli`)                                          |
 | `NOVAWAY_ENABLE_EXA`                 | boolean | Exa web arama araçlarını etkinleştir                                        |
 | `NOVAWAY_SERVER_PASSWORD`            | string  | `serve`/`web` için temel kimlik doğrulamayı etkinleştirin                   |
-| `NOVAWAY_SERVER_USERNAME`            | string  | Temel kimlik doğrulama kullanıcı adını geçersiz kıl (varsayılan `opencode`) |
+| `NOVAWAY_SERVER_USERNAME`            | string  | Temel kimlik doğrulama kullanıcı adını geçersiz kıl (varsayılan `novaway`) |
 | `NOVAWAY_MODELS_URL`                 | string  | Model yapılandırmasını almak için özel URL                                  |
 
 ---

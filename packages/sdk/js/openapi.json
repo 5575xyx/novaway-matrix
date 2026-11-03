@@ -57,7 +57,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.set({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.auth.set({\n  ...\n})"
           }
         ]
       },
@@ -105,7 +105,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.auth.list({\n  ...\n})"
           }
         ]
       },
@@ -159,7 +159,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.addEntry({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.auth.addEntry({\n  ...\n})"
           }
         ]
       },
@@ -204,7 +204,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.auth.remove({\n  ...\n})"
           }
         ]
       }
@@ -259,7 +259,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.removeEntry({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.auth.removeEntry({\n  ...\n})"
           }
         ]
       }
@@ -343,7 +343,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.app.log({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.app.log({\n  ...\n})"
           }
         ]
       }
@@ -382,7 +382,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.global.health({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.global.health({\n  ...\n})"
           }
         ]
       }
@@ -409,7 +409,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.global.event({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.global.event({\n  ...\n})"
           }
         ]
       }
@@ -436,7 +436,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.global.config.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.global.config.get({\n  ...\n})"
           }
         ]
       },
@@ -480,7 +480,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.global.config.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.global.config.update({\n  ...\n})"
           }
         ]
       }
@@ -508,7 +508,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.global.dispose({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.global.dispose({\n  ...\n})"
           }
         ]
       }
@@ -590,7 +590,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.global.upgrade({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.global.upgrade({\n  ...\n})"
           }
         ]
       }
@@ -634,7 +634,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.event.subscribe({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.event.subscribe({\n  ...\n})"
           }
         ]
       }
@@ -707,7 +707,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.chat.send({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.chat.send({\n  ...\n})"
           }
         ]
       }
@@ -751,7 +751,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.listCheckpoints({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.checkpoint.listCheckpoints({\n  ...\n})"
           }
         ]
       },
@@ -816,7 +816,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.createCheckpoint({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.checkpoint.createCheckpoint({\n  ...\n})"
           }
         ]
       }
@@ -858,7 +858,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.getCheckpoint({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.checkpoint.getCheckpoint({\n  ...\n})"
           }
         ]
       },
@@ -898,7 +898,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.deleteCheckpoint({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.checkpoint.deleteCheckpoint({\n  ...\n})"
           }
         ]
       }
@@ -940,7 +940,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.checkpoint.restoreCheckpoint({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.checkpoint.restoreCheckpoint({\n  ...\n})"
           }
         ]
       }
@@ -984,7 +984,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.config.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.config.get({\n  ...\n})"
           }
         ]
       },
@@ -1045,7 +1045,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.config.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.config.update({\n  ...\n})"
           }
         ]
       }
@@ -1106,7 +1106,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.config.providers({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.config.providers({\n  ...\n})"
           }
         ]
       }
@@ -1160,7 +1160,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.console.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.console.get({\n  ...\n})"
           }
         ]
       }
@@ -1247,7 +1247,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.console.listOrgs({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.console.listOrgs({\n  ...\n})"
           }
         ]
       }
@@ -1311,7 +1311,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.console.switchOrg({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.console.switchOrg({\n  ...\n})"
           }
         ]
       }
@@ -1381,7 +1381,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tool.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tool.list({\n  ...\n})"
           }
         ]
       }
@@ -1435,7 +1435,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tool.ids({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tool.ids({\n  ...\n})"
           }
         ]
       }
@@ -1496,7 +1496,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tool.call({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tool.call({\n  ...\n})"
           }
         ]
       }
@@ -1554,7 +1554,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.worktree.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.worktree.list({\n  ...\n})"
           }
         ]
       },
@@ -1615,7 +1615,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.worktree.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.worktree.create({\n  ...\n})"
           }
         ]
       },
@@ -1677,7 +1677,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.worktree.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.worktree.remove({\n  ...\n})"
           }
         ]
       }
@@ -1741,7 +1741,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.worktree.reset({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.worktree.reset({\n  ...\n})"
           }
         ]
       }
@@ -1853,7 +1853,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.session.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.session.list({\n  ...\n})"
           }
         ]
       }
@@ -1901,7 +1901,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.resource.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.resource.list({\n  ...\n})"
           }
         ]
       }
@@ -1953,7 +1953,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.status({\n  ...\n})"
           }
         ]
       }
@@ -2035,7 +2035,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.review({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.review({\n  ...\n})"
           }
         ]
       }
@@ -2117,7 +2117,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.listCandidates({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.listCandidates({\n  ...\n})"
           }
         ]
       }
@@ -2197,7 +2197,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.updateCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.updateCandidate({\n  ...\n})"
           }
         ]
       }
@@ -2268,7 +2268,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.previewCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.previewCandidate({\n  ...\n})"
           }
         ]
       }
@@ -2339,7 +2339,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.dryRunCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.dryRunCandidate({\n  ...\n})"
           }
         ]
       }
@@ -2410,7 +2410,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.applyCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.applyCandidate({\n  ...\n})"
           }
         ]
       }
@@ -2481,7 +2481,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.applyFileCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.applyFileCandidate({\n  ...\n})"
           }
         ]
       }
@@ -2552,7 +2552,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.evolution.dismissCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.evolution.dismissCandidate({\n  ...\n})"
           }
         ]
       }
@@ -2600,7 +2600,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.list({\n  ...\n})"
           }
         ]
       }
@@ -2648,7 +2648,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.contributions({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.contributions({\n  ...\n})"
           }
         ]
       }
@@ -2692,7 +2692,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.marketplaceCatalog({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceCatalog({\n  ...\n})"
           }
         ]
       }
@@ -2781,7 +2781,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.marketplaceInstall({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceInstall({\n  ...\n})"
           }
         ]
       }
@@ -2854,7 +2854,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.marketplaceUninstall({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceUninstall({\n  ...\n})"
           }
         ]
       }
@@ -2906,7 +2906,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.integrity({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.integrity({\n  ...\n})"
           }
         ]
       }
@@ -2954,7 +2954,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.reload({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.reload({\n  ...\n})"
           }
         ]
       }
@@ -3042,7 +3042,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.extension.toggle({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.toggle({\n  ...\n})"
           }
         ]
       }
@@ -3158,7 +3158,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.find.text({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.find.text({\n  ...\n})"
           }
         ]
       }
@@ -3242,7 +3242,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.find.files({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.find.files({\n  ...\n})"
           }
         ]
       }
@@ -3298,7 +3298,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.find.symbols({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.find.symbols({\n  ...\n})"
           }
         ]
       }
@@ -3363,7 +3363,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.file.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.list({\n  ...\n})"
           }
         ]
       }
@@ -3424,7 +3424,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.file.read({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.read({\n  ...\n})"
           }
         ]
       }
@@ -3471,7 +3471,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.file.write({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.write({\n  ...\n})"
           }
         ]
       }
@@ -3519,7 +3519,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.file.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.status({\n  ...\n})"
           }
         ]
       }
@@ -3806,7 +3806,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.snapshot({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.snapshot({\n  ...\n})"
           }
         ]
       }
@@ -4112,7 +4112,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.add({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.add({\n  ...\n})"
           }
         ]
       }
@@ -4418,7 +4418,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.unstage({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.unstage({\n  ...\n})"
           }
         ]
       }
@@ -4724,7 +4724,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.discard({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.discard({\n  ...\n})"
           }
         ]
       }
@@ -5027,7 +5027,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.commit({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.commit({\n  ...\n})"
           }
         ]
       }
@@ -5314,7 +5314,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.push({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.push({\n  ...\n})"
           }
         ]
       }
@@ -5601,7 +5601,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.pull({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.pull({\n  ...\n})"
           }
         ]
       }
@@ -5888,7 +5888,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.fetch({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.fetch({\n  ...\n})"
           }
         ]
       }
@@ -6194,7 +6194,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.merge({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.merge({\n  ...\n})"
           }
         ]
       }
@@ -6353,7 +6353,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.commit.detail({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.commit.detail({\n  ...\n})"
           }
         ]
       }
@@ -6658,7 +6658,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.stash({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.stash({\n  ...\n})"
           }
         ]
       }
@@ -6967,7 +6967,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.branch({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.branch({\n  ...\n})"
           }
         ]
       }
@@ -7276,7 +7276,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.git.remote({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.git.remote({\n  ...\n})"
           }
         ]
       }
@@ -7324,7 +7324,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.hook.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.hook.list({\n  ...\n})"
           }
         ]
       }
@@ -7372,7 +7372,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.hook.active({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.hook.active({\n  ...\n})"
           }
         ]
       }
@@ -7445,7 +7445,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.images.generate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.images.generate({\n  ...\n})"
           }
         ]
       }
@@ -7503,7 +7503,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.database.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.database.list({\n  ...\n})"
           }
         ]
       },
@@ -7564,7 +7564,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.database.save({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.database.save({\n  ...\n})"
           }
         ]
       }
@@ -7625,7 +7625,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.database.removeConnection({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.database.removeConnection({\n  ...\n})"
           }
         ]
       }
@@ -7685,7 +7685,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.database.testConnection({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.database.testConnection({\n  ...\n})"
           }
         ]
       }
@@ -7810,7 +7810,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.database.query({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.database.query({\n  ...\n})"
           }
         ]
       }
@@ -7882,7 +7882,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.database.tables({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.database.tables({\n  ...\n})"
           }
         ]
       }
@@ -7962,7 +7962,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.database.columns({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.database.columns({\n  ...\n})"
           }
         ]
       }
@@ -8014,7 +8014,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.overview({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.overview({\n  ...\n})"
           }
         ]
       }
@@ -8088,7 +8088,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.recentQueries({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.recentQueries({\n  ...\n})"
           }
         ]
       },
@@ -8137,7 +8137,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.clearQueries({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.clearQueries({\n  ...\n})"
           }
         ]
       }
@@ -8191,7 +8191,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.importJobs({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.importJobs({\n  ...\n})"
           }
         ]
       }
@@ -8241,7 +8241,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.importJob({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.importJob({\n  ...\n})"
           }
         ]
       },
@@ -8289,7 +8289,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.cancelImportJob({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.cancelImportJob({\n  ...\n})"
           }
         ]
       }
@@ -8401,7 +8401,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.documentsPage({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.documentsPage({\n  ...\n})"
           }
         ]
       }
@@ -8490,7 +8490,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.bulkRemoveDocuments({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.bulkRemoveDocuments({\n  ...\n})"
           }
         ]
       }
@@ -8544,7 +8544,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.listTrash({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.listTrash({\n  ...\n})"
           }
         ]
       },
@@ -8620,7 +8620,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.emptyTrash({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.emptyTrash({\n  ...\n})"
           }
         ]
       }
@@ -8698,7 +8698,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.restoreTrash({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.restoreTrash({\n  ...\n})"
           }
         ]
       }
@@ -8785,7 +8785,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.moveDocuments({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.moveDocuments({\n  ...\n})"
           }
         ]
       }
@@ -8837,7 +8837,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.integrity({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.integrity({\n  ...\n})"
           }
         ]
       }
@@ -8917,7 +8917,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.repairIntegrity({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.repairIntegrity({\n  ...\n})"
           }
         ]
       }
@@ -8969,7 +8969,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.exportLibrary({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.exportLibrary({\n  ...\n})"
           }
         ]
       }
@@ -9030,7 +9030,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.importLibrary({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.importLibrary({\n  ...\n})"
           }
         ]
       }
@@ -9112,7 +9112,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.documentChunks({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.documentChunks({\n  ...\n})"
           }
         ]
       }
@@ -9158,7 +9158,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.templates({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.templates({\n  ...\n})"
           }
         ]
       }
@@ -9216,7 +9216,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.collections({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.collections({\n  ...\n})"
           }
         ]
       },
@@ -9298,7 +9298,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.createCollection({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.createCollection({\n  ...\n})"
           }
         ]
       }
@@ -9396,7 +9396,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.updateCollection({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.updateCollection({\n  ...\n})"
           }
         ]
       },
@@ -9455,7 +9455,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.removeCollection({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.removeCollection({\n  ...\n})"
           }
         ]
       }
@@ -9529,7 +9529,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.documents({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.documents({\n  ...\n})"
           }
         ]
       },
@@ -9619,7 +9619,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.addDocument({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.addDocument({\n  ...\n})"
           }
         ]
       }
@@ -9697,7 +9697,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.document({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.document({\n  ...\n})"
           }
         ]
       },
@@ -9794,7 +9794,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.updateDocument({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.updateDocument({\n  ...\n})"
           }
         ]
       },
@@ -9861,7 +9861,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.removeDocument({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.removeDocument({\n  ...\n})"
           }
         ]
       }
@@ -9952,7 +9952,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.upload({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.upload({\n  ...\n})"
           }
         ]
       }
@@ -10056,7 +10056,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.import({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.import({\n  ...\n})"
           }
         ]
       }
@@ -10126,7 +10126,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.stats({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.stats({\n  ...\n})"
           }
         ]
       }
@@ -10198,7 +10198,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.reindex({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.reindex({\n  ...\n})"
           }
         ]
       }
@@ -10270,7 +10270,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.export({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.export({\n  ...\n})"
           }
         ]
       }
@@ -10409,7 +10409,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.restore({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.restore({\n  ...\n})"
           }
         ]
       }
@@ -10540,7 +10540,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.related({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.related({\n  ...\n})"
           }
         ]
       }
@@ -10582,7 +10582,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.ocr({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.ocr({\n  ...\n})"
           }
         ]
       }
@@ -10659,7 +10659,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.ocr.install({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.ocr.install({\n  ...\n})"
           }
         ]
       }
@@ -10719,7 +10719,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.ocrInstallJob({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.ocrInstallJob({\n  ...\n})"
           }
         ]
       },
@@ -10767,7 +10767,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.cancelOcrInstall({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.cancelOcrInstall({\n  ...\n})"
           }
         ]
       }
@@ -10809,7 +10809,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.embedding({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.embedding({\n  ...\n})"
           }
         ]
       }
@@ -10883,7 +10883,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.listEvalCases({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.listEvalCases({\n  ...\n})"
           }
         ]
       },
@@ -10979,7 +10979,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.saveEvalCase({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.saveEvalCase({\n  ...\n})"
           }
         ]
       }
@@ -11058,7 +11058,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.removeEvalCase({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.removeEvalCase({\n  ...\n})"
           }
         ]
       }
@@ -11165,7 +11165,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.eval.run({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.eval.run({\n  ...\n})"
           }
         ]
       }
@@ -11275,7 +11275,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.eval.suggest({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.eval.suggest({\n  ...\n})"
           }
         ]
       }
@@ -11347,7 +11347,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.eval.history({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.eval.history({\n  ...\n})"
           }
         ]
       },
@@ -11416,7 +11416,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.clearEvalHistory({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.clearEvalHistory({\n  ...\n})"
           }
         ]
       }
@@ -11512,7 +11512,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.eval.diff({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.eval.diff({\n  ...\n})"
           }
         ]
       }
@@ -11592,7 +11592,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.eval.report({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.eval.report({\n  ...\n})"
           }
         ]
       }
@@ -11656,7 +11656,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.sessionMount({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.sessionMount({\n  ...\n})"
           }
         ]
       },
@@ -11739,7 +11739,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.session.mount({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.session.mount({\n  ...\n})"
           }
         ]
       }
@@ -11809,7 +11809,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.graph({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.graph({\n  ...\n})"
           }
         ]
       }
@@ -11891,7 +11891,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.knowledge.search({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.knowledge.search({\n  ...\n})"
           }
         ]
       }
@@ -11936,7 +11936,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.instance.dispose({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.instance.dispose({\n  ...\n})"
           }
         ]
       }
@@ -11980,7 +11980,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.path.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.path.get({\n  ...\n})"
           }
         ]
       }
@@ -12024,7 +12024,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.vcs.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.vcs.get({\n  ...\n})"
           }
         ]
       }
@@ -12072,7 +12072,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.vcs.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.vcs.status({\n  ...\n})"
           }
         ]
       }
@@ -12138,7 +12138,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.vcs.diff({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.vcs.diff({\n  ...\n})"
           }
         ]
       }
@@ -12182,7 +12182,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.vcs.diff.raw({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.vcs.diff.raw({\n  ...\n})"
           }
         ]
       }
@@ -12260,7 +12260,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.vcs.apply({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.vcs.apply({\n  ...\n})"
           }
         ]
       }
@@ -12308,7 +12308,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.command.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.command.list({\n  ...\n})"
           }
         ]
       }
@@ -12356,7 +12356,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.app.agents({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.app.agents({\n  ...\n})"
           }
         ]
       }
@@ -12460,7 +12460,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.app.skills({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.app.skills({\n  ...\n})"
           }
         ]
       }
@@ -12508,7 +12508,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.lsp.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.lsp.status({\n  ...\n})"
           }
         ]
       }
@@ -12556,7 +12556,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.formatter.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.formatter.status({\n  ...\n})"
           }
         ]
       }
@@ -12600,7 +12600,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.kernel.capabilities({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.kernel.capabilities({\n  ...\n})"
           }
         ]
       }
@@ -12661,7 +12661,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.stats.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.stats.get({\n  ...\n})"
           }
         ]
       }
@@ -12709,7 +12709,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.status({\n  ...\n})"
           }
         ]
       },
@@ -12791,7 +12791,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.add({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.add({\n  ...\n})"
           }
         ]
       }
@@ -12874,7 +12874,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.auth.start({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.auth.start({\n  ...\n})"
           }
         ]
       },
@@ -12943,7 +12943,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.auth.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.auth.remove({\n  ...\n})"
           }
         ]
       }
@@ -13031,7 +13031,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.auth.callback({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.auth.callback({\n  ...\n})"
           }
         ]
       }
@@ -13103,7 +13103,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.auth.authenticate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.auth.authenticate({\n  ...\n})"
           }
         ]
       }
@@ -13155,7 +13155,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.connect({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.connect({\n  ...\n})"
           }
         ]
       }
@@ -13207,7 +13207,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.disconnect({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mcp.disconnect({\n  ...\n})"
           }
         ]
       }
@@ -13322,7 +13322,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.list({\n  ...\n})"
           }
         ]
       },
@@ -13548,7 +13548,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.add({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.add({\n  ...\n})"
           }
         ]
       }
@@ -13696,7 +13696,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.status({\n  ...\n})"
           }
         ]
       }
@@ -13748,7 +13748,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.reviewStatus({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.reviewStatus({\n  ...\n})"
           }
         ]
       }
@@ -13800,7 +13800,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.embeddingStatus({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.embeddingStatus({\n  ...\n})"
           }
         ]
       }
@@ -13882,7 +13882,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.embeddingSetupLocal({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.embeddingSetupLocal({\n  ...\n})"
           }
         ]
       }
@@ -13970,7 +13970,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.listRelations({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.listRelations({\n  ...\n})"
           }
         ]
       },
@@ -14039,7 +14039,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.addRelation({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.addRelation({\n  ...\n})"
           }
         ]
       }
@@ -14110,7 +14110,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.removeRelation({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.removeRelation({\n  ...\n})"
           }
         ]
       }
@@ -14174,7 +14174,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.relationsForMemory({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.relationsForMemory({\n  ...\n})"
           }
         ]
       }
@@ -14268,7 +14268,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.review({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.review({\n  ...\n})"
           }
         ]
       }
@@ -14340,7 +14340,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.listReviewCandidates({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.listReviewCandidates({\n  ...\n})"
           }
         ]
       }
@@ -14411,7 +14411,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.applyReviewCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.applyReviewCandidate({\n  ...\n})"
           }
         ]
       }
@@ -14466,7 +14466,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.dismissReviewCandidate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.dismissReviewCandidate({\n  ...\n})"
           }
         ]
       }
@@ -14683,7 +14683,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.update({\n  ...\n})"
           }
         ]
       },
@@ -14736,7 +14736,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.memory.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.memory.remove({\n  ...\n})"
           }
         ]
       }
@@ -14864,7 +14864,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.artifact.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.artifact.list({\n  ...\n})"
           }
         ]
       },
@@ -15006,7 +15006,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.artifact.save({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.artifact.save({\n  ...\n})"
           }
         ]
       }
@@ -15255,7 +15255,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.pptxTemplate.fill({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.pptxTemplate.fill({\n  ...\n})"
           }
         ]
       }
@@ -16061,7 +16061,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.pptx.edit({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.pptx.edit({\n  ...\n})"
           }
         ]
       }
@@ -16198,7 +16198,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.status({\n  ...\n})"
           }
         ]
       }
@@ -16472,7 +16472,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.schedule.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.schedule.list({\n  ...\n})"
           }
         ]
       },
@@ -16878,7 +16878,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.schedule.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.schedule.create({\n  ...\n})"
           }
         ]
       }
@@ -17307,7 +17307,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.schedule.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.schedule.update({\n  ...\n})"
           }
         ]
       },
@@ -17368,7 +17368,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.schedule.delete({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.schedule.delete({\n  ...\n})"
           }
         ]
       }
@@ -17516,7 +17516,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.schedule.run({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.schedule.run({\n  ...\n})"
           }
         ]
       }
@@ -17649,7 +17649,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.run.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.run.list({\n  ...\n})"
           }
         ]
       }
@@ -17831,7 +17831,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.workflow.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.workflow.list({\n  ...\n})"
           }
         ]
       },
@@ -18058,7 +18058,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.workflow.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.workflow.create({\n  ...\n})"
           }
         ]
       }
@@ -18304,7 +18304,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.workflow.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.workflow.update({\n  ...\n})"
           }
         ]
       },
@@ -18365,7 +18365,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.workflow.delete({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.workflow.delete({\n  ...\n})"
           }
         ]
       }
@@ -18531,7 +18531,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.workflow.run({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.workflow.run({\n  ...\n})"
           }
         ]
       }
@@ -18942,7 +18942,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.workflow.schedule({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.workflow.schedule({\n  ...\n})"
           }
         ]
       }
@@ -19105,7 +19105,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.artifact.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.artifact.list({\n  ...\n})"
           }
         ]
       }
@@ -19299,7 +19299,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.artifact.restore({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.artifact.restore({\n  ...\n})"
           }
         ]
       }
@@ -19386,7 +19386,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.connector.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.connector.list({\n  ...\n})"
           }
         ]
       }
@@ -19449,7 +19449,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.connector.connect({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.connector.connect({\n  ...\n})"
           }
         ]
       }
@@ -19512,7 +19512,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.connector.disconnect({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.connector.disconnect({\n  ...\n})"
           }
         ]
       }
@@ -19594,7 +19594,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.connector.action({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.connector.action({\n  ...\n})"
           }
         ]
       }
@@ -19670,7 +19670,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.connector.config.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.connector.config.get({\n  ...\n})"
           }
         ]
       },
@@ -19774,7 +19774,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.connector.config.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.connector.config.update({\n  ...\n})"
           }
         ]
       }
@@ -19839,7 +19839,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.browser.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.browser.status({\n  ...\n})"
           }
         ]
       }
@@ -20007,7 +20007,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.browser.start({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.browser.start({\n  ...\n})"
           }
         ]
       }
@@ -20106,7 +20106,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.browser.snapshot({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.browser.snapshot({\n  ...\n})"
           }
         ]
       }
@@ -20161,7 +20161,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.office.platform.browser.stop({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.platform.browser.stop({\n  ...\n})"
           }
         ]
       }
@@ -20209,7 +20209,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.project.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.project.list({\n  ...\n})"
           }
         ]
       }
@@ -20253,7 +20253,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.project.current({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.project.current({\n  ...\n})"
           }
         ]
       }
@@ -20297,7 +20297,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.project.initGit({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.project.initGit({\n  ...\n})"
           }
         ]
       }
@@ -20409,7 +20409,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.project.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.project.update({\n  ...\n})"
           }
         ]
       }
@@ -20471,7 +20471,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.project.directories({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.project.directories({\n  ...\n})"
           }
         ]
       }
@@ -20532,7 +20532,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.shells({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.shells({\n  ...\n})"
           }
         ]
       }
@@ -20580,7 +20580,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.list({\n  ...\n})"
           }
         ]
       },
@@ -20665,7 +20665,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.create({\n  ...\n})"
           }
         ]
       }
@@ -20728,7 +20728,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.get({\n  ...\n})"
           }
         ]
       },
@@ -20819,7 +20819,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.update({\n  ...\n})"
           }
         ]
       },
@@ -20881,7 +20881,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.remove({\n  ...\n})"
           }
         ]
       }
@@ -20966,7 +20966,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.connectToken({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.connectToken({\n  ...\n})"
           }
         ]
       }
@@ -21014,7 +21014,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.question.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.question.list({\n  ...\n})"
           }
         ]
       }
@@ -21108,7 +21108,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.question.reply({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.question.reply({\n  ...\n})"
           }
         ]
       }
@@ -21182,7 +21182,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.question.reject({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.question.reject({\n  ...\n})"
           }
         ]
       }
@@ -21230,7 +21230,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.elicitation.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.elicitation.list({\n  ...\n})"
           }
         ]
       }
@@ -21323,7 +21323,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.elicitation.reply({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.elicitation.reply({\n  ...\n})"
           }
         ]
       }
@@ -21396,7 +21396,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.elicitation.reject({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.elicitation.reject({\n  ...\n})"
           }
         ]
       }
@@ -21444,7 +21444,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.permission.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.permission.list({\n  ...\n})"
           }
         ]
       }
@@ -21538,7 +21538,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.permission.reply({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.permission.reply({\n  ...\n})"
           }
         ]
       }
@@ -21605,7 +21605,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.provider.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.provider.list({\n  ...\n})"
           }
         ]
       }
@@ -21656,7 +21656,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.provider.auth({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.provider.auth({\n  ...\n})"
           }
         ]
       }
@@ -21719,7 +21719,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.provider.models({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.provider.models({\n  ...\n})"
           }
         ]
       }
@@ -21804,7 +21804,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.provider.oauth.authorize({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.provider.oauth.authorize({\n  ...\n})"
           }
         ]
       }
@@ -21887,7 +21887,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.provider.oauth.callback({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.provider.oauth.callback({\n  ...\n})"
           }
         ]
       }
@@ -21992,7 +21992,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.list({\n  ...\n})"
           }
         ]
       },
@@ -22102,7 +22102,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.create({\n  ...\n})"
           }
         ]
       }
@@ -22160,7 +22160,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.status({\n  ...\n})"
           }
         ]
       }
@@ -22233,7 +22233,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.get({\n  ...\n})"
           }
         ]
       },
@@ -22305,7 +22305,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.delete({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.delete({\n  ...\n})"
           }
         ]
       },
@@ -22442,7 +22442,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.update({\n  ...\n})"
           }
         ]
       }
@@ -22519,7 +22519,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.children({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.children({\n  ...\n})"
           }
         ]
       }
@@ -22596,7 +22596,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.todo({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.todo({\n  ...\n})"
           }
         ]
       }
@@ -22662,7 +22662,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.diff({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.diff({\n  ...\n})"
           }
         ]
       }
@@ -22770,7 +22770,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.messages({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.messages({\n  ...\n})"
           }
         ]
       },
@@ -22926,7 +22926,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.prompt({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.prompt({\n  ...\n})"
           }
         ]
       }
@@ -23022,7 +23022,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.message({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.message({\n  ...\n})"
           }
         ]
       },
@@ -23103,7 +23103,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.deleteMessage({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.deleteMessage({\n  ...\n})"
           }
         ]
       }
@@ -23192,7 +23192,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.fork({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.fork({\n  ...\n})"
           }
         ]
       }
@@ -23256,7 +23256,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.abort({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.abort({\n  ...\n})"
           }
         ]
       }
@@ -23333,7 +23333,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.background({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.background({\n  ...\n})"
           }
         ]
       }
@@ -23410,7 +23410,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.tempFiles.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.tempFiles.list({\n  ...\n})"
           }
         ]
       }
@@ -23487,7 +23487,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.planApproval.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.planApproval.list({\n  ...\n})"
           }
         ]
       }
@@ -23588,7 +23588,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.planApproval.reply({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.planApproval.reply({\n  ...\n})"
           }
         ]
       }
@@ -23665,7 +23665,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.documentReview.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.documentReview.list({\n  ...\n})"
           }
         ]
       }
@@ -23756,7 +23756,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.documentReview.reply({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.documentReview.reply({\n  ...\n})"
           }
         ]
       }
@@ -23847,7 +23847,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.tempFiles.clean({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.tempFiles.clean({\n  ...\n})"
           }
         ]
       }
@@ -23928,7 +23928,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.background.cancel({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.background.cancel({\n  ...\n})"
           }
         ]
       }
@@ -24025,7 +24025,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.init({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.init({\n  ...\n})"
           }
         ]
       }
@@ -24097,7 +24097,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.export({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.export({\n  ...\n})"
           }
         ]
       }
@@ -24160,7 +24160,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.import({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.import({\n  ...\n})"
           }
         ]
       }
@@ -24233,7 +24233,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.share({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.share({\n  ...\n})"
           }
         ]
       },
@@ -24304,7 +24304,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.unshare({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.unshare({\n  ...\n})"
           }
         ]
       }
@@ -24403,7 +24403,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.summarize({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.summarize({\n  ...\n})"
           }
         ]
       }
@@ -24542,7 +24542,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.prompt_async({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.prompt_async({\n  ...\n})"
           }
         ]
       }
@@ -24608,7 +24608,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.resume({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.resume({\n  ...\n})"
           }
         ]
       }
@@ -24755,7 +24755,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.command({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.command({\n  ...\n})"
           }
         ]
       }
@@ -24878,7 +24878,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.shell({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.shell({\n  ...\n})"
           }
         ]
       }
@@ -24972,7 +24972,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.revert({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.revert({\n  ...\n})"
           }
         ]
       }
@@ -25066,7 +25066,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.revertPreview({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.revertPreview({\n  ...\n})"
           }
         ]
       }
@@ -25139,7 +25139,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.session.unrevert({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.session.unrevert({\n  ...\n})"
           }
         ]
       }
@@ -25240,7 +25240,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.permission.respond({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.permission.respond({\n  ...\n})"
           }
         ]
       }
@@ -25331,7 +25331,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.part.delete({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.part.delete({\n  ...\n})"
           }
         ]
       },
@@ -25428,7 +25428,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.part.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.part.update({\n  ...\n})"
           }
         ]
       }
@@ -25498,7 +25498,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.agent.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.agent.list({\n  ...\n})"
           }
         ]
       }
@@ -25648,7 +25648,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.agent.import({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.agent.import({\n  ...\n})"
           }
         ]
       }
@@ -25752,7 +25752,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.agent.save({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.agent.save({\n  ...\n})"
           }
         ]
       },
@@ -25823,7 +25823,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.agent.delete({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.agent.delete({\n  ...\n})"
           }
         ]
       }
@@ -25893,7 +25893,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.skill.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.skill.list({\n  ...\n})"
           }
         ]
       }
@@ -26043,7 +26043,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.skill.import({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.skill.import({\n  ...\n})"
           }
         ]
       }
@@ -26147,7 +26147,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.skill.save({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.skill.save({\n  ...\n})"
           }
         ]
       },
@@ -26218,7 +26218,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.skill.delete({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.skill.delete({\n  ...\n})"
           }
         ]
       }
@@ -26297,7 +26297,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.rule.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.rule.list({\n  ...\n})"
           }
         ]
       }
@@ -26414,7 +26414,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.rule.save({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.rule.save({\n  ...\n})"
           }
         ]
       },
@@ -26494,7 +26494,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.rule.delete({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.rule.delete({\n  ...\n})"
           }
         ]
       }
@@ -26561,7 +26561,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.project_instruction.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.project_instruction.get({\n  ...\n})"
           }
         ]
       },
@@ -26652,7 +26652,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.settings.project_instruction.save({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.settings.project_instruction.save({\n  ...\n})"
           }
         ]
       }
@@ -26697,7 +26697,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.sync.start({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.sync.start({\n  ...\n})"
           }
         ]
       }
@@ -26802,7 +26802,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.sync.replay({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.sync.replay({\n  ...\n})"
           }
         ]
       }
@@ -26882,7 +26882,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.sync.steal({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.sync.steal({\n  ...\n})"
           }
         ]
       }
@@ -26973,7 +26973,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.sync.history.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.sync.history.list({\n  ...\n})"
           }
         ]
       }
@@ -27093,7 +27093,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.list({\n  ...\n})"
           }
         ]
       }
@@ -27165,7 +27165,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.prompt({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.prompt({\n  ...\n})"
           }
         ]
       }
@@ -27211,7 +27211,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.compact({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.compact({\n  ...\n})"
           }
         ]
       }
@@ -27257,7 +27257,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.wait({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.wait({\n  ...\n})"
           }
         ]
       }
@@ -27313,7 +27313,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.context({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.context({\n  ...\n})"
           }
         ]
       }
@@ -27393,7 +27393,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.get({\n  ...\n})"
           }
         ]
       }
@@ -27463,7 +27463,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.permission.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.permission.list({\n  ...\n})"
           }
         ]
       }
@@ -27533,7 +27533,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.question.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.question.list({\n  ...\n})"
           }
         ]
       }
@@ -27622,7 +27622,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.session.messages({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.session.messages({\n  ...\n})"
           }
         ]
       }
@@ -27685,7 +27685,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.model.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.model.list({\n  ...\n})"
           }
         ]
       }
@@ -27750,7 +27750,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.provider.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.provider.get({\n  ...\n})"
           }
         ]
       }
@@ -27813,7 +27813,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.provider.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.provider.list({\n  ...\n})"
           }
         ]
       }
@@ -27882,7 +27882,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.fs.find({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.fs.find({\n  ...\n})"
           }
         ]
       }
@@ -27943,7 +27943,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.location.get({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.location.get({\n  ...\n})"
           }
         ]
       }
@@ -28004,7 +28004,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.agent.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.agent.list({\n  ...\n})"
           }
         ]
       }
@@ -28065,7 +28065,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.command.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.command.list({\n  ...\n})"
           }
         ]
       }
@@ -28126,7 +28126,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.skill.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.skill.list({\n  ...\n})"
           }
         ]
       }
@@ -28187,7 +28187,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.reference.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.reference.list({\n  ...\n})"
           }
         ]
       }
@@ -28248,7 +28248,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.integration.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.integration.list({\n  ...\n})"
           }
         ]
       }
@@ -28317,7 +28317,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.v2.permission.saved.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.v2.permission.saved.list({\n  ...\n})"
           }
         ]
       }
@@ -28390,7 +28390,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.videos.generate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.videos.generate({\n  ...\n})"
           }
         ]
       }
@@ -28461,7 +28461,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.appendPrompt({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.appendPrompt({\n  ...\n})"
           }
         ]
       }
@@ -28506,7 +28506,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.openHelp({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.openHelp({\n  ...\n})"
           }
         ]
       }
@@ -28551,7 +28551,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.openSessions({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.openSessions({\n  ...\n})"
           }
         ]
       }
@@ -28596,7 +28596,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.openThemes({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.openThemes({\n  ...\n})"
           }
         ]
       }
@@ -28641,7 +28641,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.openModels({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.openModels({\n  ...\n})"
           }
         ]
       }
@@ -28686,7 +28686,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.submitPrompt({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.submitPrompt({\n  ...\n})"
           }
         ]
       }
@@ -28731,7 +28731,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.clearPrompt({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.clearPrompt({\n  ...\n})"
           }
         ]
       }
@@ -28802,7 +28802,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.executeCommand({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.executeCommand({\n  ...\n})"
           }
         ]
       }
@@ -28874,7 +28874,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.showToast({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.showToast({\n  ...\n})"
           }
         ]
       }
@@ -28951,7 +28951,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.publish({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.publish({\n  ...\n})"
           }
         ]
       }
@@ -29034,7 +29034,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.selectSession({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.selectSession({\n  ...\n})"
           }
         ]
       }
@@ -29087,7 +29087,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.control.next({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.control.next({\n  ...\n})"
           }
         ]
       }
@@ -29139,7 +29139,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.tui.control.response({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.tui.control.response({\n  ...\n})"
           }
         ]
       }
@@ -29200,7 +29200,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.workspace.adapter.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.workspace.adapter.list({\n  ...\n})"
           }
         ]
       }
@@ -29248,7 +29248,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.workspace.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.workspace.list({\n  ...\n})"
           }
         ]
       },
@@ -29338,7 +29338,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.workspace.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.workspace.create({\n  ...\n})"
           }
         ]
       }
@@ -29375,7 +29375,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.workspace.syncList({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.workspace.syncList({\n  ...\n})"
           }
         ]
       }
@@ -29435,7 +29435,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.workspace.status({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.workspace.status({\n  ...\n})"
           }
         ]
       }
@@ -29498,7 +29498,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.workspace.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.workspace.remove({\n  ...\n})"
           }
         ]
       }
@@ -29583,7 +29583,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.experimental.workspace.warp({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.experimental.workspace.warp({\n  ...\n})"
           }
         ]
       }
@@ -29627,7 +29627,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.listGoals({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.listGoals({\n  ...\n})"
           }
         ]
       },
@@ -29708,7 +29708,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.createGoal({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.createGoal({\n  ...\n})"
           }
         ]
       }
@@ -29750,7 +29750,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.getGoal({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.getGoal({\n  ...\n})"
           }
         ]
       },
@@ -29831,7 +29831,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.updateGoal({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.updateGoal({\n  ...\n})"
           }
         ]
       },
@@ -29871,7 +29871,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.deleteGoal({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.deleteGoal({\n  ...\n})"
           }
         ]
       }
@@ -29913,7 +29913,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.goal.getGoalProgress({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.getGoalProgress({\n  ...\n})"
           }
         ]
       }
@@ -29957,7 +29957,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.listWorkflows({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.listWorkflows({\n  ...\n})"
           }
         ]
       },
@@ -30054,7 +30054,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.createWorkflow({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.createWorkflow({\n  ...\n})"
           }
         ]
       }
@@ -30096,7 +30096,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.getWorkflow({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.getWorkflow({\n  ...\n})"
           }
         ]
       },
@@ -30161,7 +30161,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.updateWorkflow({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.updateWorkflow({\n  ...\n})"
           }
         ]
       },
@@ -30201,7 +30201,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.deleteWorkflow({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.deleteWorkflow({\n  ...\n})"
           }
         ]
       }
@@ -30243,7 +30243,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.startWorkflow({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.startWorkflow({\n  ...\n})"
           }
         ]
       }
@@ -30287,7 +30287,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.listWorkflowRuns({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.listWorkflowRuns({\n  ...\n})"
           }
         ]
       }
@@ -30322,7 +30322,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.listWorkflowTemplates({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.listWorkflowTemplates({\n  ...\n})"
           }
         ]
       }
@@ -30386,7 +30386,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.workflow.createWorkflowFromTemplate({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.createWorkflowFromTemplate({\n  ...\n})"
           }
         ]
       }
@@ -30430,7 +30430,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.listOrchestratorPlans({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.orchestrator.listOrchestratorPlans({\n  ...\n})"
           }
         ]
       },
@@ -30512,7 +30512,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.createOrchestratorPlan({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.orchestrator.createOrchestratorPlan({\n  ...\n})"
           }
         ]
       }
@@ -30554,7 +30554,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.getOrchestratorPlan({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.orchestrator.getOrchestratorPlan({\n  ...\n})"
           }
         ]
       },
@@ -30594,7 +30594,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.deleteOrchestratorPlan({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.orchestrator.deleteOrchestratorPlan({\n  ...\n})"
           }
         ]
       }
@@ -30636,7 +30636,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.orchestrator.executeOrchestratorPlan({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.orchestrator.executeOrchestratorPlan({\n  ...\n})"
           }
         ]
       }
@@ -30688,7 +30688,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.overview({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.overview({\n  ...\n})"
           }
         ]
       }
@@ -30787,7 +30787,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.message({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.message({\n  ...\n})"
           }
         ]
       }
@@ -30835,7 +30835,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.list({\n  ...\n})"
           }
         ]
       },
@@ -30931,7 +30931,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.create({\n  ...\n})"
           }
         ]
       }
@@ -30993,7 +30993,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.detail({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.detail({\n  ...\n})"
           }
         ]
       },
@@ -31087,7 +31087,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.update({\n  ...\n})"
           }
         ]
       },
@@ -31148,7 +31148,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.remove({\n  ...\n})"
           }
         ]
       }
@@ -31242,7 +31242,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.member.add({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.member.add({\n  ...\n})"
           }
         ]
       }
@@ -31337,7 +31337,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.member.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.member.update({\n  ...\n})"
           }
         ]
       },
@@ -31406,7 +31406,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.member.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.member.remove({\n  ...\n})"
           }
         ]
       }
@@ -31472,7 +31472,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.message.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.message.list({\n  ...\n})"
           }
         ]
       },
@@ -31565,7 +31565,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.message.send({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.team.message.send({\n  ...\n})"
           }
         ]
       }
@@ -31613,7 +31613,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.profile.list({\n  ...\n})"
           }
         ]
       },
@@ -31706,7 +31706,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.profile.create({\n  ...\n})"
           }
         ]
       }
@@ -31768,7 +31768,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.detail({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.profile.detail({\n  ...\n})"
           }
         ]
       },
@@ -31881,7 +31881,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.profile.update({\n  ...\n})"
           }
         ]
       },
@@ -31942,7 +31942,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.profile.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.profile.remove({\n  ...\n})"
           }
         ]
       }
@@ -31990,7 +31990,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.employee.list({\n  ...\n})"
           }
         ]
       },
@@ -32076,7 +32076,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.employee.create({\n  ...\n})"
           }
         ]
       }
@@ -32184,7 +32184,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.employee.update({\n  ...\n})"
           }
         ]
       }
@@ -32246,7 +32246,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.record({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.employee.record({\n  ...\n})"
           }
         ]
       }
@@ -32308,7 +32308,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.employee.usage({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.employee.usage({\n  ...\n})"
           }
         ]
       }
@@ -32356,7 +32356,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mission.list({\n  ...\n})"
           }
         ]
       },
@@ -32427,7 +32427,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mission.create({\n  ...\n})"
           }
         ]
       }
@@ -32489,7 +32489,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.detail({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mission.detail({\n  ...\n})"
           }
         ]
       },
@@ -32576,7 +32576,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.update({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mission.update({\n  ...\n})"
           }
         ]
       }
@@ -32638,7 +32638,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.diff({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mission.diff({\n  ...\n})"
           }
         ]
       }
@@ -32710,7 +32710,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.mission.cleanup({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.mission.cleanup({\n  ...\n})"
           }
         ]
       }
@@ -32766,7 +32766,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.list({\n  ...\n})"
           }
         ]
       },
@@ -32934,7 +32934,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.create({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.create({\n  ...\n})"
           }
         ]
       }
@@ -33003,7 +33003,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.metrics({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.metrics({\n  ...\n})"
           }
         ]
       }
@@ -33065,7 +33065,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.detail({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.detail({\n  ...\n})"
           }
         ]
       }
@@ -33233,7 +33233,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.plan({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.plan({\n  ...\n})"
           }
         ]
       }
@@ -33430,7 +33430,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.approve({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.approve({\n  ...\n})"
           }
         ]
       }
@@ -33528,7 +33528,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.policy({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.policy({\n  ...\n})"
           }
         ]
       }
@@ -33669,7 +33669,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.acceptance.add({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.acceptance.add({\n  ...\n})"
           }
         ]
       }
@@ -33874,7 +33874,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.execute({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.execute({\n  ...\n})"
           }
         ]
       }
@@ -33950,7 +33950,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.worktrees.remove({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.worktrees.remove({\n  ...\n})"
           }
         ]
       }
@@ -34022,7 +34022,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.merge({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.merge({\n  ...\n})"
           }
         ]
       }
@@ -34084,7 +34084,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.denials.clear({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.denials.clear({\n  ...\n})"
           }
         ]
       }
@@ -34146,7 +34146,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.cancel({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.cancel({\n  ...\n})"
           }
         ]
       }
@@ -34243,7 +34243,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.op.review({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.op.review({\n  ...\n})"
           }
         ]
       }
@@ -34309,7 +34309,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.events({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.events({\n  ...\n})"
           }
         ]
       }
@@ -34371,7 +34371,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.run.replay({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.replay({\n  ...\n})"
           }
         ]
       }
@@ -34467,7 +34467,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.platformWebview.list({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.platformWebview.list({\n  ...\n})"
           }
         ]
       }
@@ -34561,7 +34561,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.platformWebview.resolve({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.platformWebview.resolve({\n  ...\n})"
           }
         ]
       }
@@ -34635,7 +34635,7 @@
         "x-codeSamples": [
           {
             "lang": "js",
-            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.pty.connect({\n  ...\n})"
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.pty.connect({\n  ...\n})"
           }
         ]
       }
