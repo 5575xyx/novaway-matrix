@@ -40,6 +40,7 @@ import { Provider } from "@/provider/provider"
 import { Pty } from "@/pty"
 import { PtyTicket } from "@/pty/ticket"
 import { Question } from "@/question"
+import { PlatformWebview } from "@/platform-webview"
 import { Reference } from "@/reference/reference"
 import { Stats } from "@/stats/service"
 import { defaultLayer as TeamProfileLayer } from "@/team/profile"
@@ -104,6 +105,7 @@ import { projectHandlers } from "./handlers/project"
 import { providerHandlers } from "./handlers/provider"
 import { ptyConnectRoute, ptyHandlers } from "./handlers/pty"
 import { questionHandlers } from "./handlers/question"
+import { platformWebviewHandlers } from "./handlers/platform-webview"
 import { elicitationHandlers } from "./handlers/elicitation"
 import { sessionHandlers } from "./handlers/session"
 import { settingsHandlers } from "./handlers/settings"
@@ -209,6 +211,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     projectHandlers,
     ptyHandlers,
     questionHandlers,
+    platformWebviewHandlers,
     elicitationHandlers,
     permissionHandlers,
     providerHandlers,
@@ -308,6 +311,7 @@ export function createRoutes(
       Pty.defaultLayer,
       PtyTicket.defaultLayer,
       Question.defaultLayer,
+      PlatformWebview.defaultLayer,
       Elicitation.defaultLayer,
       Reference.defaultLayer,
       Ripgrep.defaultLayer,

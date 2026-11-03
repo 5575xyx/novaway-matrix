@@ -62,6 +62,9 @@ export function preferAppEnv(userDataPath: string) {
     NovaWay_EXPERIMENTAL_ICON_DISCOVERY: "true",
     NovaWay_EXPERIMENTAL_FILEWATCHER: "true",
     NovaWay_CLIENT: "desktop",
+    // 桌面壳能做的、普通浏览器标签页做不到的：内嵌 webview（运营工作台那块已登录的
+    // 平台页面）。内核据此决定要不要注入 webview_* 工具。
+    NovaWay_CLIENT_CAPABILITIES: "question,tui,webview",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })
 }

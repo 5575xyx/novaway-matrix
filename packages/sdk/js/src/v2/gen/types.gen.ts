@@ -57,6 +57,8 @@ export type Event =
   | EventDocumentReviewRequested
   | EventDocumentReviewResolved
   | EventBrowserNavigated
+  | EventPlatformWebviewRequest
+  | EventPlatformWebviewResolved
   | EventVcsBranchUpdated
   | EventWorkspaceReady
   | EventWorkspaceFailed
@@ -967,6 +969,8 @@ export type GlobalEvent = {
     | EventDocumentReviewRequested
     | EventDocumentReviewResolved
     | EventBrowserNavigated
+    | EventPlatformWebviewRequest
+    | EventPlatformWebviewResolved
     | EventVcsBranchUpdated
     | EventWorkspaceReady
     | EventWorkspaceFailed
@@ -5064,6 +5068,31 @@ export type EventBrowserNavigated = {
   properties: {
     sessionID: string
     url: string
+  }
+}
+
+export type EventPlatformWebviewRequest = {
+  id: string
+  type: "platform.webview.request"
+  properties: {
+    id: string
+    sessionID: string
+    action: "status" | "script" | "navigate" | "screenshot"
+    target?: string
+    script?: string
+    url?: string
+    timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type EventPlatformWebviewResolved = {
+  id: string
+  type: "platform.webview.resolved"
+  properties: {
+    requestID: string
+    ok: boolean
+    data?: unknown
+    error?: string
   }
 }
 
@@ -13503,6 +13532,71 @@ export type QuestionRejectResponses = {
 }
 
 export type QuestionRejectResponse = QuestionRejectResponses[keyof QuestionRejectResponses]
+
+export type PlatformWebviewListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/platform/webview"
+}
+
+export type PlatformWebviewListResponses = {
+  /**
+   * Pending webview requests
+   */
+  200: Array<{
+    id: string
+    sessionID: string
+    action: "status" | "script" | "navigate" | "screenshot"
+    target?: string
+    script?: string
+    url?: string
+    timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type PlatformWebviewListResponse = PlatformWebviewListResponses[keyof PlatformWebviewListResponses]
+
+export type PlatformWebviewResolveData = {
+  body?: {
+    ok: boolean
+    data?: unknown
+    error?: string
+  }
+  path: {
+    requestID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/platform/webview/{requestID}/result"
+}
+
+export type PlatformWebviewResolveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PlatformWebviewResolveError = PlatformWebviewResolveErrors[keyof PlatformWebviewResolveErrors]
+
+export type PlatformWebviewResolveResponses = {
+  /**
+   * Result accepted
+   */
+  200: boolean
+}
+
+export type PlatformWebviewResolveResponse = PlatformWebviewResolveResponses[keyof PlatformWebviewResolveResponses]
 
 export type ElicitationListData = {
   body?: never

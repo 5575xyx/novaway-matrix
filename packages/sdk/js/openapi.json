@@ -34376,6 +34376,196 @@
         ]
       }
     },
+    "/platform/webview": {
+      "get": {
+        "tags": ["platform-webview"],
+        "operationId": "platformWebview.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending webview requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^wv"
+                      },
+                      "sessionID": {
+                        "type": "string",
+                        "pattern": "^ses"
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": ["status", "script", "navigate", "screenshot"]
+                      },
+                      "target": {
+                        "type": "string"
+                      },
+                      "script": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "timeoutMs": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["id", "sessionID", "action"],
+                    "additionalProperties": false
+                  },
+                  "description": "Pending webview requests"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requests waiting for the desktop client to act on the embedded platform browser.",
+        "summary": "List pending webview requests",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.platformWebview.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/platform/webview/{requestID}/result": {
+      "post": {
+        "tags": ["platform-webview"],
+        "operationId": "platformWebview.resolve",
+        "parameters": [
+          {
+            "name": "requestID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^wv"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Result accepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "The desktop client reports the outcome of a webview action back to the server.",
+        "summary": "Report a webview result",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "boolean"
+                  },
+                  "data": {},
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": ["ok"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.platformWebview.resolve({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/pty/{ptyID}/connect": {
       "get": {
         "tags": ["pty"],
@@ -34820,6 +35010,12 @@
           },
           {
             "$ref": "#/components/schemas/EventSessionNextCompactionEnded"
+          },
+          {
+            "$ref": "#/components/schemas/EventPlatformWebviewRequest"
+          },
+          {
+            "$ref": "#/components/schemas/EventPlatformWebviewResolved"
           }
         ]
       },
@@ -37788,6 +37984,12 @@
               },
               {
                 "$ref": "#/components/schemas/SyncEventSessionNextCompactionEnded"
+              },
+              {
+                "$ref": "#/components/schemas/EventPlatformWebviewRequest"
+              },
+              {
+                "$ref": "#/components/schemas/EventPlatformWebviewResolved"
               }
             ]
           }
@@ -56214,6 +56416,103 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventPlatformWebviewRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["platform.webview.request"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^wv"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["status", "script", "navigate", "screenshot"]
+              },
+              "target": {
+                "type": "string"
+              },
+              "script": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "timeoutMs": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "required": ["id", "sessionID", "action"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventPlatformWebviewResolved": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["platform.webview.resolved"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "requestID": {
+                "type": "string",
+                "pattern": "^wv"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "data": {},
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["requestID", "ok"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "EventPermissionReplied": {
         "type": "object",
         "properties": {
@@ -60649,6 +60948,10 @@
     {
       "name": "pty",
       "description": "PTY websocket route."
+    },
+    {
+      "name": "platform-webview",
+      "description": "Embedded platform browser routes."
     }
   ]
 }

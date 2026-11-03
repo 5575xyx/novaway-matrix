@@ -1,5 +1,6 @@
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { PLATFORM_LIST } from "@/context/platform-accounts"
+import { registerWebview } from "./platform-webview-registry"
 
 const WEBVIEW_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0"
@@ -27,6 +28,47 @@ export function PlatformWebView(props: PlatformWebViewProps) {
   onMount(() => {
     const wv = webviewRef
     if (!wv) return
+
+    // 让服务端的 webview_* 工具找到这块页面：登记表只装"用户眼前正显示着"的 webview，
+    // 组件卸载即注销，模型因此不会操作一个看不见的后台页面。
+    const unregister = registerWebview({
+      platform: props.platform,
+      accountId: props.accountId,
+      nickname: props.nickname,
+      ready: () => !loading() && !!webviewRef,
+      getURL: () => String(webviewRef?.getURL?.() ?? ""),
+      getTitle: () => String(webviewRef?.getTitle?.() ?? ""),
+      execute: async (script) => {
+        if (!webviewRef) throw new Error("平台页面还没有打开")
+        return await webviewRef.executeJavaScript(script, true)
+      },
+      navigate: (url, timeoutMs) =>
+        new Promise((resolve, reject) => {
+          const target = webviewRef
+          if (!target) {
+            reject(new Error("平台页面还没有打开"))
+            return
+          }
+          let timer = 0
+          const finish = () => {
+            clearTimeout(timer)
+            target.removeEventListener("did-finish-load", finish)
+            target.removeEventListener("did-fail-load", finish)
+            resolve({ url: String(target.getURL?.() ?? url), title: String(target.getTitle?.() ?? "") })
+          }
+          timer = window.setTimeout(finish, timeoutMs)
+          target.addEventListener("did-finish-load", finish)
+          target.addEventListener("did-fail-load", finish)
+          void Promise.resolve(target.loadURL(url)).catch(() => finish())
+        }),
+      capture: async () => {
+        const target = webviewRef
+        if (!target?.capturePage) return undefined
+        const image = await target.capturePage()
+        return image?.toDataURL?.()
+      },
+    })
+    onCleanup(unregister)
 
     wv.addEventListener("dom-ready", async () => {
       const currentUrl = wv.getURL()

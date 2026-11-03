@@ -422,6 +422,9 @@ import type {
   PermissionRespondErrors,
   PermissionRespondResponses,
   PermissionRuleset,
+  PlatformWebviewListResponses,
+  PlatformWebviewResolveErrors,
+  PlatformWebviewResolveResponses,
   ProfileCreateErrors,
   ProfileCreateResponses,
   ProfileDetailErrors,
@@ -8706,6 +8709,85 @@ export class Question extends HeyApiClient {
   }
 }
 
+export class PlatformWebview extends HeyApiClient {
+  /**
+   * List pending webview requests
+   *
+   * Requests waiting for the desktop client to act on the embedded platform browser.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PlatformWebviewListResponses, unknown, ThrowOnError>({
+      url: "/platform/webview",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Report a webview result
+   *
+   * The desktop client reports the outcome of a webview action back to the server.
+   */
+  public resolve<ThrowOnError extends boolean = false>(
+    parameters: {
+      requestID: string
+      directory?: string
+      workspace?: string
+      ok?: boolean
+      data?: unknown
+      error?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "requestID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "ok" },
+            { in: "body", key: "data" },
+            { in: "body", key: "error" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      PlatformWebviewResolveResponses,
+      PlatformWebviewResolveErrors,
+      ThrowOnError
+    >({
+      url: "/platform/webview/{requestID}/result",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Elicitation extends HeyApiClient {
   /**
    * List pending MCP elicitation requests
@@ -15072,6 +15154,11 @@ export class OpencodeClient extends HeyApiClient {
   private _question?: Question
   get question(): Question {
     return (this._question ??= new Question({ client: this.client }))
+  }
+
+  private _platformWebview?: PlatformWebview
+  get platformWebview(): PlatformWebview {
+    return (this._platformWebview ??= new PlatformWebview({ client: this.client }))
   }
 
   private _elicitation?: Elicitation

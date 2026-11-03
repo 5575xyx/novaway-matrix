@@ -13,6 +13,12 @@ export const Name = Schema.Literals([
   "plan",
   /** Can render a terminal UI (`/tui/*` routes). */
   "tui",
+  /**
+   * Can show an embedded, already-logged-in platform browser and run page
+   * actions in it (`webview_*` tools). Only desktop shells with the 运营工作台
+   * have this; a plain browser tab cannot drive `<webview>`.
+   */
+  "webview",
 ])
 export type Name = Schema.Schema.Type<typeof Name>
 
@@ -27,8 +33,8 @@ export const Names: readonly Name[] = Name.literals
  */
 const LEGACY: Record<string, readonly Name[]> = {
   cli: ["question", "plan", "tui"],
-  app: ["question"],
-  desktop: ["question", "tui"],
+  app: ["question", "webview"],
+  desktop: ["question", "tui", "webview"],
   // ACP speaks the protocol, not a UI: it renders nothing itself.
   acp: [],
 }

@@ -9,6 +9,7 @@ import { DevServerProvider } from "@/context/dev-server"
 import { PreviewProvider } from "@/context/preview"
 import { SDKProvider } from "@/context/sdk"
 import { SyncProvider, useSync } from "@/context/sync"
+import { WebviewAutomationProvider } from "@/context/webview-automation"
 import { useLayout } from "@/context/layout"
 import { sidePaneSubagentTabId } from "@/context/layout"
 import { decode64 } from "@/utils/base64"
@@ -103,11 +104,15 @@ export default function Layout(props: ParentProps) {
       {(resolved) => (
         <SDKProvider directory={() => resolved}>
           <SyncProvider>
-            <PreviewProvider directory={() => resolved}>
-              <DevServerProvider>
-                <DirectoryDataProvider directory={resolved}>{props.children}</DirectoryDataProvider>
-              </DevServerProvider>
-            </PreviewProvider>
+            {/* 内嵌浏览器的操作通道：服务端来的 platform.webview.request 在这里落到
+                运营工作台那块已经登录好的页面上（见 pages/pulse/PlatformWebView）。 */}
+            <WebviewAutomationProvider>
+              <PreviewProvider directory={() => resolved}>
+                <DevServerProvider>
+                  <DirectoryDataProvider directory={resolved}>{props.children}</DirectoryDataProvider>
+                </DevServerProvider>
+              </PreviewProvider>
+            </WebviewAutomationProvider>
           </SyncProvider>
         </SDKProvider>
       )}

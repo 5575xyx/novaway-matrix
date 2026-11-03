@@ -69,6 +69,17 @@ import {
   BrowserSnapshotTool,
 } from "./browser"
 import { BrowserService } from "@/browser/browser"
+import {
+  WebviewClickTool,
+  WebviewFillTool,
+  WebviewNavigateTool,
+  WebviewPressTool,
+  WebviewScreenshotTool,
+  WebviewScriptTool,
+  WebviewSnapshotTool,
+  WebviewStatusTool,
+} from "./webview"
+import { PlatformWebview } from "@/platform-webview"
 import { PdfCreateTool } from "./pdf"
 import { Database as DatabaseModule } from "@/database"
 import * as Tool from "./tool"
@@ -219,6 +230,15 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   browser_fill: { concurrencySafe: false, destructive: true, deferLoading: true },
   browser_press: { concurrencySafe: false, destructive: true, deferLoading: true },
   browser_close: { concurrencySafe: false, idempotent: true },
+  // 内嵌浏览器（运营工作台里那块已登录的平台页面）：读页面安全，其余会真实改变平台状态。
+  webview_status: { readOnly: true, concurrencySafe: false, idempotent: true },
+  webview_snapshot: { readOnly: true, concurrencySafe: false, idempotent: true },
+  webview_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true },
+  webview_click: { concurrencySafe: false, destructive: true },
+  webview_fill: { concurrencySafe: false, destructive: true },
+  webview_press: { concurrencySafe: false, destructive: true },
+  webview_script: { concurrencySafe: false, destructive: true, deferLoading: true },
+  webview_navigate: { concurrencySafe: false },
   // 生成 PDF：写新文件（不动已有内容），但同一个输入重跑结果一致。
   pdf_create: { concurrencySafe: false, idempotent: true },
   read: { readOnly: true, concurrencySafe: true, idempotent: true, maxResultBytes: 400_000 },
@@ -557,6 +577,14 @@ export const layer: Layer.Layer<
     const browserNetwork = yield* BrowserNetworkTool
     const browserAccessibility = yield* BrowserAccessibilityTool
     const browserClose = yield* BrowserCloseTool
+    const webviewStatus = yield* WebviewStatusTool
+    const webviewSnapshot = yield* WebviewSnapshotTool
+    const webviewClick = yield* WebviewClickTool
+    const webviewFill = yield* WebviewFillTool
+    const webviewPress = yield* WebviewPressTool
+    const webviewNavigate = yield* WebviewNavigateTool
+    const webviewScript = yield* WebviewScriptTool
+    const webviewScreenshot = yield* WebviewScreenshotTool
     const pdfCreate = yield* PdfCreateTool
     const goal = yield* optional(Goal.Service, GoalTool)
     const workflow = yield* optional(WorkflowService, WorkflowTool)
@@ -700,6 +728,9 @@ export const layer: Layer.Layer<
         // Capability, not identity: a shell that renders prompts declares
         // `question` and gets the tool regardless of what it calls itself.
         const questionEnabled = capabilities.has("question") || flags.enableQuestionTool
+        // 内嵌浏览器只有桌面壳能提供：普通浏览器标签页驱动不了 <webview>。
+        // 能力不到就不注入 —— 模型看不到入口，自然不会去调一个必然超时的工具。
+        const webviewEnabled = capabilities.has("webview")
         // 后台并行开关:配置优先(可被 /后台并行 切换),回退运行时 flag。
         const backgroundSubagentsEnabled =
           cfg.experimental?.background_subagents ?? flags.experimentalBackgroundSubagents
@@ -787,6 +818,14 @@ export const layer: Layer.Layer<
           browser_network: Tool.init(browserNetwork),
           browser_accessibility: Tool.init(browserAccessibility),
           browser_close: Tool.init(browserClose),
+          webview_status: Tool.init(webviewStatus),
+          webview_snapshot: Tool.init(webviewSnapshot),
+          webview_click: Tool.init(webviewClick),
+          webview_fill: Tool.init(webviewFill),
+          webview_press: Tool.init(webviewPress),
+          webview_navigate: Tool.init(webviewNavigate),
+          webview_script: Tool.init(webviewScript),
+          webview_screenshot: Tool.init(webviewScreenshot),
           pdf_create: Tool.init(pdfCreate),
           goal: goal ? Tool.init(goal) : Effect.succeed(undefined),
           workflow: workflow ? Tool.init(workflow) : Effect.succeed(undefined),
@@ -924,6 +963,18 @@ export const layer: Layer.Layer<
           tool.browser_network,
           tool.browser_accessibility,
           tool.browser_close,
+          ...(webviewEnabled
+            ? [
+                tool.webview_status,
+                tool.webview_snapshot,
+                tool.webview_click,
+                tool.webview_fill,
+                tool.webview_press,
+                tool.webview_navigate,
+                tool.webview_script,
+                tool.webview_screenshot,
+              ]
+            : []),
           tool.pdf_create,
           tool.goal!,
           tool.workflow!,
