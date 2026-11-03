@@ -85,8 +85,8 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         />
       </div>
       {/* 三栏：账号列表 / 账号详情（平台网页） / 运营对话。
-          对话是真实的服务端会话（固定 pulse-orchestrator 主智能体），渲染和输入框
-          都复用标准那套（Message / AssistantParts / 同样的输入框外壳）。 */}
+          对话是**一条普通会话**，区别只在角色固定成 pulse-orchestrator：输入框与
+          消息渲染都用会话页那套（PromptInput / Message / AssistantParts）。 */}
       <div class="flex min-h-0 flex-1">
         <div class="w-60 shrink-0 overflow-y-auto border-r border-border bg-background-alt/40">
           <PulseSidebar />
@@ -97,7 +97,7 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         <Show when={chatOpen()}>
           <div
             data-slot="pulse-chat-column"
-            class="flex w-[380px] max-w-[46%] shrink-0 flex-col overflow-hidden border-l border-border bg-background"
+            class="flex w-[440px] min-w-[380px] max-w-[48%] shrink-0 flex-col overflow-hidden border-l border-border bg-background"
           >
             {/* 没选项目就没有目录，建不了会话 —— 提示一句，而不是让对话区空转。 */}
             <Show

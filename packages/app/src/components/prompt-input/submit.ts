@@ -200,6 +200,11 @@ type PromptSubmitInput = {
   onAbort?: () => void
   onSubmit?: () => void
   transformPrompt?: (prompt: Prompt) => Prompt | { prompt: Prompt; syntheticText?: string }
+  /**
+   * 固定角色（嵌入场景，如运营工作台）：给了它就跳过"按模式推断角色"的逻辑，
+   * 也不用去动 local 里的角色选择 —— 那个选择属于整个工作区，不该被面板改掉。
+   */
+  agentOverride?: () => string | undefined
 }
 
 type CommentItem = {
@@ -315,7 +320,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     const text = currentPrompt.map((part) => ("content" in part ? part.content : "")).join("")
 
     const currentModel = local.model.current()
-    const currentAgent = local.agent.current()
+    const overrideAgent = input.agentOverride?.()
+    const currentAgent = overrideAgent ? { name: overrideAgent } : local.agent.current()
     const variant = local.model.variant.current()
     if (!currentModel || !currentAgent) {
       showToast({
@@ -425,13 +431,16 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       modelID: finalModel.id,
       providerID: finalModel.provider.id,
     }
-    const agent = forgeAgentForPrompt({
-      mode: layout.mode.current(),
-      current: currentAgent.name,
-      text,
-      promptMode: mode,
-    })
-    if (agent !== currentAgent.name) {
+    // 固定角色（嵌入场景）不做模式推断：运营工作台的输入框永远发给运营主智能体。
+    const agent =
+      overrideAgent ??
+      forgeAgentForPrompt({
+        mode: layout.mode.current(),
+        current: currentAgent.name,
+        text,
+        promptMode: mode,
+      })
+    if (!overrideAgent && agent !== currentAgent.name) {
       local.agent.set(agent)
     }
     if (!agent) {

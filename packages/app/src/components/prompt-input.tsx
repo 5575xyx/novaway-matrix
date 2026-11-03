@@ -36,6 +36,7 @@ import { PermissionModeSelect } from "@/components/permission-mode-select"
 import { TeamModeSelect } from "@/components/team-mode-select"
 import { SessionBackgroundTrigger } from "@/components/session-background-trigger"
 import { agentForPermission, permissionForAgent } from "@/context/agent-permission"
+import type { AssistantMessage, Session } from "@novaway/sdk/v2"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { ThinkingEffortPopover } from "@/components/thinking-effort-popover"
@@ -92,6 +93,13 @@ interface PromptInputProps {
   onQueue?: (draft: FollowupDraft) => void
   onAbort?: () => void
   onSubmit?: () => void
+  /**
+   * 显式会话：嵌在**非会话路由**里的输入框（运营工作台）用它代替路由参数。
+   * 传了它就不会走"新建会话 + 跳转"那条路，消息直接发给这条会话。
+   */
+  session?: Session
+  /** 固定角色：嵌入场景绑定主 Agent（运营工作台固定 pulse-orchestrator）。 */
+  agent?: string
 }
 
 const EXAMPLES = [
@@ -228,10 +236,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   }).activeFileTab
 
   const commentInReview = (path: string) => {
-    const sessionID = params.id
-    if (!sessionID) return false
+    const id = sessionID()
+    if (!id) return false
 
-    const diffs = sync.data.session_diff[sessionID]
+    const diffs = sync.data.session_diff[id]
     if (!diffs) return false
     return diffs.some((diff) => diff.file === path)
   }
@@ -292,26 +300,62 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
     return paths
   })
-  const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
-  const working = createMemo(() => sync.data.session_working(params.id ?? ""))
+  // 这个输入框作用在**哪条会话**上：嵌入场景（运营工作台）由 props.session 指定，
+  // 否则就是路由里的会话。下面所有"按会话取状态"的地方都用它，而不是光看 params.id。
+  const sessionID = createMemo(() => props.session?.id ?? params.id)
+  const info = createMemo(() => {
+    const id = sessionID()
+    return id ? sync.session.get(id) : undefined
+  })
+  const working = createMemo(() => sync.data.session_working(sessionID() ?? ""))
   // 输入框左上角的「工作中 · X」：与聊天区的轮首指示同一套文案，
   // 让用户在盯着输入框等待/准备插话时也知道任务还在跑、已经跑了多久。
-  const [workStartedAt, setWorkStartedAt] = createSignal<number>()
+  //
+  // 起点必须取当前轮用户消息的 time.created（与聊天区轮首/思考行同源），
+  // 不能用 session_working 的上升沿：代理停下来等 question/permission 时
+  // 状态会短暂落回 idle，用户回答后重新 busy，沿触发会把计时清零，
+  // 表现为「每答一次问题就从 0 秒重新计时」，和聊天区对不上。
+  const workStart = createMemo(() => {
+    const id = sessionID()
+    if (!id) return undefined
+    const messages = sync.data.message[id]
+    if (!messages || messages.length === 0) return undefined
+    // 当前轮 = 最后一条还没 completed 的助手消息的父用户消息；助手消息还没
+    // 落库时（刚发出、响应未到）退回最后一条用户消息。
+    const pending = messages.findLast(
+      (message): message is AssistantMessage =>
+        message.role === "assistant" && typeof message.time.completed !== "number",
+    )
+    let parentID = pending?.parentID
+    if (!parentID) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "user") {
+          parentID = messages[i].id
+          break
+        }
+      }
+    }
+    if (!parentID) return undefined
+    let start: number | undefined
+    for (const message of messages) {
+      // 这一轮的消息：轮首的用户消息本身，或以它为父的助手消息。
+      const belongs =
+        message.id === parentID || (message.role === "assistant" && (message as AssistantMessage).parentID === parentID)
+      if (!belongs) continue
+      const created = message.time?.created
+      if (typeof created !== "number") continue
+      start = start === undefined ? created : Math.min(start, created)
+    }
+    return start
+  })
   const [workNow, setWorkNow] = createSignal(Date.now())
-  createEffect(
-    on(working, (running, previous) => {
-      if (!running) return
-      if (!previous) setWorkStartedAt(Date.now())
-      setWorkNow(Date.now())
-    }),
-  )
   createEffect(() => {
     if (!working()) return
     const timer = setInterval(() => setWorkNow(Date.now()), 1000)
     onCleanup(() => clearInterval(timer))
   })
   const workLabel = createMemo(() => {
-    const start = workStartedAt()
+    const start = working() ? workStart() : undefined
     if (start === undefined) return language.t("session.turn.fold.working")
     const seconds = Math.max(0, Math.floor((workNow() - start) / 1000))
     if (seconds < 60) return language.t("session.turn.fold.workingSec", { seconds })
@@ -330,16 +374,20 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   createEffect(
     on(
       () => {
-        const id = params.id
+        // 固定角色的嵌入输入框（运营工作台）不做这层联动：角色是人定死的。
+        if (props.agent) return ""
+        const id = sessionID()
         if (!id) return ""
         const session = sync.session.get(id)
         if (!session) return ""
         return `${id}:${(session as { permissionMode?: string }).permissionMode ?? ""}`
       },
       (key) => {
-        if (!key || !params.id) return
+        if (!key || props.agent) return
+        const id = sessionID()
+        if (!id) return
         if (!local.agent.current()?.name) return
-        const next = agentForPermission(permission.mode(params.id, sdk.directory), local.agent.current()?.name)
+        const next = agentForPermission(permission.mode(id, sdk.directory), local.agent.current()?.name)
         if (next) local.agent.set(next)
       },
     ),
@@ -470,9 +518,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   const hasUserPrompt = createMemo(() => {
-    const sessionID = params.id
-    if (!sessionID) return false
-    const messages = sync.data.message[sessionID]
+    const id = sessionID()
+    if (!id) return false
+    const messages = sync.data.message[id]
     if (!messages) return false
     return messages.some((m) => m.role === "user")
   })
@@ -760,7 +808,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         }),
       ),
   )
-  const agentNames = createMemo(() => local.agent.list().map((agent) => agent.name))
+  const agentNames = createMemo(() => {
+    const names = local.agent.list().map((agent) => agent.name)
+    // 固定角色的嵌入场景（运营工作台）：当前模式可能把运营主智能体过滤掉了
+    // （比如用户开着编码模式），但这里必须显示它，否则角色控件是空的。
+    if (!props.agent || names.includes(props.agent)) return names
+    return [props.agent, ...names]
+  })
 
   const insertRuleMention = (name: string) => {
     const selection = window.getSelection()
@@ -1426,7 +1480,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return result
   }
   const accepting = createMemo(() => {
-    const id = params.id
+    const id = sessionID()
     if (!id) return permission.isAutoAcceptingDirectory(sdk.directory)
     return permission.isAutoAccepting(id, sdk.directory)
   })
@@ -1440,7 +1494,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     imageAttachments,
     commentCount,
     autoAccept: () => accepting(),
-    permissionMode: () => permission.mode(params.id, sdk.directory),
+    permissionMode: () => permission.mode(sessionID(), sdk.directory),
     mode: () => store.mode,
     working,
     editor: () => editorRef,
@@ -1459,6 +1513,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onAbort: props.onAbort,
     onSubmit: props.onSubmit,
     transformPrompt,
+    agentOverride: () => props.agent,
   })
   let submittedAutoKey: string | undefined
 
@@ -1868,7 +1923,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               </div>
             </Show>
             <Show
-              when={zenOfficeMode() || forgeAutoAgentMode()}
+              // 固定角色的嵌入输入框（运营工作台）始终显示角色：办公/编码模式下
+              // 这里本该换成插件行或藏起来，但那个角色正是这块面板的全部意义。
+              when={!props.agent && (zenOfficeMode() || forgeAutoAgentMode())}
               fallback={
                 <Show when={!agentsLoading()}>
                   <div
@@ -1884,15 +1941,20 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       <Select
                         size="normal"
                         options={agentNames()}
-                        current={local.agent.current()?.name ?? ""}
+                        current={props.agent ?? local.agent.current()?.name ?? ""}
                         label={(value) =>
                           agentDisplayName(value, sync.data.agent.find((agent) => agent.name === value)?.options)
                         }
                         onSelect={(value) => {
                           if (!value) return
+                          // 固定角色的嵌入输入框只显示一个角色，点到别的也不该生效。
+                          if (props.agent) {
+                            restoreFocus()
+                            return
+                          }
                           // 选规划蓝图自动进入只读；选其它角色则解除只读。
-                          const next = permissionForAgent(value, permission.mode(params.id, sdk.directory))
-                          if (next) permission.setMode(params.id, sdk.directory, next)
+                          const next = permissionForAgent(value, permission.mode(sessionID(), sdk.directory))
+                          if (next) permission.setMode(sessionID(), sdk.directory, next)
                           local.agent.set(value)
                           restoreFocus()
                         }}
@@ -2025,7 +2087,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             </Show>
             {/* 团队派发入口：紧贴「电脑控制」右侧 —— 两者都是"这一轮交给谁/用什么能力"的开关，
                 放同一行比塞进底栏（模式和用量之间）更好找。没有可选团队时它自己不渲染。 */}
-            <TeamModeSelect sessionID={params.id} />
+            <TeamModeSelect sessionID={sessionID()} />
             <div class="flex-1 min-w-0" />
           </div>
         </Show>
@@ -2497,9 +2559,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   （也是 ZCode 的摆放：+ 之后跟模式与用量）。 */}
               <div data-component="prompt-auto-accept" class="flex items-center">
                 <PermissionModeSelect
-                  sessionID={params.id}
+                  sessionID={sessionID()}
                   onChange={(mode) => {
                     // 角色与档位保持一致：选计划模式就切到规划蓝图，离开时回到锻造工程。
+                    if (props.agent) return
                     const next = agentForPermission(mode, local.agent.current()?.name)
                     if (next) local.agent.set(next)
                   }}
