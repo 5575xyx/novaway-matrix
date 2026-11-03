@@ -113,7 +113,6 @@ import { SidebarRail, SidebarRailButton, type SidebarRailItem } from "./layout/s
 import { ExtensionsPage } from "./extensions"
 import { KernelPage } from "./kernel"
 import { TeamPage } from "./team"
-import { RunPage } from "./run"
 import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
 
 import { AutomationPage } from "./automation"
@@ -300,9 +299,6 @@ export default function Layout(props: ParentProps) {
     teamPage: {
       open: false,
     },
-    runPage: {
-      open: false,
-    },
     pulsePage: {
       open: false,
     },
@@ -322,7 +318,6 @@ export default function Layout(props: ParentProps) {
     "knowledgePage",
     "kernelPage",
     "teamPage",
-    "runPage",
     "pulsePage",
   ] as const
   type FramePage = (typeof FRAME_PAGES)[number]
@@ -357,7 +352,6 @@ export default function Layout(props: ParentProps) {
   const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
   const kernelTransition = createMountTransition(() => state.kernelPage.open)
   const teamTransition = createMountTransition(() => state.teamPage.open)
-  const runTransition = createMountTransition(() => state.runPage.open)
 
   // 窄窗口下侧栏是浮层（z-50、fixed），盖在上面会让覆盖层的返回按钮点不到。
   // 打开任何整帧页面时先把移动侧栏收起来。
@@ -369,8 +363,7 @@ export default function Layout(props: ParentProps) {
       state.automationPage.open ||
       state.knowledgePage.open ||
       state.kernelPage.open ||
-      state.teamPage.open ||
-      state.runPage.open
+      state.teamPage.open
     ) {
       layout.mobileSidebar.hide()
     }
@@ -1608,20 +1601,6 @@ export default function Layout(props: ParentProps) {
   function openTeamPage() {
     closeFramePages("teamPage")
     setState("teamPage", "open", true)
-  }
-
-  // 从团队页点「最近运行」进来时带上目标运行；从侧栏进来时留空，由运行页挑最近一条。
-  const [runFocus, setRunFocus] = createSignal<string | undefined>(undefined)
-
-  function openRunPage(runID?: string) {
-    setRunFocus(runID)
-    closeFramePages("runPage")
-    setState("runPage", "open", true)
-  }
-
-  function closeRunPage() {
-    setState("runPage", "open", false)
-    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
   function closeTeamPage() {
@@ -3088,14 +3067,6 @@ export default function Layout(props: ParentProps) {
         onClick: openTeamPage,
       },
       {
-        id: "runs",
-        icon: "lu-list-checks",
-        label: language.t("sidebar.runs"),
-        tone: "#8b5cf6",
-        active: state.runPage.open,
-        onClick: openRunPage,
-      },
-      {
         id: "extensions",
         icon: "dot-grid",
         label: language.t("sidebar.extensionsMarket"),
@@ -3178,7 +3149,6 @@ export default function Layout(props: ParentProps) {
         state.knowledgePage.open ||
         state.kernelPage.open ||
         state.teamPage.open ||
-        state.runPage.open ||
         state.pulsePage.open
           ? "true"
           : undefined
@@ -3437,32 +3407,8 @@ export default function Layout(props: ParentProps) {
                       directory={currentDir()}
                       onBack={closeTeamPage}
                       onManageAgents={() => openSettingsFromExtensions("agents")}
-                      onOpenRun={(runID) => openRunPage(runID)}
                       onOpenSession={(sessionID) => {
                         closeTeamPage()
-                        if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
-                      }}
-                    />
-                  </div>
-                </section>
-              </Show>
-              <Show when={runTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={runTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("sidebar.runs")}
-                  aria-hidden={runTransition.closing()}
-                  inert={runTransition.closing()}
-                >
-                  <FrameWindowControls />
-                  <div class="flex-1 min-h-0">
-                    <RunPage
-                      directory={currentDir()}
-                      initialRunID={runFocus()}
-                      onBack={closeRunPage}
-                      onOpenSession={(sessionID) => {
-                        closeRunPage()
                         if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
                       }}
                     />

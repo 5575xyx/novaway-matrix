@@ -11,8 +11,17 @@ import type {
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Tag } from "@novaway/ui/tag"
-import { createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js"
-import { PageHeader } from "@/components/page-header"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  type Accessor,
+  type Component,
+} from "solid-js"
 import { RunGuide, type GuideStep } from "@/components/run-guide"
 import { guideStates } from "@/components/run-guide.steps"
 import { RunLive } from "@/components/run-live"
@@ -52,18 +61,23 @@ const elapsed = (ms: number) => {
  * 四个数字分开显示，未验证永远不会被并进「通过」。
  * 每个数字都能点开看到对应的验收项与实测结果。
  */
-export const RunPage: Component<{
+export const RunConsole: Component<{
   directory: string
-  onBack: () => void
   onOpenSession?: (sessionID: string) => void
-  /** 从团队页「最近运行」进入时直接选中那次运行，不让用户再找一遍。 */
-  initialRunID?: string
+  /** 由外层（团队页的工作线列表）指定看哪一次运行。 */
+  runID?: string
+  /** 把详情回传给外层：团队页用同一份详情画工作线图，不重复拉。 */
+  onDetail?: (detail: RunDetail | undefined) => void
+  /** 新建表单的展开状态由外层控制（左栏的「新建运行」按钮）。 */
+  composing?: boolean
+  onComposingChange?: (open: boolean) => void
+  /** 刚建好一次运行：外层据此刷新自己的工作线列表并选中它。 */
+  onCreated?: (runID: string) => void
 }> = (props) => {
   const sdk = useGlobalSDK()
   const language = useLanguage()
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
 
-  const [runs, setRuns] = createSignal<RunView[]>([])
   const [selected, setSelected] = createSignal<string | undefined>(undefined)
   const [detail, setDetail] = createSignal<RunDetail | undefined>(undefined)
   const [error, setError] = createSignal("")
@@ -123,23 +137,11 @@ export const RunPage: Component<{
   const [loadingReplay, setLoadingReplay] = createSignal(false)
   const NEW_MISSION = "__new"
 
-  const loadRuns = async (select?: string) => {
-    try {
-      const result = await sdk.client.run.list({ directory: props.directory })
-      const list = result.data ?? []
-      setRuns(list)
-      setError("")
-      // 外部点进来指定的运行优先于「之前选的那条」：用户的心智是「打开我刚点的那次」。
-      // 只有它确实在本目录的列表里才采用，避免拿着别的项目的 id 显示空白详情。
-      const requested = select ?? props.initialRunID
-      const next =
-        (requested && list.some((run) => run.id === requested) ? requested : undefined) ?? selected() ?? list[0]?.id
-      setSelected(next)
-      if (next) await loadDetail(next)
-      else setDetail(undefined)
-    } catch (err) {
-      setError(errorMessage(err))
-    }
+  /** 新建表单的开关：嵌入时听外层的（团队页左栏的按钮），单页时自己管。 */
+  const composingOpen = () => props.composing ?? composing()
+  const setComposingOpen = (open: boolean) => {
+    setComposing(open)
+    props.onComposingChange?.(open)
   }
 
   const loadDetail = async (runID: string) => {
@@ -258,7 +260,6 @@ export const RunPage: Component<{
     try {
       await action()
       await reload()
-      await loadRuns(selected())
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -349,7 +350,8 @@ export const RunPage: Component<{
         },
         acceptance: lines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
       })
-      setComposing(false)
+      setComposingOpen(false)
+      props.onCreated?.(created.data?.run.id ?? "")
       setGoal("")
       setCriteria("")
       setScope("")
@@ -357,7 +359,7 @@ export const RunPage: Component<{
       setMissionID("")
       setMissionGoal("")
       await loadMissions()
-      await loadRuns(created.data?.run.id)
+      // 外层会把新运行放回工作线列表并选中它（onCreated）。
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -561,8 +563,20 @@ export const RunPage: Component<{
       await sdk.client.run.policy({ runID: run.id, directory: props.directory, readOnly })
     })
 
+  // 外层指定看哪一次运行（团队页的工作线列表）：选中即刻切换，不等轮询。
+  createEffect(() => {
+    const id = props.runID
+    if (!id || selected() === id) return
+    setSelected(id)
+    void loadDetail(id)
+  })
+
+  // 同一份详情也交给外层画图：团队页不重复请求同一次运行。
+  createEffect(() => {
+    props.onDetail?.(detail())
+  })
+
   onMount(() => {
-    void loadRuns(props.initialRunID)
     void loadProfiles()
     void loadMissions()
     void sdk.client.kernel
@@ -594,17 +608,7 @@ export const RunPage: Component<{
    * 只用一个颜色点，不再加一排标签：列表要能一眼扫过，颜色回答「要不要点开它」。
    * 警示色留给「需要你处理」和「还没跑完」；终态失败是灰的 —— 它不需要你做什么。
    */
-  const runDot = (run: { state: string; phase?: string }) => ({
-    "bg-success": run.state === "done",
-    "bg-warning": run.state === "partial" || run.state === "needs_review" || run.state === "awaiting_approval",
-    "bg-primary": run.state === "running" || run.state === "blocked" || run.state === "paused",
-    "bg-border":
-      run.state === "failed" || run.state === "cancelled" || run.state === "exceeded" || run.state === "planning",
-  })
   const stateLabel = (state: string) => t(`run.state.${state}`)
-  // 同一个目标可以有多次运行：列表里标出目标编号，才知道几次运行在往下做同一件事。
-  const missionLabel = (missionID: string | null | undefined) =>
-    missionID ? missions().find((mission) => mission.id === missionID)?.label : undefined
   const summary = createMemo(() => detail()?.summary)
   /**
    * 验收台账的显示顺序：先看没过的，再看没验的，最后是通过的。
@@ -868,10 +872,201 @@ export const RunPage: Component<{
     return t("run.guide.readOnly")
   })
 
+  /**
+   * 指标面板。
+   *
+   * 本地统计、不上报、不排名。算不出来的指标列在 `unavailable` 里并写明原因，
+   * 不用 0 冒充「没有这项」——那会让人以为跑得很干净。
+   */
+  const renderMetrics = (data: RunMetricsView) => (
+    <div class="flex flex-col gap-1 px-1 py-1 text-ui-xs leading-relaxed text-foreground-subtle">
+      <div>
+        {t("run.metrics.window", {
+          runs: numeric(data.window.runs),
+          covered: numeric(data.window.eventsCovered),
+        })}
+      </div>
+      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+        <For each={data.states}>
+          {(entry) => (
+            <span>
+              {stateLabel(entry.state)} {numeric(entry.runs)}
+            </span>
+          )}
+        </For>
+      </div>
+      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+        <span>{t("run.metrics.settled", { n: numeric(data.tokens.settled).toLocaleString() })}</span>
+        {/* 用量不明单独显示：不并入已结算，也不并进总数。 */}
+        <Show when={numeric(data.tokens.unknown) > 0}>
+          <span class="text-warning">
+            {t("run.metrics.unknown", { n: numeric(data.tokens.unknown).toLocaleString() })}
+          </span>
+        </Show>
+        <span class="text-foreground-subtlest">
+          {t("run.metrics.coverage", {
+            covered: numeric(data.tokens.covered),
+            runs: numeric(data.window.runs),
+          })}
+        </span>
+        <Show when={numeric(data.tokens.overrunRuns) > 0}>
+          <span class="text-destructive">{t("run.metrics.overrun", { n: numeric(data.tokens.overrunRuns) })}</span>
+        </Show>
+        {/* 成本只统计有提供方回报的运行；覆盖率单列，不把缺数据的运行当 0。 */}
+        <Show when={numeric(data.tokens.costCovered) > 0}>
+          <span title={t("run.metrics.costHint")}>
+            {t("run.metrics.cost", {
+              n: numeric(data.tokens.cost).toFixed(4),
+              runs: numeric(data.tokens.costCovered),
+            })}
+          </span>
+        </Show>
+      </div>
+      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+        <For each={data.rounds}>
+          {(entry) => <span>{t("run.metrics.round", { round: numeric(entry.round), runs: numeric(entry.runs) })}</span>}
+        </For>
+      </div>
+      <Show when={numeric(data.rework.total) > 0}>
+        <div class="flex flex-col gap-0.5">
+          <span>{t("run.metrics.rework", { n: numeric(data.rework.total) })}</span>
+          <For each={data.rework.top}>
+            {(entry) => (
+              <span class="truncate pl-2 text-foreground-subtlest" title={entry.reason}>
+                {entry.reason} × {numeric(entry.count)}
+              </span>
+            )}
+          </For>
+        </div>
+      </Show>
+      <div>
+        {data.attempts.failureRate !== undefined
+          ? t("run.metrics.failureRate", {
+              failed: numeric(data.attempts.failed),
+              dispatched: numeric(data.attempts.dispatched),
+              percent: Math.round(numeric(data.attempts.failureRate!) * 100),
+            })
+          : t("run.metrics.failureUnknown")}
+      </div>
+      <div>
+        {data.blockers.rate !== undefined
+          ? t("run.metrics.blocked", {
+              n: numeric(data.blockers.runs),
+              percent: Math.round(numeric(data.blockers.rate!) * 100),
+            })
+          : t("run.metrics.blockedUnknown")}
+      </div>
+      {/* 验证开销占比（§12）：只算有用途标注的结算；历史账本单列说明。 */}
+      <div>
+        {data.spend.verificationShare !== undefined
+          ? t("run.metrics.verification", {
+              percent: Math.round(numeric(data.spend.verificationShare!) * 100),
+              dispatch: numeric(data.spend.dispatch).toLocaleString(),
+              verification: numeric(data.spend.verification).toLocaleString(),
+            })
+          : t("run.metrics.verificationUnknown")}
+        <Show when={numeric(data.spend.partialRuns) > 0}>
+          <span class="text-foreground-subtlest">
+            {" "}
+            {t("run.metrics.verificationPartial", { n: numeric(data.spend.partialRuns) })}
+          </span>
+        </Show>
+      </div>
+      {/* 算不出来的指标要说出来：空着会被读成「没有这项」。 */}
+      <For each={data.unavailable}>
+        {(entry) => (
+          <div class="text-foreground-subtlest">
+            {t("run.metrics.unavailable", { metric: entry.metric, reason: entry.reason })}
+          </div>
+        )}
+      </For>
+    </div>
+  )
+
+  /**
+   * 运行的操作：最上面那一个就是「现在最该做的事」，其余收进「更多」。
+   *
+   * 只有一处排版（横排在控制台顶部）：以前分页面/嵌入两套，判断逻辑迟早会漂。
+   */
+  const renderActions = (data: Accessor<RunDetail>) => (
+    <>
+      <Show when={nextStep()?.action}>
+        {(action) => (
+          <Button variant="primary" size="small" disabled={busy() !== ""} onClick={() => void action().run()}>
+            {busy() === action().busy ? t("run.action.working") : action().label}
+          </Button>
+        )}
+      </Show>
+      <Show when={hasMoreActions()}>
+        <button
+          type="button"
+          class="flex items-center gap-1.5 rounded-md px-2 py-1 text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+          onClick={() => setShowMore((open) => !open)}
+        >
+          <Icon name={showMore() ? "chevron-down" : "chevron-right"} size="small" />
+          {t("run.action.more")}
+        </button>
+      </Show>
+      <Show when={showMore()}>
+        <div class="flex flex-wrap items-center gap-1.5">
+          {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
+          <Show when={canChangePolicy()}>
+            <Button
+              variant="ghost"
+              size="small"
+              title={t("run.policy.hint")}
+              disabled={busy() !== ""}
+              onClick={() => void setPolicy(!data().run.readOnly)}
+            >
+              {data().run.readOnly ? t("run.policy.allowWrites") : t("run.policy.makeReadOnly")}
+            </Button>
+          </Show>
+          <Show when={data().run.state === "blocked" || data().run.state === "needs_review"}>
+            <Button
+              variant="ghost"
+              size="small"
+              title={t("run.action.openSessionHint")}
+              disabled={!props.onOpenSession}
+              onClick={() => props.onOpenSession?.(data().run.sessionID)}
+            >
+              {t("run.action.openSession")}
+            </Button>
+          </Show>
+          <Show when={TERMINAL.has(data().run.state) && hasWorktrees() && data().run.mergeState !== "merged"}>
+            <Button
+              variant="ghost"
+              size="small"
+              title={t("run.action.mergeHint")}
+              disabled={busy() !== ""}
+              onClick={() => void merge()}
+            >
+              {busy() === "merge" ? t("run.action.merging") : t("run.action.merge")}
+            </Button>
+          </Show>
+          <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
+            <Button
+              variant="ghost"
+              size="small"
+              title={t("run.action.cleanupHint")}
+              disabled={busy() !== ""}
+              onClick={() => void cleanup()}
+            >
+              {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
+            </Button>
+          </Show>
+          <Show when={!TERMINAL.has(data().run.state) && !(data().run.state === "running" && !data().run.phase)}>
+            <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void cancel()}>
+              {t("run.action.cancel")}
+            </Button>
+          </Show>
+        </div>
+      </Show>
+    </>
+  )
+
   return (
     <div class="flex h-full min-h-0 flex-col bg-background">
-      {/* 「刷新」放在左边栏顶部而不是顶行右侧：右上角是窗口自绘的窗控条。 */}
-      <PageHeader onBack={() => props.onBack()} title={t("run.page.title")} hint={t("run.page.hint")} />
+      {/* 不再有页头：这个控制台嵌在团队页里，页头与返回都属于团队页。 */}
 
       <Show when={error()}>
         <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-destructive">{error()}</div>
@@ -886,157 +1081,34 @@ export const RunPage: Component<{
         <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-warning">{t("run.switch.off")}</div>
       </Show>
 
-      <div class="flex min-h-0 flex-1">
-        <aside class="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border p-2">
-          <div class="flex items-center gap-1.5 px-1 pb-1">
-            <Button variant="ghost" size="small" class="min-w-0 flex-1 justify-start" onClick={() => void loadRuns()}>
+      <div class="flex min-h-0 flex-1 flex-col">
+        {/* 操作条横在内容上方：左栏是团队列表与工作线，这里不再塞第二列。 */}
+        <div class="shrink-0 border-b border-border px-3 py-1.5">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <Button variant="ghost" size="small" onClick={() => void reload()}>
               <Icon name="refresh" size="small" />
               {t("run.action.refresh")}
             </Button>
             <Show when={profiles().length > 0}>
-              <Button variant="ghost" size="small" title={t("run.action.newHint")} onClick={() => setComposing(true)}>
+              <Button
+                variant="ghost"
+                size="small"
+                title={t("run.action.newHint")}
+                onClick={() => setComposingOpen(true)}
+              >
                 <Icon name="plus" size="small" />
                 {t("run.action.new")}
               </Button>
             </Show>
-          </div>
-          {/*
-            当前运行的操作放在左边栏顶部（页面的操作都在这边，右上角留给窗口控件）。
-            顺序按「现在最该做的事」排，最上面那一个就是下一步。
-          */}
-          <Show when={detail()}>
-            {(data) => (
-              <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
-                {/* 主操作只有这一个；其余都是「要不要做」的选择，收进「更多」。 */}
-                <Show when={nextStep()?.action}>
-                  {(action) => (
-                    <Button
-                      variant="primary"
-                      size="small"
-                      class="w-full justify-start"
-                      disabled={busy() !== ""}
-                      onClick={() => void action().run()}
-                    >
-                      {busy() === action().busy ? t("run.action.working") : action().label}
-                    </Button>
-                  )}
-                </Show>
-                <Show when={hasMoreActions()}>
-                  <button
-                    type="button"
-                    class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                    onClick={() => setShowMore((open) => !open)}
-                  >
-                    <Icon name={showMore() ? "chevron-down" : "chevron-right"} size="small" />
-                    {t("run.action.more")}
-                  </button>
-                </Show>
-                <Show when={showMore()}>
-                  {/* 授权只能在开工之前改；放开写操作是人的决定，不是默认值。 */}
-                  <Show when={canChangePolicy()}>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      class="w-full justify-start"
-                      title={t("run.policy.hint")}
-                      disabled={busy() !== ""}
-                      onClick={() => void setPolicy(!data().run.readOnly)}
-                    >
-                      {data().run.readOnly ? t("run.policy.allowWrites") : t("run.policy.makeReadOnly")}
-                    </Button>
-                  </Show>
-                  <Show when={data().run.state === "blocked" || data().run.state === "needs_review"}>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      class="w-full justify-start"
-                      title={t("run.action.openSessionHint")}
-                      disabled={!props.onOpenSession}
-                      onClick={() => props.onOpenSession?.(data().run.sessionID)}
-                    >
-                      {t("run.action.openSession")}
-                    </Button>
-                  </Show>
-                  <Show when={TERMINAL.has(data().run.state) && hasWorktrees() && data().run.mergeState !== "merged"}>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      class="w-full justify-start"
-                      title={t("run.action.mergeHint")}
-                      disabled={busy() !== ""}
-                      onClick={() => void merge()}
-                    >
-                      {busy() === "merge" ? t("run.action.merging") : t("run.action.merge")}
-                    </Button>
-                  </Show>
-                  <Show when={TERMINAL.has(data().run.state) && hasWorktrees()}>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      class="w-full justify-start"
-                      title={t("run.action.cleanupHint")}
-                      disabled={busy() !== ""}
-                      onClick={() => void cleanup()}
-                    >
-                      {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
-                    </Button>
-                  </Show>
-                  <Show
-                    when={!TERMINAL.has(data().run.state) && !(data().run.state === "running" && !data().run.phase)}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      class="w-full justify-start"
-                      disabled={busy() !== ""}
-                      onClick={() => void cancel()}
-                    >
-                      {t("run.action.cancel")}
-                    </Button>
-                  </Show>
-                </Show>
-              </div>
-            )}
-          </Show>
-          <Show
-            when={runs().length > 0}
-            fallback={
-              <div class="px-2 py-3 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty.title")}</div>
-            }
-          >
-            <For each={runs()}>
-              {(run) => (
-                <button
-                  type="button"
-                  class="flex w-full flex-col items-start gap-0.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-hover"
-                  classList={{ "bg-surface": run.id === selected() }}
-                  onClick={() => setSelected(run.id)}
-                >
-                  {/* 状态点：列表里先看「哪次还需要人」，再读标题。 */}
-                  <span class="flex w-full items-center gap-1.5">
-                    <span class="size-1.5 shrink-0 rounded-full" classList={runDot(run)} />
-                    <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">{run.goal}</span>
-                  </span>
-                  <span class="w-full truncate pl-3 text-ui-xs text-foreground-subtle">
-                    {missionLabel(run.missionID) ? missionLabel(run.missionID) + " · " : ""}
-                    {runStateLabel(run)}
-                  </span>
-                </button>
-              )}
-            </For>
-          </Show>
-          {/* 指标（§12）：本地统计，不上报、不排名。默认收起，展开时才拉一次。 */}
-          <div class="mt-2 border-t border-border px-1 pt-2">
-            <button
-              type="button"
-              class="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-              onClick={toggleMetrics}
-              title={t("run.metrics.hint")}
-            >
+            <Show when={detail()}>{(data) => renderActions(data)}</Show>
+            {/* 指标（§12）：本地统计，不上报、不排名。默认收起，展开时才拉一次。 */}
+            <Button variant="ghost" size="small" title={t("run.metrics.hint")} onClick={toggleMetrics}>
               <Icon size="small" name={showMetrics() ? "chevron-down" : "chevron-right"} />
               {t("run.metrics.title")}
-            </button>
-            <Show when={showMetrics()}>
+            </Button>
+          </div>
+          <Show when={showMetrics()}>
+            <div class="mt-2 border-t border-border px-1 pt-2">
               <Show
                 when={metrics()}
                 fallback={
@@ -1050,123 +1122,16 @@ export const RunPage: Component<{
                     when={numeric(data().window.runs) > 0}
                     fallback={<div class="px-1 py-1 text-ui-xs text-foreground-subtlest">{t("run.metrics.empty")}</div>}
                   >
-                    <div class="flex flex-col gap-1 px-1 py-1 text-ui-xs leading-relaxed text-foreground-subtle">
-                      <div>
-                        {t("run.metrics.window", {
-                          runs: numeric(data().window.runs),
-                          covered: numeric(data().window.eventsCovered),
-                        })}
-                      </div>
-                      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
-                        <For each={data().states}>
-                          {(entry) => (
-                            <span>
-                              {stateLabel(entry.state)} {numeric(entry.runs)}
-                            </span>
-                          )}
-                        </For>
-                      </div>
-                      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
-                        <span>{t("run.metrics.settled", { n: numeric(data().tokens.settled).toLocaleString() })}</span>
-                        {/* 用量不明单独显示：不并入已结算，也不并进总数。 */}
-                        <Show when={numeric(data().tokens.unknown) > 0}>
-                          <span class="text-warning">
-                            {t("run.metrics.unknown", { n: numeric(data().tokens.unknown).toLocaleString() })}
-                          </span>
-                        </Show>
-                        <span class="text-foreground-subtlest">
-                          {t("run.metrics.coverage", {
-                            covered: numeric(data().tokens.covered),
-                            runs: numeric(data().window.runs),
-                          })}
-                        </span>
-                        <Show when={numeric(data().tokens.overrunRuns) > 0}>
-                          <span class="text-destructive">
-                            {t("run.metrics.overrun", { n: numeric(data().tokens.overrunRuns) })}
-                          </span>
-                        </Show>
-                        {/* 成本只统计有提供方回报的运行；覆盖率单列，不把缺数据的运行当 0。 */}
-                        <Show when={numeric(data().tokens.costCovered) > 0}>
-                          <span title={t("run.metrics.costHint")}>
-                            {t("run.metrics.cost", {
-                              n: numeric(data().tokens.cost).toFixed(4),
-                              runs: numeric(data().tokens.costCovered),
-                            })}
-                          </span>
-                        </Show>
-                      </div>
-                      <div class="flex flex-wrap gap-x-2 gap-y-0.5">
-                        <For each={data().rounds}>
-                          {(entry) => (
-                            <span>
-                              {t("run.metrics.round", { round: numeric(entry.round), runs: numeric(entry.runs) })}
-                            </span>
-                          )}
-                        </For>
-                      </div>
-                      <Show when={numeric(data().rework.total) > 0}>
-                        <div class="flex flex-col gap-0.5">
-                          <span>{t("run.metrics.rework", { n: numeric(data().rework.total) })}</span>
-                          <For each={data().rework.top}>
-                            {(entry) => (
-                              <span class="truncate pl-2 text-foreground-subtlest" title={entry.reason}>
-                                {entry.reason} × {numeric(entry.count)}
-                              </span>
-                            )}
-                          </For>
-                        </div>
-                      </Show>
-                      <div>
-                        {data().attempts.failureRate !== undefined
-                          ? t("run.metrics.failureRate", {
-                              failed: numeric(data().attempts.failed),
-                              dispatched: numeric(data().attempts.dispatched),
-                              percent: Math.round(numeric(data().attempts.failureRate!) * 100),
-                            })
-                          : t("run.metrics.failureUnknown")}
-                      </div>
-                      <div>
-                        {data().blockers.rate !== undefined
-                          ? t("run.metrics.blocked", {
-                              n: numeric(data().blockers.runs),
-                              percent: Math.round(numeric(data().blockers.rate!) * 100),
-                            })
-                          : t("run.metrics.blockedUnknown")}
-                      </div>
-                      {/* 验证开销占比（§12）：只算有用途标注的结算；历史账本单列说明。 */}
-                      <div>
-                        {data().spend.verificationShare !== undefined
-                          ? t("run.metrics.verification", {
-                              percent: Math.round(numeric(data().spend.verificationShare!) * 100),
-                              dispatch: numeric(data().spend.dispatch).toLocaleString(),
-                              verification: numeric(data().spend.verification).toLocaleString(),
-                            })
-                          : t("run.metrics.verificationUnknown")}
-                        <Show when={numeric(data().spend.partialRuns) > 0}>
-                          <span class="text-foreground-subtlest">
-                            {" "}
-                            {t("run.metrics.verificationPartial", { n: numeric(data().spend.partialRuns) })}
-                          </span>
-                        </Show>
-                      </div>
-                      {/* 算不出来的指标要说出来：空着会被读成「没有这项」。 */}
-                      <For each={data().unavailable}>
-                        {(entry) => (
-                          <div class="text-foreground-subtlest">
-                            {t("run.metrics.unavailable", { metric: entry.metric, reason: entry.reason })}
-                          </div>
-                        )}
-                      </For>
-                    </div>
+                    {renderMetrics(data())}
                   </Show>
                 )}
               </Show>
-            </Show>
-          </div>
-        </aside>
+            </div>
+          </Show>
+        </div>
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-          <Show when={composing()}>
+          <Show when={composingOpen()}>
             <div class="flex flex-col gap-3 p-4">
               <div>
                 <div class="text-15-medium text-foreground">{t("run.new.title")}</div>
@@ -1330,14 +1295,14 @@ export const RunPage: Component<{
                 >
                   {busy() === "create" ? t("run.new.creating") : t("run.new.start")}
                 </Button>
-                <Button variant="ghost" size="small" onClick={() => setComposing(false)}>
+                <Button variant="ghost" size="small" onClick={() => setComposingOpen(false)}>
                   {t("run.new.cancel")}
                 </Button>
                 <span class="text-ui-xs text-foreground-subtlest">{t("run.new.approvalHint")}</span>
               </div>
             </div>
           </Show>
-          <Show when={!composing()}>
+          <Show when={!composingOpen()}>
             <Show
               when={detail()}
               fallback={
@@ -1376,7 +1341,7 @@ export const RunPage: Component<{
                         </div>
                       }
                     >
-                      <Button variant="primary" size="small" class="mt-3" onClick={() => setComposing(true)}>
+                      <Button variant="primary" size="small" class="mt-3" onClick={() => setComposingOpen(true)}>
                         {t("run.empty.action")}
                       </Button>
                     </Show>
