@@ -34,7 +34,8 @@ function statusLabel(result: PublishAccountResult) {
     case "running":
       return result.message || "进行中"
     case "success":
-      return "发布成功"
+      // 公众号只做到"存草稿"，主进程会在 message 里写明；没有就还是"发布成功"。
+      return result.message || "发布成功"
     case "unsupported":
       return result.message || "不支持"
     case "cancelled":
@@ -125,22 +126,45 @@ export function PublishModal(props: { accountId?: string }) {
   const dialog = useDialog()
   const platform = usePlatformAccounts()
 
-  // 从某个账号点「发布内容」进来时，默认内容类型要选这个平台支持的，
-  // 否则一进来就是"已跳过 1 个账号"。
+  // 默认内容类型要"一进来就能发"：
+  // - 从某个账号点进来 → 选这个平台支持的；
+  // - 只有一个账号（比如只有一个公众号）→ 同样选它支持的，
+  //   否则默认"图文"，公众号那一行一直是灰的、按钮写着"发布到 0 个账号"，
+  //   用户会以为发布中心坏了。
   const initialKind = (): PublishKind => {
-    const account = props.accountId ? platform.store.accounts.find((a) => a.id === props.accountId) : undefined
-    if (!account) return "image_text"
-    if (supportsPublish(account.platform, "image_text")) return "image_text"
-    if (supportsPublish(account.platform, "video")) return "video"
-    return "article"
+    const accounts = platform.store.accounts
+    const account = props.accountId
+      ? accounts.find((a) => a.id === props.accountId)
+      : accounts.length === 1
+        ? accounts[0]
+        : undefined
+    if (account) {
+      const supported = KINDS.find((item) => supportsPublish(account.platform, item))
+      if (supported) return supported
+    }
+    // 多账号：图文覆盖面最广，优先它。
+    if (accounts.some((a) => supportsPublish(a.platform, "image_text"))) return "image_text"
+    for (const item of KINDS) {
+      if (accounts.some((a) => supportsPublish(a.platform, item))) return item
+    }
+    return "image_text"
   }
 
-  const [kind, setKind] = createSignal<PublishKind>(initialKind())
+  const defaultKind = initialKind()
+  const [kind, setKind] = createSignal<PublishKind>(defaultKind)
   const [title, setTitle] = createSignal("")
   const [content, setContent] = createSignal("")
   const [tags, setTags] = createSignal("")
   const [files, setFiles] = createSignal<string[]>([])
-  const [selectedIds, setSelectedIds] = createSignal(new Set<string>(props.accountId ? [props.accountId] : []))
+  // 没指定账号时，默认勾上"能发这类内容"的账号 —— 否则一进来按钮就是
+  // "发布到 0 个账号"，看起来像功能坏了。
+  const [selectedIds, setSelectedIds] = createSignal(
+    new Set<string>(
+      props.accountId
+        ? [props.accountId]
+        : platform.store.accounts.filter((a) => supportsPublish(a.platform, defaultKind)).map((a) => a.id),
+    ),
+  )
   const [phase, setPhase] = createSignal<"compose" | "running" | "done">("compose")
   const [results, setResults] = createSignal<Record<string, PublishAccountResult>>({})
   const [batch, setBatch] = createSignal<PublishBatch | undefined>()
@@ -179,9 +203,20 @@ export function PublishModal(props: { accountId?: string }) {
   const canPublish = createMemo(() => {
     if (readyAccounts().length === 0) return false
     if (needsFiles() && files().length === 0) return false
+    // 公众号后台不接受空标题；其它平台标题可选。
+    if (kind() === "article" && !title().trim()) return false
     if (!content().trim() && !title().trim()) return false
     return true
   })
+
+  // 换内容类型后，如果原来勾的账号一个都不支持新类型，就自动改勾支持的账号，
+  // 免得上一步选完、下一步又变成"发布到 0 个账号"。
+  const chooseKind = (next: PublishKind) => {
+    setKind(next)
+    const kept = platform.store.accounts.filter((a) => selectedIds().has(a.id) && supportsPublish(a.platform, next))
+    if (kept.length > 0) return
+    setSelectedIds(new Set(platform.store.accounts.filter((a) => supportsPublish(a.platform, next)).map((a) => a.id)))
+  }
 
   const toggle = (id: string) => {
     setSelectedIds((prev) => {
@@ -358,7 +393,7 @@ export function PublishModal(props: { accountId?: string }) {
                           kind() === item,
                         "border-border bg-background text-foreground-subtle hover:bg-hover": kind() !== item,
                       }}
-                      onClick={() => setKind(item)}
+                      onClick={() => chooseKind(item)}
                     >
                       {PUBLISH_KIND_LABEL[item]}
                     </button>
@@ -473,6 +508,11 @@ export function PublishModal(props: { accountId?: string }) {
               </div>
               <div class="mt-1.5 flex items-center justify-between text-11-regular text-foreground-subtle">
                 <span>将发布到 {readyAccounts().length} 个账号</span>
+                <Show when={platform.store.accounts.length > 0 && readyAccounts().length === 0}>
+                  <span class="text-rose-600 dark:text-rose-400">
+                    没有账号支持{PUBLISH_KIND_LABEL[kind()]}，换个内容类型或先添加账号
+                  </span>
+                </Show>
                 <Show when={skippedAccounts().length > 0}>
                   <span class="text-amber-600 dark:text-amber-400">
                     {skippedAccounts().length} 个账号已跳过（该平台不支持

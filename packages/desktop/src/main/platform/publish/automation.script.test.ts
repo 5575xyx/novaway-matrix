@@ -46,17 +46,27 @@ describe("publish automation scripts", () => {
     await automation.fillEditor(win, [".editor"], "第一行\n第二行")
     await automation.clickByText(win, ["发布", "提交"])
     await automation.hasText(win, ["发布成功"])
+    await automation.fillEditor(win, ["iframe#ueditor_0"], "第一行\n第二行")
     await automation.waitForAnySelector(win, ["input[type=file]"], 50)
     for (const item of captured) scripts.push(item.code)
 
-    expect(scripts.length).toBe(5)
+    expect(scripts.length).toBe(6)
     for (const code of scripts) expect(() => parse(code)).not.toThrow()
+  })
+
+  test("正文脚本会下钻到同源 iframe（公众号编辑器）", async () => {
+    const automation = await import("./automation")
+    const { win, captured } = fakeWindow(true)
+    await automation.fillEditor(win, ["iframe#ueditor_0"], "正文")
+    expect(captured[0].code).toContain("contentDocument")
+    expect(captured[0].code).toContain("contentDocument.body")
   })
 
   test("正文脚本保留换行，不被 TS 模板吃掉", async () => {
     const automation = await import("./automation")
     const { win, captured } = fakeWindow(true)
     await automation.fillEditor(win, [".editor"], "第一行\n第二行")
-    expect(captured[0].code).toContain(String.raw`text.split("\n")`)
+    // 必须是「反斜杠 + n」（脚本里的转义），而不是模板字符串展开后的真实换行
+    expect(captured[0].code).toContain(String.raw`.split("\n")`)
   })
 })

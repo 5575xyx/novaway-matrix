@@ -17,6 +17,16 @@ export interface PublishDriver {
   supports: PublishKind[]
   /** 发布页地址。 */
   url: Record<PublishKind, string | undefined>
+  /**
+   * 平台发布页所在的域名。运营工作台里已经打开了这个域名的页面时，
+   * 发布直接在那块**用户看得见的登录页面**里做，而不是另开隐藏窗口。
+   */
+  hosts?: string[]
+  /**
+   * 有登录 token 才能进的编辑页。`url` 只是"先落到哪"的入口（通常是首页），
+   * 真正的编辑地址要拿地址栏里的 token 拼出来。
+   */
+  editorUrl?: (token: string) => string
   /** 文件输入框候选选择器（input[type=file]）。 */
   fileInput?: string[]
   /** 标题输入框候选。 */
@@ -27,6 +37,11 @@ export interface PublishDriver {
   submitText?: string[]
   /** 成功后页面上会出现的文案。 */
   successText?: string[]
+  /**
+   * 成功时的用户可见文案。有些平台的自动流程只做到"存草稿"（群发不可撤销），
+   * 这时候说"发布成功"是在骗人。
+   */
+  successMessage?: string
   /** 上传完成后才能点提交；用于等待按钮可用。 */
   readyText?: string[]
 }
@@ -38,6 +53,7 @@ export const DRIVERS: Record<string, PublishDriver> = {
   xhs: {
     id: "xhs",
     name: "小红书",
+    hosts: ["creator.xiaohongshu.com"],
     supports: ["video", "image_text"],
     url: { video: XHS_VIDEO, image_text: XHS_IMAGE_TEXT, article: undefined },
     fileInput: ['input[type="file"][accept*="video"]', 'input[type="file"][accept*="image"]', 'input[type="file"]'],
@@ -54,6 +70,7 @@ export const DRIVERS: Record<string, PublishDriver> = {
   douyin: {
     id: "douyin",
     name: "抖音",
+    hosts: ["creator.douyin.com"],
     supports: ["video", "image_text"],
     url: {
       video: "https://creator.douyin.com/creator-micro/content/upload",
@@ -70,6 +87,7 @@ export const DRIVERS: Record<string, PublishDriver> = {
   bilibili: {
     id: "bilibili",
     name: "B站",
+    hosts: ["member.bilibili.com"],
     // 专栏（article）入口存在，但提交流程没验证过，先不放开；
     // 放开的类型必须和渲染层 publish-capabilities.ts 的矩阵一致。
     supports: ["video"],
@@ -87,6 +105,7 @@ export const DRIVERS: Record<string, PublishDriver> = {
   kwai: {
     id: "kwai",
     name: "快手",
+    hosts: ["cp.kuaishou.com"],
     // 图文（atlas）入口存在，提交流程未验证，先不放开（同上，和界面矩阵保持一致）。
     supports: ["video"],
     url: {
@@ -103,6 +122,7 @@ export const DRIVERS: Record<string, PublishDriver> = {
   wxSph: {
     id: "wxSph",
     name: "视频号",
+    hosts: ["channels.weixin.qq.com"],
     supports: ["video", "image_text"],
     url: {
       video: "https://channels.weixin.qq.com/platform/post/create",
@@ -119,19 +139,32 @@ export const DRIVERS: Record<string, PublishDriver> = {
     id: "wxGzh",
     name: "公众号",
     supports: ["article"],
+    hosts: ["mp.weixin.qq.com"],
     url: {
+      // 首页只是"先落到哪"：登录后地址栏里才会带上 token，编辑页要用它拼。
       article: "https://mp.weixin.qq.com/",
       video: undefined,
       image_text: undefined,
     },
-    titleInput: ['textarea[placeholder*="标题"]', 'input[placeholder*="标题"]', "#title"],
-    descriptionEditor: ['div[contenteditable="true"]', ".ProseMirror", "#ueditor_0"],
-    submitText: ["^保存并群发$", "^群发$", "^发表$"],
-    successText: ["已群发", "发表成功"],
+    editorUrl: (token) =>
+      `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=10&lang=zh_CN&token=${token}`,
+    titleInput: ["#activity-name", 'textarea[placeholder*="标题"]', 'input[placeholder*="标题"]'],
+    // 正文在 iframe#ueditor_0 里；automation 会下钻到 iframe 的 body。
+    descriptionEditor: [
+      "iframe#ueditor_0",
+      'iframe[id^="ueditor_"]',
+      '#js_editor_area [contenteditable="true"]',
+      ".ProseMirror",
+    ],
+    // 只保存草稿。群发是不可撤销的（还有次数限制），必须由用户自己在后台点。
+    submitText: ["^保存为草稿$", "^保存$"],
+    successText: ["已保存", "保存成功"],
+    successMessage: "已保存为草稿，群发请在公众号后台确认后手动点",
   },
   xianyu: {
     id: "xianyu",
     name: "闲鱼",
+    hosts: ["www.goofish.com"],
     supports: ["image_text"],
     url: {
       image_text: "https://www.goofish.com/publish",

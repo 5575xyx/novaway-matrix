@@ -7,15 +7,18 @@
  */
 import type { PublishAccountResult, PublishBatch, PublishInput, PublishProgressEvent, PublishStatus } from "./types"
 import { getDriver } from "./drivers"
+import { findOpenSurface } from "./surface"
 import {
   clickByText,
   fillEditor,
-  fillInput,
   hasText,
+  navigate,
   openPublishWindow,
+  readWechatToken,
   setFileInput,
   waitForAnySelector,
   waitUntil,
+  type PublishSurface,
 } from "./automation"
 
 export interface PublishAccount {
@@ -83,20 +86,44 @@ export async function publishToAccount(
     return step("unsupported", 0, `${driver.name}不支持${kindName}发布`)
   }
 
+  // 公众号这类编辑页要 token，只认已登录会话里的地址栏；没有 token 时
+  // 先落到平台的首页/入口页，让它自己把 token 带出来。
   const url = driver.url[input.kind]
   if (!url) return step("unsupported", 0, `${driver.name}暂不支持该内容形式`)
 
-  const cookies = parseCookies(account.cookies)
-  if (cookies.length === 0) return step("failed", 0, "登录信息缺失，请重新登录", { error: "no-cookies" })
-
   if (signal.aborted) return step("cancelled", 0, "已取消")
 
-  let handle: Awaited<ReturnType<typeof openPublishWindow>> | undefined
+  // 优先复用运营工作台里已经打开、用户看得见的页面；没有才开隐藏窗口。
+  const reused = findOpenSurface(account.platform)
+  let handle: PublishSurface | undefined = reused
   try {
-    step("running", 5, "打开发布页…")
-    handle = await openPublishWindow(cookies, url)
-    const win = handle.win
+    if (handle) {
+      step("running", 5, "复用运营工作台里已打开的页面…")
+      // 页面可能是别的子路径（比如首页），下面的导航会把它带到发布页。
+    } else {
+      const cookies = parseCookies(account.cookies)
+      if (cookies.length === 0) return step("failed", 0, "登录信息缺失，请重新登录", { error: "no-cookies" })
+      step("running", 5, "打开发布页…")
+      handle = await openPublishWindow(cookies, url)
+    }
+    const win = handle
     if (signal.aborted) return step("cancelled", 5, "已取消")
+
+    // 0) 落到入口页 → 取 token → 进真正的编辑页
+    if (driver.editorUrl) {
+      step("running", 8, "定位编辑页…")
+      await navigate(win, url)
+      let token = await readWechatToken(win)
+      if (!token) {
+        // 有些入口要再跳一次才带上 token，等页面安定后再读一次。
+        await waitUntil(win, async () => Boolean(await readWechatToken(win)), 10_000, 500)
+        token = await readWechatToken(win)
+      }
+      if (!token) {
+        return step("failed", 8, "没拿到登录 token，请先在这个账号的页面里完成登录", { error: "no-token" })
+      }
+      await navigate(win, driver.editorUrl(token))
+    }
 
     // 1) 选文件（视频/图文都需要）
     if (input.filePaths.length > 0 && driver.fileInput?.length) {
@@ -107,37 +134,42 @@ export async function publishToAccount(
       await setFileInput(win, driver.fileInput, input.filePaths)
     }
 
-    // 2) 等上传完成：平台在传完后会把按钮变成可点/出现"重新上传"文案
-    const uploaded = await waitUntil(
-      win,
-      async () => {
-        const done = await hasText(win, driver.readyText)
-        if (done) return true
-        // 没有可用文案时退化成"提交按钮出现且可点"
-        return win.webContents
-          .executeJavaScript(
-            `(() => {
-              const patterns = ${JSON.stringify(driver.submitText ?? [])}.map((p) => new RegExp(p, "i"));
-              const nodes = Array.from(document.querySelectorAll('button, [role="button"]'));
-              return nodes.some((node) => {
-                const text = (node.textContent || "").trim();
-                if (!patterns.some((re) => re.test(text))) return false;
-                return !(node.disabled || node.getAttribute("aria-disabled") === "true");
-              });
-            })()`,
-            true,
-          )
-          .catch(() => false)
-      },
-      UPLOAD_TIMEOUT_MS,
-      1000,
-    )
-    if (signal.aborted) return step("cancelled", 55, "已取消")
-    if (!uploaded) return step("failed", 55, "等待上传完成超时", { error: "upload-timeout" })
+    // 2) 等上传完成：平台在传完后会把按钮变成可点/出现"重新上传"文案。
+    // 没有文件（文章类）就没有上传可等 —— 以前这里会白等 10 分钟才报超时。
+    if (input.filePaths.length > 0) {
+      const uploaded = await waitUntil(
+        win,
+        async () => {
+          const done = await hasText(win, driver.readyText)
+          if (done) return true
+          // 没有可用文案时退化成"提交按钮出现且可点"
+          return win.webContents
+            .executeJavaScript(
+              `(() => {
+                const patterns = ${JSON.stringify(driver.submitText ?? [])}.map((p) => new RegExp(p, "i"));
+                const nodes = Array.from(document.querySelectorAll('button, [role="button"]'));
+                return nodes.some((node) => {
+                  const text = (node.textContent || "").trim();
+                  if (!patterns.some((re) => re.test(text))) return false;
+                  return !(node.disabled || node.getAttribute("aria-disabled") === "true");
+                });
+              })()`,
+              true,
+            )
+            .catch(() => false)
+        },
+        UPLOAD_TIMEOUT_MS,
+        1000,
+      )
+      if (signal.aborted) return step("cancelled", 55, "已取消")
+      if (!uploaded) return step("failed", 55, "等待上传完成超时", { error: "upload-timeout" })
+    }
 
     // 3) 填标题与正文
+    // 标题用 fillEditor：它同时会处理 input / textarea / contenteditable，
+    // 公众号的 `#activity-name` 在不同版本里就是这三种之一。
     step("running", 65, "填写内容…")
-    await fillInput(win, driver.titleInput, input.title)
+    await fillEditor(win, driver.titleInput, input.title)
     const description = [input.description, ...(input.tags ?? []).map((tag) => `#${tag}`)]
       .filter(Boolean)
       .join("\n")
@@ -152,13 +184,14 @@ export async function publishToAccount(
     const ok = await waitUntil(win, () => hasText(win, driver.successText), SUCCESS_TIMEOUT_MS, 1200)
     if (!ok) return step("failed", 90, "点击发布后未确认到成功提示", { error: "unconfirmed" })
 
-    return step("success", 100, "发布成功")
+    return step("success", 100, driver.successMessage ?? "发布成功")
   } catch (error) {
     return step("failed", 0, error instanceof Error ? error.message : String(error), {
       error: error instanceof Error ? error.message : String(error),
     })
   } finally {
-    await handle?.close()
+    // 复用的是用户的页面：跑完关掉会直接把人在看的东西弄没，所以只有临时窗口才清理。
+    if (handle?.origin === "hidden") await handle.close()
   }
 }
 
