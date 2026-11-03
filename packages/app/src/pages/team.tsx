@@ -1417,11 +1417,12 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                         <option value="deep">{t("team.employees.tier.deep")}</option>
                       </select>
                     </div>
-                    <input
-                      class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
-                      value={draft().model}
-                      placeholder={t("team.employees.modelPlaceholder")}
-                      onInput={(event) => setDraft({ ...draft(), model: event.currentTarget.value })}
+                    {/* 和对话框同一个选择器：员工覆盖项不该靠手写 provider/model。 */}
+                    <TeamModelPicker
+                      value={draft().model || undefined}
+                      label={t("team.model")}
+                      inheritLabel={t("team.model.system")}
+                      onSelect={(model) => setDraft({ ...draft(), model: model ?? "" })}
                     />
                     <input
                       class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
