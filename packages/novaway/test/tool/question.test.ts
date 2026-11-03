@@ -8,6 +8,7 @@ import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { Truncate } from "@/tool/truncate"
 import { testEffect } from "../lib/effect"
 import { Bus } from "../../src/bus"
+import { Session } from "../../src/session/session"
 
 const ctx = {
   sessionID: SessionID.make("ses_test-session"),
@@ -26,6 +27,17 @@ const it = testEffect(
     CrossSpawnSpawner.defaultLayer,
     Truncate.defaultLayer,
     Agent.defaultLayer,
+  ),
+)
+
+/** 会话档位固定为「无人值守」的变体：只关心 permissionModeOf，别的方法被调用就该报错。 */
+const unattendedIt = testEffect(
+  Layer.mergeAll(
+    Question.layer.pipe(Layer.provideMerge(Bus.layer)),
+    CrossSpawnSpawner.defaultLayer,
+    Truncate.defaultLayer,
+    Agent.defaultLayer,
+    Layer.mock(Session.Service, { permissionModeOf: () => Effect.succeed("unattended" as const) }),
   ),
 )
 
@@ -132,4 +144,35 @@ describe("tool.question", () => {
   //       expect(e.cause).toBeInstanceOf(z.ZodError)
   //     }
   //   })
+})
+
+describe("tool.question (unattended)", () => {
+  unattendedIt.instance("does not wait for a human; hands the decision back to the model", () =>
+    Effect.gen(function* () {
+      const question = yield* Question.Service
+      const toolInfo = yield* QuestionTool
+      const tool = yield* toolInfo.init()
+      const questions = [
+        {
+          question: "Which auth method should we use?",
+          header: "Auth",
+          options: [
+            { label: "Phone + OTP", description: "Fast onboarding" },
+            { label: "Email + password", description: "Classic" },
+          ],
+          multiple: false,
+        },
+      ]
+
+      const result = yield* tool.execute({ questions }, ctx)
+
+      // 立刻返回：没有人会回答，问了就是整轮挂住。
+      expect(result.title).toBe("Skipped 1 question")
+      expect(result.output).toContain("Unattended mode")
+      expect(result.output).toContain("Decide them yourself")
+      // 每个问题都按"未回答"结算，且不留待回答的请求。
+      expect(result.metadata.answers).toEqual([[]])
+      expect(yield* question.list()).toHaveLength(0)
+    }),
+  )
 })

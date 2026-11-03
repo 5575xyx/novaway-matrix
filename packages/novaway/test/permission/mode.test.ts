@@ -77,4 +77,16 @@ describe("permission mode", () => {
       if (out._tag === "Some") expect(out.value._tag).toBe("Success")
     }),
   )
+
+  it.instance("unattended also lets anything through", () =>
+    Effect.gen(function* () {
+      // 无人值守在权限这一层和 bypassPermissions 一样直接放行；
+      // 「要不要问人拿主意」由 question / plan_exit / review_document 自己处理。
+      for (const permission of ["shell", "edit", "external_directory"]) {
+        const out = yield* ask("unattended", permission)
+        expect(out._tag).toBe("Some")
+        if (out._tag === "Some") expect(out.value._tag).toBe("Success")
+      }
+    }),
+  )
 })

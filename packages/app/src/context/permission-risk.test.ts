@@ -22,7 +22,7 @@ describe("isRiskyPermission", () => {
   })
 })
 
-import { autoRespondsUnder, legacyModeFrom, resolvePermissionMode } from "./permission-risk"
+import { autoRespondsUnder, legacyModeFrom, PERMISSION_MODES, resolvePermissionMode } from "./permission-risk"
 
 describe("permission mode resolution", () => {
   test("session mode wins over the global default", () => {
@@ -51,5 +51,21 @@ describe("permission mode resolution", () => {
     expect(autoRespondsUnder("plan")).toBe("never")
     expect(autoRespondsUnder("acceptEdits")).toBe("risky")
     expect(autoRespondsUnder("bypassPermissions")).toBe("always")
+    // 无人值守连提问都不等人：权限这一层必须一路放行，否则弹窗会挂住整轮。
+    expect(autoRespondsUnder("unattended")).toBe("always")
+  })
+
+  test("plan mode sits first and unattended last, each in its own group", () => {
+    expect(PERMISSION_MODES.map((item) => item.value)).toEqual([
+      "plan",
+      "default",
+      "acceptEdits",
+      "bypassPermissions",
+      "unattended",
+    ])
+    // 每个档位都得有文案，否则菜单里会出现空白项。
+    for (const item of PERMISSION_MODES) {
+      expect(item.titleKey).not.toBe(item.descriptionKey)
+    }
   })
 })

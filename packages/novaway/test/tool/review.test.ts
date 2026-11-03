@@ -141,6 +141,55 @@ describe("review_document tool", () => {
   )
 
   it.instance(
+    "unattended mode counts the document as approved instead of waiting",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const directory = test.directory
+        const sessions = yield* Session.Service
+        const session = yield* sessions.create({ title: "review" })
+        const review = yield* DocumentReviewService
+        yield* writeDoc(directory)
+        yield* sessions.setPermissionMode({ sessionID: session.id, mode: "unattended" })
+
+        const info = yield* ReviewDocumentTool
+        const tool = yield* info.init()
+        const result = yield* tool.execute(doc, ctx(session.id, directory))
+
+        expect(result.metadata.decision).toBe("approved")
+        expect(result.output).toContain("auto_approved")
+        expect(result.output).toContain("Continue with the next step")
+        // 不留待评审请求：卡片不会挂出来等一个不会来的人。
+        expect(yield* review.list(session.id)).toHaveLength(0)
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "a child session inherits unattended from the root it was spawned under",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const directory = test.directory
+        const sessions = yield* Session.Service
+        const root = yield* sessions.create({ title: "root" })
+        yield* sessions.setPermissionMode({ sessionID: root.id, mode: "unattended" })
+        // 子代理创建时会拷一份当时的档位；这里故意不拷，验证判定时向上取根。
+        const child = yield* sessions.create({ title: "child", parentID: root.id })
+        const review = yield* DocumentReviewService
+        yield* writeDoc(directory)
+
+        const info = yield* ReviewDocumentTool
+        const tool = yield* info.init()
+        const result = yield* tool.execute(doc, ctx(child.id, directory))
+
+        expect(result.metadata.decision).toBe("approved")
+        expect(yield* review.list(child.id)).toHaveLength(0)
+      }),
+    { git: true },
+  )
+
+  it.instance(
     "fails when the document does not exist yet",
     () =>
       Effect.gen(function* () {
