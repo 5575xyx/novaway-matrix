@@ -61,6 +61,81 @@
   "NovaWay 已成功安裝。$\r$\n點擊「完成」即可開始使用。"
 !insertmacro _NOVAWAY_STR NOVAWAY_FINISH_RUN \
   "Run NovaWay" "运行 NovaWay" "執行 NovaWay"
+!insertmacro _NOVAWAY_STR NOVAWAY_DEFENDER_PAGE_TITLE \
+  "Antivirus compatibility" "杀毒软件兼容性" "防毒軟體相容性"
+!insertmacro _NOVAWAY_STR NOVAWAY_DEFENDER_PAGE_TEXT \
+  "NovaWay is not yet code-signed, so antivirus software (Windows Defender etc.) may mistakenly flag it and quarantine program files, leaving the app unable to start.$\r$\n$\r$\nCheck the box below to add the installation folder to Defender's exclusion list (a UAC prompt will ask for your confirmation). You can change this later in Windows Security." \
+  "NovaWay 尚未进行代码签名,杀毒软件(如 Windows Defender)可能误报并隔离程序文件,导致应用无法启动。$\r$\n$\r$\n勾选下方选项可把安装目录加入 Defender 信任排除区(会弹出 UAC 窗口请你确认)。之后也可以随时在 Windows 安全中心里修改。" \
+  "NovaWay 尚未進行程式碼簽章,防毒軟體(如 Windows Defender)可能誤報並隔離程式檔案,導致應用無法啟動。$\r$\n$\r$\n勾選下方選項可把安裝目錄加入 Defender 信任排除區(會彈出 UAC 視窗請你確認)。之後也可以隨時在 Windows 安全中心裡修改。"
+!insertmacro _NOVAWAY_STR NOVAWAY_DEFENDER_CHECKBOX \
+  "Add installation folder to &Defender exclusions (recommended)" \
+  "把安装目录加入 &Defender 信任排除区(推荐)" \
+  "把安裝目錄加入 &Defender 信任排除區(推薦)"
+
+# ---------------------------------------------------------------------------
+# 0a2) 全新安装中途的"Defender 信任"可选页(更新时跳过)
+# ---------------------------------------------------------------------------
+# 未签名 exe 被 Defender 实时防护隔离是用户"装完打不开/目录被清空"的头号原因。
+# 这里在目录选择页之后、正式解压文件之前,给用户一个**显式勾选**的机会把安装
+# 目录加进 Defender 排除区。注意:
+#   - 绝不静默执行:默认不勾,勾了才走 UAC 提权,用户在 UAC 里看得见命令;
+#   - 只在全新安装出现(isUpdated 时 Abort),更新流程文件已在排除路径外确认过一次;
+#   - 失败(用户拒绝 UAC / 装了第三方杀软导致 Add-MpPreference 不可用)只静默跳过,
+#     不阻塞安装 —— Defender 页面链接在完成页文案里兜底。
+# 变量声明放进宏、由 PAGE 安装点触发,避免 BUILD_UNINSTALLER 编译遍里
+# "Var 声明了但没被引用" 的 6040 警告(-WX 下当错误)
+!macro _NOVAWAY_DEFENDER_VARS
+  Var /GLOBAL NovaWayAddDefenderExclusion
+  Var /GLOBAL NovaWayDefenderHwnd
+!macroend
+
+!macro customPageAfterChangeDir
+  !ifndef BUILD_UNINSTALLER
+    !insertmacro _NOVAWAY_DEFENDER_VARS
+    Page custom NovaWayDefenderPageCreate NovaWayDefenderPageLeave
+
+    Function NovaWayDefenderPageCreate
+      ${if} ${isUpdated}
+        Abort
+      ${endif}
+      !insertmacro NovaWayDefenderPageShow
+    FunctionEnd
+
+    Function NovaWayDefenderPageLeave
+      ${NSD_GetState} $NovaWayAddDefenderExclusion $0
+      ${if} $0 == ${BST_CHECKED}
+        # 用户已通过勾选明确授权;PowerShell -Verb runAs 触发 UAC,用户在 UAC 中
+        # 能看到将要执行的内容,拒绝也不影响安装。
+        nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb runAs -Wait -ArgumentList '-NoProfile -Command Add-MpPreference -ExclusionPath \"\"\"$INSTDIR\"\"\"'"`
+        Pop $0
+        ${if} $0 != 0
+          DetailPrint "Defender exclusion not added (UAC declined or PowerShell unavailable)"
+        ${endif}
+      ${endif}
+    FunctionEnd
+  !endif
+!macroend
+
+# 拆出来避免 makensis 6040/6001 警告:页面控件的创建只在 installer(非卸载器)编译时引用
+!macro NovaWayDefenderPageShow
+      nsDialogs::Create 1018
+      Pop $NovaWayDefenderHwnd
+
+      ${NSD_CreateLabel} 0 0 100% 12u "$(NOVAWAY_DEFENDER_PAGE_TITLE)"
+      Pop $0
+      SetCtlColors $0 "" "transparent"
+      CreateFont $1 "$(^Font)" "13" "700"
+      SendMessage $0 ${WM_SETFONT} $1 1
+
+      ${NSD_CreateLabel} 0 20u 100% 60u "$(NOVAWAY_DEFENDER_PAGE_TEXT)"
+      Pop $0
+      SetCtlColors $0 "" "transparent"
+
+      ${NSD_CreateCheckbox} 0 90u 100% 10u "$(NOVAWAY_DEFENDER_CHECKBOX)"
+      Pop $NovaWayAddDefenderExclusion
+
+      nsDialogs::Show
+!macroend
 
 # ---------------------------------------------------------------------------
 # 0b) 首次安装的欢迎页(更新时跳过)

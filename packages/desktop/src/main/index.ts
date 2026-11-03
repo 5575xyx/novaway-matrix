@@ -14,6 +14,7 @@ import contextMenu from "electron-context-menu"
 import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
 import { CHANNEL, UPDATER_ENABLED } from "./constants"
+import { checkQuarantine, DEFENDER_URIS, exclusionCommand } from "./defender-repair"
 import {
   registerIpcHandlers,
   sendDeepLinks,
@@ -189,6 +190,54 @@ function notifyRendererUpdateReady(info: { version?: string }) {
 function quitApp() {
   isQuitting = true
   app.quit()
+}
+
+/**
+ * Windows Defender 误杀自检(仅 win32 且打包后生效):
+ * 未签名 exe 被实时防护隔离后,本次进程还活着,但下次启动快捷方式就失效。
+ * 命中关键文件缺失时弹原生对话框,引导用户「恢复文件 + 加排除目录」。
+ * 只做引导,不静默改系统设置 —— 加排除需要用户在 UAC 里明确确认。
+ */
+function checkDefenderQuarantine() {
+  if (process.platform !== "win32" || !app.isPackaged) return
+  const report = checkQuarantine(process.execPath, existsSync)
+  if (!report.quarantined) return
+  const installDir = process.execPath.replace(/[\\/]([^\\/]+)$/, "")
+  logger.warn("defender quarantine suspected", { missing: report.missing, installDir })
+  void import("electron").then(({ clipboard, dialog, shell }) => {
+    void dialog
+      .showMessageBox({
+        type: "warning",
+        title: "检测到 NovaWay 程序文件缺失",
+        message: "部分程序文件可能被 Windows Defender 隔离",
+        detail:
+          `缺失的文件:${report.missing.join("、")}\n\n` +
+          "这通常是杀毒软件对未签名程序的误报,不是病毒。" +
+          "建议先在「保护历史记录」里还原被隔离的文件,再把安装目录加入信任,避免再次被拦。",
+        buttons: ["打开保护历史记录", "复制修复命令", "忽略"],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          void shell.openExternal(DEFENDER_URIS.history)
+        } else if (response === 1) {
+          // 排除命令需要管理员权限,复制到剪贴板让用户在管理员 PowerShell 里执行,
+          // 全程用户可见可控,不静默提权。
+          clipboard.writeText(exclusionCommand(installDir))
+          void dialog.showMessageBox({
+            type: "info",
+            title: "修复命令已复制",
+            message: "已复制排除命令到剪贴板",
+            detail:
+              "1. 右键开始菜单 → 选「终端(管理员)」\n" +
+              "2. 粘贴并回车执行,在 UAC 弹窗里确认\n\n" +
+              `命令内容(排除目录:${installDir}):`,
+          })
+        }
+      })
+  })
 }
 
 function createTray() {
@@ -398,6 +447,9 @@ const main = Effect.gen(function* () {
   setDockIcon()
   createTray()
   setupAutoUpdater()
+  // Defender 误杀自检:exe/关键 DLL 被隔离后进程仍能活着,但下次启动就找不到了。
+  // 早于主窗口创建检测,命中就弹原生对话框引导用户恢复 + 加排除。
+  checkDefenderQuarantine()
   // 更新状态实时推给渲染进程（检查中 / 有新版本 / 下载进度 / 已下载）。
   // 窗口还没建好时推不出去，渲染进程挂载后会主动拉一次当前状态。
   setUpdateStatusPublisher((status) => {
