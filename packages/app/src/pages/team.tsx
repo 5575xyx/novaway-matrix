@@ -25,6 +25,7 @@ import { PageHeader } from "@/components/page-header"
 import { TeamDrilldown } from "@/components/team-drilldown"
 import { buildDrill, type DrillAcceptance } from "@/components/team-drilldown.logic"
 import { TeamGraph } from "@/components/team-graph"
+import { TeamModelPicker } from "@/components/team-model-picker"
 import { RunConsole } from "@/components/run-console"
 import type { GraphLaneInput } from "@/components/team-graph.layout"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -529,6 +530,37 @@ export const TeamPage: Component<{
     await loadTeams(team.team.id)
   }
 
+  /**
+   * 团队默认模型与成员模型。
+   *
+   * 空值不是「没改」而是「跟随上级」：团队清空回系统默认，成员清空回团队默认。
+   * 服务端会把没有覆盖的成员会话一起对齐，所以这里只要改配置、重拉详情。
+   */
+  const setTeamModel = async (model: string | undefined) => {
+    const team = detail()
+    if (!team) return
+    await call(
+      sdk.client.team.update({ teamID: team.team.id, directory: props.directory, model: model ?? "" }),
+      t("team.model.saved"),
+    )
+    await loadDetail(team.team.id)
+    await loadTeams(team.team.id)
+  }
+
+  const setMemberModel = async (sessionID: string, model: string | undefined) => {
+    const team = detail()
+    if (!team) return
+    await call(
+      sdk.client.team.member.update({
+        teamID: team.team.id,
+        sessionID,
+        directory: props.directory,
+        model: model ?? "",
+      }),
+    )
+    await loadDetail(team.team.id)
+  }
+
   const toggleAuto = async () => {
     const team = detail()
     if (!team) return
@@ -789,6 +821,14 @@ export const TeamPage: Component<{
                         >
                           {team().team.autoEligible ? t("team.auto.on") : t("team.auto.off")}
                         </button>
+                        {/* 团队默认模型：成员没单独选时用它。放在团队级标签里，
+                            不从属于某一个人；点开就是和对话框同一个模型选择器。 */}
+                        <TeamModelPicker
+                          value={team().team.model}
+                          label={t("team.model")}
+                          inheritLabel={t("team.model.system")}
+                          onSelect={(model) => void setTeamModel(model)}
+                        />
                       </div>
                     </div>
                     <Button variant="ghost" size="small" onClick={() => void removeTeam()}>
@@ -815,6 +855,13 @@ export const TeamPage: Component<{
                           >
                             {memberLabel(member, agents())}
                           </button>
+                          <TeamModelPicker
+                            value={member.model}
+                            label={t("team.member.model", { name: memberLabel(member, agents()) })}
+                            inheritLabel={t("team.member.inherit")}
+                            class="max-w-28"
+                            onSelect={(model) => void setMemberModel(member.sessionID, model)}
+                          />
                           <Show when={member.role === "lead"}>
                             <span class="text-ui-xs text-foreground-subtlest">{t("team.coordinator")}</span>
                           </Show>
@@ -1804,6 +1851,7 @@ function DialogCreateTeam(props: {
   const [name, setName] = createSignal("")
   const [goal, setGoal] = createSignal("")
   const [lead, setLead] = createSignal("build")
+  const [model, setModel] = createSignal<string | undefined>(undefined)
   const [search, setSearch] = createSignal("")
   const [picked, setPicked] = createSignal<string[]>([])
   const [busy, setBusy] = createSignal(false)
@@ -1844,6 +1892,7 @@ function DialogCreateTeam(props: {
         name: name().trim(),
         description: goal().trim() || undefined,
         lead: lead().trim() || undefined,
+        ...(model() ? { model: model() } : {}),
         members: picked().map((agent) => ({ agent })),
       })
       await props.onCreated((result.data as TeamDetail).team.id)
@@ -1888,6 +1937,18 @@ function DialogCreateTeam(props: {
               {(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}
             </For>
           </select>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="text-13-medium text-foreground">{t("team.model")}</label>
+          <div class="flex items-center gap-2">
+            <TeamModelPicker
+              value={model()}
+              label={t("team.model")}
+              inheritLabel={t("team.model.system")}
+              onSelect={setModel}
+            />
+            <span class="text-ui-xs text-foreground-subtle">{t("team.model.createHint")}</span>
+          </div>
         </div>
         <div class="flex flex-col gap-2">
           <div class="flex items-baseline justify-between">

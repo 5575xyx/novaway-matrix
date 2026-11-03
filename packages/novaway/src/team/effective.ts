@@ -23,6 +23,12 @@ export function parseModel(text: string | undefined): Model | undefined {
   return { providerID: trimmed.slice(0, index), modelID: trimmed.slice(index + 1) }
 }
 
+/** `{ providerID, modelID }` → `provider/model`，与 `parseModel` 互逆；没选就是 `undefined`。 */
+export function formatModel(model: Model | undefined): string | undefined {
+  if (!model?.providerID || !model.modelID) return undefined
+  return model.providerID + "/" + model.modelID
+}
+
 export type Effective = {
   /** 真正派发时用的 agent（岗位）。 */
   agent: string

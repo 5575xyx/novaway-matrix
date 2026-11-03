@@ -15,6 +15,13 @@ export const TeamTable = sqliteTable(
      * 叫起来」。带写操作或会产生外部影响的团队必须由用户显式打开。
      */
     auto_eligible: integer().notNull().default(0),
+    /**
+     * 团队默认模型（`provider/model`）。
+     *
+     * 成员没有单独选模型时用它；两个都没选才轮到会话记住的模型与系统默认。
+     * 存在这里而不是只写进会话，是因为团队是用户配置的对象，会话只是它的执行现场。
+     */
+    model: text(),
     created_at: integer().notNull(),
     updated_at: integer().notNull(),
   },
@@ -32,6 +39,8 @@ export const TeamMemberTable = sqliteTable(
     status: text().notNull().default("idle"),
     current_task_id: text(),
     worktree_path: text(),
+    /** 这个成员自己的模型覆盖；空 = 跟随团队默认（`team.model`）。 */
+    model: text(),
     created_at: integer().notNull(),
     updated_at: integer().notNull(),
   },

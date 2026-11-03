@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { compose, hash, instructions, of, parseModel } from "@/team/effective"
+import { compose, formatModel, hash, instructions, of, parseModel } from "@/team/effective"
 import type { RosterEntry } from "@/team/profile"
 
 const entry = (overrides: Partial<RosterEntry["employee"]> = {}): RosterEntry => ({
@@ -27,6 +27,15 @@ describe("employee effective config", () => {
     expect(parseModel("no-slash")).toBeUndefined()
     expect(parseModel("/model")).toBeUndefined()
     expect(parseModel("provider/")).toBeUndefined()
+  })
+
+  it("formats the same shape it parses, and keeps slashes inside model ids", () => {
+    expect(formatModel({ providerID: "openrouter", modelID: "meta/llama" })).toBe("openrouter/meta/llama")
+    expect(parseModel(formatModel({ providerID: "sensenova", modelID: "deepseek-v4-pro" }))).toEqual({
+      providerID: "sensenova",
+      modelID: "deepseek-v4-pro",
+    })
+    expect(formatModel(undefined)).toBeUndefined()
   })
 
   it("freezes what the person declared, and nothing it cannot know", () => {

@@ -611,6 +611,8 @@ import type {
   TeamMemberAddResponses,
   TeamMemberRemoveErrors,
   TeamMemberRemoveResponses,
+  TeamMemberUpdateErrors,
+  TeamMemberUpdateResponses,
   TeamMessageErrors,
   TeamMessageListErrors,
   TeamMessageListResponses,
@@ -13158,6 +13160,7 @@ export class Member extends HeyApiClient {
       workspace?: string
       agent?: string
       name?: string
+      model?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13171,12 +13174,54 @@ export class Member extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "agent" },
             { in: "body", key: "name" },
+            { in: "body", key: "model" },
           ],
         },
       ],
     )
     return (options?.client ?? this.client).post<TeamMemberAddResponses, TeamMemberAddErrors, ThrowOnError>({
       url: "/team/{teamID}/member",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Update a team member
+   *
+   * Change a member's model override; an empty string follows the team default.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      sessionID: string
+      directory?: string
+      workspace?: string
+      model?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "model" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<TeamMemberUpdateResponses, TeamMemberUpdateErrors, ThrowOnError>({
+      url: "/team/{teamID}/member/{sessionID}",
       ...options,
       ...params,
       headers: {
@@ -13419,9 +13464,11 @@ export class Team extends HeyApiClient {
       name?: string
       description?: string
       lead?: string
+      model?: string
       members?: Array<{
         agent: string
         name?: string
+        model?: string
       }>
     },
     options?: Options<never, ThrowOnError>,
@@ -13436,6 +13483,7 @@ export class Team extends HeyApiClient {
             { in: "body", key: "name" },
             { in: "body", key: "description" },
             { in: "body", key: "lead" },
+            { in: "body", key: "model" },
             { in: "body", key: "members" },
           ],
         },
@@ -13530,6 +13578,7 @@ export class Team extends HeyApiClient {
       name?: string
       description?: string
       autoEligible?: boolean
+      model?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -13544,6 +13593,7 @@ export class Team extends HeyApiClient {
             { in: "body", key: "name" },
             { in: "body", key: "description" },
             { in: "body", key: "autoEligible" },
+            { in: "body", key: "model" },
           ],
         },
       ],

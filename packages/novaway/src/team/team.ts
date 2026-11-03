@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import type { SessionID } from "@/session/schema"
 import { TeamMemberTable, TeamTable } from "./team.sql"
+import { formatModel, parseModel, type Model as TeamModel } from "./effective"
 
 export type Team = {
   id: string
@@ -11,6 +12,8 @@ export type Team = {
   rootSessionID: SessionID
   /** 允许 Auto 模式自动选中（默认关闭，见 `TeamTable.auto_eligible`）。 */
   autoEligible: boolean
+  /** 团队默认模型；成员没有单独选择时用它。 */
+  model?: TeamModel
   createdAt: number
   updatedAt: number
 }
@@ -24,12 +27,19 @@ export type Member = {
   status: "idle" | "active" | "archived"
   currentTaskID?: string
   worktreePath?: string
+  /** 成员自己的模型覆盖；空 = 跟随 `Team.model`。 */
+  model?: TeamModel
   createdAt: number
   updatedAt: number
 }
 
 export interface Interface {
-  readonly create: (input: { name: string; description?: string; rootSessionID: SessionID }) => Effect.Effect<Team>
+  readonly create: (input: {
+    name: string
+    description?: string
+    rootSessionID: SessionID
+    model?: TeamModel
+  }) => Effect.Effect<Team>
   /**
    * Return the team rooted at (or joined by) this session, creating one with
    * `name` when none exists. Check and insert happen in one synchronous DB
@@ -46,6 +56,8 @@ export interface Interface {
     name?: string
     description?: string
     autoEligible?: boolean
+    /** `null` = 清掉团队默认模型，回到系统默认。 */
+    model?: TeamModel | null
   }) => Effect.Effect<Team | undefined>
   readonly get: (id: string) => Effect.Effect<Team | undefined>
   readonly resolve: (idOrName: string, rootSessionID?: SessionID) => Effect.Effect<Team | undefined>
@@ -58,6 +70,7 @@ export interface Interface {
     agent: string
     role?: "lead" | "worker"
     worktreePath?: string
+    model?: TeamModel | null
   }) => Effect.Effect<Member>
   readonly members: (teamID: string) => Effect.Effect<Member[]>
   readonly member: (teamID: string, idOrName: string) => Effect.Effect<Member | undefined>
@@ -67,6 +80,8 @@ export interface Interface {
     status?: Member["status"]
     currentTaskID?: string | null
     worktreePath?: string | null
+    /** `null` = 清掉覆盖，跟随团队默认。 */
+    model?: TeamModel | null
   }) => Effect.Effect<Member | undefined>
   readonly removeMember: (input: { teamID: string; sessionID: SessionID }) => Effect.Effect<void>
   readonly ofSession: (sessionID: SessionID) => Effect.Effect<Team | undefined>
@@ -83,6 +98,7 @@ function toTeam(row: typeof TeamTable.$inferSelect): Team {
     description: row.description ?? undefined,
     rootSessionID: row.root_session_id,
     autoEligible: row.auto_eligible === 1,
+    model: parseModel(row.model ?? undefined),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -98,6 +114,7 @@ function toMember(row: typeof TeamMemberTable.$inferSelect): Member {
     status: row.status as Member["status"],
     currentTaskID: row.current_task_id ?? undefined,
     worktreePath: row.worktree_path ?? undefined,
+    model: parseModel(row.model ?? undefined),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -134,6 +151,7 @@ export const layer = Layer.effect(
         description: input.description,
         rootSessionID: input.rootSessionID,
         autoEligible: false,
+        model: input.model,
         createdAt: now,
         updatedAt: now,
       }
@@ -146,6 +164,7 @@ export const layer = Layer.effect(
               name: team.name,
               description: team.description ?? null,
               root_session_id: team.rootSessionID,
+              model: formatModel(team.model) ?? null,
               created_at: now,
               updated_at: now,
             })
@@ -225,6 +244,7 @@ export const layer = Layer.effect(
               ...(input.name !== undefined ? { name: input.name } : {}),
               ...(input.description !== undefined ? { description: input.description } : {}),
               ...(input.autoEligible !== undefined ? { auto_eligible: input.autoEligible ? 1 : 0 } : {}),
+              ...(input.model !== undefined ? { model: formatModel(input.model ?? undefined) ?? null } : {}),
               updated_at: now,
             })
             .where(eq(TeamTable.id, input.teamID))
@@ -270,6 +290,7 @@ export const layer = Layer.effect(
                 agent: input.agent,
                 role: input.role ?? existing.role,
                 worktree_path: input.worktreePath ?? existing.worktree_path,
+                ...(input.model !== undefined ? { model: formatModel(input.model ?? undefined) ?? null } : {}),
                 updated_at: now,
               })
               .where(and(eq(TeamMemberTable.team_id, input.teamID), eq(TeamMemberTable.session_id, input.sessionID)))
@@ -285,6 +306,7 @@ export const layer = Layer.effect(
               role: input.role ?? "worker",
               status: "idle",
               worktree_path: input.worktreePath ?? null,
+              model: formatModel(input.model ?? undefined) ?? null,
               created_at: now,
               updated_at: now,
             })
@@ -317,6 +339,7 @@ export const layer = Layer.effect(
               ...(input.status ? { status: input.status } : {}),
               ...(input.currentTaskID !== undefined ? { current_task_id: input.currentTaskID } : {}),
               ...(input.worktreePath !== undefined ? { worktree_path: input.worktreePath } : {}),
+              ...(input.model !== undefined ? { model: formatModel(input.model ?? undefined) ?? null } : {}),
               updated_at: Date.now(),
             })
             .where(and(eq(TeamMemberTable.team_id, input.teamID), eq(TeamMemberTable.session_id, input.sessionID)))

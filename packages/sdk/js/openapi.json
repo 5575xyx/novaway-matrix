@@ -30876,6 +30876,9 @@
                   "lead": {
                     "type": "string"
                   },
+                  "model": {
+                    "type": "string"
+                  },
                   "members": {
                     "type": "array",
                     "items": {
@@ -30885,6 +30888,9 @@
                           "type": "string"
                         },
                         "name": {
+                          "type": "string"
+                        },
+                        "model": {
                           "type": "string"
                         }
                       },
@@ -31045,6 +31051,9 @@
                   },
                   "autoEligible": {
                     "type": "boolean"
+                  },
+                  "model": {
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false
@@ -31196,6 +31205,9 @@
                   },
                   "name": {
                     "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
                   }
                 },
                 "required": ["agent"],
@@ -31213,6 +31225,99 @@
       }
     },
     "/team/{teamID}/member/{sessionID}": {
+      "patch": {
+        "tags": ["team"],
+        "operationId": "team.member.update",
+        "parameters": [
+          {
+            "name": "teamID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Change a member's model override; null follows the team default.",
+        "summary": "Update a team member",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@novaway/sdk\n\nconst client = createOpencodeClient()\nawait client.team.member.update({\n  ...\n})"
+          }
+        ]
+      },
       "delete": {
         "tags": ["team"],
         "operationId": "team.member.remove",
@@ -49221,6 +49326,9 @@
           },
           "autoEligible": {
             "type": "boolean"
+          },
+          "model": {
+            "type": "string"
           }
         },
         "required": ["id", "name", "rootSessionID", "autoEligible"],
@@ -49418,6 +49526,9 @@
             "type": "string"
           },
           "worktreePath": {
+            "type": "string"
+          },
+          "model": {
             "type": "string"
           },
           "usage": {

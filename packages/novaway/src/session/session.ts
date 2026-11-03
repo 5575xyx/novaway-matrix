@@ -571,6 +571,17 @@ export interface Interface {
   readonly get: (id: SessionID) => Effect.Effect<Info, NotFound>
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
   readonly setArchived: (input: { sessionID: SessionID; time?: number }) => Effect.Effect<void>
+  /**
+   * 换掉会话记住的模型。
+   *
+   * 团队页给成员选模型时要把这一层也对齐：会话还记得旧模型的话，
+   * 用户点进成员的会话看到的仍然是旧选择，与群聊里的派发不一致。
+   * `null` = 清掉固定值，回到默认解析。
+   */
+  readonly setModel: (input: {
+    sessionID: SessionID
+    model?: { providerID: string; modelID: string; variant?: string } | null
+  }) => Effect.Effect<void>
   readonly setPermission: (input: { sessionID: SessionID; permission: Permission.Ruleset }) => Effect.Effect<void>
   readonly setPermissionMode: (input: {
     sessionID: SessionID
@@ -985,6 +996,22 @@ const rawLayer: Layer.Layer<
       yield* patch(input.sessionID, { time: { archived: input.time } })
     })
 
+    const setModel = Effect.fn("Session.setModel")(function* (input: {
+      sessionID: SessionID
+      model?: { providerID: string; modelID: string; variant?: string } | null
+    }) {
+      yield* patch(input.sessionID, {
+        model: input.model
+          ? {
+              id: ModelID.make(input.model.modelID),
+              providerID: ProviderID.make(input.model.providerID),
+              ...(input.model.variant ? { variant: input.model.variant } : {}),
+            }
+          : null,
+        time: { updated: Date.now() },
+      } as Patch)
+    })
+
     const setPermission = Effect.fn("Session.setPermission")(function* (input: {
       sessionID: SessionID
       permission: Permission.Ruleset
@@ -1161,6 +1188,7 @@ const rawLayer: Layer.Layer<
       get,
       setTitle,
       setArchived,
+      setModel,
       setPermission,
       setPermissionMode,
       setTeamMode,

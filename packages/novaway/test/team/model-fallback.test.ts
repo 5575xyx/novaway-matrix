@@ -4,6 +4,7 @@ import { ModelNotFoundError } from "@/provider/provider"
 import { describeFailure, modelNotice, pickDispatchModel } from "@/team/model-fallback"
 
 const pinned = { providerID: "builtin", modelID: "agnes-3.0" }
+const chosen = { providerID: "sensenova", modelID: "deepseek-v4-pro" }
 const fallback = { providerID: "builtin", modelID: "novaway:grok-4.7" }
 
 describe("pickDispatchModel", () => {
@@ -20,6 +21,18 @@ describe("pickDispatchModel", () => {
 
   test("会话还没记住模型：直接用默认模型，不算回退", () => {
     expect(pickDispatchModel({ pinnedUsable: false, fallback })).toEqual({ model: fallback })
+  })
+
+  test("用户给成员/团队选过模型：优先用它，即使会话记着别的", () => {
+    expect(
+      pickDispatchModel({ preferred: chosen, preferredUsable: true, pinned, pinnedUsable: true, fallback }),
+    ).toEqual({ model: chosen })
+  })
+
+  test("用户选的模型不可用：走兜底并说明，不偷偷退回会话里的旧模型", () => {
+    expect(
+      pickDispatchModel({ preferred: chosen, preferredUsable: false, pinned, pinnedUsable: true, fallback }),
+    ).toEqual({ model: fallback, replaced: chosen })
   })
 
   test("连默认模型都没有：不编一个，交给调用方报错", () => {

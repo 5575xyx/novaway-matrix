@@ -12,6 +12,35 @@ import { SessionPrompt } from "@/session/prompt"
 import { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { describeFailure, modelNotice, pickDispatchModel, type DispatchModel } from "@/team/model-fallback"
+import type { Model as TeamModel } from "@/team/effective"
+import { formatModel, parseModel } from "@/team/effective"
+
+/** 领域模型 → 线上形状（`provider/model`）；没有选择就是 `undefined`，不要编一个默认值。 */
+const modelRef = (model: TeamModel | undefined) => formatModel(model)
+
+/**
+ * `provider/model` → 领域模型。
+ *
+ * `undefined` = 没传（不改），`""` = 清掉（回到上层默认），格式不对也返回 undefined，
+ * 由调用方决定是拒绝还是忽略 —— 这里不替调用方猜。
+ */
+const readModel = (text: string | undefined): TeamModel | null | undefined => {
+  if (text === undefined) return undefined
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  return parseModel(trimmed)
+}
+
+/** 传了非空模型但格式不对：明确拒绝，不把拼写错误悄悄当成「没改」。 */
+const malformedModel = (text: string | undefined) => text !== undefined && text.trim().length > 0 && !parseModel(text)
+
+/** 会话里要落的模型结构（与 `Session.create` 的 `model` 参数一致）。 */
+const sessionModel = (model: TeamModel | undefined) =>
+  model ? { id: ModelID.make(model.modelID), providerID: ProviderID.make(model.providerID) } : undefined
+
+/** `Session.setModel` 的形状：会话更新用 `modelID`，创建用 `id`。 */
+const patchedModel = (model: TeamModel | undefined) =>
+  model ? { providerID: model.providerID, modelID: model.modelID } : undefined
 
 /** Flatten an accounting value into the wire shape shared by members and tasks. */
 function usageView(value: SessionUsage.Value | undefined) {
@@ -48,20 +77,27 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
      * 可用的顺序（会话记住的 → 默认模型）与提示文案都在 `team/model-fallback`，
      * 这里只负责问 provider「这个模型还在不在」。
      */
-    const dispatchModel = Effect.fn("TeamHttpApi.dispatchModel")(function* (sessionID: SessionID) {
+    const modelUsable = (model: DispatchModel) =>
+      providers.getModel(model.providerID as never, model.modelID as never).pipe(
+        Effect.map(() => true),
+        Effect.catchTag("ProviderModelNotFoundError", () => Effect.succeed(false)),
+        Effect.catchCause(() => Effect.succeed(false)),
+      )
+
+    const dispatchModel = Effect.fn("TeamHttpApi.dispatchModel")(function* (
+      sessionID: SessionID,
+      /** 用户为这个成员选的模型：成员覆盖 → 团队默认。 */
+      preferred?: DispatchModel | undefined,
+    ) {
       const session = yield* sessions.get(sessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
       const pinned: DispatchModel | undefined = session?.model
         ? { providerID: session.model.providerID, modelID: session.model.id }
         : undefined
-      const pinnedUsable = pinned
-        ? yield* providers.getModel(pinned.providerID as never, pinned.modelID as never).pipe(
-            Effect.map(() => true),
-            Effect.catchTag("ProviderModelNotFoundError", () => Effect.succeed(false)),
-            Effect.catchCause(() => Effect.succeed(false)),
-          )
-        : false
+      const pinnedUsable = pinned ? yield* modelUsable(pinned) : false
+      const preferredUsable = preferred ? yield* modelUsable(preferred) : false
       const fallback = yield* providers.defaultModel().pipe(Effect.catchCause(() => Effect.succeed(undefined)))
       return pickDispatchModel({
+        ...(preferred ? { preferred, preferredUsable } : {}),
         ...(pinned ? { pinned } : {}),
         pinnedUsable,
         ...(fallback ? { fallback } : {}),
@@ -103,6 +139,7 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           description: team.description,
           rootSessionID: team.rootSessionID,
           autoEligible: team.autoEligible,
+          model: modelRef(team.model),
         },
         members: members.map((member) => ({
           sessionID: member.sessionID,
@@ -112,6 +149,7 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           status: member.status,
           currentTaskID: member.currentTaskID,
           worktreePath: member.worktreePath,
+          model: modelRef(member.model),
           usage: usageView(rollup.totals.get(member.sessionID)),
         })),
         tasks: list.map((task) => ({
@@ -142,11 +180,14 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
     /** Create a session for an agent and attach it as a worker. */
     const addMember = Effect.fn("TeamHttpApi.addMember")(function* (
       team: Team,
-      input: { agent: string; name?: string },
+      input: { agent: string; name?: string; model?: TeamModel },
     ) {
       const existing = (yield* teams.members(team.id)).filter((member) => member.role === "worker")
       const label = input.name?.trim() || input.agent
       const clash = existing.some((member) => member.name === label)
+      // 成员会话语义上属于这支队：先按「自己的选择 → 团队默认」定模型，
+      // 创建时就写进会话，点进成员会话看到的与群聊里派发的才是同一个。
+      const effective = input.model ?? team.model
       // 成员会话要沿用团队根的权限档位：默认「每次确认」会让被派发的成员
       // 卡在权限弹窗上，团队页永远等不到回复。
       const root = yield* sessions.get(team.rootSessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
@@ -154,6 +195,7 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
         parentID: team.rootSessionID,
         title: team.name + " · " + label,
         agent: input.agent,
+        ...(effective ? { model: sessionModel(effective)! } : {}),
         ...(root?.permissionMode ? { permissionMode: root.permissionMode } : {}),
         ...(root?.permission ? { permission: root.permission } : {}),
       })
@@ -163,6 +205,8 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
         name: clash ? label + " #" + session.id.slice(-4) : label,
         agent: input.agent,
         role: "worker",
+        // 只记成员自己的覆盖；跟随团队的那部分留空，团队换模型时跟着换。
+        ...(input.model ? { model: input.model } : {}),
       })
     })
 
@@ -266,14 +310,18 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           // An empty roster would leave nothing to dispatch to; the page always
           // sends at least one employee.
           if (!name) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          if (malformedModel(ctx.payload.model)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const model = readModel(ctx.payload.model)
           const root = yield* sessions.create({
             title: name,
             agent: ctx.payload.lead?.trim() || undefined,
+            ...(model ? { model: sessionModel(model)! } : {}),
           })
           const team = yield* teams.create({
             name,
             description: ctx.payload.description?.trim() || undefined,
             rootSessionID: root.id,
+            ...(model ? { model } : {}),
           })
           // 根会话就是团队协调者：把它也记进名单，团队页才会显示「协调者」，
           // 用量也会归到它名下。
@@ -287,7 +335,9 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           for (const member of ctx.payload.members) {
             const agent = member.agent?.trim()
             if (!agent) continue
-            yield* addMember(team, { agent, name: member.name })
+            if (malformedModel(member.model)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            const override = readModel(member.model) || undefined
+            yield* addMember(team, { agent, name: member.name, ...(override ? { model: override } : {}) })
           }
           return yield* detail(team)
         }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.BadRequest({})))),
@@ -307,13 +357,26 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           const name = ctx.payload.name?.trim()
           const description = ctx.payload.description?.trim()
           if (ctx.payload.name !== undefined && !name) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          if (malformedModel(ctx.payload.model)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const model = readModel(ctx.payload.model)
           const updated = yield* teams.update({
             teamID: team.id,
             ...(name ? { name } : {}),
             ...(description !== undefined ? { description } : {}),
             ...(ctx.payload.autoEligible !== undefined ? { autoEligible: ctx.payload.autoEligible } : {}),
+            ...(model !== undefined ? { model } : {}),
           })
           if (!updated) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          // 团队默认模型变了：没有单独选择的成员会话跟着换，避免「团队页显示 A、
+          // 点进去的成员会话还在用 B」。自己有选择的成员保持不动。
+          if (model !== undefined) {
+            for (const member of yield* teams.members(team.id)) {
+              if (member.model) continue
+              yield* sessions
+                .setModel({ sessionID: member.sessionID, model: patchedModel(updated.model) ?? null })
+                .pipe(Effect.catchCause(() => Effect.void))
+            }
+          }
           return yield* detail(updated)
         }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.BadRequest({})))),
       )
@@ -341,7 +404,33 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           if (!team) return yield* Effect.fail(new HttpApiError.NotFound({}))
           const agent = ctx.payload.agent?.trim()
           if (!agent) return yield* Effect.fail(new HttpApiError.BadRequest({}))
-          yield* addMember(team, { agent, name: ctx.payload.name })
+          if (malformedModel(ctx.payload.model)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const model = readModel(ctx.payload.model) || undefined
+          yield* addMember(team, { agent, name: ctx.payload.name, ...(model ? { model } : {}) })
+          return yield* detail(team)
+        }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.BadRequest({})))),
+      )
+      .handle("updateTeamMember", (ctx) =>
+        Effect.gen(function* () {
+          const team = yield* teams.get(ctx.params.teamID)
+          if (!team) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          const sessionID = SessionID.make(ctx.params.sessionID)
+          const member = yield* teams.member(team.id, ctx.params.sessionID)
+          if (!member) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          if (malformedModel(ctx.payload.model)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const model = readModel(ctx.payload.model)
+          const updated = yield* teams.updateMember({
+            teamID: team.id,
+            sessionID,
+            ...(model !== undefined ? { model } : {}),
+          })
+          if (!updated) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          // 会话也要同步：成员会话是「这个人干活的地方」，模型不能和团队页显示的分叉。
+          if (model !== undefined) {
+            yield* sessions
+              .setModel({ sessionID, model: patchedModel(updated.model ?? team.model) ?? null })
+              .pipe(Effect.catchCause(() => Effect.void))
+          }
           return yield* detail(team)
         }).pipe(Effect.catchCause(() => Effect.fail(new HttpApiError.BadRequest({})))),
       )
@@ -395,7 +484,9 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           if (ctx.payload.dispatch !== false) {
             for (const target of targets) {
               const run = Effect.gen(function* () {
-                const picked = yield* dispatchModel(target.sessionID)
+                // 用户显式选过的模型优先；成员没选就跟随团队默认，
+                // 两样都没有才轮到这个会话自己记住的模型。
+                const picked = yield* dispatchModel(target.sessionID, target.model ?? team.model)
                 if (!picked) return yield* Effect.fail("没有可用的模型")
                 return yield* promptSvc
                   .prompt({

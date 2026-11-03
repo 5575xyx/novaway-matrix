@@ -16,6 +16,8 @@ export const TeamView = Schema.Struct({
   rootSessionID: Schema.String,
   /** Auto 模式是否可以把这一队纳入候选（团队页可切换）。 */
   autoEligible: Schema.Boolean,
+  /** 团队默认模型（`provider/model`）；成员没单独选时用它。 */
+  model: Schema.optional(Schema.String),
 }).annotate({ identifier: "TeamView" })
 
 export const TeamUsageView = Schema.Struct({
@@ -36,6 +38,8 @@ export const TeamMemberView = Schema.Struct({
   status: Schema.Literals(["idle", "active", "archived"]),
   currentTaskID: Schema.optional(Schema.String),
   worktreePath: Schema.optional(Schema.String),
+  /** 成员自己的模型覆盖（`provider/model`）；空 = 跟随团队默认。 */
+  model: Schema.optional(Schema.String),
   usage: Schema.optional(TeamUsageView),
 }).annotate({ identifier: "TeamMemberView" })
 
@@ -90,6 +94,18 @@ export const TeamDetail = Schema.Struct({
 export const TeamMemberInput = Schema.Struct({
   agent: Schema.String,
   name: Schema.optional(Schema.String),
+  /** 加人时就指定模型；不填跟随团队默认。 */
+  model: Schema.optional(Schema.String),
+})
+
+/**
+ * 改成员模型。
+ *
+ * 空串 = 清掉覆盖、回到团队默认。不用 `null`：OpenAPI 表达不出 `NullOr`
+ * （生成出来仍是普通字段），与员工覆盖项同一约定（见 `profile.ts`）。
+ */
+export const TeamMemberUpdatePayload = Schema.Struct({
+  model: Schema.optional(Schema.String),
 })
 
 export const TeamCreatePayload = Schema.Struct({
@@ -97,6 +113,8 @@ export const TeamCreatePayload = Schema.Struct({
   description: Schema.optional(Schema.String),
   /** Agent used for the lead session; defaults to the default agent. */
   lead: Schema.optional(Schema.String),
+  /** 团队默认模型（`provider/model`）；不填就是系统默认。 */
+  model: Schema.optional(Schema.String),
   members: Schema.Array(TeamMemberInput),
 })
 
@@ -105,6 +123,8 @@ export const TeamUpdatePayload = Schema.Struct({
   description: Schema.optional(Schema.String),
   /** 只有打开后，Auto 模式才会把这一队当作候选。 */
   autoEligible: Schema.optional(Schema.Boolean),
+  /** 改团队默认模型；空串 = 清掉，回到系统默认。 */
+  model: Schema.optional(Schema.String),
 })
 
 export const TeamMessageSendPayload = Schema.Struct({
@@ -220,6 +240,19 @@ export const TeamApi = HttpApi.make("team")
             identifier: "team.member.add",
             summary: "Add a team member",
             description: "Create a session for an agent and add it to the team.",
+          }),
+        ),
+        HttpApiEndpoint.patch("updateTeamMember", `${workspaceRoot}/:teamID/member/:sessionID`, {
+          params: { teamID: Schema.String, sessionID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          payload: TeamMemberUpdatePayload,
+          success: described(TeamDetail, "Updated team"),
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "team.member.update",
+            summary: "Update a team member",
+            description: "Change a member's model override; null follows the team default.",
           }),
         ),
         HttpApiEndpoint.delete("removeTeamMember", `${workspaceRoot}/:teamID/member/:sessionID`, {

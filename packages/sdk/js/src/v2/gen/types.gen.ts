@@ -3521,6 +3521,7 @@ export type TeamView = {
   description?: string
   rootSessionID: string
   autoEligible: boolean
+  model?: string
 }
 
 export type TeamUsageView = {
@@ -3541,6 +3542,7 @@ export type TeamMemberView = {
   status: "idle" | "active" | "archived"
   currentTaskID?: string
   worktreePath?: string
+  model?: string
   usage?: TeamUsageView
 }
 
@@ -17458,9 +17460,11 @@ export type TeamCreateData = {
     name: string
     description?: string
     lead?: string
+    model?: string
     members: Array<{
       agent: string
       name?: string
+      model?: string
     }>
   }
   path?: never
@@ -17554,6 +17558,7 @@ export type TeamUpdateData = {
     name?: string
     description?: string
     autoEligible?: boolean
+    model?: string
   }
   path: {
     teamID: string
@@ -17591,6 +17596,7 @@ export type TeamMemberAddData = {
   body?: {
     agent: string
     name?: string
+    model?: string
   }
   path: {
     teamID: string
@@ -17654,6 +17660,43 @@ export type TeamMemberRemoveResponses = {
 }
 
 export type TeamMemberRemoveResponse = TeamMemberRemoveResponses[keyof TeamMemberRemoveResponses]
+
+export type TeamMemberUpdateData = {
+  body?: {
+    model?: string
+  }
+  path: {
+    teamID: string
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/team/{teamID}/member/{sessionID}"
+}
+
+export type TeamMemberUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type TeamMemberUpdateError = TeamMemberUpdateErrors[keyof TeamMemberUpdateErrors]
+
+export type TeamMemberUpdateResponses = {
+  /**
+   * Updated team
+   */
+  200: TeamDetail
+}
+
+export type TeamMemberUpdateResponse = TeamMemberUpdateResponses[keyof TeamMemberUpdateResponses]
 
 export type TeamMessageListData = {
   body?: never

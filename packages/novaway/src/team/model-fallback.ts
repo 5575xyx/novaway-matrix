@@ -21,6 +21,10 @@ export type PickedDispatchModel = {
 }
 
 export function pickDispatchModel(input: {
+  /** 用户为这个成员或整支队选的模型（成员覆盖 → 团队默认）。 */
+  preferred?: DispatchModel | undefined
+  /** 上面那个模型在当前目录里是否还能用。 */
+  preferredUsable?: boolean
   /** 会话里记住的模型。 */
   pinned?: DispatchModel | undefined
   /** 上面那个模型在当前目录里是否还能用。 */
@@ -28,6 +32,12 @@ export function pickDispatchModel(input: {
   /** 兜底模型；provider 一个可用模型都给不出时为空。 */
   fallback?: DispatchModel | undefined
 }): PickedDispatchModel | undefined {
+  // 用户选过就以用户为准：选过但不可用时不要偷偷退回会话里的旧模型，
+  // 那等于「团队配置没生效」，而界面上看不出任何区别。直接走兜底并说明。
+  if (input.preferred) {
+    if (input.preferredUsable) return { model: input.preferred }
+    return input.fallback ? { model: input.fallback, replaced: input.preferred } : undefined
+  }
   if (input.pinned && input.pinnedUsable) return { model: input.pinned }
   if (!input.fallback) return undefined
   return input.pinned ? { model: input.fallback, replaced: input.pinned } : { model: input.fallback }
