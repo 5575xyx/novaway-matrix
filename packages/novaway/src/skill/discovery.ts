@@ -22,7 +22,7 @@ export interface Interface {
   readonly pull: (url: string) => Effect.Effect<string[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SkillDiscovery") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SkillDiscovery") {}
 
 export const layer: Layer.Layer<Service, never, AppFileSystem.Service | Path.Path | HttpClient.HttpClient> =
   Layer.effect(

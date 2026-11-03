@@ -45,7 +45,7 @@ const httpApiServerLayer = servedRoutes.pipe(
 
 const it = testEffect(Layer.mergeAll(testStateLayer, httpApiServerLayer))
 
-const directoryHeader = (dir: string) => HttpClientRequest.setHeader("x-opencode-directory", dir)
+const directoryHeader = (dir: string) => HttpClientRequest.setHeader("x-novaway-directory", dir)
 
 const send = (request: HttpClientRequest.HttpClientRequest, body?: unknown) =>
   Effect.gen(function* () {

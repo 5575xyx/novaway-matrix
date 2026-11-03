@@ -33,12 +33,12 @@ export const WebCommand = effectCmd({
   command: "web",
   builder: (yargs) => withNetworkOptions(yargs),
   describe: "start NovaWay server and open web interface",
-  // Server loads instances per-request via x-NovaWay-directory header 鈥?no
+  // Server loads instances per-request via x-novaway-directory header 鈥?no
   // ambient project InstanceContext needed at startup.
   instance: false,
   handler: Effect.fn("Cli.web")(function* (args) {
     if (!Flag.NOVAWAY_SERVER_PASSWORD) {
-      UI.println(UI.Style.TEXT_WARNING_BOLD + "!  NovaWay_SERVER_PASSWORD is not set; server is unsecured.")
+      UI.println(UI.Style.TEXT_WARNING_BOLD + "!  NOVAWAY_SERVER_PASSWORD is not set; server is unsecured.")
     }
     const opts = yield* resolveNetworkOptions(args)
     const server = yield* Effect.promise(() => Server.listen(opts))

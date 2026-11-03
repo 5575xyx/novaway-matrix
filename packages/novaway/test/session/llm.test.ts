@@ -345,7 +345,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: [providerID],
             provider: {
               [providerID]: {
@@ -435,7 +435,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: [providerID],
             provider: {
               [providerID]: {
@@ -525,7 +525,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: [providerID],
             provider: {
               [providerID]: {
@@ -635,7 +635,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: ["openai"],
             provider: {
               openai: {
@@ -754,7 +754,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: ["openai"],
             provider: {
               openai: {
@@ -853,7 +853,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: ["poe"],
             provider: {
               poe: {
@@ -878,8 +878,8 @@ describe("session.llm.stream", () => {
     await withTestInstance({
       directory: tmp.path,
       fn: async (ctx) => {
-        const previousAuth = process.env.OPENCODE_AUTH_CONTENT
-        process.env.OPENCODE_AUTH_CONTENT = JSON.stringify({
+        const previousAuth = process.env.NOVAWAY_AUTH_CONTENT
+        process.env.NOVAWAY_AUTH_CONTENT = JSON.stringify({
           poe: [{ type: "api", key: "test-poe-key" }],
         })
 
@@ -934,7 +934,7 @@ describe("session.llm.stream", () => {
           expect(capture.body.prompt).toBe("make it orange")
           expect(capture.body.extra_body).toEqual({ response_format: "url", image: [image] })
         } finally {
-          process.env.OPENCODE_AUTH_CONTENT = previousAuth
+          process.env.NOVAWAY_AUTH_CONTENT = previousAuth
         }
       },
     })
@@ -994,7 +994,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: [providerID],
             provider: {
               [providerID]: {
@@ -1108,7 +1108,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: ["anthropic"],
             provider: {
               anthropic: {
@@ -1361,7 +1361,7 @@ describe("session.llm.stream", () => {
         await Bun.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             enabled_providers: [providerID],
             provider: {
               [providerID]: {

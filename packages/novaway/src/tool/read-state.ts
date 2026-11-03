@@ -43,7 +43,7 @@ export interface Interface {
   readonly clear: (sessionID: SessionID) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/ReadState") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/ReadState") {}
 
 function key(filePath: string) {
   const resolved = AppFileSystem.resolve(filePath)

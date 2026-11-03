@@ -10,7 +10,7 @@ const dir = path.resolve(__dirname, "..")
 
 process.chdir(dir)
 
-const modelsUrl = process.env.OPENCODE_MODELS_URL || "https://models.opencode.ai"
+const modelsUrl = process.env.NOVAWAY_MODELS_URL || "https://models.opencode.ai"
 const cacheDir = path.join(xdgCache ?? path.join(os.homedir(), ".cache"), "novaway")
 const cachePath = path.join(cacheDir, "models.json")
 

@@ -69,7 +69,7 @@ const tools: readonly ToolFixture[] = [
   },
   {
     label:
-      'Grep "export const NovaWay_DB|NovaWay_DB|NovaWay_DEV|Global\\.Path\\.data|data =" in packages/NovaWay/src (115 matches)',
+      'Grep "export const NOVAWAY_DB|NOVAWAY_DB|NOVAWAY_DEV|Global\\.Path\\.data|data =" in packages/NovaWay/src (115 matches)',
   },
 ] as const
 

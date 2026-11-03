@@ -103,7 +103,7 @@ const ready = (ctx: InstanceContext) =>
   )
 
 // Get managed config directory from environment (set in preload.ts)
-const managedConfigDir = process.env.OPENCODE_TEST_MANAGED_CONFIG_DIR!
+const managedConfigDir = process.env.NOVAWAY_TEST_MANAGED_CONFIG_DIR!
 
 beforeEach(async () => {
   await clear(true)
@@ -132,7 +132,7 @@ async function check(map: (dir: string) => string) {
   await clear()
   try {
     await writeConfig(globalTmp.path, {
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://novaway.ai/config.json",
       snapshot: false,
     })
     await withTestInstance({
@@ -197,7 +197,7 @@ test("creates global jsonc config with schema when no global configs exist", asy
     })
 
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
-    expect(content).toContain('"$schema": "https://opencode.ai/config.json"')
+    expect(content).toContain('"$schema": "https://novaway.ai/config.json"')
     expect(content).toContain('"tencent-docs"')
     expect(content).toContain('"https://docs.qq.com/openapi/mcp"')
     expect(content).toContain('"{env:TENCENT_DOCS_TOKEN}"')
@@ -267,7 +267,7 @@ test("adds default global plugins to existing config file that lacks them", asyn
 
   try {
     const initial: Record<string, unknown> = {
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://novaway.ai/config.json",
       plugin: ["other-plugin@1.0"],
     }
     await Bun.write(path.join(tmp.path, "novaway.json"), JSON.stringify(initial, null, 2))
@@ -297,7 +297,7 @@ test("creates novaway.json with default plugins when only novaway.jsonc exists",
 
   try {
     const initial: Record<string, unknown> = {
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://novaway.ai/config.json",
       plugin: ["old-plugin@1.0"],
     }
     await Bun.write(path.join(tmp.path, "novaway.jsonc"), JSON.stringify(initial, null, 2))
@@ -323,7 +323,7 @@ test("updateGlobal removes deleted agent permission.skill keys", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         agent: {
           "test-agent": {
             permission: {
@@ -370,13 +370,13 @@ test("updateGlobal removes deleted agent permission.skill keys", async () => {
   }
 })
 
-test("does not create global config when OPENCODE_CONFIG_DIR is set", async () => {
+test("does not create global config when NOVAWAY_CONFIG_DIR is set", async () => {
   await using tmp = await tmpdir()
   await using custom = await tmpdir()
   const prevConfig = Global.Path.config
-  const prevEnv = process.env.OPENCODE_CONFIG_DIR
+  const prevEnv = process.env.NOVAWAY_CONFIG_DIR
   ;(Global.Path as { config: string }).config = tmp.path
-  process.env.OPENCODE_CONFIG_DIR = custom.path
+  process.env.NOVAWAY_CONFIG_DIR = custom.path
   await clear(true)
 
   try {
@@ -390,8 +390,8 @@ test("does not create global config when OPENCODE_CONFIG_DIR is set", async () =
     expect(await Filesystem.exists(path.join(tmp.path, "novaway.jsonc"))).toBe(false)
   } finally {
     ;(Global.Path as { config: string }).config = prevConfig
-    if (prevEnv === undefined) delete process.env.OPENCODE_CONFIG_DIR
-    else process.env.OPENCODE_CONFIG_DIR = prevEnv
+    if (prevEnv === undefined) delete process.env.NOVAWAY_CONFIG_DIR
+    else process.env.NOVAWAY_CONFIG_DIR = prevEnv
     await clear(true)
   }
 })
@@ -400,7 +400,7 @@ test("loads JSON config file", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         model: "test/model",
         username: "testuser",
       })
@@ -420,7 +420,7 @@ test("loads shell config field", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         shell: "bash",
       })
     },
@@ -438,7 +438,7 @@ test("updates config and preserves empty shell sentinel", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         shell: "bash",
       })
     },
@@ -477,7 +477,7 @@ test("updates global config and omits empty shell key in json", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         shell: "bash",
       })
     },
@@ -502,7 +502,7 @@ test("updates global memory embedding mode without instance context", async () =
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         memory: { embedding_mode: "off" },
       })
     },
@@ -532,7 +532,7 @@ test("updates global config and omits empty shell key in jsonc", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.jsonc"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           shell: "bash",
           model: "test/model",
         }),
@@ -563,7 +563,7 @@ test("loads formatter boolean config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         formatter: true,
       })
     },
@@ -581,7 +581,7 @@ test("loads lsp boolean config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         lsp: true,
       })
     },
@@ -616,7 +616,7 @@ test("ignores legacy tui keys in opencode config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         model: "test/model",
         theme: "legacy",
         tui: { scroll_speed: 4 },
@@ -641,7 +641,7 @@ test("loads JSONC config file", async () => {
         path.join(dir, "novaway.jsonc"),
         `{
         // This is a comment
-        "$schema": "https://opencode.ai/config.json",
+        "$schema": "https://novaway.ai/config.json",
         "model": "test/model",
         "username": "testuser"
       }`,
@@ -664,14 +664,14 @@ test("jsonc overrides json in the same directory", async () => {
       await writeConfig(
         dir,
         {
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           model: "base",
           username: "base",
         },
         "novaway.jsonc",
       )
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         model: "override",
       })
     },
@@ -694,7 +694,7 @@ test("handles environment variable substitution", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         await writeConfig(dir, {
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           username: "{env:TEST_VAR}",
         })
       },
@@ -784,7 +784,7 @@ test("resolves env templates in account config with account token", async () => 
     config: () =>
       Effect.succeed(
         Option.some({
-          provider: { opencode: { options: { apiKey: "{env:OPENCODE_CONSOLE_TOKEN}" } } },
+          provider: { opencode: { options: { apiKey: "{env:NOVAWAY_CONSOLE_TOKEN}" } } },
         }),
       ),
     token: () => Effect.succeed(Option.some(AccessToken.make("st_test_token"))),
@@ -823,7 +823,7 @@ test("handles file inclusion substitution", async () => {
     init: async (dir) => {
       await Filesystem.write(path.join(dir, "included.txt"), "test-user")
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         username: "{file:included.txt}",
       })
     },
@@ -842,7 +842,7 @@ test("handles file inclusion with replacement tokens", async () => {
     init: async (dir) => {
       await Filesystem.write(path.join(dir, "included.md"), "const out = await Bun.$`echo hi`")
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         username: "{file:included.md}",
       })
     },
@@ -860,7 +860,7 @@ test("validates config schema and throws on invalid fields", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         invalid_field: "should cause error",
       })
     },
@@ -892,7 +892,7 @@ test("handles agent configuration", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         agent: {
           test_agent: {
             model: "test/model",
@@ -922,7 +922,7 @@ test("treats agent variant as model-scoped setting (not provider option)", async
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         agent: {
           test_agent: {
             model: "openai/gpt-5.2",
@@ -953,7 +953,7 @@ test("handles command configuration", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         command: {
           test_command: {
             template: "test template",
@@ -983,7 +983,7 @@ test("migrates autoshare to share field", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           autoshare: true,
         }),
       )
@@ -1005,7 +1005,7 @@ test("migrates mode field to agent field", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           mode: {
             test_mode: {
               model: "test/model",
@@ -1256,7 +1256,7 @@ test("gets config directories", async () => {
   })
 })
 
-test("does not try to install dependencies in read-only OPENCODE_CONFIG_DIR", async () => {
+test("does not try to install dependencies in read-only NOVAWAY_CONFIG_DIR", async () => {
   if (process.platform === "win32") return
 
   await using tmp = await tmpdir<string>({
@@ -1273,8 +1273,8 @@ test("does not try to install dependencies in read-only OPENCODE_CONFIG_DIR", as
     },
   })
 
-  const prev = process.env.OPENCODE_CONFIG_DIR
-  process.env.OPENCODE_CONFIG_DIR = tmp.extra
+  const prev = process.env.NOVAWAY_CONFIG_DIR
+  process.env.NOVAWAY_CONFIG_DIR = tmp.extra
 
   try {
     await withTestInstance({
@@ -1284,12 +1284,12 @@ test("does not try to install dependencies in read-only OPENCODE_CONFIG_DIR", as
       },
     })
   } finally {
-    if (prev === undefined) delete process.env.OPENCODE_CONFIG_DIR
-    else process.env.OPENCODE_CONFIG_DIR = prev
+    if (prev === undefined) delete process.env.NOVAWAY_CONFIG_DIR
+    else process.env.NOVAWAY_CONFIG_DIR = prev
   }
 })
 
-test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
+test("installs dependencies in writable NOVAWAY_CONFIG_DIR", async () => {
   await using tmp = await tmpdir<string>({
     init: async (dir) => {
       const cfg = path.join(dir, "configdir")
@@ -1298,8 +1298,8 @@ test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
     },
   })
 
-  const prev = process.env.OPENCODE_CONFIG_DIR
-  process.env.OPENCODE_CONFIG_DIR = tmp.extra
+  const prev = process.env.NOVAWAY_CONFIG_DIR
+  process.env.NOVAWAY_CONFIG_DIR = tmp.extra
 
   const testLayer = Config.layer.pipe(
     Layer.provide(testFlock),
@@ -1336,8 +1336,8 @@ test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
     expect(await Filesystem.exists(path.join(tmp.extra, ".gitignore"))).toBe(true)
     expect(await Filesystem.readText(path.join(tmp.extra, ".gitignore"))).toContain("package-lock.json")
   } finally {
-    if (prev === undefined) delete process.env.OPENCODE_CONFIG_DIR
-    else process.env.OPENCODE_CONFIG_DIR = prev
+    if (prev === undefined) delete process.env.NOVAWAY_CONFIG_DIR
+    else process.env.NOVAWAY_CONFIG_DIR = prev
   }
 })
 
@@ -1374,7 +1374,7 @@ test("resolves scoped npm plugins in config", async () => {
 
       await Filesystem.write(
         path.join(dir, "novaway.json"),
-        JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: ["@scope/plugin"] }, null, 2),
+        JSON.stringify({ $schema: "https://novaway.ai/config.json", plugin: ["@scope/plugin"] }, null, 2),
       )
     },
   })
@@ -1401,7 +1401,7 @@ test("merges plugin arrays from global and local configs", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           plugin: ["global-plugin-1", "global-plugin-2"],
         }),
       )
@@ -1410,7 +1410,7 @@ test("merges plugin arrays from global and local configs", async () => {
       await Filesystem.write(
         path.join(opencodeDir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           plugin: ["local-plugin-1"],
         }),
       )
@@ -1477,7 +1477,7 @@ test("merges instructions arrays from global and local configs", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           instructions: ["global-instructions.md", "shared-rules.md"],
         }),
       )
@@ -1485,7 +1485,7 @@ test("merges instructions arrays from global and local configs", async () => {
       await Filesystem.write(
         path.join(opencodeDir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           instructions: ["local-instructions.md"],
         }),
       )
@@ -1516,7 +1516,7 @@ test("deduplicates duplicate instructions from global and local configs", async 
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           instructions: ["duplicate.md", "global-only.md"],
         }),
       )
@@ -1524,7 +1524,7 @@ test("deduplicates duplicate instructions from global and local configs", async 
       await Filesystem.write(
         path.join(opencodeDir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           instructions: ["duplicate.md", "local-only.md"],
         }),
       )
@@ -1560,7 +1560,7 @@ test("deduplicates duplicate plugins from global and local configs", async () =>
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           plugin: ["duplicate-plugin", "global-plugin-1"],
         }),
       )
@@ -1569,7 +1569,7 @@ test("deduplicates duplicate plugins from global and local configs", async () =>
       await Filesystem.write(
         path.join(opencodeDir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           plugin: ["duplicate-plugin", "local-plugin-1"],
         }),
       )
@@ -1610,7 +1610,7 @@ test("keeps plugin origins aligned with merged plugin list", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           plugin: [["shared-plugin@1.0.0", { source: "global" }], "global-only@1.0.0"],
         }),
       )
@@ -1618,7 +1618,7 @@ test("keeps plugin origins aligned with merged plugin list", async () => {
       await Filesystem.write(
         path.join(local, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           plugin: [["shared-plugin@2.0.0", { source: "local" }], "local-only@1.0.0"],
         }),
       )
@@ -1653,7 +1653,7 @@ test("migrates legacy tools config to permissions - allow", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           agent: {
             test: {
               tools: {
@@ -1684,7 +1684,7 @@ test("migrates legacy tools config to permissions - deny", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           agent: {
             test: {
               tools: {
@@ -1715,7 +1715,7 @@ test("migrates legacy write tool to edit permission", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           agent: {
             test: {
               tools: {
@@ -1739,13 +1739,13 @@ test("migrates legacy write tool to edit permission", async () => {
 })
 
 // Managed settings tests
-// Note: preload.ts sets OPENCODE_TEST_MANAGED_CONFIG which Global.Path.managedConfig uses
+// Note: preload.ts sets NOVAWAY_TEST_MANAGED_CONFIG which Global.Path.managedConfig uses
 
 test("managed settings override user settings", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         model: "user/model",
         share: "auto",
         username: "testuser",
@@ -1754,7 +1754,7 @@ test("managed settings override user settings", async () => {
   })
 
   await writeManagedSettings({
-    $schema: "https://opencode.ai/config.json",
+    $schema: "https://novaway.ai/config.json",
     model: "managed/model",
     share: "disabled",
   })
@@ -1774,7 +1774,7 @@ test("managed settings override project settings", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         autoupdate: true,
         disabled_providers: [],
       })
@@ -1782,7 +1782,7 @@ test("managed settings override project settings", async () => {
   })
 
   await writeManagedSettings({
-    $schema: "https://opencode.ai/config.json",
+    $schema: "https://novaway.ai/config.json",
     autoupdate: false,
     disabled_providers: ["openai"],
   })
@@ -1801,7 +1801,7 @@ test("missing managed settings file is not an error", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         model: "user/model",
       })
     },
@@ -1822,7 +1822,7 @@ test("migrates legacy edit tool to edit permission", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           agent: {
             test: {
               tools: {
@@ -1851,7 +1851,7 @@ test("migrates legacy patch tool to edit permission", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           agent: {
             test: {
               tools: {
@@ -1880,7 +1880,7 @@ test("migrates mixed legacy tools config", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           agent: {
             test: {
               tools: {
@@ -1915,7 +1915,7 @@ test("merges legacy tools with existing permission config", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           agent: {
             test: {
               permission: {
@@ -1950,7 +1950,7 @@ test("permission config preserves user key order", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           permission: {
             "*": "deny",
             edit: "ask",
@@ -2019,7 +2019,7 @@ test("project config can override MCP server enabled status", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           mcp: {
             jira: {
               type: "remote",
@@ -2038,7 +2038,7 @@ test("project config can override MCP server enabled status", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.jsonc"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           mcp: {
             jira: {
               type: "remote",
@@ -2077,7 +2077,7 @@ test("MCP config deep merges preserving base config properties", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           mcp: {
             myserver: {
               type: "remote",
@@ -2094,7 +2094,7 @@ test("MCP config deep merges preserving base config properties", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.jsonc"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           mcp: {
             myserver: {
               type: "remote",
@@ -2129,7 +2129,7 @@ test("local .novaway config can override MCP from project config", async () => {
       await Filesystem.write(
         path.join(dir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           mcp: {
             docs: {
               type: "remote",
@@ -2145,7 +2145,7 @@ test("local .novaway config can override MCP from project config", async () => {
       await Filesystem.write(
         path.join(opencodeDir, "novaway.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           mcp: {
             docs: {
               type: "remote",
@@ -2482,7 +2482,7 @@ describe("deduplicatePluginOrigins", () => {
         await Filesystem.write(
           path.join(dir, "novaway.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             plugin: ["my-plugin@1.0.0"],
           }),
         )
@@ -2504,7 +2504,7 @@ describe("deduplicatePluginOrigins", () => {
   })
 })
 
-describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
+describe("NOVAWAY_DISABLE_PROJECT_CONFIG", () => {
   test("skips project config files when flag is set", async () => {
     const originalEnv = process.env["NOVAWAY_DISABLE_PROJECT_CONFIG"]
     process.env["NOVAWAY_DISABLE_PROJECT_CONFIG"] = "true"
@@ -2516,7 +2516,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
           await Filesystem.write(
             path.join(dir, "novaway.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://novaway.ai/config.json",
               model: "project/model",
               username: "project-user",
             }),
@@ -2611,7 +2611,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
           await Filesystem.write(
             path.join(dir, "novaway.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://novaway.ai/config.json",
               instructions: ["./CUSTOM.md"],
             }),
           )
@@ -2646,7 +2646,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
     }
   })
 
-  test("OPENCODE_CONFIG_DIR still works when flag is set", async () => {
+  test("NOVAWAY_CONFIG_DIR still works when flag is set", async () => {
     const originalDisable = process.env["NOVAWAY_DISABLE_PROJECT_CONFIG"]
     const originalConfigDir = process.env["NOVAWAY_CONFIG_DIR"]
 
@@ -2657,7 +2657,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
           await Filesystem.write(
             path.join(dir, "novaway.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://novaway.ai/config.json",
               model: "configdir/model",
             }),
           )
@@ -2670,7 +2670,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
           await Filesystem.write(
             path.join(dir, "novaway.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://novaway.ai/config.json",
               model: "project/model",
             }),
           )
@@ -2684,7 +2684,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
         directory: projectTmp.path,
         fn: async (ctx) => {
           const config = await load(ctx)
-          // Should load from OPENCODE_CONFIG_DIR, not project
+          // Should load from NOVAWAY_CONFIG_DIR, not project
           expect(config.model).toBe("configdir/model")
         },
       })
@@ -2703,13 +2703,13 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
   })
 })
 
-describe("OPENCODE_CONFIG_CONTENT token substitution", () => {
-  test("substitutes {env:} tokens in OPENCODE_CONFIG_CONTENT", async () => {
+describe("NOVAWAY_CONFIG_CONTENT token substitution", () => {
+  test("substitutes {env:} tokens in NOVAWAY_CONFIG_CONTENT", async () => {
     const originalEnv = process.env["NOVAWAY_CONFIG_CONTENT"]
     const originalTestVar = process.env["TEST_CONFIG_VAR"]
     process.env["TEST_CONFIG_VAR"] = "test_api_key_12345"
     process.env["NOVAWAY_CONFIG_CONTENT"] = JSON.stringify({
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://novaway.ai/config.json",
       username: "{env:TEST_CONFIG_VAR}",
     })
 
@@ -2736,7 +2736,7 @@ describe("OPENCODE_CONFIG_CONTENT token substitution", () => {
     }
   })
 
-  test("substitutes {file:} tokens in OPENCODE_CONFIG_CONTENT", async () => {
+  test("substitutes {file:} tokens in NOVAWAY_CONFIG_CONTENT", async () => {
     const originalEnv = process.env["NOVAWAY_CONFIG_CONTENT"]
 
     try {
@@ -2744,7 +2744,7 @@ describe("OPENCODE_CONFIG_CONTENT token substitution", () => {
         init: async (dir) => {
           await Filesystem.write(path.join(dir, "api_key.txt"), "secret_key_from_file")
           process.env["NOVAWAY_CONFIG_CONTENT"] = JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://novaway.ai/config.json",
             username: "{file:./api_key.txt}",
           })
         },
@@ -2802,7 +2802,7 @@ test("parseManagedPlist parses server settings", async () => {
     ConfigParse.jsonc(
       await ConfigManaged.parseManagedPlist(
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           server: { hostname: "127.0.0.1", mdns: false },
           autoupdate: true,
         }),
@@ -2822,7 +2822,7 @@ test("parseManagedPlist parses permission rules", async () => {
     ConfigParse.jsonc(
       await ConfigManaged.parseManagedPlist(
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           permission: {
             "*": "ask",
             bash: { "*": "ask", "rm -rf *": "deny", "curl *": "deny" },
@@ -2852,7 +2852,7 @@ test("parseManagedPlist parses enabled_providers", async () => {
     ConfigParse.jsonc(
       await ConfigManaged.parseManagedPlist(
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://novaway.ai/config.json",
           enabled_providers: ["anthropic", "google"],
         }),
       ),
@@ -2867,10 +2867,10 @@ test("parseManagedPlist handles empty config", async () => {
   const config = ConfigParse.schema(
     Config.Info,
     ConfigParse.jsonc(
-      await ConfigManaged.parseManagedPlist(JSON.stringify({ $schema: "https://opencode.ai/config.json" })),
+      await ConfigManaged.parseManagedPlist(JSON.stringify({ $schema: "https://novaway.ai/config.json" })),
       "test:mobileconfig",
     ),
     "test:mobileconfig",
   )
-  expect(config.$schema).toBe("https://opencode.ai/config.json")
+  expect(config.$schema).toBe("https://novaway.ai/config.json")
 })

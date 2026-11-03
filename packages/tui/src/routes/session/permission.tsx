@@ -14,7 +14,7 @@ import { Locale } from "../../util/locale"
 import { webSearchProviderLabel } from "../../util/tool-display"
 import { getScrollAcceleration } from "../../util/scroll"
 import { useTuiConfig } from "../../config"
-import { NovaWay_BASE_MODE, useBindings, useCommandShortcut } from "../../keymap"
+import { NOVAWAY_BASE_MODE, useBindings, useCommandShortcut } from "../../keymap"
 import { usePathFormatter } from "../../context/path-format"
 
 // 权限卡片抬头里那一行的上限。
@@ -452,7 +452,7 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
   const dimensions = useTerminalDimensions()
   const narrow = createMemo(() => dimensions().width < 80)
   useBindings(() => ({
-    mode: NovaWay_BASE_MODE,
+    mode: NOVAWAY_BASE_MODE,
     commands: [
       {
         name: "app.exit",
@@ -548,7 +548,7 @@ function Prompt<const T extends Record<string, string>>(props: {
   const fullscreenHint = useCommandShortcut("permission.prompt.fullscreen")
 
   useBindings(() => ({
-    mode: NovaWay_BASE_MODE,
+    mode: NOVAWAY_BASE_MODE,
     commands: [
       {
         name: "app.exit",

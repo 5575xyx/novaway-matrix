@@ -86,7 +86,7 @@ export interface Interface {
   }) => Effect.Effect<StatusSummary>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Evolution") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Evolution") {}
 
 function rowToCandidate(row: typeof EvolutionCandidateTable.$inferSelect): Candidate {
   return {
@@ -308,7 +308,7 @@ function materializeToolSource(candidate: Candidate) {
   const guidance = content || description
 
   return [
-    'import { tool } from "@opencode/plugin"',
+    'import { tool } from "@novaway/plugin"',
     "",
     `/** Evolved tool: ${description.replace(/\*\//g, "* /")}`,
     ` * ${candidate.reason.replace(/\*\//g, "* /")}`,

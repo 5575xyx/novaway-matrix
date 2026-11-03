@@ -16,11 +16,11 @@ const dryRun = values["dry-run"]
 const repo = process.env.GH_REPO
 if (!repo) throw new Error("GH_REPO is required")
 
-const releaseId = process.env.NovaWay_RELEASE
-if (!releaseId) throw new Error("NovaWay_RELEASE is required")
+const releaseId = process.env.NOVAWAY_RELEASE
+if (!releaseId) throw new Error("NOVAWAY_RELEASE is required")
 
-const version = process.env.NovaWay_VERSION
-if (!version) throw new Error("NovaWay_VERSION is required")
+const version = process.env.NOVAWAY_VERSION
+if (!version) throw new Error("NOVAWAY_VERSION is required")
 
 const dir = process.env.LATEST_YML_DIR
 if (!dir) throw new Error("LATEST_YML_DIR is required")

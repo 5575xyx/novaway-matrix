@@ -5,7 +5,7 @@ export type Channel = "dev" | "beta" | "prod"
 export function resolveChannel(): Channel {
   // Windows 读 env 大小写不敏感,Linux CI 是敏感的:两个名字都认,
   // 免得 CI 上 NOVAWAY_CHANNEL=prod 被当成 dev,打出一套 dev 图标。
-  const raw = Bun.env.NOVAWAY_CHANNEL ?? Bun.env.NovaWay_CHANNEL
+  const raw = Bun.env.NOVAWAY_CHANNEL ?? Bun.env.NOVAWAY_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
   return "dev"
 }

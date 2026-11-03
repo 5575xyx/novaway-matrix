@@ -50,7 +50,7 @@ export interface Interface {
   readonly remove: (taskID: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/AgentTaskList") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/AgentTaskList") {}
 
 const id = () => `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
 

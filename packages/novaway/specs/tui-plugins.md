@@ -18,7 +18,7 @@ Example:
 
 ```json
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "theme": "smoke-theme",
   "leader_timeout": 2000,
   "keybinds": {
@@ -213,7 +213,7 @@ npm plugins can declare a version compatibility range in `package.json` using th
 - There is no uninstall, list, or update CLI command for external plugins.
 - Local file plugins are configured directly in `tui.json`.
 
-When `plugin` entries exist in a writable `.opencode` dir or `OPENCODE_CONFIG_DIR`, OpenCode installs `@opencode-ai/plugin` into that dir and writes:
+When `plugin` entries exist in a writable `.opencode` dir or `NOVAWAY_CONFIG_DIR`, OpenCode installs `@opencode-ai/plugin` into that dir and writes:
 
 - `package.json`
 - `bun.lock`
@@ -420,7 +420,7 @@ Metadata is persisted by plugin id.
 
 - Internal TUI plugins load first.
 - External TUI plugins load from `tuiConfig.plugin`.
-- `--pure` / `OPENCODE_PURE` skips external TUI plugins only.
+- `--pure` / `NOVAWAY_PURE` skips external TUI plugins only.
 - External plugin resolution and import are parallel.
 - Packages with no `./tui` entrypoint and valid `oc-themes` are loaded as synthetic no-op TUI plugin modules.
 - Theme-only packages loaded this way appear in `api.plugins.list()` and plugin manager rows like other external plugins.

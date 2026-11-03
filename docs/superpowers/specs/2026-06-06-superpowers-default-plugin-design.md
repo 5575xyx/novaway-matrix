@@ -17,9 +17,9 @@
 
 ## 探索结论
 
-- **首次启动逻辑**：`packages/opencode/src/config/config.ts:413-424`，在 `!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_CONTENT` 且 `novaway.jsonc` 不存在时写入最小化 `{ "$schema": "..." }`。
+- **首次启动逻辑**：`packages/opencode/src/config/config.ts:413-424`，在 `!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CONTENT` 且 `novaway.jsonc` 不存在时写入最小化 `{ "$schema": "..." }`。
 - **git spec 解析**：`npa('superpowers@git+https://github.com/obra/superpowers.git')` 返回 `type: "git"`。`Npm.add`（`packages/core/src/npm.ts:113-135`）通过 `@npmcli/arborist` 处理 spec，**支持 git URL**。`parsePluginSpecifier`（`packages/opencode/src/plugin/shared.ts:22-34`）保留 rawSpec。opencode 现有解析器可直接吃下该 spec。
-- **门控机制**：`runtime-flags.ts:17` 已用 `OPENCODE_DISABLE_DEFAULT_PLUGINS` 控制 `INTERNAL_PLUGINS` 鉴权插件。`Flag` 模块（`packages/core/src/flag/flag.ts`）**未**暴露该字段，需新增。
+- **门控机制**：`runtime-flags.ts:17` 已用 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 控制 `INTERNAL_PLUGINS` 鉴权插件。`Flag` 模块（`packages/core/src/flag/flag.ts`）**未**暴露该字段，需新增。
 - **默认 plugin 列表**：代码中**无任何**"全局默认 plugin 列表"机制；`Info.plugin` 是 `Schema.optional` 数组。
 
 ## 设计
@@ -28,16 +28,16 @@
 
 | 文件                                           | 改动                                                                                                               |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `packages/core/src/flag/flag.ts`               | 新增 `OPENCODE_DISABLE_DEFAULT_PLUGINS: truthy(...)` 字段                                                          |
+| `packages/core/src/flag/flag.ts`               | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy(...)` 字段                                                          |
 | `packages/opencode/src/config/config.ts`       | ① 顶部新增 `export const DEFAULT_GLOBAL_PLUGINS: string[]`；② `loadGlobal` 首次写入处按 flag 决定是否注入 `plugin` |
 | `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试                                                                                                  |
 
 ### 代码骨架
 
-**`packages/core/src/flag/flag.ts`**（在 `OPENCODE_DISABLE_AUTOCOMPACT` 附近）：
+**`packages/core/src/flag/flag.ts`**（在 `NOVAWAY_DISABLE_AUTOCOMPACT` 附近）：
 
 ```ts
-OPENCODE_DISABLE_DEFAULT_PLUGINS: truthy("OPENCODE_DISABLE_DEFAULT_PLUGINS"),
+NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy("NOVAWAY_DISABLE_DEFAULT_PLUGINS"),
 ```
 
 **`packages/opencode/src/config/config.ts`**（在 `globalConfigFile` 函数之前）：
@@ -51,13 +51,13 @@ export const DEFAULT_GLOBAL_PLUGINS: string[] = ["superpowers@git+https://github
 **`packages/opencode/src/config/config.ts:417-424`**（替换现有 if 块）：
 
 ```ts
-if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_CONTENT) {
+if (!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CONTENT) {
   const file = globalConfigFile()
   if (!existsSync(file)) {
     const seed: Record<string, unknown> = {
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://novaway.ai/config.json",
     }
-    if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
+    if (!Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS) {
       seed.plugin = DEFAULT_GLOBAL_PLUGINS
     }
     yield * fs.writeWithDirs(file, JSON.stringify(seed, null, 2)).pipe(Effect.catch(() => Effect.void))
@@ -72,11 +72,11 @@ if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_
   ↓
 loadGlobal()
   ↓
-!OPENCODE_CONFIG && !OPENCODE_CONFIG_DIR && !OPENCODE_CONFIG_CONTENT
+!NOVAWAY_CONFIG && !NOVAWAY_CONFIG_DIR && !NOVAWAY_CONFIG_CONTENT
   ↓
 !existsSync(novaway.jsonc)
   ↓
-检查 Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS
+检查 Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS
   ├─ false → 写入 { $schema, plugin: [superpowers spec] }
   └─ true  → 写入 { $schema }（仅 schema，与当前行为一致）
   ↓
@@ -89,7 +89,7 @@ Plugin.Service.init() 解析并安装（走 Npm.add → arborist 处理 git URL�
 
 - **已存在配置**：`existsSync(file)` 为 true → 完全不触碰。
 - **3 个 env flag 任一设置** → 跳过首次写入，沿用当前行为。
-- **`OPENCODE_DISABLE_DEFAULT_PLUGINS=true`** → 即使首启动也不写 plugin。
+- **`NOVAWAY_DISABLE_DEFAULT_PLUGINS=true`** → 即使首启动也不写 plugin。
 - **跨平台路径**：`globalConfigFile()` 已处理 win/mac/linux。
 - **git URL 安装失败**：`Npm.add` → `InstallFailedError`，`Plugin.init()` 在 `bootstrap.ts:38-52` 已用 `Effect.forkDetach` 隔离，启动不会因此崩溃。
 - **`plugin_origins` 元数据**：首启动写入的 `plugin` 是裸 spec 字符串，没有 origin 记录——与用户手写 `plugin` 数组的现有行为一致。

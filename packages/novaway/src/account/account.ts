@@ -179,7 +179,7 @@ export interface Interface {
   readonly poll: (input: Login) => Effect.Effect<PollResult, AccountError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Account") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Account") {}
 
 export const layer: Layer.Layer<Service, never, AccountRepo.Service | HttpClient.HttpClient> = Layer.effect(
   Service,

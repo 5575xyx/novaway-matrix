@@ -47,7 +47,7 @@ export interface Interface {
   readonly resume: (input: { sessionID: string; runID: string }) => Effect.Effect<ResumePoint | undefined>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamCheckpoint") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamCheckpoint") {}
 
 const runTag = (runID: string) => "team-run:" + runID
 

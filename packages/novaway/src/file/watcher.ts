@@ -16,7 +16,7 @@ import { FileIgnore } from "./ignore"
 import { Protected } from "./protected"
 import * as Log from "@novaway/core/util/log"
 
-declare const NovaWay_LIBC: string | undefined
+declare const NOVAWAY_LIBC: string | undefined
 
 const log = Log.create({ service: "file.watcher" })
 const SUBSCRIBE_TIMEOUT_MS = 10_000
@@ -34,7 +34,7 @@ export const Event = {
 const watcher = lazy((): typeof import("@parcel/watcher") | undefined => {
   try {
     const binding = require(
-      `@parcel/watcher-${process.platform}-${process.arch}${process.platform === "linux" ? `-${NovaWay_LIBC || "glibc"}` : ""}`,
+      `@parcel/watcher-${process.platform}-${process.arch}${process.platform === "linux" ? `-${NOVAWAY_LIBC || "glibc"}` : ""}`,
     )
     return createWrapper(binding) as typeof import("@parcel/watcher")
   } catch (error) {
@@ -62,7 +62,7 @@ export interface Interface {
   readonly init: () => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/FileWatcher") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/FileWatcher") {}
 
 export const layer = Layer.effect(
   Service,

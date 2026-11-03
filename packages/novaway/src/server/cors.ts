@@ -4,7 +4,7 @@ const NovaWayOrigin = /^https:\/\/([a-z0-9-]+\.)*NovaWay\.ai$/
 
 export type CorsOptions = { readonly cors?: ReadonlyArray<string> }
 
-export const CorsConfig = Context.Reference<CorsOptions | undefined>("@NovaWay/ServerCorsConfig", {
+export const CorsConfig = Context.Reference<CorsOptions | undefined>("@novaway/ServerCorsConfig", {
   defaultValue: () => undefined,
 })
 

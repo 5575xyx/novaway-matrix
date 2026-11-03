@@ -28,10 +28,10 @@ export type ServiceClass<Self, Id extends string, Service> = Context.ServiceClas
  *
  * ```ts
  * class ServerAuthConfig extends ConfigService.Service<ServerAuthConfig>()(
- *   "@NovaWay/ServerAuthConfig",
+ *   "@novaway/ServerAuthConfig",
  *   {
- *     password: Config.string("NovaWay_SERVER_PASSWORD").pipe(Config.option),
- *     username: Config.string("NovaWay_SERVER_USERNAME").pipe(Config.withDefault("novaway")),
+ *     password: Config.string("NOVAWAY_SERVER_PASSWORD").pipe(Config.option),
+ *     username: Config.string("NOVAWAY_SERVER_USERNAME").pipe(Config.withDefault("novaway")),
  *   },
  * ) {}
  *

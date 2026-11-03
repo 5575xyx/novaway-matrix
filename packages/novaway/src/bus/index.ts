@@ -46,7 +46,7 @@ export interface Interface {
   readonly subscribeAllCallback: (callback: (event: any) => unknown) => Effect.Effect<() => void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Bus") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Bus") {}
 
 export const layer = Layer.effect(
   Service,

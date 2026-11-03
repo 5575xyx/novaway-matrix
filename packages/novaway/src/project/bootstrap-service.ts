@@ -4,6 +4,6 @@ export interface Interface {
   readonly run: Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/InstanceBootstrap") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/InstanceBootstrap") {}
 
 export * as InstanceBootstrap from "./bootstrap-service"

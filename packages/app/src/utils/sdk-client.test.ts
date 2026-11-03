@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test"
-import { createOpencodeClient } from "@novaway/sdk/v2/client"
+import { createNovawayClient } from "@novaway/sdk/v2/client"
 
 /**
  * 回归测试：SDK 重新生成后嵌套客户端改名时，客户端工厂不能崩。
  *
  * 曾经 `session.background` 从嵌套客户端变成 GET 方法，
- * 兼容别名对 undefined 调 `.bind()`，导致 createOpencodeClient 抛
+ * 兼容别名对 undefined 调 `.bind()`，导致 createNovawayClient 抛
  * "Cannot read properties of undefined (reading 'bind')"，
  * 整个应用在启动健康检查阶段直接白屏。
  */
-describe("createOpencodeClient compatibility aliases", () => {
-  const client = createOpencodeClient({ baseUrl: "http://127.0.0.1:1" }) as any
+describe("createNovawayClient compatibility aliases", () => {
+  const client = createNovawayClient({ baseUrl: "http://127.0.0.1:1" }) as any
 
   test("builds the client without throwing", () => {
     expect(client).toBeDefined()

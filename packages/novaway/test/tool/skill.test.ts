@@ -51,11 +51,11 @@ Use this skill.
           )
           yield* Effect.promise(() => Bun.write(path.join(skill, "scripts", "demo.txt"), "demo"))
 
-          const home = process.env.OPENCODE_TEST_HOME
-          process.env.OPENCODE_TEST_HOME = dir
+          const home = process.env.NOVAWAY_TEST_HOME
+          process.env.NOVAWAY_TEST_HOME = dir
           yield* Effect.addFinalizer(() =>
             Effect.sync(() => {
-              process.env.OPENCODE_TEST_HOME = home
+              process.env.NOVAWAY_TEST_HOME = home
             }),
           )
 

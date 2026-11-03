@@ -45,7 +45,7 @@ export interface Interface {
   readonly getByGoal: (goalId: string) => Effect.Effect<Info[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SessionTodo") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SessionTodo") {}
 
 export const layer = Layer.effect(
   Service,

@@ -23,7 +23,7 @@ describe("providerOptions", () => {
         { id: "mistral", name: "Mistral" },
         { id: "aws", name: "AWS Bedrock" },
       ]).map((option) => option.value),
-    ).toEqual(["openai", "anthropic", "aws", "mistral", "custom-z", "__NovaWay_custom_provider__"])
+    ).toEqual(["openai", "anthropic", "aws", "mistral", "custom-z", "__NOVAWAY_custom_provider__"])
   })
 
   test("does not collide with a configured provider named other", () => {
@@ -41,7 +41,7 @@ describe("providerOptions", () => {
       "NovaWay",
       "sensenova",
       "openai",
-      "__NovaWay_custom_provider__",
+      "__NOVAWAY_custom_provider__",
     ])
     const sense = options.find((option) => option.value === "sensenova")!
     expect(sense.category).toBe("免费接入")

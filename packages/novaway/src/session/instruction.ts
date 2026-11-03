@@ -49,7 +49,7 @@ export interface Interface {
   ) => Effect.Effect<{ filepath: string; content: string }[], AppFileSystem.Error>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Instruction") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Instruction") {}
 
 export interface SystemOutput {
   readonly always: string[]

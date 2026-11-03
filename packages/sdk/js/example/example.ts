@@ -1,8 +1,8 @@
-import { createOpencodeClient, createOpencodeServer } from "@novaway/sdk"
+import { createNovawayClient, createNovawayServer } from "@novaway/sdk"
 import { pathToFileURL } from "bun"
 
-const server = await createOpencodeServer()
-const client = createOpencodeClient({ baseUrl: server.url })
+const server = await createNovawayServer()
+const client = createNovawayClient({ baseUrl: server.url })
 
 const input = await Array.fromAsync(new Bun.Glob("packages/core/*.ts").scan())
 

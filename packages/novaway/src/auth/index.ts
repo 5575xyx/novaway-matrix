@@ -4,7 +4,7 @@ import { NonNegativeInt } from "@novaway/core/schema"
 import { Global } from "@novaway/core/global"
 import { AppFileSystem } from "@novaway/core/filesystem"
 
-export const OAUTH_DUMMY_KEY = "NovaWay-oauth-dummy-key"
+export const OAUTH_DUMMY_KEY = "novaway-oauth-dummy-key"
 
 const file = path.join(Global.Path.data, "auth.json")
 
@@ -54,7 +54,7 @@ export interface Interface {
   readonly removeEntry: (key: string, index: number) => Effect.Effect<void, AuthError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Auth") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Auth") {}
 
 const migrateOldFormat = (raw: Record<string, unknown>): boolean => {
   let migrated = false
@@ -74,12 +74,9 @@ export const layer = Layer.effect(
     const decode = Schema.decodeUnknownOption(Info)
 
     const readFile = Effect.fn("Auth.readFile")(function* () {
-      if (process.env.NovaWay_AUTH_CONTENT || process.env.OPENCODE_AUTH_CONTENT) {
+      if (process.env.NOVAWAY_AUTH_CONTENT) {
         try {
-          return JSON.parse(process.env.NovaWay_AUTH_CONTENT ?? process.env.OPENCODE_AUTH_CONTENT!) as Record<
-            string,
-            unknown
-          >
+          return JSON.parse(process.env.NOVAWAY_AUTH_CONTENT) as Record<string, unknown>
         } catch (_) {}
       }
       return (yield* fsys.readJson(file).pipe(Effect.orElseSucceed(() => ({})))) as Record<string, unknown>

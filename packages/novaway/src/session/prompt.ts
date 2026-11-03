@@ -622,7 +622,7 @@ export interface Interface {
   readonly resolvePromptParts: (template: string) => Effect.Effect<PromptInput["parts"]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SessionPrompt") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SessionPrompt") {}
 
 export const layer = Layer.effect(
   Service,
@@ -2980,7 +2980,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           "候选必须提供 expectedOutcomes，即写盘后可通过内容检查验证的预期结果（2-5 条短句，必须出现在最终文件中）。",
           "kind 可以是 skill、agent、workflow、prompt、tool、project、strategy、habit、knowledge；后三类分别用于通用行为策略、个人流程和知识模板。",
           "scope 必须是 global 或 project：global 表示该候选是跨项目通用的能力（如通用技能、可复用工作流、全局提示词/工具），应写入全局配置；project 表示仅与当前项目相关（如项目规则、特定 Agent 行为、项目专属流程）。",
-          "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @opencode/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
+          "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @novaway/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
           "当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。",
           '当 kind=project 时，content 必须是目标文件的完整新内容或 unified diff，不要写"把 A 改成 B"这类操作说明；target 用相对路径（不含 .novaway 前缀）。',
           "expectedOutcomes 里的每一条都必须逐字出现在 content 中，否则写盘后的回归校验会判定失败并回滚。",

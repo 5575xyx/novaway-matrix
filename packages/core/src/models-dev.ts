@@ -11,8 +11,9 @@ import { InstallationChannel, InstallationVersion } from "./installation/version
 export const CatalogModelStatus = Schema.Literals(["alpha", "beta", "deprecated"])
 export type CatalogModelStatus = typeof CatalogModelStatus.Type
 
-const USER_AGENT = `opencode/${InstallationChannel}/${InstallationVersion}/${Flag.NOVAWAY_CLIENT}`
+const USER_AGENT = `novaway/${InstallationChannel}/${InstallationVersion}/${Flag.NOVAWAY_CLIENT}`
 const FETCH_TIMEOUT = "2 seconds"
+// 上游的模型目录服务（尚未自建镜像）：域名保持原样，只通过 NOVAWAY_MODELS_URL 覆盖。
 const DEFAULT_MODELS_URL = "https://models.opencode.ai"
 
 const CostTier = Schema.Struct({
@@ -107,14 +108,14 @@ export const Provider = Schema.Struct({
 
 export type Provider = Schema.Schema.Type<typeof Provider>
 
-declare const OPENCODE_MODELS_DEV: Record<string, Provider> | undefined
+declare const NOVAWAY_MODELS_DEV: Record<string, Provider> | undefined
 
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Provider>>
   readonly refresh: (force?: boolean) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/ModelsDev") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/ModelsDev") {}
 
 export const layer = Layer.effect(
   Service,
@@ -160,7 +161,7 @@ export const layer = Layer.effect(
     )
 
     const loadSnapshot = Effect.sync(() =>
-      typeof OPENCODE_MODELS_DEV === "undefined" ? undefined : OPENCODE_MODELS_DEV,
+      typeof NOVAWAY_MODELS_DEV === "undefined" ? undefined : NOVAWAY_MODELS_DEV,
     )
 
     const fetchAndWrite = Effect.fn("ModelsDev.fetchAndWrite")(function* () {

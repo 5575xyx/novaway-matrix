@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@novaway/sdk-v2-latest/v2"
-import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, Show } from "solid-js"
 import { SidebarCard } from "../../component/sidebar-card"

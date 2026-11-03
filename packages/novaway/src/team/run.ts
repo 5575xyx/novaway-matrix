@@ -261,7 +261,7 @@ export interface Interface {
   }) => Effect.Effect<RunTeam | undefined>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamRun") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamRun") {}
 
 const generateId = (prefix: string) =>
   prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)

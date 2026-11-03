@@ -25,7 +25,7 @@ export interface Interface {
   readonly file: (filepath: string) => Effect.Effect<boolean>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Format") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Format") {}
 
 export const layer = Layer.effect(
   Service,

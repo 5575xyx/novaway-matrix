@@ -1,6 +1,6 @@
 {
   "username": "patched-user",
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "formatter": false,
   "lsp": false
 }

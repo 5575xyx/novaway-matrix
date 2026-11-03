@@ -164,7 +164,7 @@ export interface Interface {
   readonly remove: (id: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamProfile") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamProfile") {}
 
 /** 内置「代码审查团队」：1 名队长 + 4 名不同岗位成员（§4.5）。 */
 export const BUILTIN_PROFILE_ID = "prof_builtin_code_review"

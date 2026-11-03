@@ -43,7 +43,7 @@ export interface Interface {
   readonly tools: () => Effect.Effect<string[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Extension") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Extension") {}
 
 const stateFile = () => path.join(Global.Path.config, "extensions.json")
 

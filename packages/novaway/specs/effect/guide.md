@@ -16,7 +16,7 @@ export interface Interface {
   readonly get: (id: FooID) => Effect.Effect<FooInfo, FooError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/Foo") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Foo") {}
 
 export const layer = Layer.effect(
   Service,

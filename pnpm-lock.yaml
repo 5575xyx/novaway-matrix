@@ -197,7 +197,7 @@ importers:
       '@novaway/sdk':
         specifier: workspace:*
         version: link:packages/sdk/js
-      '@opencode/plugin':
+      '@novaway/plugin':
         specifier: workspace:*
         version: link:packages/plugin
       '@silvia-odwyer/photon-node':
@@ -1233,7 +1233,7 @@ importers:
       '@openauthjs/openauth':
         specifier: 'catalog:'
         version: 0.0.0-20250322224806(arctic@2.3.3)(hono@4.13.14)
-      '@opencode/plugin':
+      '@novaway/plugin':
         specifier: workspace:*
         version: link:../plugin
       '@openrouter/ai-sdk-provider':
@@ -1719,7 +1719,7 @@ importers:
       '@novaway/ui':
         specifier: workspace:*
         version: link:../ui
-      '@opencode/plugin':
+      '@novaway/plugin':
         specifier: workspace:*
         version: link:../plugin
       '@opentui/core':

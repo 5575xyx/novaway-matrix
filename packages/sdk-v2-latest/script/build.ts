@@ -68,7 +68,7 @@ await createClient({
     },
     {
       name: "@hey-api/sdk",
-      instance: "OpencodeClient",
+      instance: "NovawayClient",
       exportFromIndex: false,
       auth: false,
       paramsStructure: "flat",
@@ -91,7 +91,7 @@ if (/export type SessionNext\w+1 =/.test(generatedTypes)) {
 // the codegen config (which must stay on the generic instance name, otherwise
 // `bun dev generate` cannot import this package before its own output exists).
 const generatedSdk = await Bun.file("./src/v2/gen/sdk.gen.ts").text()
-const brandedSdk = generatedSdk.replaceAll("OpencodeClient", "NovawayClient")
+const brandedSdk = generatedSdk.replaceAll("NovawayClient", "NovawayClient")
 if (brandedSdk === generatedSdk) {
   throw new Error("Client branding patch did not apply; @hey-api/openapi-ts output may have changed")
 }

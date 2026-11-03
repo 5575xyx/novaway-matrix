@@ -62,7 +62,7 @@ export interface Interface {
   }
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/Catalog") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/v2/Catalog") {}
 
 export const layer = Layer.effect(
   Service,

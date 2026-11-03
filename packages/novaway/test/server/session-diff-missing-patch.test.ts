@@ -57,7 +57,7 @@ describe("session diff with missing patch (#26574)", () => {
         const response = yield* Effect.promise(() =>
           Promise.resolve(
             Server.Default().app.request(pathFor(SessionPaths.diff, { sessionID: session.id }), {
-              headers: { "x-opencode-directory": test.directory },
+              headers: { "x-novaway-directory": test.directory },
             }),
           ),
         )

@@ -62,7 +62,7 @@ export interface Interface {
   readonly diff: (missionID: string) => Effect.Effect<MissionDiff | undefined>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamMission") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamMission") {}
 
 const generateId = () => "mis_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)
 

@@ -97,7 +97,7 @@ interface ProcessorContext extends Input {
 
 type StreamEvent = Event
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SessionProcessor") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SessionProcessor") {}
 
 export const layer = Layer.effect(
   Service,

@@ -19,7 +19,7 @@ export interface Interface {
   readonly clear: (sessionID: SessionID) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/ToolActivation") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/ToolActivation") {}
 
 export const layer = Layer.effect(
   Service,

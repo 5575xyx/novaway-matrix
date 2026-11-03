@@ -56,7 +56,7 @@ export interface Interface {
   readonly close: () => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Browser") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Browser") {}
 
 function browserError(code: string, message: string) {
   return new BrowserError({ code, message: redactSecrets(message) })

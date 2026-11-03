@@ -466,7 +466,7 @@ export interface Interface {
   }) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SessionCompaction") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SessionCompaction") {}
 
 export const use = serviceUse(Service)
 

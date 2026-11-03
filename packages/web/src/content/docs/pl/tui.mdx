@@ -359,7 +359,7 @@ Możesz dostosować zachowanie TUI za pomocą pliku `tui.json` (lub `tui.jsonc`)
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "theme": "opencode",
   "keybinds": {
     "leader": "ctrl+x"
@@ -382,7 +382,7 @@ Jest to oddzielny plik od `opencode.json`, który konfiguruje zachowanie serwera
 - `scroll_speed` - Kontroluje szybkość przewijania TUI podczas korzystania z poleceń przewijania (minimum: `0.001`, obsługuje wartości dziesiętne). Wartość domyślna to `3`. **Uwaga: jest to ignorowane, jeśli `scroll_acceleration.enabled` jest ustawione na `true`.**
 - `diff_style` - Steruje renderowaniem różnic. `"auto"` dostosowuje się do szerokości terminala, `"stacked"` zawsze pokazuje układ jednokolumnowy.
 
-Użyj `OPENCODE_TUI_CONFIG`, aby załadować niestandardową ścieżkę konfiguracji TUI.
+Użyj `NOVAWAY_TUI_CONFIG`, aby załadować niestandardową ścieżkę konfiguracji TUI.
 
 ---
 

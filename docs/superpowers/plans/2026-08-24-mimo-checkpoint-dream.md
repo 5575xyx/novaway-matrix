@@ -143,7 +143,7 @@ export interface CheckpointService {
   readonly autoCheckpoint: (sessionId: string) => Effect.Effect<Checkpoint | null>
 }
 
-export class CheckpointService extends Context.Service<CheckpointService>()("@NovaWay/CheckpointService") {}
+export class CheckpointService extends Context.Service<CheckpointService>()("@novaway/CheckpointService") {}
 
 export const layer = Layer.effect(
   CheckpointService,
@@ -340,7 +340,7 @@ export interface DreamService {
   readonly stopBackgroundDream: () => Effect.Effect<void>
 }
 
-export class DreamService extends Context.Service<DreamService>()("@NovaWay/DreamService") {}
+export class DreamService extends Context.Service<DreamService>()("@novaway/DreamService") {}
 
 export const layer = Layer.effect(
   DreamService,
@@ -537,7 +537,7 @@ export interface DistillService {
   readonly applyMemories: (result: DistillResult) => Effect.Effect<void>
 }
 
-export class DistillService extends Context.Service<DistillService>()("@NovaWay/DistillService") {}
+export class DistillService extends Context.Service<DistillService>()("@novaway/DistillService") {}
 
 export const layer = Layer.effect(
   DistillService,

@@ -78,7 +78,7 @@ export interface Interface {
   readonly stream: (input: StreamInput) => Stream.Stream<Event, unknown>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/LLM") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/LLM") {}
 
 export function mediaInput(parts: MessageV2.Part[]) {
   return {
@@ -469,11 +469,14 @@ const live: Layer.Layer<
         headers: {
           ...(input.model.providerID.startsWith("novaway")
             ? {
-                "x-NovaWay-project": NovaWayProjectID,
-                "x-NovaWay-session": input.sessionID,
-                "x-NovaWay-request": input.user.id,
-                "x-NovaWay-client": flags.client,
-                "User-Agent": `NovaWay/${InstallationVersion}`,
+                // Zen 服务的客户端契约：这四个头名固定为 `x-opencode-*`，
+                // 网关（packages/console 的 zen handler）按原名读取后转发给上游。
+                // 改名会让会话/项目/来源统计直接静默丢失，别跟着品牌一起改。
+                "x-opencode-project": NovaWayProjectID,
+                "x-opencode-session": input.sessionID,
+                "x-opencode-request": input.user.id,
+                "x-opencode-client": flags.client,
+                "User-Agent": `opencode/${InstallationVersion}`,
               }
             : {
                 "x-session-affinity": input.sessionID,

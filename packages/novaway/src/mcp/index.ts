@@ -265,7 +265,7 @@ export interface Interface {
   readonly getAuthStatus: (mcpName: string) => Effect.Effect<AuthStatus>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/MCP") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/MCP") {}
 
 export const layer = Layer.effect(
   Service,

@@ -88,7 +88,7 @@ import { Config } from "@/config/config"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigProvider } from "@/config/provider"
 import { ProtocolRegistry } from "@novaway/llm/protocols"
-import { type ToolContext as PluginToolContext, type ToolDefinition } from "@opencode/plugin"
+import { type ToolContext as PluginToolContext, type ToolDefinition } from "@novaway/plugin"
 import type { JSONSchema7, JSONSchema7Definition } from "@ai-sdk/provider"
 import { Schema } from "effect"
 import z from "zod"
@@ -431,7 +431,7 @@ export interface Interface {
   readonly reload: () => Effect.Effect<string[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/ToolRegistry") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/ToolRegistry") {}
 
 /**
  * Resolve a tool only when its service is present in the current layer stack.

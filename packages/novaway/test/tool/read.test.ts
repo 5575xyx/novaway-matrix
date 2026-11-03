@@ -100,8 +100,8 @@ const fail = Effect.fn("ReadToolTest.fail")(function* (
 const full = (p: string) => (process.platform === "win32" ? Filesystem.normalizePath(p) : p)
 const glob = (p: string) =>
   process.platform === "win32" ? Filesystem.normalizePathPattern(p) : p.replaceAll("\\", "/")
-const REPO_BASE_ENV = "NovaWay_REPO_CLONE_GITHUB_BASE_URL"
-const LEGACY_REPO_BASE_ENV = "OPENCODE_REPO_CLONE_GITHUB_BASE_URL"
+const REPO_BASE_ENV = "NOVAWAY_REPO_CLONE_GITHUB_BASE_URL"
+const LEGACY_REPO_BASE_ENV = "NOVAWAY_REPO_CLONE_GITHUB_BASE_URL"
 const githubBase = <A, E, R>(url: string, self: Effect.Effect<A, E, R>) =>
   Effect.acquireUseRelease(
     Effect.sync(() => {

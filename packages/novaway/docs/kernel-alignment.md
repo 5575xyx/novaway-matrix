@@ -383,7 +383,7 @@ UI：状态面板新增「计划待批准」区块（`status-panel/plan-approval
 （非交互 `run` 里该权限默认 deny，避免挂住）。批准后向会话追加一条
 `agent: "plan"` 的合成用户消息 —— 循环每步都按 `lastUser.agent` 解析代理，所以下一
 步自动切到规划蓝图；已在计划代理中时是无副作用的 no-op。两个工具都只在
-`NovaWay_EXPERIMENTAL_PLAN_MODE` + CLI 客户端下注册（与计划模式的富提醒同一开关，
+`NOVAWAY_EXPERIMENTAL_PLAN_MODE` + CLI 客户端下注册（与计划模式的富提醒同一开关，
 避免出现"进得去出不来"的客户端）。
 
 ## 7.0.4 Bus 驱动的事件

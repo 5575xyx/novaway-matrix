@@ -69,9 +69,9 @@ describe("util.process", () => {
   })
 
   test("merges environment overrides", async () => {
-    const out = await Process.run(node('process.stdout.write(process.env.OPENCODE_TEST ?? "")'), {
+    const out = await Process.run(node('process.stdout.write(process.env.NOVAWAY_TEST ?? "")'), {
       env: {
-        OPENCODE_TEST: "set",
+        NOVAWAY_TEST: "set",
       },
     })
     expect(out.stdout.toString()).toBe("set")
@@ -80,15 +80,15 @@ describe("util.process", () => {
   test("uses shell in run on Windows", async () => {
     if (process.platform !== "win32") return
 
-    const out = await Process.run(["set", "OPENCODE_TEST_SHELL"], {
+    const out = await Process.run(["set", "NOVAWAY_TEST_SHELL"], {
       shell: true,
       env: {
-        OPENCODE_TEST_SHELL: "ok",
+        NOVAWAY_TEST_SHELL: "ok",
       },
     })
 
     expect(out.code).toBe(0)
-    expect(out.stdout.toString()).toContain("OPENCODE_TEST_SHELL=ok")
+    expect(out.stdout.toString()).toContain("NOVAWAY_TEST_SHELL=ok")
   })
 
   test("runs cmd scripts with spaces on Windows without shell", async () => {

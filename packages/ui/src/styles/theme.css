@@ -404,7 +404,7 @@
     color-scheme: dark;
     --text-mix-blend-mode: plus-lighter;
 
-    /* OC-2 fallback variables (dark) - WCAG 2.1 AA 标准优化配色 */
+    /* NovaWay Classic fallback variables (dark) - WCAG 2.1 AA 标准优化配色 */
     --background-base: #2d2d35;
     --background-weak: #383842;
     --background-strong: #32323a;

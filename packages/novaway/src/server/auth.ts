@@ -14,9 +14,9 @@ export type DecodedCredentials = {
   readonly password: Redacted.Redacted
 }
 
-export class Config extends ConfigService.Service<Config>()("@NovaWay/ServerAuthConfig", {
-  password: EffectConfig.string("NovaWay_SERVER_PASSWORD").pipe(EffectConfig.option),
-  username: EffectConfig.string("NovaWay_SERVER_USERNAME").pipe(EffectConfig.withDefault("novaway")),
+export class Config extends ConfigService.Service<Config>()("@novaway/ServerAuthConfig", {
+  password: EffectConfig.string("NOVAWAY_SERVER_PASSWORD").pipe(EffectConfig.option),
+  username: EffectConfig.string("NOVAWAY_SERVER_USERNAME").pipe(EffectConfig.withDefault("novaway")),
 }) {}
 
 export type Info = Context.Service.Shape<typeof Config>

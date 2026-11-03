@@ -20,7 +20,7 @@ import { useKV } from "../context/kv.tsx"
 import { useDialog } from "../ui/dialog"
 import { useTheme } from "../context/theme"
 import { useTuiPaths } from "../context/runtime"
-import { NovaWay_BASE_MODE, useBindings } from "../keymap"
+import { NOVAWAY_BASE_MODE, useBindings } from "../keymap"
 import { Sidebar, SIDEBAR_TABS, cycleSidebarTab, setSidebarTab } from "./session/sidebar"
 import { sidebarWidth } from "../util/sidebar-width"
 import { getScrollAcceleration } from "../util/scroll"
@@ -195,7 +195,7 @@ function HomeBody() {
   }))
 
   useBindings(() => ({
-    mode: NovaWay_BASE_MODE,
+    mode: NOVAWAY_BASE_MODE,
     bindings: tuiConfig.keybinds.gather("home", homeSidebarBindingCommands),
   }))
 

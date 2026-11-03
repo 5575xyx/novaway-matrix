@@ -55,7 +55,7 @@ export interface Interface {
   readonly normalize: (input: MessageV2.FilePart) => Effect.Effect<MessageV2.FilePart, Error>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Image") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Image") {}
 
 export const layer = Layer.effect(
   Service,
@@ -64,7 +64,7 @@ export const layer = Layer.effect(
     const loadPhoton = yield* Effect.cached(
       Effect.sync(() => {
         // Patched photon-node reads this during module init so Bun compiled binaries use the embedded wasm path.
-        ;(globalThis as typeof globalThis & { __NovaWay_PHOTON_WASM_PATH?: string }).__NovaWay_PHOTON_WASM_PATH =
+        ;(globalThis as typeof globalThis & { __NOVAWAY_PHOTON_WASM_PATH?: string }).__NOVAWAY_PHOTON_WASM_PATH =
           path.isAbsolute(photonWasm) ? photonWasm : fileURLToPath(new URL(photonWasm, import.meta.url))
       }).pipe(
         Effect.andThen(() => Effect.tryPromise(() => import("@silvia-odwyer/photon-node"))),

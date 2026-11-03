@@ -96,7 +96,7 @@ export async function tmpdir<T>(options?: TmpDirOptions<T>) {
     await Bun.write(
       path.join(dirpath, "novaway.json"),
       JSON.stringify({
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://novaway.ai/config.json",
         ...options.config,
       }),
     )
@@ -149,7 +149,7 @@ export function tmpdirScoped(options?: { git?: boolean; config?: Partial<Config.
       yield* Effect.promise(() =>
         fs.writeFile(
           path.join(dir, "novaway.json"),
-          JSON.stringify({ $schema: "https://opencode.ai/config.json", ...options.config }),
+          JSON.stringify({ $schema: "https://novaway.ai/config.json", ...options.config }),
         ),
       )
     }

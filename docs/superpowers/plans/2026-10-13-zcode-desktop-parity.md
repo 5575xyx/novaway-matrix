@@ -256,7 +256,7 @@ cd packages/app && bun run test:e2e:local -- e2e/layout.spec.ts
 cd <repo root> && bun --env-file=.env.local run --cwd packages/novaway --conditions=browser src/index.ts serve --port 4096 --hostname 127.0.0.1
 
 # app dev server（e2e 会自己起，可复用）
-cd packages/app && VITE_OPENCODE_SERVER_HOST=127.0.0.1 VITE_OPENCODE_SERVER_PORT=4096 bun run dev -- --host 127.0.0.1 --port 3000
+cd packages/app && VITE_NOVAWAY_SERVER_HOST=127.0.0.1 VITE_NOVAWAY_SERVER_PORT=4096 bun run dev -- --host 127.0.0.1 --port 3000
 
 # Electron 开发端（CDP 9222，playwright 的 chromium 在本机起不来）
 bun dev:desktop

@@ -71,7 +71,7 @@ describe("schema-rejection wire shape", () => {
         const res = yield* Effect.promise(async () =>
           Server.Default().app.request(SyncPaths.history, {
             method: "POST",
-            headers: { "x-opencode-directory": test.directory, "content-type": "application/json" },
+            headers: { "x-novaway-directory": test.directory, "content-type": "application/json" },
             body: JSON.stringify({ aggregate: -1 }),
           }),
         )
@@ -117,7 +117,7 @@ describe("schema-rejection wire shape", () => {
         const res = yield* Effect.promise(async () =>
           Server.Default().app.request(SyncPaths.history, {
             method: "POST",
-            headers: { "x-opencode-directory": test.directory, "content-type": "application/json" },
+            headers: { "x-novaway-directory": test.directory, "content-type": "application/json" },
             body: JSON.stringify({ aggregate: huge }),
           }),
         )

@@ -247,7 +247,7 @@ export interface Interface {
   readonly import: (bundle: Bundle) => Effect.Effect<Bundle["info"]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SessionPortability") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SessionPortability") {}
 
 export const layer: Layer.Layer<Service, never, Session.Service> = Layer.effect(
   Service,

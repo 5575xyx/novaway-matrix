@@ -25,7 +25,7 @@ export interface Interface {
   ) => Effect.Effect<MessageV2.WithParts, Session.BusyError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SessionRunState") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SessionRunState") {}
 
 export const layer = Layer.effect(
   Service,

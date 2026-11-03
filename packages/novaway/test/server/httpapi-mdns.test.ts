@@ -29,14 +29,14 @@ void mock.module("bonjour-service", () => ({
 const { Server } = await import("../../src/server/server")
 
 const original = {
-  OPENCODE_SERVER_PASSWORD: Flag.NOVAWAY_SERVER_PASSWORD,
-  OPENCODE_SERVER_USERNAME: Flag.NOVAWAY_SERVER_USERNAME,
+  NOVAWAY_SERVER_PASSWORD: Flag.NOVAWAY_SERVER_PASSWORD,
+  NOVAWAY_SERVER_USERNAME: Flag.NOVAWAY_SERVER_USERNAME,
 }
 
 afterEach(async () => {
   events.length = 0
-  Flag.NOVAWAY_SERVER_PASSWORD = original.OPENCODE_SERVER_PASSWORD
-  Flag.NOVAWAY_SERVER_USERNAME = original.OPENCODE_SERVER_USERNAME
+  Flag.NOVAWAY_SERVER_PASSWORD = original.NOVAWAY_SERVER_PASSWORD
+  Flag.NOVAWAY_SERVER_USERNAME = original.NOVAWAY_SERVER_USERNAME
   await disposeAllInstances()
   await resetDatabase()
 })

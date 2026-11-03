@@ -102,8 +102,8 @@ async function stop() {
 
 function prepareSidecarEnv(password: string, userDataPath: string) {
   Object.assign(process.env, {
-    NovaWay_SERVER_USERNAME: "NovaWay",
-    NovaWay_SERVER_PASSWORD: password,
+    NOVAWAY_SERVER_USERNAME: "NovaWay",
+    NOVAWAY_SERVER_PASSWORD: password,
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })
 }

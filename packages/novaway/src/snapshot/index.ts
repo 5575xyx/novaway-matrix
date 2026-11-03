@@ -123,7 +123,7 @@ export interface Interface {
   readonly diffFull: (from: string, to: string) => Effect.Effect<FileDiff[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Snapshot") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Snapshot") {}
 
 export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProcess.Service | Config.Service> =
   Layer.effect(

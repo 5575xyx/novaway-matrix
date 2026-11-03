@@ -155,7 +155,7 @@ export interface Interface {
   readonly updateProgress: (goalId: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/GoalService") {}
+export class Service extends Context.Service<Interface>()("@novaway/GoalService") {}
 
 const generateId = () => `goal_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 

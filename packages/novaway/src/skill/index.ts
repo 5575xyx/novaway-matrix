@@ -444,7 +444,7 @@ const loadSkills = Effect.fnUntraced(function* (state: State, discovered: Discov
   log.info("init", { count: Object.keys(state.skills).length })
 })
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Skill") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Skill") {}
 
 export const layer = Layer.effect(
   Service,

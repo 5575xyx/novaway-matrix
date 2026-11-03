@@ -18,8 +18,8 @@ const describeWatcher = FileWatcher.hasNativeBinding() && !process.env.CI ? desc
 
 const watcherConfigLayer = ConfigProvider.layer(
   ConfigProvider.fromUnknown({
-    OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
-    OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: "false",
+    NOVAWAY_EXPERIMENTAL_FILEWATCHER: "true",
+    NOVAWAY_EXPERIMENTAL_DISABLE_FILEWATCHER: "false",
   }),
 )
 

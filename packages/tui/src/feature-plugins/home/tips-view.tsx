@@ -1,4 +1,4 @@
-import type { TuiPluginApi } from "@opencode/plugin/tui"
+import type { TuiPluginApi } from "@novaway/plugin/tui"
 import { createMemo, Show, type Accessor } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { DEFAULT_THEMES } from "../../context/theme"

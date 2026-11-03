@@ -9,7 +9,7 @@ import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { Global } from "@novaway/core/global"
 import * as Log from "@novaway/core/util/log"
-import { sanitizedProcessEnv } from "@novaway/core/util/opencode-process"
+import { sanitizedProcessEnv } from "@novaway/core/util/novaway-process"
 import { which } from "@/util/which"
 import { NonNegativeInt } from "@novaway/core/schema"
 
@@ -173,7 +173,7 @@ export interface Interface {
   readonly search: (input: SearchInput) => Effect.Effect<SearchResult, PlatformError | Error>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Ripgrep") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Ripgrep") {}
 
 function env() {
   const env = sanitizedProcessEnv()

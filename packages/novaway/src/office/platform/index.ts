@@ -226,7 +226,7 @@ export interface Interface {
   readonly status: () => Effect.Effect<OfficePlatformStatus>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/OfficePlatform") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/OfficePlatform") {}
 
 function deepCopy<A>(value: A): A {
   return JSON.parse(JSON.stringify(value)) as A

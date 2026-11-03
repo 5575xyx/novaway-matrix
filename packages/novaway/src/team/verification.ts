@@ -176,7 +176,7 @@ export interface Interface {
   readonly summary: (input: { runID: string; currentSnapshot?: string }) => Effect.Effect<Summary>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamVerification") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamVerification") {}
 
 const acceptanceId = () => "acc_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)
 const verificationId = () => "ver_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)

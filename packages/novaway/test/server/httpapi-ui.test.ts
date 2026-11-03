@@ -25,18 +25,18 @@ void Log.init({ print: false })
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     const original = {
-      OPENCODE_SERVER_PASSWORD: Flag.NOVAWAY_SERVER_PASSWORD,
-      OPENCODE_SERVER_USERNAME: Flag.NOVAWAY_SERVER_USERNAME,
-      envPassword: process.env.OPENCODE_SERVER_PASSWORD,
-      envUsername: process.env.OPENCODE_SERVER_USERNAME,
+      NOVAWAY_SERVER_PASSWORD: Flag.NOVAWAY_SERVER_PASSWORD,
+      NOVAWAY_SERVER_USERNAME: Flag.NOVAWAY_SERVER_USERNAME,
+      envPassword: process.env.NOVAWAY_SERVER_PASSWORD,
+      envUsername: process.env.NOVAWAY_SERVER_USERNAME,
     }
 
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
-        Flag.NOVAWAY_SERVER_PASSWORD = original.OPENCODE_SERVER_PASSWORD
-        Flag.NOVAWAY_SERVER_USERNAME = original.OPENCODE_SERVER_USERNAME
-        restoreEnv("OPENCODE_SERVER_PASSWORD", original.envPassword)
-        restoreEnv("OPENCODE_SERVER_USERNAME", original.envUsername)
+        Flag.NOVAWAY_SERVER_PASSWORD = original.NOVAWAY_SERVER_PASSWORD
+        Flag.NOVAWAY_SERVER_USERNAME = original.NOVAWAY_SERVER_USERNAME
+        restoreEnv("NOVAWAY_SERVER_PASSWORD", original.envPassword)
+        restoreEnv("NOVAWAY_SERVER_USERNAME", original.envUsername)
       }),
     )
   }),
@@ -58,8 +58,8 @@ function app(input?: { password?: string; username?: string }) {
       Layer.provide(
         ConfigProvider.layer(
           ConfigProvider.fromUnknown({
-            OPENCODE_SERVER_PASSWORD: input?.password,
-            OPENCODE_SERVER_USERNAME: input?.username,
+            NOVAWAY_SERVER_PASSWORD: input?.password,
+            NOVAWAY_SERVER_USERNAME: input?.username,
           }),
         ),
       ),
@@ -105,8 +105,8 @@ function uiApp(input?: {
         HttpServer.layerServices,
         ConfigProvider.layer(
           ConfigProvider.fromUnknown({
-            OPENCODE_SERVER_PASSWORD: input?.password,
-            OPENCODE_SERVER_USERNAME: input?.username,
+            NOVAWAY_SERVER_PASSWORD: input?.password,
+            NOVAWAY_SERVER_USERNAME: input?.username,
           }),
         ),
       ]),

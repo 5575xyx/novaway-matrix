@@ -30,7 +30,7 @@ export interface Interface {
   readonly applyMemories: (result: DistillResult) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/DistillService") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/DistillService") {}
 export { Service as DistillService }
 
 const patternMap = new Map<string, { count: number; success: number }>()

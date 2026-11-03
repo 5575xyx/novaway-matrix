@@ -359,7 +359,7 @@ Du kannst das Verhalten der TUI ueber die Datei `tui.json` (oder `tui.jsonc`) an
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "theme": "opencode",
   "keybinds": {
     "leader": "ctrl+x"
@@ -382,7 +382,7 @@ Dies ist getrennt von `opencode.json`, welche das Server-/Runtime-Verhalten konf
 - `scroll_speed` - Steuert, wie schnell die TUI scrollt (Minimum: `0.001`, unterstuetzt Dezimalwerte). Standard ist `3`. **Hinweis: Wird ignoriert, wenn `scroll_acceleration.enabled` auf `true` gesetzt ist.**
 - `diff_style` - Steuert die Diff-Darstellung. `"auto"` passt sich der Terminalbreite an, `"stacked"` zeigt immer ein einspaltiges Layout.
 
-Verwende `OPENCODE_TUI_CONFIG`, um einen benutzerdefinierten TUI-Konfigurationspfad zu laden.
+Verwende `NOVAWAY_TUI_CONFIG`, um einen benutzerdefinierten TUI-Konfigurationspfad zu laden.
 
 ---
 

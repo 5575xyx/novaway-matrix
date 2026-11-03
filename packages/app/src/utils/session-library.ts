@@ -1,7 +1,7 @@
 /**
  * 会话语料库的"分支隔离"提示。
  *
- * 服务端在开发构建里把 `NovaWay_CHANNEL` 编译成**当前 git 分支名**，而数据库文件名
+ * 服务端在开发构建里把 `NOVAWAY_CHANNEL` 编译成**当前 git 分支名**，而数据库文件名
  * 是 `novaway-<channel>.db`（见 `packages/novaway/src/storage/db.ts` 的 `getChannelPath`）。
  * 结果是：`git checkout` 到另一个分支后重开应用，会连到另一个全新的库 ——
  * 界面里看起来就像"历史会话全部消失"，其实数据还在原来那个分支的 db 里。

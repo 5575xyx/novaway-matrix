@@ -87,7 +87,7 @@ export interface Interface {
   readonly ofSession: (sessionID: SessionID) => Effect.Effect<Team | undefined>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Team") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Team") {}
 
 const id = () => `team_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 

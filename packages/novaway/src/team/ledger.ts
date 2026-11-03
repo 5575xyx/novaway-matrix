@@ -127,7 +127,7 @@ export interface Interface {
   readonly wouldExceed: (input: { runID: string; delta: number; cap: Cap }) => Effect.Effect<boolean>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamLedger") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamLedger") {}
 
 const generateId = () => "led_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)
 

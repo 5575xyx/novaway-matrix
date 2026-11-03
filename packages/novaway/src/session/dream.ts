@@ -66,7 +66,7 @@ export interface Interface {
   readonly analyzeHistory: (model: Provider.Model, limit?: number) => Effect.Effect<DreamAnalysis[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/DreamService") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/DreamService") {}
 export { Service as DreamService }
 
 function textFromParts(parts: readonly MessageV2.Part[]) {

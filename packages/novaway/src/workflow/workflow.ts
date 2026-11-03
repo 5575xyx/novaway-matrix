@@ -63,7 +63,7 @@ export interface Interface {
   }) => Effect.Effect<WorkflowRun>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/WorkflowService") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/WorkflowService") {}
 export { Service as WorkflowService }
 
 const generateId = () => `wf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`

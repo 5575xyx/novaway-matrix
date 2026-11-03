@@ -705,11 +705,11 @@ description: Permission skill.
         ),
       )
 
-      const home = process.env.OPENCODE_TEST_HOME
-      process.env.OPENCODE_TEST_HOME = test.directory
+      const home = process.env.NOVAWAY_TEST_HOME
+      process.env.NOVAWAY_TEST_HOME = test.directory
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
-          process.env.OPENCODE_TEST_HOME = home
+          process.env.NOVAWAY_TEST_HOME = home
         }),
       )
 

@@ -39,7 +39,7 @@ export class V2LocationMiddleware extends HttpApiMiddleware.Service<
   {
     provides: Catalog.Service | PluginBoot.Service
   }
->()("@NovaWay/ExperimentalHttpApiV2Location") {}
+>()("@novaway/ExperimentalHttpApiV2Location") {}
 
 function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
   const query = new URL(request.url, "http://localhost").searchParams
@@ -47,14 +47,10 @@ function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
     directory:
       query.get("location[directory]") ||
       request.headers["x-novaway-directory"] ||
-      request.headers["x-NovaWay-directory"] ||
-      request.headers["x-opencode-directory"] ||
       process.cwd(),
     workspaceID:
       query.get("location[workspace]") ||
-      request.headers["x-novaway-workspace"] ||
-      request.headers["x-NovaWay-workspace"] ||
-      request.headers["x-opencode-workspace"],
+      request.headers["x-novaway-workspace"],
   }
 }
 

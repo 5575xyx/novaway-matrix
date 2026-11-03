@@ -12,7 +12,7 @@
 //   3. starts the stream transport (SDK event subscription), lazily for fresh
 //      local sessions,
 //   4. runs the prompt queue until the footer closes.
-import { createOpencodeClient } from "@novaway/sdk/v2"
+import { createNovawayClient } from "@novaway/sdk/v2"
 import { Flag } from "@novaway/core/flag/flag"
 import { createRunDemo } from "./demo"
 import { resolveDiffStyle, resolveFooterKeybinds, resolveModelInfo, resolveSessionInfo } from "./runtime.boot"
@@ -717,7 +717,7 @@ export async function runInteractiveLocalMode(input: RunLocalInput): Promise<voi
       "NovaWay.demo": input.demo,
     },
     async () => {
-      const sdk = createOpencodeClient({
+      const sdk = createNovawayClient({
         baseUrl: "http://NovaWay.internal",
         fetch: input.fetch,
         directory: input.directory,

@@ -84,8 +84,8 @@ opencode attach http://10.20.30.40:4096
 | <nobr><code>{"--continue"}</code></nobr> | `-c` | Fortsett siste økt                                                                                 |
 | <nobr><code>{"--session"}</code></nobr>  | `-s` | Økt ID for å fortsette                                                                             |
 | <nobr><code>{"--fork"}</code></nobr>     |      | Forgren økten ved fortsettelse (bruk med `--continue` eller `--session`)                           |
-| <nobr><code>{"--password"}</code></nobr> | `-p` | Passord for grunnleggende autentisering (standard: `OPENCODE_SERVER_PASSWORD`)                     |
-| <nobr><code>{"--username"}</code></nobr> | `-u` | Brukernavn for grunnleggende autentisering (standard: `OPENCODE_SERVER_USERNAME` eller `opencode`) |
+| <nobr><code>{"--password"}</code></nobr> | `-p` | Passord for grunnleggende autentisering (standard: `NOVAWAY_SERVER_PASSWORD`)                     |
+| <nobr><code>{"--username"}</code></nobr> | `-u` | Brukernavn for grunnleggende autentisering (standard: `NOVAWAY_SERVER_USERNAME` eller `opencode`) |
 
 ---
 
@@ -352,8 +352,8 @@ opencode run --attach http://localhost:4096 "Explain async/await in JavaScript"
 | <nobr><code>{"--format"}</code></nobr>   |      | Format: standard (formatert) eller json (rå JSON hendelser)                                        |
 | <nobr><code>{"--title"}</code></nobr>    |      | Tittel for økten (bruker avkortet ledetekst hvis ingen verdi er oppgitt)                           |
 | <nobr><code>{"--attach"}</code></nobr>   |      | Koble til en kjørende OpenCode-server (f.eks. http://localhost:4096)                               |
-| <nobr><code>{"--password"}</code></nobr> | `-p` | Passord for grunnleggende autentisering (standard: `OPENCODE_SERVER_PASSWORD`)                     |
-| <nobr><code>{"--username"}</code></nobr> | `-u` | Brukernavn for grunnleggende autentisering (standard: `OPENCODE_SERVER_USERNAME` eller `opencode`) |
+| <nobr><code>{"--password"}</code></nobr> | `-p` | Passord for grunnleggende autentisering (standard: `NOVAWAY_SERVER_PASSWORD`)                     |
+| <nobr><code>{"--username"}</code></nobr> | `-u` | Brukernavn for grunnleggende autentisering (standard: `NOVAWAY_SERVER_USERNAME` eller `opencode`) |
 | <nobr><code>{"--dir"}</code></nobr>      |      | Katalog å kjøre i, eller sti på fjernserveren ved tilkobling                                       |
 | <nobr><code>{"--variant"}</code></nobr>  |      | Modellvariant (leverandørspesifikk resonneringsinnsats)                                            |
 | <nobr><code>{"--thinking"}</code></nobr> |      | Vis tenkeblokker                                                                                   |
@@ -369,7 +369,7 @@ Start en headless OpenCode-server for API-tilgang. Sjekk ut [server-dokumentene]
 opencode serve
 ```
 
-Dette starter en HTTP-server som gir API tilgang til OpenCode-funksjonalitet uten TUI-grensesnittet. Sett `OPENCODE_SERVER_PASSWORD` for å aktivere HTTP grunnleggende autentisering (brukernavn er standard til `opencode`).
+Dette starter en HTTP-server som gir API tilgang til OpenCode-funksjonalitet uten TUI-grensesnittet. Sett `NOVAWAY_SERVER_PASSWORD` for å aktivere HTTP grunnleggende autentisering (brukernavn er standard til `opencode`).
 
 #### Flagg
 
@@ -465,7 +465,7 @@ Start en headless OpenCode-server med et webgrensesnitt.
 opencode web
 ```
 
-Dette starter en HTTP-server og åpner en nettleser for å få tilgang til OpenCode via et nettgrensesnitt. Sett `OPENCODE_SERVER_PASSWORD` for å aktivere HTTP grunnleggende autentisering (brukernavn er standard til `opencode`).
+Dette starter en HTTP-server og åpner en nettleser for å få tilgang til OpenCode via et nettgrensesnitt. Sett `NOVAWAY_SERVER_PASSWORD` for å aktivere HTTP grunnleggende autentisering (brukernavn er standard til `opencode`).
 
 #### Flagg
 
@@ -564,30 +564,30 @@ OpenCode kan konfigureres ved hjelp av miljøvariabler.
 
 | Variabel                              | Type   | Beskrivelse                                                           |
 | ------------------------------------- | ------ | --------------------------------------------------------------------- |
-| `OPENCODE_AUTO_SHARE`                 | boolsk | Del økter automatisk                                                  |
-| `OPENCODE_GIT_BASH_PATH`              | streng | Bane til Git Bash-kjørbar på Windows                                  |
-| `OPENCODE_CONFIG`                     | streng | Bane til konfigurasjonsfil                                            |
-| `OPENCODE_TUI_CONFIG`                 | streng | Bane til TUI-konfigurasjonsfil                                        |
-| `OPENCODE_CONFIG_DIR`                 | streng | Bane til konfigurasjonskatalog                                        |
-| `OPENCODE_CONFIG_CONTENT`             | streng | Innebygd json-konfigurasjonsinnhold                                   |
-| `OPENCODE_DISABLE_AUTOUPDATE`         | boolsk | Deaktiver automatiske oppdateringskontroller                          |
-| `OPENCODE_DISABLE_PRUNE`              | boolsk | Deaktiver beskjæring av gamle data                                    |
-| `OPENCODE_DISABLE_TERMINAL_TITLE`     | boolsk | Deaktiver automatiske terminaltitteloppdateringer                     |
-| `OPENCODE_PERMISSION`                 | streng | Innebygd json-tillatelseskonfigurasjon                                |
-| `OPENCODE_DISABLE_DEFAULT_PLUGINS`    | boolsk | Deaktiver standard plugins                                            |
-| `OPENCODE_DISABLE_LSP_DOWNLOAD`       | boolsk | Deaktiver automatiske LSP servernedlastinger                          |
-| `OPENCODE_ENABLE_EXPERIMENTAL_MODELS` | boolsk | Aktiver eksperimentelle modeller                                      |
-| `OPENCODE_DISABLE_AUTOCOMPACT`        | boolsk | Deaktiver automatisk kontekstkomprimering                             |
-| `OPENCODE_DISABLE_CLAUDE_CODE`        | boolsk | Deaktiver lesing fra `.claude` (spørsmål + ferdigheter)               |
-| `OPENCODE_DISABLE_CLAUDE_CODE_PROMPT` | boolsk | Deaktiver lesing `~/.claude/CLAUDE.md`                                |
-| `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` | boolsk | Deaktiver innlasting av `.claude/skills`                              |
-| `OPENCODE_DISABLE_MODELS_FETCH`       | boolsk | Deaktiver henting av modeller fra eksterne kilder                     |
-| `OPENCODE_FAKE_VCS`                   | streng | Falsk VCS-leverandør for testformål                                   |
-| `OPENCODE_CLIENT`                     | streng | Klientidentifikator (standard til `cli`)                              |
-| `OPENCODE_ENABLE_EXA`                 | boolsk | Aktiver Exa-nettsøkeverktøy                                           |
-| `OPENCODE_SERVER_PASSWORD`            | streng | Aktiver grunnleggende autentisering for `serve`/`web`                 |
-| `OPENCODE_SERVER_USERNAME`            | streng | Overstyr grunnleggende autentiseringsbrukernavn (standard `opencode`) |
-| `OPENCODE_MODELS_URL`                 | streng | Egendefinert URL for henting av modellkonfigurasjon                   |
+| `NOVAWAY_AUTO_SHARE`                 | boolsk | Del økter automatisk                                                  |
+| `NOVAWAY_GIT_BASH_PATH`              | streng | Bane til Git Bash-kjørbar på Windows                                  |
+| `NOVAWAY_CONFIG`                     | streng | Bane til konfigurasjonsfil                                            |
+| `NOVAWAY_TUI_CONFIG`                 | streng | Bane til TUI-konfigurasjonsfil                                        |
+| `NOVAWAY_CONFIG_DIR`                 | streng | Bane til konfigurasjonskatalog                                        |
+| `NOVAWAY_CONFIG_CONTENT`             | streng | Innebygd json-konfigurasjonsinnhold                                   |
+| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolsk | Deaktiver automatiske oppdateringskontroller                          |
+| `NOVAWAY_DISABLE_PRUNE`              | boolsk | Deaktiver beskjæring av gamle data                                    |
+| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolsk | Deaktiver automatiske terminaltitteloppdateringer                     |
+| `NOVAWAY_PERMISSION`                 | streng | Innebygd json-tillatelseskonfigurasjon                                |
+| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolsk | Deaktiver standard plugins                                            |
+| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolsk | Deaktiver automatiske LSP servernedlastinger                          |
+| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolsk | Aktiver eksperimentelle modeller                                      |
+| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolsk | Deaktiver automatisk kontekstkomprimering                             |
+| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolsk | Deaktiver lesing fra `.claude` (spørsmål + ferdigheter)               |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolsk | Deaktiver lesing `~/.claude/CLAUDE.md`                                |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolsk | Deaktiver innlasting av `.claude/skills`                              |
+| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolsk | Deaktiver henting av modeller fra eksterne kilder                     |
+| `NOVAWAY_FAKE_VCS`                   | streng | Falsk VCS-leverandør for testformål                                   |
+| `NOVAWAY_CLIENT`                     | streng | Klientidentifikator (standard til `cli`)                              |
+| `NOVAWAY_ENABLE_EXA`                 | boolsk | Aktiver Exa-nettsøkeverktøy                                           |
+| `NOVAWAY_SERVER_PASSWORD`            | streng | Aktiver grunnleggende autentisering for `serve`/`web`                 |
+| `NOVAWAY_SERVER_USERNAME`            | streng | Overstyr grunnleggende autentiseringsbrukernavn (standard `opencode`) |
+| `NOVAWAY_MODELS_URL`                 | streng | Egendefinert URL for henting av modellkonfigurasjon                   |
 
 ---
 
@@ -597,15 +597,15 @@ Disse miljøvariablene muliggjør eksperimentelle funksjoner som kan endres elle
 
 | Variabel                                        | Type   | Beskrivelse                                   |
 | ----------------------------------------------- | ------ | --------------------------------------------- |
-| `OPENCODE_EXPERIMENTAL`                         | boolsk | Aktiver alle eksperimentelle funksjoner       |
-| `OPENCODE_EXPERIMENTAL_ICON_DISCOVERY`          | boolsk | Aktiver ikonoppdagelse                        |
-| `OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | boolsk | Deaktiver kopi ved valg i TUI                 |
-| `OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS` | tall   | Standard tidsavbrudd for bash-kommandoer i ms |
-| `OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX`        | tall   | Maks Output Tokens for LLM-svar               |
-| `OPENCODE_EXPERIMENTAL_FILEWATCHER`             | boolsk | Aktiver filovervåker for hele dir             |
-| `OPENCODE_EXPERIMENTAL_OXFMT`                   | boolsk | Aktiver oxfmt formatter                       |
-| `OPENCODE_EXPERIMENTAL_LSP_TOOL`                | boolsk | Aktiver eksperimentelt LSP-verktøy            |
-| `OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER`     | boolsk | Deaktiver filovervåking                       |
-| `OPENCODE_EXPERIMENTAL_EXA`                     | boolsk | Aktiver eksperimentelle Exa-funksjoner        |
-| `OPENCODE_EXPERIMENTAL_LSP_TY`                  | boolsk | Aktiver TY LSP for python-filer               |
-| `OPENCODE_EXPERIMENTAL_PLAN_MODE`               | boolsk | Aktiver planmodus                             |
+| `NOVAWAY_EXPERIMENTAL`                         | boolsk | Aktiver alle eksperimentelle funksjoner       |
+| `NOVAWAY_EXPERIMENTAL_ICON_DISCOVERY`          | boolsk | Aktiver ikonoppdagelse                        |
+| `NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | boolsk | Deaktiver kopi ved valg i TUI                 |
+| `NOVAWAY_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS` | tall   | Standard tidsavbrudd for bash-kommandoer i ms |
+| `NOVAWAY_EXPERIMENTAL_OUTPUT_TOKEN_MAX`        | tall   | Maks Output Tokens for LLM-svar               |
+| `NOVAWAY_EXPERIMENTAL_FILEWATCHER`             | boolsk | Aktiver filovervåker for hele dir             |
+| `NOVAWAY_EXPERIMENTAL_OXFMT`                   | boolsk | Aktiver oxfmt formatter                       |
+| `NOVAWAY_EXPERIMENTAL_LSP_TOOL`                | boolsk | Aktiver eksperimentelt LSP-verktøy            |
+| `NOVAWAY_EXPERIMENTAL_DISABLE_FILEWATCHER`     | boolsk | Deaktiver filovervåking                       |
+| `NOVAWAY_EXPERIMENTAL_EXA`                     | boolsk | Aktiver eksperimentelle Exa-funksjoner        |
+| `NOVAWAY_EXPERIMENTAL_LSP_TY`                  | boolsk | Aktiver TY LSP for python-filer               |
+| `NOVAWAY_EXPERIMENTAL_PLAN_MODE`               | boolsk | Aktiver planmodus                             |

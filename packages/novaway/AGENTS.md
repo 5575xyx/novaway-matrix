@@ -26,7 +26,7 @@ of the file:
 ```ts
 // src/foo/foo.ts
 export interface Interface { ... }
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Foo") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Foo") {}
 export const layer = Layer.effect(Service, ...)
 export const defaultLayer = layer.pipe(...)
 

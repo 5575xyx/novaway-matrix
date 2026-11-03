@@ -30,7 +30,7 @@ describe("session action routes", () => {
           Promise.resolve(
             Server.Default().app.request(`/session/${session.id}/abort`, {
               method: "POST",
-              headers: { "x-opencode-directory": test.directory },
+              headers: { "x-novaway-directory": test.directory },
             }),
           ),
         )

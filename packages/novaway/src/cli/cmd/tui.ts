@@ -17,7 +17,7 @@ import { win32InstallCtrlCGuard } from "@novaway/tui/terminal-win32"
 import { ensureOtuiAssets } from "../tui/otui-assets"
 
 declare global {
-  const NovaWay_WORKER_PATH: string
+  const NOVAWAY_WORKER_PATH: string
 }
 
 type RpcClient = ReturnType<typeof Rpc.client<typeof rpc>>
@@ -51,7 +51,7 @@ function createEventSource(client: RpcClient): EventSource {
 }
 
 async function target() {
-  if (typeof NovaWay_WORKER_PATH !== "undefined") return NovaWay_WORKER_PATH
+  if (typeof NOVAWAY_WORKER_PATH !== "undefined") return NOVAWAY_WORKER_PATH
   const dist = new URL("./cli/tui/worker.js", import.meta.url)
   if (await Filesystem.exists(fileURLToPath(dist))) return dist
   return new URL("../tui/worker.ts", import.meta.url)

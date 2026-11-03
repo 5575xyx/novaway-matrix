@@ -63,14 +63,14 @@ export class Service extends Context.Service<
     /** Every known capability with its resolved value. */
     readonly list: () => ReadonlyArray<{ readonly name: Name; readonly enabled: boolean }>
   }
->()("@NovaWay/ClientCapabilities") {}
+>()("@novaway/ClientCapabilities") {}
 
 /** Capabilities declared by the launcher, or the legacy id mapping. */
 export const declaredLayer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const flags = yield* RuntimeFlags.Service
-    const raw = yield* Config.string("NovaWay_CLIENT_CAPABILITIES").pipe(Config.withDefault(undefined))
+    const raw = yield* Config.string("NOVAWAY_CLIENT_CAPABILITIES").pipe(Config.withDefault(undefined))
     const capabilities = parse(raw).length > 0 ? parse(raw) : fromLegacyClient(flags.client)
     return Service.of({
       client: flags.client,

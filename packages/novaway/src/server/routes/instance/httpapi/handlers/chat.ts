@@ -112,9 +112,10 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
             headers: {
               ...(providerID.startsWith("novaway")
                 ? {
-                    "x-NovaWay-project": NovaWayProjectID,
-                    "x-NovaWay-request": "chat",
-                    "User-Agent": `NovaWay/${InstallationVersion}`,
+                    // 同上：Zen 网关按 `x-opencode-*` 读取客户端来源信息。
+                    "x-opencode-project": NovaWayProjectID,
+                    "x-opencode-request": "chat",
+                    "User-Agent": `opencode/${InstallationVersion}`,
                   }
                 : {
                     "User-Agent": `NovaWay/${InstallationVersion}`,

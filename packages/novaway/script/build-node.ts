@@ -157,13 +157,12 @@ await Bun.build({
   external: ["jsonc-parser", "@lydell/node-pty"],
   plugins: [chromiumBidiCjsStubPlugin as any],
   define: {
-    OPENCODE_MODELS_DEV: generated.modelsData,
-    OPENCODE_CHANNEL: `'${Script.channel}'`,
+    NOVAWAY_MODELS_DEV: generated.modelsData,
     NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
     // Keep installation/version.ts globals populated in the node build too.
-    NovaWay_VERSION: `'${Script.version}'`,
-    NovaWay_CHANNEL: `'${Script.channel}'`,
-    NovaWay_NPM_PACKAGE: `'${process.env.NOVAWAY_MAIN_PACKAGE || "xymt-novaway"}'`,
+    NOVAWAY_VERSION: `'${Script.version}'`,
+    NOVAWAY_CHANNEL: `'${Script.channel}'`,
+    NOVAWAY_NPM_PACKAGE: `'${process.env.NOVAWAY_MAIN_PACKAGE || "xymt-novaway"}'`,
     // 内置网关凭据:构建期注入(发布机/GitHub Actions 设 env),打包时内联进 bundle。
     // 不设置则内联为空串,运行时回退 NOVAWAY_GATEWAY_API_KEY 或本机 auth。
     // key 写成 "process.env.XXX" 点路径,与 provider.ts 源码里的读取形式对应。
@@ -172,8 +171,8 @@ await Bun.build({
     "process.env.NOVAWAY_GATEWAY_EMBED_URL": JSON.stringify(builtinGatewayUrl),
   },
   files: {
-    "opencode-web-ui.gen.ts": "",
-    "opencode-skills.gen.ts": skillAssetsMap,
+    "novaway-web-ui.gen.ts": "",
+    "novaway-skills.gen.ts": skillAssetsMap,
   },
 })
 

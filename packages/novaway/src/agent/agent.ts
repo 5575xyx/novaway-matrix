@@ -96,7 +96,7 @@ export interface Interface {
 
 type State = Omit<Interface, "generate" | "reload">
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Agent") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Agent") {}
 
 const OFFICE_AGENT_BASE_PROMPT = [
   "你是 NovaWay 办公模式的内置 AI 员工。",

@@ -60,7 +60,7 @@ export interface Interface {
   readonly aggregate: (query: Query) => Effect.Effect<Info>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Stats") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Stats") {}
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000
 

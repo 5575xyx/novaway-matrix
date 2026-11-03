@@ -13,7 +13,7 @@ OpenCode 支援 **JSON** 和 **JSONC**（帶註解的 JSON）格式。
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "model": "anthropic/claude-sonnet-4-5",
   "autoupdate": true,
   "server": {
@@ -44,10 +44,10 @@ OpenCode 支援 **JSON** 和 **JSONC**（帶註解的 JSON）格式。
 
 1. **遠端設定**（來自 `.well-known/opencode`）- 組織預設值
 2. **全域設定**（`~/.config/opencode/opencode.json`）- 使用者偏好
-3. **自訂設定**（`OPENCODE_CONFIG` 環境變數）- 自訂覆寫
+3. **自訂設定**（`NOVAWAY_CONFIG` 環境變數）- 自訂覆寫
 4. **專案設定**（專案中的 `opencode.json`）- 專案特定設定
 5. **`.opencode` 目錄** - 代理、指令、外掛程式
-6. **內嵌設定**（`OPENCODE_CONFIG_CONTENT` 環境變數）- 執行時覆寫
+6. **內嵌設定**（`NOVAWAY_CONFIG_CONTENT` 環境變數）- 執行時覆寫
 
 這意味著專案設定可以覆寫全域預設值，全域設定可以覆寫遠端組織預設值。
 
@@ -117,10 +117,10 @@ OpenCode 支援 **JSON** 和 **JSONC**（帶註解的 JSON）格式。
 
 ### 自訂路徑
 
-使用 `OPENCODE_CONFIG` 環境變數指定自訂設定檔路徑。
+使用 `NOVAWAY_CONFIG` 環境變數指定自訂設定檔路徑。
 
 ```bash
-export OPENCODE_CONFIG=/path/to/my/custom-config.json
+export NOVAWAY_CONFIG=/path/to/my/custom-config.json
 opencode run "Hello world"
 ```
 
@@ -130,10 +130,10 @@ opencode run "Hello world"
 
 ### 自訂目錄
 
-使用 `OPENCODE_CONFIG_DIR` 環境變數指定自訂設定目錄。該目錄會像標準 `.opencode` 目錄一樣被搜尋代理、指令、模式和外掛程式，並且應遵循相同的結構。
+使用 `NOVAWAY_CONFIG_DIR` 環境變數指定自訂設定目錄。該目錄會像標準 `.opencode` 目錄一樣被搜尋代理、指令、模式和外掛程式，並且應遵循相同的結構。
 
 ```bash
-export OPENCODE_CONFIG_DIR=/path/to/my/config-directory
+export NOVAWAY_CONFIG_DIR=/path/to/my/config-directory
 opencode run "Hello world"
 ```
 
@@ -143,7 +143,7 @@ opencode run "Hello world"
 
 ## Schema
 
-設定檔具有在 [**`opencode.ai/config.json`**](https://opencode.ai/config.json) 中定義的 Schema。
+設定檔具有在 [**`opencode.ai/config.json`**](https://novaway.ai/config.json) 中定義的 Schema。
 
 您的編輯器應該能夠基於該 Schema 進行驗證和自動補全。
 
@@ -155,7 +155,7 @@ opencode run "Hello world"
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "tui": {
     "scroll_speed": 3,
     "scroll_acceleration": {
@@ -172,7 +172,7 @@ opencode run "Hello world"
 - `scroll_speed` - 自訂捲動速度倍率（預設值：`3`，最小值：`1`）。如果 `scroll_acceleration.enabled` 為 `true`，則忽略此選項。
 - `diff_style` - 控制差異呈現方式。`"auto"` 根據終端機寬度自適應，`"stacked"` 始終顯示單列。
 
-使用 `OPENCODE_TUI_CONFIG` 指向自訂 TUI 設定檔。
+使用 `NOVAWAY_TUI_CONFIG` 指向自訂 TUI 設定檔。
 
 `opencode.json` 中的舊版 `theme`、`keybinds` 和 `tui` 鍵已被棄用，並將在可能的情況下自動遷移。
 
@@ -186,7 +186,7 @@ opencode run "Hello world"
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "server": {
     "port": 4096,
     "hostname": "0.0.0.0",
@@ -215,7 +215,7 @@ opencode run "Hello world"
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "tools": {
     "write": false,
     "bash": false
@@ -233,7 +233,7 @@ opencode run "Hello world"
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {},
   "model": "anthropic/claude-sonnet-4-5",
   "small_model": "anthropic/claude-haiku-4-5"
@@ -246,7 +246,7 @@ opencode run "Hello world"
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {
     "anthropic": {
       "options": {
@@ -275,7 +275,7 @@ Amazon Bedrock 支援 AWS 特定設定：
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {
     "amazon-bedrock": {
       "options": {
@@ -306,7 +306,7 @@ Bearer Token（`AWS_BEARER_TOKEN_BEDROCK` 或 `/connect`）優先於基於設定
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "theme": "tokyonight"
 }
 ```
@@ -321,7 +321,7 @@ Bearer Token（`AWS_BEARER_TOKEN_BEDROCK` 或 `/connect`）優先於基於設定
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "agent": {
     "code-reviewer": {
       "description": "Reviews code for best practices and potential issues",
@@ -347,7 +347,7 @@ Bearer Token（`AWS_BEARER_TOKEN_BEDROCK` 或 `/connect`）優先於基於設定
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "default_agent": "plan"
 }
 ```
@@ -364,7 +364,7 @@ Bearer Token（`AWS_BEARER_TOKEN_BEDROCK` 或 `/connect`）優先於基於設定
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "share": "manual"
 }
 ```
@@ -385,7 +385,7 @@ Bearer Token（`AWS_BEARER_TOKEN_BEDROCK` 或 `/connect`）優先於基於設定
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "command": {
     "test": {
       "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
@@ -411,7 +411,7 @@ Bearer Token（`AWS_BEARER_TOKEN_BEDROCK` 或 `/connect`）優先於基於設定
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "keybinds": {}
 }
 ```
@@ -426,7 +426,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "autoupdate": false
 }
 ```
@@ -442,7 +442,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "formatter": {
     "prettier": {
       "disabled": true
@@ -470,7 +470,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "ask",
     "bash": "ask"
@@ -488,7 +488,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "compaction": {
     "auto": true,
     "prune": true,
@@ -509,7 +509,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "watcher": {
     "ignore": ["node_modules/**", "dist/**", ".git/**"]
   }
@@ -526,7 +526,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "mcp": {}
 }
 ```
@@ -543,7 +543,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "plugin": ["opencode-helicone-session", "@my-org/custom-plugin"]
 }
 ```
@@ -558,7 +558,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
 }
 ```
@@ -573,7 +573,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "disabled_providers": ["openai", "gemini"]
 }
 ```
@@ -596,7 +596,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "enabled_providers": ["anthropic", "openai"]
 }
 ```
@@ -617,7 +617,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "experimental": {}
 }
 ```
@@ -640,8 +640,8 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
-  "model": "{env:OPENCODE_MODEL}",
+  "$schema": "https://novaway.ai/config.json",
+  "model": "{env:NOVAWAY_MODEL}",
   "provider": {
     "anthropic": {
       "models": {},
@@ -663,7 +663,7 @@ OpenCode 啟動時會自動下載新版本。您可以使用 `autoupdate` 選項
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "instructions": ["./custom-instructions.md"],
   "provider": {
     "openai": {

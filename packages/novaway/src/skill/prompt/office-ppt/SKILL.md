@@ -91,10 +91,10 @@
 先运行机器视觉前检，只生成截图和带源指纹的 `review.json`：
 
 ```powershell
-opencode office-ppt ".novaway/office/ppt-work/<deck-slug>" --review-only
+novaway office-ppt ".novaway/office/ppt-work/<deck-slug>" --review-only
 ```
 
-在 NovaWay 源码开发环境中，如果没有全局 `opencode` 命令，使用：
+在 NovaWay 源码开发环境中，如果没有全局 `novaway` 命令，使用：
 
 ```powershell
 bun run --cwd packages/novaway src/index.ts office-ppt "<绝对工作目录>" --review-only
@@ -110,7 +110,7 @@ bun run --cwd packages/novaway src/index.ts office-ppt "<绝对工作目录>" --
 审查通过后导出：
 
 ```powershell
-opencode office-ppt ".novaway/office/ppt-work/<deck-slug>" --output ".novaway/office/ppt/<标题>.pptx"
+novaway office-ppt ".novaway/office/ppt-work/<deck-slug>" --output ".novaway/office/ppt/<标题>.pptx"
 ```
 
 导出器会执行 OOXML 后检：页数必须一致，包结构必须完整，并且至少包含可编辑文字和原生形状。成功后读取 `validation/pptx-export-report.json`，确认 `failed: 0` 和 `postflight.status` 为 `passed`。
@@ -146,7 +146,7 @@ opencode office-ppt ".novaway/office/ppt-work/<deck-slug>" --output ".novaway/of
 - 视频验收命令：
 
 ```powershell
-opencode office-ppt ".novaway/office/ppt-work/<deck-slug>" --video --narration-audio "<音频目录>" --burn-subtitles
+novaway office-ppt ".novaway/office/ppt-work/<deck-slug>" --video --narration-audio "<音频目录>" --burn-subtitles
 ```
 
 - 该命令先用 PowerPoint 导出原生 MP4，再调用 `script/mix-ppt-video.mjs` 按页延迟叠加旁白；`ffmpeg-static` 与 `ffprobe-static` 已作为依赖，无需系统安装 ffmpeg。

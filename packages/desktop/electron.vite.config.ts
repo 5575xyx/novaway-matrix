@@ -102,7 +102,7 @@ export default defineConfig({
       "import.meta.env.NOVAWAY_CHANNEL": JSON.stringify(channel),
       NOVAWAY_CHANNEL: JSON.stringify(channel),
       NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
-      OPENCODE_MODELS_DEV: NOVAWAY_MODELS_DEV,
+      NOVAWAY_MODELS_DEV: NOVAWAY_MODELS_DEV,
     },
     build: {
       rollupOptions: {

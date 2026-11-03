@@ -5,7 +5,7 @@ import { testRender, useRenderer } from "@opentui/solid"
 import { expect, test } from "bun:test"
 import { onCleanup } from "solid-js"
 import { TuiKeybind } from "../src/config/keybind"
-import { getNovaWayModeStack, NovaWay_BASE_MODE, NovaWayKeymapProvider, registerNovaWayKeymap } from "../src/keymap"
+import { getNovaWayModeStack, NOVAWAY_BASE_MODE, NovaWayKeymapProvider, registerNovaWayKeymap } from "../src/keymap"
 
 function createResolvedKeymapConfig(input: TuiKeybind.KeybindOverrides = {}) {
   const keybinds = TuiKeybind.parse(input)
@@ -86,7 +86,7 @@ test("mode-less bindings stay active when NovaWay mode changes", async () => {
       ]),
     })
     const offBase = keymap.registerLayer({
-      mode: NovaWay_BASE_MODE,
+      mode: NOVAWAY_BASE_MODE,
       commands: [{ name: "model.list", run() {} }],
       bindings: config.keybinds.gather("test.base", ["model.list"]),
     })

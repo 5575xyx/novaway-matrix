@@ -129,7 +129,7 @@ export const TaskStatusTool = Tool.define(
       ctx: Tool.Context,
     ) {
       if (!flags.experimentalBackgroundSubagents) {
-        return yield* Effect.fail(new Error("task_status requires NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"))
+        return yield* Effect.fail(new Error("task_status requires NOVAWAY_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"))
       }
 
       const taskID = params.task_id as SessionID

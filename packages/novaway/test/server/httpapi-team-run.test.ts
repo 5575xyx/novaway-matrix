@@ -39,7 +39,7 @@ const it = testEffect(layer)
 const post = (dir: string, path: string, body?: unknown) =>
   Effect.gen(function* () {
     const request = HttpClientRequest.post(path).pipe(
-      HttpClientRequest.setHeader("x-opencode-directory", dir),
+      HttpClientRequest.setHeader("x-novaway-directory", dir),
       HttpClientRequest.setUrlParam("directory", dir),
     )
     const ready = body === undefined ? request : yield* HttpClientRequest.bodyJson(body)(request)
@@ -49,13 +49,13 @@ const post = (dir: string, path: string, body?: unknown) =>
 const get = (dir: string, path: string) =>
   HttpClient.execute(
     HttpClientRequest.get(path).pipe(
-      HttpClientRequest.setHeader("x-opencode-directory", dir),
+      HttpClientRequest.setHeader("x-novaway-directory", dir),
       HttpClientRequest.setUrlParam("directory", dir),
     ),
   )
 
 const providerConfig = (url: string) => ({
-  $schema: "https://opencode.ai/config.json",
+  $schema: "https://novaway.ai/config.json",
   formatter: false,
   lsp: false,
   // 派发时没有历史助手消息，内核读的是这个默认模型。

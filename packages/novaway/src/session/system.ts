@@ -53,7 +53,7 @@ export interface Interface {
   readonly skills: (agent: Agent.Info, activatedPaths?: string[]) => Effect.Effect<string | undefined>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SystemPrompt") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SystemPrompt") {}
 
 /** `git status --short` beyond this is cut; the model can run git itself. */
 const GIT_STATUS_MAX_CHARS = 2_000

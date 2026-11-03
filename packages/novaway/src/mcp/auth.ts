@@ -49,7 +49,7 @@ export interface Interface {
   readonly isTokenExpired: (mcpName: string) => Effect.Effect<boolean | null>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/McpAuth") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/McpAuth") {}
 
 export const layer = Layer.effect(
   Service,

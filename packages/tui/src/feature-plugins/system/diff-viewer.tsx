@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@opencode/plugin/tui"
+import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@novaway/plugin/tui"
 import type { SnapshotFileDiff, VcsFileDiff } from "@novaway/sdk-v2-latest/v2"
 import {
   TextAttributes,

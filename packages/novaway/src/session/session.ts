@@ -647,7 +647,7 @@ export interface Interface {
   ) => Effect.Effect<Option.Option<MessageV2.WithParts>, NotFound>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Session") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Session") {}
 
 export type Patch = Types.DeepMutable<SyncEvent.Event<typeof Event.Updated>["data"]["info"]>
 

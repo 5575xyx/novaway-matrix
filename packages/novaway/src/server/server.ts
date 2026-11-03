@@ -54,7 +54,7 @@ interface ListenerServer {
 }
 
 class ListenerServerService extends Context.Service<ListenerServerService, ListenerServer>()(
-  "@NovaWay/ListenerServer",
+  "@novaway/ListenerServer",
 ) {}
 
 export const Default = lazy(() => {

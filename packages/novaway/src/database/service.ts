@@ -115,7 +115,7 @@ export interface Interface {
   readonly columns: (id: string, table: string, database?: string) => Effect.Effect<ColumnInfo[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Database") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Database") {}
 
 /**
  * 启动时把旧 dbx 的连接导进来（见 ./import-dbx.ts）。

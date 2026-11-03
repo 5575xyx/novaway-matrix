@@ -38,7 +38,7 @@ export type RequestContext = {
 }
 
 export class RequestContextRef extends Context.Service<RequestContextRef, RequestContext>()(
-  "@NovaWay/example/RequestContextRef",
+  "@novaway/example/RequestContextRef",
 ) {}
 
 export interface ConfigServiceShape {
@@ -49,7 +49,7 @@ export interface ConfigServiceShape {
 }
 
 export class ConfigService extends Context.Service<ConfigService, ConfigServiceShape>()(
-  "@NovaWay/example/ConfigService",
+  "@novaway/example/ConfigService",
 ) {}
 
 const configServiceLayer = Layer.effect(
@@ -69,7 +69,7 @@ const configServiceLayer = Layer.effect(
   }),
 )
 
-export class ConfigServiceMap extends LayerMap.Service<ConfigServiceMap>()("@NovaWay/example/ConfigServiceMap", {
+export class ConfigServiceMap extends LayerMap.Service<ConfigServiceMap>()("@novaway/example/ConfigServiceMap", {
   lookup: (context: RequestContext) =>
     configServiceLayer.pipe(Layer.provide(Layer.succeed(RequestContextRef, RequestContextRef.of(context)))),
   idleTimeToLive: "5 minutes",

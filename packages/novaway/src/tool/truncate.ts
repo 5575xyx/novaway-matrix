@@ -45,7 +45,7 @@ export interface Interface {
   readonly limits: () => Effect.Effect<{ maxLines: number; maxBytes: number }>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Truncate") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Truncate") {}
 
 export const layer = Layer.effect(
   Service,

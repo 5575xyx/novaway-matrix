@@ -13,7 +13,7 @@ OpenCode supports both **JSON** and **JSONC** (JSON with Comments) formats.
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "model": "anthropic/claude-sonnet-4-5",
   "autoupdate": true,
   "server": {
@@ -45,10 +45,10 @@ Config sources are loaded in this order (later sources override earlier ones):
 
 1. **Remote config** (from `.well-known/opencode`) - organizational defaults
 2. **Global config** (`~/.config/opencode/opencode.json`) - user preferences
-3. **Custom config** (`OPENCODE_CONFIG` env var) - custom overrides
+3. **Custom config** (`NOVAWAY_CONFIG` env var) - custom overrides
 4. **Project config** (`opencode.json` in project) - project-specific settings
 5. **`.opencode` directories** - agents, commands, plugins
-6. **Inline config** (`OPENCODE_CONFIG_CONTENT` env var) - runtime overrides
+6. **Inline config** (`NOVAWAY_CONFIG_CONTENT` env var) - runtime overrides
 7. **Managed config files** (`/Library/Application Support/opencode/` on macOS) - admin-controlled
 8. **macOS managed preferences** (`.mobileconfig` via MDM) - highest priority, not user-overridable
 
@@ -124,10 +124,10 @@ This is also safe to be checked into Git and uses the same schema as the global 
 
 ### Custom path
 
-Specify a custom config file path using the `OPENCODE_CONFIG` environment variable.
+Specify a custom config file path using the `NOVAWAY_CONFIG` environment variable.
 
 ```bash
-export OPENCODE_CONFIG=/path/to/my/custom-config.json
+export NOVAWAY_CONFIG=/path/to/my/custom-config.json
 opencode run "Hello world"
 ```
 
@@ -137,13 +137,13 @@ Custom config is loaded between global and project configs in the precedence ord
 
 ### Custom directory
 
-Specify a custom config directory using the `OPENCODE_CONFIG_DIR`
+Specify a custom config directory using the `NOVAWAY_CONFIG_DIR`
 environment variable. This directory will be searched for agents, commands,
 modes, and plugins just like the standard `.opencode` directory, and should
 follow the same structure.
 
 ```bash
-export OPENCODE_CONFIG_DIR=/path/to/my/config-directory
+export NOVAWAY_CONFIG_DIR=/path/to/my/config-directory
 opencode run "Hello world"
 ```
 
@@ -253,9 +253,9 @@ All managed preference keys appear in the resolved config and cannot be overridd
 
 ## Schema
 
-The server/runtime config schema is defined in [**`opencode.ai/config.json`**](https://opencode.ai/config.json).
+The server/runtime config schema is defined in [**`opencode.ai/config.json`**](https://novaway.ai/config.json).
 
-TUI config uses [**`opencode.ai/tui.json`**](https://opencode.ai/tui.json).
+TUI config uses [**`opencode.ai/tui.json`**](https://novaway.ai/tui.json).
 
 Your editor should be able to validate and autocomplete based on the schema.
 
@@ -267,7 +267,7 @@ Use a dedicated `tui.json` (or `tui.jsonc`) file for TUI-specific settings.
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "scroll_speed": 3,
   "scroll_acceleration": {
     "enabled": true
@@ -283,7 +283,7 @@ Use a dedicated `tui.json` (or `tui.jsonc`) file for TUI-specific settings.
 }
 ```
 
-Use `OPENCODE_TUI_CONFIG` to point to a custom TUI config file.
+Use `NOVAWAY_TUI_CONFIG` to point to a custom TUI config file.
 
 Set `attention.enabled` to turn on TUI desktop notifications and sounds. See [TUI attention](/docs/tui#attention).
 
@@ -297,7 +297,7 @@ You can configure server settings for the `opencode serve` and `opencode web` co
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "server": {
     "port": 4096,
     "hostname": "0.0.0.0",
@@ -326,7 +326,7 @@ You can configure the shell used for the interactive terminal using the `shell` 
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "shell": "pwsh"
 }
 ```
@@ -341,7 +341,7 @@ You can manage the tools an LLM can use through the `tools` option.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "tools": {
     "write": false,
     "bash": false
@@ -359,7 +359,7 @@ You can configure the providers and models you want to use in your OpenCode conf
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {},
   "model": "anthropic/claude-sonnet-4-5",
   "small_model": "anthropic/claude-haiku-4-5"
@@ -372,7 +372,7 @@ Provider options can include `timeout`, `chunkTimeout`, and `setCacheKey`:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {
     "anthropic": {
       "options": {
@@ -401,7 +401,7 @@ Configure image attachment limits with the `attachment.image` option:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "attachment": {
     "image": {
       "auto_resize": true,
@@ -432,7 +432,7 @@ Amazon Bedrock supports AWS-specific configuration:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {
     "amazon-bedrock": {
       "options": {
@@ -463,7 +463,7 @@ Set your UI theme in `tui.json`.
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "theme": "tokyonight"
 }
 ```
@@ -478,7 +478,7 @@ You can configure specialized agents for specific tasks through the `agent` opti
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "agent": {
     "code-reviewer": {
       "description": "Reviews code for best practices and potential issues",
@@ -504,7 +504,7 @@ You can set the default agent using the `default_agent` option. This determines 
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "default_agent": "plan"
 }
 ```
@@ -521,7 +521,7 @@ You can configure the [share](/docs/share) feature through the `share` option.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "share": "manual"
 }
 ```
@@ -542,7 +542,7 @@ You can configure custom commands for repetitive tasks through the `command` opt
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "command": {
     "test": {
       "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
@@ -568,7 +568,7 @@ Customize TUI keyboard shortcuts in `tui.json` with `keybinds`.
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "keybinds": {
     "command_list": "ctrl+p"
   }
@@ -589,7 +589,7 @@ For large repositories or projects with many submodules, the snapshot system can
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "snapshot": false
 }
 ```
@@ -604,7 +604,7 @@ OpenCode will automatically download any new updates when it starts up. You can 
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "autoupdate": false
 }
 ```
@@ -620,7 +620,7 @@ You can enable and configure code formatters through the `formatter` option. Omi
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "formatter": true
 }
 ```
@@ -629,7 +629,7 @@ Use an object to keep built-ins enabled while configuring overrides or custom fo
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "formatter": {
     "prettier": {
       "disabled": true
@@ -655,7 +655,7 @@ You can enable and configure LSP servers through the `lsp` option. Omit it to ke
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "lsp": true
 }
 ```
@@ -664,7 +664,7 @@ Use an object to keep built-ins enabled while configuring overrides or custom LS
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "lsp": {
     "typescript": {
       "disabled": true
@@ -685,7 +685,7 @@ For example, to ensure that the `edit` and `bash` tools require user approval:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "ask",
     "bash": "ask"
@@ -703,7 +703,7 @@ You can control context compaction behavior through the `compaction` option.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "compaction": {
     "auto": true,
     "prune": true,
@@ -724,7 +724,7 @@ You can configure file watcher ignore patterns through the `watcher` option.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "watcher": {
     "ignore": ["node_modules/**", "dist/**", ".git/**"]
   }
@@ -741,7 +741,7 @@ You can configure MCP servers you want to use through the `mcp` option.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "mcp": {}
 }
 ```
@@ -758,7 +758,7 @@ Place plugin files in `.opencode/plugins/` or `~/.config/opencode/plugins/`. You
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "plugin": ["opencode-helicone-session", "@my-org/custom-plugin"]
 }
 ```
@@ -773,7 +773,7 @@ You can configure the instructions for the model you're using through the `instr
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
 }
 ```
@@ -789,7 +789,7 @@ You can disable providers that are loaded automatically through the `disabled_pr
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "disabled_providers": ["openai", "gemini"]
 }
 ```
@@ -812,7 +812,7 @@ You can specify an allowlist of providers through the `enabled_providers` option
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "enabled_providers": ["anthropic", "openai"]
 }
 ```
@@ -833,7 +833,7 @@ The `experimental` key contains options that are under active development.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "experimental": {}
 }
 ```
@@ -856,8 +856,8 @@ Use `{env:VARIABLE_NAME}` to substitute environment variables:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
-  "model": "{env:OPENCODE_MODEL}",
+  "$schema": "https://novaway.ai/config.json",
+  "model": "{env:NOVAWAY_MODEL}",
   "provider": {
     "anthropic": {
       "models": {},
@@ -879,7 +879,7 @@ Use `{file:path/to/file}` to substitute the contents of a file:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "instructions": ["./custom-instructions.md"],
   "provider": {
     "openai": {

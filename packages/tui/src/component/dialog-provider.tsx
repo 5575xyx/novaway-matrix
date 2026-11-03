@@ -349,7 +349,7 @@ const FREE_PROVIDERS: Record<
   },
 }
 
-const CUSTOM_PROVIDER_OPTION_VALUE = "__NovaWay_custom_provider__"
+const CUSTOM_PROVIDER_OPTION_VALUE = "__NOVAWAY_custom_provider__"
 const CUSTOM_PROVIDER_ID = /^[a-z0-9][a-z0-9-_]*$/
 
 type ProviderOptionBase = {

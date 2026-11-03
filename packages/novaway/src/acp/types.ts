@@ -1,5 +1,5 @@
 import type { McpServer } from "@agentclientprotocol/sdk"
-import type { OpencodeClient } from "@novaway/sdk/v2"
+import type { NovawayClient } from "@novaway/sdk/v2"
 import type { ProviderID, ModelID } from "../provider/schema"
 
 export interface ACPSessionState {
@@ -16,7 +16,7 @@ export interface ACPSessionState {
 }
 
 export interface ACPConfig {
-  sdk: OpencodeClient
+  sdk: NovawayClient
   defaultModel?: {
     providerID: ProviderID
     modelID: ModelID

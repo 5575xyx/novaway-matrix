@@ -1,4 +1,4 @@
-import type { TuiPluginApi } from "@opencode/plugin/tui"
+import type { TuiPluginApi } from "@novaway/plugin/tui"
 import { RGBA } from "@opentui/core"
 import { formatKeyBindings, formatKeySequence } from "../../src/keymap"
 import { createTuiResolvedConfig } from "./tui-runtime"

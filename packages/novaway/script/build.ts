@@ -386,7 +386,7 @@ for (const item of targets) {
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"
   const workerRelativePath = path.relative(dir, parserWorker).replaceAll("\\", "/")
   // The tui RPC worker (workerPath) is a Bun entrypoint; in the single-file binary it lands at
-  // `<bunfsRoot>/src/cli/tui/worker.js`. tui.ts's target() reads the global NovaWay_WORKER_PATH to
+  // `<bunfsRoot>/src/cli/tui/worker.js`. tui.ts's target() reads the global NOVAWAY_WORKER_PATH to
   // locate it — WITHOUT this define the global is undefined and target() falls back to
   // `new URL("./cli/tui/worker.js", import.meta.url)`, which resolves against a bundled CHUNK's url
   // (root-level, no `src/`) → wrong path → Worker fails to load → the first RPC postMessage throws
@@ -415,36 +415,34 @@ for (const item of targets) {
       windows: {},
     },
     files: {
-      ...(embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {}),
-      ...(skillAssetsMap ? { "opencode-skills.gen.ts": skillAssetsMap } : {}),
-      "opencode-otui-assets.gen.ts": otuiAssetsGen,
+      ...(embeddedFileMap ? { "novaway-web-ui.gen.ts": embeddedFileMap } : {}),
+      ...(skillAssetsMap ? { "novaway-skills.gen.ts": skillAssetsMap } : {}),
+      "novaway-otui-assets.gen.ts": otuiAssetsGen,
     },
     entrypoints: [
       "./src/index.ts",
       parserWorker,
       workerPath,
-      "opencode-otui-assets.gen.ts",
-      ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : []),
-      ...(skillAssetsMap ? ["opencode-skills.gen.ts"] : []),
+      "novaway-otui-assets.gen.ts",
+      ...(embeddedFileMap ? ["novaway-web-ui.gen.ts"] : []),
+      ...(skillAssetsMap ? ["novaway-skills.gen.ts"] : []),
     ],
     define: {
-      OPENCODE_VERSION: `'${Script.version}'`,
-      // 运行时读的是 NOVAWAY_MIGRATIONS（见 storage/db.ts）；若写成 OPENCODE_MIGRATIONS
-      // 则该全局在二进制里为 undefined，迁移逻辑会回退去 scandir 一个不存在的 migration 目录
-      // （Windows 上解析成 B:\migration）而崩溃。build-node.ts 已用正确名字，这里对齐。
-      NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
-      OPENCODE_MODELS_DEV: generated.modelsData,
-      OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + workerRelativePath,
-      NovaWay_WORKER_PATH: JSON.stringify(workerBunfsPath),
-      OPENCODE_CHANNEL: `'${Script.channel}'`,
-      // watcher.ts 读的是 NovaWay_LIBC；始终注入合法字符串字面量（非 linux 用不到，但保持替换合法）。
-      NovaWay_LIBC: `'${item.abi ?? "glibc"}'`,
-      // installation/version.ts reads these globals; keep them in sync with the OPENCODE_* defines
+      // installation/version.ts reads these globals; keep them in sync with the NOVAWAY_* defines
       // so the published binary reports its real version/channel (not "local") and update checks work.
-      NovaWay_VERSION: `'${Script.version}'`,
-      NovaWay_CHANNEL: `'${Script.channel}'`,
+      NOVAWAY_VERSION: `'${Script.version}'`,
+      NOVAWAY_CHANNEL: `'${Script.channel}'`,
+      // 运行时读的是 NOVAWAY_MIGRATIONS（见 storage/db.ts），名字必须与源码逐字一致：
+      // 写错则这个全局在二进制里是 undefined，迁移逻辑会回退去 scandir 一个不存在的
+      // migration 目录（Windows 上解析成 B:\migration）而崩溃。build-node.ts 已对齐。
+      NOVAWAY_MIGRATIONS: JSON.stringify(migrations),
+      NOVAWAY_MODELS_DEV: generated.modelsData,
+      OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + workerRelativePath,
+      NOVAWAY_WORKER_PATH: JSON.stringify(workerBunfsPath),
+      // watcher.ts 读的是 NOVAWAY_LIBC；始终注入合法字符串字面量（非 linux 用不到，但保持替换合法）。
+      NOVAWAY_LIBC: `'${item.abi ?? "glibc"}'`,
       // 让二进制知道自己发布用的主包名，auto-update 才会升级正确的包（账号切换时随之变）。
-      NovaWay_NPM_PACKAGE: `'${MAIN_PACKAGE}'`,
+      NOVAWAY_NPM_PACKAGE: `'${MAIN_PACKAGE}'`,
       // 内置网关凭据:构建期注入(env),打包时内联;不设置则内联为空串,
       // 运行时回退 NOVAWAY_GATEWAY_API_KEY 或本机 auth。与 build-node.ts 保持一致。
       // 注意 key 必须写成 "process.env.XXX":provider.ts 源码里读的是 process.env,

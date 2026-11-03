@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@novaway/core": "workspace:*",
-    "@opencode/plugin": "workspace:*",
+    "@novaway/plugin": "workspace:*",
     "@novaway/sdk-v2-latest": "workspace:*",
     "@novaway/ui": "workspace:*",
     "@opentui/core": "catalog:",

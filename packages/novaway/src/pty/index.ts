@@ -109,7 +109,7 @@ export interface Interface {
   ) => Effect.Effect<{ onMessage: (message: string | ArrayBuffer) => void; onClose: () => void } | undefined>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Pty") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Pty") {}
 
 export const layer = Layer.effect(
   Service,
@@ -188,7 +188,7 @@ export const layer = Layer.effect(
         ...input.env,
         ...shell.env,
         TERM: "xterm-256color",
-        NovaWay_TERMINAL: "1",
+        NOVAWAY_TERMINAL: "1",
       } as Record<string, string>
 
       if (process.platform === "win32") {

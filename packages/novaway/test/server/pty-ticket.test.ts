@@ -12,12 +12,8 @@ describe("pty connect token header", () => {
   })
 
   test("accepts the camel-case spelling regardless of casing", () => {
-    expect(hasPtyConnectToken({ "x-NovaWay-ticket": "1" })).toBe(true)
+    expect(hasPtyConnectToken({ "x-novaway-ticket": "1" })).toBe(true)
     expect(hasPtyConnectToken({ "X-NOVAWAY-TICKET": "1" })).toBe(true)
-  })
-
-  test("still accepts the pre-rename legacy header", () => {
-    expect(hasPtyConnectToken({ "x-opencode-ticket": "1" })).toBe(true)
   })
 
   test("rejects a wrong value", () => {
@@ -36,7 +32,7 @@ describe("pty connect token header", () => {
   // names to lowercase. Read it through the real type so the check can't drift
   // back to a case-sensitive lookup.
   test("reads a lowercased effect Headers value", () => {
-    expect(hasPtyConnectToken(Headers.fromInput({ "x-NovaWay-ticket": "1" }))).toBe(true)
+    expect(hasPtyConnectToken(Headers.fromInput({ "x-novaway-ticket": "1" }))).toBe(true)
     expect(hasPtyConnectToken(Headers.fromInput({ "x-novaway-ticket": "1" }))).toBe(true)
     expect(hasPtyConnectToken(Headers.fromInput({}))).toBe(false)
   })

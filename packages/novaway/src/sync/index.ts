@@ -71,7 +71,7 @@ export interface Interface {
   readonly claim: (aggregateID: string, ownerID: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/SyncEvent") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/SyncEvent") {}
 
 export const layer = Layer.effect(Service)(
   Effect.gen(function* () {

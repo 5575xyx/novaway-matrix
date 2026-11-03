@@ -25,7 +25,7 @@ export interface Interface {
   consume(input: Scope & { readonly ticket: string }): Effect.Effect<boolean>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/PtyTicket") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/PtyTicket") {}
 
 function matches(record: Scope, input: Scope) {
   return (

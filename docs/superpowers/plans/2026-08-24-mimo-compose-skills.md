@@ -169,7 +169,7 @@ export interface Interface {
   }) => Effect.Effect<WorkflowRun>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/WorkflowService") {}
+export class Service extends Context.Service<Interface>()("@novaway/WorkflowService") {}
 
 const generateId = () => `wf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 
@@ -1029,7 +1029,7 @@ export interface Interface {
   }) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Interface>()("@NovaWay/OrchestratorService") {}
+export class Service extends Context.Service<Interface>()("@novaway/OrchestratorService") {}
 
 const generateId = () => `orch_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 

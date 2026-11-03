@@ -35,7 +35,7 @@ export { ThemeProvider, useTheme, type ColorScheme } from "./context"
 
 export {
   DEFAULT_THEMES,
-  oc2Theme,
+  novawayClassicTheme,
   amoledTheme,
   auraTheme,
   ayuTheme,

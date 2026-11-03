@@ -143,7 +143,7 @@ export interface Interface {
   readonly reset: (input: ResetInput) => Effect.Effect<boolean, Error>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Worktree") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Worktree") {}
 
 type GitResult = { code: number; text: string; stderr: string }
 

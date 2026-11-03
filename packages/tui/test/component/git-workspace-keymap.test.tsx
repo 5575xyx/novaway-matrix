@@ -14,7 +14,7 @@ import { TuiConfigProvider } from "../../src/config"
 import { TuiKeybind } from "../../src/config/keybind"
 import { KVProvider } from "../../src/context/kv"
 import { ThemeProvider } from "../../src/context/theme"
-import { NovaWay_BASE_MODE, NovaWayKeymapProvider, registerNovaWayKeymap } from "../../src/keymap"
+import { NOVAWAY_BASE_MODE, NovaWayKeymapProvider, registerNovaWayKeymap } from "../../src/keymap"
 import { createTuiResolvedConfig } from "../fixture/tui-runtime"
 import { TestTuiContexts } from "../fixture/tui-environment"
 
@@ -34,7 +34,7 @@ function KeymapContexts(props: { children: JSX.Element }) {
   }
   const offKeymap = registerNovaWayKeymap(keymap, renderer, config)
   const offAgent = keymap.registerLayer({
-    mode: NovaWay_BASE_MODE,
+    mode: NOVAWAY_BASE_MODE,
     commands: [
       {
         name: "agent.cycle",

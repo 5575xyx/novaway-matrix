@@ -25,7 +25,7 @@ export interface Interface {
   readonly acquire: (key: string, mode: "read" | "write") => Effect.Effect<Effect.Effect<void>>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/ToolLock") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/ToolLock") {}
 
 const empty = (): Entry => ({ readers: 0, writer: false, waiters: [] })
 

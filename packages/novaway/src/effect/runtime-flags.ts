@@ -7,55 +7,55 @@ const positiveInteger = (name: string) =>
     Config.map((value) => (Number.isInteger(value) && value > 0 ? value : undefined)),
     Config.orElse(() => Config.succeed(undefined)),
   )
-const experimental = bool("NovaWay_EXPERIMENTAL")
+const experimental = bool("NOVAWAY_EXPERIMENTAL")
 const enabledByExperimental = (name: string) =>
   Config.all({ experimental, enabled: bool(name) }).pipe(Config.map((flags) => flags.experimental || flags.enabled))
 
-export class Service extends ConfigService.Service<Service>()("@NovaWay/RuntimeFlags", {
-  autoShare: bool("NovaWay_AUTO_SHARE"),
-  pure: bool("NovaWay_PURE"),
-  disableDefaultPlugins: bool("NovaWay_DISABLE_DEFAULT_PLUGINS"),
-  disableChannelDb: bool("NovaWay_DISABLE_CHANNEL_DB"),
-  disableEmbeddedWebUi: bool("NovaWay_DISABLE_EMBEDDED_WEB_UI"),
-  disableExternalSkills: bool("NovaWay_DISABLE_EXTERNAL_SKILLS"),
-  disableLspDownload: bool("NovaWay_DISABLE_LSP_DOWNLOAD"),
-  skipMigrations: bool("NovaWay_SKIP_MIGRATIONS"),
+export class Service extends ConfigService.Service<Service>()("@novaway/RuntimeFlags", {
+  autoShare: bool("NOVAWAY_AUTO_SHARE"),
+  pure: bool("NOVAWAY_PURE"),
+  disableDefaultPlugins: bool("NOVAWAY_DISABLE_DEFAULT_PLUGINS"),
+  disableChannelDb: bool("NOVAWAY_DISABLE_CHANNEL_DB"),
+  disableEmbeddedWebUi: bool("NOVAWAY_DISABLE_EMBEDDED_WEB_UI"),
+  disableExternalSkills: bool("NOVAWAY_DISABLE_EXTERNAL_SKILLS"),
+  disableLspDownload: bool("NOVAWAY_DISABLE_LSP_DOWNLOAD"),
+  skipMigrations: bool("NOVAWAY_SKIP_MIGRATIONS"),
   disableClaudeCodePrompt: Config.all({
-    broad: bool("NovaWay_DISABLE_CLAUDE_CODE"),
-    direct: bool("NovaWay_DISABLE_CLAUDE_CODE_PROMPT"),
+    broad: bool("NOVAWAY_DISABLE_CLAUDE_CODE"),
+    direct: bool("NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT"),
   }).pipe(Config.map((flags) => flags.broad || flags.direct)),
   disableClaudeCodeSkills: Config.all({
-    broad: bool("NovaWay_DISABLE_CLAUDE_CODE"),
-    direct: bool("NovaWay_DISABLE_CLAUDE_CODE_SKILLS"),
+    broad: bool("NOVAWAY_DISABLE_CLAUDE_CODE"),
+    direct: bool("NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS"),
   }).pipe(Config.map((flags) => flags.broad || flags.direct)),
   enableExa: Config.all({
     experimental,
-    enabled: bool("NovaWay_ENABLE_EXA"),
-    legacy: bool("NovaWay_EXPERIMENTAL_EXA"),
+    enabled: bool("NOVAWAY_ENABLE_EXA"),
+    legacy: bool("NOVAWAY_EXPERIMENTAL_EXA"),
   }).pipe(Config.map((flags) => flags.experimental || flags.enabled || flags.legacy)),
   enableParallel: Config.all({
-    enabled: bool("NovaWay_ENABLE_PARALLEL"),
-    legacy: bool("NovaWay_EXPERIMENTAL_PARALLEL"),
+    enabled: bool("NOVAWAY_ENABLE_PARALLEL"),
+    legacy: bool("NOVAWAY_EXPERIMENTAL_PARALLEL"),
   }).pipe(Config.map((flags) => flags.enabled || flags.legacy)),
-  enableExperimentalModels: bool("NovaWay_ENABLE_EXPERIMENTAL_MODELS"),
-  enableQuestionTool: bool("NovaWay_ENABLE_QUESTION_TOOL"),
-  experimentalScout: enabledByExperimental("NovaWay_EXPERIMENTAL_SCOUT"),
-  // 后台子代理默认开启(异步并行);显式设 NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS=false 可关闭。
+  enableExperimentalModels: bool("NOVAWAY_ENABLE_EXPERIMENTAL_MODELS"),
+  enableQuestionTool: bool("NOVAWAY_ENABLE_QUESTION_TOOL"),
+  experimentalScout: enabledByExperimental("NOVAWAY_EXPERIMENTAL_SCOUT"),
+  // 后台子代理默认开启(异步并行);显式设 NOVAWAY_EXPERIMENTAL_BACKGROUND_SUBAGENTS=false 可关闭。
   experimentalBackgroundSubagents: Config.all({
     experimental,
-    enabled: Config.boolean("NovaWay_EXPERIMENTAL_BACKGROUND_SUBAGENTS").pipe(Config.withDefault(true)),
+    enabled: Config.boolean("NOVAWAY_EXPERIMENTAL_BACKGROUND_SUBAGENTS").pipe(Config.withDefault(true)),
   }).pipe(Config.map((flags) => flags.experimental || flags.enabled)),
-  experimentalLspTy: bool("NovaWay_EXPERIMENTAL_LSP_TY"),
-  experimentalLspTool: enabledByExperimental("NovaWay_EXPERIMENTAL_LSP_TOOL"),
-  experimentalOxfmt: enabledByExperimental("NovaWay_EXPERIMENTAL_OXFMT"),
-  experimentalComputerControl: enabledByExperimental("NovaWay_EXPERIMENTAL_COMPUTER_CONTROL"),
-  experimentalPlanMode: enabledByExperimental("NovaWay_EXPERIMENTAL_PLAN_MODE"),
-  experimentalEventSystem: enabledByExperimental("NovaWay_EXPERIMENTAL_EVENT_SYSTEM"),
-  experimentalWorkspaces: enabledByExperimental("NovaWay_EXPERIMENTAL_WORKSPACES"),
-  experimentalIconDiscovery: enabledByExperimental("NovaWay_EXPERIMENTAL_ICON_DISCOVERY"),
-  outputTokenMax: positiveInteger("NovaWay_EXPERIMENTAL_OUTPUT_TOKEN_MAX"),
-  bashDefaultTimeoutMs: positiveInteger("NovaWay_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS"),
-  client: Config.string("NovaWay_CLIENT").pipe(Config.withDefault("cli")),
+  experimentalLspTy: bool("NOVAWAY_EXPERIMENTAL_LSP_TY"),
+  experimentalLspTool: enabledByExperimental("NOVAWAY_EXPERIMENTAL_LSP_TOOL"),
+  experimentalOxfmt: enabledByExperimental("NOVAWAY_EXPERIMENTAL_OXFMT"),
+  experimentalComputerControl: enabledByExperimental("NOVAWAY_EXPERIMENTAL_COMPUTER_CONTROL"),
+  experimentalPlanMode: enabledByExperimental("NOVAWAY_EXPERIMENTAL_PLAN_MODE"),
+  experimentalEventSystem: enabledByExperimental("NOVAWAY_EXPERIMENTAL_EVENT_SYSTEM"),
+  experimentalWorkspaces: enabledByExperimental("NOVAWAY_EXPERIMENTAL_WORKSPACES"),
+  experimentalIconDiscovery: enabledByExperimental("NOVAWAY_EXPERIMENTAL_ICON_DISCOVERY"),
+  outputTokenMax: positiveInteger("NOVAWAY_EXPERIMENTAL_OUTPUT_TOKEN_MAX"),
+  bashDefaultTimeoutMs: positiveInteger("NOVAWAY_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS"),
+  client: Config.string("NOVAWAY_CLIENT").pipe(Config.withDefault("cli")),
 }) {}
 
 export type Info = Context.Service.Shape<typeof Service>

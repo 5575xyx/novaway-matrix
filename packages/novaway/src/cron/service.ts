@@ -37,7 +37,7 @@ export interface Interface {
   readonly start: (input: { directory: string }) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Cron") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Cron") {}
 
 type PromptService = {
   prompt: (input: { sessionID: SessionID; parts: { type: "text"; text: string }[] }) => Effect.Effect<unknown, unknown>

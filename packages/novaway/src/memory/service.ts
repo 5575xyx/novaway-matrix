@@ -119,7 +119,7 @@ export interface Interface {
   readonly removeRelation: (id: RelationID) => Effect.Effect<boolean>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Memory") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Memory") {}
 
 function rowToInfo(row: typeof MemoryEntryTable.$inferSelect): Info {
   return {

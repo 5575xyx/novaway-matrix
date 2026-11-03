@@ -202,7 +202,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory }
+        const headers = { "x-novaway-directory": test.directory }
         const missingSession = SessionID.descending()
         const missingSessionBody = {
           name: "NotFoundError",
@@ -267,7 +267,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory }
+        const headers = { "x-novaway-directory": test.directory }
         const parent = yield* createSession({ title: "parent" })
         const child = yield* createSession({ title: "child", parentID: parent.id })
         const message = yield* createTextMessage(parent.id, "hello")
@@ -342,7 +342,7 @@ describe("session HttpApi", () => {
         yield* setLegacySummaryDiff(session.id)
 
         const response = yield* request(pathFor(SessionPaths.get, { sessionID: session.id }), {
-          headers: { "x-opencode-directory": test.directory },
+          headers: { "x-novaway-directory": test.directory },
         })
 
         expect(response.status).toBe(200)
@@ -356,7 +356,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
+        const headers = { "x-novaway-directory": test.directory, "content-type": "application/json" }
 
         const createdEmpty = yield* requestJson<Session.Info>(SessionPaths.create, {
           method: "POST",
@@ -416,13 +416,13 @@ describe("session HttpApi", () => {
 
         const created = yield* requestJson<Session.Info>(`${SessionPaths.create}?workspace=${workspace.id}`, {
           method: "POST",
-          headers: { "x-opencode-directory": test.directory, "content-type": "application/json" },
+          headers: { "x-novaway-directory": test.directory, "content-type": "application/json" },
           body: JSON.stringify({ title: "workspace session" }),
         })
         const messages = yield* request(
           `${pathFor(SessionPaths.messages, { sessionID: created.id })}?workspace=${workspace.id}`,
           {
-            headers: { "x-opencode-directory": test.directory },
+            headers: { "x-novaway-directory": test.directory },
           },
         )
 
@@ -438,7 +438,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
+        const headers = { "x-novaway-directory": test.directory, "content-type": "application/json" }
         const session = yield* createSession({ title: "archived" })
         const body = JSON.stringify({ time: { archived: -1 } })
 
@@ -478,7 +478,7 @@ describe("session HttpApi", () => {
           path: "packages/opencode/src",
           directory: currentDir,
         })
-        const headers = { "x-opencode-directory": test.directory }
+        const headers = { "x-novaway-directory": test.directory }
         const sessions = (yield* json<Session.Info[]>(
           yield* request(`${SessionPaths.list}?${query}`, { headers }),
         )).map((item) => item.id)
@@ -494,7 +494,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory }
+        const headers = { "x-novaway-directory": test.directory }
         const session = yield* createSession({ title: "messages" })
         yield* createTextMessage(session.id, "first")
         yield* createTextMessage(session.id, "second")
@@ -514,7 +514,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
+        const headers = { "x-novaway-directory": test.directory, "content-type": "application/json" }
         const session = yield* createSession({ title: "messages" })
         const first = yield* createTextMessage(session.id, "first")
         const second = yield* createTextMessage(session.id, "second")
@@ -559,7 +559,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
+        const headers = { "x-novaway-directory": test.directory, "content-type": "application/json" }
         const session = yield* createSession({ title: "part mismatch" })
         const message = yield* createTextMessage(session.id, "first")
         const response = yield* request(
@@ -585,7 +585,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
+        const headers = { "x-novaway-directory": test.directory, "content-type": "application/json" }
         const session = yield* createSession({ title: "remaining" })
 
         expect(

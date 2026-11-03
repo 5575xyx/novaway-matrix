@@ -1,6 +1,6 @@
 import type {
   Config,
-  OpencodeClient,
+  NovawayClient,
   Path,
   Project,
   ProviderAuthResponse,
@@ -51,19 +51,19 @@ type GlobalStore = {
   reload: undefined | "pending" | "complete"
 }
 
-export const loadMcpQuery = (directory: string, sdk: OpencodeClient) =>
+export const loadMcpQuery = (directory: string, sdk: NovawayClient) =>
   queryOptions({
     queryKey: [directory, "mcp"] as const,
     queryFn: () => sdk.mcp.status().then((r) => r.data ?? {}),
   })
 
-export const loadLspQuery = (directory: string, sdk: OpencodeClient) =>
+export const loadLspQuery = (directory: string, sdk: NovawayClient) =>
   queryOptions({
     queryKey: [directory, "lsp"] as const,
     queryFn: () => sdk.lsp.status().then((r) => r.data ?? []),
   })
 
-function makeQueryOptionsApi(globalSDK: () => OpencodeClient, sdkFor: (dir: PathKey) => OpencodeClient) {
+function makeQueryOptionsApi(globalSDK: () => NovawayClient, sdkFor: (dir: PathKey) => NovawayClient) {
   return {
     globalConfig: () => loadGlobalConfigQuery(globalSDK()),
     projects: () => loadProjectsQuery(globalSDK()),
@@ -84,7 +84,7 @@ function createGlobalSync() {
   const owner = getOwner()
   if (!owner) throw new Error("GlobalSync must be created within owner")
 
-  const sdkCache = new Map<string, OpencodeClient>()
+  const sdkCache = new Map<string, NovawayClient>()
   const booting = new Map<string, Promise<void>>()
   const sessionLoads = new Map<string, Promise<void>>()
   const sessionMeta = new Map<string, { limit: number }>()

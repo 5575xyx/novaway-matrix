@@ -16,9 +16,9 @@ export const GenerateCommand = {
           {
             lang: "js",
             source: [
-              `import { createOpencodeClient } from "@novaway/sdk`,
+              `import { createNovawayClient } from "@novaway/sdk`,
               ``,
-              `const client = createOpencodeClient()`,
+              `const client = createNovawayClient()`,
               `await client.${operation.operationId}({`,
               `  ...`,
               `})`,

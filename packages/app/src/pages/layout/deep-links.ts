@@ -37,14 +37,14 @@ export const collectNewSessionDeepLinks = (urls: string[]) =>
   urls.map(parseNewSessionDeepLink).filter((link): link is { directory: string; prompt?: string } => !!link)
 
 type NovaWayWindow = Window & {
-  __NovaWay__?: {
+  __NOVAWAY__?: {
     deepLinks?: string[]
   }
 }
 
 export const drainPendingDeepLinks = (target: NovaWayWindow) => {
-  const pending = target.__NovaWay__?.deepLinks ?? []
+  const pending = target.__NOVAWAY__?.deepLinks ?? []
   if (pending.length === 0) return []
-  if (target.__NovaWay__) target.__NovaWay__.deepLinks = []
+  if (target.__NOVAWAY__) target.__NOVAWAY__.deepLinks = []
   return pending
 }

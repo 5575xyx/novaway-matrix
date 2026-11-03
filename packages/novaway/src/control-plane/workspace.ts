@@ -164,7 +164,7 @@ export interface Interface {
   readonly startWorkspaceSyncing: (projectID: ProjectID) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Workspace") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Workspace") {}
 
 export const layer = Layer.effect(
   Service,
@@ -563,9 +563,9 @@ export const layer = Layer.effect(
       })
 
       const env = {
-        NovaWay_AUTH_CONTENT: JSON.stringify(yield* auth.all()),
-        NovaWay_WORKSPACE_ID: config.id,
-        NovaWay_EXPERIMENTAL_WORKSPACES: "true",
+        NOVAWAY_AUTH_CONTENT: JSON.stringify(yield* auth.all()),
+        NOVAWAY_WORKSPACE_ID: config.id,
+        NOVAWAY_EXPERIMENTAL_WORKSPACES: "true",
         OTEL_EXPORTER_OTLP_HEADERS: process.env.OTEL_EXPORTER_OTLP_HEADERS,
         OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
         OTEL_RESOURCE_ATTRIBUTES: process.env.OTEL_RESOURCE_ATTRIBUTES,

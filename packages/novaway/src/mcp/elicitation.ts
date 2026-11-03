@@ -106,7 +106,7 @@ export interface Interface {
   readonly complete: (input: { serverName: string; elicitationId: string }) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Elicitation") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Elicitation") {}
 
 type Pending = {
   info: Request

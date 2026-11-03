@@ -25,7 +25,7 @@ export interface Interface {
   readonly snapshot: (runID: string) => Snapshot
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamWriter") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamWriter") {}
 
 export const layer = Layer.effect(
   Service,

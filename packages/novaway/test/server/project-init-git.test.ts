@@ -28,7 +28,7 @@ const it = testEffect(Layer.mergeAll(AppFileSystem.defaultLayer, Snapshot.defaul
 function request(directory: string, url: string, init: RequestInit = {}) {
   return Effect.promise(() => {
     const headers = new Headers(init.headers)
-    headers.set("x-opencode-directory", directory)
+    headers.set("x-novaway-directory", directory)
     return Promise.resolve(Server.Default().app.request(url, { ...init, headers }))
   })
 }

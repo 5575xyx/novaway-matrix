@@ -124,7 +124,7 @@ export interface Interface {
   readonly removeSandbox: (id: ProjectID, directory: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Project") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Project") {}
 
 type GitResult = { code: number; text: string; stderr: string }
 

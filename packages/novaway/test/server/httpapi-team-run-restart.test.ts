@@ -52,7 +52,7 @@ const it = testEffect(layer)
 const post = (dir: string, suffix: string, body?: unknown) =>
   Effect.gen(function* () {
     const request = HttpClientRequest.post(suffix).pipe(
-      HttpClientRequest.setHeader("x-opencode-directory", dir),
+      HttpClientRequest.setHeader("x-novaway-directory", dir),
       HttpClientRequest.setUrlParam("directory", dir),
     )
     const ready = body === undefined ? request : yield* HttpClientRequest.bodyJson(body)(request)
@@ -62,13 +62,13 @@ const post = (dir: string, suffix: string, body?: unknown) =>
 const get = (dir: string, suffix: string) =>
   HttpClient.execute(
     HttpClientRequest.get(suffix).pipe(
-      HttpClientRequest.setHeader("x-opencode-directory", dir),
+      HttpClientRequest.setHeader("x-novaway-directory", dir),
       HttpClientRequest.setUrlParam("directory", dir),
     ),
   )
 
 const providerConfig = (url: string) => ({
-  $schema: "https://opencode.ai/config.json",
+  $schema: "https://novaway.ai/config.json",
   formatter: false,
   lsp: false,
   model: "test/test-model",

@@ -1,4 +1,4 @@
-import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, Show } from "solid-js"
 import { Tips } from "./tips-view"

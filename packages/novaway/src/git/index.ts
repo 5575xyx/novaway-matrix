@@ -113,7 +113,7 @@ const kind = (code: string): Kind => {
   return "modified"
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Git") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Git") {}
 
 export const layer = Layer.effect(
   Service,

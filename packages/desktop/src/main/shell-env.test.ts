@@ -25,13 +25,13 @@ describe("shell env", () => {
       },
       {
         PATH: "/desktop/path",
-        NovaWay_CLIENT: "desktop",
+        NOVAWAY_CLIENT: "desktop",
       },
     )
 
     expect(env.PATH).toBe("/desktop/path")
     expect(env.HOME).toBe("/tmp/home")
-    expect(env.NovaWay_CLIENT).toBe("desktop")
+    expect(env.NOVAWAY_CLIENT).toBe("desktop")
   })
 
   test("resolveUserShell falls back to the login shell before /bin/sh", () => {

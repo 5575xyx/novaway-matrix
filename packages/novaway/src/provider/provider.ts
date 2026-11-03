@@ -83,7 +83,7 @@ function shouldUseCopilotResponsesApi(modelID: string): boolean {
 // opencode-dev/packages/schema/src/identifier.ts 一致）。Zen 服务端
 // 会对 x-opencode-session/x-opencode-request 做格式校验，普通 SHA1
 // hash 会被判定为非 OpenCode 客户端并返回 FreeTierError。
-const OPENCODE_ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+const NOVAWAY_ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 let opencodeIdLastTimestamp = 0
 let opencodeIdCounter = 0
 function opencodeIdentifier(): string {
@@ -103,7 +103,7 @@ function opencodeIdentifier(): string {
   let tail = ""
   const bytes = new Uint8Array(14)
   crypto.getRandomValues(bytes)
-  for (let i = 0; i < 14; i++) tail += OPENCODE_ID_CHARS[bytes[i] % OPENCODE_ID_CHARS.length]
+  for (let i = 0; i < 14; i++) tail += NOVAWAY_ID_CHARS[bytes[i] % NOVAWAY_ID_CHARS.length]
   return time + tail
 }
 
@@ -2023,7 +2023,7 @@ interface State {
   keyRing: Record<string, string[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Provider") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Provider") {}
 
 /**
  * 多 key 轮询的游标：按供应商各记一个，跨 SDK 实例共享，

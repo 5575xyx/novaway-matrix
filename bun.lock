@@ -6,9 +6,9 @@
       "name": "novaway",
       "dependencies": {
         "@aws-sdk/client-s3": "3.933.0",
+        "@novaway/plugin": "workspace:*",
         "@novaway/script": "workspace:*",
         "@novaway/sdk": "workspace:*",
-        "@opencode/plugin": "workspace:*",
         "@silvia-odwyer/photon-node": "0.3.4",
         "chromium-bidi": "16.0.1",
         "electron": "42.1.0",
@@ -35,7 +35,7 @@
     },
     "packages/app": {
       "name": "@novaway/app",
-      "version": "1.0.0",
+      "version": "0.2.5",
       "dependencies": {
         "@aiden0z/pptx-renderer": "1.4.0",
         "@fontsource-variable/inter": "5.3.0",
@@ -264,7 +264,7 @@
     },
     "packages/desktop": {
       "name": "@novaway/desktop",
-      "version": "1.0.0",
+      "version": "0.2.5",
       "dependencies": {
         "crypto-js": "4.2.0",
         "drizzle-orm": "catalog:",
@@ -435,6 +435,7 @@
         "@lydell/node-pty": "catalog:",
         "@modelcontextprotocol/sdk": "1.27.1",
         "@novaway/llm": "workspace:*",
+        "@novaway/plugin": "workspace:*",
         "@novaway/script": "workspace:*",
         "@novaway/sdk": "workspace:*",
         "@novaway/sdk-v2-latest": "workspace:*",
@@ -443,7 +444,6 @@
         "@octokit/graphql": "9.0.2",
         "@octokit/rest": "catalog:",
         "@openauthjs/openauth": "catalog:",
-        "@opencode/plugin": "workspace:*",
         "@openrouter/ai-sdk-provider": "2.8.1",
         "@opentelemetry/api": "1.9.0",
         "@opentelemetry/context-async-hooks": "2.6.1",
@@ -551,7 +551,7 @@
       },
     },
     "packages/plugin": {
-      "name": "@opencode/plugin",
+      "name": "@novaway/plugin",
       "version": "1.0.0",
       "dependencies": {
         "@novaway/sdk": "workspace:*",
@@ -659,9 +659,9 @@
       "version": "1.18.19",
       "dependencies": {
         "@novaway/core": "workspace:*",
+        "@novaway/plugin": "workspace:*",
         "@novaway/sdk-v2-latest": "workspace:*",
         "@novaway/ui": "workspace:*",
-        "@opencode/plugin": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/solid": "catalog:",
@@ -779,13 +779,16 @@
     "solid-js@1.9.10": "patches/solid-js@1.9.10.patch",
     "ssh2@1.17.0": "patches/ssh2@1.17.0.patch",
     "@standard-community/standard-openapi@0.2.9": "patches/@standard-community%2Fstandard-openapi@0.2.9.patch",
+    "@npmcli/agent@4.0.0": "patches/@npmcli%2Fagent@4.0.0.patch",
     "@silvia-odwyer/photon-node@0.3.4": "patches/@silvia-odwyer%2Fphoton-node@0.3.4.patch",
   },
   "overrides": {
     "@effect/platform-node-shared": "catalog:",
+    "@npmcli/agent": "4.0.0",
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/solid": "catalog:",
+    "@standard-community/standard-openapi": "0.2.9",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
   },
@@ -1569,6 +1572,8 @@
 
     "@novaway/llm": ["@novaway/llm@workspace:packages/llm"],
 
+    "@novaway/plugin": ["@novaway/plugin@workspace:packages/plugin"],
+
     "@novaway/script": ["@novaway/script@workspace:packages/script"],
 
     "@novaway/sdk": ["@novaway/sdk@workspace:packages/sdk/js"],
@@ -1587,7 +1592,7 @@
 
     "@npm/types": ["@npm/types@1.0.2", "https://registry.npmmirror.com/@npm/types/-/types-1.0.2.tgz", {}, "sha512-KXZccTDEnWqNrrx6JjpJKU/wJvNeg9BDgjS0XhmlZab7br921HtyVbsYzJr4L+xIvjdJ20Wh9dgxgCI2a5CEQw=="],
 
-    "@npmcli/agent": ["@npmcli/agent@4.0.2", "https://registry.npmmirror.com/@npmcli/agent/-/agent-4.0.2.tgz", { "dependencies": { "agent-base": "^7.1.0", "http-proxy-agent": "^7.0.0", "https-proxy-agent": "^7.0.1", "lru-cache": "^11.2.1", "socks-proxy-agent": "^8.0.3" } }, "sha512-EUEuWAxnL07Sp5/iC/1X6Xj+XThUvnbei9zfRWZdEXa7lss9RTHMhAHBeg+MZ5To9s/gGaSI+UwZTPdYMvKSeg=="],
+    "@npmcli/agent": ["@npmcli/agent@4.0.0", "https://registry.npmmirror.com/@npmcli/agent/-/agent-4.0.0.tgz", { "dependencies": { "agent-base": "^7.1.0", "http-proxy-agent": "^7.0.0", "https-proxy-agent": "^7.0.1", "lru-cache": "^11.2.1", "socks-proxy-agent": "^8.0.3" } }, "sha512-kAQTcEN9E8ERLVg5AsGwLNoFb+oEG6engbqAU2P43gD4JEIkNGMHdVQ096FsOAAYpZPB0RSt0zgInKIAS1l5QA=="],
 
     "@npmcli/arborist": ["@npmcli/arborist@9.4.0", "https://registry.npmmirror.com/@npmcli/arborist/-/arborist-9.4.0.tgz", { "dependencies": { "@isaacs/string-locale-compare": "^1.1.0", "@npmcli/fs": "^5.0.0", "@npmcli/installed-package-contents": "^4.0.0", "@npmcli/map-workspaces": "^5.0.0", "@npmcli/metavuln-calculator": "^9.0.2", "@npmcli/name-from-folder": "^4.0.0", "@npmcli/node-gyp": "^5.0.0", "@npmcli/package-json": "^7.0.0", "@npmcli/query": "^5.0.0", "@npmcli/redact": "^4.0.0", "@npmcli/run-script": "^10.0.0", "bin-links": "^6.0.0", "cacache": "^20.0.1", "common-ancestor-path": "^2.0.0", "hosted-git-info": "^9.0.0", "json-stringify-nice": "^1.1.4", "lru-cache": "^11.2.1", "minimatch": "^10.0.3", "nopt": "^9.0.0", "npm-install-checks": "^8.0.0", "npm-package-arg": "^13.0.0", "npm-pick-manifest": "^11.0.1", "npm-registry-fetch": "^19.0.0", "pacote": "^21.0.2", "parse-conflict-json": "^5.0.1", "proc-log": "^6.0.0", "proggy": "^4.0.0", "promise-all-reject-late": "^1.0.0", "promise-call-limit": "^3.0.1", "semver": "^7.3.7", "ssri": "^13.0.0", "treeverse": "^3.0.0", "walk-up-path": "^4.0.0" }, "bin": { "arborist": "bin/index.js" } }, "sha512-4Bm8hNixJG/sii1PMnag0V9i/sGOX9VRzFrUiZMSBJpGlLR38f+Btl85d07G9GL56xO0l0OZjvrGNYsDYp0xKA=="],
 
@@ -1664,8 +1669,6 @@
     "@opencode-ai/plugin": ["@opencode-ai/plugin@1.18.18", "https://registry.npmmirror.com/@opencode-ai/plugin/-/plugin-1.18.18.tgz", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@opencode-ai/sdk": "1.18.18", "effect": "4.0.0-beta.83", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.4.5", "@opentui/keymap": ">=0.4.5", "@opentui/solid": ">=0.4.5" }, "optionalPeers": ["@opentui/core", "@opentui/keymap", "@opentui/solid"] }, "sha512-vqQeqJtn9c+J+tIQDzYk88xip/NVNN1hym1ATmckxo6zINHAoXoul4Sw/jgnvL00rLsfAvhja28qax4h3g/5Jg=="],
 
     "@opencode-ai/sdk": ["@opencode-ai/sdk@1.18.18", "https://registry.npmmirror.com/@opencode-ai/sdk/-/sdk-1.18.18.tgz", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-zJlwXskIR47V1dkPJqeKBgq7nejG1uU8lJaGIGqbX3MWRCT8vKn0fEotbxuPCKnTdmWsDyNGNg9q1qIliDSMDA=="],
-
-    "@opencode/plugin": ["@opencode/plugin@workspace:packages/plugin"],
 
     "@openrouter/ai-sdk-provider": ["@openrouter/ai-sdk-provider@2.8.1", "https://registry.npmmirror.com/@openrouter/ai-sdk-provider/-/ai-sdk-provider-2.8.1.tgz", { "peerDependencies": { "ai": "^6.0.0", "zod": "^3.25.0 || ^4.0.0" } }, "sha512-Y6j3yivgoEUf/kutD/k5GX/mzZfioRFoSx0gbQ+mIOzMaH/vJv1rCkztiuvlLw5xRYQil7oxHUZvmSfXqOx1NQ=="],
 

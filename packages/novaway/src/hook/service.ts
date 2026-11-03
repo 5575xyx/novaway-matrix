@@ -57,7 +57,7 @@ export interface Interface {
   readonly reload: () => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Hook") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Hook") {}
 
 const EMPTY: Hook.Result = { blocked: false, ran: false }
 

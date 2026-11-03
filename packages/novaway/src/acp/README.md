@@ -49,7 +49,7 @@ NovaWay acp --cwd /path/to/project
 ACP excludes `QuestionTool` by default.
 
 ```bash
-NovaWay_ENABLE_QUESTION_TOOL=1 NovaWay acp
+NOVAWAY_ENABLE_QUESTION_TOOL=1 NovaWay acp
 ```
 
 Enable this only for ACP clients that support interactive question prompts.

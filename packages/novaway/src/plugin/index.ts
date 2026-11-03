@@ -4,11 +4,11 @@ import type {
   Plugin as PluginInstance,
   PluginModule,
   WorkspaceAdapter as PluginWorkspaceAdapter,
-} from "@opencode/plugin"
+} from "@novaway/plugin"
 import { Config } from "@/config/config"
 import { Bus } from "../bus"
 import * as Log from "@novaway/core/util/log"
-import { createOpencodeClient } from "@novaway/sdk"
+import { createNovawayClient } from "@novaway/sdk"
 import { ServerAuth } from "@/server/auth"
 import { CodexAuthPlugin } from "./codex"
 import { NamedError } from "@novaway/core/util/error"
@@ -61,7 +61,7 @@ export interface Interface {
   readonly reload: () => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Plugin") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Plugin") {}
 
 // Built-in plugins that are directly imported (not installed from npm)
 const INTERNAL_PLUGINS: PluginInstance[] = [
@@ -136,7 +136,7 @@ export const layer = Layer.effect(
         // permission -> hook -> plugin -> session -> permission cycle.
         const { Session } = yield* Effect.promise(() => import("@/session/session"))
 
-        const client = createOpencodeClient({
+        const client = createNovawayClient({
           baseUrl: "http://localhost:4096",
           directory: ctx.directory,
           headers: ServerAuth.headers(),

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在用户首次启动 opencode 时，将 `superpowers@git+https://github.com/obra/superpowers.git` 写进新生成的全局配置文件 `novaway.jsonc` 的 `plugin` 数组中。受 `OPENCODE_DISABLE_DEFAULT_PLUGINS` 门控。
+**Goal:** 在用户首次启动 opencode 时，将 `superpowers@git+https://github.com/obra/superpowers.git` 写进新生成的全局配置文件 `novaway.jsonc` 的 `plugin` 数组中。受 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 门控。
 
 **Architecture:** 在 `loadGlobal` 的首启动写入处，依据环境变量门控注入默认 plugin 数组。默认 plugin 列表作为模块级常量导出，方便测试和未来调整。
 
@@ -16,7 +16,7 @@
 
 | 文件                                           | 责任                                                             |
 | ---------------------------------------------- | ---------------------------------------------------------------- |
-| `packages/core/src/flag/flag.ts`               | 新增 `OPENCODE_DISABLE_DEFAULT_PLUGINS` 字段                     |
+| `packages/core/src/flag/flag.ts`               | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 字段                     |
 | `packages/opencode/src/config/config.ts`       | 新增 `DEFAULT_GLOBAL_PLUGINS` 常量；修改 `loadGlobal` 首次写入处 |
 | `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试                                                |
 
@@ -26,16 +26,16 @@
 
 **Files:**
 
-- Modify: `packages/core/src/flag/flag.ts:25` (在 `OPENCODE_DISABLE_AUTOCOMPACT` 附近)
+- Modify: `packages/core/src/flag/flag.ts:25` (在 `NOVAWAY_DISABLE_AUTOCOMPACT` 附近)
 
 - [ ] **Step 1: 添加 Flag 字段**
 
-在 `packages/core/src/flag/flag.ts` 第 25 行（`OPENCODE_DISABLE_AUTOCOMPACT`）后插入新字段，使最终块在 `OPENCODE_DISABLE_AUTOCOMPACT` 与 `OPENCODE_DISABLE_MODELS_FETCH` 之间：
+在 `packages/core/src/flag/flag.ts` 第 25 行（`NOVAWAY_DISABLE_AUTOCOMPACT`）后插入新字段，使最终块在 `NOVAWAY_DISABLE_AUTOCOMPACT` 与 `NOVAWAY_DISABLE_MODELS_FETCH` 之间：
 
 ```ts
-  OPENCODE_DISABLE_AUTOCOMPACT: truthy("OPENCODE_DISABLE_AUTOCOMPACT"),
-  OPENCODE_DISABLE_DEFAULT_PLUGINS: truthy("OPENCODE_DISABLE_DEFAULT_PLUGINS"),
-  OPENCODE_DISABLE_MODELS_FETCH: truthy("OPENCODE_DISABLE_MODELS_FETCH"),
+  NOVAWAY_DISABLE_AUTOCOMPACT: truthy("NOVAWAY_DISABLE_AUTOCOMPACT"),
+  NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy("NOVAWAY_DISABLE_DEFAULT_PLUGINS"),
+  NOVAWAY_DISABLE_MODELS_FETCH: truthy("NOVAWAY_DISABLE_MODELS_FETCH"),
 ```
 
 - [ ] **Step 2: 验证类型检查**
@@ -53,7 +53,7 @@ cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\core && bun run typecheck
 ```bash
 cd E:\AImoney\NovaWay-Matrix\novaway-coder
 git add packages/core/src/flag/flag.ts
-git commit -m "feat(flag): expose OPENCODE_DISABLE_DEFAULT_PLUGINS gate"
+git commit -m "feat(flag): expose NOVAWAY_DISABLE_DEFAULT_PLUGINS gate"
 ```
 
 ---
@@ -140,13 +140,13 @@ export const DEFAULT_GLOBAL_PLUGINS: string[] = ["superpowers@git+https://github
 将 `packages/opencode/src/config/config.ts:417-424` 替换为：
 
 ```ts
-if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_CONTENT) {
+if (!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CONTENT) {
   const file = globalConfigFile()
   if (!existsSync(file)) {
     const seed: Record<string, unknown> = {
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://novaway.ai/config.json",
     }
-    if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
+    if (!Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS) {
       seed.plugin = DEFAULT_GLOBAL_PLUGINS
     }
     yield * fs.writeWithDirs(file, JSON.stringify(seed, null, 2)).pipe(Effect.catch(() => Effect.void))
@@ -157,7 +157,7 @@ if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_
 **关键点**：
 
 - 沿用原 `if (!existsSync(file))` 边界；已存在的配置文件**不**被回写。
-- 仅当 `OPENCODE_DISABLE_DEFAULT_PLUGINS` 未设置时才写 `plugin`。
+- 仅当 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 未设置时才写 `plugin`。
 - `seed` 用 `Record<string, unknown>`，不引入新类型导入。
 
 - [ ] **Step 3: 运行 Task 2 的测试，验证它通过**
@@ -232,7 +232,7 @@ cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/co
 
 3. **类型一致性**：
    - `DEFAULT_GLOBAL_PLUGINS: string[]` 在 Task 3 Step 1 定义、在 Step 2 使用 → 一致
-   - `Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS` 在 Task 1 定义、在 Task 3 Step 2 使用 → 一致
+   - `Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS` 在 Task 1 定义、在 Task 3 Step 2 使用 → 一致
    - 测试中 `ConfigParse.jsonc`、`clear`、`load` 均为文件顶部已导入符号 → 一致
 
 4. **依赖关系**：Task 1 → Task 2 → Task 3 → Task 4 顺序，Task 2 依赖 Task 1（编译通过），Task 3 依赖 Task 2（已存在的测试在编译期需要 `ConfigParse`/`clear`/`load`）。

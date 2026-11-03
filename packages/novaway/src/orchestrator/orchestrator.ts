@@ -64,7 +64,7 @@ export interface Interface {
   readonly delete: (planId: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/OrchestratorService") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/OrchestratorService") {}
 export { Service as OrchestratorService }
 
 const generateId = () => `orch_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`

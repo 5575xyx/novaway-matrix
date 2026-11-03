@@ -44,7 +44,7 @@ export class WorkspaceRouteContext extends Context.Service<
     readonly directory: string
     readonly workspaceID?: WorkspaceID
   }
->()("@NovaWay/ExperimentalHttpApiWorkspaceRouteContext") {}
+>()("@novaway/ExperimentalHttpApiWorkspaceRouteContext") {}
 
 export class WorkspaceRoutingMiddleware extends HttpApiMiddleware.Service<
   WorkspaceRoutingMiddleware,
@@ -52,7 +52,7 @@ export class WorkspaceRoutingMiddleware extends HttpApiMiddleware.Service<
     provides: WorkspaceRouteContext
     requires: Session.Service
   }
->()("@NovaWay/ExperimentalHttpApiWorkspaceRouting") {}
+>()("@novaway/ExperimentalHttpApiWorkspaceRouting") {}
 
 function requestURL(request: HttpServerRequest.HttpServerRequest): URL {
   return new URL(request.url, "http://localhost")
@@ -78,8 +78,6 @@ function defaultDirectory(request: HttpServerRequest.HttpServerRequest, url: URL
   return (
     queryParam(url, "directory") ||
     request.headers["x-novaway-directory"] ||
-    request.headers["x-NovaWay-directory"] ||
-    request.headers["x-opencode-directory"] ||
     process.cwd()
   )
 }

@@ -46,7 +46,7 @@ describe("config HttpApi", () => {
             method: "PATCH",
             headers: {
               "content-type": "application/json",
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
             body: JSON.stringify({ username: "patched-user", formatter: false, lsp: false }),
           }),
@@ -91,7 +91,7 @@ describe("config HttpApi", () => {
         Promise.resolve(
           app().request("/config", {
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -124,7 +124,7 @@ describe("config HttpApi", () => {
             method: "PUT",
             headers: {
               "content-type": "application/json",
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
             body: JSON.stringify({
               description: "工程规则",
@@ -145,7 +145,7 @@ describe("config HttpApi", () => {
         Promise.resolve(
           app().request("/settings/rules/project", {
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -178,7 +178,7 @@ describe("config HttpApi", () => {
             method: "PUT",
             headers: {
               "content-type": "application/json",
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
             body: JSON.stringify({
               content: "# AGENTS\n\nUse project-local instructions.",
@@ -203,7 +203,7 @@ describe("config HttpApi", () => {
         Promise.resolve(
           app().request("/settings/project-instruction", {
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -240,7 +240,7 @@ Temporary instructions.
         Promise.resolve(
           app().request("/settings/skills", {
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -255,7 +255,7 @@ Temporary instructions.
           app().request("/settings/skills/custom-skill", {
             method: "DELETE",
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -267,7 +267,7 @@ Temporary instructions.
         Promise.resolve(
           app().request("/settings/skills", {
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -302,7 +302,7 @@ Write Godot gameplay scripts.
         Promise.resolve(
           app().request("/settings/agents", {
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -317,7 +317,7 @@ Write Godot gameplay scripts.
           app().request(`/settings/agents/${encodeURIComponent("godot/godot-gameplay-scripter")}`, {
             method: "DELETE",
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
             },
           }),
         ),
@@ -338,7 +338,7 @@ Write Godot gameplay scripts.
           app().request("/settings/agents/avatar-agent", {
             method: "PUT",
             headers: {
-              "x-opencode-directory": tmp.path,
+              "x-novaway-directory": tmp.path,
               "content-type": "application/json",
             },
             body: JSON.stringify({
@@ -353,7 +353,7 @@ Write Godot gameplay scripts.
       const listed = yield* Effect.promise(() =>
         Promise.resolve(
           app().request("/settings/agents", {
-            headers: { "x-opencode-directory": tmp.path },
+            headers: { "x-novaway-directory": tmp.path },
           }),
         ),
       )
@@ -369,7 +369,7 @@ Write Godot gameplay scripts.
       const agents = yield* Effect.promise(() =>
         Promise.resolve(
           app().request("/agent", {
-            headers: { "x-opencode-directory": tmp.path },
+            headers: { "x-novaway-directory": tmp.path },
           }),
         ),
       )
@@ -393,7 +393,7 @@ Write Godot gameplay scripts.
         Promise.resolve(
           app().request("/settings/project-instruction", {
             headers: {
-              "x-opencode-directory": path.join(tmp.path, "src", "feature"),
+              "x-novaway-directory": path.join(tmp.path, "src", "feature"),
             },
           }),
         ),

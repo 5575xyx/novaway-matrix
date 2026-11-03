@@ -24,7 +24,7 @@ cd packages/novaway && bun run dev
 
 ```jsonc
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
 
   "goal": {
     "enabled": false, // 目标驱动自主循环总开关

@@ -34,7 +34,7 @@ describe("sync HttpApi", () => {
       Effect.gen(function* () {
         Flag.NOVAWAY_EXPERIMENTAL_WORKSPACES = true
         const tmp = yield* TestInstance
-        const headers = { "x-opencode-directory": tmp.directory, "content-type": "application/json" }
+        const headers = { "x-novaway-directory": tmp.directory, "content-type": "application/json" }
         const info = spyOn(Log.create({ service: "server.sync" }), "info")
         const session = yield* Session.Service.use((svc) => svc.create({ title: "sync" }))
 
@@ -96,7 +96,7 @@ describe("sync HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const tmp = yield* TestInstance
-        const headers = { "x-opencode-directory": tmp.directory, "content-type": "application/json" }
+        const headers = { "x-novaway-directory": tmp.directory, "content-type": "application/json" }
         const cases = [
           {
             path: SyncPaths.history,
@@ -147,7 +147,7 @@ describe("sync HttpApi", () => {
           HttpApiApp.webHandler().handler(
             new Request(`http://localhost${SyncPaths.history}`, {
               method: "POST",
-              headers: { "x-opencode-directory": tmp.directory, "content-type": "application/json" },
+              headers: { "x-novaway-directory": tmp.directory, "content-type": "application/json" },
               body: JSON.stringify({ aggregate: -1 }),
             }),
             context,

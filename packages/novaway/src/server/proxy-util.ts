@@ -14,8 +14,8 @@ const hop = new Set([
 function sanitize(out: Headers) {
   for (const key of hop) out.delete(key)
   out.delete("accept-encoding")
-  out.delete("x-NovaWay-directory")
-  out.delete("x-NovaWay-workspace")
+  out.delete("x-novaway-directory")
+  out.delete("x-novaway-workspace")
 }
 
 export function headers(input: Request | HeadersInit | Record<string, string>, extra?: HeadersInit) {

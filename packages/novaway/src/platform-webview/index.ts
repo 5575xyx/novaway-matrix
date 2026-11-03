@@ -84,7 +84,7 @@ export interface Interface {
   readonly list: () => Effect.Effect<ReadonlyArray<Request>>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/PlatformWebview") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/PlatformWebview") {}
 
 export const layer = Layer.effect(
   Service,

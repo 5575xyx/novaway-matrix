@@ -101,7 +101,7 @@ const kinds = [
 const filterExperimentalServers = (servers: Record<string, LSPServer.Info>, flags: RuntimeFlags.Info) => {
   if (flags.experimentalLspTy) {
     if (servers["pyright"]) {
-      log.info("LSP server pyright is disabled because NovaWay_EXPERIMENTAL_LSP_TY is enabled")
+      log.info("LSP server pyright is disabled because NOVAWAY_EXPERIMENTAL_LSP_TY is enabled")
       delete servers["pyright"]
     }
   } else {
@@ -137,7 +137,7 @@ export interface Interface {
   readonly outgoingCalls: (input: LocInput) => Effect.Effect<any[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/LSP") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/LSP") {}
 
 export const layer = Layer.effect(
   Service,

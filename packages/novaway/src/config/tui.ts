@@ -43,7 +43,7 @@ export interface Interface {
   readonly waitForDependencies: () => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TuiConfig") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TuiConfig") {}
 
 function pluginScope(file: string, ctx: { directory: string }): ConfigPlugin.Scope {
   if (Filesystem.contains(ctx.directory, file)) return "local"
@@ -168,7 +168,7 @@ const loadState = Effect.fn("TuiConfig.loadState")(function* (ctx: { directory: 
     })
 
   // Every config dir we may read from: global config dir, any `.novaway`
-  // folders between cwd and home, and NovaWay_CONFIG_DIR.
+  // folders between cwd and home, and NOVAWAY_CONFIG_DIR.
   const directories = yield* ConfigPaths.directories(ctx.directory)
   yield* Effect.promise(() => migrateTuiConfig({ directories, cwd: ctx.directory }))
 
@@ -184,7 +184,7 @@ const loadState = Effect.fn("TuiConfig.loadState")(function* (ctx: { directory: 
     yield* mergeFile(acc, file)
   }
 
-  // 2. Explicit NovaWay_TUI_CONFIG override, if set.
+  // 2. Explicit NOVAWAY_TUI_CONFIG override, if set.
   if (Flag.NOVAWAY_TUI_CONFIG) {
     const configFile = Flag.NOVAWAY_TUI_CONFIG
     yield* mergeFile(acc, configFile)
@@ -219,7 +219,7 @@ const loadState = Effect.fn("TuiConfig.loadState")(function* (ctx: { directory: 
     yield* mergeFile(acc, file)
   }
 
-  // 4. `.novaway` directories (and NovaWay_CONFIG_DIR) discovered while
+  // 4. `.novaway` directories (and NOVAWAY_CONFIG_DIR) discovered while
   // walking up the tree. Also returned below so callers can install plugin
   // dependencies from each location.
   const dirs = unique(directories).filter((dir) => dir.endsWith(".novaway") || dir === Flag.NOVAWAY_CONFIG_DIR)
@@ -260,7 +260,7 @@ const layer = Layer.effect(
           .install(dir, {
             add: [
               {
-                name: "@opencode/plugin",
+                name: "@novaway/plugin",
                 version: InstallationLocal ? undefined : InstallationVersion,
               },
             ],

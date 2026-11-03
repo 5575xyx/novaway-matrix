@@ -36,7 +36,7 @@ export interface Interface {
   readonly restore: () => Effect.Effect<Restored[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/BackgroundResume") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/BackgroundResume") {}
 
 const INTERRUPTED = "interrupted by restart"
 

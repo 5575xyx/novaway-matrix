@@ -13,7 +13,7 @@ OpenCode podržava i **JSON** i **JSONC** (JSON sa komentarima) formate.
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "model": "anthropic/claude-sonnet-4-5",
   "autoupdate": true,
   "server": {
@@ -44,10 +44,10 @@ Izvori konfiguracije se učitavaju ovim redoslijedom (kasniji izvori poništavaj
 
 1. **Udaljena konfiguracija** (od `.well-known/opencode`) - organizacijske postavke
 2. **Globalna konfiguracija** (`~/.config/opencode/opencode.json`) - korisničke preferencije
-3. **Prilagođena konfiguracija** (`OPENCODE_CONFIG` env var) - prilagođena preinačenja
+3. **Prilagođena konfiguracija** (`NOVAWAY_CONFIG` env var) - prilagođena preinačenja
 4. **Konfiguracija projekta** (`opencode.json` u projektu) - postavke specifične za projekat
 5. **`.opencode` direktoriji** - agenti, komande, dodaci
-6. **Inline konfiguracija** (`OPENCODE_CONFIG_CONTENT` env var) - runtime preinačenja
+6. **Inline konfiguracija** (`NOVAWAY_CONFIG_CONTENT` env var) - runtime preinačenja
 
 To znači da konfiguracije projekta mogu nadjačati globalne zadane postavke, a globalne konfiguracije mogu nadjačati postavke udaljene organizacije.
 
@@ -121,10 +121,10 @@ Ovo je također sigurno provjeriti u Git i koristi istu shemu kao globalna.
 
 ### Prilagođena konfiguracija
 
-Navedite prilagođenu putanju konfiguracijske datoteke koristeći varijablu okruženja `OPENCODE_CONFIG`.
+Navedite prilagođenu putanju konfiguracijske datoteke koristeći varijablu okruženja `NOVAWAY_CONFIG`.
 
 ```bash
-export OPENCODE_CONFIG=/path/to/my/custom-config.json
+export NOVAWAY_CONFIG=/path/to/my/custom-config.json
 opencode run "Hello world"
 ```
 
@@ -134,10 +134,10 @@ Prilagođena konfiguracija se učitava između globalne i projektne konfiguracij
 
 ### Prilagođeni direktorij
 
-Navedite prilagođeni konfiguracijski direktorij koristeći `OPENCODE_CONFIG_DIR` varijablu okruženja. U ovom direktoriju će se tražiti agenti, komande, modovi i dodaci baš kao standardni `.opencode` direktorij, i trebali bi pratiti istu strukturu.
+Navedite prilagođeni konfiguracijski direktorij koristeći `NOVAWAY_CONFIG_DIR` varijablu okruženja. U ovom direktoriju će se tražiti agenti, komande, modovi i dodaci baš kao standardni `.opencode` direktorij, i trebali bi pratiti istu strukturu.
 
 ```bash
-export OPENCODE_CONFIG_DIR=/path/to/my/config-directory
+export NOVAWAY_CONFIG_DIR=/path/to/my/config-directory
 opencode run "Hello world"
 ```
 
@@ -147,9 +147,9 @@ Prilagođeni direktorij se učitava nakon direktorija globalne konfiguracije i `
 
 ## Šema
 
-Konfiguracijski fajl ima šemu koja je definirana u [**`opencode.ai/config.json`**](https://opencode.ai/config.json).
+Konfiguracijski fajl ima šemu koja je definirana u [**`opencode.ai/config.json`**](https://novaway.ai/config.json).
 
-TUI konfiguracija koristi [**`opencode.ai/tui.json`**](https://opencode.ai/tui.json).
+TUI konfiguracija koristi [**`opencode.ai/tui.json`**](https://novaway.ai/tui.json).
 
 Vaš editor bi trebao biti u mogućnosti da validira i autodovršava na osnovu šeme.
 
@@ -161,7 +161,7 @@ Koristite namjenski `tui.json` (ili `tui.jsonc`) fajl za postavke specifične za
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "scroll_speed": 3,
   "scroll_acceleration": {
     "enabled": true
@@ -170,7 +170,7 @@ Koristite namjenski `tui.json` (ili `tui.jsonc`) fajl za postavke specifične za
 }
 ```
 
-Koristite `OPENCODE_TUI_CONFIG` da pokažete na prilagođeni TUI konfiguracijski fajl.
+Koristite `NOVAWAY_TUI_CONFIG` da pokažete na prilagođeni TUI konfiguracijski fajl.
 
 Stari `theme`, `keybinds`, i `tui` ključevi u `opencode.json` su zastarjeli i automatski će se migrirati kada je to moguće.
 
@@ -184,7 +184,7 @@ Možete konfigurirati postavke servera za naredbe `opencode serve` i `opencode w
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "server": {
     "port": 4096,
     "hostname": "0.0.0.0",
@@ -213,7 +213,7 @@ Možete upravljati alatima koje LLM može koristiti putem opcije `tools`.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "tools": {
     "write": false,
     "bash": false
@@ -231,7 +231,7 @@ Možete konfigurirati dobavljače i modele koje želite koristiti u svojoj OpenC
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {},
   "model": "anthropic/claude-sonnet-4-5",
   "small_model": "anthropic/claude-haiku-4-5"
@@ -244,7 +244,7 @@ Opcije provajdera mogu uključivati ​​`timeout` i `setCacheKey`:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {
     "anthropic": {
       "options": {
@@ -273,7 +273,7 @@ Amazon Bedrock podržava konfiguraciju specifičnu za AWS:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "provider": {
     "amazon-bedrock": {
       "options": {
@@ -304,7 +304,7 @@ Postavite vašu UI temu u `tui.json`.
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "theme": "tokyonight"
 }
 ```
@@ -319,7 +319,7 @@ Možete konfigurirati specijalizirane agente za određene zadatke putem opcije `
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "agent": {
     "code-reviewer": {
       "description": "Reviews code for best practices and potential issues",
@@ -345,7 +345,7 @@ Možete postaviti zadanog agenta koristeći opciju `default_agent`. Ovo određuj
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "default_agent": "plan"
 }
 ```
@@ -362,7 +362,7 @@ Možete konfigurirati funkciju [share](/docs/share) putem opcije `share`.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "share": "manual"
 }
 ```
@@ -383,7 +383,7 @@ Možete konfigurirati prilagođene naredbe za ponavljanje zadataka putem opcije 
 
 ```jsonc title="opencode.jsonc"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "command": {
     "test": {
       "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
@@ -409,7 +409,7 @@ Prilagodite prečice tipki u `tui.json`.
 
 ```json title="tui.json"
 {
-  "$schema": "https://opencode.ai/tui.json",
+  "$schema": "https://novaway.ai/tui.json",
   "keybinds": {}
 }
 ```
@@ -424,7 +424,7 @@ OpenCode će automatski preuzeti sva nova ažuriranja kada se pokrene. Ovo može
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "autoupdate": false
 }
 ```
@@ -440,7 +440,7 @@ Možete konfigurirati formatere koda putem opcije `formatter`.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "formatter": {
     "prettier": {
       "disabled": true
@@ -468,7 +468,7 @@ Na primjer, da osigurate da alati `edit` i `bash` zahtijevaju odobrenje korisnik
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "ask",
     "bash": "ask"
@@ -486,7 +486,7 @@ Možete kontrolirati ponašanje sažimanja konteksta putem opcije `compaction`.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "compaction": {
     "auto": true,
     "prune": true,
@@ -507,7 +507,7 @@ Možete konfigurirati obrasce ignoriranja promatrača datoteka putem opcije `wat
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "watcher": {
     "ignore": ["node_modules/**", "dist/**", ".git/**"]
   }
@@ -524,7 +524,7 @@ Možete konfigurirati MCP servere koje želite koristiti putem opcije `mcp`.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "mcp": {}
 }
 ```
@@ -541,7 +541,7 @@ Postavite datoteke dodataka u `.opencode/plugins/` ili `~/.config/opencode/plugi
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "plugin": ["opencode-helicone-session", "@my-org/custom-plugin"]
 }
 ```
@@ -556,7 +556,7 @@ Možete konfigurirati upute za model koji koristite putem opcije `instructions`.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
 }
 ```
@@ -571,7 +571,7 @@ Možete onemogućiti dobavljače koji se automatski učitavaju preko opcije `dis
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "disabled_providers": ["openai", "gemini"]
 }
 ```
@@ -594,7 +594,7 @@ Možete odrediti listu dozvoljenih dobavljača putem opcije `enabled_providers`.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "enabled_providers": ["anthropic", "openai"]
 }
 ```
@@ -615,7 +615,7 @@ Ključ `experimental` sadrži opcije koje su u aktivnom razvoju.
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "experimental": {}
 }
 ```
@@ -638,8 +638,8 @@ Koristite `{env:VARIABLE_NAME}` za zamjenu varijabli okruženja:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
-  "model": "{env:OPENCODE_MODEL}",
+  "$schema": "https://novaway.ai/config.json",
+  "model": "{env:NOVAWAY_MODEL}",
   "provider": {
     "anthropic": {
       "models": {},
@@ -661,7 +661,7 @@ Koristite `{file:path/to/file}` da zamijenite sadržaj fajla:
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "instructions": ["./custom-instructions.md"],
   "provider": {
     "openai": {

@@ -32,7 +32,7 @@ export interface Interface {
   readonly team: (teamID: string) => Effect.Effect<Message[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/AgentMailbox") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/AgentMailbox") {}
 
 const id = () => `msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
 

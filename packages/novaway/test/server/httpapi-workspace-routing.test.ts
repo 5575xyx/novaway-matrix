@@ -259,8 +259,8 @@ describe("HttpApi workspace routing middleware", () => {
       const response = yield* HttpClientRequest.patch(`/probe?workspace=${workspace.id}&keep=yes`).pipe(
         HttpClientRequest.setHeaders({
           "content-type": "application/json",
-          "x-opencode-directory": "/secret/path",
-          "x-opencode-workspace": "internal",
+          "x-novaway-directory": "/secret/path",
+          "x-novaway-workspace": "internal",
         }),
         HttpClient.execute,
       )
@@ -277,8 +277,8 @@ describe("HttpApi workspace routing middleware", () => {
       expect(forwarded?.method).toBe("PATCH")
       expect(forwarded?.headers["content-type"]).toBe("application/json")
       expect(forwarded?.headers["x-target-auth"]).toBe("secret")
-      expect(forwarded?.headers["x-opencode-directory"]).toBeUndefined()
-      expect(forwarded?.headers["x-opencode-workspace"]).toBeUndefined()
+      expect(forwarded?.headers["x-novaway-directory"]).toBeUndefined()
+      expect(forwarded?.headers["x-novaway-workspace"]).toBeUndefined()
     }),
   )
 
@@ -490,7 +490,7 @@ describe("HttpApi workspace routing middleware", () => {
       // directory hints before using the process cwd.
       const queryResponse = yield* HttpClient.get(`/probe?directory=${encodeURIComponent(queryDir)}`)
       const headerResponse = yield* HttpClientRequest.get("/probe").pipe(
-        HttpClientRequest.setHeader("x-opencode-directory", headerDir),
+        HttpClientRequest.setHeader("x-novaway-directory", headerDir),
         HttpClient.execute,
       )
 

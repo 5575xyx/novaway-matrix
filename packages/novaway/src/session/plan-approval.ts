@@ -66,7 +66,7 @@ export interface Interface {
   readonly clear: (sessionID?: SessionID) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/PlanApproval") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/PlanApproval") {}
 
 type Entry = { info: Pending; deferred: Deferred.Deferred<Decision> }
 type State = { pending: Map<string, Entry> }

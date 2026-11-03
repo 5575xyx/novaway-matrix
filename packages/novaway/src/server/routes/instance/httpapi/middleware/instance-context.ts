@@ -12,7 +12,7 @@ export class InstanceContextMiddleware extends HttpApiMiddleware.Service<
   {
     requires: WorkspaceRouteContext
   }
->()("@NovaWay/ExperimentalHttpApiInstanceContext") {}
+>()("@novaway/ExperimentalHttpApiInstanceContext") {}
 
 function decode(input: string): string {
   try {

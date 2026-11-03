@@ -49,7 +49,7 @@ export namespace SessionUsage {
     readonly tree: (sessionID: SessionID) => Effect.Effect<Tree>
   }
 
-  export class Service extends Context.Service<Service, Interface>()("@NovaWay/SessionUsage") {}
+  export class Service extends Context.Service<Service, Interface>()("@novaway/SessionUsage") {}
 
   export function emptyTokens(): Tokens {
     return { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, total: 0 }

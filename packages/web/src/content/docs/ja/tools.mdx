@@ -15,7 +15,7 @@ description: LLM が使用できるツールを管理します。
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "deny",
     "bash": "ask",
@@ -28,7 +28,7 @@ description: LLM が使用できるツールを管理します。
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "mymcp_*": "ask"
   }
@@ -51,7 +51,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "bash": "allow"
   }
@@ -68,7 +68,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "allow"
   }
@@ -85,7 +85,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "allow"
   }
@@ -106,7 +106,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "read": "allow"
   }
@@ -123,7 +123,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "grep": "allow"
   }
@@ -140,7 +140,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "glob": "allow"
   }
@@ -156,12 +156,12 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 構成された LSP サーバーと対話して、定義、参照、ホバー情報、呼び出し階層などのコードインテリジェンス機能を取得します。
 
 :::note
-このツールは、`OPENCODE_EXPERIMENTAL_LSP_TOOL=true` (または `OPENCODE_EXPERIMENTAL=true`) の場合にのみ使用できます。
+このツールは、`NOVAWAY_EXPERIMENTAL_LSP_TOOL=true` (または `NOVAWAY_EXPERIMENTAL=true`) の場合にのみ使用できます。
 :::
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "lsp": "allow"
   }
@@ -180,7 +180,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "allow"
   }
@@ -201,7 +201,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "skill": "allow"
   }
@@ -216,7 +216,7 @@ OpenCode で利用可能なすべての組み込みツールを次に示しま�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "todowrite": "allow"
   }
@@ -237,7 +237,7 @@ Web コンテンツを取得します。
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "webfetch": "allow"
   }
@@ -253,19 +253,19 @@ LLM が Web ページをフェッチして読み取ることを許可します�
 ウェブで情報を検索してください。
 
 :::note
-このツールは、OpenCode プロバイダーを使用している場合、または `OPENCODE_ENABLE_EXA` 環境変数が真実の値 (`true` または `1` など) に設定されている場合にのみ使用できます。
+このツールは、OpenCode プロバイダーを使用している場合、または `NOVAWAY_ENABLE_EXA` 環境変数が真実の値 (`true` または `1` など) に設定されている場合にのみ使用できます。
 
 OpenCode の起動時に有効にするには:
 
 ```bash
-OPENCODE_ENABLE_EXA=1 opencode
+NOVAWAY_ENABLE_EXA=1 opencode
 ```
 
 :::
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "websearch": "allow"
   }
@@ -288,7 +288,7 @@ API キーは必要ありません。ツールは認証なしで Exa AI のホ�
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "question": "allow"
   }

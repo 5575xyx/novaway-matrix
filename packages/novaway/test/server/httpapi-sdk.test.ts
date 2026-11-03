@@ -7,7 +7,7 @@ import { ChildProcessSpawner } from "effect/unstable/process"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { Flag } from "@novaway/core/flag/flag"
-import { createOpencodeClient } from "@novaway/sdk/v2"
+import { createNovawayClient } from "@novaway/sdk/v2"
 import { validateSession } from "../../src/cli/tui/validate-session"
 import { InstanceBootstrap } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
@@ -36,12 +36,12 @@ const it = testEffect(
 )
 
 const original = {
-  OPENCODE_SERVER_PASSWORD: Flag.NOVAWAY_SERVER_PASSWORD,
-  OPENCODE_SERVER_USERNAME: Flag.NOVAWAY_SERVER_USERNAME,
+  NOVAWAY_SERVER_PASSWORD: Flag.NOVAWAY_SERVER_PASSWORD,
+  NOVAWAY_SERVER_USERNAME: Flag.NOVAWAY_SERVER_USERNAME,
 }
 
 type ServerPath = "default" | "raw"
-type Sdk = ReturnType<typeof createOpencodeClient>
+type Sdk = ReturnType<typeof createNovawayClient>
 type SdkResult = { response: Response; data?: unknown; error?: unknown }
 type Captured = { status: number; data?: unknown; error?: unknown }
 type ProjectFixture = { sdk: Sdk; directory: string }
@@ -59,8 +59,8 @@ function app(serverPath: ServerPath, input?: { password?: string; username?: str
       Layer.provide(
         ConfigProvider.layer(
           ConfigProvider.fromUnknown({
-            OPENCODE_SERVER_PASSWORD: input?.password,
-            OPENCODE_SERVER_USERNAME: input?.username,
+            NOVAWAY_SERVER_PASSWORD: input?.password,
+            NOVAWAY_SERVER_USERNAME: input?.username,
           }),
         ),
       ),
@@ -80,7 +80,7 @@ function client(
   directory?: string,
   input?: { password?: string; username?: string; headers?: Record<string, string> },
 ) {
-  return createOpencodeClient({
+  return createNovawayClient({
     baseUrl: "http://localhost",
     directory,
     headers: input?.headers,
@@ -442,8 +442,8 @@ function seedMessage(directory: string, sessionID: string) {
 }
 
 afterEach(async () => {
-  Flag.NOVAWAY_SERVER_PASSWORD = original.OPENCODE_SERVER_PASSWORD
-  Flag.NOVAWAY_SERVER_USERNAME = original.OPENCODE_SERVER_USERNAME
+  Flag.NOVAWAY_SERVER_PASSWORD = original.NOVAWAY_SERVER_PASSWORD
+  Flag.NOVAWAY_SERVER_USERNAME = original.NOVAWAY_SERVER_USERNAME
   await disposeAllInstances()
   await resetDatabase()
 })

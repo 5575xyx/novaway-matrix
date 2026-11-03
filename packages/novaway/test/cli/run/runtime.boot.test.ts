@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test"
-import { OpencodeClient, type Provider } from "@novaway/sdk/v2"
+import { NovawayClient, type Provider } from "@novaway/sdk/v2"
 import { TuiConfig, type Resolved } from "@/config/tui"
 import { formatBindings } from "@/cli/cmd/run/keymap.shared"
 import { resolveDiffStyle, resolveFooterKeybinds, resolveModelInfo } from "@/cli/cmd/run/runtime.boot"
@@ -154,7 +154,7 @@ describe("run runtime boot", () => {
   })
 
   test("prefers configured providers for model selector data", async () => {
-    const sdk = new OpencodeClient()
+    const sdk = new NovawayClient()
     const data: {
       all: Provider[]
       default: Record<string, string>
@@ -220,7 +220,7 @@ describe("run runtime boot", () => {
   })
 
   test("falls back to provider list when configured providers are unavailable", async () => {
-    const sdk = new OpencodeClient()
+    const sdk = new NovawayClient()
     const data: {
       all: Provider[]
       default: Record<string, string>

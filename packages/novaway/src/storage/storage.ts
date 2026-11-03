@@ -64,7 +64,7 @@ export interface Interface {
   readonly list: (prefix: string[]) => Effect.Effect<string[][], AppFileSystem.Error>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Storage") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Storage") {}
 
 function file(dir: string, key: string[]) {
   return path.join(dir, ...key) + ".json"

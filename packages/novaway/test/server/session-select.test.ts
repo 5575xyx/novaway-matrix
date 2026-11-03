@@ -25,7 +25,7 @@ describe("tui.selectSession endpoint", () => {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "x-opencode-directory": tmp.directory,
+                "x-novaway-directory": tmp.directory,
               },
               body: JSON.stringify({ sessionID: session.id }),
             }),
@@ -53,7 +53,7 @@ describe("tui.selectSession endpoint", () => {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "x-opencode-directory": tmp.directory,
+                "x-novaway-directory": tmp.directory,
               },
               body: JSON.stringify({ sessionID: nonExistentSessionID }),
             }),
@@ -79,7 +79,7 @@ describe("tui.selectSession endpoint", () => {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "x-opencode-directory": tmp.directory,
+                "x-novaway-directory": tmp.directory,
               },
               body: JSON.stringify({ sessionID: invalidSessionID }),
             }),

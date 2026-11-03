@@ -4,7 +4,7 @@
 // 会话一长这个列表就有几十行,把下面的待办事项、LSP 挤到要滚很远才看得见,
 // 所以超过阈值时只保留最近的几条,箭头按钮手动展开全部
 // (和"待办事项"块是同一套折叠模式)。
-import type { TuiPlugin, TuiPluginApi } from "@opencode/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@novaway/plugin/tui"
 import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, For, Show } from "solid-js"
 import { CollapsibleSidebarCard } from "../../component/sidebar-card"

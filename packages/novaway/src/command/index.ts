@@ -62,7 +62,7 @@ export interface Interface {
   readonly reload: () => Effect.Effect<Info[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Command") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Command") {}
 
 export const layer = Layer.effect(
   Service,

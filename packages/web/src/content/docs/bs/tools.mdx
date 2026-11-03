@@ -15,7 +15,7 @@ Koristite polje `permission` za kontrolu ponasanja alata. Za svaki alat mozete p
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "deny",
     "bash": "ask",
@@ -28,7 +28,7 @@ Mozete koristiti i wildcard obrasce da kontrolisete vise alata odjednom. Na prim
 
 ```json title="opencode.json"
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "mymcp_*": "ask"
   }
@@ -51,7 +51,7 @@ Izvrsava shell komande u okruzenju projekta.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "bash": "allow"
   }
@@ -68,7 +68,7 @@ Mijenja postojece datoteke tacnim zamjenama stringova.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "allow"
   }
@@ -85,7 +85,7 @@ Kreira nove datoteke ili prepisuje postojece.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "allow"
   }
@@ -106,7 +106,7 @@ Cita sadrzaj datoteka iz vaseg koda.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "read": "allow"
   }
@@ -123,7 +123,7 @@ Pretrazuje sadrzaj datoteka pomocu regularnih izraza.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "grep": "allow"
   }
@@ -140,7 +140,7 @@ Pronalazi datoteke po obrascima.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "glob": "allow"
   }
@@ -156,12 +156,12 @@ Trazi datoteke koristeci glob obrasce kao `**/*.js` ili `src/**/*.ts`. Vraca put
 Komunicira sa konfigurisanim LSP serverima za funkcije inteligencije koda kao definicije, reference, hover info i hijerarhija poziva.
 
 :::note
-Ovaj alat je dostupan samo kada je `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` (ili `OPENCODE_EXPERIMENTAL=true`).
+Ovaj alat je dostupan samo kada je `NOVAWAY_EXPERIMENTAL_LSP_TOOL=true` (ili `NOVAWAY_EXPERIMENTAL=true`).
 :::
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "lsp": "allow"
   }
@@ -180,7 +180,7 @@ Primjenjuje zakrpe na datoteke.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "edit": "allow"
   }
@@ -201,7 +201,7 @@ Ucitajte [skill](/docs/skills) (`SKILL.md` datoteku) i vratite njegov sadrzaj u 
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "skill": "allow"
   }
@@ -216,7 +216,7 @@ Upravlja todo listama tokom coding sesija.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "todowrite": "allow"
   }
@@ -237,7 +237,7 @@ Preuzima web sadrzaj.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "webfetch": "allow"
   }
@@ -253,19 +253,19 @@ Omogucava LLM-u da preuzima i cita web stranice. Korisno za dokumentaciju i onli
 Pretrazuje web za informacije.
 
 :::note
-Ovaj alat je dostupan samo uz OpenCode provajdera ili kada je varijabla `OPENCODE_ENABLE_EXA` postavljena na truthy vrijednost (npr. `true` ili `1`).
+Ovaj alat je dostupan samo uz OpenCode provajdera ili kada je varijabla `NOVAWAY_ENABLE_EXA` postavljena na truthy vrijednost (npr. `true` ili `1`).
 
 Da ukljucite pri pokretanju OpenCode:
 
 ```bash
-OPENCODE_ENABLE_EXA=1 opencode
+NOVAWAY_ENABLE_EXA=1 opencode
 ```
 
 :::
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "websearch": "allow"
   }
@@ -288,7 +288,7 @@ Postavlja korisniku pitanja tokom izvrsavanja.
 
 ```json title="opencode.json" {4}
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://novaway.ai/config.json",
   "permission": {
     "question": "allow"
   }

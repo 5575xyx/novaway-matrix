@@ -1,4 +1,4 @@
-import type { AuthOAuthResult, Hooks } from "@opencode/plugin"
+import type { AuthOAuthResult, Hooks } from "@novaway/plugin"
 import { Auth } from "@/auth"
 import { InstanceState } from "@/effect/instance-state"
 import { optionalOmitUndefined } from "@novaway/core/schema"
@@ -100,7 +100,7 @@ interface State {
   pending: Map<ProviderID, AuthOAuthResult>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/ProviderAuth") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/ProviderAuth") {}
 
 export const layer: Layer.Layer<Service, never, Auth.Service | Plugin.Service> = Layer.effect(
   Service,

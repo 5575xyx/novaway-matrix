@@ -76,7 +76,7 @@ import { createPluginRuntime, PluginRuntimeProvider, usePluginRuntime, type TuiP
 import { CommandPaletteDialog } from "./component/command-palette"
 import {
   COMMAND_PALETTE_COMMAND,
-  NovaWay_BASE_MODE,
+  NOVAWAY_BASE_MODE,
   NovaWayKeymapProvider,
   registerNovaWayKeymap,
   useBindings,
@@ -97,7 +97,7 @@ registerNovaWaySpinner()
 
 const appGlobalBindingCommands = [
   // 重绘是**恢复手段**,所以必须挂在全局、不带 mode:画花或者某个 mode 被卡住的时候,
-  // 挂在 NovaWay_BASE_MODE 上的键位恰好是那批失效的,重绘键不能跟它们一起哑掉。
+  // 挂在 NOVAWAY_BASE_MODE 上的键位恰好是那批失效的,重绘键不能跟它们一起哑掉。
   "app.redraw",
   "session.list",
   "session.new",
@@ -293,8 +293,8 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                     >
                       <TuiStartupProvider
                         value={{
-                          initialRoute: process.env.NovaWay_ROUTE ? JSON.parse(process.env.NovaWay_ROUTE) : undefined,
-                          skipInitialLoading: Boolean(process.env.NovaWay_FAST_BOOT),
+                          initialRoute: process.env.NOVAWAY_ROUTE ? JSON.parse(process.env.NOVAWAY_ROUTE) : undefined,
+                          skipInitialLoading: Boolean(process.env.NOVAWAY_FAST_BOOT),
                         }}
                       >
                         <ClipboardProvider>
@@ -1149,7 +1149,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   }))
 
   useBindings(() => ({
-    mode: NovaWay_BASE_MODE,
+    mode: NOVAWAY_BASE_MODE,
     bindings: tuiConfig.keybinds.gather("app", appBindingCommands),
   }))
 
@@ -1158,7 +1158,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   }))
 
   useBindings(() => ({
-    mode: NovaWay_BASE_MODE,
+    mode: NOVAWAY_BASE_MODE,
     enabled: () => {
       const current = promptRef.current
       if (!current?.focused) return true

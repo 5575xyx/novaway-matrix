@@ -16,9 +16,9 @@ const deepLinkEvent = "NovaWay:deep-link"
 
 export const emitDeepLinks = (urls: string[]) => {
   if (urls.length === 0) return
-  window.__NovaWay__ ??= {}
-  const pending = window.__NovaWay__.deepLinks ?? []
-  window.__NovaWay__.deepLinks = [...pending, ...urls]
+  window.__NOVAWAY__ ??= {}
+  const pending = window.__NOVAWAY__.deepLinks ?? []
+  window.__NOVAWAY__.deepLinks = [...pending, ...urls]
   window.dispatchEvent(new CustomEvent(deepLinkEvent, { detail: { urls } }))
 }
 

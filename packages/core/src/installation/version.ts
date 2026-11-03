@@ -1,8 +1,8 @@
 declare global {
-  const NovaWay_VERSION: string
-  const NovaWay_CHANNEL: string
+  const NOVAWAY_VERSION: string
+  const NOVAWAY_CHANNEL: string
 }
 
-export const InstallationVersion = typeof NovaWay_VERSION === "string" ? NovaWay_VERSION : "local"
-export const InstallationChannel = typeof NovaWay_CHANNEL === "string" ? NovaWay_CHANNEL : "local"
+export const InstallationVersion = typeof NOVAWAY_VERSION === "string" ? NOVAWAY_VERSION : "local"
+export const InstallationChannel = typeof NOVAWAY_CHANNEL === "string" ? NOVAWAY_CHANNEL : "local"
 export const InstallationLocal = InstallationChannel === "local"

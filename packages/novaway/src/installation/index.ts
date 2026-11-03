@@ -16,10 +16,10 @@ const log = Log.create({ service: "installation" })
 
 // The main wrapper package published to npm. Its per-platform binaries are published as
 // `${NPM_PACKAGE}-<os>-<arch>` and pulled in via optionalDependencies (see script/publish.ts).
-// build.ts injects NovaWay_NPM_PACKAGE so a binary self-updates the same package it was published as
+// build.ts injects NOVAWAY_NPM_PACKAGE so a binary self-updates the same package it was published as
 // (default account: xymt-novaway; backup account build sets NOVAWAY_MAIN_PACKAGE=novaway).
-declare const NovaWay_NPM_PACKAGE: string | undefined
-export const NPM_PACKAGE = typeof NovaWay_NPM_PACKAGE === "string" ? NovaWay_NPM_PACKAGE : "xymt-novaway"
+declare const NOVAWAY_NPM_PACKAGE: string | undefined
+export const NPM_PACKAGE = typeof NOVAWAY_NPM_PACKAGE === "string" ? NOVAWAY_NPM_PACKAGE : "xymt-novaway"
 export const GITHUB_REPO = "5575xyx/novaway-matrix"
 
 export type Method = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "scoop" | "choco" | "unknown"
@@ -112,7 +112,7 @@ export interface Interface {
   readonly upgrade: (method: Method, target: string) => Effect.Effect<void, UpgradeFailedError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/Installation") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/Installation") {}
 
 export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProcess.Service> = Layer.effect(
   Service,

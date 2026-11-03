@@ -7,7 +7,7 @@ import * as Log from "@novaway/core/util/log"
 import { AppRuntime } from "@/effect/app-runtime"
 import { Effect } from "effect"
 
-export const HEADER = "x-NovaWay-sync"
+export const HEADER = "x-novaway-sync"
 export type State = Record<string, number>
 const log = Log.create({ service: "fence" })
 

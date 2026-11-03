@@ -25,7 +25,7 @@ function app() {
 function request(path: string, directory: string, init: RequestInit = {}) {
   return Effect.promise(() => {
     const headers = new Headers(init.headers)
-    headers.set("x-opencode-directory", directory)
+    headers.set("x-novaway-directory", directory)
     return Promise.resolve(app().request(path, { ...init, headers }))
   })
 }

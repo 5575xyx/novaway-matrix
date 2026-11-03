@@ -20,7 +20,7 @@ exports[`TUI inline tool wrapping snapshots consecutive grep, glob, and read row
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭──────────────────────────────────────────────────────────────────────╮
-│  ▸ ✓ Grep "export const NovaWay_DB|NovaWay_DB|NovaWay_DEV|Global\\.   │
+│  ▸ ✓ Grep "export const NOVAWAY_DB|NOVAWAY_DB|NOVAWAY_DEV|Global\\.   │
 │      Path\\.data|data =" in packages/NovaWay/src (115 matches)        │
 ╰──────────────────────────────────────────────────────────────────────╯"
 `;
@@ -47,7 +47,7 @@ exports[`TUI inline tool wrapping snapshots expanded tool errors under the tool 
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭──────────────────────────────────────────────────────────────────────╮
-│  ▸ ✓ Grep "export const NovaWay_DB|NovaWay_DB|NovaWay_DEV|Global\\.   │
+│  ▸ ✓ Grep "export const NOVAWAY_DB|NOVAWAY_DB|NOVAWAY_DEV|Global\\.   │
 │      Path\\.data|data =" in packages/NovaWay/src (115 matches)        │
 ╰──────────────────────────────────────────────────────────────────────╯"
 `;
@@ -78,7 +78,7 @@ exports[`TUI inline tool wrapping keeps separation after a shell output block 1`
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭──────────────────────────────────────────────────────────────────────╮
-│  ▸ ✓ Grep "export const NovaWay_DB|NovaWay_DB|NovaWay_DEV|Global\\.   │
+│  ▸ ✓ Grep "export const NOVAWAY_DB|NOVAWAY_DB|NOVAWAY_DEV|Global\\.   │
 │      Path\\.data|data =" in packages/NovaWay/src (115 matches)        │
 ╰──────────────────────────────────────────────────────────────────────╯"
 `;
@@ -106,7 +106,7 @@ exports[`TUI inline tool wrapping keeps separation after a padded user message 1
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭──────────────────────────────────────────────────────────────────────╮
-│  ▸ ✓ Grep "export const NovaWay_DB|NovaWay_DB|NovaWay_DEV|Global\\.   │
+│  ▸ ✓ Grep "export const NOVAWAY_DB|NOVAWAY_DB|NOVAWAY_DEV|Global\\.   │
 │      Path\\.data|data =" in packages/NovaWay/src (115 matches)        │
 ╰──────────────────────────────────────────────────────────────────────╯"
 `;

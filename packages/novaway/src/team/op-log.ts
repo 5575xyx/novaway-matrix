@@ -155,7 +155,7 @@ export interface Interface {
   readonly scopeOf: (sessionID: SessionID) => Effect.Effect<Scope | undefined>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamOpLog") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamOpLog") {}
 
 const generateId = () => "op_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7)
 

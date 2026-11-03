@@ -19,7 +19,7 @@ function request(route: string, directory: string, query?: Record<string, string
   return HttpApiApp.webHandler().handler(
     new Request(url, {
       headers: {
-        "x-opencode-directory": directory,
+        "x-novaway-directory": directory,
       },
     }),
     context,
@@ -84,7 +84,7 @@ describe("file HttpApi", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-opencode-directory": tmp.path,
+          "x-novaway-directory": tmp.path,
         },
         body: JSON.stringify({ path: "hello.txt", content: "after" }),
       }),

@@ -14,7 +14,7 @@ let ensured: Promise<void> | undefined
 // executable (dynamic `import(..., { type: "file" })` returns undefined `.default`,
 // which is why the TUI crashed at startup with `$.startsWith`). opentui exposes
 // OTUI_ASSET_ROOT for exactly this: an absolute directory laid out as
-// `<root>/<assetKey>`. build.ts embeds those files (opencode-otui-assets.gen.ts);
+// `<root>/<assetKey>`. build.ts embeds those files (novaway-otui-assets.gen.ts);
 // we extract them here on first launch and point opentui at the extracted dir.
 //
 // Must run before @opentui/core is imported in this process AND before the render
@@ -28,7 +28,7 @@ export function ensureOtuiAssets(): Promise<void> {
 async function run() {
   if (process.env.OTUI_ASSET_ROOT) return
   const map = await // @ts-expect-error — generated at build time
-  import("opencode-otui-assets.gen.ts").then((m) => m.default as Record<string, string>).catch(() => null)
+  import("novaway-otui-assets.gen.ts").then((m) => m.default as Record<string, string>).catch(() => null)
   if (!map) return // dev / node build: assets resolve from node_modules
 
   const root = path.join(Global.Path.cache, "otui-assets", InstallationVersion)

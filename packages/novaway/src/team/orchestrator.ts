@@ -195,7 +195,7 @@ export interface Interface {
   readonly execute: (options: Options) => Effect.Effect<Execution>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/TeamOrchestrator") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/TeamOrchestrator") {}
 
 const message = (cause: Cause.Cause<unknown>) => {
   const error = Cause.squash(cause)

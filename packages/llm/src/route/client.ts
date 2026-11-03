@@ -240,7 +240,7 @@ export interface GenerateMethod {
   <T extends Tools>(options: ToolRuntime.RunOptions<T>): Effect.Effect<LLMResponse, LLMError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/LLMClient") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/LLMClient") {}
 
 const noRoute = (model: ModelRef) =>
   new LLMErrorClass({

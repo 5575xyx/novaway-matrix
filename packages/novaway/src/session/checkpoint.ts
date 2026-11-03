@@ -48,7 +48,7 @@ export interface Interface {
   readonly delete: (checkpointId: string) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@NovaWay/CheckpointService") {}
+export class Service extends Context.Service<Service, Interface>()("@novaway/CheckpointService") {}
 
 const generateId = () => `cp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 

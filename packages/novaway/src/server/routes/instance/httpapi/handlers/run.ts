@@ -416,7 +416,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     /**
      * 按 id 取运行，并核对它属于请求的工作区。
      *
-     * 运行表是全局的（一个数据目录一张表），而界面按 `x-opencode-directory` 分项目；
+     * 运行表是全局的（一个数据目录一张表），而界面按 `x-novaway-directory` 分项目；
      * 不核对目录的话，A 项目拿到的 id 能在 B 项目里被读取、批准、甚至合并 ——
      * 合并改的是 `run.directory` 里的仓库，跨目录操作就是改别人的项目。
      * 目录没带时不拦（历史客户端的兼容路径），带了就必须一致。

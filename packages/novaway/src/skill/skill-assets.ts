@@ -13,7 +13,7 @@ const skillCacheDir = (global: Global.Interface) => path.join(global.data, "skil
 function loadBundle(): Effect.Effect<Record<string, string> | null> {
   return Effect.promise(() =>
     // @ts-expect-error — generated at build time
-    import("opencode-skills.gen.ts").then((m) => m.default as Record<string, string>),
+    import("novaway-skills.gen.ts").then((m) => m.default as Record<string, string>),
   ).pipe(Effect.orElseSucceed(() => null))
 }
 

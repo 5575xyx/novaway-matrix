@@ -39,7 +39,7 @@ import { errorMessage } from "./util/error"
 import { PluginCommand } from "./cli/cmd/plug"
 import { Heap } from "./cli/heap"
 import { drizzle } from "drizzle-orm/bun-sqlite"
-import { ensureProcessMetadata } from "@novaway/core/util/opencode-process"
+import { ensureProcessMetadata } from "@novaway/core/util/novaway-process"
 import { isRecord } from "@/util/record"
 
 const processMetadata = ensureProcessMetadata("main")
@@ -75,7 +75,7 @@ const args = hideBin(process.argv)
 
 function show(out: string) {
   const text = out.trimStart()
-  if (!text.startsWith("opencode ")) {
+  if (!text.startsWith("novaway ")) {
     process.stderr.write(UI.logo() + EOL + EOL)
     process.stderr.write(text)
     return
@@ -106,7 +106,7 @@ const cli = yargs(args)
   })
   .middleware(async (opts) => {
     if (opts.pure) {
-      process.env.OPENCODE_PURE = "1"
+      process.env.NOVAWAY_PURE = "1"
     }
 
     await Log.init({
