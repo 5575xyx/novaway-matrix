@@ -10,6 +10,7 @@ import { getDriver } from "./drivers"
 import { findOpenSurface } from "./surface"
 import {
   clickByText,
+  contentsOf,
   fillEditor,
   hasText,
   navigate,
@@ -109,20 +110,28 @@ export async function publishToAccount(
     const win = handle
     if (signal.aborted) return step("cancelled", 5, "已取消")
 
-    // 0) 落到入口页 → 取 token → 进真正的编辑页
+    // 0) 取 token → 进真正的编辑页
+    //
+    // 顺序是"先读、读不到才跳"：用户可能正开着某个页面（甚至正在写草稿），
+    // 一上来就 loadURL 首页会把他眼前的页面冲掉。
     if (driver.editorUrl) {
       step("running", 8, "定位编辑页…")
-      await navigate(win, url)
       let token = await readWechatToken(win)
       if (!token) {
-        // 有些入口要再跳一次才带上 token，等页面安定后再读一次。
-        await waitUntil(win, async () => Boolean(await readWechatToken(win)), 10_000, 500)
+        await navigate(win, url)
         token = await readWechatToken(win)
+        if (!token) {
+          // 有些入口要再跳一次才带上 token，等页面安定后再读一次。
+          await waitUntil(win, async () => Boolean(await readWechatToken(win)), 10_000, 500)
+          token = await readWechatToken(win)
+        }
       }
       if (!token) {
         return step("failed", 8, "没拿到登录 token，请先在这个账号的页面里完成登录", { error: "no-token" })
       }
-      await navigate(win, driver.editorUrl(token))
+      // 已经停在编辑页就别再开一个空编辑器 —— 那会丢掉用户没保存的草稿。
+      const alreadyEditing = /cgi-bin\/appmsg/.test(contentsOf(win).getURL())
+      if (!alreadyEditing) await navigate(win, driver.editorUrl(token))
     }
 
     // 1) 选文件（视频/图文都需要）
