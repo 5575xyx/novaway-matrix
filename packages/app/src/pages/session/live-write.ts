@@ -16,7 +16,14 @@ const [path, setPath] = createSignal<string | undefined>()
 const [tick, setTick] = createSignal(0)
 let timer: ReturnType<typeof setTimeout> | undefined
 
-export function markLiveWrite(input: string, holdMs = 3000) {
+/**
+ * 观察窗口默认 6 秒。
+ *
+ * 3 秒不够用：写盘事件之后还要等 250ms 的跟随防抖、面板宽度动画、文件读取，
+ * 大文档读到浏览器里就可能超过 3 秒 —— 窗口一旦在预览挂载前过期，打字机就
+ * 永远不会开始（用户看到的就是"面板一弹出来内容就已经全在了"）。
+ */
+export function markLiveWrite(input: string, holdMs = 6000) {
   setPath(input)
   setTick((value) => value + 1)
   if (timer) clearTimeout(timer)

@@ -122,3 +122,31 @@ export function text(diff: ViewDiff, side: "deletions" | "additions") {
   if (side === "deletions") return diff.fileDiff.deletionLines.join("")
   return diff.fileDiff.additionLines.join("")
 }
+
+/**
+ * 用两份完整的文件内容直接构造对照（跟写打字机用）。
+ *
+ * 与 `normalize` 的区别：不生成补丁文本、**不走模块级缓存**。跟写期间每 90ms
+ * 就有一个新的"当前内容"，缓存既不会被命中，还会把整份 FileDiffMetadata 长期
+ * 留在内存里；这里算完的对象随下一次更新自然被回收。
+ */
+export function fromContents(input: {
+  file: string
+  before: string
+  after: string
+  additions?: number
+  deletions?: number
+  status?: "added" | "deleted" | "modified"
+}): ViewDiff {
+  return {
+    file: input.file,
+    patch: "",
+    additions: input.additions ?? 0,
+    deletions: input.deletions ?? 0,
+    status: input.status,
+    fileDiff: parseDiffFromFile(
+      { name: input.file, contents: input.before },
+      { name: input.file, contents: input.after },
+    ),
+  }
+}

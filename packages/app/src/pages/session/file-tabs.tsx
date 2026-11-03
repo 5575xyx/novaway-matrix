@@ -15,8 +15,9 @@ import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { FileSearchHandle } from "@novaway/ui/file"
 import { useFileComponent } from "@novaway/ui/context/file"
-import { normalize as normalizeDiff } from "@novaway/ui/session-diff"
-import { useSessionDiff } from "@/context/session-diff"
+import { fromContents as diffFromContents, normalize as normalizeDiff } from "@novaway/ui/session-diff"
+import { applyPatch, formatPatch, parsePatch, reversePatch } from "diff"
+import { useSessionDiff, type SessionDiffStyle } from "@/context/session-diff"
 import { cloneSelectedLineRange, previewSelectedLines } from "@novaway/ui/pierre/selection-bridge"
 import { createLineCommentController } from "@novaway/ui/line-comment-annotations"
 import { sampledChecksum } from "@novaway/core/util/encode"
@@ -42,9 +43,21 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { isImagePreviewPath, isOfficePreviewPath, OfficeFilePreview } from "@/pages/session/office-file-preview"
+import { isRichTextPath } from "@/pages/session/office-preview-utils"
+import { RichFilePreview, type RichOp } from "@/pages/session/rich-file-preview"
+import {
+  applyTextEdit,
+  caret,
+  formatJson,
+  reverseLines,
+  sortLines,
+  trimTrailing,
+  uniqueLines,
+} from "@novaway/core/office/text/commands"
 import { buildSelectionQuote } from "@/pages/session/side-chat-seed"
+import { liveFollowState } from "@/pages/session/live-follow"
 import { liveWritePath, liveWriteTick } from "@/pages/session/live-write"
-import { createPacedContent } from "@/utils/typewriter"
+import { createTypingReveal } from "@/utils/typing-reveal"
 
 // 换行符常量：源码里直接写字面换行会变成跨行字符串，读起来也容易出错。
 const NEWLINE = String.fromCharCode(10)
@@ -264,18 +277,106 @@ export function FileTabContent(props: { tab: string }) {
   const contents = createMemo(() => state()?.content?.content ?? "")
   const cacheKey = createMemo(() => sampledChecksum(contents()))
   /**
-   * AI 正在写这个文件时用打字机节奏揭示内容（见 createPacedContent）。
+   * 跟写时的打字机：**只打新增的行**，而且只打"这一笔新写的"。
    *
-   * 观察窗口由会话页的 watcher 事件打点（live-write.ts）：只有「会话运行中 + 这个文件
-   * 刚被写过」才播动画 —— 用户自己打开文件、或会话已结束时，都是直出最新全文。
-   * 观察窗口结束（超时）后 contents() 与揭示值自动合拢，不需要任何清理动作。
+   * 之前的问题：把整篇新内容当成一条前缀增长，未改动的行也跟着一个字一个字冒出来，
+   * 打到一半时后面的内容全没出现 —— 对照视图里就是"最底下一直在跳"。现在按
+   * 写盘前后的内容差定位新增行，未改动的行原样显示，只有改动的那几行逐字长出来。
+   *
+   * 观察窗口由会话页的 watcher 事件打点（live-write.ts）：只有「会话运行中 + 这个
+   * 文件刚被写过」才播动画 —— 用户自己打开文件、或会话已结束时，都是直出最新全文。
    */
+  /**
+   * 这个标签是不是「跟随窗口自动打开的那个」。
+   *
+   * 一旦认领就**锁存**，不再变回 false：标签可能是上一轮就跟开着的（不会再挂载），
+   * 只听挂载那一刻的判断会漏掉它，于是跟写时仍然用左右排布。锁存后跟写结束也保持
+   * 用户在这一轮里看到的样子，不会来回切（来回切就是之前那片闪烁的来源）。
+   */
+  const followTabMatched = () => {
+    const state = liveFollowState()
+    if (!state.active || state.hijacked) return false
+    return state.tabs.some((tab) => tab === props.tab || file.pathFromTab(tab) === path())
+  }
+  const [followTab, setFollowTab] = createSignal(followTabMatched())
+  createEffect(() => {
+    if (followTab()) return
+    if (followTabMatched()) setFollowTab(true)
+  })
   const liveWrite = createMemo(() => (liveWritePath() === path() ? true : undefined))
-  const typedContents = createPacedContent(contents, () => !!liveWrite())
+  /**
+   * 对照视图里「旧文件」的那一半内容。
+   *
+   * 改动数据只给补丁，没有原文；把补丁反向应用到当前内容就能还原改动前的全文。
+   * 有了它，右栏就可以只让"新"的那半边按打字机节奏长出来，左边红色的旧内容保持不动。
+   * 还原失败（补丁对不上、二进制、补丁被裁掉）时返回 undefined，退回原来的整块对照。
+   */
+  // 同一份补丁只还原一次：写盘后 contents() 会比 vcs/snapshot 的补丁先到，
+  // 这时反向应用对不上；等补丁刷新后重新算一次即可，不必每次内容变动都重试。
+  let baselineCache: { patch: string; before: string } | undefined
+  const liveBaseline = createMemo(() => {
+    // 已经算出来的旧文件不再依赖跟写标记：标记 6 秒后过期，但打字机可能还在打，
+    // 这时把旧内容丢掉会让对照视图整块换成"最终版"，等于把动画掐断。
+    if (!liveWrite() && !baselineCache) return undefined
+    const view = diff()
+    const current = contents()
+    if (!view || !current || !view.patch) return undefined
+    if (baselineCache?.patch === view.patch) return baselineCache.before
+    try {
+      const parsed = parsePatch(view.patch)
+      if (parsed.length === 0) return undefined
+      const before = applyPatch(current, formatPatch(reversePatch(parsed)))
+      if (typeof before !== "string") return undefined
+      baselineCache = { patch: view.patch, before }
+      return before
+    } catch {
+      return undefined
+    }
+  })
+  /**
+   * 打字机版内容：未改动的行原样，新增行按预算逐字揭示。
+   *
+   * "新增行"是**这一笔写盘前后**的内容差（见 utils/typing-additions），不是相对
+   * HEAD 的累计补丁 —— 用累计补丁会让每次写盘都把整篇改动重打一遍，看起来一直在闪。
+   * 打开面板时已有内容直接完整显示，之后每写一笔只打新写的几行。
+   * 状态机在 utils/typing-reveal 里（可以单独用 e2e 驱动验证）。
+   */
+  const typedContents = createTypingReveal({
+    source: contents,
+    live: () => !!liveWrite(),
+    scope: path,
+  })
+  /**
+   * 跟写期间的对照：旧内容固定，新内容按打字机节奏增长。
+   *
+   * 没有旧内容（还原失败）时退回原始补丁 —— 仍然是对照视图，只是不播动画。
+   */
+  const liveDiff = createMemo(() => {
+    const view = diff()
+    const before = liveBaseline()
+    if (!view || before === undefined) return view
+    const after = typedContents()
+    // 打完了就回到原始对照：重建出来的视图只用于"还在长"的那一段。
+    if (after === contents()) return view
+    try {
+      return diffFromContents({
+        file: view.file,
+        before,
+        after,
+        additions: view.additions,
+        deletions: view.deletions,
+        status: view.status,
+      })
+    } catch {
+      return view
+    }
+  })
   // 有改动时默认看"改了什么"；仍可切回文件内容（改动的文件也要能编辑）。
   const [viewMode, setViewMode] = createSignal<"diff" | "file">("diff")
   // 办公文件是二进制，diff 渲染器没有可展示的行；直接走只读预览。
   const isMarkdown = createMemo(() => /\.(md|markdown|mdx)$/i.test(path() ?? ""))
+  // .html 走富文本编辑器（设计 + 源码），和 Weave 的 Rich 编辑器一致。
+  const isRichText = createMemo(() => isRichTextPath(path()))
   // HTML/XHTML 也是"网页"：在右栏的浏览器标签里按真实渲染效果预览，
   // 而不是只给一个代码视图（对齐浏览器预览的入口）。
   const isHtml = createMemo(() => /\.(html?|xhtml)$/i.test(path() ?? ""))
@@ -286,29 +387,46 @@ export function FileTabContent(props: { tab: string }) {
   // 切换文件时把 Markdown 恢复成阅读视图（对齐 ZCode：打开 .md 默认就是渲染后的样子）。
   createEffect(
     on(path, (next) => {
-      forcedFollowPath = undefined
       if (!/\.(md|markdown|mdx)$/i.test(next ?? "")) return
+      // 跟写窗口里别把 Markdown 掰回阅读视图：用户要看的是"改了什么"。
+      if (followTab()) return
       setViewMode("file")
       setMarkdownMode("preview")
     }),
   )
 
-  /**
-   * 开始跟写时强制切到「文件」视图（每个文件一次）。
-   *
-   * 改**已有**文件时，预览默认停在「改动」对照上 —— 那是看结果的视角，
-   * 看不到内容一句句长出来。跟写期间先切到文件内容，让打字机可见；
-   * 用户之后仍可自己切回对照。一个文件只强制一次，避免跟写窗口反复开关时抢视图。
-   */
-  let forcedFollowPath: string | undefined
+  // 认领为跟随标签时把视图切到「改动」（只切一次，之后用户自己切换不再抢）。
+  let forcedDiffForFollow = false
   createEffect(() => {
-    if (!liveWrite()) return
-    const current = path()
-    if (!current || forcedFollowPath === current) return
-    forcedFollowPath = current
-    setViewMode("file")
+    if (!followTab() || forcedDiffForFollow) return
+    forcedDiffForFollow = true
+    setViewMode("diff")
   })
 
+  /**
+   * 排布方式：跟随窗口里自动打开的这个标签**默认用「上下」**，其余标签跟着全局设置。
+   *
+   * 跟着 AI 写盘时，用户最想看的是"正在改什么"：上下排布里红色是旧内容、
+   * 绿色随着打字机一行行长出来，纵向一条线读下去最直观；左右排布在窄面板里
+   * 每侧只剩几十列，新内容一长就被折行成一片，反而看不出"在打字"。
+   *
+   * 用标签级状态而不是改全局：全局设置是用户自己选的（其它标签、其它文件都按它来），
+   * 跟写结束后也不该被我们改掉。更关键的是**不能来回切** —— 之前是"跟写时切成
+   * 上下、标记过期再切回左右"，一次会话里切十几次，界面就一直在闪。
+   */
+  const [followDiffStyle, setFollowDiffStyle] = createSignal<SessionDiffStyle>("unified")
+  const diffStyle = () => (followTab() ? followDiffStyle() : sessionDiff.style())
+  const setDiffStyle = (style: SessionDiffStyle) => {
+    if (followTab()) {
+      setFollowDiffStyle(style)
+      return
+    }
+    sessionDiff.setStyle(style)
+  }
+
+  // 不要因为「旧文件还没还原出来」就把预览切回文本视图：每次写盘补丁都会刷新，
+  // 判断会短暂为假，视图在两支之间来回跳 —— 这就是用户看到的那片闪烁。
+  // 还原不出来时 liveDiff 会退回原始对照，最多是不播动画，但画面是稳定的。
   const showDiff = () =>
     !!diff() && viewMode() === "diff" && !isOfficePreviewPath(path()) && !isImagePreviewPath(path())
   // 跟写期间行号跟随打字机揭示的行数增长（draft 在跟写时同步 typedContents，见下方 effect）。
@@ -435,9 +553,9 @@ export function FileTabContent(props: { tab: string }) {
   const saveEditing = async () => {
     const p = path()
     if (!p || saving()) return
-    // 跟写期间编辑器里可能是「打字机还没打完」的半截内容：禁止自动保存把它写回磁盘。
-    // 判据是前缀关系 —— 用户真编辑过的草稿不会是磁盘内容的严格前缀。
-    if (liveWrite() && draft() !== contents() && contents().startsWith(draft())) return
+    // 跟写期间编辑器里是「打字机还没打完」的内容：禁止自动保存把它写回磁盘。
+    // 现在打字机只揭示新增行，草稿不再是磁盘内容的前缀，所以只要两者不一致就不保存。
+    if (liveWrite() && draft() !== contents()) return
     if (saveTimer) {
       clearTimeout(saveTimer)
       saveTimer = undefined
@@ -469,7 +587,7 @@ export function FileTabContent(props: { tab: string }) {
     if (saving()) return "saving"
     if (saveError()) return "error"
     // 跟写期间 draft 落后于磁盘是**预期**的（打字机还在打），不能提示「未保存」。
-    if (liveWrite() && contents().startsWith(draft())) return "saved"
+    if (liveWrite() && draft() !== contents()) return "saved"
     if (draft() !== contents()) return "dirty"
     return "saved"
   })
@@ -715,6 +833,64 @@ export function FileTabContent(props: { tab: string }) {
    * 项目外的文件服务端读不到(工作区边界),桌面端改走本地 base64 通道。
    */
   const officePath = createMemo(() => (isOfficePreviewPath(path()) ? path() : undefined))
+  /**
+   * DOCX 画布改字：走和 Agent 相同的 office.document.edit。
+   * 只发「哪一段、新文字」，服务端只重写 word/document.xml，其余包内条目不动。
+   */
+  /**
+   * 富文本保存：设计视图只发被改过的那一段（setBlockHtml），
+   * 结构操作（换标题、对齐）和源码视图发对应的 op。三者和 Agent 走同一套契约。
+   */
+  const saveRichOps = async (ops: RichOp[]) => {
+    const target = path()
+    if (!target) throw new Error("没有可写回的文件路径")
+    await sdk.client.office.document.edit({ path: target, ops: ops as never })
+    void file.load(target, { force: true })
+  }
+
+  const applyTextCommand = (kind: "sort" | "unique" | "reverse" | "trim" | "json") => {
+    const source = draft()
+    try {
+      const edit =
+        kind === "sort"
+          ? sortLines(source, caret(0))
+          : kind === "unique"
+            ? uniqueLines(source, caret(0))
+            : kind === "reverse"
+              ? reverseLines(source, caret(0))
+              : kind === "trim"
+                ? trimTrailing(source, caret(0))
+                : formatJson(source, caret(0), "  ")
+      if (!edit) return
+      setDraft(applyTextEdit(source, edit))
+      scheduleSave()
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "命令未执行",
+        description: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  const saveDocxParagraphStyle = async (paragraph: number, style: Record<string, unknown>) => {
+    const target = path()
+    if (!target) throw new Error("没有可写回的文件路径")
+    await sdk.client.office.document.edit({
+      path: target,
+      ops: [{ op: "setParagraphStyle", paragraph, style } as never],
+    })
+    setOfficeReload(officeReload() + 1)
+  }
+
+  const saveDocxParagraph = async (paragraph: number, text: string) => {
+    const target = path()
+    if (!target) throw new Error("没有可写回的文件路径")
+    await sdk.client.office.document.edit({
+      path: target,
+      ops: [{ op: "setParagraphText", paragraph, text }],
+    })
+  }
   // 画布内改字会原地重写这份文件，预览得重读一遍才看得到新内容。
   const [officeReload, setOfficeReload] = createSignal(0)
   // 跟写期间（AI 正在产出 office 文件）watcher 每次写盘都重取 base64，
@@ -894,7 +1070,16 @@ export function FileTabContent(props: { tab: string }) {
   // （`Cannot read properties of undefined (reading 'N')`，N 就是行号）。
   // 文件里的行评论在「审查」面板里看（那边的注解是按 diff 侧构建的），
   // 这里只做"看变了什么"。
-  const renderDiff = (view: ReturnType<typeof normalizeDiff>) => (
+  /**
+   * 注意入参是**取值函数**，不是值。
+   *
+   * 这段 JSX 挂在 keyed `<Show>` 的子函数里，而 Solid 会 `untrack` 地调用它 ——
+   * 子函数只在 key 变化时重建一次。直接把 `liveDiff()` 求值传进来，pierre 拿到的
+   * 就是**挂载那一刻**的快照，之后打字机再怎么长它都不会重绘：表现就是面板一打开
+   * 就已经是"半截内容"，完全看不到逐字揭示。传 getter 后由 pierre 自己的
+   * effect 读 `props.fileDiff`，内容一变就重绘。
+   */
+  const renderDiff = (view: () => ReturnType<typeof normalizeDiff>) => (
     <div
       class="relative overflow-hidden pb-40"
       onContextMenu={(event: MouseEvent) => {
@@ -907,8 +1092,8 @@ export function FileTabContent(props: { tab: string }) {
       <Dynamic
         component={fileComponent}
         mode="diff"
-        fileDiff={view.fileDiff}
-        diffStyle={sessionDiff.style()}
+        fileDiff={view().fileDiff}
+        diffStyle={diffStyle()}
         enableLineSelection
         selectedLines={() => selectedLines()}
         onLineSelected={(range: SelectedLineRange | undefined) => {
@@ -986,11 +1171,11 @@ export function FileTabContent(props: { tab: string }) {
                           type="button"
                           class="rounded px-1.5 py-0.5 text-ui-xs transition-colors"
                           classList={{
-                            "bg-background text-foreground": sessionDiff.style() === style,
-                            "text-foreground-subtle hover:text-foreground": sessionDiff.style() !== style,
+                            "bg-background text-foreground": diffStyle() === style,
+                            "text-foreground-subtle hover:text-foreground": diffStyle() !== style,
                           }}
-                          aria-pressed={sessionDiff.style() === style}
-                          onClick={() => sessionDiff.setStyle(style)}
+                          aria-pressed={diffStyle() === style}
+                          onClick={() => setDiffStyle(style)}
                         >
                           {language.t(
                             style === "split" ? "session.review.diffStyle.split" : "session.review.diffStyle.unified",
@@ -1109,10 +1294,10 @@ export function FileTabContent(props: { tab: string }) {
                 `diffStyle` 定好了行结构，只更新 prop 有一部分版本不会重排，
                 表现就是点了「上下」界面纹丝不动。进 key 保证切换一定重建。
               */}
-              <Show when={showDiff() && diff() ? `diff:${sessionDiff.style()}` : "file"} keyed>
+              <Show when={showDiff() && diff() ? `diff:${diffStyle()}` : "file"} keyed>
                 {(mode) =>
                   mode !== "file" && diff() ? (
-                    renderDiff(diff()!)
+                    renderDiff(() => liveDiff() ?? diff()!)
                   ) : (
                     <Switch>
                       <Match
@@ -1136,8 +1321,44 @@ export function FileTabContent(props: { tab: string }) {
                       <Match when={state()?.loaded && imageBase64()}>
                         <OfficeFilePreview path={path()!} base64={imageBase64()!} />
                       </Match>
+                      <Match when={state()?.loaded && state()?.content?.type !== "binary" && isRichText()}>
+                        <RichFilePreview
+                          content={contents()}
+                          onSaveBlock={(block, html) => saveRichOps([{ op: "setBlockHtml", block, html }])}
+                          onSaveOps={saveRichOps}
+                          onSaveSource={(html) => saveRichOps([{ op: "setText", text: html }])}
+                        />
+                      </Match>
                       <Match when={state()?.loaded && state()?.content?.type !== "binary"}>
-                        <div class="flex h-full min-h-0">
+                        <div class="flex h-full min-h-0 flex-col">
+                          {/* 行命令和 Agent 的 office_document_edit 是同一份实现：
+                              排序/去重/反转/去行尾空格/格式化 JSON 都只改文字。 */}
+                          <div class="flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-3 py-1.5">
+                            <span class="mr-1 text-11-regular text-foreground-subtlest">行命令</span>
+                            <For
+                              each={
+                                [
+                                  { id: "sort", label: "排序" },
+                                  { id: "unique", label: "去重" },
+                                  { id: "reverse", label: "反转" },
+                                  { id: "trim", label: "去尾空格" },
+                                  { id: "json", label: "格式化 JSON" },
+                                ] as const
+                              }
+                            >
+                              {(item) => (
+                                <button
+                                  type="button"
+                                  data-action={`text-command-${item.id}`}
+                                  class="rounded px-1.5 py-0.5 text-11-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                                  onClick={() => applyTextCommand(item.id)}
+                                >
+                                  {item.label}
+                                </button>
+                              )}
+                            </For>
+                          </div>
+                          <div class="flex min-h-0 flex-1">
                           <div
                             ref={(el) => {
                               gutterRef = el
@@ -1189,6 +1410,7 @@ export function FileTabContent(props: { tab: string }) {
                               }
                             }}
                           />
+                          </div>
                         </div>
                       </Match>
                       <Match when={state()?.loaded && (isOfficePreviewPath(path()) || isImagePreviewPath(path()))}>
@@ -1205,6 +1427,8 @@ export function FileTabContent(props: { tab: string }) {
                               path={path()!}
                               base64={value()}
                               onEdited={() => setOfficeReload(officeReload() + 1)}
+                              onSaveParagraph={saveDocxParagraph}
+                              onSaveParagraphStyle={saveDocxParagraphStyle}
                             />
                           )}
                         </Show>

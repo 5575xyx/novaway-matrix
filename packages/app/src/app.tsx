@@ -55,6 +55,8 @@ import { decode64 } from "@/utils/base64"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { installPointerTracking } from "@novaway/ui/util/pointer-origin"
+// 「思考过程」图标的思考强度版本：注册一次，所有渲染 message-part 的地方都生效。
+import "@/components/session/reasoning-effort-indicator"
 
 const HomeRoute = lazy(() => import("@/pages/home"))
 const loadSession = () => import("@/pages/session")

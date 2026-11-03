@@ -4,6 +4,7 @@ import { described } from "./metadata"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware/workspace-routing"
+import { DocumentOp } from "@/office/ops-schema"
 
 const root = "/office"
 const OfficeArtifactKind = Schema.Literals([
@@ -167,10 +168,27 @@ export const OfficePptxEditResponse = Schema.Struct({
   ),
 })
 
+/**
+ * 通用文档编辑：DOCX 段落、富文本块、纯文本行命令都走这一条。
+ * 和 PPTX 专用路由并存 —— PPTX 的几何/图片操作语义更细，需要单独的参数。
+ */
+export const OfficeDocumentEditPayload = Schema.Struct({
+  path: Schema.String,
+  ops: Schema.Array(DocumentOp),
+})
+
+export const OfficeDocumentEditResponse = Schema.Struct({
+  path: Schema.String,
+  bytes: Schema.Number,
+  changed: Schema.Array(Schema.String),
+  applied: Schema.Number,
+})
+
 export const OfficePaths = {
   artifact: `${root}/artifact`,
   pptxTemplateFill: `${root}/pptx-template-fill`,
   pptxEdit: `${root}/pptx-edit`,
+  documentEdit: `${root}/document-edit`,
 } as const
 
 export const OfficeApi = HttpApi.make("office").add(
@@ -210,6 +228,19 @@ export const OfficeApi = HttpApi.make("office").add(
           summary: "Fill PPTX template",
           description:
             "Fill a native PPTX template by replacing slide text runs and save the generated deck into the workspace office folder.",
+        }),
+      ),
+      HttpApiEndpoint.post("editDocument", OfficePaths.documentEdit, {
+        query: WorkspaceRoutingQuery,
+        payload: OfficeDocumentEditPayload,
+        success: described(OfficeDocumentEditResponse, "Edited document"),
+        error: HttpApiError.BadRequest,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "office.document.edit",
+          summary: "Edit a document by node",
+          description:
+            "Apply node-level operations to a DOCX / HTML / Markdown / plain-text file. Editing is surgical: only the touched paragraph or XML part is rewritten; untouched bytes are preserved. Human UI and Agent tools share the same operation vocabulary.",
         }),
       ),
       HttpApiEndpoint.post("editPptxText", OfficePaths.pptxEdit, {

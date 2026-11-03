@@ -9,9 +9,18 @@ import { File } from "@/file"
 import { FileWatcher } from "@/file/watcher"
 import { OfficePlatform } from "@/office/platform"
 import { editPptx as applyPptxEdit } from "@novaway/core/office/pptx-edit"
+import type { OfficeOp } from "@novaway/core/office/engine/contract"
+import { applyDocumentOpsAs, formatOfPath } from "@/office/document-file"
+import { toOfficeOp } from "@/office/ops-schema"
+import { boxPtToEmu } from "@novaway/core/office/engine/units"
 import { fillPptxTemplateText } from "@/util/office-document"
 import { InstanceHttpApi } from "../api"
-import { OfficeArtifactPayload, OfficePptxEditPayload, OfficePptxTemplateFillPayload } from "../groups/office"
+import {
+  OfficeArtifactPayload,
+  OfficeDocumentEditPayload,
+  OfficePptxEditPayload,
+  OfficePptxTemplateFillPayload,
+} from "../groups/office"
 
 const kindDir = {
   document: "documents",
@@ -170,6 +179,61 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
      * 写回用「临时文件 + rename」——用户正拿 PowerPoint 打开这份文件时，
      * 直接覆盖会让他拿到半个文件。
      */
+    const editDocument = Effect.fn("OfficeHttpApi.editDocument")(function* (ctx: {
+      payload: typeof OfficeDocumentEditPayload.Type
+    }) {
+      const bad = (message: string) => new HttpApiError.BadRequest({ message } as never)
+      const relative = ctx.payload.path
+        .split(String.fromCharCode(92))
+        .join("/")
+        .replace(/^(?:\.\/)+/, "")
+        .replace(/^\/+/, "")
+      if (ctx.payload.ops.length === 0) return yield* bad("没有要执行的操作")
+
+      const format = formatOfPath(relative)
+      if (!format) return yield* bad("这个文件类型暂不支持编辑：" + relative)
+
+      const ops: OfficeOp[] = []
+      for (const item of ctx.payload.ops) {
+        const converted = toOfficeOp(item)
+        if (!converted.ok) return yield* bad(converted.message)
+        ops.push(converted.op)
+      }
+
+      const state = yield* InstanceState.context
+      const workspace = state.worktree === "/" ? state.directory : state.worktree
+      const target = path.join(workspace, relative)
+      if (!AppFileSystem.contains(workspace, target)) return yield* bad("路径越界")
+
+      const result = yield* Effect.tryPromise({
+        try: async () => {
+          const bytes = new Uint8Array(await readFile(target))
+          const applied = await applyDocumentOpsAs(bytes, format, ops)
+          if (!applied.ok) {
+            throw new Error(
+              applied.error.message + (applied.error.suggestion ? "；" + applied.error.suggestion : ""),
+            )
+          }
+          // 没有实际改动就不写盘：文本文件的编码/BOM/换行符不该被无谓重写。
+          if (applied.data.changed.length === 0) return { ...applied.data, bytes }
+          const temp = `${target}.novaway-edit-${Date.now()}`
+          await writeFile(temp, applied.data.bytes)
+          await rename(temp, target)
+          return applied.data
+        },
+        catch: (error) =>
+          bad(error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400)),
+      })
+
+      if (result.changed.length > 0) yield* announceWrite(target, true)
+      return {
+        path: relative,
+        bytes: result.bytes.length,
+        changed: result.changed,
+        applied: result.applied.length,
+      }
+    })
+
     const editPptx = Effect.fn("OfficeHttpApi.editPptxText")(function* (ctx: {
       payload: typeof OfficePptxEditPayload.Type
     }) {
@@ -196,7 +260,11 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
           const edited = await applyPptxEdit({
             bytes,
             textEdits: edits,
-            shapeEdits: shapes,
+            // HTTP 层用 pt（和 UI/画布一致），引擎写 XML 时要 EMU。
+            shapeEdits: shapes.map((shape) => ({
+              ...shape,
+              ...(shape.box ? { box: boxPtToEmu(shape.box) } : {}),
+            })),
             imageEdits: images.map((image) => ({
               slide: image.slide,
               shapeId: image.shapeId,
@@ -236,6 +304,7 @@ export const officeHandlers = HttpApiBuilder.group(InstanceHttpApi, "office", (h
       .handle("listArtifacts", listArtifacts)
       .handle("saveArtifact", saveArtifact)
       .handle("fillPptxTemplate", fillPptxTemplate)
+      .handle("editDocument", editDocument)
       .handle("editPptxText", editPptx)
   }),
 )

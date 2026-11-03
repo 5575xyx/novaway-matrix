@@ -216,11 +216,17 @@ export const PptxTextEditor: Component<{
   )
 }
 
-/** 段落样式：pt → 屏幕像素。1pt = 12700 EMU，画布又按 displayScale 缩放。 */
+/**
+ * 段落样式：pt → 屏幕像素。
+ *
+ * 画布坐标本身就是 pt（16:9 页面 960×540），`scale` 是「1 个 pt 占几像素」，
+ * 所以字号直接乘 scale。这里曾经多乘了一次 12700（EMU），字会大得离谱、
+ * 编辑框也撑到屏幕外 —— 和选中框是同一个单位错误。
+ */
 function paragraphStyle(style: PptxTextStyle | undefined, scale: number) {
   const value = style ?? {}
   return {
-    "font-size": `${Math.max(8, (value.size ?? 18) * 12700 * scale)}px`,
+    "font-size": `${Math.max(6, (value.size ?? 18) * scale)}px`,
     "font-weight": value.bold ? 700 : 400,
     "font-style": value.italic ? "italic" : "normal",
     "text-decoration": value.underline ? "underline" : "none",

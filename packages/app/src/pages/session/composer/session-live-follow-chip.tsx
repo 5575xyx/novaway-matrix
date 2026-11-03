@@ -6,8 +6,8 @@
 //
 // 四个视觉状态（颜色只在绿 / 灰之间走，不引入第三种色相）：
 // - off   ：灰、圆点静止 —— 设置里关掉了
-// - armed ：绿、圆点静止 —— 开着，等下一笔写盘（不动，免得没在跟的时候也像在忙）
-// - live  ：绿更实、圆点外圈脉冲 + 呼吸 —— 正在跟着某一笔写盘（标签换成"实时跟随中"）
+// - armed ：绿、圆点缓慢呼吸 —— 开着，等下一笔写盘（轻动，表示"在待命"）
+// - live  ：绿更实、圆点外圈脉冲 + 呼吸 + 胶囊扫光 —— 正在跟着某一笔写盘
 // - taken ：灰、圆点静止 —— 用户碰了右栏接管了，本轮自动跟随暂停
 //
 // 点击反馈单独一条扩散环（.live-follow-flash）：它只表示"这一下点到了"，
@@ -79,14 +79,15 @@ export function SessionLiveFollowChip(props: { sessionID: string }) {
       title={title()}
       onClick={toggle}
       classList={{
-        "group relative inline-flex shrink-0 select-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-11-medium leading-none": true,
+        "group relative inline-flex shrink-0 select-none items-center gap-1.5 overflow-hidden rounded-full border px-2.5 py-1 text-11-medium leading-none": true,
         // 开关本身的过渡：颜色慢一点才看得出"状态换了"，位移快一点跟手。
         "transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out": true,
         "cursor-pointer outline-none hover:-translate-y-px active:translate-y-0 active:scale-[0.97]": true,
         "focus-visible:ring-2 focus-visible:ring-syntax-success/50": true,
         "border-syntax-success/35 bg-syntax-success/10 text-syntax-success hover:border-syntax-success/55 hover:bg-syntax-success/15":
           state() === "armed" || state() === "live",
-        "border-syntax-success/60 bg-syntax-success/15 text-syntax-success": state() === "live",
+        "border-syntax-success/60 bg-syntax-success/15 text-syntax-success shadow-[0_0_0_1px_rgba(45,186,38,0.12),0_2px_10px_-4px_rgba(45,186,38,0.45)]":
+          state() === "live",
         "border-border bg-surface text-foreground-subtlest hover:border-foreground-subtlest/40 hover:text-foreground-subtle":
           state() === "off",
         "border-border bg-surface text-foreground-subtle hover:text-foreground": state() === "taken",
@@ -95,6 +96,10 @@ export function SessionLiveFollowChip(props: { sessionID: string }) {
       {/* 点击扩散环：从胶囊边缘向外散开一圈，500ms 内消失。 */}
       <Show when={flash()} keyed>
         <span aria-hidden="true" class="live-follow-flash pointer-events-none absolute inset-0 rounded-full" />
+      </Show>
+      {/* 正在跟写：一道高光从左到右扫过胶囊，像数据在跑。 */}
+      <Show when={state() === "live"}>
+        <span aria-hidden="true" class="live-follow-sheen pointer-events-none absolute inset-y-0 left-0" />
       </Show>
 
       <span class="relative flex size-2 shrink-0 items-center justify-center">
@@ -109,7 +114,8 @@ export function SessionLiveFollowChip(props: { sessionID: string }) {
             "bg-syntax-success": state() === "armed" || state() === "live",
             "bg-foreground-subtlest/50": state() === "taken",
             "bg-foreground-subtlest/60": state() === "off",
-            // 只有真的在跟某一笔写盘时才呼吸：开着但没活干的时候保持安静。
+            // 待命时缓慢呼吸（在等下一次写盘），跟写时呼吸更明显。
+            "live-follow-breathe-idle": state() === "armed",
             "novaway-breathe-dot": state() === "live",
           }}
         />

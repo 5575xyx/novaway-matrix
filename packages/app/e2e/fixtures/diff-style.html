@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>diff-style fixture</title>
+    <style>
+      /* 只放 diff 渲染真正会用到的那几个主题 token，取值与应用主题一致。 */
+      :root {
+        color-scheme: light;
+        /* pierre 会按主题的 editor.background 给 [data-diff] 写一条内联
+           `--diffs-bg: var(--color-background-stronger)`；这条内联声明优先级最高，
+           缺了这两个 token 整条链就是无效值，行底色会算成透明。
+           应用里由 colors.css 的 @theme 提供，夹具里必须自己补上。 */
+        --background-stronger: #eef2f6;
+        --color-background-stronger: var(--background-stronger);
+        --diffs-light-bg: #ffffff;
+        --diffs-dark-bg: #0e1116;
+        --diffs-light: #1a1a1a;
+        --diffs-dark: #eeeeee;
+        --syntax-diff-add: #3a8437;
+        --syntax-diff-delete: #ca2d17;
+        --syntax-diff-unknown: #ff0000;
+        --panel: #f4f5f7;
+        --warning: #f5a524;
+        --font-family-mono: ui-monospace, Menlo, monospace;
+        --font-size-small: 12px;
+      }
+      /* 深色主题的取值也跟 theme.css 对齐，方便用 colorScheme: "dark" 跑同一套断言。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --background-stronger: #35353f;
+          --syntax-diff-add: #9bcd97;
+          --syntax-diff-delete: #faa494;
+          --panel: #2a2a32;
+        }
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+      #root,
+      [data-component="file"] {
+        height: 100%;
+        min-height: 0;
+      }
+      /* pierre 的渲染容器是 shadow host，默认没有高度，需要显式撑开。 */
+      diffs-container {
+        display: block;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./diff-style.tsx"></script>
+  </body>
+</html>

@@ -92,12 +92,12 @@ import { replayAnimation } from "@/utils/mount-transition"
 import { isSessionFresh } from "@/pages/session/fresh-session"
 import { markLiveWrite } from "@/pages/session/live-write"
 import {
-  IDLE,
   beginFollow,
   endFollow,
   followTab,
   liveFollowState,
   setLiveFollowState,
+  takeSidebar,
 } from "@/pages/session/live-follow"
 import { SessionDiffProvider, type SessionDiffStyle } from "@/context/session-diff"
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
@@ -1060,17 +1060,38 @@ export default function Page() {
    * 合并后只跟最后落盘的那个，观感是"跟着最新产物走"。
    */
   let followTimer: ReturnType<typeof setTimeout> | undefined
-  let followPending: string | undefined
+  let followPending: { tab: string; path: string } | undefined
   const cancelFollow = () => {
     if (followTimer) clearTimeout(followTimer)
     followTimer = undefined
     followPending = undefined
+  }
+  /**
+   * 结束跟随窗口并把它顺手改过的布局还回去（收掉自动打开的标签/面板、展开左栏）。
+   * 状态机是纯函数，边界（用户接管、面板原本开着）都在 live-follow 里判好。
+   */
+  const finishFollow = (options?: { layoutOnly?: boolean }) => {
+    const result = endFollow(liveFollowState())
+    setLiveFollowState(result.state)
+    // 页面正在卸载时只还布局：标签属于即将销毁的会话，这时再去关容易和
+    // 下一个任务的标签交接（handoff）打架。
+    if (!options?.layoutOnly) {
+      for (const tab of result.close) tabs().close(tab)
+      if (result.closePane) layout.sidePane.close()
+    }
+    // 左栏是工作区级的：不管是不是卸载，都得还回去。
+    if (result.restoreSidebar) layout.sidebar.setExpanded(true)
   }
   const switchFollow = (tab: string) => {
     setLiveFollowState(beginFollow(liveFollowState(), layout.sidePane.opened()))
     const step = followTab(liveFollowState(), tab)
     setLiveFollowState(step.state)
     if (step.state.hijacked) return
+    // 右栏一开，左边再挂着任务栏，聊天区就只剩中间一条缝了。跟随期间先把左栏收起来
+    // （只收一次，用户自己拉回来就不再动），这一轮结束后再还回去。
+    const side = takeSidebar(liveFollowState(), isDesktop() && layout.sidebar.expanded())
+    setLiveFollowState(side.state)
+    if (side.collapse) layout.sidebar.setExpanded(false)
     void tabs().open(tab)
     tabs().setActive(tab)
     layout.sidePane.add("preview")
@@ -1082,7 +1103,7 @@ export default function Page() {
     if (!untrack(() => sync.data.session_working(params.id ?? ""))) return
     const normalized = untrack(() => file.normalize(raw))
     if (!normalized || isExcludedPath(normalized)) return
-    followPending = file.tab(normalized)
+    followPending = { tab: file.tab(normalized), path: normalized }
     if (followTimer) clearTimeout(followTimer)
     followTimer = setTimeout(() => {
       followTimer = undefined
@@ -1090,7 +1111,11 @@ export default function Page() {
       followPending = undefined
       if (!target) return
       if (!untrack(() => sync.data.session_working(params.id ?? ""))) return
-      switchFollow(target)
+      // 面板真正打开时**再打一次**跟写标记：从写盘事件到预览挂载之间还隔着
+      // 跟随防抖、面板动画与文件读取，只在 watcher 那一刻打点的话，窗口容易
+      // 在预览挂载前就过期 —— 预览一挂载内容就已经是全文，打字机永远不会开始。
+      markLiveWrite(target.path)
+      switchFollow(target.tab)
     }, 250)
   }
 
@@ -1103,8 +1128,10 @@ export default function Page() {
         setUi("pendingMessage", undefined)
         // 切走任务时跟随窗口作废：否则下一条任务的第一笔写盘会沿用上一条的
         // wasOpen/接管标记（可能永远不再自动展开，或在结束时关掉不该关的面板）。
+        // 顺手把跟随收左栏的动作还回去 —— 布局是工作区级的，离开这个任务后
+        // 还收着的话，用户回到列表页会莫名其妙少一栏。
         cancelFollow()
-        setLiveFollowState(IDLE)
+        finishFollow()
       },
       { defer: true },
     ),
@@ -1112,7 +1139,7 @@ export default function Page() {
 
   onCleanup(() => {
     cancelFollow()
-    setLiveFollowState(IDLE)
+    finishFollow({ layoutOnly: true })
   })
 
   const stopVcs = sdk.event.listen((evt) => {
@@ -1121,12 +1148,17 @@ export default function Page() {
       typeof evt.details.properties === "object" && evt.details.properties
         ? (evt.details.properties as Record<string, unknown>)
         : undefined
-    const file = typeof props?.file === "string" ? props.file : undefined
-    if (!file || file.startsWith(".git/")) return
+    const rawPath = typeof props?.file === "string" ? props.file : undefined
+    if (!rawPath) return
+    // watcher 报的是绝对路径；打字机标记（live-write）与文件预览比较的都是
+    // 归一化后的**相对**路径。不先 normalize，`liveWritePath() === path()` 永远不成立，
+    // 打字机揭示就整个失效 —— 表现为"一大片改动一起出来"。
+    const normalized = untrack(() => file.normalize(rawPath))
+    if (!normalized || normalized.startsWith(".git/")) return
     // 会话运行中的写盘：给文件预览一个短暂的「正在跟写」标记（打字机揭示用）。
     // 会话结束后的 watcher 事件（用户自己在编辑器里保存）不触发。
-    if (untrack(() => sync.data.session_working(params.id ?? ""))) markLiveWrite(file)
-    followWrite(file)
+    if (untrack(() => sync.data.session_working(params.id ?? ""))) markLiveWrite(normalized)
+    followWrite(normalized)
     refreshVcs()
   })
   onCleanup(stopVcs)
@@ -1268,10 +1300,7 @@ export default function Page() {
         // 跟随自己打开的标签/面板。空闲时状态是 IDLE，这一步自然是空操作。
         if (next || prev === undefined) return
         cancelFollow()
-        const result = endFollow(liveFollowState())
-        setLiveFollowState(result.state)
-        for (const tab of result.close) tabs().close(tab)
-        if (result.closePane) layout.sidePane.close()
+        finishFollow()
       },
       { defer: true },
     ),
@@ -1287,10 +1316,7 @@ export default function Page() {
         // （用户自己开着的一律不动，见 live-follow 的三条边界）。
         // 还要取消尚未落地的合并任务：否则它会在 idle 之后打开一个没人收的标签。
         cancelFollow()
-        const result = endFollow(liveFollowState())
-        setLiveFollowState(result.state)
-        for (const tab of result.close) tabs().close(tab)
-        if (result.closePane) layout.sidePane.close()
+        finishFollow()
       },
       { defer: true },
     ),

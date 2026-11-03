@@ -1,30 +1,18 @@
 import { createMemo, Match, onCleanup, Show, Switch, type Component } from "solid-js"
-import { DocxFilePreview } from "@/pages/session/docx-file-preview"
+import { DocxFilePreview, type DocxStylePatch } from "@/pages/session/docx-file-preview"
+import { base64ToBytes, isImagePreviewPath } from "@/pages/session/office-preview-utils"
 import { PptxFilePreview } from "@/pages/session/pptx-file-preview"
 import { XlsxFilePreview } from "@/pages/session/xlsx-file-preview"
 
-export const OFFICE_EXTENSIONS = [".docx", ".pptx", ".xlsx", ".pdf"] as const
-
-export const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".avif", ".svg"] as const
-
-export function isOfficePreviewPath(path: string | undefined) {
-  if (!path) return false
-  const lower = path.toLowerCase()
-  return OFFICE_EXTENSIONS.some((ext) => lower.endsWith(ext))
-}
-
-export function isImagePreviewPath(path: string | undefined) {
-  if (!path) return false
-  const lower = path.toLowerCase()
-  return IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext))
-}
-
-export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
+export {
+  OFFICE_EXTENSIONS,
+  IMAGE_EXTENSIONS,
+  RICH_TEXT_EXTENSIONS,
+  isOfficePreviewPath,
+  isImagePreviewPath,
+  isRichTextPath,
+  base64ToBytes,
+} from "@/pages/session/office-preview-utils"
 
 /** 共享给各渲染器的 base64 载荷:切文件时整块替换。 */
 export type OfficeFilePreviewProps = {
@@ -32,6 +20,10 @@ export type OfficeFilePreviewProps = {
   base64: string
   /** 画布内改字写回文件后通知上层重读，预览才能看到新内容。 */
   onEdited?: () => void
+  /** DOCX 段落写回；由文件页注入（预览组件不直接依赖 SDK 上下文）。 */
+  onSaveParagraph?: (paragraph: number, text: string) => Promise<void>
+  /** DOCX 段落格式写回。 */
+  onSaveParagraphStyle?: (paragraph: number, style: DocxStylePatch) => Promise<void>
 }
 
 /**
@@ -47,7 +39,13 @@ export const OfficeFilePreview: Component<OfficeFilePreviewProps> = (props) => (
       <ImagePreview base64={props.base64} path={props.path} />
     </Match>
     <Match when={props.path.toLowerCase().endsWith(".docx")}>
-      <DocxFilePreview base64={props.base64} />
+      <DocxFilePreview
+        base64={props.base64}
+        path={props.path}
+        onEdited={props.onEdited}
+        onSaveParagraph={props.onSaveParagraph}
+        onSaveParagraphStyle={props.onSaveParagraphStyle}
+      />
     </Match>
     <Match when={props.path.toLowerCase().endsWith(".pptx")}>
       <PptxFilePreview base64={props.base64} path={props.path} onEdited={props.onEdited} />

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { IDLE, beginFollow, endFollow, followChipState, followTab, hijackFollow } from "./live-follow"
+import { IDLE, beginFollow, endFollow, followChipState, followTab, hijackFollow, takeSidebar } from "./live-follow"
 
 describe("live follow", () => {
   test("面板关着时开始跟随，结束会连面板一起收起", () => {
@@ -50,7 +50,7 @@ describe("live follow", () => {
   })
 
   test("未激活时结束是空操作", () => {
-    expect(endFollow(IDLE)).toEqual({ state: IDLE, close: [], closePane: false })
+    expect(endFollow(IDLE)).toEqual({ state: IDLE, close: [], closePane: false, restoreSidebar: false })
   })
 
   test("重复开始不重置接管标记与已开标签", () => {
@@ -58,6 +58,52 @@ describe("live follow", () => {
     s = followTab(s, "file://a.md").state
     s = hijackFollow(s)
     expect(beginFollow(s, false)).toBe(s)
+  })
+})
+
+describe("跟随期间收起左侧栏", () => {
+  test("左栏开着就收起来，结束时还回去", () => {
+    let s = beginFollow(IDLE, false)
+    const side = takeSidebar(s, true)
+    expect(side.collapse).toBe(true)
+    expect(side.state.sidebarCollapsed).toBe(true)
+    s = followTab(side.state, "file://a.md").state
+
+    const end = endFollow(s)
+    expect(end.restoreSidebar).toBe(true)
+  })
+
+  test("左栏本来就关着：什么都不做，结束时也不替用户打开", () => {
+    let s = beginFollow(IDLE, false)
+    const side = takeSidebar(s, false)
+    expect(side.collapse).toBe(false)
+    expect(side.state).toBe(s)
+    expect(endFollow(s).restoreSidebar).toBe(false)
+  })
+
+  test("一个窗口里只收一次（用户自己拉回来就不再动）", () => {
+    let s = beginFollow(IDLE, false)
+    s = takeSidebar(s, true).state
+    // 用户中途把左栏拉回来了：下一次写盘不再收。
+    expect(takeSidebar(s, true)).toEqual({ state: s, collapse: false })
+  })
+
+  test("用户接管后不再收左栏，但收过的仍然还回去", () => {
+    let s = beginFollow(IDLE, false)
+    s = takeSidebar(s, true).state
+    s = hijackFollow(s)
+    expect(takeSidebar(s, true).collapse).toBe(false)
+    // 接管只影响右栏（不再切文件、不收面板）；左栏是我们收的，得还。
+    const end = endFollow(s)
+    expect(end.restoreSidebar).toBe(true)
+    expect(end.closePane).toBe(false)
+  })
+
+  test("重复开始跟随会清掉上一窗口的左栏标记", () => {
+    let s = beginFollow(IDLE, false)
+    s = takeSidebar(s, true).state
+    const next = beginFollow(endFollow(s).state, false)
+    expect(next.sidebarCollapsed).toBe(false)
   })
 })
 

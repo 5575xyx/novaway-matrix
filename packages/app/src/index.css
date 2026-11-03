@@ -805,6 +805,47 @@
   animation: live-follow-ping 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
+/* 待命（开着、等下一次写盘）：圆点缓慢呼吸，证明开关是活的，
+ * 但幅度比跟写时小，不抢正在看的对话内容。 */
+@keyframes live-follow-idle-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.live-follow-breathe-idle {
+  animation: live-follow-idle-breathe 2.4s ease-in-out infinite;
+}
+
+/* 跟写中的扫光：一道斜向高光从胶囊左侧穿到右侧，循环出现。 */
+@keyframes live-follow-sheen {
+  0% {
+    transform: translateX(-160%) skewX(-16deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    transform: translateX(360%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+.live-follow-sheen {
+  width: 38%;
+  border-radius: 999px;
+  background: linear-gradient(100deg, transparent 0%, rgb(255 255 255 / 0.55) 50%, transparent 100%);
+  animation: live-follow-sheen 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
 @keyframes live-follow-flash {
   0% {
     transform: scale(1);
@@ -824,9 +865,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .live-follow-ping,
-  .live-follow-flash {
+  .live-follow-flash,
+  .live-follow-sheen {
     animation: none;
     opacity: 0;
+  }
+  /* 圆点本身要留着：只停呼吸，不能连颜色一起藏掉。 */
+  .live-follow-breathe-idle {
+    animation: none;
   }
 }
 
@@ -1184,7 +1230,6 @@
 [data-slot="session-turn-thinking"] [data-slot="icon-svg"] {
   animation: novaway-spin 1s linear infinite;
 }
-
 /* ===== 执行中指示器:呼吸灯动画 =====
  * session-turn-thinking 和 reasoning-part-indicator 已用 Tailwind 的
  * animate-spin/animate-pulse 类,这里不再重复定义。只给工具行和折叠卡
@@ -1451,6 +1496,7 @@
  * 通过 / 调整是卡片里的按钮，点了直接回复代理，不用回聊天框。
  */
 [data-component="document-review-card"] {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1460,170 +1506,218 @@
   background: var(--surface);
   padding: 12px;
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
-}
-
-[data-slot="document-review-head"] {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-[data-slot="document-review-kind"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--foreground-subtle);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-[data-slot="document-review-meta-group"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-[data-slot="document-review-wait"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--syntax-warning, #d97706);
-  font-size: 11px;
-}
-
-[data-slot="document-review-meta"] {
-  color: var(--foreground-subtlest);
-  font-size: 11px;
-}
-
-[data-slot="document-review-title"] {
-  color: var(--foreground);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-[data-slot="document-review-path"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  max-width: 100%;
-  padding: 2px 6px;
-  margin-left: -6px;
-  border-radius: 6px;
-  color: var(--foreground-subtle);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12px;
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
-}
-
-[data-slot="document-review-path"] span {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-[data-slot="document-review-path"]:hover {
-  background: var(--hover, color-mix(in oklab, var(--foreground) 6%, transparent));
-  color: var(--foreground);
+/*
+ * 「等待评审」态整体做出 ZCode 那种毛玻璃挡层：正文被压暗、轻微模糊，
+ * 视觉重心落到浮在中层的操作按钮上。已决策（approved/revise）的卡片
+ * 保持清晰可读，不糊正文。
+ */
+[data-component="document-review-card"][data-state="awaiting"],
+[data-component="document-review-card"][data-state="pending"] {
+  /* 高度封顶：卡片本身是一屏里的一块，正文超出就裁掉（反正是模糊的），
+     三个按钮浮在这块区域的**正中间**，而不是被长正文顶到卡片外面。
+     下限保证正文很短时三颗按钮也放得下，不会被 overflow 裁掉。 */
+  min-height: 280px;
+  max-height: min(64vh, 560px);
+  border-color: color-mix(in oklab, var(--mode-accent, var(--primary)) 28%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--mode-accent, var(--primary)) 10%, transparent),
+    0 1px 2px rgb(15 23 42 / 0.04);
 }
 
-[data-slot="document-review-summary"] {
-  color: var(--foreground-subtle);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-[data-slot="document-review-list"] {
+[data-slot="document-review-body"] {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-[data-slot="document-review-list"] li {
-  display: flex;
   gap: 8px;
-  color: var(--foreground-subtle);
-  font-size: 13px;
-  line-height: 1.6;
+  min-height: 0;
 }
 
-[data-slot="document-review-dot"] {
-  flex: none;
-  width: 5px;
-  height: 5px;
-  margin-top: 8px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--foreground) 30%, transparent);
+[data-component="document-review-card"][data-state="awaiting"] [data-slot="document-review-body"],
+[data-component="document-review-card"][data-state="pending"] [data-slot="document-review-body"] {
+  overflow: hidden;
+  filter: blur(2px) saturate(0.85);
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+  /* 裁掉的正文边缘淡出，不要一刀切的硬边。 */
+  mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+  /* 模糊只在等待评审时出现，加一层短暂的过渡避免突变。 */
+  transition:
+    filter 240ms ease,
+    opacity 240ms ease;
 }
 
-[data-slot="document-review-questions"],
-[data-slot="document-review-feedback"] {
+/* 挡层上的冷色光晕 + 顶部高光，营造"科技感"而不是一块死灰。 */
+[data-component="document-review-card"][data-state="awaiting"]::after,
+[data-component="document-review-card"][data-state="pending"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 90% at 50% 0%,
+      color-mix(in oklab, var(--mode-accent, var(--primary)) 8%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.03), transparent 40%);
+}
+
+/*
+ * 按钮浮层：铺满被模糊的正文区域，用 flex 把操作区放在正中间。
+ * 展开"需要调整"的输入框时内容会变高，这一层自己滚动，卡片高度不变。
+ */
+[data-slot="document-review-overlay"] {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-  background: color-mix(in oklab, var(--foreground) 3%, transparent);
-}
-
-[data-slot="document-review-questions-title"] {
-  color: var(--foreground-subtlest);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-[data-slot="document-review-question"],
-[data-slot="document-review-feedback-text"] {
-  color: var(--foreground-subtle);
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
-[data-slot="document-review-status"] {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 20px;
+  overflow: auto;
+  border-radius: inherit;
 }
 
-[data-slot="document-review-status"][data-tone="approved"] {
-  color: var(--syntax-diff-add, #16a34a);
-}
-
-[data-slot="document-review-status"][data-tone="revise"] {
-  color: var(--syntax-warning, #d97706);
-}
-
-[data-slot="document-review-status"][data-tone="muted"] {
-  color: var(--foreground-subtlest);
+[data-slot="document-review-overlay"] > * {
+  flex: none;
 }
 
 [data-slot="document-review-actions"] {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  flex-wrap: nowrap;
   align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+  padding: 0;
+}
+
+[data-component="document-review-card"][data-state="awaiting"] [data-slot="document-review-actions"],
+[data-component="document-review-card"][data-state="pending"] [data-slot="document-review-actions"] {
+  animation: document-review-actions-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes document-review-actions-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="document-review-card"][data-state="awaiting"] [data-slot="document-review-actions"],
+  [data-component="document-review-card"][data-state="pending"] [data-slot="document-review-actions"] {
+    animation: none;
+  }
+}
+
+[data-slot="document-review-actions"] [data-component="button"][data-action] {
+  width: 100%;
+  max-width: 260px;
+  min-height: 46px;
   gap: 8px;
-  padding-top: 2px;
+  padding: 0 26px;
+  border-radius: 14px;
+  font-size: var(--font-size-ui-base);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #fff;
+  /* 三颗按钮一律实色：叠在模糊正文上，浅色底会被糊成一片灰，对比度根本不够。 */
+  box-shadow:
+    0 2px 4px rgb(15 23 42 / 0.12),
+    0 10px 24px -12px rgb(15 23 42 / 0.45);
+}
+
+/* 图标跟随按钮文字色：primary/ghost 变体给 svg 钉了自己的颜色，
+ * 覆盖后「通过」的勾才是白勾，不会变成深色。 */
+[data-slot="document-review-actions"] [data-component="button"][data-action] svg {
+  color: currentColor;
+}
+
+/* 开始评审：亮蓝 —— "去看文档"的入口。 */
+[data-slot="document-review-actions"] [data-component="button"][data-action="open"] {
+  border-color: #1d4ed8;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  box-shadow:
+    0 2px 4px rgb(37 99 235 / 0.25),
+    0 12px 26px -12px rgb(37 99 235 / 0.75);
+}
+
+[data-slot="document-review-actions"] [data-component="button"][data-action="open"]:hover:not(:disabled) {
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+}
+
+/* 评审通过：高饱和绿 —— 主操作。 */
+[data-slot="document-review-actions"] [data-component="button"][data-action="approve"] {
+  border-color: #15803d;
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  color: #fff;
+  box-shadow:
+    0 2px 4px rgb(22 163 74 / 0.3),
+    0 12px 28px -12px rgb(22 163 74 / 0.8);
+}
+
+[data-slot="document-review-actions"] [data-component="button"][data-action="approve"]:hover:not(:disabled) {
+  background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+}
+
+/* 需要调整：高饱和琥珀 + 深棕字（白字在琥珀上对比度不够）。 */
+[data-slot="document-review-actions"] [data-component="button"][data-action="revise"] {
+  border-color: #d97706;
+  background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+  color: #422006;
+  box-shadow:
+    0 2px 4px rgb(245 158 11 / 0.3),
+    0 12px 26px -12px rgb(245 158 11 / 0.8);
+}
+
+[data-slot="document-review-actions"] [data-component="button"][data-action="revise"]:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fcd34d 0%, #fbbf24 100%);
+}
+
+/* 提交（"需要调整"展开后的确认键）：与"通过"同色系，保证浮层里的两个动作
+ * 在视觉上属于同一组，又不会抢走三颗主按钮的注意力。 */
+[data-slot="document-review-revise"] [data-component="button"][data-action="submit"] {
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: 12px;
+  border-color: #15803d;
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow:
+    0 2px 4px rgb(22 163 74 / 0.25),
+    0 10px 20px -12px rgb(22 163 74 / 0.7);
+}
+
+[data-slot="document-review-revise"] [data-component="button"][data-action="submit"] svg {
+  color: currentColor;
 }
 
 [data-slot="document-review-revise"] {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
   padding-top: 4px;
 }
 
@@ -1647,15 +1741,29 @@
 
 [data-slot="document-review-revise-footer"] {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
 [data-slot="document-review-hint"] {
-  color: var(--foreground-subtlest);
+  position: relative;
+  z-index: 1;
+  color: var(--foreground-subtle);
   font-size: 11px;
   line-height: 1.5;
+}
+
+/* 浮层里的说明文字压在模糊正文上，垫一层半透明底才看得清。 */
+[data-slot="document-review-overlay"] > [data-slot="document-review-hint"] {
+  max-width: 300px;
+  padding: 4px 10px;
+  text-align: center;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface) 78%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 [data-component="document-review-card"][data-state="approved"] {

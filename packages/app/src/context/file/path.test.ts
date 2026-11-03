@@ -15,10 +15,12 @@ describe("file path helpers", () => {
 
   test("normalizes Windows absolute paths with mixed separators", () => {
     const path = createPathHelpers(() => "C:\\repo")
-    expect(path.normalize("C:\\repo\\src\\app.ts")).toBe("src\\app.ts")
+    // 反斜杠一律转成正斜杠：这个值既是 store 的 key，也要和 `pathFromTab`（file:// URL
+    // 的正斜杠形式）比较，两种分隔符混用会让同一个文件出现两份 key。
+    expect(path.normalize("C:\\repo\\src\\app.ts")).toBe("src/app.ts")
     expect(path.normalize("C:/repo/src/app.ts")).toBe("src/app.ts")
     expect(path.normalize("file://C:/repo/src/app.ts")).toBe("src/app.ts")
-    expect(path.normalize("c:\\repo\\src\\app.ts")).toBe("src\\app.ts")
+    expect(path.normalize("c:\\repo\\src\\app.ts")).toBe("src/app.ts")
   })
 
   test("keeps query/hash stripping behavior stable", () => {

@@ -101,6 +101,7 @@ import {
 import { collectEvidenceImages } from "./message-timeline.evidence"
 import type { EvidenceImage, PreviewTarget } from "./message-timeline.data"
 import { useOfficeAgent } from "./office-agent-context"
+import { MessageCommentCard } from "./message-comment-card"
 import { isTodoDone } from "./status-panel/todo-section"
 import { extractOfficeArtifact, visibleOfficeMessage, type OfficeArtifact, type OfficeSlide } from "./office-artifact"
 import {
@@ -2748,33 +2749,15 @@ export function MessageTimeline(props: {
         const comments = createMemo(() =>
           getMsgParts(commentStripRow().userMessageID).flatMap((part) => MessageComment.fromPart(part) ?? []),
         )
+        // 备注卡片一律**折叠成卡片**：只显示文件名 + 挂靠的元素/行号 + 用户写的那一句。
+        // 之前把整段备注铺开，选元素类备注（修改要求 + CSS 路径 + 计算样式 + 源码）
+        // 会在聊天区撑出好几列源码墙，一条消息就把这一屏占满了。
         return (
           <TimelineRowFrame row={commentStripRow}>
             <div class="w-full px-4 md:px-5 pb-2">
               <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
                 <div class="flex w-max min-w-full justify-end gap-2">
-                  <Index each={comments()}>
-                    {(comment) => (
-                      <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border bg-panel px-2.5 py-2">
-                        <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-foreground">
-                          <FileIcon node={{ path: comment().path, type: "file" }} class="size-3.5 shrink-0" />
-                          <span class="truncate">{getFilename(comment().path)}</span>
-                          <Show when={comment().selection}>
-                            {(selection) => (
-                              <span class="shrink-0 text-foreground-subtle">
-                                {selection().startLine === selection().endLine
-                                  ? `:${selection().startLine}`
-                                  : `:${selection().startLine}-${selection().endLine}`}
-                              </span>
-                            )}
-                          </Show>
-                        </div>
-                        <div class="pt-1 text-12-regular text-foreground whitespace-pre-wrap break-words">
-                          {comment().comment}
-                        </div>
-                      </div>
-                    )}
-                  </Index>
+                  <Index each={comments()}>{(comment) => <MessageCommentCard comment={comment()} />}</Index>
                 </div>
               </div>
             </div>

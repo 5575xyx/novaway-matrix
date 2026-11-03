@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { isOfficePreviewPath, OFFICE_EXTENSIONS } from "./office-file-preview"
+import { isImagePreviewPath, isOfficePreviewPath, isRichTextPath, OFFICE_EXTENSIONS } from "./office-preview-utils"
 
 describe("office preview detection", () => {
   test("recognises the office formats the right panel can render", () => {
@@ -17,5 +17,13 @@ describe("office preview detection", () => {
 
   test("pdf is part of the supported extension list", () => {
     expect(OFFICE_EXTENSIONS as readonly string[]).toContain(".pdf")
+  })
+
+  test("html uses the rich-text editor, not the base64 preview channel", () => {
+    expect(isRichTextPath("notes/page.html")).toBe(true)
+    expect(isRichTextPath("notes/page.HTM")).toBe(true)
+    expect(isRichTextPath("notes/page.md")).toBe(false)
+    expect(isOfficePreviewPath("notes/page.html")).toBe(false)
+    expect(isImagePreviewPath("notes/page.html")).toBe(false)
   })
 })

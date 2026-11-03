@@ -38,6 +38,7 @@ import { ProviderSetupTool } from "./provider-setup"
 import { LspSetupTool } from "./lsp-setup"
 import { OfficeSetupTool } from "./office-setup"
 import { OfficePptxEditTool, OfficePptxReadTool } from "./office-pptx"
+import { OfficeDocumentEditTool, OfficeDocumentReadTool } from "./office-doc"
 import { TempFilesTool } from "./temp_files"
 import { VerifyTool } from "./verify"
 import { ReviewDocumentTool } from "./review"
@@ -549,6 +550,9 @@ export const layer: Layer.Layer<
     // PPTX 原地改字：只重写被点中的 shape，其余条目逐字节保留。
     const officePptxRead = yield* OfficePptxReadTool
     const officePptxEdit = yield* OfficePptxEditTool
+    // DOCX / HTML / Markdown / 纯文本：同一套 OfficeOp，和右侧面板共用引擎。
+    const officeDocumentRead = yield* OfficeDocumentReadTool
+    const officeDocumentEdit = yield* OfficeDocumentEditTool
     const skillInstall = yield* SkillInstallTool
     const skillPython = yield* SkillPythonTool
     const pluginInstall = yield* PluginInstallTool
@@ -779,6 +783,8 @@ export const layer: Layer.Layer<
           office_setup: Tool.init(officeSetup as any),
           office_pptx_read: Tool.init(officePptxRead as any),
           office_pptx_edit: Tool.init(officePptxEdit as any),
+          office_document_read: Tool.init(officeDocumentRead as any),
+          office_document_edit: Tool.init(officeDocumentEdit as any),
           skill_install: Tool.init(skillInstall),
           skill_python: Tool.init(skillPython),
           plugin_install: Tool.init(pluginInstall),
@@ -917,6 +923,8 @@ export const layer: Layer.Layer<
           // PPTX 原地改字：先 read 拿 shapeId，再 edit 只改那一段。
           tool.office_pptx_read,
           tool.office_pptx_edit,
+          tool.office_document_read,
+          tool.office_document_edit,
           tool.skill_install,
           tool.skill_python,
           tool.plugin_install,

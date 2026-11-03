@@ -5,6 +5,7 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { Tooltip } from "@novaway/ui/tooltip"
 import { getDirectory, getFilename, getFilenameTruncated } from "@novaway/core/util/path"
 import type { ContextItem, FileContextItem } from "@/context/prompt"
+import { commentSummary } from "@/utils/comment-note"
 
 type PromptContextItem = ContextItem & { key: string }
 
@@ -14,6 +15,17 @@ type ContextItemsProps = {
   openComment: (item: FileContextItem & { key: string }) => void
   remove: (item: PromptContextItem) => void
   t: (key: string) => string
+}
+
+/**
+ * chip 的第二行：选元素类备注先给出「说的是哪个元素」，再补用户那句要求。
+ * 直接显示整段备注会只剩「用户对「div.user-card」的修改要求：」这半句，
+ * 真正想看的内容被挤掉了。
+ */
+function commentLine(item: FileContextItem) {
+  if (!item.comment) return undefined
+  const summary = commentSummary(item.comment)
+  return [item.preview?.trim(), summary].filter(Boolean).join(" · ") || undefined
 }
 
 export const PromptContextItems: Component<ContextItemsProps> = (props) => {
@@ -78,8 +90,8 @@ export const PromptContextItems: Component<ContextItemsProps> = (props) => {
                       aria-label={props.t("prompt.context.removeFile")}
                     />
                   </div>
-                  <Show when={item.comment}>
-                    {(comment) => <div class="text-12-regular text-foreground ml-5 pr-1 truncate">{comment()}</div>}
+                  <Show when={commentLine(item)}>
+                    {(line) => <div class="text-12-regular text-foreground ml-5 pr-1 truncate">{line()}</div>}
                   </Show>
                 </div>
               </Tooltip>

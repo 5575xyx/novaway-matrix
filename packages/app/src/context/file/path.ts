@@ -120,6 +120,12 @@ export function createPathHelpers(scope: () => string) {
       path = path.slice(root.length)
     }
 
+    // Windows 下统一成正斜杠：本文件返回的路径会直接当 store 的 key 用
+    // （file.get/file.load），也会拿去和标签页的 `pathFromTab`（file:// URL，
+    // 一定是正斜杠）比较。保留反斜杠会让同一个文件出现两份 key：
+    // watcher 刷新找不到已打开的文件、跟写时的打字机标记也永远对不上。
+    if (windows) path = path.replace(/\\/g, "/")
+
     if (path.startsWith("./") || path.startsWith(".\\")) {
       path = path.slice(2)
     }

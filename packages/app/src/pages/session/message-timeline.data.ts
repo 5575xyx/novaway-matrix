@@ -1,5 +1,5 @@
 import { classifyError, type ErrorKind } from "./session-error"
-import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
+import { parseCommentNote, readCommentMetadata, type PromptComment } from "@/utils/comment-note"
 import { AssistantMessage, Part, SessionStatus, SnapshotFileDiff, UserMessage } from "@novaway/sdk/v2"
 import { groupParts, PartGroup, renderable } from "@novaway/ui/message-part"
 import { Data, Equal } from "effect"
@@ -467,6 +467,8 @@ export namespace MessageComment {
   export type MessageComment = {
     path: string
     comment: string
+    /** 元素/页面标签（「div.user-card」「第 5 页 · 形状「标题」」）；行级评论没有。 */
+    preview?: string
     selection?: {
       startLine: number
       endLine: number
@@ -475,11 +477,13 @@ export namespace MessageComment {
 
   export const fromPart = (part: Part): MessageComment | undefined => {
     if (part.type !== "text" || !part.synthetic) return
-    const next = readCommentMetadata(part.metadata) ?? parseCommentNote(part.text)
+    // 元数据优先（带 preview/origin）；老消息只有正文，就按英文注释格式反解。
+    const next: PromptComment | undefined = readCommentMetadata(part.metadata) ?? parseCommentNote(part.text)
     if (!next) return
     return {
       path: next.path,
       comment: next.comment,
+      preview: next.preview,
       selection: next.selection
         ? {
             startLine: next.selection.startLine,

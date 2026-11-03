@@ -1208,6 +1208,7 @@ export type AgentConfig = {
     | "acceptEdits"
     | "plan"
     | "bypassPermissions"
+    | "unattended"
     | "worktree"
     | "user"
     | "project"
@@ -11721,6 +11722,76 @@ export type OfficePptxTemplateFillResponses = {
 }
 
 export type OfficePptxTemplateFillResponse = OfficePptxTemplateFillResponses[keyof OfficePptxTemplateFillResponses]
+
+export type OfficeDocumentEditData = {
+  body?: {
+    path: string
+    ops: Array<{
+      op: string
+      paragraph?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      block?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      text?: string
+      style?: {
+        bold?: boolean
+        italic?: boolean
+        underline?: boolean
+        size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        color?: string
+        align?: "l" | "ctr" | "r" | "just"
+        font?: string
+      }
+      tag?: string
+      align?: string
+      value?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      start?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      end?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      patch?: {
+        bold?: boolean
+        italic?: boolean
+        underline?: boolean
+        strikethrough?: boolean
+        color?: string
+        highlight?: string
+        size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        clear?: boolean
+      }
+      html?: string
+      descending?: boolean
+      keepHardBreaks?: boolean
+      marker?: string
+      indent?: string
+    }>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/document-edit"
+}
+
+export type OfficeDocumentEditErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeDocumentEditError = OfficeDocumentEditErrors[keyof OfficeDocumentEditErrors]
+
+export type OfficeDocumentEditResponses = {
+  /**
+   * Edited document
+   */
+  200: {
+    path: string
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    changed: Array<string>
+    applied: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficeDocumentEditResponse = OfficeDocumentEditResponses[keyof OfficeDocumentEditResponses]
 
 export type OfficePptxEditData = {
   body?: {

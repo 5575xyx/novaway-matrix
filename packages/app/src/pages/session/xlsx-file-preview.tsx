@@ -12,7 +12,7 @@ import {
   type JSX,
 } from "solid-js"
 import { Spinner } from "@novaway/ui/spinner"
-import { base64ToBytes } from "@/pages/session/office-file-preview"
+import { base64ToBytes } from "@/pages/session/office-preview-utils"
 
 // 网格渲染上限:超出部分不渲染(与只读预览定位一致,面板内翻不到那么深)。
 const MAX_ROWS = 500

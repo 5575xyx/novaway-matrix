@@ -37,7 +37,8 @@ import {
 } from "@/utils/element-comment"
 import { base64ToBytes } from "@/pages/session/office-file-preview"
 import { PptxFormatBar, PptxShapeFrame, PptxTextEditor } from "@/pages/session/pptx-canvas-editor"
-import { readPptxLayout, type PptxBox, type PptxLayoutNode, type PptxTextStyle } from "@novaway/core/office/pptx-edit"
+import { type PptxBox, type PptxTextStyle } from "@novaway/core/office/pptx-edit"
+import { pptxEngine, type PptxNodePt, type PptxState } from "@novaway/core/office/engine/pptx"
 
 type PptxDoc = PresentationData
 
@@ -119,11 +120,20 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
 
   // XML 侧的真相：真实字号/颜色/对齐、单元格、图片关系都在这里。
   // 渲染器只负责「画」，编辑要改的属性得从原始 XML 读。
-  const [layout] = createResource(
+  //
+  // 这里走的是 office/engine 的 PPTX 适配层，几何单位是 **pt**
+  // （16:9 页面 960×540），和渲染器、画布、拖动完全一致；
+  // EMU 只在引擎读写 XML 的那一层出现，UI 不需要知道 12700 这个数。
+  const [officeDoc] = createResource(
     () => props.base64,
-    (value) => readPptxLayout(base64ToBytes(value)),
+    (value) => pptxEngine.open(base64ToBytes(value)),
   )
-  const layoutNode = createMemo<PptxLayoutNode | undefined>(() => {
+  const layoutState = createMemo<PptxState | undefined>(() => {
+    const value = officeDoc()
+    return value?.ok ? value.data : undefined
+  })
+  const layout = createMemo(() => layoutState()?.nodes)
+  const layoutNode = createMemo<PptxNodePt | undefined>(() => {
     const anchor = target()
     const nodes = layout()
     if (!anchor || !nodes) return undefined
@@ -162,7 +172,10 @@ export const PptxFilePreview: Component<{ base64: string; path?: string; onEdite
 
   const presentation = createMemo(() => (doc.state === "ready" ? doc() : undefined))
   const pageCount = createMemo(() => presentation()?.slides.length ?? 0)
+  // 页面尺寸以文档自己的 `<p:sldSz>` 为准（引擎已换算成 pt），渲染器只作兜底。
   const pageSize = createMemo(() => {
+    const state = layoutState()
+    if (state) return { width: state.size.w, height: state.size.h }
     const value = presentation()
     return { width: value?.width ?? 960, height: value?.height ?? 540 }
   })

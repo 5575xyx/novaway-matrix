@@ -1,16 +1,15 @@
-import { createMemo, createSignal, For, Show } from "solid-js"
+import { createSignal, For, Show } from "solid-js"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
-import { providerIconId } from "@/utils/provider-icon"
+import { modelColor, modelIconId } from "@/utils/provider-icon"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
-import { Select } from "@novaway/ui/select"
 import { Spinner } from "@novaway/ui/spinner"
 import { showToast } from "@novaway/ui/toast"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { PermissionModeSelect } from "@/components/permission-mode-select"
+import { ThinkingEffortPopover } from "@/components/thinking-effort-popover"
 import { useLanguage } from "@/context/language"
-import { useVariantLabel } from "@/hooks/use-variant-label"
 import { useLocal } from "@/context/local"
 import { useModels } from "@/context/models"
 import { useSDK } from "@/context/sdk"
@@ -23,9 +22,9 @@ type Attachment = { id: string; filename: string; mime: string; dataUrl: string 
  * 辅助对话的输入框。
  *
  * **与主输入框完全一致**（对齐 ZCode：辅助对话的 composer 和主对话是同一个形态）：
- * 顶部是模型 / 变体 / 项目权限那排，中间是引用卡片与输入区，
+ * 顶部是模型 / 思考强度 / 项目权限那排（组件与主输入框是同一套），中间是引用卡片与输入区，
  * 底部是 + @ / 与发送。用户在不同窗口之间切换时，不该重新认一遍输入框长什么样，
- * 也不该少掉主对话里能做的事（选模型、切变体、挂附件、调权限）。
+ * 也不该少掉主对话里能做的事（选模型、调思考强度、挂附件、调权限）。
  *
  * 从聊天区/文件预览里「在辅助对话中提问」带进来的选中内容，显示成输入框
  * **上方的一张引用卡片**（不是塞进输入框的正文），发送时作为 synthetic 文本块
@@ -33,7 +32,6 @@ type Attachment = { id: string; filename: string; mime: string; dataUrl: string 
  */
 export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   const language = useLanguage()
-  const variantLabel = useVariantLabel()
   const sdk = useSDK()
   const local = useLocal()
   const models = useModels()
@@ -48,9 +46,14 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
   let fileInputRef: HTMLInputElement | undefined
   let textareaRef: HTMLTextAreaElement | undefined
 
-  const variants = createMemo(() => ["default", ...local.model.variant.list()])
   const modelLabel = () =>
     models.autoMode() ? "Auto" : (local.model.current()?.name ?? language.t("dialog.model.select.title"))
+  // 模型图标/名字颜色：主输入框同一套解析（聚合网关按模型名认厂商）。
+  const currentModel = () => local.model.current()
+  const iconId = () =>
+    modelIconId(currentModel()?.provider?.id, currentModel()?.provider?.name, currentModel()?.id, currentModel()?.name)
+  const nameColor = () =>
+    modelColor(currentModel()?.provider?.id, currentModel()?.provider?.name, currentModel()?.id, currentModel()?.name)
 
   const insertText = (value: string) => {
     const element = textareaRef
@@ -167,52 +170,49 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
               variant: "ghost",
               size: "normal",
               style: controlStyle,
-              class: "min-w-0 max-w-[200px] text-13-medium text-foreground group",
+              class: "min-w-0 max-w-[200px] overflow-hidden text-13-medium text-foreground group",
               "data-action": "side-chat-model",
             }}
           >
             <Show when={models.autoMode()}>
-              <Icon name="autopilot" class="size-4 shrink-0 text-icon-blue" />
+              <Icon name="autopilot" class="size-4 shrink-0 text-icon-blue transition-opacity duration-150" />
             </Show>
-            <Show when={!models.autoMode() && local.model.current()?.provider?.id}>
+            <Show when={!models.autoMode() && currentModel()?.provider?.id}>
               <ProviderIcon
-                id={providerIconId(local.model.current()?.provider?.id, local.model.current()?.provider?.name)}
-                class="size-4 shrink-0 text-icon-blue"
+                id={iconId()}
+                colorId={iconId()}
+                brand
+                class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
               />
             </Show>
             <span
-              class="truncate"
-              style={{
-                background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
-                "-webkit-background-clip": "text",
-                "-webkit-text-fill-color": "transparent",
-                "background-clip": "text",
-              }}
+              class="min-w-0 truncate"
+              style={
+                nameColor()
+                  ? { color: nameColor() }
+                  : {
+                      background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
+                      "-webkit-background-clip": "text",
+                      "-webkit-text-fill-color": "transparent",
+                      "background-clip": "text",
+                    }
+              }
             >
               {modelLabel()}
             </span>
             <Icon name="chevron-down" size="small" class="shrink-0" />
           </ModelSelectorPopover>
 
-          <Show when={!models.autoMode() && variants().length > 2}>
-            <Select
-              size="normal"
-              options={variants()}
-              current={local.model.variant.current() ?? "default"}
-              label={variantLabel}
-              onSelect={(value) => local.model.variant.set(value === "default" ? undefined : value)}
-              class="capitalize max-w-[120px] text-foreground"
-              valueClass="truncate text-13-medium"
-              valueStyle={{
-                background: "linear-gradient(135deg, #8b5cf6, var(--icon-blue))",
-                "-webkit-background-clip": "text",
-                "-webkit-text-fill-color": "transparent",
-                "background-clip": "text",
-              }}
-              triggerStyle={controlStyle}
-              triggerProps={{ "data-action": "side-chat-variant" }}
-              variant="ghost"
-            />
+          {/* 思考强度：与主输入框同一个下拉（图标 + 档位文字 + 滑块弹层），
+              没有档位的模型直接不渲染。 */}
+          <Show when={!models.autoMode()}>
+            <div class="shrink-0">
+              <ThinkingEffortPopover
+                model={local.model}
+                triggerStyle={controlStyle}
+                triggerClass="shrink-0 whitespace-nowrap"
+              />
+            </div>
           </Show>
 
           <div class="flex-1" />

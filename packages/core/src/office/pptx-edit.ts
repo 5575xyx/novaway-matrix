@@ -260,6 +260,25 @@ export async function readPptxLayout(bytes: Uint8Array, slides?: readonly number
   return result.sort((a, b) => a.slide - b.slide)
 }
 
+/**
+ * 页面尺寸（EMU）+ 可编辑对象。页面尺寸来自 `ppt/presentation.xml` 的
+ * `<p:sldSz cx cy>`；缺省按 16:9 的 12192000×6858000 兜底。
+ * 上层要把 EMU 换成 pt 再交给 UI —— 见 office/engine/units.ts。
+ */
+export async function readPptxDocument(
+  bytes: Uint8Array,
+): Promise<{ size: { w: number; h: number }; nodes: PptxLayoutNode[] }> {
+  const zip = await readZip(bytes)
+  const entry = zip.entries.find((item) => item.name === "ppt/presentation.xml")
+  let size = { w: 12192000, h: 6858000 }
+  if (entry) {
+    const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
+    const match = /<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(xml)
+    if (match) size = { w: Number(match[1]), h: Number(match[2]) }
+  }
+  return { size, nodes: await readPptxLayout(bytes) }
+}
+
 // ---------------------------------------------------------------------------
 // XML 手术 —— 定位
 // ---------------------------------------------------------------------------
@@ -1081,7 +1100,7 @@ function slideEntryName(zip: ZipArchive, slide: number) {
 // ZIP 读写：只重写被改的条目，其余条目原样拷贝字节
 // ---------------------------------------------------------------------------
 
-type ZipEntry = {
+export type ZipEntry = {
   name: string
   nameBytes: Uint8Array
   method: number
@@ -1097,9 +1116,9 @@ type ZipEntry = {
   localExtraLength: number
 }
 
-type ZipArchive = { bytes: Uint8Array; entries: ZipEntry[]; comment: Uint8Array }
+export type ZipArchive = { bytes: Uint8Array; entries: ZipEntry[]; comment: Uint8Array }
 
-async function readZip(bytes: Uint8Array): Promise<ZipArchive> {
+export async function readZip(bytes: Uint8Array): Promise<ZipArchive> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const eocd = findEndOfCentralDirectory(view)
   if (eocd === -1) throw new Error("不是有效的 ZIP/PPTX 文件（找不到中央目录）")
@@ -1159,7 +1178,7 @@ function findEndOfCentralDirectory(view: DataView) {
   return -1
 }
 
-async function entryData(bytes: Uint8Array, entry: ZipEntry): Promise<Uint8Array> {
+export async function entryData(bytes: Uint8Array, entry: ZipEntry): Promise<Uint8Array> {
   const start = entry.localOffset + 30 + entry.localNameLength + entry.localExtraLength
   const raw = bytes.slice(start, start + entry.compressedSize)
   if (entry.method === 0) return raw
@@ -1172,7 +1191,11 @@ async function inflateRaw(raw: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 
-function rebuildZip(zip: ZipArchive, replacements: Map<string, Uint8Array>, additions: Map<string, Uint8Array>) {
+export function rebuildZip(
+  zip: ZipArchive,
+  replacements: Map<string, Uint8Array>,
+  additions: Map<string, Uint8Array> = new Map(),
+) {
   const localParts: Uint8Array[] = []
   const centralParts: Uint8Array[] = []
   let offset = 0

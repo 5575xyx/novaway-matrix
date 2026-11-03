@@ -344,6 +344,8 @@ import type {
   OfficeArtifactListResponses,
   OfficeArtifactSaveErrors,
   OfficeArtifactSaveResponses,
+  OfficeDocumentEditErrors,
+  OfficeDocumentEditResponses,
   OfficePlatformArtifactListErrors,
   OfficePlatformArtifactListResponses,
   OfficePlatformArtifactRestoreErrors,
@@ -6878,6 +6880,81 @@ export class PptxTemplate extends HeyApiClient {
   }
 }
 
+export class Document extends HeyApiClient {
+  /**
+   * Edit a document by node
+   *
+   * Apply node-level operations to a DOCX / HTML / Markdown / plain-text file. Editing is surgical: only the touched paragraph or XML part is rewritten; untouched bytes are preserved. Human UI and Agent tools share the same operation vocabulary.
+   */
+  public edit<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      ops?: Array<{
+        op: string
+        paragraph?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        block?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        text?: string
+        style?: {
+          bold?: boolean
+          italic?: boolean
+          underline?: boolean
+          size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          color?: string
+          align?: "l" | "ctr" | "r" | "just"
+          font?: string
+        }
+        tag?: string
+        align?: string
+        value?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        start?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        end?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        patch?: {
+          bold?: boolean
+          italic?: boolean
+          underline?: boolean
+          strikethrough?: boolean
+          color?: string
+          highlight?: string
+          size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          clear?: boolean
+        }
+        html?: string
+        descending?: boolean
+        keepHardBreaks?: boolean
+        marker?: string
+        indent?: string
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "ops" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeDocumentEditResponses, OfficeDocumentEditErrors, ThrowOnError>({
+      url: "/office/document-edit",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Pptx extends HeyApiClient {
   /**
    * Edit PPTX slide text
@@ -8136,6 +8213,11 @@ export class Office extends HeyApiClient {
   private _pptxTemplate?: PptxTemplate
   get pptxTemplate(): PptxTemplate {
     return (this._pptxTemplate ??= new PptxTemplate({ client: this.client }))
+  }
+
+  private _document?: Document
+  get document(): Document {
+    return (this._document ??= new Document({ client: this.client }))
   }
 
   private _pptx?: Pptx
@@ -13280,9 +13362,43 @@ export class Member extends HeyApiClient {
   }
 
   /**
+   * Remove a team member
+   *
+   * Detach a session from the team; the session itself is kept.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      teamID: string
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "teamID" },
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<TeamMemberRemoveResponses, TeamMemberRemoveErrors, ThrowOnError>({
+      url: "/team/{teamID}/member/{sessionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Update a team member
    *
-   * Change a member's model override; an empty string follows the team default.
+   * Change a member's model override; null follows the team default.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters: {
@@ -13317,40 +13433,6 @@ export class Member extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
-    })
-  }
-
-  /**
-   * Remove a team member
-   *
-   * Detach a session from the team; the session itself is kept.
-   */
-  public remove<ThrowOnError extends boolean = false>(
-    parameters: {
-      teamID: string
-      sessionID: string
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "teamID" },
-            { in: "path", key: "sessionID" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).delete<TeamMemberRemoveResponses, TeamMemberRemoveErrors, ThrowOnError>({
-      url: "/team/{teamID}/member/{sessionID}",
-      ...options,
-      ...params,
     })
   }
 }

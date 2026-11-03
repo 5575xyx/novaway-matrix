@@ -64,6 +64,7 @@ import { patchFiles } from "./apply-patch-file"
 import { animate } from "motion"
 import { useLocation } from "@solidjs/router"
 import { attached, inline, kind } from "./message-file"
+import { ReasoningIndicator } from "./reasoning-indicator"
 
 function ShellSubmessage(props: { text: string; animate?: boolean }) {
   let widthRef: HTMLSpanElement | undefined
@@ -1766,7 +1767,14 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
               data-slot="reasoning-part-indicator"
               class="flex size-3.5 shrink-0 items-center justify-center text-[var(--syntax-property)]"
             >
-              <Icon name="lu-brain" size="small" class={streaming() ? "animate-pulse" : ""} />
+              {/* 宿主可以注册一个能反映当前思考强度的图标；没注册时用内置的脑图标。 */}
+              <Show
+                when={ReasoningIndicator.get()}
+                keyed
+                fallback={<Icon name="lu-brain" size="small" class={streaming() ? "animate-pulse" : ""} />}
+              >
+                {(Indicator) => <Indicator streaming={streaming()} />}
+              </Show>
             </span>
             <span data-slot="reasoning-part-label" class="text-12-medium italic text-foreground-subtle">
               {streaming() ? i18n.t("ui.messagePart.reasoning.streaming") : i18n.t("ui.messagePart.reasoning.title")}
