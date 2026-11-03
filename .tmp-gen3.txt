@@ -1,1 +1,0 @@
-$ bun --env-file=../../.env.local run --conditions=browser ./src/index.ts generate
