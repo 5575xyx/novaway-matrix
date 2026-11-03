@@ -1,11 +1,9 @@
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import * as path from "path"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { DocumentReview } from "@/session/document-review"
-import { MessageV2 } from "@/session/message-v2"
-import { InstanceState } from "@/effect/instance-state"
 import { Session } from "@/session/session"
-import type { SessionID } from "@/session/schema"
+import { InstanceState } from "@/effect/instance-state"
 import * as Tool from "./tool"
 
 const Parameters = Schema.Struct({
@@ -26,9 +24,6 @@ const Parameters = Schema.Struct({
   questions: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
     description: "需要用户拍板的待确认项。用户评审通过即代表接受这些默认值。",
   }),
-  timeout_ms: Schema.optional(Schema.Number).annotate({
-    description: "可选的等待上限（毫秒）。不传就一直等用户拍板，和计划审批一致。",
-  }),
 })
 
 type Metadata = {
@@ -46,56 +41,36 @@ type Metadata = {
   waitedMs?: number
 }
 
-const POLL_INTERVAL_MS = 1000
-
-const text = (part: MessageV2.Part) => (part.type === "text" && part.synthetic !== true ? part.text.trim() : "")
-
 /**
  * 写文档 → 用户评审 → 继续/修改。
  *
  * 主代理把 PRD、实施计划这类需要用户拍板的文档挂在这里：卡片上三个动作
- * （开始评审 / 评审通过 / 需要调整）都是点击即生效，不需要用户再回聊天框
- * 说一句「可以」。返回的文本直接告诉模型下一步做什么。
+ * （开始评审 / 评审通过 / 需要调整）都是点击即生效。
+ *
+ * **这个工具不阻塞**：登记完评审请求就立刻返回，本轮到此结束、会话回到 idle ——
+ * 以前它会在工具里一直等用户拍板，整个任务被卡在"运行中"，既不能发下一条消息，
+ * 计时器也一直在涨。现在用户点「评审通过」/「需要调整」时，界面会把结论作为一条
+ * 普通用户消息发回来（见 review-shared 的 sendReviewAsMessage），代理从那条消息
+ * 继续，等于"评审完自动续上上一轮"。
  */
 export const ReviewDocumentTool = Tool.define<
   typeof Parameters,
   Metadata,
-  DocumentReview.Service | Session.Service | AppFileSystem.Service
+  DocumentReview.Service | AppFileSystem.Service
 >(
   "review_document",
   Effect.gen(function* () {
     const review = yield* DocumentReview.Service
-    const sessions = yield* Session.Service
     const fs = yield* AppFileSystem.Service
-
-    /**
-     * 用户在聊天框里直接发消息（而不是点按钮）时，把那条消息当成调整意见。
-     * 这比让代理干等到超时更符合直觉：用户说什么，就按什么改。
-     */
-    const watchUserMessage = (sessionID: SessionID, since: string) =>
-      Effect.gen(function* () {
-        while (true) {
-          yield* Effect.sleep(`${POLL_INTERVAL_MS} millis`)
-          const messages = yield* sessions
-            .messages({ sessionID })
-            .pipe(Effect.catchCause(() => Effect.succeed([] as MessageV2.WithParts[])))
-          const found = messages.find(
-            (message) =>
-              message.info.role === "user" &&
-              message.info.id > since &&
-              message.parts.some((part) => text(part).length > 0),
-          )
-          if (!found) continue
-          return found.parts.map(text).filter(Boolean).join("\n").trim()
-        }
-      })
+    // 会话服务可选：最小 layer 里没有它时按"不知道档位"处理（照常交给用户评审）。
+    const sessions = Option.getOrUndefined(yield* Effect.serviceOption(Session.Service))
 
     return {
       description: [
-        "Submit a document (PRD, implementation plan, spec, design) for the user's review and wait for the decision.",
+        "Submit a document (PRD, implementation plan, spec, design) for the user's review.",
         "Renders an interactive card with three actions: open the document, approve it, or request changes with free-form feedback.",
-        "Returns `decision: approved` (continue with the next step), `decision: revise` (apply the feedback, then submit again),",
-        "`decision: pending` (the user has not answered in time — stop and wait for their message), or `decision: cancelled`.",
+        "This tool returns immediately: the turn ends right here and the session goes idle while the user reviews.",
+        "When they decide, you receive a new user message with their decision (approved / changes requested). Continue from that message.",
         "Use it whenever a deliverable needs sign-off before you spend more effort on it. Do not also ask for approval in chat.",
       ].join(" "),
       parameters: Parameters,
@@ -117,8 +92,37 @@ export const ReviewDocumentTool = Tool.define<
             )
           }
           const lines = content.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n").length
-          const timeoutMs = params.timeout_ms && params.timeout_ms > 0 ? params.timeout_ms : undefined
           const startedAt = Date.now()
+
+          // 无人值守：没有人会来点「评审通过」。把文档当成已签收，直接让模型
+          // 往下走 —— 否则这一轮会停在"待评审"，整个任务就断在这里。
+          if ((sessions ? yield* sessions.permissionModeOf(ctx.sessionID) : undefined) === "unattended") {
+            const decision: Metadata = {
+              path: relative,
+              kind: params.kind,
+              title: params.title,
+              version: params.version,
+              summary: params.summary,
+              highlights: [...(params.highlights ?? [])],
+              questions: [...(params.questions ?? [])],
+              lines,
+              decision: "approved",
+              waitedMs: 0,
+            }
+            return {
+              title: `Approved: ${params.title}`,
+              metadata: decision,
+              output: [
+                `document: ${relative} (${lines} lines${params.version ? `, ${params.version}` : ""})`,
+                "status: auto_approved (unattended mode)",
+                "",
+                "Nobody is reviewing this document, so it counts as approved. Continue with the next step now:",
+                "- for a plan: start implementing it;",
+                "- for a PRD/spec: move on to the plan or implementation the user asked for.",
+                "Do not call review_document again for the same version.",
+              ].join("\n"),
+            }
+          }
 
           yield* ctx.metadata({
             title: `待评审：${params.title}`,
@@ -135,8 +139,6 @@ export const ReviewDocumentTool = Tool.define<
             },
           })
 
-          const incoming = yield* sessions.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
-          const since = incoming.at(-1)?.info.id ?? ""
           const info = yield* review.prepare({
             sessionID: ctx.sessionID,
             messageID: ctx.messageID,
@@ -150,8 +152,8 @@ export const ReviewDocumentTool = Tool.define<
             lines,
           })
           const requestID = info.id as string
-          // The card's request id has to reach the UI while the tool is still
-          // running, otherwise its buttons have nothing to reply to.
+          // 卡片按钮靠这个 id 回复服务端；即使本轮已经结束，请求条目也保留着，
+          // 用户点按钮时 reply 仍然能结算（前端随后再发消息续上任务）。
           yield* ctx.metadata({
             title: `待评审：${params.title}`,
             metadata: {
@@ -164,82 +166,36 @@ export const ReviewDocumentTool = Tool.define<
               highlights: [...(params.highlights ?? [])],
               questions: [...(params.questions ?? [])],
               lines,
+              decision: "pending",
+              waitedMs: Date.now() - startedAt,
             },
           })
 
-          const waiting = review.wait(info.id).pipe(
-            Effect.raceFirst(
-              watchUserMessage(ctx.sessionID, since).pipe(
-                Effect.map((message): DocumentReview.Decision => ({ decision: "revise", feedback: message })),
-              ),
-            ),
-            Effect.onInterrupt(() => review.reply({ id: info.id, decision: "cancelled" })),
-          )
-          const decision = yield* timeoutMs
-            ? waiting.pipe(
-                Effect.raceFirst(
-                  Effect.sleep(`${timeoutMs} millis`).pipe(
-                    Effect.as({ decision: "pending" } as DocumentReview.Decision),
-                  ),
-                ),
-              )
-            : waiting
-          // Whatever path won, the entry must not linger: the UI would keep
-          // showing buttons for a request nobody is waiting on anymore.
-          yield* review.reply({
-            id: info.id,
-            decision: decision.decision,
-            ...(decision.feedback ? { feedback: decision.feedback } : {}),
-          })
-
-          const waitedMs = Date.now() - startedAt
-          const metadata: Metadata = {
-            requestID,
-            path: relative,
-            kind: params.kind,
-            title: params.title,
-            version: params.version,
-            summary: params.summary,
-            highlights: [...(params.highlights ?? [])],
-            questions: [...(params.questions ?? [])],
-            lines,
-            decision: decision.decision,
-            feedback: decision.feedback,
-            waitedMs,
-          }
-
-          const header = [
-            `document: ${relative} (${lines} lines${params.version ? `, ${params.version}` : ""})`,
-            `decision: ${decision.decision}`,
-            ...(decision.feedback ? ["", "feedback from the user:", decision.feedback] : []),
-            "",
-          ]
-          const body =
-            decision.decision === "approved"
-              ? [
-                  "The user approved this document. Continue with the next step now (for a plan: start implementing; for a PRD: move on to the plan or implementation the user asked for).",
-                ]
-              : decision.decision === "revise"
-                ? [
-                    "The user asked for changes. Edit the document to address every point above, keep the rest intact, then call review_document again with the updated summary and a bumped version. Do not implement anything yet.",
-                  ]
-                : decision.decision === "pending"
-                  ? [
-                      "The user has not reviewed the document yet. Stop here: do not start implementing and do not restate the document in chat. Wait for the user's next message; if they give feedback, apply it and submit the document for review again.",
-                    ]
-                  : [
-                      "Review was cancelled (session closed or the user stopped the turn). Do not start implementing and do not re-submit on your own; wait for the user.",
-                    ]
-
           return {
-            title:
-              decision.decision === "approved"
-                ? `已通过评审：${params.title}`
-                : decision.decision === "revise"
-                  ? `需要调整：${params.title}`
-                  : `等待评审：${params.title}`,
-            metadata,
-            output: [...header, ...body].join("\n"),
+            title: `待评审：${params.title}`,
+            metadata: {
+              requestID,
+              path: relative,
+              kind: params.kind,
+              title: params.title,
+              version: params.version,
+              summary: params.summary,
+              highlights: [...(params.highlights ?? [])],
+              questions: [...(params.questions ?? [])],
+              lines,
+              decision: "pending",
+              waitedMs: Date.now() - startedAt,
+            } satisfies Metadata,
+            output: [
+              `document: ${relative} (${lines} lines${params.version ? `, ${params.version}` : ""})`,
+              "status: awaiting_user_decision",
+              "",
+              "The document has been handed to the user for review and this turn ends now. Stop here:",
+              "do not start implementing, do not restate the document in chat, and do not ask for approval again.",
+              "When the user decides, their decision arrives as a new user message:",
+              "- approved → continue with the next step (for a plan: start implementing; for a PRD: move on to the plan or implementation the user asked for);",
+              "- changes requested → apply every point to the document, keep the rest intact, then call review_document again with an updated summary and a bumped version.",
+            ].join("\n"),
           }
         }).pipe(Effect.orDie),
     }

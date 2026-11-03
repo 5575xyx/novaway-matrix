@@ -7,23 +7,35 @@ import type { PermissionRequest } from "@novaway/sdk/v2/client"
  * 客户端不再维护另一份 "confirm / auto / full" 的映射，避免出现
  * "上面选默认、下面选自主" 这种两套开关打架的局面。
  *
+ * - `plan` 计划模式：只读，写操作被拒绝。
  * - `default` 每次确认：按配置规则询问。
  * - `acceptEdits` 自主模式：常规操作自动执行，**危险操作仍然询问**。
- * - `plan` 计划模式：只读，写操作被拒绝。
- * - `bypassPermissions` 跳过所有确认。
+ * - `bypassPermissions` 跳过所有确认：权限不再问，但 `question` 之类
+ *   "要用户拿主意"的工具仍会停下来等人。
+ * - `unattended` 无人值守：权限不问，需要澄清/拍板的问题也交给模型自己决定，
+ *   整轮不会因为等不到人而挂住。
  */
-export type SessionPermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions"
+export type SessionPermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
 
 /** 档位的视觉色调：越靠后越"放行"，颜色也越需要让人多看一眼。 */
-export type PermissionTone = "neutral" | "blue" | "violet" | "amber"
+export type PermissionTone = "neutral" | "blue" | "violet" | "amber" | "rose"
 
 export const PERMISSION_MODES: Array<{
   value: SessionPermissionMode
   titleKey: string
   descriptionKey: string
-  icon: "shield" | "autopilot" | "checklist" | "warning"
+  icon: "shield" | "autopilot" | "checklist" | "warning" | "brain"
   tone: PermissionTone
 }> = [
+  // 只读单独排在最前：它不是一个"松紧程度"，而是把闸门换成另一种语义 ——
+  // 用户想"先只看不动"时会直接找它，混在松紧序列里反而容易被忽略。
+  {
+    value: "plan",
+    titleKey: "permission.mode.plan",
+    descriptionKey: "permission.mode.plan.description",
+    icon: "checklist",
+    tone: "violet",
+  },
   {
     value: "default",
     titleKey: "permission.mode.confirm",
@@ -39,24 +51,25 @@ export const PERMISSION_MODES: Array<{
     tone: "blue",
   },
   {
-    value: "plan",
-    titleKey: "permission.mode.plan",
-    descriptionKey: "permission.mode.plan.description",
-    icon: "checklist",
-    tone: "violet",
-  },
-  {
     value: "bypassPermissions",
     titleKey: "permission.mode.full",
     descriptionKey: "permission.mode.full.description",
     icon: "warning",
     tone: "amber",
   },
+  // 最底下一档：不只是"不问权限"，连"要不要问人"这件事也不再发生。
+  {
+    value: "unattended",
+    titleKey: "permission.mode.unattended",
+    descriptionKey: "permission.mode.unattended.description",
+    icon: "brain",
+    tone: "rose",
+  },
 ]
 
 /** 客户端要不要替用户应答：`never` 全问，`risky` 只放行常规操作，`always` 全放行。 */
 export function autoRespondsUnder(mode: SessionPermissionMode): "never" | "risky" | "always" {
-  if (mode === "bypassPermissions") return "always"
+  if (mode === "bypassPermissions" || mode === "unattended") return "always"
   // 计划模式写操作由内核直接拒绝，其余请求仍需人来决定。
   if (mode === "acceptEdits") return "risky"
   return "never"

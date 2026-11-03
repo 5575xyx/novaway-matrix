@@ -9626,6 +9626,11 @@ export class Session3 extends HeyApiClient {
       teamMode?: "off" | "auto" | "selected"
       teamIDs?: Array<string>
       cwd?: string
+      model?: {
+        providerID: string
+        modelID: string
+        variant?: string
+      } | null
       time?: {
         archived?: number
       }
@@ -9646,6 +9651,7 @@ export class Session3 extends HeyApiClient {
             { in: "body", key: "teamMode" },
             { in: "body", key: "teamIDs" },
             { in: "body", key: "cwd" },
+            { in: "body", key: "model" },
             { in: "body", key: "time" },
           ],
         },

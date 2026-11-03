@@ -281,6 +281,30 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
           }),
         )
       })
+      // 切到无人值守：已经弹出来等人回答的问题没人会回答了。按"未回答"结算掉，
+      // 被挂住的那一轮（含它的子代理）才能继续，模型会按自己的判断接着往下走。
+      if (next === "unattended") {
+        const sessions = globalSync.child(directory, { bootstrap: false })[0].session
+        const tree = new Set([sessionID])
+        for (let depth = 0; depth < 32; depth++) {
+          const before = tree.size
+          for (const item of sessions) {
+            if (item.parentID && tree.has(item.parentID)) tree.add(item.id)
+          }
+          if (tree.size === before) break
+        }
+        globalSDK.client.question
+          .list({ directory })
+          .then((x) => {
+            for (const req of x.data ?? []) {
+              if (!req?.id || !tree.has(req.sessionID)) continue
+              void globalSDK.client.question
+                .reply({ directory, requestID: req.id, answers: req.questions.map(() => []) })
+                .catch(() => undefined)
+            }
+          })
+          .catch(() => undefined)
+      }
       if (next === "default") return
       // 切到自动档位时，把已经挂在请求队列里的权限按新档位处理掉。
       const behavior = autoRespondsUnder(next)

@@ -122,6 +122,17 @@ export function ReviewDocumentCard(props: ToolProps) {
     if (!id || busy()) return
     const feedback = note?.trim() || undefined
     setBusy(true)
+    // 本地先落结论：卡片马上从"待评审"切到"已通过 / 正在修改"，
+    // 不用等网络往返。
+    const previous = local()
+    setLocal({ decision: next, feedback })
+    if (next === "revise") {
+      setEditing(false)
+      setDraft("")
+    }
+    // 评审工具已经不阻塞（登记完就返回、本轮结束），所以真正让代理继续的
+    // 是下面这条用户消息 —— 相当于"评审完自动续上上一轮"。
+    // 服务端 reply 只做结算（让其他界面/事件同步），失败了也不影响续跑。
     void replyToReview({
       client: sdk.client,
       directory: sdk.directory,
@@ -130,15 +141,8 @@ export function ReviewDocumentCard(props: ToolProps) {
       decision: next,
       feedback,
     })
-      .then((result) => {
-        setLocal({ decision: next, feedback })
-        if (next === "revise") {
-          setEditing(false)
-          setDraft("")
-        }
-        if (result.data) return
-        // 请求已经结算（代理等超时停了、会话被清）。用户的动作意图仍然有效：
-        // 把结论作为一条普通消息发回去，代理按自己的恢复路径继续。
+      .catch(() => undefined)
+      .then(() => {
         if (!sessionID) {
           showToast({ title: t("session.review.stale") })
           return
@@ -151,21 +155,16 @@ export function ReviewDocumentCard(props: ToolProps) {
                 path: path(),
                 feedback: feedback ?? "",
               })
-        void sendReviewAsMessage({ client: sdk.client, directory: sdk.directory, sessionID, text })
-          .then(() => showToast({ title: t("session.review.staleSent") }))
-          .catch((error: unknown) =>
-            showToast({
-              title: t("session.review.approveFailed"),
-              description: error instanceof Error ? error.message : String(error),
-            }),
-          )
+        return sendReviewAsMessage({ client: sdk.client, directory: sdk.directory, sessionID, text })
       })
-      .catch((error: unknown) =>
+      .catch((error: unknown) => {
+        // 消息没发出去 = 代理不会被唤醒，卡片状态要退回去，避免用户以为已经通过。
+        setLocal(previous)
         showToast({
           title: t("session.review.approveFailed"),
           description: error instanceof Error ? error.message : String(error),
-        }),
-      )
+        })
+      })
       .finally(() => setBusy(false))
   }
 
@@ -184,117 +183,137 @@ export function ReviewDocumentCard(props: ToolProps) {
 
   return (
     <div data-component="document-review-card" data-state={decision() ?? "awaiting"}>
-      <div data-slot="document-review-head">
-        <span data-slot="document-review-kind">
-          <Icon name="checklist" size="small" />
-          <span>{t(kind())}</span>
-        </span>
-        <div data-slot="document-review-meta-group">
-          <Show when={waited()}>
-            <span data-slot="document-review-wait" class="tabular-nums">
-              <Icon name="lu-clock" size="small" />
-              {waited()}
-            </span>
-          </Show>
-          <Show when={meta()}>
-            <span data-slot="document-review-meta" class="tabular-nums">
-              {meta()}
-            </span>
-          </Show>
+      <div data-slot="document-review-body">
+        <div data-slot="document-review-head">
+          <span data-slot="document-review-kind">
+            <Icon name="checklist" size="small" />
+            <span>{t(kind())}</span>
+          </span>
+          <div data-slot="document-review-meta-group">
+            <Show when={waited()}>
+              <span data-slot="document-review-wait" class="tabular-nums">
+                <Icon name="lu-clock" size="small" />
+                {waited()}
+              </span>
+            </Show>
+            <Show when={meta()}>
+              <span data-slot="document-review-meta" class="tabular-nums">
+                {meta()}
+              </span>
+            </Show>
+          </div>
         </div>
+
+        <div data-slot="document-review-title">{title()}</div>
+
+        <Show when={path()}>
+          <button type="button" data-slot="document-review-path" onClick={openDocument}>
+            <Icon name="folder" size="small" />
+            <span>{path()}</span>
+          </button>
+        </Show>
+
+        <Show when={summary()}>
+          <p data-slot="document-review-summary">{summary()}</p>
+        </Show>
+
+        <Show when={highlights().length > 0}>
+          <ul data-slot="document-review-list">
+            <For each={highlights()}>
+              {(item) => (
+                <li>
+                  <span data-slot="document-review-dot" />
+                  <span>{item}</span>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
+
+        <Show when={questions().length > 0}>
+          <div data-slot="document-review-questions">
+            <div data-slot="document-review-questions-title">{t("session.review.questions")}</div>
+            <For each={questions()}>{(item) => <div data-slot="document-review-question">· {item}</div>}</For>
+          </div>
+        </Show>
+
+        <Show when={feedback()}>
+          <div data-slot="document-review-feedback">
+            <div data-slot="document-review-questions-title">{t("session.review.feedback")}</div>
+            <div data-slot="document-review-feedback-text">{feedback()}</div>
+          </div>
+        </Show>
+
+        <Show when={statusLine()}>
+          {(line) => (
+            <div data-slot="document-review-status" data-tone={line().tone}>
+              <Icon name={line().icon} size="small" />
+              <span>{line().text}</span>
+            </div>
+          )}
+        </Show>
       </div>
 
-      <div data-slot="document-review-title">{title()}</div>
-
-      <Show when={path()}>
-        <button type="button" data-slot="document-review-path" onClick={openDocument}>
-          <Icon name="folder" size="small" />
-          <span>{path()}</span>
-        </button>
-      </Show>
-
-      <Show when={summary()}>
-        <p data-slot="document-review-summary">{summary()}</p>
-      </Show>
-
-      <Show when={highlights().length > 0}>
-        <ul data-slot="document-review-list">
-          <For each={highlights()}>
-            {(item) => (
-              <li>
-                <span data-slot="document-review-dot" />
-                <span>{item}</span>
-              </li>
-            )}
-          </For>
-        </ul>
-      </Show>
-
-      <Show when={questions().length > 0}>
-        <div data-slot="document-review-questions">
-          <div data-slot="document-review-questions-title">{t("session.review.questions")}</div>
-          <For each={questions()}>{(item) => <div data-slot="document-review-question">· {item}</div>}</For>
-        </div>
-      </Show>
-
-      <Show when={feedback()}>
-        <div data-slot="document-review-feedback">
-          <div data-slot="document-review-questions-title">{t("session.review.feedback")}</div>
-          <div data-slot="document-review-feedback-text">{feedback()}</div>
-        </div>
-      </Show>
-
-      <Show when={statusLine()}>
-        {(line) => (
-          <div data-slot="document-review-status" data-tone={line().tone}>
-            <Icon name={line().icon} size="small" />
-            <span>{line().text}</span>
-          </div>
-        )}
-      </Show>
-
       <Show when={actionable()}>
-        <Show when={decision() === "pending"}>
-          <p data-slot="document-review-hint">{t("session.review.expiredHint")}</p>
-        </Show>
-        <div data-slot="document-review-actions">
-          <Button variant="secondary" size="small" icon="folder" onClick={openDocument}>
-            {t("session.review.open")}
-          </Button>
-          <Button variant="primary" size="small" icon="check" disabled={busy()} onClick={() => reply("approved")}>
-            {t("session.review.approve")}
-          </Button>
-          <Button variant="ghost" size="small" disabled={busy()} onClick={() => setEditing((value) => !value)}>
-            {t("session.review.revise")}
-          </Button>
-        </div>
-
-        <Show when={editing()}>
-          <div data-slot="document-review-revise">
-            <textarea
-              data-slot="document-review-textarea"
-              rows={3}
-              placeholder={t("session.review.revisePlaceholder")}
-              value={draft()}
-              onInput={(event) => setDraft(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setEditing(false)
-                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) reply("revise", draft())
-              }}
-            />
-            <div data-slot="document-review-revise-footer">
-              <span data-slot="document-review-hint">{t("session.review.reviseHint")}</span>
-              <Button
-                variant="primary"
-                size="small"
-                disabled={busy() || draft().trim().length === 0}
-                onClick={() => reply("revise", draft())}
-              >
-                {t("common.submit")}
-              </Button>
-            </div>
+        {/* 浮层：盖在被模糊的正文上、上下左右居中。按钮就长在正文这块区域里，
+            而不是被正文顶到卡片外面去。 */}
+        <div data-slot="document-review-overlay">
+          <Show when={decision() === "pending"}>
+            <p data-slot="document-review-hint">{t("session.review.expiredHint")}</p>
+          </Show>
+          <div data-slot="document-review-actions">
+            <Button data-action="open" variant="secondary" size="large" icon="folder" onClick={openDocument}>
+              {t("session.review.open")}
+            </Button>
+            <Button
+              data-action="approve"
+              variant="primary"
+              size="large"
+              icon="check"
+              disabled={busy()}
+              onClick={() => reply("approved")}
+            >
+              {t("session.review.approve")}
+            </Button>
+            <Button
+              data-action="revise"
+              variant="ghost"
+              size="large"
+              disabled={busy()}
+              onClick={() => setEditing((value) => !value)}
+            >
+              {t("session.review.revise")}
+            </Button>
           </div>
-        </Show>
+
+          <Show when={editing()}>
+            <div data-slot="document-review-revise">
+              <textarea
+                data-slot="document-review-textarea"
+                rows={3}
+                placeholder={t("session.review.revisePlaceholder")}
+                value={draft()}
+                onInput={(event) => setDraft(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setEditing(false)
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) reply("revise", draft())
+                }}
+              />
+              <div data-slot="document-review-revise-footer">
+                <span data-slot="document-review-hint">{t("session.review.reviseHint")}</span>
+                <Button
+                  data-action="submit"
+                  variant="primary"
+                  size="large"
+                  disabled={busy() || draft().trim().length === 0}
+                  onClick={() => reply("revise", draft())}
+                >
+                  {t("common.submit")}
+                </Button>
+              </div>
+            </div>
+          </Show>
+        </div>
       </Show>
     </div>
   )

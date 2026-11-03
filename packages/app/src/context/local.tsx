@@ -310,6 +310,22 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           if (!options?.recent) return
           models.recent.push(item)
         })
+        // 把"用户最新选中的模型"写到会话上。
+        //
+        // 内核每一「步」都从这里取模型，所以任务跑着的时候换模型会在下一步生效
+        // （已经发出的那次请求不动，输出也不会被截断）。不写的话，运行中的这一轮
+        // 会一直沿用本轮用户消息里记下的旧模型，看起来像"换了没反应"。
+        const session = id()
+        if (!session) return
+        void sdk.client.session
+          .update({
+            directory: sdk.directory,
+            sessionID: session,
+            model: item ? { providerID: item.providerID, modelID: item.modelID } : null,
+          })
+          .catch(() => {
+            // 老版本内核不认这个字段：静默忽略，退回到"下一轮才生效"。
+          })
       },
       visible(item: ModelKey) {
         return models.visible(item)

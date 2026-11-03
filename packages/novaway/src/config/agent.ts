@@ -58,7 +58,7 @@ const AgentSchema = Schema.StructWithRest(
     hooks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({
       description: "Session-scoped hooks registered while this agent runs.",
     }),
-    permissionMode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"])).annotate({
+    permissionMode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"])).annotate({
       description: "Permission mode applied to this agent's session.",
     }),
     maxTurns: Schema.optional(PositiveInt).annotate({ description: "Maximum agentic turns for this agent." }),

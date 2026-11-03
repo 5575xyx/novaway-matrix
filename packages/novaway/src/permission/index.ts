@@ -19,7 +19,7 @@ import { PermissionID } from "./schema"
 
 const log = Log.create({ service: "permission" })
 
-export const Mode = Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"]).annotate({
+export const Mode = Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]).annotate({
   identifier: "PermissionMode",
 })
 export type Mode = Schema.Schema.Type<typeof Mode>
@@ -182,6 +182,10 @@ export const layer = Layer.effect(
       const mode: Mode =
         requested ?? (cfg._tag === "Some" ? ((yield* cfg.value.get()).permission_mode ?? "default") : "default")
       const writeTool = PLAN_WRITE_TOOLS.has(request.permission) || request.permission === "shell"
+      // 无人值守：完全不问人（权限这一层和 bypassPermissions 一样直接放行）。
+      // 与 bypassPermissions 的差别在"要不要用户拿主意"那一层 —— 提问/评审
+      // 由 question / plan_exit / review_document 自己按档位处理。
+      if (mode === "unattended") return
       if (mode === "bypassPermissions") return
       if (mode === "acceptEdits" && writeTool) return
       if (mode === "plan" && writeTool) {

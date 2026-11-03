@@ -845,7 +845,7 @@ export type PermissionRule = {
 
 export type PermissionRuleset = Array<PermissionRule>
 
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions"
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
 
 export type Session = {
   id: string
@@ -1156,7 +1156,7 @@ export type AgentConfig = {
   hooks?: {
     [key: string]: unknown
   }
-  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions"
+  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
   maxTurns?: number
   background?: boolean
   isolation?: "worktree"
@@ -1521,7 +1521,7 @@ export type Config = {
   instructions?: Array<string>
   layout?: LayoutConfig
   permission?: PermissionConfig
-  permission_mode?: "default" | "acceptEdits" | "plan" | "bypassPermissions"
+  permission_mode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
   tools?: {
     [key: string]: boolean
   }
@@ -2635,7 +2635,7 @@ export type Agent = {
   hooks?: {
     [key: string]: unknown
   }
-  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions"
+  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
   maxTurns?: number
   background?: boolean
   isolation?: "worktree"
@@ -13973,6 +13973,15 @@ export type SessionUpdateData = {
     teamMode?: "off" | "auto" | "selected"
     teamIDs?: Array<string>
     cwd?: string
+    /**
+     * 会话当前选中的模型。前端在用户换模型时写进来，内核每一步按它解析模型；
+     * `null` 表示清掉固定值，回到跟着用户消息走。
+     */
+    model?: {
+      providerID: string
+      modelID: string
+      variant?: string
+    } | null
     time?: {
       archived?: number
     }

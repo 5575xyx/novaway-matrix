@@ -34,9 +34,10 @@ const toPending = (item: DocumentReviewPending1): ReviewPending => ({
 /**
  * 待评审文档（PRD / 计划 / 方案）。
  *
- * 代理把文档挂到评审通道后会停在那里等用户拍板。卡片在聊天流里，但长会话里
- * 用户可能已经滚走或切到了别的会话；状态面板这里再放一份，结论照样点一下生效。
- * 服务端会广播 requested / resolved，到了就刷新；2 秒轮询兜底（重载页面、错过事件）。
+ * 代理把文档挂到评审通道后会结束本轮（会话回到空闲），不再占着"运行中"。
+ * 卡片在聊天流里，但长会话里用户可能已经滚走或切到了别的会话；状态面板这里
+ * 再放一份，结论照样点一下生效。服务端会广播 requested / resolved，到了就刷新；
+ * 2 秒轮询兜底（重载页面、错过事件）。
  */
 export function useDocumentReviewSection(sessionID: () => string): () => StatusPanelSection | null {
   const sdk = useSDK()
@@ -121,6 +122,8 @@ export function useDocumentReviewSection(sessionID: () => string): () => StatusP
     if (store.pending) return
     const feedback = note?.trim() || undefined
     setStore("pending", item.id)
+    // 评审工具已经不阻塞：登记完就返回、本轮结束，所以真正让代理继续的是下面
+    // 这条用户消息。服务端 reply 只做结算（把请求从待评审列表里摘掉），失败也照发。
     void replyToReview({
       client: sdk.client,
       directory: sdk.directory,
@@ -129,11 +132,10 @@ export function useDocumentReviewSection(sessionID: () => string): () => StatusP
       decision: next,
       feedback,
     })
-      .then((result) => {
+      .catch(() => undefined)
+      .then(() => {
         setStore("editing", "")
         setDraft("")
-        if (result.data) return
-        // 请求已结算（代理停止等待）：把结论作为普通消息发回去，用户动作不落空。
         const message =
           next === "approved"
             ? t("session.review.message.approved", { title: item.title, path: item.path })
@@ -142,14 +144,12 @@ export function useDocumentReviewSection(sessionID: () => string): () => StatusP
                 path: item.path,
                 feedback: feedback ?? "",
               })
-        void sendReviewAsMessage({
+        return sendReviewAsMessage({
           client: sdk.client,
           directory: sdk.directory,
           sessionID: item.sessionID,
           text: message,
         })
-          .then(() => showToast({ title: t("session.review.staleSent") }))
-          .catch((error: unknown) => showToast({ title: t("common.requestFailed"), description: text(error) }))
       })
       .catch((error: unknown) => showToast({ title: t("common.requestFailed"), description: text(error) }))
       .finally(() => {

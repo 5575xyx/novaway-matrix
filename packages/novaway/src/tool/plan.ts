@@ -34,10 +34,11 @@ export const PlanExitTool = Tool.define(
           const info = yield* session.get(ctx.sessionID)
           const plan = path.relative(instance.worktree, Session.plan(info, instance))
 
-          // Subagents have no human watching them: the lead decides instead of
-          // an interactive prompt. The request goes out as a message so it
-          // shows up in the lead's transcript, and we block on the reply.
-          if (info.parentID) {
+          // 无人值守：没人来点"开始实施"。计划是模型自己写的，它调用 plan_exit
+          // 就是它自己的决定 —— 直接当作通过，继续往下走。
+          if ((yield* session.permissionModeOf(ctx.sessionID)) === "unattended") {
+            // no-op: 跳过下面的交互式确认
+          } else if (info.parentID) {
             const team = yield* teams.ofSession(ctx.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
             const lead = team ? (yield* teams.members(team.id)).find((member) => member.role === "lead") : undefined
             const to = lead?.name ?? info.parentID

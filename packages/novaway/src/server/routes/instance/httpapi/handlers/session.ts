@@ -203,6 +203,13 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
           mode: ctx.payload.permissionMode,
         })
       }
+      if (ctx.payload.model !== undefined) {
+        // 换模型：内核下一步就用它（见 SessionPrompt.run 的逐步解析）。
+        yield* session.setModel({
+          sessionID: ctx.params.sessionID,
+          model: ctx.payload.model,
+        })
+      }
       if (ctx.payload.cwd !== undefined) {
         // `requireSession` above already ruled out "not found", so every failure
         // here means "that path is not a usable directory".

@@ -22401,6 +22401,29 @@
                   "cwd": {
                     "type": "string"
                   },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "providerID": {
+                            "type": "string"
+                          },
+                          "modelID": {
+                            "type": "string"
+                          },
+                          "variant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["providerID", "modelID"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
                   "time": {
                     "type": "object",
                     "properties": {
@@ -37066,7 +37089,7 @@
       },
       "PermissionMode": {
         "type": "string",
-        "enum": ["default", "acceptEdits", "plan", "bypassPermissions"]
+        "enum": ["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]
       },
       "Session": {
         "type": "object",

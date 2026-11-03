@@ -56,7 +56,7 @@ export const Info = Schema.Struct({
     Schema.mutable(Schema.Array(Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Unknown)]))),
   ),
   hooks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
-  permissionMode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"])),
+  permissionMode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"])),
   maxTurns: Schema.optional(Schema.Finite),
   background: Schema.optional(Schema.Boolean),
   isolation: Schema.optional(Schema.Literals(["worktree"])),

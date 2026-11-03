@@ -306,8 +306,7 @@ export const dict = {
   "run.plan.write": "Writable · an isolated copy; only merging touches your branch",
   "run.plan.budget": "Budget {{tokens}} tokens",
   "run.plan.acceptance": "Acceptance criteria ({{count}})",
-  "run.plan.acceptanceEmpty":
-    "No acceptance criteria. This run can only end as partial — it can never be called done.",
+  "run.plan.acceptanceEmpty": "No acceptance criteria. This run can only end as partial — it can never be called done.",
   "run.plan.addPlaceholder": "Add a checkable criterion, e.g. `foo()` exists in src/foo.ts",
   "run.plan.add": "Add",
   "run.plan.adding": "Adding…",
@@ -1008,13 +1007,13 @@ export const dict = {
   "session.review.revisePlaceholder": "e.g. use phone + OTP for login; drop the community module from the MVP…",
   "session.review.approved": "Approved — continuing",
   "session.review.revising": "Feedback sent — revising",
-  "session.review.pending": "Waiting for review",
+  "session.review.pending": "Paused · awaiting review",
   "session.review.cancelled": "Review cancelled",
   "session.review.stale": "This review request is no longer pending",
   "session.review.staleSent": "That review had expired — your decision was sent as a message",
   "session.review.awaiting": "Waiting {{time}}",
   "session.review.expiredHint":
-    "The agent stopped waiting for this review. Your choice will be sent to it as a message.",
+    "This task is paused until you decide. Your choice resumes the turn automatically — no extra message needed.",
   "session.review.message.approved": "[Document review] Approved: {{title}} ({{path}}). Continue with the next step.",
   "session.review.message.revise": "[Document review] Changes requested for {{title}} ({{path}}):\n{{feedback}}",
   "session.review.approveFailed": "Could not send the review decision",
@@ -1097,6 +1096,9 @@ export const dict = {
   "permission.mode.plan.description": "Read-only analysis; writes are rejected.",
   "permission.mode.full": "Bypass permissions",
   "permission.mode.full.description": "Never ask for permission (dangerous).",
+  "permission.mode.unattended": "Unattended",
+  "permission.mode.unattended.description":
+    "No permission prompts, and clarifying questions are decided by the model itself (fully automatic).",
   "permission.mode.defaultTag": "default",
   "permission.mode.pending": "New sessions will start with this mode.",
   "permission.mode.inherited": "This session follows the default: {{mode}}. Picking one remembers it for this session.",
@@ -1894,8 +1896,7 @@ export const dict = {
   "session.composer.liveFollow.taken": "Taken over",
   "session.composer.liveFollow.enableHint":
     "Turn on live follow: reveal file edits in the side pane as the agent writes them",
-  "session.composer.liveFollow.disableHint":
-    "Turn off live follow: the side pane will no longer open automatically",
+  "session.composer.liveFollow.disableHint": "Turn off live follow: the side pane will no longer open automatically",
   "session.followupDock.summary.one": "{{count}} queued message",
   "session.followupDock.summary.other": "{{count}} queued messages",
   "session.followupDock.sendNow": "Send now",

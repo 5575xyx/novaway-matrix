@@ -351,7 +351,7 @@ export const Info = Schema.Struct({
   }),
   layout: Schema.optional(ConfigLayout.Layout).annotate({ description: "@deprecated Always uses stretch layout." }),
   permission: Schema.optional(ConfigPermission.Info),
-  permission_mode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions"])).annotate({
+  permission_mode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"])).annotate({
     description: "Default permission mode for sessions.",
   }),
   tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)),

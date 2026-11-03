@@ -89,6 +89,21 @@ export const UpdatePayload = Schema.Struct({
    * and the generated SDK would collide into `body_directory`.
    */
   cwd: Schema.optional(Schema.String),
+  /**
+   * 会话当前选中的模型。
+   *
+   * 前端在用户换模型时写进来，内核每一「步」都按它解析模型 —— 于是任务跑着
+   * 的时候换模型会在下一步生效。`null` 表示清掉固定值，回到"跟着用户消息走"。
+   */
+  model: Schema.optional(
+    Schema.NullOr(
+      Schema.Struct({
+        providerID: Schema.String,
+        modelID: Schema.String,
+        variant: Schema.optional(Schema.String),
+      }),
+    ),
+  ),
   time: Schema.optional(
     Schema.Struct({
       archived: Schema.optional(Session.ArchivedTimestamp),

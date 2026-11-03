@@ -191,7 +191,8 @@ const live: Layer.Layer<
         "当你产出一份需要用户拍板的文档（PRD、实施计划、技术方案、规格说明、评审报告）时：",
         "1. 先把完整内容写进工作区文件（例如 docs/... 或 .novaway/plans/...），不要把正文只留在聊天里。",
         "2. 写完立刻调用 review_document，给出 path、kind、title、version、summary（一两句）、highlights（3-8 条要点）、questions（需要用户拍板的待确认项）。不要在聊天框里再问「这样可以吗」。",
-        "3. 用户的结论会作为工具结果返回：approved 才进入下一步（例如按计划实施）；revise 就按 feedback 修改文档，然后再次调用 review_document；pending 说明用户还没看，停下等用户，不要擅自开始实施。",
+        "3. review_document 不阻塞：调用后本轮立即结束，会话回到空闲，用户在卡片上评审。不要在这之后继续实施或复述文档。",
+        "4. 用户的结论稍后会作为一条新的用户消息到达：approved 才进入下一步（例如按计划实施）；需要调整就按意见修改文档，然后再次调用 review_document。",
         "只有确实需要用户决策的文档才走评审；代码改动、普通问答不需要。",
         "</document-review>",
       ].join("\n")

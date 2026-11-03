@@ -568,7 +568,7 @@ export const dict = {
   "session.review.stale": "該評審請求已失效",
   "session.review.staleSent": "該評審請求已過期，已把結論作為訊息送出",
   "session.review.awaiting": "已等待 {{time}}",
-  "session.review.expiredHint": "代理已停止等待這份文件，點擊後會把你的結論作為訊息送給它。",
+  "session.review.expiredHint": "任務已暫停，等你評審。做出選擇後會自動繼續這一輪，不需要再送訊息。",
   "session.review.message.approved": "[文件評審] 已通過：{{title}}（{{path}}）。請繼續下一步。",
   "session.review.message.revise": "[文件評審] 需要調整：{{title}}（{{path}}）\n{{feedback}}",
   "session.review.approveFailed": "評審結果發送失敗",

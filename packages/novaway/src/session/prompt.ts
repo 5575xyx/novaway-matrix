@@ -723,13 +723,19 @@ export const layer = Layer.effect(
             )
           }
         }
+        // 档位每次现读：任务跑着的时候用户改了权限（或子代理在跑、根会话被改了），
+        // 下一条判定就按新档位走，而不是沿用本轮开跑时的快照。
+        const liveMode =
+          (yield* sessions
+            .permissionModeOf(input.sessionID)
+            .pipe(Effect.catch(() => Effect.succeed(undefined)))) ?? input.mode
         const result = yield* Effect.exit(
           permission.ask({
             ...input.request,
             sessionID: input.sessionID,
             ruleset: input.ruleset,
             ...(input.tool ? { tool: input.tool } : {}),
-            ...(input.mode ? { mode: input.mode } : {}),
+            ...(liveMode ? { mode: liveMode } : {}),
           }),
         )
         if (Exit.isSuccess(result)) return
@@ -3810,7 +3816,16 @@ ${text}
             history: msgs,
           }).pipe(Effect.ignore, Effect.forkIn(scope))
 
-        const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
+        // 每一步都重新解析模型：会话上记着用户**最新**选中的模型（用户在任务
+        // 跑着的时候换了模型，前端会把新模型写到会话上）。拿不到就退回本轮
+        // 用户消息里的模型 —— 也就是"换模型只在下一步生效，已经发出的请求不动"。
+        const preferred = yield* currentModel(sessionID)
+        const model = yield* provider
+          .getModel(preferred.providerID, preferred.modelID)
+          .pipe(Effect.catchCause(() => getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)))
+        const preferredVariant =
+          "variant" in preferred && typeof preferred.variant === "string" ? preferred.variant : undefined
+        const modelVariant = preferredVariant ?? lastUser.model.variant
         loopModel = model
         // 媒体模型必须使用持久化的用户输入，而不是为聊天模型追加的提醒或插件注入内容。
         const media = LLM.mediaInput(
@@ -3978,7 +3993,7 @@ ${text}
           role: "assistant",
           mode: agent.name,
           agent: agent.name,
-          variant: lastUser.model.variant,
+          variant: modelVariant,
           path: { cwd: ctx.directory, root: ctx.worktree },
           cost: 0,
           tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },

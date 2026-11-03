@@ -588,6 +588,11 @@ export interface Interface {
     mode: Permission.Mode | undefined
   }) => Effect.Effect<void>
   /**
+   * 当前生效的权限档位（子会话向上取到根，见实现）。
+   * 判定权限/是否需要问人时用它，不要相信创建子会话时拷下来的快照。
+   */
+  readonly permissionModeOf: (sessionID: SessionID) => Effect.Effect<Permission.Mode | undefined>
+  /**
    * 设置团队目录注入模式。
    *
    * `selected` 需要同时给出 `teamIDs`；切到 `off` / `auto` 时 ID 会被清空 ——
@@ -1012,6 +1017,25 @@ const rawLayer: Layer.Layer<
       } as Patch)
     })
 
+    /**
+     * 一个会话实际生效的权限档位，**向上取到根**。
+     *
+     * 子代理创建时会把父会话的档位拷一份，用户在任务运行中改档位时那份拷贝
+     * 已经过期了；而档位是"这个人希望这一摊活怎么跑"的全局判断，属于根会话。
+     * 所以每次判定都现读一次根会话，而不是相信创建时的快照。
+     */
+    const permissionModeOf = Effect.fn("Session.permissionModeOf")(function* (sessionID: SessionID) {
+      let current: Info | undefined = yield* get(sessionID).pipe(Effect.orElseSucceed(() => undefined))
+      let mode: Permission.Mode | undefined = current?.permissionMode
+      // 防御脏数据里的环：最多向上找 32 层。
+      for (let depth = 0; current?.parentID && depth < 32; depth++) {
+        const parentID: SessionID = current.parentID
+        current = yield* get(parentID).pipe(Effect.orElseSucceed(() => undefined))
+        if (current?.permissionMode) mode = current.permissionMode
+      }
+      return mode
+    })
+
     const setPermission = Effect.fn("Session.setPermission")(function* (input: {
       sessionID: SessionID
       permission: Permission.Ruleset
@@ -1191,6 +1215,7 @@ const rawLayer: Layer.Layer<
       setModel,
       setPermission,
       setPermissionMode,
+      permissionModeOf,
       setTeamMode,
       setDirectory,
       setRevert,

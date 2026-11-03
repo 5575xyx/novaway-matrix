@@ -15,7 +15,18 @@ const TONE_TEXT: Record<PermissionTone, string> = {
   blue: "text-icon-blue",
   violet: "text-violet-600 dark:text-violet-300",
   amber: "text-amber-600 dark:text-amber-300",
+  rose: "text-rose-600 dark:text-rose-300",
 }
+
+/**
+ * 菜单里哪些档位之间要画分割线（下标指 `PERMISSION_MODES` 的位置）。
+ *
+ * 分组含义：
+ * - 计划模式是一个独立语义（只读），和下面的"松紧程度"不是一回事，单独一组；
+ * - 无人值守是唯一的"完全不问人"档位，压在最底下单独一组，避免和
+ *   「跳过所有确认」混为一谈 —— 后者只是不问权限，仍会等人回答提问。
+ */
+const SEPARATOR_AFTER = new Set([0, PERMISSION_MODES.length - 2])
 
 /**
  * 会话权限档位选择器 —— 全应用**唯一**的权限开关。
@@ -70,28 +81,33 @@ export const PermissionModeSelect: Component<{
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content style={{ "min-width": "264px" }}>
-            {PERMISSION_MODES.map((item) => (
-              <DropdownMenu.Item onSelect={() => choose(item.value)}>
-                <div class="flex w-full items-start gap-2.5">
-                  <Icon name={item.icon} size="small" class={`mt-0.5 shrink-0 ${TONE_TEXT[item.tone]}`} />
-                  <div class="flex min-w-0 flex-1 flex-col">
-                    <span class="flex items-center gap-1.5 text-13-medium text-foreground">
-                      {language.t(item.titleKey as never)}
-                      <Show when={item.value === defaultMode()}>
-                        <span class="rounded bg-surface px-1 py-px text-10-medium text-foreground-subtlest">
-                          {language.t("permission.mode.defaultTag")}
-                        </span>
-                      </Show>
-                    </span>
-                    <span class="text-11-regular leading-4 text-foreground-subtle">
-                      {language.t(item.descriptionKey as never)}
-                    </span>
+            {PERMISSION_MODES.map((item, index) => (
+              <>
+                <DropdownMenu.Item onSelect={() => choose(item.value)}>
+                  <div class="flex w-full items-start gap-2.5">
+                    <Icon name={item.icon} size="small" class={`mt-0.5 shrink-0 ${TONE_TEXT[item.tone]}`} />
+                    <div class="flex min-w-0 flex-1 flex-col">
+                      <span class="flex items-center gap-1.5 text-13-medium text-foreground">
+                        {language.t(item.titleKey as never)}
+                        <Show when={item.value === defaultMode()}>
+                          <span class="rounded bg-surface px-1 py-px text-10-medium text-foreground-subtlest">
+                            {language.t("permission.mode.defaultTag")}
+                          </span>
+                        </Show>
+                      </span>
+                      <span class="text-11-regular leading-4 text-foreground-subtle">
+                        {language.t(item.descriptionKey as never)}
+                      </span>
+                    </div>
+                    <Show when={item.value === current()}>
+                      <Icon name="check" size="small" class={`mt-0.5 shrink-0 ${TONE_TEXT[mode().tone]}`} />
+                    </Show>
                   </div>
-                  <Show when={item.value === current()}>
-                    <Icon name="check" size="small" class={`mt-0.5 shrink-0 ${TONE_TEXT[mode().tone]}`} />
-                  </Show>
-                </div>
-              </DropdownMenu.Item>
+                </DropdownMenu.Item>
+                <Show when={SEPARATOR_AFTER.has(index)}>
+                  <DropdownMenu.Separator />
+                </Show>
+              </>
             ))}
             <Show
               when={sessionID()}
