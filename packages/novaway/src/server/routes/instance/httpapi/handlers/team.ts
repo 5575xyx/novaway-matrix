@@ -1,4 +1,4 @@
-import { Effect, Scope } from "effect"
+import { Cause, Effect, Scope } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { Service as TeamService, type Member, type Team } from "@/team/team"
@@ -9,6 +9,9 @@ import { SessionUsage } from "@/session/usage"
 import { MessageID, PartID, SessionID } from "@/session/schema"
 import { Session } from "@/session/session"
 import { SessionPrompt } from "@/session/prompt"
+import { Provider } from "@/provider/provider"
+import { ModelID, ProviderID } from "@/provider/schema"
+import { describeFailure, modelNotice, pickDispatchModel, type DispatchModel } from "@/team/model-fallback"
 
 /** Flatten an accounting value into the wire shape shared by members and tasks. */
 function usageView(value: SessionUsage.Value | undefined) {
@@ -33,8 +36,40 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
     const usage = yield* SessionUsage.Service
     const sessions = yield* Session.Service
     const promptSvc = yield* SessionPrompt.Service
+    const providers = yield* Provider.Service
     const scope = yield* Scope.Scope
 
+    /**
+     * 派发前先确认成员的模型还在。
+     *
+     * 成员会话会记住它创建时用的模型；网关目录换代后那个 id 可能已经不存在，
+     * 于是每一次派发都死在 `ProviderModelNotFoundError` 上 —— 对用户来说就是
+     * 「这支队突然不能用了」，而聊天里只看到一串 `Cause([Die(...)])`。
+     * 可用的顺序（会话记住的 → 默认模型）与提示文案都在 `team/model-fallback`，
+     * 这里只负责问 provider「这个模型还在不在」。
+     */
+    const dispatchModel = Effect.fn("TeamHttpApi.dispatchModel")(function* (sessionID: SessionID) {
+      const session = yield* sessions.get(sessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      const pinned: DispatchModel | undefined = session?.model
+        ? { providerID: session.model.providerID, modelID: session.model.id }
+        : undefined
+      const pinnedUsable = pinned
+        ? yield* providers.getModel(pinned.providerID as never, pinned.modelID as never).pipe(
+            Effect.map(() => true),
+            Effect.catchTag("ProviderModelNotFoundError", () => Effect.succeed(false)),
+            Effect.catchCause(() => Effect.succeed(false)),
+          )
+        : false
+      const fallback = yield* providers.defaultModel().pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      return pickDispatchModel({
+        ...(pinned ? { pinned } : {}),
+        pinnedUsable,
+        ...(fallback ? { fallback } : {}),
+      })
+    })
+
+    /** 同一个成员的同一次回退只说一次（避免每条回复都念一遍）。 */
+    const fallbackSeen = new Map<string, string>()
     const usageFor = Effect.fn("TeamHttpApi.usageFor")(function* (team: Team, members: Member[]) {
       // Usage rolls up the whole descendant tree: a worker's own subagents
       // count towards that worker, root spend counts towards the lead.
@@ -359,41 +394,52 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
           // 派发在后台 fiber 里跑，HTTP 请求立即返回，长任务不会卡住页面。
           if (ctx.payload.dispatch !== false) {
             for (const target of targets) {
-              const run = promptSvc
-                .prompt({
-                  sessionID: target.sessionID,
-                  messageID: MessageID.ascending(),
-                  parts: [{ id: PartID.ascending(), type: "text", text: content }],
-                })
-                .pipe(
-                  Effect.flatMap((message) => {
-                    const text = message.parts
-                      .flatMap((part) => (part.type === "text" ? [part.text] : []))
-                      .join(String.fromCharCode(10))
-                      .trim()
-                    if (!text) return Effect.void
-                    return mailbox
-                      .send({
-                        teamID: team.id,
-                        fromSessionID: target.sessionID,
-                        toSessionID: from,
-                        summary: "reply from " + target.name,
-                        content: text,
-                      })
-                      .pipe(Effect.asVoid)
-                  }),
-                  Effect.catchCause((cause) =>
-                    mailbox
-                      .send({
-                        teamID: team.id,
-                        fromSessionID: target.sessionID,
-                        toSessionID: from,
-                        summary: target.name + " failed",
-                        content: "[" + target.name + "] could not complete the task: " + String(cause),
-                      })
-                      .pipe(Effect.asVoid),
-                  ),
-                )
+              const run = Effect.gen(function* () {
+                const picked = yield* dispatchModel(target.sessionID)
+                if (!picked) return yield* Effect.fail("没有可用的模型")
+                return yield* promptSvc
+                  .prompt({
+                    sessionID: target.sessionID,
+                    messageID: MessageID.ascending(),
+                    model: {
+                      providerID: ProviderID.make(picked.model.providerID),
+                      modelID: ModelID.make(picked.model.modelID),
+                    },
+                    parts: [{ id: PartID.ascending(), type: "text", text: content }],
+                  })
+                  .pipe(
+                    Effect.flatMap((message) => {
+                      const text = message.parts
+                        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+                        .join(String.fromCharCode(10))
+                        .trim()
+                      if (!text) return Effect.void
+                      // 回退模型是这次回复的事实之一：写在回复里，事后可解释。
+                      const notice = modelNotice(fallbackSeen, target.sessionID, picked)
+                      return mailbox
+                        .send({
+                          teamID: team.id,
+                          fromSessionID: target.sessionID,
+                          toSessionID: from,
+                          summary: "reply from " + target.name,
+                          content: notice + text,
+                        })
+                        .pipe(Effect.asVoid)
+                    }),
+                  )
+              }).pipe(
+                Effect.catchCause((cause) =>
+                  mailbox
+                    .send({
+                      teamID: team.id,
+                      fromSessionID: target.sessionID,
+                      toSessionID: from,
+                      summary: target.name + " failed",
+                      content: "[" + target.name + "] 没能完成这次任务：" + describeFailure(Cause.squash(cause)),
+                    })
+                    .pipe(Effect.asVoid),
+                ),
+              )
               yield* run.pipe(Effect.forkIn(scope))
             }
           }
