@@ -58,7 +58,7 @@ export function providerColor(id: string | undefined, name?: string | undefined)
  * 聚合型网关：一个 provider 下挂着各家模型，按 provider 解析图标会让
  * GLM / Kimi / Claude 全都显示成同一个网关 logo。
  */
-const GATEWAYS = new Set(["builtin", "openrouter", "vercel", "cpa", "free", "NovaWay", "opencode"])
+const GATEWAYS = new Set(["builtin", "openrouter", "vercel", "cpa", "free"])
 
 /** 模型名 → 厂商图标。只在这些模型挂在聚合网关下时才使用。 */
 const MODEL_KEYWORDS: Array<[RegExp, string]> = [

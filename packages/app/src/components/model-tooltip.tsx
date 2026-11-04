@@ -1,6 +1,5 @@
 import { Show, type Component } from "solid-js"
 import { useLanguage } from "@/context/language"
-import { displayModelName } from "@/utils/model-name"
 
 type InputKey = "text" | "image" | "audio" | "video" | "pdf"
 type InputMap = Record<InputKey, boolean>
@@ -25,7 +24,7 @@ type ModelInfo = {
   }
 }
 
-export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?: boolean }> = (props) => {
+export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean }> = (props) => {
   const language = useLanguage()
   const sourceName = (model: ModelInfo) => {
     const value = `${model.id} ${model.name}`.toLowerCase()
@@ -50,8 +49,7 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
     const tags: Array<string> = []
     if (props.latest) tags.push(language.t("model.tag.latest"))
     const suffix = tags.length ? ` (${tags.join(", ")})` : ""
-    const name = displayModelName(props.model.name, props.model.provider.id, props.free === true)
-    return `${sourceName(props.model)} ${name}${suffix}`
+    return `${sourceName(props.model)} ${props.model.name}${suffix}`
   }
   const inputs = () => {
     if (props.model.capabilities) {

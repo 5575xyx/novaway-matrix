@@ -117,10 +117,6 @@ export const dict = {
   "dialog.provider.group.popular": "인기",
   "dialog.provider.group.free": "무료 이용",
   "dialog.provider.group.other": "기타",
-  "dialog.provider.tag.recommended": "추천",
-  "dialog.provider.NovaWay.note": "Claude, GPT, Gemini 등을 포함한 엄선된 모델",
-  "dialog.provider.NovaWay.tagline": "신뢰할 수 있는 최적화 모델",
-  "dialog.provider.NovaWayGo.tagline": "모두를 위한 저렴한 구독",
   "dialog.provider.anthropic.note": "Claude Pro/Max 또는 API 키로 연결",
   "dialog.provider.copilot.note": "Copilot 또는 API 키로 연결",
   "dialog.provider.openai.note": "ChatGPT Pro/Plus 또는 API 키로 연결",
@@ -148,12 +144,6 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API 키",
   "provider.connect.apiKey.placeholder": "API 키",
   "provider.connect.apiKey.required": "API 키가 필요합니다",
-  "provider.connect.NovaWayZen.line1":
-    "NovaWay Zen은 코딩 에이전트를 위해 최적화된 신뢰할 수 있는 엄선된 모델에 대한 액세스를 제공합니다.",
-  "provider.connect.NovaWayZen.line2": "단일 API 키로 Claude, GPT, Gemini, GLM 등 다양한 모델에 액세스할 수 있습니다.",
-  "provider.connect.NovaWayZen.visit.prefix": "다음 ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": "을 방문하여 API 키를 받으세요.",
   "provider.connect.oauth.code.visit.prefix": "다음 ",
   "provider.connect.oauth.code.visit.link": "이 링크",
   "provider.connect.oauth.code.visit.suffix":

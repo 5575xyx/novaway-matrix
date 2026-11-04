@@ -117,10 +117,6 @@ export const dict = {
   "dialog.provider.group.popular": "شائع",
   "dialog.provider.group.free": "وصول مجاني",
   "dialog.provider.group.other": "آخر",
-  "dialog.provider.tag.recommended": "موصى به",
-  "dialog.provider.NovaWay.note": "نماذج مختارة تتضمن Claude و GPT و Gemini والمزيد",
-  "dialog.provider.NovaWay.tagline": "نماذج موثوقة ومحسنة",
-  "dialog.provider.NovaWayGo.tagline": "اشتراك منخفض التكلفة للجميع",
   "dialog.provider.anthropic.note": "اتصل باستخدام Claude Pro/Max أو مفتاح API",
   "dialog.provider.copilot.note": "اتصل باستخدام Copilot أو مفتاح API",
   "dialog.provider.openai.note": "اتصل باستخدام ChatGPT Pro/Plus أو مفتاح API",
@@ -148,13 +144,6 @@ export const dict = {
   "provider.connect.apiKey.label": "مفتاح واجهة برمجة تطبيقات {{provider}}",
   "provider.connect.apiKey.placeholder": "مفتاح API",
   "provider.connect.apiKey.required": "مفتاح API مطلوب",
-  "provider.connect.NovaWayZen.line1":
-    "يمنحك NovaWay Zen الوصول إلى مجموعة مختارة من النماذج الموثوقة والمحسنة لوكلاء البرمجة.",
-  "provider.connect.NovaWayZen.line2":
-    "باستخدام مفتاح API واحد، ستحصل على إمكانية الوصول إلى نماذج مثل Claude و GPT و Gemini و GLM والمزيد.",
-  "provider.connect.NovaWayZen.visit.prefix": "قم بزيارة ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": " للحصول على مفتاح API الخاص بك.",
   "provider.connect.oauth.code.visit.prefix": "قم بزيارة ",
   "provider.connect.oauth.code.visit.link": "هذا الرابط",
   "provider.connect.oauth.code.visit.suffix":

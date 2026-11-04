@@ -117,10 +117,6 @@ export const dict = {
   "dialog.provider.group.popular": "人気",
   "dialog.provider.group.free": "無料アクセス",
   "dialog.provider.group.other": "その他",
-  "dialog.provider.tag.recommended": "推奨",
-  "dialog.provider.NovaWay.note": "Claude, GPT, Geminiなどを含む厳選されたモデル",
-  "dialog.provider.NovaWay.tagline": "信頼性の高い最適化モデル",
-  "dialog.provider.NovaWayGo.tagline": "すべての人に低価格のサブスクリプション",
   "dialog.provider.anthropic.note": "Claude Pro/MaxまたはAPIキーで接続",
   "dialog.provider.copilot.note": "CopilotまたはAPIキーで接続",
   "dialog.provider.openai.note": "ChatGPT Pro/PlusまたはAPIキーで接続",
@@ -148,12 +144,6 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} APIキー",
   "provider.connect.apiKey.placeholder": "APIキー",
   "provider.connect.apiKey.required": "APIキーが必要です",
-  "provider.connect.NovaWayZen.line1":
-    "NovaWay Zenは、コーディングエージェント向けに最適化された信頼性の高いモデルへのアクセスを提供します。",
-  "provider.connect.NovaWayZen.line2": "1つのAPIキーで、Claude、GPT、Gemini、GLMなどのモデルにアクセスできます。",
-  "provider.connect.NovaWayZen.visit.prefix": " ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": " にアクセスしてAPIキーを取得してください。",
   "provider.connect.oauth.code.visit.prefix": " ",
   "provider.connect.oauth.code.visit.link": "このリンク",
   "provider.connect.oauth.code.visit.suffix":

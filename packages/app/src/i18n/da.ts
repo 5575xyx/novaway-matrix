@@ -125,10 +125,6 @@ export const dict = {
   "dialog.provider.group.popular": "Populære",
   "dialog.provider.group.free": "Gratis adgang",
   "dialog.provider.group.other": "Andre",
-  "dialog.provider.tag.recommended": "Anbefalet",
-  "dialog.provider.NovaWay.note": "Udvalgte modeller inklusive Claude, GPT, Gemini og flere",
-  "dialog.provider.NovaWay.tagline": "Pålidelige optimerede modeller",
-  "dialog.provider.NovaWayGo.tagline": "Billigt abonnement for alle",
   "dialog.provider.anthropic.note": "Direkte adgang til Claude-modeller, inklusive Pro og Max",
   "dialog.provider.copilot.note": "AI-modeller til kodningsassistance via GitHub Copilot",
   "dialog.provider.openai.note": "GPT-modeller til hurtige, kompetente generelle AI-opgaver",
@@ -160,13 +156,6 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API-nøgle",
   "provider.connect.apiKey.placeholder": "API-nøgle",
   "provider.connect.apiKey.required": "API-nøgle er påkrævet",
-  "provider.connect.NovaWayZen.line1":
-    "NovaWay Zen giver dig adgang til et udvalg af pålidelige optimerede modeller til kodningsagenter.",
-  "provider.connect.NovaWayZen.line2":
-    "Med en enkelt API-nøgle får du adgang til modeller som Claude, GPT, Gemini, GLM og flere.",
-  "provider.connect.NovaWayZen.visit.prefix": "Besøg ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": " for at hente din API-nøgle.",
   "provider.connect.oauth.code.visit.prefix": "Besøg ",
   "provider.connect.oauth.code.visit.link": "dette link",
   "provider.connect.oauth.code.visit.suffix":

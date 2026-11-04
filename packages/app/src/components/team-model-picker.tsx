@@ -6,7 +6,6 @@ import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { useLanguage } from "@/context/language"
 import { useModels } from "@/context/models"
 import { isAutoModel } from "@/utils/model"
-import { displayModelName } from "@/utils/model-name"
 import { modelIconId } from "@/utils/provider-icon"
 
 /**
@@ -112,7 +111,7 @@ export const TeamModelPicker: Component<{
             current={current()}
             filterKeys={["provider.name", "name", "id"]}
             sortBy={(a, b) => a.name.localeCompare(b.name)}
-            groupBy={(x) => (x.provider.id === "opencode" ? language.t("common.default") : x.provider.name)}
+            groupBy={(x) => x.provider.name}
             onSelect={(x) => {
               if (!x) return
               choose(`${x.provider.id}/${x.id}`)
@@ -126,9 +125,7 @@ export const TeamModelPicker: Component<{
                   brand
                   class="size-4 shrink-0 text-foreground-subtle"
                 />
-                <span class="truncate">
-                  {displayModelName(item.name, item.provider.id, item.provider.id === "opencode" && !item.cost?.input)}
-                </span>
+                <span class="truncate">{item.name}</span>
               </div>
             )}
           </List>

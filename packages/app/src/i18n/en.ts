@@ -1136,10 +1136,6 @@ export const dict = {
   "dialog.provider.group.popular": "Popular",
   "dialog.provider.group.free": "Free access",
   "dialog.provider.group.other": "Other",
-  "dialog.provider.tag.recommended": "Recommended",
-  "dialog.provider.NovaWay.note": "Curated models including Claude, GPT, Gemini and more",
-  "dialog.provider.NovaWay.tagline": "Reliable optimized models",
-  "dialog.provider.NovaWayGo.tagline": "Low cost subscription for everyone",
   "dialog.provider.anthropic.note": "Direct access to Claude models, including Pro and Max",
   "dialog.provider.ollama.title": "Ollama",
   "dialog.provider.ollama.note": "Use locally deployed Ollama models",
@@ -1194,13 +1190,6 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API key",
   "provider.connect.apiKey.placeholder": "API key",
   "provider.connect.apiKey.required": "API key is required",
-  "provider.connect.NovaWayZen.line1":
-    "NovaWay Zen gives you access to a curated set of reliable optimized models for coding agents.",
-  "provider.connect.NovaWayZen.line2":
-    "With a single API key you'll get access to models such as Claude, GPT, Gemini, GLM and more.",
-  "provider.connect.NovaWayZen.visit.prefix": "Visit ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": " to collect your API key.",
   "provider.connect.oauth.code.visit.prefix": "Visit ",
   "provider.connect.oauth.code.visit.link": "this link",
   "provider.connect.oauth.code.visit.suffix":

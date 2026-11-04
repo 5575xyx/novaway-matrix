@@ -18,8 +18,6 @@ import { useBindings } from "../keymap"
 import { useClipboard } from "../context/clipboard"
 
 const PROVIDER_PRIORITY: Record<string, number> = {
-  opencode: 0,
-  "opencode-go": 1,
   sensenova: 2,
   modelscope: 3,
   openrouter: 4,
@@ -393,10 +391,8 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
           description: free
             ? `（${free.badge}）${free.tagline}`
             : {
-                opencode: "(推荐)",
                 anthropic: "(API 密钥)",
                 openai: "(ChatGPT Plus/Pro 或 API 密钥)",
-                "opencode-go": "低成本订阅，适合所有人",
               }[provider.id],
           category: free ? "免费接入" : provider.id in PROVIDER_PRIORITY ? "热门" : "提供商",
         }
@@ -710,29 +706,7 @@ function ApiMethod(props: ApiMethodProps) {
             </box>
           )
         }
-        return {
-          opencode: (
-            <box gap={1}>
-              <text fg={theme.textMuted}>
-                NovaWay Zen gives you access to all the best coding models at the cheapest prices with a single API key.
-              </text>
-              <text fg={theme.text}>
-                Go to <span style={{ fg: theme.primary }}>https://novaway.ai/zen</span> to get a key
-              </text>
-            </box>
-          ),
-          "opencode-go": (
-            <box gap={1}>
-              <text fg={theme.textMuted}>
-                NovaWay Go is a $10 per month subscription that provides reliable access to popular open coding models
-                with generous usage limits.
-              </text>
-              <text fg={theme.text}>
-                Go to <span style={{ fg: theme.primary }}>https://novaway.ai/go</span> and enable NovaWay Go
-              </text>
-            </box>
-          ),
-        }[props.providerID]
+        return undefined
       }}
       onConfirm={async (value) => {
         if (!value) return

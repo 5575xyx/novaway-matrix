@@ -10,7 +10,6 @@ import { useLocal } from "@/context/local"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
-import { displayModelName } from "@/utils/model-name"
 
 type ModelState = ReturnType<typeof useLocal>["model"]
 
@@ -57,11 +56,7 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
               placement="right-start"
               gutter={12}
               value={
-                <ModelTooltip
-                  model={item}
-                  latest={item.latest}
-                  free={item.provider.id === "opencode" && (!item.cost || item.cost.input === 0)}
-                />
+                <ModelTooltip model={item} latest={item.latest} />
               }
             >
               {node}
@@ -76,7 +71,7 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
         >
           {(i) => (
             <div class="w-full flex items-center gap-x-2.5">
-              <span>{displayModelName(i.name, i.provider.id, true)}</span>
+              <span>{i.name}</span>
               <Show when={i.latest}>
                 <Tag>{language.t("model.tag.latest")}</Tag>
               </Show>
@@ -108,22 +103,6 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
                   <div class="w-full flex items-center gap-x-3">
                     <ProviderIcon data-slot="list-item-extra-icon" id={i.id} brand />
                     <span>{i.name}</span>
-                    <Show when={i.id === "opencode"}>
-                      <div class="text-14-regular text-foreground-subtle">
-                        {language.t("dialog.provider.NovaWay.tagline")}
-                      </div>
-                    </Show>
-                    <Show when={i.id === "opencode"}>
-                      <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                    </Show>
-                    <Show when={i.id === "NovaWay-go"}>
-                      <>
-                        <div class="text-14-regular text-foreground-subtle">
-                          {language.t("dialog.provider.NovaWayGo.tagline")}
-                        </div>
-                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                      </>
-                    </Show>
                     <Show when={i.id === "anthropic"}>
                       <div class="text-14-regular text-foreground-subtle">
                         {language.t("dialog.provider.anthropic.note")}

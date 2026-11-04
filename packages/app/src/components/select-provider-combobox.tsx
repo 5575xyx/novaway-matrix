@@ -1,7 +1,6 @@
 import { createMemo, createSignal, Show, splitProps, type ComponentProps } from "solid-js"
 import { pipe, groupBy, entries, map } from "remeda"
 import { Icon } from "@novaway/ui/icon"
-import { Tag } from "@novaway/ui/tag"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { useLanguage } from "@/context/language"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
@@ -42,7 +41,6 @@ export function SelectProviderCombobox(props: Props) {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
     if (id === "openai") return language.t("dialog.provider.openai.note")
     if (id.startsWith("github-copilot")) return language.t("dialog.provider.copilot.note")
-    if (id === "NovaWay-go") return language.t("dialog.provider.NovaWayGo.tagline")
     if (id === "ollama") return language.t("dialog.provider.ollama.note")
   }
 
@@ -158,16 +156,7 @@ export function SelectProviderCombobox(props: Props) {
                   >
                     <ProviderIcon id={option.id} brand />
                     <span class="flex-1 text-14-regular text-foreground">{option.name}</span>
-                    {option.id === "opencode" && (
-                      <>
-                        <div class="text-14-regular text-foreground-subtle">
-                          {language.t("dialog.provider.NovaWay.tagline")}
-                        </div>
-                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                      </>
-                    )}
                     {note(option.id) && <div class="text-14-regular text-foreground-subtle">{note(option.id)}</div>}
-                    {option.id === "NovaWay-go" && <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>}
                     {local.current?.id === option.id && (
                       <Icon name="check-small" size="small" class="text-foreground-subtle" />
                     )}

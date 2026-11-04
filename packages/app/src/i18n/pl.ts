@@ -117,10 +117,6 @@ export const dict = {
   "dialog.provider.group.popular": "Popularne",
   "dialog.provider.group.free": "Bezpłatny dostęp",
   "dialog.provider.group.other": "Inne",
-  "dialog.provider.tag.recommended": "Zalecane",
-  "dialog.provider.NovaWay.note": "Wyselekcjonowane modele, w tym Claude, GPT, Gemini i inne",
-  "dialog.provider.NovaWay.tagline": "Niezawodne, zoptymalizowane modele",
-  "dialog.provider.NovaWayGo.tagline": "Tania subskrypcja dla każdego",
   "dialog.provider.anthropic.note": "Bezpośredni dostęp do modeli Claude, w tym Pro i Max",
   "dialog.provider.copilot.note": "Modele AI do pomocy w kodowaniu przez GitHub Copilot",
   "dialog.provider.openai.note": "Modele GPT do szybkich i wszechstronnych zadań AI",
@@ -148,13 +144,6 @@ export const dict = {
   "provider.connect.apiKey.label": "Klucz API {{provider}}",
   "provider.connect.apiKey.placeholder": "Klucz API",
   "provider.connect.apiKey.required": "Klucz API jest wymagany",
-  "provider.connect.NovaWayZen.line1":
-    "NovaWay Zen daje dostęp do wybranego zestawu niezawodnych, zoptymalizowanych modeli dla agentów kodujących.",
-  "provider.connect.NovaWayZen.line2":
-    "Z jednym kluczem API uzyskasz dostęp do modeli takich jak Claude, GPT, Gemini, GLM i więcej.",
-  "provider.connect.NovaWayZen.visit.prefix": "Odwiedź ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": ", aby odebrać swój klucz API.",
   "provider.connect.oauth.code.visit.prefix": "Odwiedź ",
   "provider.connect.oauth.code.visit.link": "ten link",
   "provider.connect.oauth.code.visit.suffix":

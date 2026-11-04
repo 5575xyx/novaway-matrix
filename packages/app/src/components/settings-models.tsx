@@ -165,9 +165,6 @@ export const SettingsModels: Component = () => {
     const all = models.list()
     const result: KeyedModel[] = []
     for (const model of all) {
-      // 隐藏 NovaWay Zen 模型（Auto Mode 专用）
-      if (model.provider.id === "opencode") continue
-
       const keys = getProviderKeys(model.provider.id)
       keys.forEach((_, keyIndex) => {
         result.push({ ...model, keyIndex })

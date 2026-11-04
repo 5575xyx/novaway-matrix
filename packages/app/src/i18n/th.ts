@@ -125,10 +125,6 @@ export const dict = {
   "dialog.provider.group.popular": "ยอดนิยม",
   "dialog.provider.group.free": "เข้าถึงฟรี",
   "dialog.provider.group.other": "อื่น ๆ",
-  "dialog.provider.tag.recommended": "แนะนำ",
-  "dialog.provider.NovaWay.note": "โมเดลที่คัดสรร รวมถึง Claude, GPT, Gemini และอื่น ๆ",
-  "dialog.provider.NovaWay.tagline": "โมเดลที่เชื่อถือได้และปรับให้เหมาะสม",
-  "dialog.provider.NovaWayGo.tagline": "การสมัครสมาชิกราคาประหยัดสำหรับทุกคน",
   "dialog.provider.anthropic.note": "เข้าถึงโมเดล Claude โดยตรง รวมถึง Pro และ Max",
   "dialog.provider.copilot.note": "โมเดล AI สำหรับการช่วยเหลือในการเขียนโค้ดผ่าน GitHub Copilot",
   "dialog.provider.openai.note": "โมเดล GPT สำหรับงาน AI ทั่วไปที่รวดเร็วและมีความสามารถ",
@@ -160,13 +156,6 @@ export const dict = {
   "provider.connect.apiKey.label": "คีย์ API ของ {{provider}}",
   "provider.connect.apiKey.placeholder": "คีย์ API",
   "provider.connect.apiKey.required": "ต้องใช้คีย์ API",
-  "provider.connect.NovaWayZen.line1":
-    "NovaWay Zen ให้คุณเข้าถึงชุดโมเดลที่เชื่อถือได้และปรับแต่งแล้วสำหรับเอเจนต์การเขียนโค้ด",
-  "provider.connect.NovaWayZen.line2":
-    "ด้วยคีย์ API เดียวคุณจะได้รับการเข้าถึงโมเดล เช่น Claude, GPT, Gemini, GLM และอื่น ๆ",
-  "provider.connect.NovaWayZen.visit.prefix": "เยี่ยมชม ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": " เพื่อรวบรวมคีย์ API ของคุณ",
   "provider.connect.oauth.code.visit.prefix": "เยี่ยมชม ",
   "provider.connect.oauth.code.visit.link": "ลิงก์นี้",
   "provider.connect.oauth.code.visit.suffix":

@@ -11,9 +11,9 @@ import {
 
 describe("displayModelName", () => {
   test("removes the trailing Free suffix from free models of any provider", () => {
-    expect(displayModelName("Hy3 Free", "NovaWay", true)).toBe("Hy3")
-    expect(displayModelName("Nemotron 3 Ultra Free", "NovaWay", true)).toBe("Nemotron 3 Ultra")
-    expect(displayModelName("Ox Alpha Free (Unlimited)", "NovaWay", true)).toBe("Ox Alpha (Unlimited)")
+    expect(displayModelName("Hy3 Free", "openrouter", true)).toBe("Hy3")
+    expect(displayModelName("Nemotron 3 Ultra Free", "openrouter", true)).toBe("Nemotron 3 Ultra")
+    expect(displayModelName("Ox Alpha Free (Unlimited)", "openrouter", true)).toBe("Ox Alpha (Unlimited)")
   })
 
   test("strips free markers from free-tier catalogs (OpenRouter style)", () => {
@@ -23,9 +23,9 @@ describe("displayModelName", () => {
   })
 
   test("keeps non-free model names unchanged", () => {
-    expect(displayModelName("Big Pickle", "NovaWay", true)).toBe("Big Pickle")
-    expect(displayModelName("Free Model", "NovaWay", true)).toBe("Free Model")
-    expect(displayModelName("Muse Free Spark", "NovaWay", true)).toBe("Muse Free Spark")
+    expect(displayModelName("Big Pickle", "openrouter", true)).toBe("Big Pickle")
+    expect(displayModelName("Free Model", "openrouter", true)).toBe("Free Model")
+    expect(displayModelName("Muse Free Spark", "openrouter", true)).toBe("Muse Free Spark")
     expect(displayModelName("Other Free", "other", false)).toBe("Other Free")
   })
 })
@@ -43,10 +43,6 @@ describe("joinDescription", () => {
 })
 
 describe("displayModelGroup", () => {
-  test("uses the default group for NovaWay models", () => {
-    expect(displayModelGroup("NovaWay", "NovaWay Zen")).toBe("默认")
-  })
-
   test("keeps other provider group names unchanged", () => {
     expect(displayModelGroup("anthropic", "Anthropic")).toBe("Anthropic")
   })

@@ -82,8 +82,8 @@ describe("configuredModel", () => {
 
 describe("orderFallbackProviders", () => {
   test("把 builtin 排到最后且不改变其它顺序、不修改入参", () => {
-    const input = [{ id: "builtin" }, { id: "anthropic" }, { id: "opencode" }]
-    expect(orderFallbackProviders(input).map((p) => p.id)).toEqual(["anthropic", "opencode", "builtin"])
-    expect(input.map((p) => p.id)).toEqual(["builtin", "anthropic", "opencode"])
+    const input = [{ id: "builtin" }, { id: "anthropic" }, { id: "openrouter" }]
+    expect(orderFallbackProviders(input).map((p) => p.id)).toEqual(["anthropic", "openrouter", "builtin"])
+    expect(input.map((p) => p.id)).toEqual(["builtin", "anthropic", "openrouter"])
   })
 })

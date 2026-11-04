@@ -16,10 +16,6 @@ import { Tooltip } from "@novaway/ui/tooltip"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
 import { isAutoModel } from "@/utils/model"
-import { displayModelGroup, displayModelName } from "@/utils/model-name"
-
-const isFree = (provider: string, cost: { input: number } | undefined) =>
-  provider === "opencode" && (!cost || cost.input === 0)
 
 type ModelState = ReturnType<typeof useLocal>["model"]
 
@@ -56,7 +52,7 @@ const ModelList: Component<{
       current={model.current()}
       filterKeys={["provider.name", "name", "id"]}
       sortBy={(a, b) => a.name.localeCompare(b.name)}
-      groupBy={(x) => displayModelGroup(x.provider.id, x.provider.name, language.t("common.default"))}
+      groupBy={(x) => x.provider.name}
       sortGroupsBy={(a, b) => {
         const aProvider = a.items[0].provider.id
         const bProvider = b.items[0].provider.id
@@ -69,7 +65,7 @@ const ModelList: Component<{
           class="w-full"
           placement="right-start"
           gutter={12}
-          value={<ModelTooltip model={item} latest={item.latest} free={isFree(item.provider.id, item.cost)} />}
+          value={<ModelTooltip model={item} latest={item.latest} />}
         >
           {node}
         </Tooltip>
@@ -89,7 +85,7 @@ const ModelList: Component<{
             brand
             class="size-4 shrink-0 text-foreground-subtle"
           />
-          <span class="truncate">{displayModelName(i.name, i.provider.id, isFree(i.provider.id, i.cost))}</span>
+          <span class="truncate">{i.name}</span>
           <Show when={i.latest}>
             <Tag>{language.t("model.tag.latest")}</Tag>
           </Show>

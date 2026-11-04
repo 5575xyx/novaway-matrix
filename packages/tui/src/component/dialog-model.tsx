@@ -57,7 +57,6 @@ export function DialogModel(props: { providerID?: string }) {
             title: displayModelName(model.name ?? item.modelID, provider.id, model.cost?.input === 0),
             description: joinDescription(provider.name, model.cost?.input === 0),
             category,
-            disabled: provider.id === "NovaWay" && model.id.includes("-nano"),
             free: model.cost?.input === 0,
             onSelect: () => {
               onSelect(provider.id, model.id)
@@ -77,10 +76,7 @@ export function DialogModel(props: { providerID?: string }) {
 
     const providerOptions = pipe(
       sync.data.provider,
-      sortBy(
-        (provider) => provider.id !== "NovaWay",
-        (provider) => provider.name,
-      ),
+      sortBy((provider) => provider.name),
       flatMap((provider) =>
         pipe(
           selectableModelEntries(provider),
@@ -97,7 +93,6 @@ export function DialogModel(props: { providerID?: string }) {
               info.cost?.input === 0,
             ),
             category: connected() ? displayModelGroup(provider.id, provider.name) : undefined,
-            disabled: provider.id === "NovaWay" && model.includes("-nano"),
             free: info.cost?.input === 0,
             onSelect() {
               onSelect(provider.id, model)
@@ -251,7 +246,6 @@ export function joinDescription(base: string | undefined, free: boolean) {
   return [base, "免费"].filter(Boolean).join(" · ")
 }
 
-export function displayModelGroup(providerID: string, providerName: string) {
-  if (providerID === "NovaWay") return "默认"
+export function displayModelGroup(_providerID: string, providerName: string) {
   return providerName
 }

@@ -3,7 +3,6 @@ import { useDialog } from "@novaway/ui/context/dialog"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { Dialog } from "@novaway/ui/dialog"
 import { List } from "@novaway/ui/list"
-import { Tag } from "@novaway/ui/tag"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -37,7 +36,6 @@ export const DialogSelectProviderForCustom: Component<Props> = (props) => {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
     if (id === "openai") return language.t("dialog.provider.openai.note")
     if (id.startsWith("github-copilot")) return language.t("dialog.provider.copilot.note")
-    if (id === "NovaWay-go") return language.t("dialog.provider.NovaWayGo.tagline")
     if (id === "ollama") return language.t("dialog.provider.ollama.note")
   }
 
@@ -86,17 +84,8 @@ export const DialogSelectProviderForCustom: Component<Props> = (props) => {
           <div class="px-1.25 w-full flex items-center gap-x-3">
             <ProviderIcon data-slot="list-item-extra-icon" id={i.id} brand />
             <span>{i.name}</span>
-            <Show when={i.id === "opencode"}>
-              <div class="text-14-regular text-foreground-subtle">{language.t("dialog.provider.NovaWay.tagline")}</div>
-            </Show>
-            <Show when={i.id === "opencode"}>
-              <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-            </Show>
             <Show when={note(i.id)}>
               {(value) => <div class="text-14-regular text-foreground-subtle">{value()}</div>}
-            </Show>
-            <Show when={i.id === "NovaWay-go"}>
-              <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
           </div>
         )}

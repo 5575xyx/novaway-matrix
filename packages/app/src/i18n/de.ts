@@ -121,10 +121,6 @@ export const dict = {
   "dialog.provider.group.popular": "Beliebt",
   "dialog.provider.group.free": "Kostenloser Zugang",
   "dialog.provider.group.other": "Andere",
-  "dialog.provider.tag.recommended": "Empfohlen",
-  "dialog.provider.NovaWay.note": "Kuratierte Modelle inklusive Claude, GPT, Gemini und mehr",
-  "dialog.provider.NovaWay.tagline": "Zuverlässige, optimierte Modelle",
-  "dialog.provider.NovaWayGo.tagline": "Kostengünstiges Abo für alle",
   "dialog.provider.anthropic.note": "Mit Claude Pro/Max oder API-Schlüssel verbinden",
   "dialog.provider.copilot.note": "Mit Copilot oder API-Schlüssel verbinden",
   "dialog.provider.openai.note": "Mit ChatGPT Pro/Plus oder API-Schlüssel verbinden",
@@ -152,13 +148,6 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API-Schlüssel",
   "provider.connect.apiKey.placeholder": "API-Schlüssel",
   "provider.connect.apiKey.required": "API-Schlüssel ist erforderlich",
-  "provider.connect.NovaWayZen.line1":
-    "NovaWay Zen bietet Ihnen Zugriff auf eine kuratierte Auswahl zuverlässiger, optimierter Modelle für Coding-Agenten.",
-  "provider.connect.NovaWayZen.line2":
-    "Mit einem einzigen API-Schlüssel erhalten Sie Zugriff auf Modelle wie Claude, GPT, Gemini, GLM und mehr.",
-  "provider.connect.NovaWayZen.visit.prefix": "Besuchen Sie ",
-  "provider.connect.NovaWayZen.visit.link": "NovaWay.ai/zen",
-  "provider.connect.NovaWayZen.visit.suffix": ", um Ihren API-Schlüssel zu erhalten.",
   "provider.connect.oauth.code.visit.prefix": "Besuchen Sie ",
   "provider.connect.oauth.code.visit.link": "diesen Link",
   "provider.connect.oauth.code.visit.suffix":

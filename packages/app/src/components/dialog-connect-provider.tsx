@@ -573,19 +573,6 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
       <div class="flex h-full flex-col gap-6">
         <Show when={step() === "auth"}>
           <Switch>
-            <Match when={provider().id === "opencode"}>
-              <div class="flex flex-col gap-4">
-                <div class="text-14-regular text-foreground">{language.t("provider.connect.NovaWayZen.line1")}</div>
-                <div class="text-14-regular text-foreground">{language.t("provider.connect.NovaWayZen.line2")}</div>
-                <div class="text-14-regular text-foreground">
-                  {language.t("provider.connect.NovaWayZen.visit.prefix")}
-                  <Link href="https://NovaWay.ai/zen" tabIndex={-1}>
-                    {language.t("provider.connect.NovaWayZen.visit.link")}
-                  </Link>
-                  {language.t("provider.connect.NovaWayZen.visit.suffix")}
-                </div>
-              </div>
-            </Match>
             <Match when={provider().id === "ollama"}>
               <div class="text-14-regular text-foreground">{language.t("dialog.provider.ollama.note")}</div>
             </Match>
