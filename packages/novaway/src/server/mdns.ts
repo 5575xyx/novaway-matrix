@@ -11,8 +11,8 @@ export function publish(port: number, domain?: string) {
   if (bonjour) unpublish()
 
   try {
-    const host = domain ?? "NovaWay.local"
-    const name = `NovaWay-${port}`
+    const host = domain ?? "novaway.local"
+    const name = `novaway-${port}`
     bonjour = new Bonjour()
     const service = bonjour.publish({
       name,
