@@ -236,7 +236,7 @@ describe("SessionStatus.Info", () => {
         reason: "free_tier_limit",
         provider: "opencode",
         title: "Free limit reached",
-        message: "Subscribe to OpenCode Go.",
+        message: "Subscribe to NovaWay Go.",
         label: "subscribe",
         link: "https://novaway.ai/go",
       },

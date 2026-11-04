@@ -20,7 +20,7 @@ describe("OpenAI-compatible endpoint", () => {
     })
   })
 
-  test("normalizes SenseNova endpoints to the Token Plan API documented for OpenCode", () => {
+  test("normalizes SenseNova endpoints to the Token Plan API documented for NovaWay", () => {
     expect(resolveOpenAICompatibleEndpoint("https://api.sensenova.cn/v1/llm")).toEqual({
       baseURL: "https://token.sensenova.cn/v1",
       modelsURL: "https://token.sensenova.cn/v1/models",
