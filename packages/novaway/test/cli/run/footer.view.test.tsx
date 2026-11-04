@@ -48,9 +48,9 @@ function model(input: {
 }) {
   return {
     id: input.id,
-    providerID: "opencode",
+    providerID: "novaway",
     api: {
-      id: "opencode",
+      id: "novaway",
       url: "https://novaway.ai",
       npm: "@ai-sdk/openai-compatible",
     },
@@ -98,8 +98,8 @@ function model(input: {
 
 function provider() {
   return {
-    id: "opencode",
-    name: "opencode",
+    id: "novaway",
+    name: "novaway",
     source: "api",
     env: [],
     options: {},
@@ -216,7 +216,7 @@ test("direct command panel renders grouped command palette", async () => {
 
 test("direct model panel renders current model selector", async () => {
   const [providers] = createSignal<RunProvider[] | undefined>([provider()])
-  const [current] = createSignal<RunInput["model"]>({ providerID: "opencode", modelID: "gpt-5" })
+  const [current] = createSignal<RunInput["model"]>({ providerID: "novaway", modelID: "gpt-5" })
 
   const app = await testRender(
     () => (
@@ -242,7 +242,7 @@ test("direct model panel renders current model selector", async () => {
 
     expect(frame).toContain("Select model")
     expect(frame).toContain("Search")
-    expect(frame).toContain("opencode")
+    expect(frame).toContain("novaway")
     expect(frame).toContain("GPT-5")
     expect(frame).toContain("current")
     expect(frame).toContain("GPT Free")
