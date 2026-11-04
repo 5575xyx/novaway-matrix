@@ -47,72 +47,6 @@ NovaWay 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.dev
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen 是由 NovaWay 團隊提供的模型列表，這些模型已經過測試和驗證，能夠與 NovaWay 良好配合使用。[了解更多](/docs/zen)。
-
-:::tip
-如果您是新使用者，我們建議從 NovaWay Zen 開始。
-:::
-
-1. 在 TUI 中執行 `/connect` 指令，選擇 `NovaWay Zen`，然後前往 [novaway.ai/auth](https://opencode.ai/zen)。
-
-   ```txt
-   /connect
-   ```
-
-2. 登入後新增帳單資訊，然後複製您的 API 金鑰。
-
-3. 貼上您的 API 金鑰。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. 在 TUI 中執行 `/models` 查看我們推薦的模型列表。
-
-   ```txt
-   /models
-   ```
-
-它的使用方式與 NovaWay 中的其他提供商完全相同，且完全可選。
-
----
-
-## NovaWay Go
-
-NovaWay Go 是一個低成本的訂閱計畫，提供對 NovaWay 團隊提供的流行開放編碼模型的可靠存取，這些模型已經過測試和驗證，能夠與 NovaWay 良好配合使用。
-
-1. 在 TUI 中執行 `/connect` 指令，選擇 `NovaWay Go`，然後前往 [novaway.ai/auth](https://opencode.ai/zen)。
-
-   ```txt
-   /connect
-   ```
-
-2. 登入後新增帳單資訊，然後複製您的 API 金鑰。
-
-3. 貼上您的 API 金鑰。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. 在 TUI 中執行 `/models` 查看我們推薦的模型列表。
-
-   ```txt
-   /models
-   ```
-
-它的使用方式與 NovaWay 中的任何其他提供商相同，且完全可選。
-
----
-
 ## 目錄
 
 下面我們來詳細了解一些提供商。如果您想將某個提供商新增到列表中，歡迎提交 PR。
@@ -748,7 +682,7 @@ GitLab Duo 透過 GitLab 的 Anthropic 代理提供具有原生工具呼叫能�
 ##### 自架 GitLab
 
 :::note[合規說明]
-NovaWay 會使用一個小模型來執行部分 AI 任務，例如產生工作階段標題。預設情況下使用由 Zen 託管的 gpt-5-nano。如果您需要讓 NovaWay 僅使用您自己的 GitLab 託管實例，請在 `novaway.json` 檔案中新增以下內容。同時建議停用工作階段分享。
+NovaWay 會使用一個小模型來執行部分 AI 任務，例如產生工作階段標題。預設情況下使用 gpt-5-nano。如果您需要讓 NovaWay 僅使用您自己的 GitLab 託管實例，請在 `novaway.json` 檔案中新增以下內容。同時建議停用工作階段分享。
 
 ```json
 {
@@ -1378,35 +1312,6 @@ Ollama 可以自動為 NovaWay 進行設定。詳見 [Ollama 整合文件](https
 ##### 使用 API 金鑰
 
 如果您已經有 API 金鑰，可以選擇 **Manually enter API Key** 並將其貼上到終端機中。
-
----
-
-### NovaWay Zen
-
-NovaWay Zen 是由 NovaWay 團隊提供的經過測試和驗證的模型列表。[了解更多](/docs/zen)。
-
-1. 登入 **<a href={console}>NovaWay Zen</a>** 並點擊 **Create API Key**。
-
-2. 執行 `/connect` 指令並搜尋 **NovaWay Zen**。
-
-   ```txt
-   /connect
-   ```
-
-3. 輸入您的 NovaWay API 金鑰。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. 執行 `/models` 指令選擇模型，例如 _Qwen 3 Coder 480B_。
-
-   ```txt
-   /models
-   ```
 
 ---
 

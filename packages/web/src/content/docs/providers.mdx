@@ -48,74 +48,6 @@ You can customize the base URL for any provider by setting the `baseURL` option.
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen is a list of models provided by the NovaWay team that have been
-tested and verified to work well with NovaWay. [Learn more](/docs/zen).
-
-:::tip
-If you are new, we recommend starting with NovaWay Zen.
-:::
-
-1. Run the `/connect` command in the TUI, select `NovaWay Zen`, and head to [novaway.ai/auth](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Sign in, add your billing details, and copy your API key.
-
-3. Paste your API key.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Run `/models` in the TUI to see the list of models we recommend.
-
-   ```txt
-   /models
-   ```
-
-It works like any other provider in NovaWay and is completely optional to use.
-
----
-
-## NovaWay Go
-
-NovaWay Go is a low cost subscription plan that provides reliable access to popular open coding models provided by the NovaWay team that have been
-tested and verified to work well with NovaWay.
-
-1. Run the `/connect` command in the TUI, select `NovaWay Go`, and head to [novaway.ai/auth](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Sign in, add your billing details, and copy your API key.
-
-3. Paste your API key.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Run `/models` in the TUI to see the list of models we recommend.
-
-   ```txt
-   /models
-   ```
-
-It works like any other provider in NovaWay and is completely optional to use.
-
----
-
 ## Directory
 
 Let's look at some of the providers in detail. If you'd like to add a provider to the
@@ -921,7 +853,7 @@ to store token in novaway auth storage.
 
 :::note[compliance note]
 NovaWay uses a small model for some AI tasks like generating the session title.
-It is configured to use gpt-5-nano by default, hosted by Zen. To lock NovaWay
+It is configured to use gpt-5-nano by default. To lock NovaWay
 to only use your own GitLab-hosted instance, add the following to your
 `novaway.json` file. It is also recommended to disable session sharing.
 
@@ -1628,35 +1560,6 @@ We recommend signing up for [ChatGPT Plus or Pro](https://chatgpt.com/pricing).
 ##### Using API keys
 
 If you already have an API key, you can select **Manually enter API Key** and paste it in your terminal.
-
----
-
-### NovaWay Zen
-
-NovaWay Zen is a list of tested and verified models provided by the NovaWay team. [Learn more](/docs/zen).
-
-1. Sign in to **<a href={console}>NovaWay Zen</a>** and click **Create API Key**.
-
-2. Run the `/connect` command and search for **NovaWay Zen**.
-
-   ```txt
-   /connect
-   ```
-
-3. Enter your NovaWay API key.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Run the `/models` command to select a model like _Qwen 3 Coder 480B_.
-
-   ```txt
-   /models
-   ```
 
 ---
 

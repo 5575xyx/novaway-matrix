@@ -48,73 +48,6 @@ Możesz dostosować podstawowy adres URL dla dowolnego dostawcy, ustawiając opc
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen to lista modeli dostarczonych przez zespół novaway, które zostały
-przetestowane i zweryfikowane, aby dobrze współpracować z novaway. [Dowiedz się więcej](/docs/zen).
-
-:::tip
-Jeśli jesteś nowy, zalecamy rozpoczęcie od NovaWay Zen.
-:::
-
-1. Uruchom polecenie `/connect` w TUI, wybierz `NovaWay Zen` i przejdź do [novaway.ai/auth](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Zaloguj się, dodaj szczegóły rozliczeniowe i skopiuj klucz API.
-
-3. Wklej swój klucz API.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Uruchom `/models` w TUI, aby zobaczyć listę zalecanych przez nas modeli.
-
-   ```txt
-   /models
-   ```
-
-Działa jak każdy inny dostawca w novaway i jest całkowicie opcjonalny w użyciu.
-
----
-
-## NovaWay Go
-
-NovaWay Go to tani plan subskrypcji, który zapewnia niezawodny dostęp do popularnych modeli open coding dostarczanych przez zespół novaway, które zostały przetestowane i zweryfikowane pod kątem dobrej współpracy z novaway.
-
-1. Uruchom polecenie `/connect` w TUI, wybierz `NovaWay Go` i przejdź do [novaway.ai/auth](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Zaloguj się, dodaj szczegóły rozliczeniowe i skopiuj klucz API.
-
-3. Wklej swój klucz API.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Uruchom `/models` w TUI, aby zobaczyć listę zalecanych przez nas modeli.
-
-   ```txt
-   /models
-   ```
-
-Działa jak każdy inny dostawca w novaway i jest całkowicie opcjonalny w użyciu.
-
----
-
 ## Katalog
 
 Przyjrzyjmy się szczegółowo niektórym dostawcom. Jeśli chcesz dodać dostawcę do
@@ -755,7 +688,7 @@ to store token in novaway auth storage.
 
 :::note[compliance note]
 novaway używa małego modelu do niektórych zadań AI, takich jak generowanie tytułu sesji.
-Domyślnie jest skonfigurowany do używania gpt-5-nano, hostowanego przez Zen. Aby zablokować novaway
+Domyślnie jest skonfigurowany do używania gpt-5-nano. Aby zablokować novaway
 aby używać tylko własnej instancji hostowanej przez GitLab, dodaj następujące elementy do pliku
 `novaway.json` plik. Zalecane jest również wyłączenie udostępniania sesji.
 
@@ -1393,35 +1326,6 @@ Zalecamy zarejestrowanie się w [ChatGPT Plus lub Pro](https://chatgpt.com/prici
 ##### Użycie kluczy API
 
 Jeśli posiadasz już klucz API, możesz wybrać opcję **Wprowadź klucz API ręcznie** i wkleić go w terminalu.
-
----
-
-### NovaWay Zen
-
-NovaWay Zen to lista przetestowanych i zweryfikowanych modeli udostępniona przez zespół novaway. [Dowiedz się więcej](/docs/zen).
-
-1. Zaloguj się do **<a href={console}>NovaWay Zen</a>** i kliknij **Utwórz klucz API**.
-
-2. Uruchom polecenie `/connect` i wyszukaj **NovaWay Zen**.
-
-   ```txt
-   /connect
-   ```
-
-3. Wprowadź klucz API novaway.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Uruchom polecenie `/models`, aby wybrać model taki jak _Qwen 3 Coder 480B_.
-
-   ```txt
-   /models
-   ```
 
 ---
 

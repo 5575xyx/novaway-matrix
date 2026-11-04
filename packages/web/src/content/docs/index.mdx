@@ -79,15 +79,11 @@ You can also install it with the following commands:
 For the best experience on Windows, we recommend using [Windows Subsystem for Linux (WSL)](/docs/windows-wsl). It provides better performance and full compatibility with NovaWay's features.
 :::
 
-
-
 - **Using NPM**
 
   ```bash
   npm install -g xymt-novaway
   ```
-
-
 
 Support for installing NovaWay on Windows using Bun is currently in progress.
 
@@ -99,19 +95,13 @@ You can also grab the binary from the [Releases](https://github.com/5575xyx/nova
 
 With NovaWay you can use any LLM provider by configuring their API keys.
 
-If you are new to using LLM providers, we recommend using [NovaWay Zen](/docs/zen).
-It's a curated list of models that have been tested and verified by the NovaWay
-team.
-
-1. Run the `/connect` command in the TUI, select novaway, and head to [novaway.ai/auth](https://novaway.ai/auth).
+1. Run the `/connect` command in the TUI and pick a provider.
 
    ```txt
    /connect
    ```
 
-2. Sign in, add your billing details, and copy your API key.
-
-3. Paste your API key.
+2. Follow the prompts to sign in or paste an API key.
 
    ```txt
    ┌ API key
@@ -120,7 +110,8 @@ team.
    └ enter
    ```
 
-Alternatively, you can select one of the other providers. [Learn more](/docs/providers#directory).
+If your build ships with the built-in gateway, it's ready to use without any
+setup. Otherwise pick any provider from the [directory](/docs/providers#directory).
 
 ---
 

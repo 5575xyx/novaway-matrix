@@ -48,73 +48,6 @@ config.
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen, novaway ekibi tarafından sağlanan modellerin bir listesidir.
-novaway ile iyi çalıştığı test edilip doğrulandı. [Daha fazla bilgi](/docs/zen).
-
-:::tip
-Yeniyseniz NovaWay Zen ile başlamanızı öneririz.
-:::
-
-1. TUI'de `/connect` komutunu çalıştırın, novaway'u seçin ve [novaway.ai/auth](https://novaway.ai/auth)'ye gidin.
-
-   ```txt
-   /connect
-   ```
-
-2. Oturum açın, fatura ayrıntılarınızı ekleyin ve API anahtarınızı kopyalayın.
-
-3. API anahtarınızı yapıştırın.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Önerdiğimiz modellerin listesini görmek için TUI'de `/models` komutunu çalıştırın.
-
-   ```txt
-   /models
-   ```
-
-novaway'daki diğer sağlayıcılar gibi çalışır ve kullanımı tamamen isteğe bağlıdır.
-
----
-
-## NovaWay Go
-
-NovaWay Go, novaway ile iyi çalıştığı test edilmiş ve doğrulanmış, novaway ekibi tarafından sağlanan popüler açık kodlama modellerine güvenilir erişim sağlayan düşük maliyetli bir abonelik planıdır.
-
-1. TUI'de `/connect` komutunu çalıştırın, `NovaWay Go`'yu seçin ve [novaway.ai/auth](https://opencode.ai/zen) adresine gidin.
-
-   ```txt
-   /connect
-   ```
-
-2. Oturum açın, fatura ayrıntılarınızı ekleyin ve API anahtarınızı kopyalayın.
-
-3. API anahtarınızı yapıştırın.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Önerdiğimiz modellerin listesini görmek için TUI'de `/models` komutunu çalıştırın.
-
-   ```txt
-   /models
-   ```
-
-novaway'daki diğer sağlayıcılar gibi çalışır ve kullanımı tamamen isteğe bağlıdır.
-
----
-
 ## Dizin
 
 Sağlayıcılardan bazılarına ayrıntılı olarak bakalım. Bir sağlayıcı eklemek istiyorsanız
@@ -757,7 +690,7 @@ to store token in novaway auth storage.
 
 :::note[uyumluluk notu]
 novaway, oturum başlığını oluşturmak gibi bazı AI görevleri için küçük bir model kullanır.
-Varsayılan olarak Zen tarafından barındırılan gpt-5-nano'yu kullanacak şekilde yapılandırılmıştır. novaway'u kilitlemek için
+Varsayılan olarak gpt-5-nano'yu kullanacak şekilde yapılandırılmıştır. novaway'u kilitlemek için
 yalnızca kendi GitLab tarafından barındırılan örneğinizi kullanmak için aşağıdakileri ekleyin:
 `novaway.json` dosyası. Ayrıca oturum paylaşımını devre dışı bırakmanız da önerilir.
 
@@ -1395,35 +1328,6 @@ Ollama Cloud'u novaway ile kullanmak için:
 ##### API anahtarlarını kullanma
 
 Zaten bir API anahtarınız varsa, **API Anahtarını Manuel Olarak Girin** seçeneğini seçip terminalinize yapıştırabilirsiniz.
-
----
-
-### NovaWay Zen
-
-NovaWay Zen, novaway ekibinin test edip doğruladığı modellerin bir listesidir. [Daha fazla bilgi](/docs/zen).
-
-1. **<a href={console}>NovaWay Zen</a>**'de oturum açın ve **API Anahtarı Oluştur**'u tıklayın.
-
-2. `/connect` komutunu çalıştırın ve **NovaWay Zen**'i arayın.
-
-   ```txt
-   /connect
-   ```
-
-3. novaway API anahtarınızı girin.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. _Qwen 3 Coder 480B_ gibi bir model seçmek için `/models` komutunu çalıştırın.
-
-   ```txt
-   /models
-   ```
 
 ---
 

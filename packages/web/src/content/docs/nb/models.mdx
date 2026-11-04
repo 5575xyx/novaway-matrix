@@ -58,7 +58,7 @@ NovaWay-konfigurasjon.
 }
 ```
 
-Her er hele ID `provider_id/model_id`. For eksempel, hvis du bruker [NovaWay Zen](/docs/zen), vil du bruke `novaway/gpt-5.1-codex` for GPT 5.1 Codex.
+Her er hele ID `provider_id/model_id`. For eksempel, hvis du bruker [OpenAI](/docs/providers), vil du bruke `openai/gpt-5.1-codex` for GPT 5.1 Codex.
 
 Hvis du har konfigurert en [egendefinert leverandør](/docs/providers#custom), er `provider_id` nøkkelen fra `provider`-delen av konfigurasjonen din, og `model_id` er nøkkelen fra `provider.models`.
 
@@ -111,7 +111,7 @@ Du kan også definere tilpassede varianter som utvider de innebygde. Varianter l
 {
   "$schema": "https://novaway.ai/config.json",
   "provider": {
-    "opencode": {
+    "openai": {
       "models": {
         "gpt-5": {
           "variants": {

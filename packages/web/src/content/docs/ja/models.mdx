@@ -56,7 +56,7 @@ NovaWay は [AI SDK](https://ai-sdk.dev/) および [Models.dev](https://models.
 }
 ```
 
-ここでの完全な ID は `provider_id/model_id` です。たとえば、[NovaWay Zen](/docs/zen) を使用している場合、GPT 5.1 Codex には `novaway/gpt-5.1-codex` を使用します。
+ここでの完全な ID は `provider_id/model_id` です。たとえば、[OpenAI](/docs/providers) を使用している場合、GPT 5.1 Codex には `openai/gpt-5.1-codex` を使用します。
 
 [カスタムプロバイダー](/docs/providers#custom) を構成している場合、`provider_id` は構成の `provider` 部分のキーであり、`model_id` は `provider.models` のキーです。
 
@@ -109,7 +109,7 @@ config を通じてモデルのオプションをグローバルに設定でき�
 {
   "$schema": "https://novaway.ai/config.json",
   "provider": {
-    "opencode": {
+    "openai": {
       "models": {
         "gpt-5": {
           "variants": {

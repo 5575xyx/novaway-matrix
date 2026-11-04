@@ -48,75 +48,6 @@ Du kan tilpasse base-URL-en for enhver leverandør ved å angi alternativet `bas
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen er en liste over modeller levert av NovaWay-teamet som har vært
-testet og verifisert for å fungere godt med NovaWay. [Finn ut mer](/docs/zen).
-
-:::tip
-Hvis du er ny, anbefaler vi å starte med NovaWay Zen.
-:::
-
-1. Kjør kommandoen `/connect` i TUI, velg `NovaWay Zen` og gå til [novaway.ai/auth](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Logg på, legg til faktureringsdetaljene dine og kopier API-nøkkelen.
-
-3. Lim inn API-nøkkelen.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Kjør `/models` i TUI for å se listen over modeller vi anbefaler.
-
-   ```txt
-   /models
-   ```
-
-Det fungerer som alle andre leverandører i NovaWay og er helt valgfritt å bruke.
-
----
-
-## NovaWay Go
-
-NovaWay Go er en lavpris abonnementsplan som gir pålitelig tilgang til populære åpne kodemodeller levert av NovaWay-teamet som har vært
-testet og verifisert for å fungere godt med NovaWay.
-
-1. Kjør kommandoen `/connect` i TUI, velg `NovaWay Go`, og gå til [novaway.ai/auth](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Logg på, legg til faktureringsdetaljene dine og kopier API-nøkkelen.
-
-3. Lim inn API-nøkkelen.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   │
-   └ enter
-   ```
-
-4. Kjør `/models` i TUI for å se listen over modeller vi anbefaler.
-
-   ```txt
-   /models
-   ```
-
-Det fungerer som alle andre leverandører i NovaWay og er helt valgfritt å bruke.
-
----
-
 ## Katalog
 
 La oss se på noen av leverandørene i detalj. Hvis du vil legge til en leverandør til
@@ -757,7 +688,7 @@ for å lagre token i NovaWay auth-lagring.
 
 :::note[Merknad om samsvar]
 NovaWay bruker en liten modell for noen AI oppgaver som å generere økttittelen.
-Den er konfigurert til å bruke gpt-5-nano som standard, hostet av Zen. For å låse NovaWay
+Den er konfigurert til å bruke gpt-5-nano som standard. For å låse NovaWay
 for kun å bruke din egen GitLab-hostede forekomst, legg til følgende i din
 `novaway.json` fil. Det anbefales også å deaktivere øktdeling.
 
@@ -1396,35 +1327,6 @@ Vi anbefaler at du registrerer deg for [ChatGPT Plus eller Pro](https://chatgpt.
 ##### Bruke API-nøkler
 
 Hvis du allerede har en API-nøkkel, kan du velge **Angi API-nøkkel manuelt** og lime den inn i terminalen.
-
----
-
-### NovaWay Zen
-
-NovaWay Zen er en liste over testede og verifiserte modeller levert av NovaWay-teamet. [Finn ut mer](/docs/zen).
-
-1. Logg på **<a href={console}>NovaWay Zen</a>** og klikk på **Create API Key**.
-
-2. Kjør kommandoen `/connect` og søk etter **NovaWay Zen**.
-
-   ```txt
-   /connect
-   ```
-
-3. Skriv inn NovaWay API-nøkkelen.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Kjør kommandoen `/models` for å velge en modell som _Qwen 3 Coder 480B_.
-
-   ```txt
-   /models
-   ```
 
 ---
 

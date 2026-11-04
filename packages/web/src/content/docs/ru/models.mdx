@@ -58,7 +58,7 @@ novaway использует [AI SDK](https://ai-sdk.dev/) и [Models.dev](https
 }
 ```
 
-Здесь полный идентификатор `provider_id/model_id`. Например, если вы используете [NovaWay Zen](/docs/zen), вы должны использовать `novaway/gpt-5.1-codex` для кодекса GPT 5.1.
+Здесь полный идентификатор `provider_id/model_id`. Например, если вы используете [OpenAI](/docs/providers), вы должны использовать `openai/gpt-5.1-codex` для кодекса GPT 5.1.
 
 Если вы настроили [пользовательский поставщик](/docs/providers#custom), `provider_id` — это ключ из части `provider` вашей конфигурации, а `model_id` — это ключ из `provider.models`.
 
@@ -111,7 +111,7 @@ novaway использует [AI SDK](https://ai-sdk.dev/) и [Models.dev](https
 {
   "$schema": "https://novaway.ai/config.json",
   "provider": {
-    "opencode": {
+    "openai": {
       "models": {
         "gpt-5": {
           "variants": {

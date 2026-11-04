@@ -58,7 +58,7 @@ novaway yapılandırması
 }
 ```
 
-Burada tam kimlik `provider_id/model_id`'dir. Örneğin, [NovaWay Zen](/docs/zen) kullanıyorsanız, GPT 5.1 Codex için `novaway/gpt-5.1-codex` kullanırsınız.
+Burada tam kimlik `provider_id/model_id`'dir. Örneğin, [OpenAI](/docs/providers) kullanıyorsanız, GPT 5.1 Codex için `openai/gpt-5.1-codex` kullanırsınız.
 
 Bir [custom provider](/docs/providers#custom) yapılandırılmışsa, `provider_id`, performansınızın `provider` bölümünden gelen anahtardır ve `model_id`, `provider.models`'den gelen anahtardır.
 
@@ -111,7 +111,7 @@ Ayrıca yerleşik çeşitleri genişleten özel varyantlar da tanımlayabilirsin
 {
   "$schema": "https://novaway.ai/config.json",
   "provider": {
-    "opencode": {
+    "openai": {
       "models": {
         "gpt-5": {
           "variants": {

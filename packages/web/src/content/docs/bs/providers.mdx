@@ -48,73 +48,6 @@ Možete prilagoditi osnovni URL za bilo kojeg provajdera postavljanjem opcije `b
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen je lista modela koje je obezbedio NovaWay tim koji su bili
-testirano i potvrđeno da dobro radi sa NovaWay. [Saznajte više](/docs/zen).
-
-:::tip
-Ako ste novi, preporučujemo da počnete sa NovaWay Zen.
-:::
-
-1. Pokrenite naredbu `/connect` u TUI-u, odaberite novaway i idite na [novaway.ai/auth](https://novaway.ai/auth).
-
-```txt
-   /connect
-```
-
-2. Prijavite se, dodajte svoje detalje naplate i kopirajte svoj API ključ.
-
-3. Zalijepite svoj API ključ.
-
-```txt
-   ┌ API key
-   │
-   │
-   └ enter
-```
-
-4. Pokrenite `/models` u TUI da vidite listu modela koje preporučujemo.
-
-```txt
-   /models
-```
-
-Radi kao i svaki drugi provajder u NovaWay i potpuno je opcionalan za korištenje.
-
----
-
-## NovaWay Go
-
-NovaWay Go je jeftin plan pretplate koji pruža pouzdan pristup popularnim modelima otvorenog kodiranja koje pruža NovaWay tim i koji su testirani i verificirani da dobro rade s NovaWay-om.
-
-1. Pokrenite naredbu `/connect` u TUI-u, odaberite `NovaWay Go` i idite na [novaway.ai/auth](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Prijavite se, dodajte svoje detalje naplate i kopirajte svoj API ključ.
-
-3. Zalijepite svoj API ključ.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Pokrenite naredbu `/models` u TUI da vidite listu modela koje preporučujemo.
-
-   ```txt
-   /models
-   ```
-
-Radi kao i svaki drugi provajder u NovaWay i potpuno je opcionalan za korištenje.
-
----
-
 ## Direktorij
 
 Pogledajmo neke od provajdera detaljno. Ako želite dodati provajdera na
@@ -760,7 +693,7 @@ da pohrani token u novaway auth memoriju.
 
 :::note[Napomena o usklađenosti]
 NovaWay koristi mali model za neke AI zadatke kao što je generiranje naslova sesije.
-Podrazumevano je konfigurisan da koristi gpt-5-nano, a hostuje ga Zen. Da zaključate NovaWay
+Podrazumevano je konfigurisan da koristi gpt-5-nano. Da zaključate NovaWay
 da biste koristili samo svoju vlastitu instancu koju hostuje GitLab, dodajte sljedeće u svoju
 `novaway.json` fajl. Također se preporučuje da onemogućite dijeljenje sesije.
 
@@ -1399,35 +1332,6 @@ Preporučujemo da se prijavite za [ChatGPT Plus ili Pro](https://chatgpt.com/pri
 ##### Korištenje API ključeva
 
 Ako već imate API ključ, možete odabrati **Ručno unesite API ključ** i zalijepite ga u svoj terminal.
-
----
-
-### NovaWay Zen
-
-NovaWay Zen je lista testiranih i verifikovanih modela koju je obezbedio NovaWay tim. [Saznajte više](/docs/zen).
-
-1. Prijavite se na **<a href={console}>NovaWay Zen</a>** i kliknite na **Kreiraj API ključ**.
-
-2. Pokrenite naredbu `/connect` i potražite **NovaWay Zen**.
-
-```txt
-   /connect
-```
-
-3. Unesite svoj NovaWay API ključ.
-
-```txt
-   ┌ API key
-   │
-   │
-   └ enter
-```
-
-4. Pokrenite naredbu `/models` da odaberete model kao što je _Qwen 3 Coder 480B_.
-
-```txt
-   /models
-```
 
 ---
 

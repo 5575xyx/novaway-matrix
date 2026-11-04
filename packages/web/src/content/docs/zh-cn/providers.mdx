@@ -47,41 +47,6 @@ NovaWay 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.dev
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen 是由 NovaWay 团队提供的模型列表，这些模型已经过测试和验证，能够与 NovaWay 良好配合使用。[了解更多](/docs/zen)。
-
-:::tip
-如果你是新用户，我们建议从 NovaWay Zen 开始。
-:::
-
-1. 在 TUI 中执行 `/connect` 命令，选择 novaway，然后前往 [novaway.ai/auth](https://novaway.ai/auth)。
-
-   ```txt
-   /connect
-   ```
-
-2. 登录后添加账单信息，然后复制你的 API 密钥。
-
-3. 粘贴你的 API 密钥。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. 在 TUI 中执行 `/models` 查看我们推荐的模型列表。
-
-   ```txt
-   /models
-   ```
-
-它的使用方式与 NovaWay 中的其他提供商完全相同，且完全可选。
-
----
-
 ## 目录
 
 下面我们来详细了解一些提供商。如果你想将某个提供商添加到列表中，欢迎提交 PR。
@@ -727,7 +692,7 @@ GitLab Duo 通过 GitLab 的 Anthropic 代理提供具有原生工具调用能�
 ##### 自托管 GitLab
 
 :::note[合规说明]
-NovaWay 会使用一个小模型来执行部分 AI 任务，例如生成会话标题。默认情况下使用由 Zen 托管的 gpt-5-nano。如果你需要让 NovaWay 仅使用你自己的 GitLab 托管实例，请在 `novaway.json` 文件中添加以下内容。同时建议禁用会话共享。
+NovaWay 会使用一个小模型来执行部分 AI 任务，例如生成会话标题。默认情况下使用 gpt-5-nano。如果你需要让 NovaWay 仅使用你自己的 GitLab 托管实例，请在 `novaway.json` 文件中添加以下内容。同时建议禁用会话共享。
 
 ```json
 {
@@ -1357,35 +1322,6 @@ Ollama 可以自动为 NovaWay 进行配置。详见 [Ollama 集成文档](https
 ##### 使用 API 密钥
 
 如果你已经有 API 密钥，可以选择 **Manually enter API Key** 并将其粘贴到终端中。
-
----
-
-### NovaWay Zen
-
-NovaWay Zen 是由 NovaWay 团队提供的经过测试和验证的模型列表。[了解更多](/docs/zen)。
-
-1. 登录 **<a href={console}>NovaWay Zen</a>** 并点击 **Create API Key**。
-
-2. 执行 `/connect` 命令并搜索 **NovaWay Zen**。
-
-   ```txt
-   /connect
-   ```
-
-3. 输入你的 NovaWay API 密钥。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. 执行 `/models` 命令选择模型，例如 _Qwen 3 Coder 480B_。
-
-   ```txt
-   /models
-   ```
 
 ---
 

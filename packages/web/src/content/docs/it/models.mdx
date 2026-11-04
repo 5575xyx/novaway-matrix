@@ -57,7 +57,7 @@ Per impostarne uno come modello predefinito, puoi impostare la chiave `model` ne
 }
 ```
 
-Qui l'ID completo e `provider_id/model_id`. Per esempio, se usi [NovaWay Zen](/docs/zen), useresti `novaway/gpt-5.1-codex` per GPT 5.1 Codex.
+Qui l'ID completo e `provider_id/model_id`. Per esempio, se usi [OpenAI](/docs/providers), useresti `openai/gpt-5.1-codex` per GPT 5.1 Codex.
 
 Se hai configurato un [provider personalizzato](/docs/providers#custom), `provider_id` e la chiave nella sezione `provider` della config e `model_id` e la chiave in `provider.models`.
 
@@ -110,7 +110,7 @@ Puoi anche definire varianti personalizzate che estendono quelle integrate. Le v
 {
   "$schema": "https://novaway.ai/config.json",
   "provider": {
-    "opencode": {
+    "openai": {
       "models": {
         "gpt-5": {
           "variants": {

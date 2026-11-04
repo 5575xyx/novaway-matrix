@@ -46,73 +46,6 @@ Você pode personalizar a URL base para qualquer provedor definindo a opção `b
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen é uma lista de modelos fornecidos pela equipe do novaway que foram testados e verificados para funcionar bem com o novaway. [Saiba mais](/docs/zen).
-
-:::tip
-Se você é novo, recomendamos começar com o NovaWay Zen.
-:::
-
-1. Execute o comando `/connect` no TUI, selecione `NovaWay Zen` e acesse [opencode.ai/zen](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Faça login, adicione seus dados de cobrança e copie sua chave da API.
-
-3. Cole sua chave da API.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Execute `/models` no TUI para ver a lista de modelos que recomendamos.
-
-   ```txt
-   /models
-   ```
-
-Funciona como qualquer outro provedor no novaway e é completamente opcional.
-
----
-
-## NovaWay Go
-
-NovaWay Go é um plano de assinatura de baixo custo que fornece acesso confiável a modelos de codificação abertos populares fornecidos pela equipe do novaway que foram
-testados e verificados para funcionar bem com o novaway.
-
-1. Execute o comando `/connect` no TUI, selecione `NovaWay Go` e acesse [opencode.ai/zen](https://opencode.ai/zen).
-
-   ```txt
-   /connect
-   ```
-
-2. Faça login, adicione seus dados de cobrança e copie sua chave da API.
-
-3. Cole sua chave da API.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Execute `/models` no TUI para ver a lista de modelos que recomendamos.
-
-   ```txt
-   /models
-   ```
-
-Funciona como qualquer outro provedor no novaway e é completamente opcional.
-
----
-
 ## Diretório
 
 Vamos olhar alguns dos provedores em detalhes. Se você gostaria de adicionar um provedor à lista, sinta-se à vontade para abrir um PR.
@@ -759,7 +692,7 @@ armazenar o token no armazenamento de autenticação do novaway.
 
 :::note[nota de conformidade]
 novaway usa um pequeno modelo para algumas tarefas de AI, como gerar o título da sessão.
-Ele está configurado para usar gpt-5-nano por padrão, hospedado pela Zen. Para bloquear o novaway
+Ele está configurado para usar gpt-5-nano por padrão. Para bloquear o novaway
 para usar apenas sua própria instância hospedada do GitLab, adicione o seguinte ao seu
 arquivo `novaway.json`. Também é recomendado desativar o compartilhamento de sessões.
 
@@ -1396,35 +1329,6 @@ Recomendamos se inscrever para [ChatGPT Plus ou Pro](https://chatgpt.com/pricing
 ##### Usando chaves da API
 
 Se você já tiver uma chave da API, pode selecionar **Inserir chave da API manualmente** e colá-la no seu terminal.
-
----
-
-### NovaWay Zen
-
-NovaWay Zen é uma lista de modelos testados e verificados fornecidos pela equipe do novaway. [Saiba mais](/docs/zen).
-
-1. Faça login em **<a href={console}>NovaWay Zen</a>** e clique em **Criar Chave da API**.
-
-2. Execute o comando `/connect` e procure por **NovaWay Zen**.
-
-   ```txt
-   /connect
-   ```
-
-3. Insira sua chave da API do novaway.
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. Execute o comando `/models` para selecionar um modelo como _Qwen 3 Coder 480B_.
-
-   ```txt
-   /models
-   ```
 
 ---
 

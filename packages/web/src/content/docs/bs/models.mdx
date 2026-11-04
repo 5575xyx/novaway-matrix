@@ -53,7 +53,7 @@ NovaWay config.
 }
 ```
 
-Ovdje je puni ID `provider_id/model_id`. Na primjer, ako koristite [NovaWay Zen](/docs/zen), koristili biste `novaway/gpt-5.1-codex` za GPT 5.1 Codex.
+Ovdje je puni ID `provider_id/model_id`. Na primjer, ako koristite [OpenAI](/docs/providers), koristili biste `openai/gpt-5.1-codex` za GPT 5.1 Codex.
 Ako ste konfigurirali [prilagođenog provajdera](/docs/providers#custom), `provider_id` je ključ iz `provider` dijela vaše konfiguracije, a `model_id` je ključ iz `provider.models`.
 
 ---
@@ -103,7 +103,7 @@ Također možete definirati prilagođene varijante koje proširuju ugrađene. Va
 {
   "$schema": "https://novaway.ai/config.json",
   "provider": {
-    "opencode": {
+    "openai": {
       "models": {
         "gpt-5": {
           "variants": {

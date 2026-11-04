@@ -48,73 +48,6 @@ config.
 
 ---
 
-## NovaWay Zen
-
-NovaWay Zen は、NovaWay チームが提供するモデルのリストです。
-NovaWay で適切に動作することがテストおよび検証されています。 [詳細はこちら](/docs/zen)。
-
-:::tip
-初めての方は、NovaWay Zen から始めることをお勧めします。
-:::
-
-1. TUI で `/connect` コマンドを実行し、`NovaWay Zen` を選択して、[opencode.ai/zen](https://opencode.ai/zen) にアクセスします。
-
-   ```txt
-   /connect
-   ```
-
-2. サインインし、お支払いの詳細を追加し、API キーをコピーします。
-
-3. API キーを貼り付けます。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. TUI で `/models` を実行すると、推奨されるモデルのリストが表示されます。
-
-   ```txt
-   /models
-   ```
-
-これは NovaWay の他のプロバイダーと同様に機能し、使用は完全にオプションです。
-
----
-
-## NovaWay Go
-
-NovaWay Go は、NovaWay チームによって提供される、人気のあるオープンコーディングモデルへの信頼性の高いアクセスを提供する低コストのサブスクリプションプランです。これらは NovaWay でうまく機能することがテストおよび検証されています。
-
-1. TUI で `/connect` コマンドを実行し、`NovaWay Go` を選択して、[opencode.ai/zen](https://opencode.ai/zen) にアクセスします。
-
-   ```txt
-   /connect
-   ```
-
-2. サインインし、お支払いの詳細を追加し、API キーをコピーします。
-
-3. API キーを貼り付けます。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. TUI で `/models` を実行すると、推奨されるモデルのリストが表示されます。
-
-   ```txt
-   /models
-   ```
-
-これは NovaWay の他のプロバイダーと同様に機能し、使用は完全にオプションです。
-
----
-
 ## ディレクトリ
 
 いくつかのプロバイダーを詳しく見てみましょう。プロバイダーを追加したい場合は、
@@ -798,7 +731,7 @@ STACKIT AI Model Serving は、Llama、Mistral、Qwen などの LLM に焦点を
 
 :::note[コンプライアンスメモ]
 NovaWay は、セッションタイトルの生成などの一部の AI タスクに小規模なモデルを使用します。
-デフォルトでは、Zen によってホストされる gpt-5-nano を使用するように構成されています。 NovaWay をロックするには
+デフォルトでは、gpt-5-nano を使用するように構成されています。 NovaWay をロックするには
 自分の GitLab でホストされているインスタンスのみを使用するには、次の行を
 `novaway.json` ファイル。セッション共有を無効にすることもお勧めします。
 
@@ -1437,35 +1370,6 @@ NovaWay で Ollama Cloud を使用するには:
 ##### APIキーの使用
 
 すでに API キーをお持ちの場合は、**API キーを手動で入力** を選択し、ターミナルに貼り付けることができます。
-
----
-
-### NovaWay Zen
-
-NovaWay Zen は、NovaWay チームによって提供される、テストおよび検証されたモデルのリストです。 [詳細はこちら](/docs/zen)。
-
-1. **<a href={console}>NovaWay Zen</a>** にサインインし、**API キーの作成** をクリックします。
-
-2. `/connect` コマンドを実行し、**NovaWay Zen** を検索します。
-
-   ```txt
-   /connect
-   ```
-
-3. NovaWay API キーを入力します。
-
-   ```txt
-   ┌ API key
-   │
-   │
-   └ enter
-   ```
-
-4. `/models` コマンドを実行して、_Qwen 3 Coder 480B_ のようなモデルを選択します。
-
-   ```txt
-   /models
-   ```
 
 ---
 
