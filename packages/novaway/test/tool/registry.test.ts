@@ -348,7 +348,7 @@ describe("tool.registry", () => {
       const build = yield* agent.get("build")
       if (!build) throw new Error("build agent not found")
       const task = (yield* registry.tools({
-        providerID: ProviderID.NovaWay,
+        providerID: ProviderID.builtin,
         modelID: ModelID.make("test"),
         agent: build,
       })).find((tool) => tool.id === "task")
@@ -484,7 +484,7 @@ describe("tool.registry", () => {
 
       const agents = yield* Agent.Service
       const promptTools = yield* registry.tools({
-        providerID: ProviderID.NovaWay,
+        providerID: ProviderID.builtin,
         modelID: ModelID.make("test"),
         agent: yield* agents.defaultInfo(),
       })

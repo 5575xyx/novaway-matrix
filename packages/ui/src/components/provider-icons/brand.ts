@@ -31,9 +31,6 @@ export const PROVIDER_BRAND_COLORS: Record<string, string> = {
   siliconflow: "#7C3AED",
   "siliconflow-cn": "#7C3AED",
   nova: "#6B7280",
-  NovaWay: "#10B981",
-  "NovaWay-go": "#10B981",
-  novaway: "#10B981",
   sensenova: "#00A3FF",
   moark: "#3B82F6",
 
@@ -82,7 +79,7 @@ export const PROVIDER_BRAND_COLORS: Record<string, string> = {
   morgh: "#6366F1",
 }
 
-/** 忽略大小写的查表：图标 id 里 `NovaWay` 是大小写混排的。 */
+/** 忽略大小写的查表。 */
 function lookup(id: string) {
   if (PROVIDER_BRAND_COLORS[id]) return PROVIDER_BRAND_COLORS[id]
   const lower = id.toLowerCase()

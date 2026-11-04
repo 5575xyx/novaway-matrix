@@ -100,7 +100,6 @@ import {
   takeSidebar,
 } from "@/pages/session/live-follow"
 import { SessionDiffProvider, type SessionDiffStyle } from "@/context/session-diff"
-import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 
 const emptyUserMessages: UserMessage[] = []
 type FollowupItem = FollowupDraft & { id: string }
@@ -2202,8 +2201,6 @@ export default function Page() {
     if (scrollStateFrame !== undefined) cancelAnimationFrame(scrollStateFrame)
     if (fillFrame !== undefined) cancelAnimationFrame(fillFrame)
   })
-
-  useUsageExceededDialogs()
 
   const composerRegion = (options: {
     centered: boolean

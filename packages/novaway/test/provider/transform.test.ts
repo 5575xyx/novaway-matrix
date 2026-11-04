@@ -1780,9 +1780,9 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
   })
 
   test("preserves itemId and reasoningEncryptedContent when store=false even when not openai", () => {
-    const zenModel = {
+    const otherProviderModel = {
       ...openaiModel,
-      providerID: "zen",
+      providerID: "custom",
     }
     const msgs = [
       {
@@ -1811,7 +1811,7 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
       },
     ] as any[]
 
-    const result = ProviderTransform.message(msgs, zenModel, { store: false }) as any[]
+    const result = ProviderTransform.message(msgs, otherProviderModel, { store: false }) as any[]
 
     expect(result).toHaveLength(1)
     expect(result[0].content[0].providerOptions?.openai?.itemId).toBe("rs_123")

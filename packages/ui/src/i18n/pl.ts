@@ -42,17 +42,6 @@ export const dict = {
   "ui.sessionTurn.retry.attempt": "próba #{{attempt}}",
   "ui.sessionTurn.retry.attemptLine": "{{line}} - próba #{{attempt}}",
   "ui.sessionTurn.retry.geminiHot": "gemini jest teraz mocno przeciążony",
-  "ui.sessionTurn.error.freeUsageExceeded": "Przekroczono limit darmowego użytkowania",
-  "ui.sessionTurn.error.addCredits": "Dodaj kredyty",
-
-  "dialog.usageExceeded.freeTier.title": "Osiągnięto limit darmowy",
-  "dialog.usageExceeded.freeTier.description":
-    "Subskrybuj NovaWay Go, aby uzyskać niezawodny dostęp do najlepszych modeli open source, od $5/miesiąc.",
-  "dialog.usageExceeded.freeTier.actionLabel": "Subskrybuj",
-  "dialog.usageExceeded.accountRateLimit.title": "Osiągnięto limit Go",
-  "dialog.usageExceeded.accountRateLimit.description":
-    "Osiągnięto limit użycia. Aby kontynuować korzystanie z tego modelu teraz, włącz użycie z dostępnego salda",
-  "dialog.usageExceeded.accountRateLimit.actionLabel": "Otwórz ustawienia",
 
   "ui.sessionTurn.status.delegating": "Delegowanie pracy",
   "ui.sessionTurn.status.planning": "Planowanie kolejnych kroków",

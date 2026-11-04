@@ -49,17 +49,6 @@ export const dict = {
   "ui.sessionTurn.retry.attempt": "deneme #{{attempt}}",
   "ui.sessionTurn.retry.attemptLine": "{{line}} - deneme #{{attempt}}",
   "ui.sessionTurn.retry.geminiHot": "gemini şu anda aşırı yoğun",
-  "ui.sessionTurn.error.freeUsageExceeded": "Ücretsiz kullanım aşıldı",
-  "ui.sessionTurn.error.addCredits": "Kredi ekle",
-
-  "dialog.usageExceeded.freeTier.title": "Ücretsiz sınıra ulaşıldı",
-  "dialog.usageExceeded.freeTier.description":
-    "En iyi açık kaynak modellere güvenilir erişim için NovaWay Go'ya abone olun. Aylık $5'tan başlar.",
-  "dialog.usageExceeded.freeTier.actionLabel": "Abone ol",
-  "dialog.usageExceeded.accountRateLimit.title": "Go sınırına ulaşıldı",
-  "dialog.usageExceeded.accountRateLimit.description":
-    "Kullanım sınırına ulaşıldı. Bu modeli şimdi kullanmaya devam etmek için mevcut bakiyenizden kullanımı etkinleştirin",
-  "dialog.usageExceeded.accountRateLimit.actionLabel": "Ayarları aç",
 
   "ui.sessionTurn.status.delegating": "Görev devrediliyor",
   "ui.sessionTurn.status.planning": "Sonraki adımlar planlanıyor",

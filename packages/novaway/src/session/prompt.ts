@@ -3222,7 +3222,7 @@ ${text}
       return yield* loop({ sessionID, resume: true, reason })
     })
 
-    // 在已配置的提供方中挑选一个支持图片输入的模型，优先同提供方，其次 NovaWay，最后任意提供方。
+    // 在已配置的提供方中挑选一个支持图片输入的模型，优先同提供方，其次内置网关，最后任意提供方。
     const findVisionModel = Effect.fn("SessionPrompt.findVisionModel")(function* (preferred: Provider.Model) {
       const providers = yield* provider.list()
       const matches: Array<{ providerID: ProviderID; model: Provider.Model }> = []
@@ -3237,7 +3237,7 @@ ${text}
         items.sort((a, b) => (b.model.limit?.context ?? 0) - (a.model.limit?.context ?? 0))[0]?.model
       return (
         best(matches.filter((item) => item.providerID === preferred.providerID)) ??
-        best(matches.filter((item) => item.providerID === ProviderID.make("novaway"))) ??
+        best(matches.filter((item) => item.providerID === ProviderID.builtin)) ??
         best(matches)
       )
     })

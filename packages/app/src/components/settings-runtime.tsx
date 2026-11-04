@@ -3147,8 +3147,8 @@ export const SettingsRules: Component<{ directory?: string }> = (props) => {
     if (first) return { providerID: provider.id, modelID: first.id }
   }
   const defaultProjectInstructionModel = () => {
-    const NovaWay = firstProviderModel("NovaWay")
-    if (NovaWay) return NovaWay
+    const builtin = firstProviderModel("builtin")
+    if (builtin) return builtin
     const configured = configState().model?.split("/")
     if (configured?.[0] && configured[1]) {
       const model = { providerID: configured[0], modelID: configured[1] }

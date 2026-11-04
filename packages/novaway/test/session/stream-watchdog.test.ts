@@ -145,11 +145,11 @@ describe("stream-watchdog", () => {
       name: "UnknownError",
       data: { message: error instanceof Error ? error.message : String(error) },
     })
-    expect(SessionRetry.retryable(parse(idle), "test")).toMatchObject({ kind: "transport" })
-    expect(SessionRetry.retryable(parse(new StreamWatchdog.EmptyStream()), "test")).toMatchObject({
+    expect(SessionRetry.retryable(parse(idle))).toMatchObject({ kind: "transport" })
+    expect(SessionRetry.retryable(parse(new StreamWatchdog.EmptyStream()))).toMatchObject({
       kind: "transport",
     })
-    expect(SessionRetry.retryable(parse(new StreamWatchdog.IncompleteStream()), "test")).toMatchObject({
+    expect(SessionRetry.retryable(parse(new StreamWatchdog.IncompleteStream()))).toMatchObject({
       kind: "transport",
     })
   })

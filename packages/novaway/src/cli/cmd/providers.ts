@@ -460,10 +460,6 @@ export const ProvidersLoginCommand = effectCmd({
       )
     }
 
-    if (provider === "novaway") {
-      yield* Prompt.log.info("Create an api key at https://novaway.ai/auth")
-    }
-
     if (provider === "vercel") {
       yield* Prompt.log.info("You can create an api key at https://vercel.link/ai-gateway-token")
     }

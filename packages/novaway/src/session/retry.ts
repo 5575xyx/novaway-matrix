@@ -7,9 +7,7 @@ import { describeError } from "@/util/error"
 
 export type Err = ReturnType<NamedError["toObject"]>
 
-export const GO_UPSELL_MESSAGE = "Free usage exceeded, subscribe to Go"
-export const GO_UPSELL_URL = "https://novaway.ai/go"
-export type RetryReason = "free_tier_limit" | "account_rate_limit" | (string & {})
+export type RetryReason = string
 
 /**
  * 错误分类，决定「还能重试几次」。
@@ -176,7 +174,7 @@ export function isOverload(error: Err) {
   return /overload|resource[_ ]exhausted|capacity/i.test(raw)
 }
 
-export function retryable(error: Err, provider: string) {
+export function retryable(error: Err): Retryable | undefined {
   // context overflow errors should not be retried
   if (MessageV2.ContextOverflowError.isInstance(error)) return undefined
   if (MessageV2.APIError.isInstance(error)) {
@@ -209,40 +207,6 @@ export function retryable(error: Err, provider: string) {
         ? `公共免费通道今日额度已用完，${resetIn} 后重置；可先切换其他模型`
         : "公共免费通道今日额度已用完，每天重置；可先切换其他模型"
       return { kind: "rate_limit", message }
-    }
-    if (error.data.responseBody?.includes("GoUsageLimitError")) {
-      const body = parseJSON(error.data.responseBody)
-      const workspace = str(body?.metadata?.workspace)
-      const limitName = str(body?.metadata?.limitName)
-      const retryAfter = num(error.data.responseHeaders?.["retry-after"])
-      const resetIn = iife(() => {
-        if (retryAfter === undefined) return ""
-        const seconds = Math.max(0, Math.ceil(retryAfter))
-        const days = Math.floor(seconds / 86_400)
-        const hours = Math.floor((seconds % 86_400) / 3_600)
-        const minutes = Math.ceil((seconds % 3_600) / 60)
-        const unit = (value: number, name: string) => `${value} ${name}${value === 1 ? "" : "s"}`
-
-        if (days > 0) return hours > 0 ? `${unit(days, "day")} ${unit(hours, "hour")}` : unit(days, "day")
-        if (hours > 0) return minutes > 0 ? `${unit(hours, "hour")} ${unit(minutes, "minute")}` : unit(hours, "hour")
-        return minutes > 0 ? unit(minutes, "minute") : "less than a minute"
-      })
-
-      const message = `${limitName ? `${limitName} usage limit` : "Usage limit"} reached. It will reset in ${resetIn}. To continue using this model now, enable usage from your available balance`
-
-      const link = `https://novaway.ai/workspace/${workspace}/go`
-      return {
-        kind: "rate_limit",
-        message: `${message} - ${link}`,
-        action: {
-          reason: "account_rate_limit",
-          provider,
-          title: "Go limit reached",
-          message,
-          label: "open settings",
-          link,
-        },
-      }
     }
     // 过载单独归类：连续几次过载就停止重试，而不是按 5xx 一直等到次数上限。
     // CC 的 `is529Error` 覆盖的正是这条路径（`MAX_529_RETRIES = 3`）。
@@ -323,7 +287,7 @@ export function policy(opts: {
   return Schedule.fromStepWithMetadata(
     Effect.succeed((meta: Schedule.InputMetadata<unknown>) => {
       const error = opts.parse(meta.input)
-      const retry = retryable(error, opts.provider)
+      const retry = retryable(error)
       const state = opts.tracker
       if (state) {
         state.attempts = meta.attempt

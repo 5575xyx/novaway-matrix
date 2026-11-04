@@ -52,17 +52,6 @@ export const dict: Record<string, string> = {
   "ui.sessionTurn.retry.attempt": "attempt #{{attempt}}",
   "ui.sessionTurn.retry.attemptLine": "{{line}} - attempt #{{attempt}}",
   "ui.sessionTurn.retry.geminiHot": "gemini is way too hot right now",
-  "ui.sessionTurn.error.freeUsageExceeded": "Free usage exceeded",
-  "ui.sessionTurn.error.addCredits": "Add credits",
-
-  "dialog.usageExceeded.freeTier.title": "Free limit reached",
-  "dialog.usageExceeded.freeTier.description":
-    "Subscribe to NovaWay Go for reliable access to the best open-source models, starting at $5/month.",
-  "dialog.usageExceeded.freeTier.actionLabel": "Subscribe",
-  "dialog.usageExceeded.accountRateLimit.title": "Go limit reached",
-  "dialog.usageExceeded.accountRateLimit.description":
-    "Usage limit reached. To continue using this model now, enable usage from your available balance",
-  "dialog.usageExceeded.accountRateLimit.actionLabel": "Open settings",
 
   "ui.sessionTurn.status.delegating": "Delegating work",
   "ui.sessionTurn.status.planning": "Planning next steps",

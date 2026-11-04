@@ -399,7 +399,7 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
 }
 
 export function webSearchEnabled(providerID: ProviderID, flags = { exa: false, parallel: false }) {
-  return providerID === ProviderID.NovaWay || flags.exa || flags.parallel
+  return providerID === ProviderID.builtin || flags.exa || flags.parallel
 }
 
 type TaskDef = Tool.InferDef<typeof TaskTool>

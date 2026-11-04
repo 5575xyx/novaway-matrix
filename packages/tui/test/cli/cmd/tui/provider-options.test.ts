@@ -11,7 +11,7 @@ describe("providerOptions", () => {
   })
 
   test("does not use Other as the generic provider category", () => {
-    expect(providerOptions([{ id: "mistral", name: "Mistral" }])[0]?.category).toBe("提供商")
+    expect(providerOptions([{ id: "together", name: "Together" }])[0]?.category).toBe("提供商")
   })
 
   test("keeps popular providers first and sorts the rest alphabetically", () => {
@@ -20,10 +20,10 @@ describe("providerOptions", () => {
         { id: "openai", name: "OpenAI" },
         { id: "custom-z", name: "Zebra Provider" },
         { id: "anthropic", name: "Anthropic" },
-        { id: "mistral", name: "Mistral" },
+        { id: "together", name: "Together" },
         { id: "aws", name: "AWS Bedrock" },
       ]).map((option) => option.value),
-    ).toEqual(["openai", "anthropic", "aws", "mistral", "custom-z", "__NOVAWAY_custom_provider__"])
+    ).toEqual(["openai", "anthropic", "aws", "together", "custom-z", "__NOVAWAY_custom_provider__"])
   })
 
   test("does not collide with a configured provider named other", () => {
@@ -31,16 +31,16 @@ describe("providerOptions", () => {
     expect(new Set(values).size).toBe(values.length)
   })
 
-  test("curates free-tier providers into a dedicated section right after NovaWay", () => {
+  test("curates free-tier providers into a dedicated section at the top", () => {
     const options = providerOptions([
       { id: "openai", name: "OpenAI" },
       { id: "sensenova", name: "SenseNova (China)" },
-      { id: "NovaWay", name: "NovaWay" },
+      { id: "anthropic", name: "Anthropic" },
     ])
     expect(options.map((option) => option.value)).toEqual([
-      "NovaWay",
       "sensenova",
       "openai",
+      "anthropic",
       "__NOVAWAY_custom_provider__",
     ])
     const sense = options.find((option) => option.value === "sensenova")!
@@ -50,17 +50,16 @@ describe("providerOptions", () => {
 
   test("marks every curated free provider with the free category and tagline", () => {
     const ids = [
-      "sensenova",
       "modelscope",
-      "iflowcn",
-      "openrouter",
+      "sensenova",
       "zhipuai",
-      "agnes",
+      "openrouter",
+      "kilo",
       "google",
+      "siliconflow-cn",
+      "agnes",
       "groq",
       "nvidia",
-      "kilo",
-      "siliconflow-cn",
     ]
     const options = providerOptions(ids.map((id) => ({ id, name: id })))
     for (const id of ids) {

@@ -14,14 +14,8 @@ describe("provider brand colors", () => {
     expect(providerBrandColor("minimax-cn")).toBe(PROVIDER_BRAND_COLORS.minimax)
   })
 
-  test("matches mixed-case icon ids like NovaWay", () => {
-    expect(providerBrandColor("NovaWay")).toBe("#10B981")
-    expect(providerBrandColor("NovaWay-go")).toBe("#10B981")
-    expect(providerBrandColor("novaway")).toBe("#10B981")
-  })
-
-  test("keeps SenseNova distinct from NovaWay even when they share an icon", () => {
-    expect(providerBrandColor("sensenova")).not.toBe(providerBrandColor("novaway"))
+  test("matches ids case-insensitively", () => {
+    expect(providerBrandColor("DeepSeek")).toBe("#4D6BFE")
   })
 
   test("returns undefined for unknown providers", () => {

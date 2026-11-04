@@ -1697,9 +1697,9 @@ async function defaultModel(config: ACPConfig, cwd?: string): Promise<{ provider
   const lastUsed = await lastUsedModel(sdk, directory, providers)
   if (lastUsed) return lastUsed
 
-  const NovaWayProvider = providers.find((p) => p.id === "novaway")
-  if (NovaWayProvider) {
-    const [best] = Provider.sort(Object.values(NovaWayProvider.models))
+  const builtinProvider = providers.find((p) => p.id === "builtin")
+  if (builtinProvider) {
+    const [best] = Provider.sort(Object.values(builtinProvider.models))
     if (best) {
       return {
         providerID: ProviderID.make(best.providerID),
