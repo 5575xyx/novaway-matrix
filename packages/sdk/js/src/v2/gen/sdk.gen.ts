@@ -346,6 +346,12 @@ import type {
   OfficeArtifactSaveResponses,
   OfficeDocumentEditErrors,
   OfficeDocumentEditResponses,
+  OfficeDocumentRedoErrors,
+  OfficeDocumentRedoResponses,
+  OfficeDocumentStateErrors,
+  OfficeDocumentStateResponses,
+  OfficeDocumentUndoErrors,
+  OfficeDocumentUndoResponses,
   OfficePlatformArtifactListErrors,
   OfficePlatformArtifactListResponses,
   OfficePlatformArtifactRestoreErrors,
@@ -6907,7 +6913,18 @@ export class Document extends HeyApiClient {
         }
         tag?: string
         align?: string
-        value?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        value?:
+          | number
+          | "NaN"
+          | "Infinity"
+          | "-Infinity"
+          | "Infinity"
+          | "-Infinity"
+          | "NaN"
+          | string
+          | {
+              formula: string
+            }
         start?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         end?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         patch?: {
@@ -6921,6 +6938,21 @@ export class Document extends HeyApiClient {
           clear?: boolean
         }
         html?: string
+        after?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        sheet?: string
+        cell?: string
+        range?: string
+        cellStyle?: {
+          bold?: boolean
+          italic?: boolean
+          underline?: boolean
+          color?: string
+          fill?: string
+          size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          format?: string
+          align?: "l" | "ctr" | "r"
+          wrap?: boolean
+        }
         descending?: boolean
         keepHardBreaks?: boolean
         marker?: string
@@ -6951,6 +6983,112 @@ export class Document extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Undo the last document edit
+   *
+   * Undo one step on the host-side document session and write the previous bytes back. Human UI and Agent edits share the same undo stack.
+   */
+  public undo<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeDocumentUndoResponses, OfficeDocumentUndoErrors, ThrowOnError>({
+      url: "/office/document-undo",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Redo a document edit
+   *
+   * Re-apply one undone step on the host-side document session.
+   */
+  public redo<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeDocumentRedoResponses, OfficeDocumentRedoErrors, ThrowOnError>({
+      url: "/office/document-redo",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Read document undo/redo state
+   *
+   * Report whether the current document has anything to undo or redo.
+   */
+  public state<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      path: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "path" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<OfficeDocumentStateResponses, OfficeDocumentStateErrors, ThrowOnError>({
+      url: "/office/document-state",
+      ...options,
+      ...params,
     })
   }
 }
@@ -9794,7 +9932,7 @@ export class Session3 extends HeyApiClient {
         providerID: string
         modelID: string
         variant?: string
-      } | null
+      }
       time?: {
         archived?: number
       }

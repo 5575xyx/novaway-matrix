@@ -8,7 +8,7 @@ export const VercelPlugin = PluginV2.define({
     return {
       "provider.update": Effect.fn(function* (evt) {
         if (evt.provider.id !== ProviderV2.ID.make("vercel")) return
-        evt.provider.options.headers["http-referer"] = "https://NovaWay.ai/"
+        evt.provider.options.headers["http-referer"] = "https://novaway.ai/"
         evt.provider.options.headers["x-title"] = "NovaWay"
       }),
       "aisdk.sdk": Effect.fn(function* (evt) {

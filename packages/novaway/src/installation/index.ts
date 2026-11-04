@@ -161,11 +161,8 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
       Effect.catch((err) => Effect.succeed({ code: 1, stdout: "", stderr: processErrorMessage(err) })),
     )
 
+    // 我们只通过 npm 发布；Homebrew 用户装的是社区 formula，升级直接交给 brew upgrade。
     const getBrewFormula = Effect.fnUntraced(function* () {
-      const tapFormula = yield* text(["brew", "list", "--formula", "anomalyco/tap/NovaWay"])
-      if (tapFormula.includes("novaway")) return "anomalyco/tap/NovaWay"
-      const coreFormula = yield* text(["brew", "list", "--formula", "novaway"])
-      if (coreFormula.includes("novaway")) return "novaway"
       return "novaway"
     })
 
@@ -303,22 +300,6 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
           case "brew": {
             const formula = yield* getBrewFormula()
             const env = { HOMEBREW_NO_AUTO_UPDATE: "1" }
-            if (formula.includes("/")) {
-              const tap = yield* run(["brew", "tap", "anomalyco/tap"], { env })
-              if (tap.code !== 0) {
-                upgradeResult = tap
-                break
-              }
-              const repo = yield* text(["brew", "--repo", "anomalyco/tap"])
-              const dir = repo.trim()
-              if (dir) {
-                const pull = yield* run(["git", "pull", "--ff-only"], { cwd: dir, env })
-                if (pull.code !== 0) {
-                  upgradeResult = pull
-                  break
-                }
-              }
-            }
             upgradeResult = yield* run(["brew", "upgrade", formula], { env })
             break
           }

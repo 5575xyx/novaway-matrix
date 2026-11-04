@@ -37,7 +37,7 @@
 ```tsx
 // packages/app/src/components/task-list.tsx
 import { Show, For, createMemo, createSignal, type JSX } from "solid-js"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Icon } from "@novaway/ui/icon"
 import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -511,7 +511,7 @@ git commit -m "feat: add todo height state management"
 
 ```tsx
 // 在 task-list.tsx 中添加分割线组件
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
+import { ResizeHandle } from "@novaway/ui/resize-handle"
 
 // 在 TaskList 组件中添加
 const layout = useLayout()

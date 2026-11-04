@@ -71,7 +71,7 @@ await Bun.file(`./dist/${NPM_PACKAGE_NAME}/package.json`).write(
         url: "https://github.com/5575xyx/novaway-matrix.git",
       },
       description: "AI coding agent built for the terminal - NovaWay Matrix Edition",
-      keywords: ["ai", "cli", "coding-assistant", "novaway", "opencode"],
+      keywords: ["ai", "cli", "coding-assistant", "novaway"],
     },
     null,
     2,

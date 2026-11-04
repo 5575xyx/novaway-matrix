@@ -32,9 +32,9 @@ describe("NvidiaPlugin", () => {
       const ignored = yield* plugin.trigger("provider.update", {}, { provider: provider("openrouter"), cancel: false })
       expect(result.provider.options.headers).toEqual({
         Existing: "value",
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
-        "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
+        "X-BILLING-INVOKE-ORIGIN": "NovaWay",
       })
       expect(ignored.provider.options.headers).toEqual({})
     }),
@@ -57,9 +57,9 @@ describe("NvidiaPlugin", () => {
       )
 
       expect(result.provider.options.headers).toEqual({
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
-        "X-BILLING-INVOKE-ORIGIN": "OpenCode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
+        "X-BILLING-INVOKE-ORIGIN": "NovaWay",
       })
     }),
   )
@@ -84,8 +84,8 @@ describe("NvidiaPlugin", () => {
       )
 
       expect(result.provider.options.headers).toEqual({
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
         "X-BILLING-INVOKE-ORIGIN": "CustomOrigin",
       })
     }),

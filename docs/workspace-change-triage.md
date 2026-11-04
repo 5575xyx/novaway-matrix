@@ -26,7 +26,7 @@
 | `.claude/test-node-download/`        | 下载的 node 二进制与缓存                              |
 | `.dbx-test-data/`                    | 本地测试数据                                          |
 | `packages/desktop/.tmp/`             | 编译缓存                                              |
-| `packages/opencode/.tmp-browser-qa/` | 浏览器验收临时截图                                    |
+| `packages/novaway/.tmp-browser-qa/` | 浏览器验收临时截图                                    |
 | `tmp-cdp-*.mjs` / `test-redirect.*`  | 临时脚本                                              |
 | `harness-tasks.json.corrupt-*`       | 损坏备份                                              |
 | `PowersNexus/`                       | 独立 git 仓库，应通过 remote 管理，勿整仓并入 novaway |

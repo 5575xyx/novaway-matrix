@@ -101,6 +101,8 @@ export async function handler(
     const ip = rawIp.includes(":") ? rawIp.split(":").slice(0, 4).join(":") : rawIp
     const rawZenApiKey = opts.parseApiKey(input.request.headers)
     const zenApiKey = rawZenApiKey === "public" ? undefined : rawZenApiKey
+    // 客户端契约：四个 `x-opencode-*` 头名由 NovaWay 客户端（packages/novaway 的 llm.ts）
+    // 固定发出，网关按原名读取后转发上游。改名会让会话/项目/来源统计静默丢失，别跟着品牌一起改。
     const sessionId = input.request.headers.get("x-opencode-session") ?? ""
     const requestId = input.request.headers.get("x-opencode-request") ?? ""
     const projectId = input.request.headers.get("x-opencode-project") ?? ""
@@ -472,7 +474,7 @@ export async function handler(
       throw new ModelError(
         `${t("zen.api.error.trialEnded", {
           model: modelData.name,
-          link: "https://opencode.ai/go",
+          link: "https://novaway.ai/go",
         })}`,
       )
 
@@ -764,7 +766,7 @@ export async function handler(
     // Validate lite subscription billing
     if (opts.modelList === "lite" && authInfo.billing.lite && authInfo.lite) {
       try {
-        const consoleGoUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/go`
+        const consoleGoUrl = `https://novaway.ai/workspace/${authInfo.workspaceID}/go`
         const sub = authInfo.lite
         const liteData = LiteData.getLimits()
 
@@ -835,8 +837,8 @@ export async function handler(
 
     // Validate pay as you go billing
     const billing = authInfo.billing
-    const billingUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/billing`
-    const membersUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/members`
+    const billingUrl = `https://novaway.ai/workspace/${authInfo.workspaceID}/billing`
+    const membersUrl = `https://novaway.ai/workspace/${authInfo.workspaceID}/members`
     if (!billing.paymentMethodID && billing.balance <= 0)
       throw new CreditsError(t("zen.api.error.noPaymentMethod", { billingUrl }))
     if (billing.balance <= 0) throw new CreditsError(t("zen.api.error.insufficientBalance", { billingUrl }))

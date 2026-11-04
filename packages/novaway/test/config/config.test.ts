@@ -1034,9 +1034,9 @@ test("migrates mode field to agent field", async () => {
 test("loads config from .novaway directory", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
-      const opencodeDir = path.join(dir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
-      const agentDir = path.join(opencodeDir, "agent")
+      const novawayDir = path.join(dir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
+      const agentDir = path.join(novawayDir, "agent")
       await fs.mkdir(agentDir, { recursive: true })
 
       await Filesystem.write(
@@ -1093,10 +1093,10 @@ Ordered permissions`,
 test("loads agents from .novaway/agents (plural)", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
-      const opencodeDir = path.join(dir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(dir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
 
-      const agentsDir = path.join(opencodeDir, "agents")
+      const agentsDir = path.join(novawayDir, "agents")
       await fs.mkdir(path.join(agentsDir, "nested"), { recursive: true })
 
       await Filesystem.write(
@@ -1144,10 +1144,10 @@ Nested agent prompt`,
 test("loads commands from .novaway/command (singular)", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
-      const opencodeDir = path.join(dir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(dir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
 
-      const commandDir = path.join(opencodeDir, "command")
+      const commandDir = path.join(novawayDir, "command")
       await fs.mkdir(path.join(commandDir, "nested"), { recursive: true })
 
       await Filesystem.write(
@@ -1189,10 +1189,10 @@ Nested command template`,
 test("loads commands from .novaway/commands (plural)", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
-      const opencodeDir = path.join(dir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(dir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
 
-      const commandsDir = path.join(opencodeDir, "commands")
+      const commandsDir = path.join(novawayDir, "commands")
       await fs.mkdir(path.join(commandsDir, "nested"), { recursive: true })
 
       await Filesystem.write(
@@ -1394,8 +1394,8 @@ test("merges plugin arrays from global and local configs", async () => {
     init: async (dir) => {
       // Create a nested project structure with local .novaway config
       const projectDir = path.join(dir, "project")
-      const opencodeDir = path.join(projectDir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(projectDir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
 
       // Global config with plugins
       await Filesystem.write(
@@ -1408,7 +1408,7 @@ test("merges plugin arrays from global and local configs", async () => {
 
       // Local .novaway config with different plugins
       await Filesystem.write(
-        path.join(opencodeDir, "novaway.json"),
+        path.join(novawayDir, "novaway.json"),
         JSON.stringify({
           $schema: "https://novaway.ai/config.json",
           plugin: ["local-plugin-1"],
@@ -1438,9 +1438,9 @@ test("merges plugin arrays from global and local configs", async () => {
 test("does not error when only custom agent is a subagent", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
-      const opencodeDir = path.join(dir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
-      const agentDir = path.join(opencodeDir, "agent")
+      const novawayDir = path.join(dir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
+      const agentDir = path.join(novawayDir, "agent")
       await fs.mkdir(agentDir, { recursive: true })
 
       await Filesystem.write(
@@ -1471,8 +1471,8 @@ test("merges instructions arrays from global and local configs", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       const projectDir = path.join(dir, "project")
-      const opencodeDir = path.join(projectDir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(projectDir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
 
       await Filesystem.write(
         path.join(dir, "novaway.json"),
@@ -1483,7 +1483,7 @@ test("merges instructions arrays from global and local configs", async () => {
       )
 
       await Filesystem.write(
-        path.join(opencodeDir, "novaway.json"),
+        path.join(novawayDir, "novaway.json"),
         JSON.stringify({
           $schema: "https://novaway.ai/config.json",
           instructions: ["local-instructions.md"],
@@ -1510,8 +1510,8 @@ test("deduplicates duplicate instructions from global and local configs", async 
   await using tmp = await tmpdir({
     init: async (dir) => {
       const projectDir = path.join(dir, "project")
-      const opencodeDir = path.join(projectDir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(projectDir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
 
       await Filesystem.write(
         path.join(dir, "novaway.json"),
@@ -1522,7 +1522,7 @@ test("deduplicates duplicate instructions from global and local configs", async 
       )
 
       await Filesystem.write(
-        path.join(opencodeDir, "novaway.json"),
+        path.join(novawayDir, "novaway.json"),
         JSON.stringify({
           $schema: "https://novaway.ai/config.json",
           instructions: ["duplicate.md", "local-only.md"],
@@ -1553,8 +1553,8 @@ test("deduplicates duplicate plugins from global and local configs", async () =>
     init: async (dir) => {
       // Create a nested project structure with local .novaway config
       const projectDir = path.join(dir, "project")
-      const opencodeDir = path.join(projectDir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(projectDir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
 
       // Global config with plugins
       await Filesystem.write(
@@ -1567,7 +1567,7 @@ test("deduplicates duplicate plugins from global and local configs", async () =>
 
       // Local .novaway config with some overlapping plugins
       await Filesystem.write(
-        path.join(opencodeDir, "novaway.json"),
+        path.join(novawayDir, "novaway.json"),
         JSON.stringify({
           $schema: "https://novaway.ai/config.json",
           plugin: ["duplicate-plugin", "local-plugin-1"],
@@ -2140,10 +2140,10 @@ test("local .novaway config can override MCP from project config", async () => {
         }),
       )
       // Local .novaway directory config enables it
-      const opencodeDir = path.join(dir, ".novaway")
-      await fs.mkdir(opencodeDir, { recursive: true })
+      const novawayDir = path.join(dir, ".novaway")
+      await fs.mkdir(novawayDir, { recursive: true })
       await Filesystem.write(
-        path.join(opencodeDir, "novaway.json"),
+        path.join(novawayDir, "novaway.json"),
         JSON.stringify({
           $schema: "https://novaway.ai/config.json",
           mcp: {
@@ -2475,8 +2475,8 @@ describe("deduplicatePluginOrigins", () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         const projectDir = path.join(dir, "project")
-        const opencodeDir = path.join(projectDir, ".novaway")
-        const pluginDir = path.join(opencodeDir, "plugin")
+        const novawayDir = path.join(projectDir, ".novaway")
+        const pluginDir = path.join(novawayDir, "plugin")
         await fs.mkdir(pluginDir, { recursive: true })
 
         await Filesystem.write(
@@ -2549,9 +2549,9 @@ describe("NOVAWAY_DISABLE_PROJECT_CONFIG", () => {
       await using tmp = await tmpdir({
         init: async (dir) => {
           // Create a .novaway directory with a command
-          const opencodeDir = path.join(dir, ".novaway", "command")
-          await fs.mkdir(opencodeDir, { recursive: true })
-          await Filesystem.write(path.join(opencodeDir, "test-cmd.md"), "# Test Command\nThis is a test command.")
+          const novawayDir = path.join(dir, ".novaway", "command")
+          await fs.mkdir(novawayDir, { recursive: true })
+          await Filesystem.write(path.join(novawayDir, "test-cmd.md"), "# Test Command\nThis is a test command.")
         },
       })
       await withTestInstance({

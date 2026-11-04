@@ -401,7 +401,7 @@ jobs:
           persist-credentials: false
 
       - name: Run NovaWay
-        uses: anomalyco/NovaWay/github@latest${envStr}
+        uses: 5575xyx/novaway-matrix/github@latest${envStr}
         with:
           model: ${provider}/${model}`,
           )

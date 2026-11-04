@@ -31,7 +31,7 @@ describe("CerebrasPlugin", () => {
           cancel: false,
         },
       )
-      expect(result.provider.options.headers).toEqual({ Existing: "1", "X-Cerebras-3rd-Party-Integration": "opencode" })
+      expect(result.provider.options.headers).toEqual({ Existing: "1", "X-Cerebras-3rd-Party-Integration": "NovaWay" })
     }),
   )
 

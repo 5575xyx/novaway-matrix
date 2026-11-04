@@ -114,7 +114,7 @@ export function createNovawayClient(config?: Config & { directory?: string; expe
   client.interceptors.response.use((response) => {
     const contentType = response.headers.get("content-type")
     if (contentType === "text/html")
-      throw new Error("Request is not supported by this version of OpenCode Server (Server responded with text/html)")
+      throw new Error("Request is not supported by this version of NovaWay Server (Server responded with text/html)")
 
     return response
   })

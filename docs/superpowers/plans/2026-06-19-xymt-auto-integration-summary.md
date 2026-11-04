@@ -2,14 +2,14 @@
 
 ## 项目概述
 
-成功将 XYMT-AUTO 项目的自动发布功能（小红书、公众号）集成到 opencode 的 Pulse 助手面板中。
+成功将 XYMT-AUTO 项目的自动发布功能（小红书、公众号）集成到 novaway 的 Pulse 助手面板中。
 
 ## 完成的工作
 
 ### 1. MCP 服务器配置
 
-- ✅ 配置小红书 MCP 服务器到 opencode（使用 Docker）
-- ✅ 配置微信公众号 MCP 服务器到 opencode（使用 npm）
+- ✅ 配置小红书 MCP 服务器到 novaway（使用 Docker）
+- ✅ 配置微信公众号 MCP 服务器到 novaway（使用 npm）
 
 ### 2. 代理集成
 
@@ -37,8 +37,8 @@
 
 ### 2. 代理相关
 
-- `packages/opencode/src/agent/agent.ts` - 更新 pulse-orchestrator 代理配置
-- `packages/opencode/src/agent/prompt/pulse-orchestrator.txt` - 更新代理提示
+- `packages/novaway/src/agent/agent.ts` - 更新 pulse-orchestrator 代理配置
+- `packages/novaway/src/agent/prompt/pulse-orchestrator.txt` - 更新代理提示
 
 ### 3. UI 组件
 
@@ -170,4 +170,4 @@
 
 ## 总结
 
-本次集成成功将 XYMT-AUTO 的发布功能集成到 opencode 中，为用户提供了便捷的多平台内容发布能力。通过 MCP 服务器架构，实现了灵活的工具扩展，为后续功能添加奠定了基础。
+本次集成成功将 XYMT-AUTO 的发布功能集成到 novaway 中，为用户提供了便捷的多平台内容发布能力。通过 MCP 服务器架构，实现了灵活的工具扩展，为后续功能添加奠定了基础。

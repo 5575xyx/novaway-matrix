@@ -22,11 +22,11 @@
 
 | 区                           | 文件                                                                                  | 改动类型 | 责任                                                                                                                                                                                                                                                                                        |
 | ---------------------------- | ------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 服务端 - prompt 数据         | `packages/opencode/src/session/system.ts`                                             | 修改     | 新增 `availableAgents` 函数,扩展 `Interface`                                                                                                                                                                                                                                                |
-| 服务端 - prompt 拼装         | `packages/opencode/src/session/prompt.ts`                                             | 修改     | 在 `Effect.all` 加 `availableAgents`、在 `system` 数组里加条目                                                                                                                                                                                                                              |
-| 服务端 - orchestrator prompt | `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 重写     | 删 Phase 1-4 + 硬编码列表,改写为调度协议                                                                                                                                                                                                                                                    |
-| 服务端 - 测试                | `packages/opencode/test/session/system.test.ts`                                       | 修改     | 新增 `availableAgents` 测试                                                                                                                                                                                                                                                                 |
-| 服务端 - 测试                | `packages/opencode/test/agent/agent.test.ts`                                          | 修改     | 更新 orchestrator 测试(适配新 prompt)                                                                                                                                                                                                                                                       |
+| 服务端 - prompt 数据         | `packages/novaway/src/session/system.ts`                                             | 修改     | 新增 `availableAgents` 函数,扩展 `Interface`                                                                                                                                                                                                                                                |
+| 服务端 - prompt 拼装         | `packages/novaway/src/session/prompt.ts`                                             | 修改     | 在 `Effect.all` 加 `availableAgents`、在 `system` 数组里加条目                                                                                                                                                                                                                              |
+| 服务端 - orchestrator prompt | `packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 重写     | 删 Phase 1-4 + 硬编码列表,改写为调度协议                                                                                                                                                                                                                                                    |
+| 服务端 - 测试                | `packages/novaway/test/session/system.test.ts`                                       | 修改     | 新增 `availableAgents` 测试                                                                                                                                                                                                                                                                 |
+| 服务端 - 测试                | `packages/novaway/test/agent/agent.test.ts`                                          | 修改     | 更新 orchestrator 测试(适配新 prompt)                                                                                                                                                                                                                                                       |
 | 客户端 - 工具函数            | `packages/app/src/context/local-agent.ts`                                             | 修改     | `forgeAgentForPrompt` 改写;`visibleAgentList` 加 `agents-orchestrator`;`shouldAutoBuildAfterForgePlan`/`hasForgeBuildIntent` 标记为 `@deprecated` 保留但不在新流程使用                                                                                                                      |
 | 客户端 - 默认 agent          | `packages/app/src/context/local.tsx`                                                  | 修改     | 初始 `current` 改成 forge 模式 → `agents-orchestrator`                                                                                                                                                                                                                                      |
 | 客户端 - 提交链              | `packages/app/src/components/prompt-input/submit.ts`                                  | 修改     | 删除 `onForgeAutoBuildPlan` 判断点(519-528)                                                                                                                                                                                                                                                 |
@@ -53,11 +53,11 @@
 
 **Files:**
 
-- Modify: `packages/opencode/src/session/system.ts:35-38, 47-77`
+- Modify: `packages/novaway/src/session/system.ts:35-38, 47-77`
 
 - [ ] **Step 1: 扩展 `Interface` 加 `availableAgents`**
 
-`packages/opencode/src/session/system.ts` 第 35-38 行,改为:
+`packages/novaway/src/session/system.ts` 第 35-38 行,改为:
 
 ```ts
 export interface Interface {
@@ -69,7 +69,7 @@ export interface Interface {
 
 - [ ] **Step 2: 在 layer 里 import Agent.Service 并实现 `availableAgents`**
 
-`packages/opencode/src/session/system.ts` 第 1-17 行的 import 改为:
+`packages/novaway/src/session/system.ts` 第 1-17 行的 import 改为:
 
 ```ts
 import { Context, Effect, Layer } from "effect"
@@ -96,7 +96,7 @@ import { Skill } from "@/skill"
 
 - [ ] **Step 3: 在 layer body 里 yield AgentService 并实现 `availableAgents`**
 
-`packages/opencode/src/session/system.ts` 第 42-80 行 `Layer.effect(Service, Effect.gen(...))` 改为:
+`packages/novaway/src/session/system.ts` 第 42-80 行 `Layer.effect(Service, Effect.gen(...))` 改为:
 
 ```ts
 export const layer = Layer.effect(
@@ -172,7 +172,7 @@ export const layer = Layer.effect(
 - [ ] **Step 4: 验证 typecheck**
 
 ```bash
-cd packages/opencode && bun typecheck
+cd packages/novaway && bun typecheck
 ```
 
 Expected: 通过,无新增 TS 错误。
@@ -180,7 +180,7 @@ Expected: 通过,无新增 TS 错误。
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/opencode/src/session/system.ts
+git add packages/novaway/src/session/system.ts
 git commit -m "feat(system-prompt): inject available agents for orchestrator"
 ```
 
@@ -190,11 +190,11 @@ git commit -m "feat(system-prompt): inject available agents for orchestrator"
 
 **Files:**
 
-- Modify: `packages/opencode/src/session/prompt.ts:2134-2139, 2167`
+- Modify: `packages/novaway/src/session/prompt.ts:2134-2139, 2167`
 
 - [ ] **Step 1: 在 `Effect.all` 块加 `availableAgents` 元素**
 
-`packages/opencode/src/session/prompt.ts` 第 2134-2139 行:
+`packages/novaway/src/session/prompt.ts` 第 2134-2139 行:
 
 ```ts
 const [skills, availableAgents, env, instructions, modelMsgs] =
@@ -210,7 +210,7 @@ const [skills, availableAgents, env, instructions, modelMsgs] =
 
 - [ ] **Step 2: 在 `system` 数组里加 `availableAgents` 条目**
 
-`packages/opencode/src/session/prompt.ts` 第 2167 行:
+`packages/novaway/src/session/prompt.ts` 第 2167 行:
 
 ```ts
 const system = [...env, ...instructions, ...(skills ? [skills] : []), ...(availableAgents ? [availableAgents] : [])]
@@ -221,7 +221,7 @@ const system = [...env, ...instructions, ...(skills ? [skills] : []), ...(availa
 - [ ] **Step 3: 验证 typecheck**
 
 ```bash
-cd packages/opencode && bun typecheck
+cd packages/novaway && bun typecheck
 ```
 
 Expected: 通过。
@@ -229,7 +229,7 @@ Expected: 通过。
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/opencode/src/session/prompt.ts
+git add packages/novaway/src/session/prompt.ts
 git commit -m "feat(prompt): include available agents in orchestrator system prompt"
 ```
 
@@ -239,7 +239,7 @@ git commit -m "feat(prompt): include available agents in orchestrator system pro
 
 **Files:**
 
-- Modify: `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md`（整文件 367 行重写）
+- Modify: `packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md`（整文件 367 行重写）
 
 - [ ] **Step 1: 写新的 frontmatter**
 
@@ -316,7 +316,7 @@ vibe: 整个 AI 员工团队的中控调度。
 - [ ] **Step 3: 验证文件 markdown 格式**
 
 ```bash
-cd packages/opencode && bun -e "import('./src/agent/prompt/agency-agents.generated.ts').then(m => { const o = m.AGENCY_AGENT_SOURCES.find(s => s.id === 'agents-orchestrator'); console.log(o?.body.slice(0, 500)) })"
+cd packages/novaway && bun -e "import('./src/agent/prompt/agency-agents.generated.ts').then(m => { const o = m.AGENCY_AGENT_SOURCES.find(s => s.id === 'agents-orchestrator'); console.log(o?.body.slice(0, 500)) })"
 ```
 
 Expected: 输出的 markdown 以 `---\n` 开头,frontmatter 包含 `name: Agents Orchestrator` 和新的中文 `description`。
@@ -324,7 +324,7 @@ Expected: 输出的 markdown 以 `---\n` 开头,frontmatter 包含 `name: Agents
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md
+git add packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md
 git commit -m "refactor(orchestrator): rewrite prompt for dynamic agent dispatch"
 ```
 
@@ -336,11 +336,11 @@ git commit -m "refactor(orchestrator): rewrite prompt for dynamic agent dispatch
 
 **Files:**
 
-- Modify: `packages/opencode/test/session/system.test.ts`
+- Modify: `packages/novaway/test/session/system.test.ts`
 
 - [ ] **Step 1: 加 `Agent.Service` 的 mock 和新的 test case**
 
-`packages/opencode/test/session/system.test.ts` 第 43-57 行 testEffect 块改为:
+`packages/novaway/test/session/system.test.ts` 第 43-57 行 testEffect 块改为:
 
 ```ts
 import { Agent } from "../../src/agent/agent"
@@ -469,7 +469,7 @@ it.effect("availableAgents output is stable across calls", () =>
 - [ ] **Step 3: 跑 system 测试**
 
 ```bash
-cd packages/opencode && bun test test/session/system.test.ts --timeout 30000
+cd packages/novaway && bun test test/session/system.test.ts --timeout 30000
 ```
 
 Expected: 全部 PASS(3 个新增 + 1 个原有 skills)。
@@ -477,7 +477,7 @@ Expected: 全部 PASS(3 个新增 + 1 个原有 skills)。
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/opencode/test/session/system.test.ts
+git add packages/novaway/test/session/system.test.ts
 git commit -m "test(system): cover availableAgents for orchestrator"
 ```
 
@@ -485,11 +485,11 @@ git commit -m "test(system): cover availableAgents for orchestrator"
 
 **Files:**
 
-- Modify: `packages/opencode/test/agent/agent.test.ts:199-204`
+- Modify: `packages/novaway/test/agent/agent.test.ts:199-204`
 
 - [ ] **Step 1: 更新 prompt 内容断言**
 
-`packages/opencode/test/agent/agent.test.ts` 第 199-204 行,改为:
+`packages/novaway/test/agent/agent.test.ts` 第 199-204 行,改为:
 
 ```ts
 const orchestrator = yield * load((svc) => svc.get("agents-orchestrator"))
@@ -512,7 +512,7 @@ expect(orchestrator?.prompt).not.toContain("Phase 1: Project Analysis")
 - [ ] **Step 2: 跑 agent 测试**
 
 ```bash
-cd packages/opencode && bun test test/agent/agent.test.ts --timeout 30000
+cd packages/novaway && bun test test/agent/agent.test.ts --timeout 30000
 ```
 
 Expected: 全部 PASS。
@@ -520,7 +520,7 @@ Expected: 全部 PASS。
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/test/agent/agent.test.ts
+git add packages/novaway/test/agent/agent.test.ts
 git commit -m "test(agent): update orchestrator prompt assertions"
 ```
 
@@ -1066,7 +1066,7 @@ git commit -m "test(local): cover orchestrator in forge mode and new prompt rout
 
 - **不要重启服务**：AGENTS.md 禁止重启 app / server,实施后用户需要自己 reload。
 - **不要 commit 文档/计划文件**：本 plan 本身和更新后的 spec 不需要 commit,只 commit 代码改动。release notes / 用户指南是后续单独任务。
-- **前端 UI 改动不可见**：`opencode dev web` 代理到 `https://app.opencode.ai` 生产版本,本地 UI 改动需用户自己 build 才能看。typecheck 仍能保证代码正确性。
+- **前端 UI 改动不可见**：`novaway dev web` 代理到 `https://app.novaway.ai` 生产版本,本地 UI 改动需用户自己 build 才能看。typecheck 仍能保证代码正确性。
 - **forge 模式首次启动**：`local.tsx:114-122` createEffect 在 layout.mode 变化时才会重设 `current`;**首次进入 forge 模式**会触发一次重设,把 default build → agents-orchestrator。已经在 forge 模式但 store 里有 `build` 也会被覆盖。
 - **升级路径**：用户从旧版升级后,store 里持久化的 `current` 可能是 `build` 或 `plan`;Task 6 createEffect 会自动把 forge 模式重置为 `agents-orchestrator`,无需 migration。
 - **`autoAccept` 联动**：在 release notes 中显式说明"开启自动接受权限后,所有 task 派发的 sub-agent 操作会自动执行"。

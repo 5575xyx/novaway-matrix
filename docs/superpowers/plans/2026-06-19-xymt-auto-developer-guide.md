@@ -2,7 +2,7 @@
 
 ## 概述
 
-本指南介绍如何在 opencode 项目中集成和扩展 XYMT-AUTO 发布功能。
+本指南介绍如何在 novaway 项目中集成和扩展 XYMT-AUTO 发布功能。
 
 ## 架构概述
 
@@ -10,7 +10,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    opencode 应用                        │
+│                    novaway 应用                        │
 ├─────────────────────────────────────────────────────────┤
 │  Pulse 助手面板  │  发布面板  │  代理管理  │  配置管理  │
 ├─────────────────────────────────────────────────────────┤
@@ -56,7 +56,7 @@ bun install
 
 ```bash
 # 启动后端服务
-cd packages/opencode
+cd packages/novaway
 bun run --conditions=browser ./src/index.ts serve --port 4096
 
 # 启动前端服务
@@ -95,7 +95,7 @@ bun dev -- --port 4444
 
 ### 2. 代理配置
 
-**文件**: `packages/opencode/src/agent/agent.ts`
+**文件**: `packages/novaway/src/agent/agent.ts`
 
 ```typescript
 "pulse-orchestrator": {
@@ -184,7 +184,7 @@ func main() {
 }
 ```
 
-#### 1.2 注册到 opencode
+#### 1.2 注册到 novaway
 
 在 `novaway.json` 中添加配置：
 
@@ -227,7 +227,7 @@ const publish = async (accountId: string, input: any) => {
 
 #### 3.1 更新代理提示
 
-**文件**: `packages/opencode/src/agent/prompt/pulse-orchestrator.txt`
+**文件**: `packages/novaway/src/agent/prompt/pulse-orchestrator.txt`
 
 ```
 ## 发布工具
@@ -240,7 +240,7 @@ const publish = async (accountId: string, input: any) => {
 
 #### 3.2 更新代理权限
 
-**文件**: `packages/opencode/src/agent/agent.ts`
+**文件**: `packages/novaway/src/agent/agent.ts`
 
 ```typescript
 permission: Permission.merge(
@@ -262,7 +262,7 @@ permission: Permission.merge(
 
 ```bash
 # 运行单元测试
-cd packages/opencode
+cd packages/novaway
 bun test
 
 # 运行特定测试
@@ -296,11 +296,11 @@ docker logs <容器ID>
 pm2 logs wechat-mcp
 ```
 
-### 2. 查看 opencode 日志
+### 2. 查看 novaway 日志
 
 ```bash
 # 查看应用日志
-tail -f ~/.opencode/logs/opencode.log
+tail -f ~/.novaway/logs/novaway.log
 ```
 
 ### 3. 调试 MCP 工具调用

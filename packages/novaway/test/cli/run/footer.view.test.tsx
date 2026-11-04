@@ -51,7 +51,7 @@ function model(input: {
     providerID: "opencode",
     api: {
       id: "opencode",
-      url: "https://opencode.ai",
+      url: "https://novaway.ai",
       npm: "@ai-sdk/openai-compatible",
     },
     name: input.name,

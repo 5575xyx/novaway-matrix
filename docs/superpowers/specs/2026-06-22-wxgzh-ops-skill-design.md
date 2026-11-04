@@ -10,7 +10,7 @@
 
 ### 1.1 目标
 
-创建一个 opencode 内置 skill，实现微信公众号运营的全流程自动化，包括：
+创建一个 novaway 内置 skill，实现微信公众号运营的全流程自动化，包括：
 
 - AI 生成文章内容（文本 + 配图）
 - 自动发布到微信公众号草稿箱
@@ -34,7 +34,7 @@
 ### 2.1 目录结构
 
 ```
-packages/opencode/src/skill/prompt/wxgzh-ops/
+packages/novaway/src/skill/prompt/wxgzh-ops/
 ├── SKILL.md                    # 核心 skill 定义（~200行）
 ├── references/
 │   ├── content-generation.md   # AI 内容生成详细流程
@@ -330,7 +330,7 @@ permission: {
 
 ### 8.3 验证标准
 
-- [ ] Skill 可以被 opencode 正确加载
+- [ ] Skill 可以被 novaway 正确加载
 - [ ] 触发条件正确识别"公众号"相关请求
 - [ ] 内容生成流程正常工作
 - [ ] 配图生成流程正常工作
@@ -363,14 +363,14 @@ permission: {
 
 - XYMT-AUTO 项目 `WxGzhAssistant.tsx` 组件实现
 - XYMT-AUTO 项目 `handleWxGzhAutoSaveDraft()` 函数实现
-- opencode skill 系统文档
+- novaway skill 系统文档
 - 微信公众平台页面结构
 
 ### 10.2 相关文件
 
-- `packages/opencode/src/skill/index.ts` - Skill 核心服务
-- `packages/opencode/src/tool/skill.ts` - Skill 工具
-- `packages/opencode/src/session/system.ts` - 系统提示集成
+- `packages/novaway/src/skill/index.ts` - Skill 核心服务
+- `packages/novaway/src/tool/skill.ts` - Skill 工具
+- `packages/novaway/src/session/system.ts` - 系统提示集成
 - `XYMT-AUTO/src/views/account/components/WxGzhAssistant.tsx` - 参考实现
 - `XYMT-AUTO/src/views/account/index.tsx` - 参考实现
 

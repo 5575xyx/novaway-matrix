@@ -21,8 +21,8 @@ describe("VercelPlugin", () => {
       )
       expect(result.provider.options.headers).toEqual({
         Existing: "1",
-        "http-referer": "https://opencode.ai/",
-        "x-title": "opencode",
+        "http-referer": "https://novaway.ai/",
+        "x-title": "NovaWay",
       })
     }),
   )

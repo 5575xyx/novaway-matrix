@@ -29,8 +29,8 @@ This tracks legacy provider behavior from `packages/novaway/src/provider/provide
 - [x] GitLab token resolution.
 - [x] GitLab AI gateway headers.
 - [x] GitLab feature flags.
-- [x] Opencode unauthenticated paid-model filtering.
-- [x] Opencode public API key fallback.
+- [x] NovaWay unauthenticated paid-model filtering.
+- [x] NovaWay public API key fallback.
 
 ## Request Behavior
 
@@ -64,7 +64,7 @@ This tracks legacy provider behavior from `packages/novaway/src/provider/provide
 
 - [SKIP] Configured `small_model` selection — not porting config-driven selection to server-side v2 catalog.
 - [x] Provider-specific small model priority. Replaced by cheapest output cost selection.
-- [x] Opencode small model priority. Replaced by cheapest output cost selection.
+- [x] NovaWay small model priority. Replaced by cheapest output cost selection.
 - [x] GitHub Copilot small model priority. Replaced by cheapest output cost selection.
 - [x] Amazon Bedrock region-aware small model selection. Replaced by cheapest output cost selection.
 

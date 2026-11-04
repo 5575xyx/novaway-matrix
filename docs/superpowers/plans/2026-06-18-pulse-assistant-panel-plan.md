@@ -35,7 +35,7 @@
 
 ```tsx
 import { createSignal, onMount, Show } from "solid-js"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
+import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { persisted } from "@/utils/persist"
 ```
 

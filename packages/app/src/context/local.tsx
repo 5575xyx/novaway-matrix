@@ -321,7 +321,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           .update({
             directory: sdk.directory,
             sessionID: session,
-            model: item ? { providerID: item.providerID, modelID: item.modelID } : null,
+            // OpenAPI 生成器会丢掉 Schema.NullOr，但服务端确实接受 null（清掉固定模型）。
+            model: (item ? { providerID: item.providerID, modelID: item.modelID } : null) as never,
           })
           .catch(() => {
             // 老版本内核不认这个字段：静默忽略，退回到"下一轮才生效"。

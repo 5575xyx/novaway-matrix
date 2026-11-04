@@ -131,6 +131,8 @@ class TokenRefreshRequest extends Schema.Class<TokenRefreshRequest>("TokenRefres
   client_id: Schema.String,
 }) {}
 
+// 账号服务（Zen/Console 的 OAuth）里注册的客户端标识，服务端按这个名字登记；
+// 改成 NovaWay 会让 refresh token 校验失败，别跟着品牌一起改。
 const clientId = "opencode-cli"
 const eagerRefreshThreshold = Duration.minutes(5)
 const eagerRefreshThresholdMs = Duration.toMillis(eagerRefreshThreshold)

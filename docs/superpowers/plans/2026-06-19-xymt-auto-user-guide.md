@@ -2,13 +2,13 @@
 
 ## 概述
 
-本指南介绍如何使用 opencode 中集成的 XYMT-AUTO 发布功能，支持小红书和微信公众号的内容发布。
+本指南介绍如何使用 novaway 中集成的 XYMT-AUTO 发布功能，支持小红书和微信公众号的内容发布。
 
 ## 前置条件
 
 ### 1. 环境要求
 
-- opencode 已安装并运行
+- novaway 已安装并运行
 - Node.js 18+ 已安装
 - Docker 已安装（用于小红书 MCP 服务器）
 
@@ -42,7 +42,7 @@ export WECHAT_APP_ID=your_app_id
 export WECHAT_APP_SECRET=your_app_secret
 ```
 
-### 3. 配置 opencode
+### 3. 配置 novaway
 
 编辑 `novaway.json` 文件，添加 MCP 服务器配置：
 
@@ -71,16 +71,16 @@ export WECHAT_APP_SECRET=your_app_secret
 
 ## 使用指南
 
-### 1. 启动 opencode
+### 1. 启动 novaway
 
 ```bash
-# 启动 opencode
+# 启动 novaway
 bun dev
 ```
 
 ### 2. 进入 Pulse 模式
 
-1. 在 opencode 中选择 Pulse 模式
+1. 在 novaway 中选择 Pulse 模式
 2. 点击右侧的"AI 运营助手"面板
 3. 点击右上角的"发布"按钮
 
@@ -221,7 +221,7 @@ bun dev
 如果遇到问题，请：
 
 1. 查看本文档的常见问题部分
-2. 检查 opencode 日志
+2. 检查 novaway 日志
 3. 提交 Issue 到项目仓库
 
 ## 更新日志

@@ -79,21 +79,20 @@ function shouldUseCopilotResponsesApi(modelID: string): boolean {
   return Number(match[1]) >= 5 && !modelID.startsWith("gpt-5-mini")
 }
 
-// OpenCode identifier 格式：12 hex 时间戳 + 14 字母数字（与
-// opencode-dev/packages/schema/src/identifier.ts 一致）。Zen 服务端
-// 会对 x-opencode-session/x-opencode-request 做格式校验，普通 SHA1
-// hash 会被判定为非 OpenCode 客户端并返回 FreeTierError。
+// Zen 侧要求的 identifier 格式：12 hex 时间戳 + 14 字母数字。服务端会对
+// `x-opencode-session` / `x-opencode-request` 做格式校验，普通 SHA1 hash 会被
+// 判定为无效客户端并直接返回 FreeTierError —— 所以生成规则必须与上游一致。
 const NOVAWAY_ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-let opencodeIdLastTimestamp = 0
-let opencodeIdCounter = 0
-function opencodeIdentifier(): string {
+let zenClientIdLastTimestamp = 0
+let zenClientIdCounter = 0
+function zenClientIdentifier(): string {
   const ts = Date.now()
-  if (ts !== opencodeIdLastTimestamp) {
-    opencodeIdLastTimestamp = ts
-    opencodeIdCounter = 0
+  if (ts !== zenClientIdLastTimestamp) {
+    zenClientIdLastTimestamp = ts
+    zenClientIdCounter = 0
   }
-  opencodeIdCounter++
-  const current = BigInt(ts) * 0x1000n + BigInt(opencodeIdCounter)
+  zenClientIdCounter++
+  const current = BigInt(ts) * 0x1000n + BigInt(zenClientIdCounter)
   const value = ~current
   let time = ""
   for (let i = 0; i < 6; i++)
@@ -265,7 +264,7 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       //   - 无 Key 时不展示任何 Zen 模型
       //   - 不绕过 Zen 服务端的 FreeTierError（无论 Header / body 怎么改，
       //     服务端都会校验 OpenCode 客户端真实性，第三方伪装今日仍可能失效）
-      //   - 用户需到 https://opencode.ai 控制台获取真实 API Key 才能使用
+      //   - 用户需到 https://novaway.ai 控制台获取真实 API Key 才能使用
       //
       // 路线 B（备选）：伪装 OpenCode 官方客户端。完整版见 Git 历史，
       // 失效原因：Zen 服务端在 2026-09-18 后对/responses 端点收紧，
@@ -293,8 +292,8 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                   "User-Agent": `opencode/${InstallationVersion} ai-sdk/provider-utils/4.0.40 runtime/${runtime}`,
                   "x-opencode-client": "cli",
                   "x-opencode-project": "global",
-                  "x-opencode-session": `ses_${opencodeIdentifier()}`,
-                  "x-opencode-request": `msg_${opencodeIdentifier()}`,
+                  "x-opencode-session": `ses_${zenClientIdentifier()}`,
+                  "x-opencode-request": `msg_${zenClientIdentifier()}`,
                   Accept: "text/event-stream",
                 },
               },

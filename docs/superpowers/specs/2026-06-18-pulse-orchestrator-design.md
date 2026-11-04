@@ -49,7 +49,7 @@ pulse-orchestrator 汇总并返回给用户
 
 ### 4.1 Agent 定义
 
-在 `packages/opencode/src/agent/agent.ts` 中新增：
+在 `packages/novaway/src/agent/agent.ts` 中新增：
 
 ```typescript
 {
@@ -118,7 +118,7 @@ onUpdate((update) => {
 
 | 文件                                              | 变更内容                             |
 | ------------------------------------------------- | ------------------------------------ |
-| `packages/opencode/src/agent/agent.ts`            | 新增 `pulse-orchestrator` agent 定义 |
+| `packages/novaway/src/agent/agent.ts`            | 新增 `pulse-orchestrator` agent 定义 |
 | `packages/app/src/pages/pulse/PulseChatInput.tsx` | 默认选中 `pulse-orchestrator`        |
 | `packages/app/src/pages/pulse/PulseAssistant.tsx` | 新增状态显示逻辑                     |
 

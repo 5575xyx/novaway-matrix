@@ -17,7 +17,7 @@
 ## 非目标
 
 - 不新增 agent
-- 不动 opencode 服务端核心（agent 加载机制、prompt 主循环、task 工具）
+- 不动 novaway 服务端核心（agent 加载机制、prompt 主循环、task 工具）
 - 不改 mode 系统（zen/spark/pulse/future 保持不变）
 - 不改其他模式行为
 - 不重写 `task` 工具的权限弹窗（`ctx.ask` 行为保留）
@@ -37,27 +37,27 @@
 | `packages/app/src/pages/session/composer/session-composer-region.tsx`    | 272-278   | `<SessionPlanDecisionDock>` 渲染                                   |
 | `packages/app/src/pages/session/composer/session-plan-decision-dock.tsx` | 全文      | "规划蓝图已完成"提示框                                             |
 
-### opencode 原生调度机制（可复用）
+### novaway 原生调度机制（可复用）
 
 | 机制                                         | 位置                                            | 作用                                                                                                      |
 | -------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `task` 工具                                  | `packages/opencode/src/tool/task.ts:103`        | primary agent 委派任务给任意 agent（包括 primary 和 subagent）                                            |
-| `task_status` 工具                           | `packages/opencode/src/tool/task_status.ts`     | 轮询 / 阻塞后台任务                                                                                       |
-| `question` 工具                              | `packages/opencode/src/tool/question.ts`        | 需求澄清（所有 primary 默认 `allow`）                                                                     |
+| `task` 工具                                  | `packages/novaway/src/tool/task.ts:103`        | primary agent 委派任务给任意 agent（包括 primary 和 subagent）                                            |
+| `task_status` 工具                           | `packages/novaway/src/tool/task_status.ts`     | 轮询 / 阻塞后台任务                                                                                       |
+| `question` 工具                              | `packages/novaway/src/tool/question.ts`        | 需求澄清（所有 primary 默认 `allow`）                                                                     |
 | `subagent_type` 参数                         | `task.ts:139`                                   | `agent.get(params.subagent_type)`，**任意 agent 名均可**                                                  |
-| `SystemPrompt.skills`                        | `packages/opencode/src/session/system.ts:65-77` | system prompt 注入 skill 列表的模式可复用                                                                 |
+| `SystemPrompt.skills`                        | `packages/novaway/src/session/system.ts:65-77` | system prompt 注入 skill 列表的模式可复用                                                                 |
 | `Permission.deriveSubagentSessionPermission` | `subagent-permissions.ts:17-34`                 | subagent 默认 `task: "deny"`，orchestrator 作为 primary 可调 task 委派 subagent；subagent 不能再嵌套 task |
 
 ### 已存在的 `agents-orchestrator`
 
 | 属性   | 值                                                                                    | 位置                                         |
 | ------ | ------------------------------------------------------------------------------------- | -------------------------------------------- |
-| ID     | `agents-orchestrator`                                                                 | `packages/opencode/src/agent/agency.ts:5-12` |
+| ID     | `agents-orchestrator`                                                                 | `packages/novaway/src/agent/agency.ts:5-12` |
 | Mode   | `primary`                                                                             | `agency.ts:292`                              |
 | 显示名 | "Agent 编排总控"                                                                      | `agency.ts:38`                               |
 | 分类   | "专项能力"                                                                            | `agency.ts:23`                               |
 | 权限   | `*` allow + `question: "allow"`（继承 `defaults` 的 `*: allow`）                      | `agency.ts:297-303`                          |
-| Prompt | `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 367 行                                       |
+| Prompt | `packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 367 行                                       |
 
 ### `agents-orchestrator` 当前 prompt 的 3 个问题
 
@@ -85,7 +85,7 @@ agents.list() / agents.get(name)          (服务接口)
 
 ### 改动 1：重写 `agents-orchestrator.md`
 
-**位置**：`packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md`
+**位置**：`packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md`
 
 **新 prompt 结构**（要点，详细内容在实现时由 writing-plans 拆分）：
 
@@ -150,7 +150,7 @@ vibe: 整个 AI 员工团队的中控调度。
 
 ### 改动 2：system prompt 动态注入 agent 列表
 
-**位置**：`packages/opencode/src/session/system.ts:35-77`
+**位置**：`packages/novaway/src/session/system.ts:35-77`
 
 **新增** `availableAgents` 函数（接口扩展在 `system.ts:37`，实现在 system.ts body 内）：
 
@@ -171,7 +171,7 @@ availableAgents: Effect.fn("SystemPrompt.availableAgents")(function* (agent: Age
 })
 ```
 
-**对接**：`packages/opencode/src/session/prompt.ts:2134-2139` 是 `sys.skills(agent)` 和 `sys.environment(model)` 现有拼装点，`availableAgents` 需在此处加入。
+**对接**：`packages/novaway/src/session/prompt.ts:2134-2139` 是 `sys.skills(agent)` 和 `sys.environment(model)` 现有拼装点，`availableAgents` 需在此处加入。
 
 ### 改动 3：删除前端 forge 强制逻辑
 
@@ -241,7 +241,7 @@ const [store, setStore] = createStore<{
 10. system prompt 拼装：PROMPT_DEFAULT + ORCHESTRATOR_PROMPT + availableAgents 列表 + skills + environment
 11. orchestrator LLM 推理 → 读到 197 个 agent 列表 → 匹配"legal-compliance-checker"
 12. orchestrator 调 task(subagent_type="legal-compliance-checker", prompt="审这份合同...")
-13. task.ts:128 ctx.ask 弹"是否允许"（保留 opencode 原生权限弹窗）
+13. task.ts:128 ctx.ask 弹"是否允许"（保留 novaway 原生权限弹窗）
 14. 用户授权 → task.ts:139 agent.get("legal-compliance-checker") → sub-session 创建
 15. legal-compliance-checker 执行审查
 16. 结果返回 orchestrator → orchestrator 整合 → 回复用户
@@ -268,14 +268,14 @@ const [store, setStore] = createStore<{
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | `forgeAgentForPrompt` 改后行为：forge 模式非命令输入返回 current（不再 plan）          | `packages/app/src/context/local.test.ts`             |
 | `local.tsx` 初始 current：forge 模式 → `agents-orchestrator`，其他模式 → 原行为        | 新增 `packages/app/src/context/local.test.ts`        |
-| `SystemPrompt.availableAgents`：orchestrator agent 注入列表，其他 agent 注入 undefined | 新增 `packages/opencode/test/session/system.test.ts` |
+| `SystemPrompt.availableAgents`：orchestrator agent 注入列表，其他 agent 注入 undefined | 新增 `packages/novaway/test/session/system.test.ts` |
 
 ### 集成测试
 
 | 覆盖点                                                                                           | 文件                                                              |
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `agents-orchestrator` 加载新 prompt，prompt 包含 4 节（角色定位/调度协议/任务分类路由/工具约束） | `packages/opencode/test/agent/agent.test.ts:199` 现有 case 需更新 |
-| `agents.list()` 过滤 hidden 后的数量                                                             | `packages/opencode/test/agent/agent.test.ts`                      |
+| `agents-orchestrator` 加载新 prompt，prompt 包含 4 节（角色定位/调度协议/任务分类路由/工具约束） | `packages/novaway/test/agent/agent.test.ts:199` 现有 case 需更新 |
+| `agents.list()` 过滤 hidden 后的数量                                                             | `packages/novaway/test/agent/agent.test.ts`                      |
 
 ### E2E（手动 / Playwright）
 
@@ -304,11 +304,11 @@ const [store, setStore] = createStore<{
 
 ## 交付物
 
-- [ ] `packages/opencode/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` 重写
-- [ ] `packages/opencode/src/session/system.ts` 新增 `availableAgents`
-- [ ] `packages/opencode/src/session/prompt.ts` 调用 `availableAgents` 拼装 system prompt
-- [ ] `packages/opencode/test/agent/agent.test.ts` 更新相关 case
-- [ ] `packages/opencode/test/session/system.test.ts` 新增（可选）
+- [ ] `packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` 重写
+- [ ] `packages/novaway/src/session/system.ts` 新增 `availableAgents`
+- [ ] `packages/novaway/src/session/prompt.ts` 调用 `availableAgents` 拼装 system prompt
+- [ ] `packages/novaway/test/agent/agent.test.ts` 更新相关 case
+- [ ] `packages/novaway/test/session/system.test.ts` 新增（可选）
 - [ ] `packages/app/src/context/local-agent.ts` `forgeAgentForPrompt` 改写
 - [ ] `packages/app/src/context/local.tsx` 初始 current 逻辑
 - [ ] `packages/app/src/context/local.test.ts` 新增 / 更新

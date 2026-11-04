@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 创建一个 opencode 内置 skill，实现微信公众号运营的全流程自动化，包括 AI 生成文章内容（文本 + 配图）和自动发布到微信公众号草稿箱。
+**Goal:** 创建一个 novaway 内置 skill，实现微信公众号运营的全流程自动化，包括 AI 生成文章内容（文本 + 配图）和自动发布到微信公众号草稿箱。
 
-**Architecture:** 采用模块化 skill 设计，核心 SKILL.md 定义工作流程，参考文档提供详细操作指南，提示词文件定义 AI 交互格式。通过 opencode skill 系统注册，支持触发条件自动加载。
+**Architecture:** 采用模块化 skill 设计，核心 SKILL.md 定义工作流程，参考文档提供详细操作指南，提示词文件定义 AI 交互格式。通过 novaway skill 系统注册，支持触发条件自动加载。
 
 **Tech Stack:** Markdown (SKILL.md), YAML (frontmatter), OpenAI API (内容生成), Electron WebView (DOM 操作)
 
@@ -13,7 +13,7 @@
 ## 文件结构
 
 ```
-packages/opencode/src/skill/prompt/wxgzh-ops/
+packages/novaway/src/skill/prompt/wxgzh-ops/
 ├── SKILL.md                    # 核心 skill 定义
 ├── references/
 │   ├── content-generation.md   # AI 内容生成详细流程
@@ -31,14 +31,14 @@ packages/opencode/src/skill/prompt/wxgzh-ops/
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/` (directory)
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/` (directory)
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/prompts/` (directory)
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/` (directory)
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/references/` (directory)
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/prompts/` (directory)
 
 - [ ] **Step 1: 创建主目录**
 
 ```bash
-cd packages/opencode/src/skill/prompt
+cd packages/novaway/src/skill/prompt
 mkdir -p wxgzh-ops
 ```
 
@@ -63,7 +63,7 @@ Expected: 三个目录已创建
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/
+git add packages/novaway/src/skill/prompt/wxgzh-ops/
 git commit -m "chore: 创建 wxgzh-ops skill 目录结构"
 ```
 
@@ -73,7 +73,7 @@ git commit -m "chore: 创建 wxgzh-ops skill 目录结构"
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/SKILL.md`
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/SKILL.md`
 
 - [ ] **Step 1: 创建 SKILL.md 文件**
 
@@ -216,7 +216,7 @@ Expected: 文件内容完整，包含 frontmatter 和所有章节
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/SKILL.md
+git add packages/novaway/src/skill/prompt/wxgzh-ops/SKILL.md
 git commit -m "feat: 添加 wxgzh-ops skill 核心文件"
 ```
 
@@ -226,7 +226,7 @@ git commit -m "feat: 添加 wxgzh-ops skill 核心文件"
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/content-generation.md`
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/references/content-generation.md`
 
 - [ ] **Step 1: 创建 content-generation.md**
 
@@ -298,7 +298,7 @@ Expected: 文件内容完整，包含类型定义、映射表、规则说明
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/references/content-generation.md
+git add packages/novaway/src/skill/prompt/wxgzh-ops/references/content-generation.md
 git commit -m "docs: 添加内容生成参考文档"
 ```
 
@@ -308,7 +308,7 @@ git commit -m "docs: 添加内容生成参考文档"
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/image-generation.md`
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/references/image-generation.md`
 
 - [ ] **Step 1: 创建 image-generation.md**
 
@@ -365,7 +365,7 @@ Expected: 文件内容完整，包含配图规则、提示词构建、错误处�
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/references/image-generation.md
+git add packages/novaway/src/skill/prompt/wxgzh-ops/references/image-generation.md
 git commit -m "docs: 添加配图生成参考文档"
 ```
 
@@ -375,7 +375,7 @@ git commit -m "docs: 添加配图生成参考文档"
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/publishing-workflow.md`
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/references/publishing-workflow.md`
 
 - [ ] **Step 1: 创建 publishing-workflow.md**
 
@@ -462,7 +462,7 @@ Expected: 文件内容完整，包含前置检查、导航、填充、保存、�
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/references/publishing-workflow.md
+git add packages/novaway/src/skill/prompt/wxgzh-ops/references/publishing-workflow.md
 git commit -m "docs: 添加发布流程参考文档"
 ```
 
@@ -472,7 +472,7 @@ git commit -m "docs: 添加发布流程参考文档"
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/references/selectors-reference.md`
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/references/selectors-reference.md`
 
 - [ ] **Step 1: 创建 selectors-reference.md**
 
@@ -544,7 +544,7 @@ Expected: 文件内容完整，包含所有选择器和优先级说明
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/references/selectors-reference.md
+git add packages/novaway/src/skill/prompt/wxgzh-ops/references/selectors-reference.md
 git commit -m "docs: 添加 DOM 选择器参考文档"
 ```
 
@@ -554,7 +554,7 @@ git commit -m "docs: 添加 DOM 选择器参考文档"
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/prompts/article-system.txt`
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/prompts/article-system.txt`
 
 - [ ] **Step 1: 创建 article-system.txt**
 
@@ -597,7 +597,7 @@ Expected: 文件内容完整，包含系统提示词和所有要求
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/prompts/article-system.txt
+git add packages/novaway/src/skill/prompt/wxgzh-ops/prompts/article-system.txt
 git commit -m "feat: 添加文章生成系统提示词"
 ```
 
@@ -607,7 +607,7 @@ git commit -m "feat: 添加文章生成系统提示词"
 
 **Files:**
 
-- Create: `packages/opencode/src/skill/prompt/wxgzh-ops/prompts/image-prompt.txt`
+- Create: `packages/novaway/src/skill/prompt/wxgzh-ops/prompts/image-prompt.txt`
 
 - [ ] **Step 1: 创建 image-prompt.txt**
 
@@ -636,7 +636,7 @@ Expected: 文件内容完整，包含模板变量和所有要求
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/opencode/src/skill/prompt/wxgzh-ops/prompts/image-prompt.txt
+git add packages/novaway/src/skill/prompt/wxgzh-ops/prompts/image-prompt.txt
 git commit -m "feat: 添加图片生成提示词模板"
 ```
 
@@ -646,12 +646,12 @@ git commit -m "feat: 添加图片生成提示词模板"
 
 **Files:**
 
-- Modify: `packages/opencode/src/skill/index.ts` (if needed for registration)
+- Modify: `packages/novaway/src/skill/index.ts` (if needed for registration)
 
-- [ ] **Step 1: 运行 opencode 测试**
+- [ ] **Step 1: 运行 novaway 测试**
 
 ```bash
-cd packages/opencode
+cd packages/novaway
 bun test --filter wxgzh-ops
 ```
 
@@ -659,7 +659,7 @@ Expected: Skill 可以被正确加载
 
 - [ ] **Step 2: 手动测试触发条件**
 
-在 opencode 中输入：
+在 novaway 中输入：
 
 ```
 帮我写一篇公众号文章
@@ -707,7 +707,7 @@ git commit -m "docs: 更新 wxgzh-ops skill 文档"
 
 ## 验证清单
 
-- [ ] Skill 可以被 opencode 正确加载
+- [ ] Skill 可以被 novaway 正确加载
 - [ ] 触发条件正确识别"公众号"相关请求
 - [ ] 内容生成流程正常工作
 - [ ] 配图生成流程正常工作

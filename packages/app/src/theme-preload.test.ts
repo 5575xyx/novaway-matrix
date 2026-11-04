@@ -39,7 +39,7 @@ describe("theme preload", () => {
   })
 
   test("new keys win over legacy ones", () => {
-    localStorage.setItem("opencode-theme-id", "opencode")
+    localStorage.setItem("opencode-theme-id", "dracula")
     localStorage.setItem("novaway-theme-id", "nightowl")
 
     run()

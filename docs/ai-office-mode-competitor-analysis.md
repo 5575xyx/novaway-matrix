@@ -150,7 +150,7 @@ WPS AI 的核心经验是“任务路由”：不是让用户找一个万能 AI 
 NovaWay 当前已经具备一套可扩展的办公模式底座：
 
 - 后端有六个办公智能体：`office-document`、`office-ppt`、`office-meeting`、`office-knowledge`、`office-task`、`office-communication`。
-- 六个智能体对应六个办公 Skill，定义在 `packages/opencode/src/skill/index.ts`。
+- 六个智能体对应六个办公 Skill，定义在 `packages/novaway/src/skill/index.ts`。
 - 会话输入会自动注入当前办公场景的工作流、资料需求、交付产物、质量检查与记忆重点。
 - 办公回复使用“`# 办公产物`”与“`# 可沉淀记忆/可进化建议`”结构化契约，前端可以识别正文和记忆建议。
 - 前端已有办公产物解析、质量检查、Markdown 导出、DOCX 导出、PPTX 导出、HTML 导出。
@@ -167,7 +167,7 @@ NovaWay 当前已经具备一套可扩展的办公模式底座：
 - 办公产物解析：`packages/app/src/pages/session/office-artifact.ts`
 - 办公产物导出：`packages/app/src/pages/session/office-export.ts`
 - 办公质量检查：`packages/app/src/pages/session/office-quality.ts`
-- AI PPT 提示词：`packages/opencode/src/skill/prompt/office-ppt.md`
+- AI PPT 提示词：`packages/novaway/src/skill/prompt/office-ppt.md`
 
 ### 5.2 主要差距
 

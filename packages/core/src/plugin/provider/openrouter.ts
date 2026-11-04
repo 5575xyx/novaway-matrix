@@ -9,7 +9,7 @@ export const OpenRouterPlugin = PluginV2.define({
     return {
       "provider.update": Effect.fn(function* (evt) {
         if (evt.provider.id !== ProviderV2.ID.openrouter) return
-        evt.provider.options.headers["HTTP-Referer"] = "https://NovaWay.ai/"
+        evt.provider.options.headers["HTTP-Referer"] = "https://novaway.ai/"
         evt.provider.options.headers["X-Title"] = "NovaWay"
       }),
       "aisdk.sdk": Effect.fn(function* (evt) {

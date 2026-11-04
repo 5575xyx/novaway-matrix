@@ -42,9 +42,9 @@ describe("LLMGatewayPlugin", () => {
       )
       expect(result.provider.options.headers).toEqual({
         Existing: "value",
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
-        "X-Source": "opencode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
+        "X-Source": "NovaWay",
       })
       expect(ignored.provider.options.headers).toEqual({})
     }),

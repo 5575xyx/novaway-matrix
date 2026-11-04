@@ -15260,6 +15260,805 @@
         ]
       }
     },
+    "/office/document-edit": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.document.edit",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Edited document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "bytes": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "changed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "applied": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "canUndo": {
+                      "type": "boolean"
+                    },
+                    "canRedo": {
+                      "type": "boolean"
+                    },
+                    "undoLabel": {
+                      "type": "string"
+                    },
+                    "redoLabel": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path", "bytes", "changed", "applied", "canUndo", "canRedo"],
+                  "additionalProperties": false,
+                  "description": "Edited document"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Apply node-level operations to a DOCX / HTML / Markdown / plain-text file. Editing is surgical: only the touched paragraph or XML part is rewritten; untouched bytes are preserved. Human UI and Agent tools share the same operation vocabulary.",
+        "summary": "Edit a document by node",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "ops": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "op": {
+                          "type": "string"
+                        },
+                        "paragraph": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "block": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "style": {
+                          "type": "object",
+                          "properties": {
+                            "bold": {
+                              "type": "boolean"
+                            },
+                            "italic": {
+                              "type": "boolean"
+                            },
+                            "underline": {
+                              "type": "boolean"
+                            },
+                            "size": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "color": {
+                              "type": "string"
+                            },
+                            "align": {
+                              "type": "string",
+                              "enum": ["l", "ctr", "r", "just"]
+                            },
+                            "font": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "tag": {
+                          "type": "string"
+                        },
+                        "align": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            },
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "formula": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["formula"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "start": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "end": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "patch": {
+                          "type": "object",
+                          "properties": {
+                            "bold": {
+                              "type": "boolean"
+                            },
+                            "italic": {
+                              "type": "boolean"
+                            },
+                            "underline": {
+                              "type": "boolean"
+                            },
+                            "strikethrough": {
+                              "type": "boolean"
+                            },
+                            "color": {
+                              "type": "string"
+                            },
+                            "highlight": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "clear": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "html": {
+                          "type": "string"
+                        },
+                        "after": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "sheet": {
+                          "type": "string"
+                        },
+                        "cell": {
+                          "type": "string"
+                        },
+                        "range": {
+                          "type": "string"
+                        },
+                        "cellStyle": {
+                          "type": "object",
+                          "properties": {
+                            "bold": {
+                              "type": "boolean"
+                            },
+                            "italic": {
+                              "type": "boolean"
+                            },
+                            "underline": {
+                              "type": "boolean"
+                            },
+                            "color": {
+                              "type": "string"
+                            },
+                            "fill": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["NaN"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["-Infinity"]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "format": {
+                              "type": "string"
+                            },
+                            "align": {
+                              "type": "string",
+                              "enum": ["l", "ctr", "r"]
+                            },
+                            "wrap": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "descending": {
+                          "type": "boolean"
+                        },
+                        "keepHardBreaks": {
+                          "type": "boolean"
+                        },
+                        "marker": {
+                          "type": "string"
+                        },
+                        "indent": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["op"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["path", "ops"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.document.edit({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/office/document-undo": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.document.undo",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Undone document edit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "bytes": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "canUndo": {
+                      "type": "boolean"
+                    },
+                    "canRedo": {
+                      "type": "boolean"
+                    },
+                    "undoLabel": {
+                      "type": "string"
+                    },
+                    "redoLabel": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path", "bytes", "canUndo", "canRedo"],
+                  "additionalProperties": false,
+                  "description": "Undone document edit"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Undo one step on the host-side document session and write the previous bytes back. Human UI and Agent edits share the same undo stack.",
+        "summary": "Undo the last document edit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.document.undo({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/office/document-redo": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.document.redo",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Redone document edit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "bytes": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "canUndo": {
+                      "type": "boolean"
+                    },
+                    "canRedo": {
+                      "type": "boolean"
+                    },
+                    "undoLabel": {
+                      "type": "string"
+                    },
+                    "redoLabel": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path", "bytes", "canUndo", "canRedo"],
+                  "additionalProperties": false,
+                  "description": "Redone document edit"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Re-apply one undone step on the host-side document session.",
+        "summary": "Redo a document edit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.document.redo({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/office/document-state": {
+      "get": {
+        "tags": ["office"],
+        "operationId": "office.document.state",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document undo/redo state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "canUndo": {
+                      "type": "boolean"
+                    },
+                    "canRedo": {
+                      "type": "boolean"
+                    },
+                    "undoLabel": {
+                      "type": "string"
+                    },
+                    "redoLabel": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path", "canUndo", "canRedo"],
+                  "additionalProperties": false,
+                  "description": "Document undo/redo state"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Report whether the current document has anything to undo or redo.",
+        "summary": "Read document undo/redo state",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.office.document.state({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/office/pptx-edit": {
       "post": {
         "tags": ["office"],
@@ -21187,6 +21986,196 @@
         ]
       }
     },
+    "/platform/webview": {
+      "get": {
+        "tags": ["platform-webview"],
+        "operationId": "platformWebview.list",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending webview requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^wv"
+                      },
+                      "sessionID": {
+                        "type": "string",
+                        "pattern": "^ses"
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": ["status", "script", "navigate", "screenshot"]
+                      },
+                      "target": {
+                        "type": "string"
+                      },
+                      "script": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "timeoutMs": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["id", "sessionID", "action"],
+                    "additionalProperties": false
+                  },
+                  "description": "Pending webview requests"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requests waiting for the desktop client to act on the embedded platform browser.",
+        "summary": "List pending webview requests",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.platformWebview.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/platform/webview/{requestID}/result": {
+      "post": {
+        "tags": ["platform-webview"],
+        "operationId": "platformWebview.resolve",
+        "parameters": [
+          {
+            "name": "requestID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^wv"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Result accepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "The desktop client reports the outcome of a webview action back to the server.",
+        "summary": "Report a webview result",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "boolean"
+                  },
+                  "data": {},
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": ["ok"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.platformWebview.resolve({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/elicitation": {
       "get": {
         "tags": ["elicitation"],
@@ -22402,27 +23391,20 @@
                     "type": "string"
                   },
                   "model": {
-                    "anyOf": [
-                      {
-                        "type": "null"
+                    "type": "object",
+                    "properties": {
+                      "providerID": {
+                        "type": "string"
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "providerID": {
-                            "type": "string"
-                          },
-                          "modelID": {
-                            "type": "string"
-                          },
-                          "variant": {
-                            "type": "string"
-                          }
-                        },
-                        "required": ["providerID", "modelID"],
-                        "additionalProperties": false
+                      "modelID": {
+                        "type": "string"
+                      },
+                      "variant": {
+                        "type": "string"
                       }
-                    ]
+                    },
+                    "required": ["providerID", "modelID"],
+                    "additionalProperties": false
                   },
                   "time": {
                     "type": "object",
@@ -34376,196 +35358,6 @@
         ]
       }
     },
-    "/platform/webview": {
-      "get": {
-        "tags": ["platform-webview"],
-        "operationId": "platformWebview.list",
-        "parameters": [
-          {
-            "name": "directory",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "required": false
-          },
-          {
-            "name": "workspace",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "required": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Pending webview requests",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^wv"
-                      },
-                      "sessionID": {
-                        "type": "string",
-                        "pattern": "^ses"
-                      },
-                      "action": {
-                        "type": "string",
-                        "enum": ["status", "script", "navigate", "screenshot"]
-                      },
-                      "target": {
-                        "type": "string"
-                      },
-                      "script": {
-                        "type": "string"
-                      },
-                      "url": {
-                        "type": "string"
-                      },
-                      "timeoutMs": {
-                        "anyOf": [
-                          {
-                            "type": "number"
-                          },
-                          {
-                            "type": "string",
-                            "enum": ["NaN"]
-                          },
-                          {
-                            "type": "string",
-                            "enum": ["Infinity"]
-                          },
-                          {
-                            "type": "string",
-                            "enum": ["-Infinity"]
-                          },
-                          {
-                            "type": "string",
-                            "enum": ["Infinity", "-Infinity", "NaN"]
-                          }
-                        ]
-                      }
-                    },
-                    "required": ["id", "sessionID", "action"],
-                    "additionalProperties": false
-                  },
-                  "description": "Pending webview requests"
-                }
-              }
-            }
-          }
-        },
-        "description": "Requests waiting for the desktop client to act on the embedded platform browser.",
-        "summary": "List pending webview requests",
-        "x-codeSamples": [
-          {
-            "lang": "js",
-            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.platformWebview.list({\n  ...\n})"
-          }
-        ]
-      }
-    },
-    "/platform/webview/{requestID}/result": {
-      "post": {
-        "tags": ["platform-webview"],
-        "operationId": "platformWebview.resolve",
-        "parameters": [
-          {
-            "name": "requestID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "pattern": "^wv"
-            },
-            "required": true
-          },
-          {
-            "name": "directory",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "required": false
-          },
-          {
-            "name": "workspace",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "required": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Result accepted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean",
-                  "description": "Result accepted"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotFoundError"
-                }
-              }
-            }
-          }
-        },
-        "description": "The desktop client reports the outcome of a webview action back to the server.",
-        "summary": "Report a webview result",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "ok": {
-                    "type": "boolean"
-                  },
-                  "data": {},
-                  "error": {
-                    "type": "string"
-                  }
-                },
-                "required": ["ok"],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "x-codeSamples": [
-          {
-            "lang": "js",
-            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.platformWebview.resolve({\n  ...\n})"
-          }
-        ]
-      }
-    },
     "/pty/{ptyID}/connect": {
       "get": {
         "tags": ["pty"],
@@ -34802,6 +35594,12 @@
             "$ref": "#/components/schemas/EventBrowserNavigated"
           },
           {
+            "$ref": "#/components/schemas/EventPlatformWebviewRequest1"
+          },
+          {
+            "$ref": "#/components/schemas/EventPlatformWebviewResolved"
+          },
+          {
             "$ref": "#/components/schemas/EventVcsBranchUpdated"
           },
           {
@@ -35010,12 +35808,6 @@
           },
           {
             "$ref": "#/components/schemas/EventSessionNextCompactionEnded"
-          },
-          {
-            "$ref": "#/components/schemas/EventPlatformWebviewRequest"
-          },
-          {
-            "$ref": "#/components/schemas/EventPlatformWebviewResolved"
           }
         ]
       },
@@ -37677,6 +38469,12 @@
                 "$ref": "#/components/schemas/EventBrowserNavigated"
               },
               {
+                "$ref": "#/components/schemas/EventPlatformWebviewRequest"
+              },
+              {
+                "$ref": "#/components/schemas/EventPlatformWebviewResolved"
+              },
+              {
                 "$ref": "#/components/schemas/EventVcsBranchUpdated"
               },
               {
@@ -37984,12 +38782,6 @@
               },
               {
                 "$ref": "#/components/schemas/SyncEventSessionNextCompactionEnded"
-              },
-              {
-                "$ref": "#/components/schemas/EventPlatformWebviewRequest"
-              },
-              {
-                "$ref": "#/components/schemas/EventPlatformWebviewResolved"
               }
             ]
           }
@@ -38269,7 +39061,7 @@
           },
           "permissionMode": {
             "type": "string",
-            "enum": ["default", "acceptEdits", "plan", "bypassPermissions"]
+            "enum": ["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]
           },
           "maxTurns": {
             "type": "integer",
@@ -39183,7 +39975,7 @@
           },
           "permission_mode": {
             "type": "string",
-            "enum": ["default", "acceptEdits", "plan", "bypassPermissions"]
+            "enum": ["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]
           },
           "tools": {
             "type": "object",
@@ -45343,7 +46135,7 @@
           },
           "permissionMode": {
             "type": "string",
-            "enum": ["default", "acceptEdits", "plan", "bypassPermissions"]
+            "enum": ["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]
           },
           "maxTurns": {
             "type": "number"
@@ -56416,103 +57208,6 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
-      "EventPlatformWebviewRequest": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["platform.webview.request"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^wv"
-              },
-              "sessionID": {
-                "type": "string",
-                "pattern": "^ses"
-              },
-              "action": {
-                "type": "string",
-                "enum": ["status", "script", "navigate", "screenshot"]
-              },
-              "target": {
-                "type": "string"
-              },
-              "script": {
-                "type": "string"
-              },
-              "url": {
-                "type": "string"
-              },
-              "timeoutMs": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["NaN"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["Infinity"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["-Infinity"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["Infinity", "-Infinity", "NaN"]
-                  }
-                ]
-              }
-            },
-            "required": ["id", "sessionID", "action"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventPlatformWebviewResolved": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["platform.webview.resolved"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "requestID": {
-                "type": "string",
-                "pattern": "^wv"
-              },
-              "ok": {
-                "type": "boolean"
-              },
-              "data": {},
-              "error": {
-                "type": "string"
-              }
-            },
-            "required": ["requestID", "ok"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
       "EventPermissionReplied": {
         "type": "object",
         "properties": {
@@ -57434,6 +58129,103 @@
               }
             },
             "required": ["sessionID", "url"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventPlatformWebviewRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["platform.webview.request"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^wv"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["status", "script", "navigate", "screenshot"]
+              },
+              "target": {
+                "type": "string"
+              },
+              "script": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "timeoutMs": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "required": ["id", "sessionID", "action"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventPlatformWebviewResolved": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["platform.webview.resolved"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "requestID": {
+                "type": "string",
+                "pattern": "^wv"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "data": {},
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["requestID", "ok"],
             "additionalProperties": false
           }
         },
@@ -60383,6 +61175,67 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventPlatformWebviewRequest1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["platform.webview.request"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^wv"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["status", "script", "navigate", "screenshot"]
+              },
+              "target": {
+                "type": "string"
+              },
+              "script": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "timeoutMs": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  }
+                ]
+              }
+            },
+            "required": ["id", "sessionID", "action"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "ModelV2Info1": {
         "type": "object",
         "properties": {
@@ -60830,6 +61683,10 @@
       "description": "Question routes."
     },
     {
+      "name": "platform-webview",
+      "description": "Embedded platform browser routes."
+    },
+    {
       "name": "elicitation",
       "description": "MCP elicitation routes."
     },
@@ -60948,10 +61805,6 @@
     {
       "name": "pty",
       "description": "PTY websocket route."
-    },
-    {
-      "name": "platform-webview",
-      "description": "Embedded platform browser routes."
     }
   ]
 }

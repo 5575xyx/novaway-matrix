@@ -2,7 +2,7 @@
 
 ## 1. 执行摘要
 
-本计划详细说明如何将 XYMT-AUTO 项目的小红书和微信公众号自动发布功能集成到 opencode 的 Pulse 助手面板中。通过 MCP 服务器集成，使 orchestrator 代理能够直接调用发布工具。
+本计划详细说明如何将 XYMT-AUTO 项目的小红书和微信公众号自动发布功能集成到 novaway 的 Pulse 助手面板中。通过 MCP 服务器集成，使 orchestrator 代理能够直接调用发布工具。
 
 ## 2. 前置条件
 
@@ -76,7 +76,7 @@ go build -o xiaohongshu-mcp.exe .
 9. `post_comment` - 发表评论
 10. `reply_comment` - 回复评论
 
-### 3.3 配置到 opencode
+### 3.3 配置到 novaway
 
 #### 3.3.1 更新 novaway.json
 
@@ -148,7 +148,7 @@ wechat-mcp mcp -a $WECHAT_APP_ID -s $WECHAT_APP_SECRET -m sse -p 3000
 5. `wechat_draft_delete` - 删除草稿
 6. `wechat_material_delete` - 删除素材
 
-### 4.3 配置到 opencode
+### 4.3 配置到 novaway
 
 #### 4.3.1 更新 novaway.json
 
@@ -172,7 +172,7 @@ wechat-mcp mcp -a $WECHAT_APP_ID -s $WECHAT_APP_SECRET -m sse -p 3000
 #### 5.1.1 修改 agent.ts
 
 ```typescript
-// packages/opencode/src/agent/agent.ts
+// packages/novaway/src/agent/agent.ts
 
 const pulseOrchestratorAgent = {
   name: "pulse-orchestrator",
@@ -201,7 +201,7 @@ const pulseOrchestratorAgent = {
 #### 5.1.2 创建发布工作流提示
 
 ```typescript
-// packages/opencode/src/agent/prompt/pulse-orchestrator.txt
+// packages/novaway/src/agent/prompt/pulse-orchestrator.txt
 
 你是一个智能运营助手，可以帮助用户创建和发布内容到小红书和微信公众号。
 
@@ -239,7 +239,7 @@ const pulseOrchestratorAgent = {
 #### 5.2.1 测试工具调用
 
 ```bash
-# 启动 opencode
+# 启动 novaway
 bun dev
 
 # 在 Pulse 面板中测试
@@ -259,9 +259,9 @@ bun dev
 // packages/app/src/pages/pulse/PulsePublishPanel.tsx
 
 import { Component, createSignal, For, Show } from "solid-js"
-import { Button } from "@opencode-ai/ui/button"
-import { Input } from "@opencode-ai/ui/input"
-import { Textarea } from "@opencode-ai/ui/textarea"
+import { Button } from "@novaway/ui/button"
+import { Input } from "@novaway/ui/input"
+import { Textarea } from "@novaway/ui/textarea"
 
 interface PublishContent {
   title: string
@@ -516,7 +516,7 @@ cd XYMT-AUTO/xiaohongshu-mcp
 # 终端 2: 启动微信公众号 MCP 服务器
 wechat-mcp mcp -a $WECHAT_APP_ID -s $WECHAT_APP_SECRET
 
-# 终端 3: 启动 opencode
+# 终端 3: 启动 novaway
 bun dev
 ```
 
@@ -609,11 +609,11 @@ tail -f /var/log/xiaohongshu-mcp.log
 pm2 logs wechat-mcp
 ```
 
-#### 9.2.2 查看 opencode 日志
+#### 9.2.2 查看 novaway 日志
 
 ```bash
-# 查看 opencode 日志
-tail -f ~/.opencode/logs/opencode.log
+# 查看 novaway 日志
+tail -f ~/.novaway/logs/novaway.log
 ```
 
 ## 10. 更新日志

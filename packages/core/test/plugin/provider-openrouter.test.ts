@@ -32,8 +32,8 @@ describe("OpenRouterPlugin", () => {
       const ignored = yield* plugin.trigger("provider.update", {}, { provider: provider("nvidia"), cancel: false })
       expect(result.provider.options.headers).toEqual({
         Existing: "value",
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
       })
       expect(ignored.provider.options.headers).toEqual({})
     }),

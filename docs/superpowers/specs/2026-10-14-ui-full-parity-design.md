@@ -9,7 +9,7 @@
 | UI 文件   | 279 个 tsx（app 147 + ui 132） | 654 个 tsx（`ui/src`）   |
 | UI 代码量 | 74,515 行                      | 56,950 行（`ui/src`）    |
 | 框架      | **SolidJS + Kobalte**          | **React + shadcn/Radix** |
-| token     | 575 个（opencode 命名）        | 165 个（ZCode 语义命名） |
+| token     | 575 个（novaway 命名）        | 165 个（ZCode 语义命名） |
 
 **两棵树的 token 命名几乎完全不相交（仅 2 个同名）。** 因此这不是"改几个值"，而是**换一整套设计系统**。
 

@@ -32,8 +32,8 @@ describe("KiloPlugin", () => {
       const ignored = yield* plugin.trigger("provider.update", {}, { provider: provider("openrouter"), cancel: false })
       expect(result.provider.options.headers).toEqual({
         Existing: "value",
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
       })
       expect(ignored.provider.options.headers).toEqual({})
     }),
@@ -46,8 +46,8 @@ describe("KiloPlugin", () => {
       const result = yield* plugin.trigger("provider.update", {}, { provider: provider("kilo"), cancel: false })
 
       expect(result.provider.options.headers).toEqual({
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
       })
       expect(result.provider.options.headers).not.toHaveProperty("http-referer")
       expect(result.provider.options.headers).not.toHaveProperty("x-title")
@@ -81,8 +81,8 @@ describe("KiloPlugin", () => {
       )
 
       expect(matchingID.provider.options.headers).toEqual({
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
       })
       expect(matchingPackage.provider.options.headers).toEqual({})
     }),

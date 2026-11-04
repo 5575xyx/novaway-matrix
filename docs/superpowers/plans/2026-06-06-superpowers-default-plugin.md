@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在用户首次启动 opencode 时，将 `superpowers@git+https://github.com/obra/superpowers.git` 写进新生成的全局配置文件 `novaway.jsonc` 的 `plugin` 数组中。受 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 门控。
+**Goal:** 在用户首次启动 novaway 时，将 `superpowers@git+https://github.com/obra/superpowers.git` 写进新生成的全局配置文件 `novaway.jsonc` 的 `plugin` 数组中。受 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 门控。
 
 **Architecture:** 在 `loadGlobal` 的首启动写入处，依据环境变量门控注入默认 plugin 数组。默认 plugin 列表作为模块级常量导出，方便测试和未来调整。
 
@@ -17,8 +17,8 @@
 | 文件                                           | 责任                                                             |
 | ---------------------------------------------- | ---------------------------------------------------------------- |
 | `packages/core/src/flag/flag.ts`               | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 字段                     |
-| `packages/opencode/src/config/config.ts`       | 新增 `DEFAULT_GLOBAL_PLUGINS` 常量；修改 `loadGlobal` 首次写入处 |
-| `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试                                                |
+| `packages/novaway/src/config/config.ts`       | 新增 `DEFAULT_GLOBAL_PLUGINS` 常量；修改 `loadGlobal` 首次写入处 |
+| `packages/novaway/test/config/config.test.ts` | 追加 1 个核心测试                                                |
 
 ---
 
@@ -62,11 +62,11 @@ git commit -m "feat(flag): expose NOVAWAY_DISABLE_DEFAULT_PLUGINS gate"
 
 **Files:**
 
-- Modify: `packages/opencode/test/config/config.test.ts:165-185` (在现有 "creates global jsonc config with schema..." 测试之后)
+- Modify: `packages/novaway/test/config/config.test.ts:165-185` (在现有 "creates global jsonc config with schema..." 测试之后)
 
 - [ ] **Step 1: 插入新测试**
 
-在 `packages/opencode/test/config/config.test.ts` 第 185 行（`creates global jsonc config with schema when no global configs exist` 测试结束的 `})` 后、第 187 行测试之前）插入：
+在 `packages/novaway/test/config/config.test.ts` 第 185 行（`creates global jsonc config with schema when no global configs exist` 测试结束的 `})` 后、第 187 行测试之前）插入：
 
 ```ts
 test("seeds default global plugins into new config file", async () => {
@@ -100,7 +100,7 @@ test("seeds default global plugins into new config file", async () => {
 运行：
 
 ```bash
-cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/config/config.test.ts -t "seeds default global plugins into new config file"
+cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway && bun test test/config/config.test.ts -t "seeds default global plugins into new config file"
 ```
 
 期望：FAIL — 因为 `loadGlobal` 当前只写 `$schema`，不写 `plugin`。`json.plugin` 是 `undefined`，与 `toEqual([...])` 不匹配。
@@ -111,7 +111,7 @@ cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/co
 
 ```bash
 cd E:\AImoney\NovaWay-Matrix\novaway-coder
-git add packages/opencode/test/config/config.test.ts
+git add packages/novaway/test/config/config.test.ts
 git commit -m "test(config): cover default global plugin seeding"
 ```
 
@@ -121,11 +121,11 @@ git commit -m "test(config): cover default global plugin seeding"
 
 **Files:**
 
-- Modify: `packages/opencode/src/config/config.ts:413-424` (loadGlobal 首启动块)
+- Modify: `packages/novaway/src/config/config.ts:413-424` (loadGlobal 首启动块)
 
 - [ ] **Step 1: 在文件顶部添加 DEFAULT_GLOBAL_PLUGINS 常量**
 
-在 `packages/opencode/src/config/config.ts` 第 9 行（`import { Flag } from "@opencode-ai/core/flag/flag"`）之后、第 10 行（`import { Auth }`）之前插入：
+在 `packages/novaway/src/config/config.ts` 第 9 行（`import { Flag } from "@novaway/core/flag/flag"`）之后、第 10 行（`import { Auth }`）之前插入：
 
 ```ts
 // Default plugins seeded into the global config the first time it's created.
@@ -137,7 +137,7 @@ export const DEFAULT_GLOBAL_PLUGINS: string[] = ["superpowers@git+https://github
 
 - [ ] **Step 2: 修改 loadGlobal 首次写入块**
 
-将 `packages/opencode/src/config/config.ts:417-424` 替换为：
+将 `packages/novaway/src/config/config.ts:417-424` 替换为：
 
 ```ts
 if (!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CONTENT) {
@@ -165,7 +165,7 @@ if (!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CON
 运行：
 
 ```bash
-cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/config/config.test.ts -t "seeds default global plugins into new config file"
+cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway && bun test test/config/config.test.ts -t "seeds default global plugins into new config file"
 ```
 
 期望：PASS。
@@ -175,7 +175,7 @@ cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/co
 运行：
 
 ```bash
-cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/config/config.test.ts -t "creates global jsonc config with schema when no global configs exist"
+cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway && bun test test/config/config.test.ts -t "creates global jsonc config with schema when no global configs exist"
 ```
 
 期望：PASS（验证未破坏原行为）。
@@ -184,7 +184,7 @@ cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/co
 
 ```bash
 cd E:\AImoney\NovaWay-Matrix\novaway-coder
-git add packages/opencode/src/config/config.ts
+git add packages/novaway/src/config/config.ts
 git commit -m "feat(config): seed default global plugins on first launch"
 ```
 
@@ -213,7 +213,7 @@ bun typecheck
 - [ ] **Step 3: 运行 config 测试套件**
 
 ```bash
-cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\opencode && bun test test/config/config.test.ts
+cd E:\AImoney\NovaWay-Matrix\novaway-coder\packages\novaway && bun test test/config/config.test.ts
 ```
 
 期望：所有测试通过（含本次新增）。

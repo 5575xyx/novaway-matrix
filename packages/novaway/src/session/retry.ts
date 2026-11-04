@@ -8,7 +8,7 @@ import { describeError } from "@/util/error"
 export type Err = ReturnType<NamedError["toObject"]>
 
 export const GO_UPSELL_MESSAGE = "Free usage exceeded, subscribe to Go"
-export const GO_UPSELL_URL = "https://opencode.ai/go"
+export const GO_UPSELL_URL = "https://novaway.ai/go"
 export type RetryReason = "free_tier_limit" | "account_rate_limit" | (string & {})
 
 /**
@@ -203,7 +203,7 @@ export function retryable(error: Err, provider: string) {
         return minutes > 0 ? `${minutes} 分钟` : "不到 1 分钟"
       })
 
-      // 内置免费模型走公共免费通道(opencode Zen 匿名层),限额按出口 IP 每日共享。
+      // 内置免费模型走公共免费通道(NovaWay Zen 匿名层),限额按出口 IP 每日共享。
       // 只在重试状态条给一句短文案,不弹窗不打断 —— 原因和恢复时间都压缩在这一句里。
       const message = resetIn
         ? `公共免费通道今日额度已用完，${resetIn} 后重置；可先切换其他模型`
@@ -230,7 +230,7 @@ export function retryable(error: Err, provider: string) {
 
       const message = `${limitName ? `${limitName} usage limit` : "Usage limit"} reached. It will reset in ${resetIn}. To continue using this model now, enable usage from your available balance`
 
-      const link = `https://opencode.ai/workspace/${workspace}/go`
+      const link = `https://novaway.ai/workspace/${workspace}/go`
       return {
         kind: "rate_limit",
         message: `${message} - ${link}`,

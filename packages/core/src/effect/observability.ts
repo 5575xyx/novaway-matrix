@@ -45,9 +45,9 @@ export function resource(): { serviceName: string; serviceVersion: string; attri
     attributes: {
       ...attributes,
       "deployment.environment.name": InstallationChannel,
-      "NovaWay.client": Flag.NOVAWAY_CLIENT,
-      "NovaWay.process_role": processMetadata.processRole,
-      "NovaWay.run_id": processMetadata.runID,
+      "novaway.client": Flag.NOVAWAY_CLIENT,
+      "novaway.process_role": processMetadata.processRole,
+      "novaway.run_id": processMetadata.runID,
       "service.instance.id": processID,
     },
   }

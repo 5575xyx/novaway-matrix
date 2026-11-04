@@ -14,7 +14,7 @@
 
 **文件：**
 
-- 修改：`packages/opencode/src/agent/agent.ts:450-451`（在 agents 对象末尾，`agencyAgents` 之前）
+- 修改：`packages/novaway/src/agent/agent.ts:450-451`（在 agents 对象末尾，`agencyAgents` 之前）
 
 - [ ] **Step 1：在 agents 对象中添加 pulse-orchestrator**
 
@@ -72,12 +72,12 @@
 bun typecheck
 ```
 
-预期：通过（仅 pre-existing error 在 opencode/test 中）
+预期：通过（仅 pre-existing error 在 novaway/test 中）
 
 - [ ] **Step 3：提交**
 
 ```bash
-git add packages/opencode/src/agent/agent.ts
+git add packages/novaway/src/agent/agent.ts
 git commit -m "feat: add pulse-orchestrator agent definition"
 ```
 
@@ -163,7 +163,7 @@ git commit -m "feat: use pulse-orchestrator for pulse assistant suggestions"
 bun typecheck
 ```
 
-预期：opencode package 仅有 pre-existing test 错误，app package 通过
+预期：novaway package 仅有 pre-existing test 错误，app package 通过
 
 - [ ] **验证 2：确认所有提交**
 

@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-本计划旨在将 XYMT-AUTO 项目的自动发布功能（小红书、公众号）集成到 opencode 的 Pulse 助手面板中，通过 MCP 服务器实现工具调用，使 orchestrator 代理能够直接执行发布操作。
+本计划旨在将 XYMT-AUTO 项目的自动发布功能（小红书、公众号）集成到 novaway 的 Pulse 助手面板中，通过 MCP 服务器实现工具调用，使 orchestrator 代理能够直接执行发布操作。
 
 ### 1.1 目标
 
@@ -51,7 +51,7 @@
   - 本地存储
   - 安全增强
 
-### 2.2 opencode 配置
+### 2.2 novaway 配置
 
 #### 2.2.1 MCP 配置结构
 
@@ -105,14 +105,14 @@
 
 - [ ] 从 XYMT-AUTO 构建 xiaohongshu-mcp 二进制文件
 - [ ] 测试服务器功能
-- [ ] 配置到 opencode MCP 配置
+- [ ] 配置到 novaway MCP 配置
 
 #### 3.1.2 微信公众号 MCP 服务器
 
 - [ ] 安装 wechat-official-account-mcp
 - [ ] 配置 AppID 和 AppSecret
 - [ ] 测试服务器功能
-- [ ] 配置到 opencode MCP 配置
+- [ ] 配置到 novaway MCP 配置
 
 ### 3.2 阶段 2: 代理集成 (1 天)
 
@@ -167,7 +167,7 @@
 #### 4.1.1 小红书 MCP 服务器配置
 
 ```typescript
-// packages/opencode/src/config/mcp.ts
+// packages/novaway/src/config/mcp.ts
 export const xiaohongshuConfig = {
   type: "local" as const,
   command: ["path/to/xiaohongshu-mcp", "-headless", "true"],
@@ -179,7 +179,7 @@ export const xiaohongshuConfig = {
 #### 4.1.2 微信公众号 MCP 服务器配置
 
 ```typescript
-// packages/opencode/src/config/mcp.ts
+// packages/novaway/src/config/mcp.ts
 export const wechatOfficialConfig = {
   type: "local" as const,
   command: [
@@ -202,7 +202,7 @@ export const wechatOfficialConfig = {
 #### 4.2.1 pulse-orchestrator 代理更新
 
 ```typescript
-// packages/opencode/src/agent/agent.ts
+// packages/novaway/src/agent/agent.ts
 const pulseOrchestratorAgent = {
   name: "pulse-orchestrator",
   displayName: "AI运营助手",
@@ -262,7 +262,7 @@ const PLATFORMS = [
 
 ### 5.1 技术风险
 
-- **MCP 服务器兼容性**: 确保 MCP 服务器与 opencode 兼容
+- **MCP 服务器兼容性**: 确保 MCP 服务器与 novaway 兼容
 - **依赖管理**: 管理 Go 和 Node.js 依赖
 - **性能影响**: MCP 服务器对系统性能的影响
 
@@ -316,11 +316,11 @@ const PLATFORMS = [
 - XYMT-AUTO 项目: `E:\AImoney\NovaWay-Matrix\novaway-coder\XYMT-AUTO`
 - 小红书 MCP 服务器文档: `XYMT-AUTO/xiaohongshu-mcp/README.md`
 - wechat-official-account-mcp: https://github.com/xwang152-jack/wechat-official-account-mcp
-- opencode MCP 配置文档: `packages/opencode/src/config/mcp.ts`
+- novaway MCP 配置文档: `packages/novaway/src/config/mcp.ts`
 
 ### 8.2 相关文件
 
-- `packages/opencode/src/config/mcp.ts`: MCP 配置定义
-- `packages/opencode/src/agent/agent.ts`: 代理定义
+- `packages/novaway/src/config/mcp.ts`: MCP 配置定义
+- `packages/novaway/src/agent/agent.ts`: 代理定义
 - `packages/app/src/pages/pulse/`: Pulse 面板组件
-- `packages/opencode/src/skill/`: 技能系统
+- `packages/novaway/src/skill/`: 技能系统

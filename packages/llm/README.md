@@ -1,11 +1,11 @@
-# @opencode-ai/llm
+# @novaway/llm
 
-Schema-first LLM core for opencode. One typed request, response, event, and tool language; provider quirks live in adapters, not in calling code.
+Schema-first LLM core for NovaWay. One typed request, response, event, and tool language; provider quirks live in adapters, not in calling code.
 
 ```ts
 import { Effect } from "effect"
-import { LLM, LLMClient } from "@opencode-ai/llm"
-import { OpenAI } from "@opencode-ai/llm/providers"
+import { LLM, LLMClient } from "@novaway/llm"
+import { OpenAI } from "@novaway/llm/providers"
 
 const model = OpenAI.model("gpt-4o-mini", { apiKey: process.env.OPENAI_API_KEY })
 
@@ -95,7 +95,7 @@ Normalized cache usage is read back into `response.usage.cacheReadInputTokens` a
 Each provider exports a `model(...)` helper that records identity, protocol, capabilities, auth, and defaults.
 
 ```ts
-import { Anthropic } from "@opencode-ai/llm/providers"
+import { Anthropic } from "@novaway/llm/providers"
 
 const model = Anthropic.model("claude-sonnet-4-6", {
   apiKey: process.env.ANTHROPIC_API_KEY,

@@ -6,7 +6,7 @@
 
 ## 目标
 
-在用户首次启动 opencode 时，将 `superpowers@git+https://github.com/obra/superpowers.git` 写进新生成的全局配置文件 `novaway.jsonc` 的 `plugin` 数组中。
+在用户首次启动 novaway 时，将 `superpowers@git+https://github.com/obra/superpowers.git` 写进新生成的全局配置文件 `novaway.jsonc` 的 `plugin` 数组中。
 
 ## 非目标
 
@@ -17,8 +17,8 @@
 
 ## 探索结论
 
-- **首次启动逻辑**：`packages/opencode/src/config/config.ts:413-424`，在 `!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CONTENT` 且 `novaway.jsonc` 不存在时写入最小化 `{ "$schema": "..." }`。
-- **git spec 解析**：`npa('superpowers@git+https://github.com/obra/superpowers.git')` 返回 `type: "git"`。`Npm.add`（`packages/core/src/npm.ts:113-135`）通过 `@npmcli/arborist` 处理 spec，**支持 git URL**。`parsePluginSpecifier`（`packages/opencode/src/plugin/shared.ts:22-34`）保留 rawSpec。opencode 现有解析器可直接吃下该 spec。
+- **首次启动逻辑**：`packages/novaway/src/config/config.ts:413-424`，在 `!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CONTENT` 且 `novaway.jsonc` 不存在时写入最小化 `{ "$schema": "..." }`。
+- **git spec 解析**：`npa('superpowers@git+https://github.com/obra/superpowers.git')` 返回 `type: "git"`。`Npm.add`（`packages/core/src/npm.ts:113-135`）通过 `@npmcli/arborist` 处理 spec，**支持 git URL**。`parsePluginSpecifier`（`packages/novaway/src/plugin/shared.ts:22-34`）保留 rawSpec。novaway 现有解析器可直接吃下该 spec。
 - **门控机制**：`runtime-flags.ts:17` 已用 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 控制 `INTERNAL_PLUGINS` 鉴权插件。`Flag` 模块（`packages/core/src/flag/flag.ts`）**未**暴露该字段，需新增。
 - **默认 plugin 列表**：代码中**无任何**"全局默认 plugin 列表"机制；`Info.plugin` 是 `Schema.optional` 数组。
 
@@ -29,8 +29,8 @@
 | 文件                                           | 改动                                                                                                               |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `packages/core/src/flag/flag.ts`               | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy(...)` 字段                                                          |
-| `packages/opencode/src/config/config.ts`       | ① 顶部新增 `export const DEFAULT_GLOBAL_PLUGINS: string[]`；② `loadGlobal` 首次写入处按 flag 决定是否注入 `plugin` |
-| `packages/opencode/test/config/config.test.ts` | 追加 1 个核心测试                                                                                                  |
+| `packages/novaway/src/config/config.ts`       | ① 顶部新增 `export const DEFAULT_GLOBAL_PLUGINS: string[]`；② `loadGlobal` 首次写入处按 flag 决定是否注入 `plugin` |
+| `packages/novaway/test/config/config.test.ts` | 追加 1 个核心测试                                                                                                  |
 
 ### 代码骨架
 
@@ -40,7 +40,7 @@
 NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy("NOVAWAY_DISABLE_DEFAULT_PLUGINS"),
 ```
 
-**`packages/opencode/src/config/config.ts`**（在 `globalConfigFile` 函数之前）：
+**`packages/novaway/src/config/config.ts`**（在 `globalConfigFile` 函数之前）：
 
 ```ts
 // Default plugins seeded into the global config the first time it's created.
@@ -48,7 +48,7 @@ NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy("NOVAWAY_DISABLE_DEFAULT_PLUGINS"),
 export const DEFAULT_GLOBAL_PLUGINS: string[] = ["superpowers@git+https://github.com/obra/superpowers.git"]
 ```
 
-**`packages/opencode/src/config/config.ts:417-424`**（替换现有 if 块）：
+**`packages/novaway/src/config/config.ts:417-424`**（替换现有 if 块）：
 
 ```ts
 if (!Flag.NOVAWAY_CONFIG && !Flag.NOVAWAY_CONFIG_DIR && !Flag.NOVAWAY_CONFIG_CONTENT) {
@@ -97,7 +97,7 @@ Plugin.Service.init() 解析并安装（走 Npm.add → arborist 处理 git URL�
 
 ### 测试
 
-`packages/opencode/test/config/config.test.ts` 在现有 "creates global jsonc config with schema when no global configs exist" 测试后追加：
+`packages/novaway/test/config/config.test.ts` 在现有 "creates global jsonc config with schema when no global configs exist" 测试后追加：
 
 ```ts
 test("seeds default global plugins into new config file", async () => {
@@ -124,7 +124,7 @@ test("seeds default global plugins into new config file", async () => {
 })
 ```
 
-复用现有 `ConfigParse` 工具（`packages/opencode/src/config/parse.ts`）解析 jsonc。
+复用现有 `ConfigParse` 工具（`packages/novaway/src/config/parse.ts`）解析 jsonc。
 
 ## 范围与风险
 

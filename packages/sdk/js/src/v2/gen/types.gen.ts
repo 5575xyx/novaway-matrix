@@ -57,7 +57,7 @@ export type Event =
   | EventDocumentReviewRequested
   | EventDocumentReviewResolved
   | EventBrowserNavigated
-  | EventPlatformWebviewRequest
+  | EventPlatformWebviewRequest1
   | EventPlatformWebviewResolved
   | EventVcsBranchUpdated
   | EventWorkspaceReady
@@ -6060,6 +6060,20 @@ export type EventAgentCompleted1 = {
   }
 }
 
+export type EventPlatformWebviewRequest1 = {
+  id: string
+  type: "platform.webview.request"
+  properties: {
+    id: string
+    sessionID: string
+    action: "status" | "script" | "navigate" | "screenshot"
+    target?: string
+    script?: string
+    url?: string
+    timeoutMs?: number | "NaN" | "Infinity" | "-Infinity"
+  }
+}
+
 export type ModelV2Info1 = {
   id: string
   apiID: string
@@ -11742,7 +11756,18 @@ export type OfficeDocumentEditData = {
       }
       tag?: string
       align?: string
-      value?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      value?:
+        | number
+        | "NaN"
+        | "Infinity"
+        | "-Infinity"
+        | "Infinity"
+        | "-Infinity"
+        | "NaN"
+        | string
+        | {
+            formula: string
+          }
       start?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       end?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       patch?: {
@@ -11756,6 +11781,21 @@ export type OfficeDocumentEditData = {
         clear?: boolean
       }
       html?: string
+      after?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      sheet?: string
+      cell?: string
+      range?: string
+      cellStyle?: {
+        bold?: boolean
+        italic?: boolean
+        underline?: boolean
+        color?: string
+        fill?: string
+        size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        format?: string
+        align?: "l" | "ctr" | "r"
+        wrap?: boolean
+      }
       descending?: boolean
       keepHardBreaks?: boolean
       marker?: string
@@ -11788,10 +11828,123 @@ export type OfficeDocumentEditResponses = {
     bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     changed: Array<string>
     applied: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    canUndo: boolean
+    canRedo: boolean
+    undoLabel?: string
+    redoLabel?: string
   }
 }
 
 export type OfficeDocumentEditResponse = OfficeDocumentEditResponses[keyof OfficeDocumentEditResponses]
+
+export type OfficeDocumentUndoData = {
+  body?: {
+    path: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/document-undo"
+}
+
+export type OfficeDocumentUndoErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeDocumentUndoError = OfficeDocumentUndoErrors[keyof OfficeDocumentUndoErrors]
+
+export type OfficeDocumentUndoResponses = {
+  /**
+   * Undone document edit
+   */
+  200: {
+    path: string
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    canUndo: boolean
+    canRedo: boolean
+    undoLabel?: string
+    redoLabel?: string
+  }
+}
+
+export type OfficeDocumentUndoResponse = OfficeDocumentUndoResponses[keyof OfficeDocumentUndoResponses]
+
+export type OfficeDocumentRedoData = {
+  body?: {
+    path: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/document-redo"
+}
+
+export type OfficeDocumentRedoErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeDocumentRedoError = OfficeDocumentRedoErrors[keyof OfficeDocumentRedoErrors]
+
+export type OfficeDocumentRedoResponses = {
+  /**
+   * Redone document edit
+   */
+  200: {
+    path: string
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    canUndo: boolean
+    canRedo: boolean
+    undoLabel?: string
+    redoLabel?: string
+  }
+}
+
+export type OfficeDocumentRedoResponse = OfficeDocumentRedoResponses[keyof OfficeDocumentRedoResponses]
+
+export type OfficeDocumentStateData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    path: string
+  }
+  url: "/office/document-state"
+}
+
+export type OfficeDocumentStateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeDocumentStateError = OfficeDocumentStateErrors[keyof OfficeDocumentStateErrors]
+
+export type OfficeDocumentStateResponses = {
+  /**
+   * Document undo/redo state
+   */
+  200: {
+    path: string
+    canUndo: boolean
+    canRedo: boolean
+    undoLabel?: string
+    redoLabel?: string
+  }
+}
+
+export type OfficeDocumentStateResponse = OfficeDocumentStateResponses[keyof OfficeDocumentStateResponses]
 
 export type OfficePptxEditData = {
   body?: {
@@ -14138,15 +14291,11 @@ export type SessionUpdateData = {
     teamMode?: "off" | "auto" | "selected"
     teamIDs?: Array<string>
     cwd?: string
-    /**
-     * 会话当前选中的模型。前端在用户换模型时写进来，内核每一步按它解析模型；
-     * `null` 表示清掉固定值，回到跟着用户消息走。
-     */
     model?: {
       providerID: string
       modelID: string
       variant?: string
-    } | null
+    }
     time?: {
       archived?: number
     }

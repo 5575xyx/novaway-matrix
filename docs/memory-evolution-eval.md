@@ -6,7 +6,7 @@
 
 ## 命令
 
-在 `packages/opencode` 下执行：
+在 `packages/novaway` 下执行：
 
 ```bash
 bun run eval:memory

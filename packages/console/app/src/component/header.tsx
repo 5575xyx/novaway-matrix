@@ -9,10 +9,10 @@ import copyBrandAssetsDark from "../asset/lander/brand-assets-dark.svg"
 
 // SVG files for copying (separate from button icons)
 // Replace these with your actual SVG files for copying
-import copyLogoSvgLight from "../asset/lander/opencode-logo-light.svg"
-import copyLogoSvgDark from "../asset/lander/opencode-logo-dark.svg"
-import copyWordmarkSvgLight from "../asset/lander/opencode-wordmark-light.svg"
-import copyWordmarkSvgDark from "../asset/lander/opencode-wordmark-dark.svg"
+import copyLogoSvgLight from "../asset/lander/novaway-logo-light.svg"
+import copyLogoSvgDark from "../asset/lander/novaway-logo-dark.svg"
+import copyWordmarkSvgLight from "../asset/lander/novaway-wordmark-light.svg"
+import copyWordmarkSvgDark from "../asset/lander/novaway-wordmark-dark.svg"
 import { A, createAsync, useNavigate } from "@solidjs/router"
 import { createMemo, Match, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -124,8 +124,8 @@ export function Header(props: { zen?: boolean; go?: boolean; hideGetStarted?: bo
     <section data-component="top">
       <div onContextMenu={handleLogoContextMenu}>
         <A href={language.route("/")}>
-          <img data-slot="logo light" src={logoLight} alt={i18n.t("nav.logoAlt")} width="189" height="34" />
-          <img data-slot="logo dark" src={logoDark} alt={i18n.t("nav.logoAlt")} width="189" height="34" />
+          <img data-slot="logo light" src={logoLight} alt={i18n.t("nav.logoAlt")} width="143" height="34" />
+          <img data-slot="logo dark" src={logoDark} alt={i18n.t("nav.logoAlt")} width="143" height="34" />
         </A>
       </div>
 

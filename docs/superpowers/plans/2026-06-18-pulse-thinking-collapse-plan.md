@@ -62,7 +62,7 @@ git commit -m "feat(pulse): add thinking collapse state management"
 - [ ] **Step 1: 添加导入Accordion组件**
 
 ```typescript
-import { Accordion } from "@opencode-ai/ui/accordion"
+import { Accordion } from "@novaway/ui/accordion"
 ```
 
 - [ ] **Step 2: 修改消息渲染逻辑，检查parts**

@@ -20,7 +20,7 @@ describe("ZenmuxPlugin", () => {
       const plugin = yield* PluginV2.Service
       yield* plugin.add(ZenmuxPlugin)
       const result = yield* plugin.trigger("provider.update", {}, { provider: provider("zenmux"), cancel: false })
-      expect(result.provider.options.headers).toEqual({ "HTTP-Referer": "https://opencode.ai/", "X-Title": "opencode" })
+      expect(result.provider.options.headers).toEqual({ "HTTP-Referer": "https://novaway.ai/", "X-Title": "NovaWay" })
       expect(Object.keys(result.provider.options.headers).sort()).toEqual(["HTTP-Referer", "X-Title"])
       expect(result.cancel).toBe(false)
     }),
@@ -43,8 +43,8 @@ describe("ZenmuxPlugin", () => {
 
       expect(result.provider.options.headers).toEqual({
         Existing: "value",
-        "HTTP-Referer": "https://opencode.ai/",
-        "X-Title": "opencode",
+        "HTTP-Referer": "https://novaway.ai/",
+        "X-Title": "NovaWay",
       })
     }),
   )

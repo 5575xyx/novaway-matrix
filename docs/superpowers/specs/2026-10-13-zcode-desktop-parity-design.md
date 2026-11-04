@@ -65,7 +65,7 @@ NovaWay 桌面端（`packages/desktop` + `packages/app` + `packages/ui`）此前
 
 ## 4. 设计决策（NovaWay 适配）
 
-参考是 React + ZCode token 命名，NovaWay 是 Solid + opencode token 命名，因此逐条给出**决策**，而不是直接翻译。
+参考是 React + ZCode token 命名，NovaWay 是 Solid + novaway token 命名，因此逐条给出**决策**，而不是直接翻译。
 
 ### 4.1 Token 映射（Round 1 只用这些）
 

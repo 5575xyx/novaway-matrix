@@ -191,7 +191,7 @@ const handleResizeWithCollapse = (width: number) => {
 ```tsx
 // 1. 导入
 import { createSignal, onMount, onCleanup, Show } from "solid-js"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
+import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { persisted } from "@/utils/persist"
 
 // 2. 状态定义
@@ -273,7 +273,7 @@ return (
 
 ### 6.2 依赖
 
-- `@opencode-ai/ui/resize-handle` 组件
+- `@novaway/ui/resize-handle` 组件
 - `@/utils/persist` 持久化工具
 - SolidJS 状态管理
 
