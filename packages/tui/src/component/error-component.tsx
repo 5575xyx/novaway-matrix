@@ -207,9 +207,9 @@ function buildIssueURL(message: string, stack: string) {
   // Field keys match the ids in .github/ISSUE_TEMPLATE/bug-report.yml so the issue
   // form opens pre-filled. Populating os/terminal/reproduce keeps the report past
   // the contributing-guidelines compliance check, which pushes for system info.
-  const url = new URL("https://github.com/anomalyco/NovaWay/issues/new?template=bug-report.yml")
+  const url = new URL("https://github.com/5575xyx/novaway-matrix/issues/new?template=bug-report.yml")
   url.searchParams.set("title", `TUI crash: ${message}`)
-  url.searchParams.set("NovaWay-version", InstallationVersion)
+  url.searchParams.set("novaway-version", InstallationVersion)
   url.searchParams.set("os", describeOS())
   url.searchParams.set("terminal", describeTerminal())
   url.searchParams.set(

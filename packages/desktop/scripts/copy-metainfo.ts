@@ -31,13 +31,13 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 
   <content_rating type="oars-1.1" />
 
-  <url type="bugtracker">https://github.com/anomalyco/novaway/issues</url>
+  <url type="bugtracker">https://github.com/5575xyx/novaway-matrix/issues</url>
   <url type="homepage">https://novaway.ai</url>
-  <url type="vcs-browser">https://github.com/anomalyco/novaway</url>
+  <url type="vcs-browser">https://github.com/5575xyx/novaway-matrix</url>
 
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/anomalyco/novaway/main/packages/web/src/assets/lander/screenshot.png</image>
+      <image>https://raw.githubusercontent.com/5575xyx/novaway-matrix/main/packages/web/src/assets/lander/screenshot.png</image>
     </screenshot>
   </screenshots>
 </component>

@@ -76,7 +76,7 @@ Microsoft Defender SmartScreen 阻止了无法识别的应用启动...
 
 ## 其他情况
 
-按上面三步处理后仍然打不开，收集以下信息后到 [GitHub Issues](https://github.com/anomalyco/novaway/issues) 报 bug：
+按上面三步处理后仍然打不开，收集以下信息后到 [GitHub Issues](https://github.com/5575xyx/novaway-matrix/issues) 报 bug：
 
 1. 安装目录截图（用 `dir "%LocalAppData%\Programs\NovaWay"` 输出）
 2. Windows 安全中心 → 保护历史记录 截图

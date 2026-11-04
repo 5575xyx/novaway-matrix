@@ -127,11 +127,11 @@ export function createMenu(deps: Deps) {
         {
           label: "Share Feedback",
           click: () =>
-            shell.openExternal("https://github.com/anomalyco/novaway/issues/new?template=feature_request.yml"),
+            shell.openExternal("https://github.com/5575xyx/novaway-matrix/issues/new?template=feature_request.yml"),
         },
         {
           label: "Report a Bug",
-          click: () => shell.openExternal("https://github.com/anomalyco/novaway/issues/new?template=bug_report.yml"),
+          click: () => shell.openExternal("https://github.com/5575xyx/novaway-matrix/issues/new?template=bug_report.yml"),
         },
       ],
     },

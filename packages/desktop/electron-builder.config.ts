@@ -42,7 +42,7 @@ const channel = (() => {
 // 需右键 → 打开(或系统设置里放行),功能不受影响。
 const signMac = !!process.env.APPLE_CERTIFICATE
 
-// 在 GitHub Actions 里构建时,自动更新源指向当前仓库(fork),而不是写死的上游 anomalyco/*;
+// 在 GitHub Actions 里构建时,自动更新源指向当前仓库(fork),而不是写死的上游仓库;
 // 工作流会把 electron-builder 生成的 latest*.yml 和安装包一起上传到同一份 Release,
 // 这样桌面端的"检查更新"才能真的找到新版本。
 const selfPublish = (() => {
@@ -207,7 +207,7 @@ function getConfig() {
         appId: "ai.novaway.desktop.beta",
         productName: "NovaWay Beta",
         protocols: { name: "NovaWay Beta", schemes: ["novaway"] },
-        publish: selfPublish ?? { provider: "github", owner: "anomalyco", repo: "novaway-beta", channel: "latest" },
+        publish: selfPublish ?? { provider: "github", owner: "5575xyx", repo: "novaway-matrix", channel: "beta" },
         rpm: { packageName: "novaway-beta" },
       }
     }
@@ -217,7 +217,7 @@ function getConfig() {
         appId: "ai.novaway.desktop",
         productName: "NovaWay",
         protocols: { name: "NovaWay", schemes: ["novaway"] },
-        publish: selfPublish ?? { provider: "github", owner: "anomalyco", repo: "novaway", channel: "latest" },
+        publish: selfPublish ?? { provider: "github", owner: "5575xyx", repo: "novaway-matrix", channel: "latest" },
         rpm: { packageName: "novaway" },
       }
     }

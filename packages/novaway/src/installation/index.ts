@@ -76,7 +76,7 @@ export const Info = Schema.Struct({
 export type Info = Schema.Schema.Type<typeof Info>
 
 export function userAgent(client = "cli") {
-  return `NovaWay/${InstallationChannel}/${InstallationVersion}/${client}`
+  return `novaway/${InstallationChannel}/${InstallationVersion}/${client}`
 }
 
 export const USER_AGENT = userAgent()
@@ -97,9 +97,6 @@ export class UpgradeFailedError extends Schema.TaggedErrorClass<UpgradeFailedErr
 const GitHubRelease = Schema.Struct({ tag_name: Schema.String })
 const NpmPackage = Schema.Struct({ version: Schema.String })
 const BrewFormula = Schema.Struct({ versions: Schema.Struct({ stable: Schema.String }) })
-const BrewInfoV2 = Schema.Struct({
-  formulae: Schema.Array(Schema.Struct({ versions: Schema.Struct({ stable: Schema.String }) })),
-})
 const ChocoPackage = Schema.Struct({
   d: Schema.Struct({ results: Schema.Array(Schema.Struct({ Version: Schema.String })) }),
 })
@@ -161,11 +158,6 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
       Effect.catch((err) => Effect.succeed({ code: 1, stdout: "", stderr: processErrorMessage(err) })),
     )
 
-    // 我们只通过 npm 发布；Homebrew 用户装的是社区 formula，升级直接交给 brew upgrade。
-    const getBrewFormula = Effect.fnUntraced(function* () {
-      return "novaway"
-    })
-
     const upgradeCurl = Effect.fnUntraced(function* (target: string) {
       const response = yield* httpOk.execute(HttpClientRequest.get("https://novaway.ai/install"))
       const body = yield* response.text
@@ -192,7 +184,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         }
       }),
       method: Effect.fn("Installation.method")(function* () {
-        if (process.execPath.includes(path.join(".NovaWay", "bin"))) return "curl" as Method
+        if (process.execPath.includes(path.join(".novaway", "bin"))) return "curl" as Method
         if (process.execPath.includes(path.join(".local", "bin"))) return "curl" as Method
         const exec = process.execPath.toLowerCase()
 
@@ -229,14 +221,8 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         const detectedMethod = installMethod || (yield* result.method())
 
         if (detectedMethod === "brew") {
-          const formula = yield* getBrewFormula()
-          if (formula.includes("/")) {
-            const infoJson = yield* text(["brew", "info", "--json=v2", formula])
-            const info = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(BrewInfoV2))(infoJson)
-            return info.formulae[0].versions.stable
-          }
           const response = yield* httpOk.execute(
-            HttpClientRequest.get("https://formulae.brew.sh/api/formula/NovaWay.json").pipe(
+            HttpClientRequest.get("https://formulae.brew.sh/api/formula/novaway.json").pipe(
               HttpClientRequest.acceptJson,
             ),
           )
@@ -257,7 +243,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         if (detectedMethod === "choco") {
           const response = yield* httpOk.execute(
             HttpClientRequest.get(
-              "https://community.chocolatey.org/api/v2/Packages?$filter=Id%20eq%20%27NovaWay%27%20and%20IsLatestVersion&$select=Version",
+              "https://community.chocolatey.org/api/v2/Packages?$filter=Id%20eq%20%27novaway%27%20and%20IsLatestVersion&$select=Version",
             ).pipe(HttpClientRequest.setHeaders({ Accept: "application/json;odata=verbose" })),
           )
           const data = yield* HttpClientResponse.schemaBodyJson(ChocoPackage)(response)
@@ -267,7 +253,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         if (detectedMethod === "scoop") {
           const response = yield* httpOk.execute(
             HttpClientRequest.get(
-              "https://raw.githubusercontent.com/ScoopInstaller/Main/master/bucket/NovaWay.json",
+              "https://raw.githubusercontent.com/ScoopInstaller/Main/master/bucket/novaway.json",
             ).pipe(HttpClientRequest.setHeaders({ Accept: "application/json" })),
           )
           const data = yield* HttpClientResponse.schemaBodyJson(ScoopManifest)(response)
@@ -298,16 +284,15 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
             upgradeResult = yield* run([packageManagerCommand("bun"), "install", "-g", `${NPM_PACKAGE}@${target}`])
             break
           case "brew": {
-            const formula = yield* getBrewFormula()
             const env = { HOMEBREW_NO_AUTO_UPDATE: "1" }
-            upgradeResult = yield* run(["brew", "upgrade", formula], { env })
+            upgradeResult = yield* run(["brew", "upgrade", "novaway"], { env })
             break
           }
           case "choco":
             upgradeResult = yield* run(["choco", "upgrade", "novaway", `--version=${target}`, "-y"])
             break
           case "scoop":
-            upgradeResult = yield* run(["scoop", "install", `NovaWay@${target}`])
+            upgradeResult = yield* run(["scoop", "install", `novaway@${target}`])
             break
           default:
             return yield* new UpgradeFailedError({ stderr: `Unknown method: ${m}` })

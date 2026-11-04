@@ -38,7 +38,7 @@ Use the query parameter to search for keywords that might appear in PR titles or
     offset: tool.schema.number().describe("Number of results to skip for pagination").default(0),
   },
   async execute(args) {
-    const owner = "anomalyco"
+    const owner = "5575xyx"
     const repo = "novaway"
 
     const page = Math.floor(args.offset / args.limit) + 1
