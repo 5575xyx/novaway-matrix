@@ -353,14 +353,6 @@ body {
       padding: var(--vertical-padding) var(--padding);
     }
 
-    @media (prefers-color-scheme: dark) {
-      [data-slot="zen logo light"] {
-        display: none;
-      }
-      [data-slot="zen logo dark"] {
-        display: block;
-      }
-    }
   }
 
   [data-slot="installation-instructions"] {
@@ -624,22 +616,6 @@ body {
       background: var(--color-background-strong-hover);
     }
   }
-  [data-slot="model-logos"] {
-    display: flex;
-    gap: 24px;
-    margin-bottom: 56px;
-
-    svg {
-      color: var(--color-background-strong);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      svg {
-        color: var(--color-background-strong);
-      }
-    }
-  }
-
   [data-slot="pricing-copy"] {
     strong {
       color: var(--color-text-strong);
@@ -811,65 +787,6 @@ body {
       span {
         color: var(--color-icon);
         line-height: 200%;
-      }
-    }
-  }
-
-  [data-component="zen-cta"] {
-    border-top: 1px solid var(--color-border-weak);
-    display: flex;
-    padding: var(--vertical-padding) var(--padding);
-  }
-
-  [data-slot="zen-cta-copy"] {
-    strong {
-      color: var(--color-text-strong);
-      font-weight: 700;
-      margin-bottom: 16px;
-      display: block;
-    }
-
-    p {
-      color: var(--color-text);
-      margin-bottom: 24px;
-      max-width: 90%;
-
-      @media (max-width: 50rem) {
-        max-width: 100%;
-      }
-    }
-
-    a {
-      background: var(--color-background);
-      padding: 8px 12px 8px 20px;
-      color: var(--color-text-strong);
-      border: none;
-      border-radius: 4px;
-      border: 1px solid var(--color-border-weak);
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      width: fit-content;
-      gap: 12px;
-      text-decoration: none;
-    }
-
-    a:hover {
-      background: var(--color-background-weak);
-    }
-  }
-  [data-slot="model-logos"] {
-    display: flex;
-    gap: 24px;
-    margin-bottom: 40px;
-
-    svg {
-      color: var(--color-background-strong);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      svg {
-        color: var(--color-background-strong);
       }
     }
   }

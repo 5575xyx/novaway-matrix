@@ -74,10 +74,9 @@ export default function TermsOfService() {
               <h2 id="what-is-novaway">What is NovaWay?</h2>
               <p>
                 NovaWay is an AI-powered coding agent that helps you write, understand, and modify code using large
-                language models. Certain of these large language models are provided by third parties ("Third Party
-                Models") and certain of these models are provided directly by us if you use the NovaWay Zen paid
-                offering ("Zen"). Regardless of whether you use Third Party Models or Zen, NovaWay enables you to
-                access the functionality of models through a coding agent running within your terminal.
+                language models. These large language models are provided by third parties ("Third Party Models").
+                NovaWay enables you to access the functionality of those models through a coding agent running within
+                your terminal.
               </p>
 
               <h2 id="will-these-terms-ever-change">Will these Terms ever change?</h2>
@@ -263,11 +262,9 @@ export default function TermsOfService() {
 
               <h3>Paid Services</h3>
               <p>
-                Certain of our Services, including Zen, may be subject to payments now or in the future (the "Paid
-                Services"). Please see our Paid Services page{" "}
-                <a href={language.route("/zen")}>https://novaway.ai/zen</a> for a description of the current Paid
-                Services. Please note that any payment terms presented to you in the process of using or signing up for
-                a Paid Service are deemed part of these Terms.
+                Certain of our Services may be subject to payments now or in the future (the "Paid Services"). Please
+                note that any payment terms presented to you in the process of using or signing up for a Paid Service
+                are deemed part of these Terms.
               </p>
 
               <h3>Billing</h3>

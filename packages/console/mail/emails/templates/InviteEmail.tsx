@@ -43,7 +43,7 @@ export const InviteEmail = ({
           <Section style={frame}>
             <Row>
               <Column>
-                <A href={`${CONSOLE_URL}zen`}>
+                <A href={CONSOLE_URL}>
                   <Img height="32" alt="NovaWay Logo" src={`${assetsUrl}/logo.png`} />
                 </A>
               </Column>

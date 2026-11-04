@@ -16,15 +16,6 @@ export default function WorkspaceLayout(props: RouteSectionProps) {
         <nav data-component="workspace-nav">
           <nav data-component="nav-desktop">
             <div data-component="workspace-nav-items">
-              <A href={`/workspace/${params.id}`} end activeClass="active" data-nav-button>
-                {i18n.t("workspace.nav.zen")}
-              </A>
-              <A href={`/workspace/${params.id}/go`} activeClass="active" data-nav-button>
-                {i18n.t("workspace.nav.go")}
-              </A>
-              <A href={`/workspace/${params.id}/usage`} activeClass="active" data-nav-button>
-                {i18n.t("workspace.nav.usage")}
-              </A>
               <A href={`/workspace/${params.id}/keys`} activeClass="active" data-nav-button>
                 {i18n.t("workspace.nav.apiKeys")}
               </A>
@@ -32,9 +23,6 @@ export default function WorkspaceLayout(props: RouteSectionProps) {
                 {i18n.t("workspace.nav.members")}
               </A>
               <Show when={userInfo()?.isAdmin}>
-                <A href={`/workspace/${params.id}/billing`} activeClass="active" data-nav-button>
-                  {i18n.t("workspace.nav.billing")}
-                </A>
                 <A href={`/workspace/${params.id}/settings`} activeClass="active" data-nav-button>
                   {i18n.t("workspace.nav.settings")}
                 </A>
@@ -44,15 +32,6 @@ export default function WorkspaceLayout(props: RouteSectionProps) {
 
           <nav data-component="nav-mobile">
             <div data-component="workspace-nav-items">
-              <A href={`/workspace/${params.id}`} end activeClass="active" data-nav-button>
-                {i18n.t("workspace.nav.zen")}
-              </A>
-              <A href={`/workspace/${params.id}/go`} activeClass="active" data-nav-button>
-                {i18n.t("workspace.nav.go")}
-              </A>
-              <A href={`/workspace/${params.id}/usage`} activeClass="active" data-nav-button>
-                {i18n.t("workspace.nav.usage")}
-              </A>
               <A href={`/workspace/${params.id}/keys`} activeClass="active" data-nav-button>
                 {i18n.t("workspace.nav.apiKeys")}
               </A>
@@ -60,9 +39,6 @@ export default function WorkspaceLayout(props: RouteSectionProps) {
                 {i18n.t("workspace.nav.members")}
               </A>
               <Show when={userInfo()?.isAdmin}>
-                <A href={`/workspace/${params.id}/billing`} activeClass="active" data-nav-button>
-                  {i18n.t("workspace.nav.billing")}
-                </A>
                 <A href={`/workspace/${params.id}/settings`} activeClass="active" data-nav-button>
                   {i18n.t("workspace.nav.settings")}
                 </A>

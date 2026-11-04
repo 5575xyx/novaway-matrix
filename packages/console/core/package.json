@@ -29,14 +29,6 @@
     "shell": "sst shell",
     "shell-dev": "sst shell --stage dev",
     "shell-prod": "sst shell --stage production",
-    "update-models": "script/update-models.ts",
-    "promote-models-to-dev": "script/promote-models.ts dev",
-    "promote-models-to-prod": "script/promote-models.ts production",
-    "pull-models-from-dev": "script/pull-models.ts dev",
-    "pull-models-from-prod": "script/pull-models.ts production",
-    "update-limits": "script/update-limits.ts",
-    "promote-limits-to-dev": "script/promote-limits.ts dev",
-    "promote-limits-to-prod": "script/promote-limits.ts production",
     "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
