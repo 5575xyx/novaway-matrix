@@ -349,7 +349,7 @@ const TIPS: Tip[] = [
       ? `通过命令面板 (${shortcutText(shortcuts.commandList())}) 切换聊天中用户名的显示`
       : "通过命令面板切换聊天中用户名的显示",
   "运行 {highlight}docker run -it --rm ghcr.io/anomalyco/NovaWay{/highlight} 在容器中运行",
-  "使用 {highlight}/connect{/highlight} 配合 NovaWay Zen 获取精选的、经过测试的模型",
+  "使用 {highlight}/connect{/highlight} 配置模型提供商与 API Key",
   "将项目的 {highlight}AGENTS.md{/highlight} 文件提交到 Git 以进行团队共享",
   "使用 {highlight}/review{/highlight} 审查未提交的更改、分支或 PRs",
   (shortcuts) => `使用 ${commandText("/help", shortcuts.helpShow())} 显示帮助对话框`,
