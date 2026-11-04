@@ -458,7 +458,7 @@ describe("session HttpApi", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const currentDir = path.join(test.directory, "packages", "opencode", "src")
+        const currentDir = path.join(test.directory, "packages", "novaway", "src")
         yield* Effect.promise(() => mkdir(currentDir, { recursive: true }))
 
         const store = yield* InstanceStore.Service
@@ -475,7 +475,7 @@ describe("session HttpApi", () => {
 
         const query = new URLSearchParams({
           scope: "project",
-          path: "packages/opencode/src",
+          path: "packages/novaway/src",
           directory: currentDir,
         })
         const headers = { "x-novaway-directory": test.directory }

@@ -147,7 +147,7 @@ const META = () => (
       ·
     </text>
     <text flexShrink={0} wrapMode="none">
-      opencode
+      novaway
     </text>
   </box>
 )
