@@ -47,7 +47,7 @@ jobs:
         env:
           NOVAWAY_API_KEY: ${{ secrets.NOVAWAY_API_KEY }}
         with:
-          model: opencode/gpt-5.2
+          model: builtin/gpt-5.2
           agent: docs
           prompt: |
             Review the following commits from the last ${{ env.LOOKBACK_HOURS }} hours and identify any new features that may need documentation.

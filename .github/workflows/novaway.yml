@@ -31,4 +31,4 @@ jobs:
           NOVAWAY_API_KEY: ${{ secrets.NOVAWAY_API_KEY }}
           NOVAWAY_PERMISSION: '{"bash": "deny"}'
         with:
-          model: opencode/claude-opus-4-5
+          model: builtin/claude-opus-4-5

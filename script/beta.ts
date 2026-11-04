@@ -3,7 +3,7 @@
 import { $ } from "bun"
 import fs from "fs/promises"
 
-const model = "opencode/gpt-5.3-codex"
+const model = "builtin/gpt-5.3-codex"
 
 interface PR {
   number: number
