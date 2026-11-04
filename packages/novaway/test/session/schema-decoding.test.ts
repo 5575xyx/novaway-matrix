@@ -233,12 +233,12 @@ describe("SessionStatus.Info", () => {
       attempt: 1,
       message: "transient",
       action: {
-        reason: "free_tier_limit",
-        provider: "opencode",
-        title: "Free limit reached",
-        message: "Subscribe to NovaWay Go.",
-        label: "subscribe",
-        link: "https://novaway.ai/go",
+        reason: "account_rate_limit",
+        provider: "builtin",
+        title: "Rate limited",
+        message: "Provider is rate limiting this model.",
+        label: "retry",
+        link: "https://novaway.ai/docs",
       },
       next: 500,
     }

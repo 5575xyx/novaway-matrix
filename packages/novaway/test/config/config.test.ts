@@ -784,7 +784,7 @@ test("resolves env templates in account config with account token", async () => 
     config: () =>
       Effect.succeed(
         Option.some({
-          provider: { opencode: { options: { apiKey: "{env:NOVAWAY_CONSOLE_TOKEN}" } } },
+          provider: { acme: { options: { apiKey: "{env:NOVAWAY_CONSOLE_TOKEN}" } } },
         }),
       ),
     token: () => Effect.succeed(Option.some(AccessToken.make("st_test_token"))),
@@ -805,7 +805,7 @@ test("resolves env templates in account config with account token", async () => 
       Config.Service.use((svc) =>
         Effect.gen(function* () {
           const config = yield* svc.get()
-          expect(config.provider?.["opencode"]?.options?.apiKey).toBe("st_test_token")
+          expect(config.provider?.["acme"]?.options?.apiKey).toBe("st_test_token")
         }),
       ),
     ).pipe(Effect.scoped, Effect.provide(layer), Effect.runPromise)

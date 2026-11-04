@@ -112,7 +112,7 @@ describe("HttpApi workspace proxy", () => {
     }),
   )
 
-  it.live("strips opencode-internal headers and merges extra headers", () =>
+  it.live("strips internal headers and merges extra headers", () =>
     Effect.gen(function* () {
       let forwarded: Record<string, string> = {}
       const url = yield* listenServer((req) =>

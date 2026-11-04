@@ -13,9 +13,9 @@ describe("cli.error", () => {
       },
       {
         tag: "ConfigDirectoryTypoError",
-        data: { path: "/tmp/novaway.jsonc", dir: ".novaway", suggestion: "opencode" },
+        data: { path: "/tmp/novaway.jsonc", dir: ".novawayy", suggestion: ".novaway" },
         expected:
-          'Directory ".novaway" in /tmp/novaway.jsonc is not valid. Rename the directory to "opencode" or remove it. This is a common typo.',
+          'Directory ".novawayy" in /tmp/novaway.jsonc is not valid. Rename the directory to ".novaway" or remove it. This is a common typo.',
       },
       {
         tag: "ConfigFrontmatterError",

@@ -931,7 +931,7 @@ describe("tool.shell permissions", () => {
               expect(
                 yield* fail(
                   {
-                    command: "cat /tmp/opencode-does-not-exist",
+                    command: "cat /tmp/novaway-does-not-exist",
                     description: "Read Git Bash tmp file",
                   },
                   capture(requests, err),

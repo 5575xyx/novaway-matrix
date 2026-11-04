@@ -2876,7 +2876,7 @@ it.instance(
       const other = yield* prompt.prompt({
         sessionID: session.id,
         agent: "build",
-        model: { providerID: ProviderID.make("opencode"), modelID: ModelID.make("kimi-k2.5-free") },
+        model: { providerID: ProviderID.make("anthropic"), modelID: ModelID.make("claude-haiku-4-5") },
         noReply: true,
         parts: [{ type: "text", text: "hello" }],
       })

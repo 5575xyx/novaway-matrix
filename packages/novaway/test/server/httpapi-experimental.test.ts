@@ -142,7 +142,7 @@ describe("experimental HttpApi", () => {
           [
             request(ExperimentalPaths.console, directory),
             request(ExperimentalPaths.consoleOrgs, directory),
-            request(`${ExperimentalPaths.tool}?provider=opencode&model=gpt-5`, directory),
+            request(`${ExperimentalPaths.tool}?provider=openai&model=gpt-5`, directory),
             request(ExperimentalPaths.toolIDs, directory),
             request(ExperimentalPaths.worktree, directory),
             request(ExperimentalPaths.resource, directory),
