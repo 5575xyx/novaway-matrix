@@ -79,33 +79,6 @@ function shouldUseCopilotResponsesApi(modelID: string): boolean {
   return Number(match[1]) >= 5 && !modelID.startsWith("gpt-5-mini")
 }
 
-// Zen 侧要求的 identifier 格式：12 hex 时间戳 + 14 字母数字。服务端会对
-// `x-opencode-session` / `x-opencode-request` 做格式校验，普通 SHA1 hash 会被
-// 判定为无效客户端并直接返回 FreeTierError —— 所以生成规则必须与上游一致。
-const NOVAWAY_ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-let zenClientIdLastTimestamp = 0
-let zenClientIdCounter = 0
-function zenClientIdentifier(): string {
-  const ts = Date.now()
-  if (ts !== zenClientIdLastTimestamp) {
-    zenClientIdLastTimestamp = ts
-    zenClientIdCounter = 0
-  }
-  zenClientIdCounter++
-  const current = BigInt(ts) * 0x1000n + BigInt(zenClientIdCounter)
-  const value = ~current
-  let time = ""
-  for (let i = 0; i < 6; i++)
-    time += Number((value >> BigInt(40 - 8 * i)) & 0xffn)
-      .toString(16)
-      .padStart(2, "0")
-  let tail = ""
-  const bytes = new Uint8Array(14)
-  crypto.getRandomValues(bytes)
-  for (let i = 0; i < 14; i++) tail += NOVAWAY_ID_CHARS[bytes[i] % NOVAWAY_ID_CHARS.length]
-  return time + tail
-}
-
 function hasModality(
   model: typeof ConfigProvider.Model.Type & { capabilities?: { input?: string[]; output?: string[] } },
   direction: "input" | "output",
@@ -260,55 +233,10 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       const hasKey = apiKey !== undefined || input.env.some((item) => env[item])
       const ok = hasKey || Boolean((yield* dep.config()).provider?.["opencode"]?.options?.apiKey)
 
-      // 路线 A（默认开启）：诚实实现，对齐 OpenCode 官方行为
-      //   - 无 Key 时不展示任何 Zen 模型
-      //   - 不绕过 Zen 服务端的 FreeTierError（无论 Header / body 怎么改，
-      //     服务端都会校验 OpenCode 客户端真实性，第三方伪装今日仍可能失效）
-      //   - 用户需到 https://novaway.ai 控制台获取真实 API Key 才能使用
-      //
-      // 路线 B（备选）：伪装 OpenCode 官方客户端。完整版见 Git 历史，
-      // 失效原因：Zen 服务端在 2026-09-18 后对/responses 端点收紧，
-      // 即使 Header+body 校验通过，第三方客户端也会被 500。
-      const routeB = false
-      if (routeB) {
-        // ---- 路线 B：伪装 OpenCode 官方客户端（保留以便后续启用） ----
-        const models = ok ? input.models : filterCatalogToFreeModels("opencode", input.models)
-        if (!ok) {
-          for (const model of Object.values(models)) {
-            model.api.npm = "@ai-sdk/openai"
-          }
-        }
-        const runtime =
-          typeof (process as any).versions?.bun === "string"
-            ? `bun/${(process as any).versions.bun}`
-            : `node/${process.version.replace(/^v/, "")}`
-        return {
-          autoload: Object.keys(models).length > 0,
-          options: ok
-            ? {}
-            : {
-                apiKey: apiKey ?? "public",
-                headers: {
-                  "User-Agent": `opencode/${InstallationVersion} ai-sdk/provider-utils/4.0.40 runtime/${runtime}`,
-                  "x-opencode-client": "cli",
-                  "x-opencode-project": "global",
-                  "x-opencode-session": `ses_${zenClientIdentifier()}`,
-                  "x-opencode-request": `msg_${zenClientIdentifier()}`,
-                  Accept: "text/event-stream",
-                },
-              },
-          models,
-          replaceModels: true,
-          async getModel(sdk: any, modelID: string) {
-            if (!ok && typeof sdk.responses === "function") {
-              return sdk.responses(modelID)
-            }
-            return sdk.languageModel(modelID)
-          },
-        }
-      }
-
-      // ---- 路线 A：诚实回退 ----
+      // 无 Key 时不展示任何 Zen 模型，也不做任何客户端伪装：
+      // Zen 服务端会校验请求方是不是官方客户端，第三方客户端即使把 Header
+      // 和 body 都改对也会被 500。用户需到 https://novaway.ai 控制台获取
+      // 真实 API Key 才能使用。
       if (!ok) input.models = {}
       return { autoload: ok }
     }),
