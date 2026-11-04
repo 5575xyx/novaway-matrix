@@ -129,8 +129,8 @@ const appBindingCommands = [
   "variant.list",
   "provider.connect",
   "console.org.switch",
-  "NovaWay.status",
-  "NovaWay.debug",
+  "novaway.status",
+  "novaway.debug",
   "workbench.open",
   "theme.switch",
   "theme.switch_mode",
@@ -864,7 +864,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
           ]
         : []),
       {
-        name: "NovaWay.status",
+        name: "novaway.status",
         title: "查看状态",
         slashName: "status",
         run: () => {
@@ -873,7 +873,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         category: "系统",
       },
       {
-        name: "NovaWay.debug",
+        name: "novaway.debug",
         title: "查看调试信息",
         slashName: "debug",
         run: () => {
@@ -977,7 +977,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         slashName: "docs",
         slashAliases: ["文档", "documentation"],
         run: () => {
-          open("https://NovaWay.ai/docs").catch(() => {})
+          open("https://novaway.ai/docs").catch(() => {})
           dialog.clear()
         },
         category: "系统",

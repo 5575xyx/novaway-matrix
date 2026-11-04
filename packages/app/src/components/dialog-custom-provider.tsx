@@ -379,7 +379,7 @@ export function DialogCustomProvider(props: Props) {
           ) : (
             <>
               {language.t("provider.custom.step.hint.models")}
-              <Link href="https://NovaWay.ai/docs/providers/#custom-provider" tabIndex={-1} class="ml-1">
+              <Link href="https://novaway.ai/docs/providers/#custom-provider" tabIndex={-1} class="ml-1">
                 {language.t("provider.custom.description.link")}
               </Link>
             </>

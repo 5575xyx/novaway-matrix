@@ -215,7 +215,7 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
     prompts.log.info(`  rm "${targets.binary}"`)
 
     const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".NovaWay")) {
+    if (binDir.includes(".novaway")) {
       prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
     }
   }
@@ -266,7 +266,7 @@ async function getShellConfigFile(): Promise<string | null> {
     if (!exists) continue
 
     const content = await Filesystem.readText(file).catch(() => "")
-    if (content.includes("# NovaWay") || content.includes(".NovaWay/bin")) {
+    if (content.includes("# NovaWay") || content.includes(".novaway/bin")) {
       return file
     }
   }
@@ -291,14 +291,14 @@ async function cleanShellConfig(file: string) {
 
     if (skip) {
       skip = false
-      if (trimmed.includes(".NovaWay/bin") || trimmed.includes("fish_add_path")) {
+      if (trimmed.includes(".novaway/bin") || trimmed.includes("fish_add_path")) {
         continue
       }
     }
 
     if (
-      (trimmed.startsWith("export PATH=") && trimmed.includes(".NovaWay/bin")) ||
-      (trimmed.startsWith("fish_add_path") && trimmed.includes(".NovaWay"))
+      (trimmed.startsWith("export PATH=") && trimmed.includes(".novaway/bin")) ||
+      (trimmed.startsWith("fish_add_path") && trimmed.includes(".novaway"))
     ) {
       continue
     }

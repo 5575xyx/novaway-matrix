@@ -62,11 +62,11 @@ const unsafeCSS = `
   background-color: var(--diffs-bg-selection-text);
 }
 
-::highlight(NovaWay-find) {
+::highlight(novaway-find) {
   background-color: rgb(from var(--warning) r g b / 0.35);
 }
 
-::highlight(NovaWay-find-current) {
+::highlight(novaway-find-current) {
   background-color: rgb(from var(--warning) r g b / 0.55);
 }
 

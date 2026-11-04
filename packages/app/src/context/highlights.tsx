@@ -7,7 +7,7 @@ import { useSettings } from "@/context/settings"
 import { persisted } from "@/utils/persist"
 import { DialogReleaseNotes, type Highlight } from "@/components/dialog-release-notes"
 
-const CHANGELOG_URL = "https://NovaWay.ai/changelog.json"
+const CHANGELOG_URL = "https://novaway.ai/changelog.json"
 
 type Store = {
   version?: string

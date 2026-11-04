@@ -210,7 +210,7 @@ export async function checkPluginCompatibility(target: string, NovaWayVersion: s
   if (!hit) return
   const engines = hit.json.engines
   if (!isRecord(engines)) return
-  const range = engines.NovaWay
+  const range = engines.novaway
   if (typeof range !== "string") return
   if (!semver.satisfies(NovaWayVersion, range)) {
     throw new Error(`Plugin requires NovaWay ${range} but running ${NovaWayVersion}`)

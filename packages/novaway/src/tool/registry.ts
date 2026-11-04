@@ -678,7 +678,6 @@ export const layer: Layer.Layer<
         for (const base of [ctx.directory, ctx.worktree]) {
           if (!base) continue
           roots.add(path.join(base, ".novaway"))
-          roots.add(path.join(base, ".NovaWay"))
         }
         const matches = Array.from(roots).flatMap((dir) => {
           try {
