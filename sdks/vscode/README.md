@@ -15,7 +15,7 @@ This extension requires the [novaway CLI](https://novaway.ai) to be installed on
 
 ## Support
 
-This is an early release. If you encounter issues or have feedback, please create an issue at https://github.com/anomalyco/novaway/issues.
+This is an early release. If you encounter issues or have feedback, please create an issue at https://github.com/5575xyx/novaway-matrix/issues.
 
 ## Development
 

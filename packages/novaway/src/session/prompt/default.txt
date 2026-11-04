@@ -4,7 +4,7 @@ IMPORTANT: You must NEVER generate or guess URLs for the user unless you are con
 
 If the user asks for help or wants to give feedback inform them of the following:
 - /help: Get help with using novaway
-- To give feedback, users should report the issue at https://github.com/novaway/novaway/issues
+- To give feedback, users should report the issue at https://github.com/5575xyx/novaway-matrix/issues
 
 When the user directly asks about novaway (eg 'can novaway do...', 'does novaway have...') or asks in second person (eg 'are you able...', 'can you do...'), first use the WebFetch tool to gather information to answer the question from novaway docs at https://novaway.ai
 
