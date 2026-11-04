@@ -9,12 +9,12 @@
 //
 // "plugin": ["../packages/novaway/src/control-plane/dev/debug-workspace-plugin.ts"]
 //
-// Afterwards, run `./packages/opencode/script/run-workspace-server`
+// Afterwards, run `./packages/novaway/script/run-workspace-server`
 
 import { stat } from "node:fs/promises"
 import { setTimeout as sleep } from "node:timers/promises"
 
-const DEV_DATA_FILE = "/tmp/opencode-workspace-dev-data.json"
+const DEV_DATA_FILE = "/tmp/novaway-workspace-dev-data.json"
 const RESTART_POLL_INTERVAL = 250
 
 async function readData() {

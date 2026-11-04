@@ -16,7 +16,7 @@ $kpiDir = Join-Path $RepoRoot ".codex\powersnexus-kpi"
 $logDir = Join-Path $kpiDir "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
-$preferredTemp = "E:\tmp\opencode-temp"
+$preferredTemp = "E:\tmp\novaway-temp"
 if (Test-Path "E:\tmp") {
   New-Item -ItemType Directory -Force -Path $preferredTemp | Out-Null
   $env:TEMP = $preferredTemp

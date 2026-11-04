@@ -4,19 +4,19 @@ import { Catalog } from "@novaway/core/catalog"
 import { Location } from "@novaway/core/location"
 import { ModelV2 } from "@novaway/core/model"
 import { PluginV2 } from "@novaway/core/plugin"
-import { OpencodePlugin } from "@novaway/core/plugin/provider/opencode"
+import { ZenPlugin } from "@novaway/core/plugin/provider/zen"
 import { ProviderV2 } from "@novaway/core/provider"
 import { it, model, provider, withEnv } from "./provider-helper"
 
 const cost = (input: number, output = 0) => [{ input, output, cache: { read: 0, write: 0 } }]
 const locationLayer = Layer.succeed(Location.Service, Location.Service.of({ directory: "test" }))
 
-describe("OpencodePlugin", () => {
+describe("ZenPlugin", () => {
   it.effect("uses a public key and cancels paid models without credentials", () =>
     withEnv({ OPENCODE_API_KEY: undefined }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         const updated = yield* plugin.trigger("provider.update", {}, { provider: provider("opencode"), cancel: false })
         const paid = yield* plugin.trigger(
           "model.update",
@@ -33,7 +33,7 @@ describe("OpencodePlugin", () => {
     withEnv({ OPENCODE_API_KEY: undefined }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         yield* plugin.trigger("provider.update", {}, { provider: provider("opencode"), cancel: false })
         const free = yield* plugin.trigger(
           "model.update",
@@ -49,7 +49,7 @@ describe("OpencodePlugin", () => {
     withEnv({ OPENCODE_API_KEY: undefined }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         yield* plugin.trigger("provider.update", {}, { provider: provider("opencode"), cancel: false })
         const outputOnly = yield* plugin.trigger(
           "model.update",
@@ -65,7 +65,7 @@ describe("OpencodePlugin", () => {
     withEnv({ OPENCODE_API_KEY: "secret" }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         const updated = yield* plugin.trigger("provider.update", {}, { provider: provider("opencode"), cancel: false })
         const paid = yield* plugin.trigger(
           "model.update",
@@ -82,7 +82,7 @@ describe("OpencodePlugin", () => {
     withEnv({ OPENCODE_API_KEY: undefined, CUSTOM_OPENCODE_API_KEY: "secret" }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         const updated = yield* plugin.trigger(
           "provider.update",
           {},
@@ -103,7 +103,7 @@ describe("OpencodePlugin", () => {
     withEnv({ OPENCODE_API_KEY: undefined }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         const updated = yield* plugin.trigger(
           "provider.update",
           {},
@@ -136,7 +136,7 @@ describe("OpencodePlugin", () => {
     withEnv({ OPENCODE_API_KEY: undefined }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         const updated = yield* plugin.trigger(
           "provider.update",
           {},
@@ -157,7 +157,7 @@ describe("OpencodePlugin", () => {
     withEnv({ OPENCODE_API_KEY: undefined }, () =>
       Effect.gen(function* () {
         const plugin = yield* PluginV2.Service
-        yield* plugin.add(OpencodePlugin)
+        yield* plugin.add(ZenPlugin)
         const updated = yield* plugin.trigger("provider.update", {}, { provider: provider("openai"), cancel: false })
         const paid = yield* plugin.trigger(
           "model.update",
