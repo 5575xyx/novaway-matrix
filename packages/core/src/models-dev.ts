@@ -14,7 +14,7 @@ export type CatalogModelStatus = typeof CatalogModelStatus.Type
 const USER_AGENT = `novaway/${InstallationChannel}/${InstallationVersion}/${Flag.NOVAWAY_CLIENT}`
 const FETCH_TIMEOUT = "2 seconds"
 // 上游的模型目录服务（尚未自建镜像）：域名保持原样，只通过 NOVAWAY_MODELS_URL 覆盖。
-const DEFAULT_MODELS_URL = "https://models.novaway.ai"
+const DEFAULT_MODELS_URL = "https://models.opencode.ai"
 
 const CostTier = Schema.Struct({
   input: Schema.Finite,

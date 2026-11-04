@@ -10,7 +10,8 @@ const dir = path.resolve(__dirname, "..")
 
 process.chdir(dir)
 
-const modelsUrl = process.env.NOVAWAY_MODELS_URL || "https://models.novaway.ai"
+// 模型目录仍取自上游服务（尚未自建镜像），与 packages/core/src/models-dev.ts 保持一致。
+const modelsUrl = process.env.NOVAWAY_MODELS_URL || "https://models.opencode.ai"
 const cacheDir = path.join(xdgCache ?? path.join(os.homedir(), ".cache"), "novaway")
 const cachePath = path.join(cacheDir, "models.json")
 
