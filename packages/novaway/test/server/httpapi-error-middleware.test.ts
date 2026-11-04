@@ -54,7 +54,7 @@ describe("HttpApi error middleware", () => {
   it.live("preserves config defects as client-visible bad requests", () =>
     Effect.gen(function* () {
       const configError = new ConfigError.InvalidError({
-        path: "/tmp/opencode.json",
+        path: "/tmp/novaway.json",
         issues: [{ message: "Expected object", path: ["provider", "anthropic", "options"] }],
       })
 

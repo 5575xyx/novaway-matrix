@@ -146,7 +146,7 @@ it.instance("resolves attention config defaults and overrides", () =>
         notifications: true,
         sound: true,
         volume: 0.4,
-        sound_pack: "NovaWay.default",
+        sound_pack: "novaway.default",
         sounds: {},
       })
 

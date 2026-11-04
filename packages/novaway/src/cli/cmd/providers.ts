@@ -322,7 +322,7 @@ export const ProvidersLoginCommand = effectCmd({
     if (args.url) {
       const url = args.url.replace(/\/+$/, "")
       const wellknown = (yield* cliTry(`Failed to load auth provider metadata from ${url}: `, () =>
-        fetch(`${url}/.well-known/NovaWay`).then((x) => x.json()),
+        fetch(`${url}/.well-known/novaway`).then((x) => x.json()),
       )) as {
         auth: { command: string[]; env: string }
       }

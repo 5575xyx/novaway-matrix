@@ -612,7 +612,7 @@ test("loads project config from Cygwin paths on Windows", async () => {
   })
 })
 
-test("ignores legacy tui keys in opencode config", async () => {
+test("ignores legacy tui keys in novaway config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
@@ -2171,7 +2171,7 @@ test("project config overrides remote well-known config", async () => {
   let fetchedUrl: string | undefined
   globalThis.fetch = mock((url: string | URL | Request) => {
     const urlStr = url instanceof Request ? url.url : url instanceof URL ? url.href : url
-    if (urlStr.includes(".well-known/opencode")) {
+    if (urlStr.includes(".well-known/novaway")) {
       fetchedUrl = urlStr
       return Promise.resolve(
         new Response(
@@ -2210,7 +2210,7 @@ test("project config overrides remote well-known config", async () => {
         Config.Service.use((svc) =>
           Effect.gen(function* () {
             const config = yield* svc.get()
-            expect(fetchedUrl).toBe("https://example.com/.well-known/opencode")
+            expect(fetchedUrl).toBe("https://example.com/.well-known/novaway")
             expect(config.mcp?.jira?.enabled).toBe(true)
           }),
         ),
@@ -2229,7 +2229,7 @@ test("wellknown URL with trailing slash is normalized", async () => {
   let fetchedUrl: string | undefined
   globalThis.fetch = mock((url: string | URL | Request) => {
     const urlStr = url instanceof Request ? url.url : url instanceof URL ? url.href : url
-    if (urlStr.includes(".well-known/opencode")) {
+    if (urlStr.includes(".well-known/novaway")) {
       fetchedUrl = urlStr
       return Promise.resolve(
         new Response(
@@ -2268,7 +2268,7 @@ test("wellknown URL with trailing slash is normalized", async () => {
         Config.Service.use((svc) =>
           Effect.gen(function* () {
             yield* svc.get()
-            expect(fetchedUrl).toBe("https://example.com/.well-known/opencode")
+            expect(fetchedUrl).toBe("https://example.com/.well-known/novaway")
           }),
         ),
       { git: true },
@@ -2286,7 +2286,7 @@ test("wellknown remote_config supports templated env vars in headers", async () 
   let remoteHeaders: HeadersInit | undefined
   globalThis.fetch = mock((url: string | URL | Request, init?: RequestInit) => {
     const urlStr = url instanceof Request ? url.url : url instanceof URL ? url.href : url
-    if (urlStr.includes(".well-known/opencode")) {
+    if (urlStr.includes(".well-known/novaway")) {
       wellknownFetchedUrl = urlStr
       return Promise.resolve(
         new Response(
@@ -2340,7 +2340,7 @@ test("wellknown remote_config supports templated env vars in headers", async () 
         Config.Service.use((svc) =>
           Effect.gen(function* () {
             const config = yield* svc.get()
-            expect(wellknownFetchedUrl).toBe("https://example.com/.well-known/opencode")
+            expect(wellknownFetchedUrl).toBe("https://example.com/.well-known/novaway")
             expect(remoteFetchedUrl).toBe("https://config.example.com/novaway.json")
             expect(remoteHeaders).toEqual({ Authorization: "Bearer test-token" })
             expect(config.mcp?.confluence?.enabled).toBe(true)
@@ -2559,8 +2559,8 @@ describe("NOVAWAY_DISABLE_PROJECT_CONFIG", () => {
         fn: async (ctx) => {
           const directories = await listDirs(ctx)
           // Project .novaway should NOT be in directories list
-          const hasProjectOpencode = directories.some((d) => d.startsWith(tmp.path))
-          expect(hasProjectOpencode).toBe(false)
+          const hasProjectConfig = directories.some((d) => d.startsWith(tmp.path))
+          expect(hasProjectConfig).toBe(false)
         },
       })
     } finally {
@@ -2774,7 +2774,7 @@ test("parseManagedPlist strips MDM metadata keys", async () => {
     ConfigParse.jsonc(
       await ConfigManaged.parseManagedPlist(
         JSON.stringify({
-          PayloadDisplayName: "OpenCode Managed",
+          PayloadDisplayName: "NovaWay Managed",
           PayloadIdentifier: "ai.novaway.managed.test",
           PayloadType: "ai.novaway.managed",
           PayloadUUID: "AAAA-BBBB-CCCC",

@@ -144,7 +144,7 @@ describe("Permission.disabled for task tool", () => {
 // Integration tests that load permissions from real config files
 describe("permission.task with real config files", () => {
   it.instance(
-    "loads task permissions from opencode.json config",
+    "loads task permissions from novaway.json config",
     () =>
       Effect.gen(function* () {
         const config = yield* load

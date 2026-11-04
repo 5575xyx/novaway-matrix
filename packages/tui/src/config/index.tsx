@@ -127,7 +127,7 @@ export function resolve(input: Info, options: ResolveOptions): Resolved {
       notifications: input.attention?.notifications ?? true,
       sound: input.attention?.sound ?? true,
       volume: input.attention?.volume ?? 0.4,
-      sound_pack: input.attention?.sound_pack ?? "NovaWay.default",
+      sound_pack: input.attention?.sound_pack ?? "novaway.default",
       sounds: input.attention?.sounds ?? {},
     },
     keybinds: createBindingLookup(TuiKeybind.toBindingConfig(TuiKeybind.parse(keybinds)), {

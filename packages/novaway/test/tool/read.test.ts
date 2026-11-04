@@ -271,13 +271,13 @@ describe("tool.read external_directory permission", () => {
   scout.live("does not ask for external_directory permission when reading configured references", () =>
     Effect.gen(function* () {
       const fs = yield* AppFileSystem.Service
-      const cache = path.join(Global.Path.repos, "github.com", "opencode-read-reference", "repo")
+      const cache = path.join(Global.Path.repos, "github.com", "novaway-read-reference", "repo")
       yield* fs.remove(cache, { recursive: true }).pipe(Effect.ignore)
       yield* Effect.addFinalizer(() => fs.remove(cache, { recursive: true }).pipe(Effect.ignore))
 
       const source = yield* tmpdirScoped({ git: true })
       const remoteRoot = yield* tmpdirScoped()
-      const remoteDir = path.join(remoteRoot, "opencode-read-reference")
+      const remoteDir = path.join(remoteRoot, "novaway-read-reference")
       const remoteRepo = path.join(remoteDir, "repo.git")
       yield* put(path.join(source, "notes.md"), "reference notes")
       yield* git(source, ["add", "."])
@@ -289,7 +289,7 @@ describe("tool.read external_directory permission", () => {
         git: true,
         config: {
           reference: {
-            docs: "opencode-read-reference/repo",
+            docs: "novaway-read-reference/repo",
           },
         },
       })

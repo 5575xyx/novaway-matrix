@@ -83,7 +83,7 @@ const waitForContent = (
 describe("reference", () => {
   it.live("resolves local and git references", () =>
     Effect.gen(function* () {
-      const root = path.resolve("opencode-reference-root")
+      const root = path.resolve("novaway-reference-root")
       const local = Reference.resolve({
         name: "docs",
         reference: { path: "../docs" },
@@ -110,7 +110,7 @@ describe("reference", () => {
 
   it.live("marks same-cache references with different branches invalid", () =>
     Effect.gen(function* () {
-      const root = path.resolve("opencode-reference-root")
+      const root = path.resolve("novaway-reference-root")
       const references = Reference.resolveAll({
         directory: root,
         worktree: root,
@@ -135,13 +135,13 @@ describe("reference", () => {
       (_dir) =>
         Effect.gen(function* () {
           const fs = yield* AppFileSystem.Service
-          const cache = path.join(Global.Path.repos, "github.com", "opencode-reference-test", "repo")
+          const cache = path.join(Global.Path.repos, "github.com", "novaway-reference-test", "repo")
           yield* fs.remove(cache, { recursive: true }).pipe(Effect.ignore)
           yield* Effect.addFinalizer(() => fs.remove(cache, { recursive: true }).pipe(Effect.ignore))
 
           const source = yield* tmpdirScoped({ git: true })
           const remoteRoot = yield* tmpdirScoped()
-          const remoteDir = path.join(remoteRoot, "opencode-reference-test")
+          const remoteDir = path.join(remoteRoot, "novaway-reference-test")
           const remoteRepo = path.join(remoteDir, "repo.git")
 
           yield* Effect.promise(() => Bun.write(path.join(source, "README.md"), "configured\n"))
@@ -169,7 +169,7 @@ describe("reference", () => {
       {
         config: {
           reference: {
-            docs: "opencode-reference-test/repo",
+            docs: "novaway-reference-test/repo",
           },
         },
       },
@@ -179,13 +179,13 @@ describe("reference", () => {
   scout.live("refreshes configured git references on new instance init", () =>
     Effect.gen(function* () {
       const fs = yield* AppFileSystem.Service
-      const cache = path.join(Global.Path.repos, "github.com", "opencode-reference-refresh", "repo")
+      const cache = path.join(Global.Path.repos, "github.com", "novaway-reference-refresh", "repo")
       yield* fs.remove(cache, { recursive: true }).pipe(Effect.ignore)
       yield* Effect.addFinalizer(() => fs.remove(cache, { recursive: true }).pipe(Effect.ignore))
 
       const source = yield* tmpdirScoped({ git: true })
       const remoteRoot = yield* tmpdirScoped()
-      const remoteDir = path.join(remoteRoot, "opencode-reference-refresh")
+      const remoteDir = path.join(remoteRoot, "novaway-reference-refresh")
       const remoteRepo = path.join(remoteDir, "repo.git")
 
       yield* Effect.promise(() => Bun.write(path.join(source, "README.md"), "v1\n"))
@@ -206,7 +206,7 @@ describe("reference", () => {
           {
             config: {
               reference: {
-                docs: "opencode-reference-refresh/repo",
+                docs: "novaway-reference-refresh/repo",
               },
             },
           },
@@ -232,7 +232,7 @@ describe("reference", () => {
           {
             config: {
               reference: {
-                docs: "opencode-reference-refresh/repo",
+                docs: "novaway-reference-refresh/repo",
               },
             },
           },

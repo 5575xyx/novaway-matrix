@@ -370,8 +370,8 @@ describe("tool.registry", () => {
   it.instance("loads tools from .novaway/tool (singular)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".novaway")
-      const tool = path.join(opencode, "tool")
+      const configDir = path.join(test.directory, ".novaway")
+      const tool = path.join(configDir, "tool")
       yield* Effect.promise(() => fs.mkdir(tool, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
@@ -424,8 +424,8 @@ describe("tool.registry", () => {
   it.instance("loads tools from .novaway/tools (plural)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".novaway")
-      const tools = path.join(opencode, "tools")
+      const configDir = path.join(test.directory, ".novaway")
+      const tools = path.join(configDir, "tools")
       yield* Effect.promise(() => fs.mkdir(tools, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
@@ -504,13 +504,13 @@ describe("tool.registry", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const opencode = path.join(test.directory, ".novaway")
-        const customTools = path.join(opencode, "tools")
-        const plugin = path.join(opencode, "node_modules", "@novaway", "plugin")
+        const configDir = path.join(test.directory, ".novaway")
+        const customTools = path.join(configDir, "tools")
+        const plugin = path.join(configDir, "node_modules", "@novaway", "plugin")
         yield* Effect.promise(() => fs.mkdir(path.join(plugin, "dist"), { recursive: true }))
         yield* Effect.promise(() => fs.mkdir(customTools, { recursive: true }))
         yield* Effect.promise(() =>
-          fs.cp(path.dirname(fileURLToPath(import.meta.resolve("zod"))), path.join(opencode, "node_modules", "zod"), {
+          fs.cp(path.dirname(fileURLToPath(import.meta.resolve("zod"))), path.join(configDir, "node_modules", "zod"), {
             dereference: true,
             recursive: true,
           }),
@@ -646,12 +646,12 @@ describe("tool.registry", () => {
   it.instance("loads tools with external dependencies without crashing", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".novaway")
-      const tools = path.join(opencode, "tools")
+      const configDir = path.join(test.directory, ".novaway")
+      const tools = path.join(configDir, "tools")
       yield* Effect.promise(() => fs.mkdir(tools, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
-          path.join(opencode, "package.json"),
+          path.join(configDir, "package.json"),
           JSON.stringify({
             name: "custom-tools",
             dependencies: {
@@ -663,7 +663,7 @@ describe("tool.registry", () => {
       )
       yield* Effect.promise(() =>
         Bun.write(
-          path.join(opencode, "package-lock.json"),
+          path.join(configDir, "package-lock.json"),
           JSON.stringify({
             name: "custom-tools",
             lockfileVersion: 3,
@@ -679,7 +679,7 @@ describe("tool.registry", () => {
         ),
       )
 
-      const cowsay = path.join(opencode, "node_modules", "cowsay")
+      const cowsay = path.join(configDir, "node_modules", "cowsay")
       yield* Effect.promise(() => fs.mkdir(cowsay, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(

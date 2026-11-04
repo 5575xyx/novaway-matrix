@@ -2166,10 +2166,10 @@ test("models.dev normalization fills required response fields", () => {
   expect(model.release_date).toBe("")
 })
 
-test("models.dev initializes the OpenCode provider as Default", () => {
+test("models.dev initializes the NovaWay provider as Default", () => {
   const provider = {
     id: "opencode",
-    name: "OpenCode Zen",
+    name: "NovaWay Zen",
     env: [],
     models: {},
   } as ModelsDev.Provider
@@ -2612,7 +2612,7 @@ test("cloudflare-ai-gateway forwards config metadata options", async () => {
           provider: {
             "cloudflare-ai-gateway": {
               options: {
-                metadata: { invoked_by: "test", project: "opencode" },
+                metadata: { invoked_by: "test", project: "novaway" },
               },
             },
           },
@@ -2630,7 +2630,7 @@ test("cloudflare-ai-gateway forwards config metadata options", async () => {
       expect(providers[ProviderID.make("cloudflare-ai-gateway")]).toBeDefined()
       expect(providers[ProviderID.make("cloudflare-ai-gateway")].options.metadata).toEqual({
         invoked_by: "test",
-        project: "opencode",
+        project: "novaway",
       })
     },
   })

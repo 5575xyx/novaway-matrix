@@ -11,7 +11,7 @@ const it = testEffect(Ripgrep.defaultLayer)
 
 const tmpdir = (init?: (dir: string) => Effect.Effect<void>) =>
   Effect.acquireRelease(
-    Effect.promise(async () => fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "opencode-test-")))),
+    Effect.promise(async () => fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "novaway-test-")))),
     (dir) =>
       Effect.promise(() =>
         fs.rm(dir, {

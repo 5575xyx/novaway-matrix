@@ -113,8 +113,8 @@ describe("Project.fromDirectory", () => {
       expect(project.vcs).toBe("git")
       expect(project.worktree).toBe(tmp)
 
-      const opencodeFile = path.join(tmp, ".git", "opencode")
-      expect(yield* Effect.promise(() => Bun.file(opencodeFile).exists())).toBe(false)
+      const novawayFile = path.join(tmp, ".git", "novaway")
+      expect(yield* Effect.promise(() => Bun.file(novawayFile).exists())).toBe(false)
     }),
   )
 
@@ -129,8 +129,8 @@ describe("Project.fromDirectory", () => {
       expect(project.vcs).toBe("git")
       expect(project.worktree).toBe(tmp)
 
-      const opencodeFile = path.join(tmp, ".git", "opencode")
-      expect(yield* Effect.promise(() => Bun.file(opencodeFile).exists())).toBe(true)
+      const novawayFile = path.join(tmp, ".git", "novaway")
+      expect(yield* Effect.promise(() => Bun.file(novawayFile).exists())).toBe(true)
     }),
   )
 
@@ -246,7 +246,7 @@ describe("Project.fromDirectory with worktrees", () => {
       expect(wt.id).toBe(main.id)
 
       // Cache should live in the common .git dir, not the worktree's .git file
-      const cache = path.join(tmp, ".git", "opencode")
+      const cache = path.join(tmp, ".git", "novaway")
       const exists = yield* Effect.promise(() => Bun.file(cache).exists())
       expect(exists).toBe(true)
     }),
@@ -644,8 +644,8 @@ describe("Project.fromDirectory with bare repos", () => {
       expect(project.id).not.toBe(ProjectID.global)
       expect(project.worktree).toBe(barePath)
 
-      const correctCache = path.join(barePath, "opencode")
-      const wrongCache = path.join(parentDir, ".git", "opencode")
+      const correctCache = path.join(barePath, "novaway")
+      const wrongCache = path.join(parentDir, ".git", "novaway")
 
       expect(yield* Effect.promise(() => Bun.file(correctCache).exists())).toBe(true)
       expect(yield* Effect.promise(() => Bun.file(wrongCache).exists())).toBe(false)
@@ -678,9 +678,9 @@ describe("Project.fromDirectory with bare repos", () => {
 
       expect(projA.id).not.toBe(projB.id)
 
-      const cacheA = path.join(bareA, "opencode")
-      const cacheB = path.join(bareB, "opencode")
-      const wrongCache = path.join(parentDir, ".git", "opencode")
+      const cacheA = path.join(bareA, "novaway")
+      const cacheB = path.join(bareB, "novaway")
+      const wrongCache = path.join(parentDir, ".git", "novaway")
 
       expect(yield* Effect.promise(() => Bun.file(cacheA).exists())).toBe(true)
       expect(yield* Effect.promise(() => Bun.file(cacheB).exists())).toBe(true)
@@ -707,7 +707,7 @@ describe("Project.fromDirectory with bare repos", () => {
       expect(project.id).not.toBe(ProjectID.global)
       expect(project.worktree).toBe(barePath)
 
-      const correctCache = path.join(barePath, "opencode")
+      const correctCache = path.join(barePath, "novaway")
       expect(yield* Effect.promise(() => Bun.file(correctCache).exists())).toBe(true)
     }),
   )

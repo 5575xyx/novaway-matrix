@@ -836,8 +836,8 @@ export const layer = Layer.effect(
           if (value.type === "wellknown") {
             const url = key.replace(/\/+$/, "")
             process.env[value.key] = value.token
-            log.debug("fetching remote config", { url: `${url}/.well-known/NovaWay` })
-            const response = yield* Effect.promise(() => fetch(`${url}/.well-known/NovaWay`))
+            log.debug("fetching remote config", { url: `${url}/.well-known/novaway` })
+            const response = yield* Effect.promise(() => fetch(`${url}/.well-known/novaway`))
             if (!response.ok) {
               throw new Error(`failed to fetch remote config from ${url}: ${response.status}`)
             }
@@ -849,7 +849,7 @@ export const layer = Layer.effect(
               substituteWellKnownRemoteConfig({
                 value: wellknown.remote_config,
                 dir: url,
-                source: `${url}/.well-known/NovaWay`,
+                source: `${url}/.well-known/novaway`,
               }),
             )
             const fetchedConfig = remote
@@ -864,7 +864,7 @@ export const layer = Layer.effect(
               : {}
             const remoteConfig = mergeConfig(wellknown.config ?? {}, fetchedConfig as Info)
             if (!remoteConfig.$schema) remoteConfig.$schema = "https://novaway.ai/config.json"
-            const source = `${url}/.well-known/NovaWay`
+            const source = `${url}/.well-known/novaway`
             const next = yield* loadConfig(JSON.stringify(remoteConfig), {
               dir: path.dirname(source),
               source,

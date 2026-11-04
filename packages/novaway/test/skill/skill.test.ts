@@ -483,13 +483,13 @@ description: A skill in the .agents/skills directory.
 `,
               ),
               Bun.write(
-                path.join(dir, ".novaway", "skill", "opencode-skill", "SKILL.md"),
+                path.join(dir, ".novaway", "skill", "novaway-skill", "SKILL.md"),
                 `---
-name: opencode-skill
+name: novaway-skill
 description: A skill in the .novaway/skill directory.
 ---
 
-# OpenCode Skill
+# NovaWay Skill
 `,
               ),
             ]),
@@ -497,7 +497,7 @@ description: A skill in the .novaway/skill directory.
 
           const skill = yield* Skill.Service
           const list = (yield* skill.all()).filter((s) => !s.builtIn)
-          expect(list.map((s) => s.name)).toEqual(["opencode-skill"])
+          expect(list.map((s) => s.name)).toEqual(["novaway-skill"])
         }),
       { git: true },
     ),
@@ -532,21 +532,21 @@ description: A skill in the .agents/skills directory.
               Bun.write(
                 path.join(dir, ".novaway", "skill", "agent-skill", "SKILL.md"),
                 `---
-name: opencode-skill
+name: novaway-skill
 description: A skill in the .novaway/skill directory.
 ---
 
-# OpenCode Skill
+# NovaWay Skill
 `,
               ),
               Bun.write(
                 path.join(dir, ".novaway", "skills", "agent-skill", "SKILL.md"),
                 `---
-name: opencode-skill
+name: novaway-skill
 description: A skill in the .novaway/skills directory.
 ---
 
-# OpenCode Skill
+# NovaWay Skill
 `,
               ),
             ]),
