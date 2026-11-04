@@ -1,5 +1,5 @@
 import { afterEach, test, expect } from "bun:test"
-import { mkdir, unlink } from "fs/promises"
+import { mkdir } from "fs/promises"
 import path from "path"
 
 import { disposeAllInstances, tmpdir, withTestInstance } from "../fixture/fixture"
@@ -9,7 +9,6 @@ import { Plugin } from "../../src/plugin/index"
 import { ModelsDev } from "@novaway/core/models-dev"
 import { Provider } from "@/provider/provider"
 import { ProviderID, ModelID } from "../../src/provider/schema"
-import { Filesystem } from "@/util/filesystem"
 import { Env } from "../../src/env"
 import { Effect, Layer } from "effect"
 import { AppRuntime } from "../../src/effect/app-runtime"
@@ -107,12 +106,6 @@ async function markPluginDependenciesReady(dir: string) {
     path.join(dir, "package-lock.json"),
     JSON.stringify({ packages: { "": { dependencies: { "@novaway/plugin": "0.0.0" } } } }),
   )
-}
-
-function paid(providers: Awaited<ReturnType<typeof list>>) {
-  const item = providers[ProviderID.make("opencode")]
-  expect(item).toBeDefined()
-  return Object.values(item.models).filter((model) => model.cost.input > 0).length
 }
 
 const it = testEffect(Provider.defaultLayer)
@@ -1726,14 +1719,13 @@ test("ModelNotFoundError suggests catalog models for unloaded providers", async 
   await withTestInstance({
     directory: tmp.path,
     fn: async (ctx) => {
-      // 有 key 才有可用模型（免费档已从目录移除），suggestions 基于保留下的付费模型
-      set(ctx, "OPENCODE_API_KEY", "test-key")
+      // 没有 key 时 anthropic 不会加载，suggestions 只能来自 catalog。
       try {
-        await getModel(ProviderID.NovaWay, ModelID.make("claude-haiku-fake-model"), ctx)
+        await getModel(ProviderID.anthropic, ModelID.make("claude-haiku-fake-model"), ctx)
         throw new Error("expected model lookup to fail")
       } catch (e) {
         if (!Provider.ModelNotFoundError.isInstance(e)) throw e
-        expect(e.suggestions).toContain("claude-haiku-4-5")
+        expect(e.suggestions).toContain("claude-3-5-haiku-latest")
       }
     },
   })
@@ -2164,17 +2156,6 @@ test("models.dev normalization fills required response fields", () => {
   expect(model.capabilities.attachment).toBe(false)
   expect(model.capabilities.toolcall).toBe(true)
   expect(model.release_date).toBe("")
-})
-
-test("models.dev initializes the NovaWay provider as Default", () => {
-  const provider = {
-    id: "opencode",
-    name: "NovaWay Zen",
-    env: [],
-    models: {},
-  } as ModelsDev.Provider
-
-  expect(Provider.fromModelsDevProvider(provider).name).toBe("Default")
 })
 
 test("models.dev keeps other provider names unchanged", () => {
@@ -2733,148 +2714,3 @@ test("plugin config enabled and disabled providers are honored", async () => {
   })
 })
 
-test("opencode loader keeps paid models when config apiKey is present", async () => {
-  await using base = await tmpdir({
-    init: async (dir) => {
-      await Bun.write(
-        path.join(dir, "novaway.json"),
-        JSON.stringify({
-          $schema: "https://novaway.ai/config.json",
-        }),
-      )
-    },
-  })
-
-  const none = await withTestInstance({
-    directory: base.path,
-    fn: async (ctx) => (await list(ctx))[ProviderID.make("opencode")],
-  })
-
-  await using keyed = await tmpdir({
-    init: async (dir) => {
-      await Bun.write(
-        path.join(dir, "novaway.json"),
-        JSON.stringify({
-          $schema: "https://novaway.ai/config.json",
-          provider: {
-            opencode: {
-              options: {
-                apiKey: "test-key",
-              },
-            },
-          },
-        }),
-      )
-    },
-  })
-
-  const keyedCount = await withTestInstance({
-    directory: keyed.path,
-    fn: async (ctx) => paid(await list(ctx)),
-  })
-
-  // 免费/付费都依赖 key：没 key 时免费模型已移除、付费模型不可用，
-  // opencode 整个不会出现在列表里
-  expect(none).toBeUndefined()
-  expect(keyedCount).toBeGreaterThan(0)
-})
-
-test("opencode loader keeps paid models when auth exists", async () => {
-  await using base = await tmpdir({
-    init: async (dir) => {
-      await Bun.write(
-        path.join(dir, "novaway.json"),
-        JSON.stringify({
-          $schema: "https://novaway.ai/config.json",
-        }),
-      )
-    },
-  })
-
-  const none = await withTestInstance({
-    directory: base.path,
-    fn: async (ctx) => (await list(ctx))[ProviderID.make("opencode")],
-  })
-
-  await using keyed = await tmpdir({
-    init: async (dir) => {
-      await Bun.write(
-        path.join(dir, "novaway.json"),
-        JSON.stringify({
-          $schema: "https://novaway.ai/config.json",
-        }),
-      )
-    },
-  })
-
-  const authPath = path.join(Global.Path.data, "auth.json")
-  let prev: string | undefined
-
-  try {
-    prev = await Filesystem.readText(authPath)
-  } catch {}
-
-  try {
-    await Filesystem.write(
-      authPath,
-      JSON.stringify({
-        opencode: {
-          type: "api",
-          key: "test-key",
-        },
-      }),
-    )
-
-    const keyedCount = await withTestInstance({
-      directory: keyed.path,
-      fn: async (ctx) => paid(await list(ctx)),
-    })
-
-    // 免费/付费都依赖 key：没 key 时免费模型已移除、付费模型不可用，
-    // opencode 整个不会出现在列表里
-    expect(none).toBeUndefined()
-    expect(keyedCount).toBeGreaterThan(0)
-  } finally {
-    if (prev !== undefined) {
-      await Filesystem.write(authPath, prev)
-    }
-    if (prev === undefined) {
-      try {
-        await unlink(authPath)
-      } catch {}
-    }
-  }
-})
-
-test("opencode loader removes free models even when a key is present", async () => {
-  // Zen 网关服务端只认 opencode 官方客户端的免费档，NovaWay 带 key 也一样被拒，
-  // 所以免费模型必须从目录里消失，避免用户选了必报错。
-  await using keyed = await tmpdir({
-    init: async (dir) => {
-      await Bun.write(
-        path.join(dir, "novaway.json"),
-        JSON.stringify({
-          $schema: "https://novaway.ai/config.json",
-          provider: {
-            opencode: {
-              options: {
-                apiKey: "test-key",
-              },
-            },
-          },
-        }),
-      )
-    },
-  })
-
-  await withTestInstance({
-    directory: keyed.path,
-    fn: async (ctx) => {
-      const providers = await list(ctx)
-      const item = providers[ProviderID.make("opencode")]
-      expect(item).toBeDefined()
-      const free = Object.values(item.models).filter((model) => model.cost.input === 0)
-      expect(free).toHaveLength(0)
-    },
-  })
-})

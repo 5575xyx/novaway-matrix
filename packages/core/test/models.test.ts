@@ -136,7 +136,24 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("get() returns empty catalog when disk empty, fetch disabled, and no bundled snapshot is injected", () =>
+  it.live("get() drops the upstream Zen providers from the catalog", () =>
+    Effect.gen(function* () {
+      const upstream = {
+        ...fixture,
+        opencode: { ...fixture.acme, id: "opencode", name: "OpenCode Zen" },
+        "opencode-go": { ...fixture.acme, id: "opencode-go", name: "OpenCode Go" },
+      }
+      yield* writeCache(upstream)
+      const state = yield* Ref.make(initialState)
+      const result = yield* provided(
+        state,
+        ModelsDev.Service.use((s) => s.get()),
+      )
+      expect(Object.keys(result)).toEqual(["acme"])
+    }),
+  )
+
+  it.live("get() returns an empty catalog when disk empty, fetch disabled, and no bundled snapshot is injected", () =>
     Effect.gen(function* () {
       const state = yield* Ref.make(initialState)
       const result = yield* provided(

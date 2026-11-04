@@ -7,7 +7,6 @@ import { mergeDeep } from "remeda"
 import { GitLabWorkflowLanguageModel } from "gitlab-ai-provider"
 import { ProviderTransform } from "@/provider/transform"
 import { Config } from "@/config/config"
-import { InstanceState } from "@/effect/instance-state"
 import type { Agent } from "@/agent/agent"
 import type { MessageV2 } from "./message-v2"
 import { Plugin } from "@/plugin"
@@ -426,10 +425,6 @@ const live: Layer.Layer<
           })
         : undefined
 
-      const NovaWayProjectID = input.model.providerID.startsWith("novaway")
-        ? (yield* InstanceState.context).project.id
-        : undefined
-
       return streamText({
         onError(error) {
           l.error("stream error", {
@@ -467,22 +462,9 @@ const live: Layer.Layer<
         maxOutputTokens: params.maxOutputTokens,
         abortSignal: input.abort,
         headers: {
-          ...(input.model.providerID.startsWith("novaway")
-            ? {
-                // Zen 服务的客户端契约：这四个头名固定为 `x-opencode-*`，
-                // 网关（packages/console 的 zen handler）按原名读取后转发给上游。
-                // 改名会让会话/项目/来源统计直接静默丢失，别跟着品牌一起改。
-                "x-opencode-project": NovaWayProjectID,
-                "x-opencode-session": input.sessionID,
-                "x-opencode-request": input.user.id,
-                "x-opencode-client": flags.client,
-                "User-Agent": `opencode/${InstallationVersion}`,
-              }
-            : {
-                "x-session-affinity": input.sessionID,
-                ...(input.parentSessionID ? { "x-parent-session-id": input.parentSessionID } : {}),
-                "User-Agent": `NovaWay/${InstallationVersion}`,
-              }),
+          "x-session-affinity": input.sessionID,
+          ...(input.parentSessionID ? { "x-parent-session-id": input.parentSessionID } : {}),
+          "User-Agent": `NovaWay/${InstallationVersion}`,
           ...input.model.headers,
           ...headers,
         },

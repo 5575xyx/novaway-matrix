@@ -226,20 +226,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           },
         },
       }),
-    opencode: Effect.fnUntraced(function* (input: Info) {
-      const env = yield* dep.env()
-      const auth = yield* dep.auth(input.id)
-      const apiKey = (auth?.type === "api" ? auth.key : undefined) ?? (yield* dep.get("OPENCODE_API_KEY"))
-      const hasKey = apiKey !== undefined || input.env.some((item) => env[item])
-      const ok = hasKey || Boolean((yield* dep.config()).provider?.["opencode"]?.options?.apiKey)
-
-      // 无 Key 时不展示任何 Zen 模型，也不做任何客户端伪装：
-      // Zen 服务端会校验请求方是不是官方客户端，第三方客户端即使把 Header
-      // 和 body 都改对也会被 500。用户需到 https://novaway.ai 控制台获取
-      // 真实 API Key 才能使用。
-      if (!ok) input.models = {}
-      return { autoload: ok }
-    }),
     openai: () =>
       Effect.succeed({
         autoload: false,
@@ -2097,7 +2083,7 @@ export function fromModelsDevProvider(provider: ModelsDev.Provider): Info {
   return {
     id: ProviderID.make(provider.id),
     source: "custom",
-    name: provider.id === "opencode" ? "Default" : provider.name,
+    name: provider.name,
     env: [...(provider.env ?? [])],
     options: {},
     models,
@@ -2850,12 +2836,8 @@ export const layer = Layer.effect(
       const provider = s.providers[providerID]
       if (!provider) {
         const catalogProvider = s.catalog[providerID]
-        // ProviderID.NovaWay 是 NovaWay 的本地别名，catalog 中仍沿用上游的
-        // "opencode" 键；别名未加载时也要从实际 catalog 提示可用付费模型。
-        const suggestionSource =
-          catalogProvider ?? (providerID === ProviderID.NovaWay ? s.catalog[ProviderID.make("opencode")] : undefined)
-        const suggestions = suggestionSource
-          ? modelSuggestions(suggestionSource, modelID, runtimeFlags.enableExperimentalModels)
+        const suggestions = catalogProvider
+          ? modelSuggestions(catalogProvider, modelID, runtimeFlags.enableExperimentalModels)
           : fuzzysort
               .go(providerID, Object.keys({ ...s.catalog, ...s.providers }), { limit: 3, threshold: -10000 })
               .map((m) => m.target)

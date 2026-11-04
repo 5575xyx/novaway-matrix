@@ -20,7 +20,6 @@ import { MistralPlugin } from "./mistral"
 import { NvidiaPlugin } from "./nvidia"
 import { OpenAIPlugin } from "./openai"
 import { OpenAICompatiblePlugin } from "./openai-compatible"
-import { ZenPlugin } from "./zen"
 import { OpenRouterPlugin } from "./openrouter"
 import { PerplexityPlugin } from "./perplexity"
 import { SapAICorePlugin } from "./sap-ai-core"
@@ -52,7 +51,6 @@ export const ProviderPlugins = [
   LLMGatewayPlugin,
   MistralPlugin,
   NvidiaPlugin,
-  ZenPlugin,
   OpenAICompatiblePlugin,
   OpenAIPlugin,
   OpenRouterPlugin,

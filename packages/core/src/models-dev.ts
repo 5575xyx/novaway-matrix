@@ -110,6 +110,19 @@ export type Provider = Schema.Schema.Type<typeof Provider>
 
 declare const NOVAWAY_MODELS_DEV: Record<string, Provider> | undefined
 
+// 上游 Zen 的两个 provider key 不再内置。它们在目录里指向 opencode.ai/zen，
+// 是别人的服务：留着会让客户端在用户恰好配了 OPENCODE_API_KEY 时把请求
+// 发到上游去，并且界面会把它显示成 “Default”。自家网关走 `builtin`，
+// 自定义端点走 `provider.<id>` 配置，都不依赖这两个 key。
+// 只过滤加载结果，缓存文件与快照本身保持上游原样。
+const EXCLUDED_PROVIDER_IDS = new Set(["opencode", "opencode-go"])
+
+function withoutUpstreamCatalog(catalog: Record<string, Provider>): Record<string, Provider> {
+  const ids = Object.keys(catalog)
+  if (!ids.some((id) => EXCLUDED_PROVIDER_IDS.has(id))) return catalog
+  return Object.fromEntries(ids.filter((id) => !EXCLUDED_PROVIDER_IDS.has(id)).map((id) => [id, catalog[id]!]))
+}
+
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Provider>>
   readonly refresh: (force?: boolean) => Effect.Effect<void>
@@ -194,7 +207,10 @@ export const layer = Layer.effect(
       ),
     )
 
-    const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)
+    const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(
+      populate.pipe(Effect.map(withoutUpstreamCatalog)),
+      Duration.infinity,
+    )
 
     const get = (): Effect.Effect<Record<string, Provider>> => cachedGet
 

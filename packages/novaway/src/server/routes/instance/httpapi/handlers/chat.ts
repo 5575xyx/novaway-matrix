@@ -1,7 +1,6 @@
 import { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
 import { Config } from "@/config/config"
-import { InstanceState } from "@/effect/instance-state"
 import { ChatPayload, ChatResponse } from "../groups/chat"
 import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
@@ -38,7 +37,6 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
     const auth = yield* Auth.Service
 
     const send = Effect.fn("ChatHttpApi.send")(function* (ctx: { payload: typeof ChatPayload.Type }) {
-      const ctxState = yield* InstanceState.context
       const providerID = ctx.payload.model.providerID
       const modelID = ctx.payload.model.modelID
 
@@ -78,7 +76,6 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
         topP: ctx.payload.topP ?? ProviderTransform.topP(model),
       }
 
-      const NovaWayProjectID = providerID.startsWith("novaway") ? ctxState.project.id : undefined
       const middleware: LanguageModelMiddleware[] = []
 
       // 有图片时用多模态 content parts；没有则保持纯文本（兼容所有模型）。
@@ -110,16 +107,7 @@ export const chatHandlers = HttpApiBuilder.group(InstanceHttpApi, "chat", (handl
             maxOutputTokens: params.maxOutputTokens,
             providerOptions: ProviderTransform.providerOptions(model, baseOptions),
             headers: {
-              ...(providerID.startsWith("novaway")
-                ? {
-                    // 同上：Zen 网关按 `x-opencode-*` 读取客户端来源信息。
-                    "x-opencode-project": NovaWayProjectID,
-                    "x-opencode-request": "chat",
-                    "User-Agent": `opencode/${InstallationVersion}`,
-                  }
-                : {
-                    "User-Agent": `NovaWay/${InstallationVersion}`,
-                  }),
+              "User-Agent": `NovaWay/${InstallationVersion}`,
               ...model.headers,
             },
             maxRetries: 2,
