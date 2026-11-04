@@ -1,4 +1,4 @@
-# @opencode-ai/slack
+# @novaway/slack
 
 Slack bot integration for NovaWay that creates threaded conversations.
 
