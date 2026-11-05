@@ -68,5 +68,18 @@ tmp-zcode*
 tmp-*.md
 zz-live-verify-*
 
+# 一次性临时脚本/数据（判定口径同 packages/novaway/src/session/temp-files.ts）
+/tmp-*
+*.bak
+*.orig
+*.rej
+*.swp
+
+# 本地日志（lint / kpi / 推送脚本的输出，只在本机有意义）
+/kpi.log
+/kpi.err
+/lint*.txt
+/push-gitee.log
+
 __pycache__/
 *.pyc
