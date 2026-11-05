@@ -3,76 +3,148 @@ title: 插件
 description: 编写自己的插件来扩展 NovaWay。
 ---
 
-插件允许你通过挂钩各种事件和自定义行为来扩展 NovaWay。你可以创建插件来添加新功能、集成外部服务，或修改 NovaWay 的默认行为。
-
-如需了解示例，请查看社区创建的[插件](/docs/ecosystem#plugins)。
-
----
-
-## 使用插件
-
-有两种方式加载插件。
+插件就是一个普通的 TypeScript / JavaScript 模块，导出一组**钩子**。NovaWay 运行时调用这些
+钩子，你的代码因此可以读取对话、修改发给模型的请求、注册工具、甚至新增供应商。本页所有
+示例都基于 `@novaway/plugin`。
 
 ---
 
-### 从本地文件加载
+## 快速开始
 
-将 JavaScript 或 TypeScript 文件放置在插件目录中。
+在项目里新建 `.novaway/plugin/hello.ts`：
 
-- `.novaway/plugins/` - 项目级插件
-- `~/.config/novaway/plugins/` - 全局插件
+```ts title=".novaway/plugin/hello.ts"
+import type { Plugin } from "@novaway/plugin"
 
-这些目录中的文件会在启动时自动加载。
+export default {
+  id: "hello",
+  server: (async () => ({
+    "tool.execute.before": async (input, output) => {
+      if (input.tool === "bash") {
+        console.log("about to run:", output.args.command)
+      }
+    },
+  })) satisfies Plugin,
+}
+```
+
+启动 NovaWay 之后，每次调用 `bash` 工具都会打印出来。`.novaway/plugin/` 和
+`.novaway/plugins/` 下的文件会被自动发现，不需要任何配置。
 
 ---
 
-### 从 npm 加载
+## 插件放在哪里
 
-在配置文件中指定 npm 包。
+| 位置                            | 作用范围     | 加载方式   |
+| ------------------------------- | ------------ | ---------- |
+| `.novaway/plugin/*.ts`          | 项目         | 自动       |
+| `.novaway/plugins/*.ts`         | 项目         | 自动       |
+| `~/.config/novaway/plugin/*.ts` | 全局         | 自动       |
+| `novaway.json` 的 `plugin` 数组 | 全局或项目   | 按 spec    |
+
+`plugin` 数组支持 npm 包名、git 地址和本地路径：
 
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-helicone-session", "opencode-wakatime", "@my-org/custom-plugin"]
+  "plugin": [
+    "./plugin/release-helper.ts",
+    "novaway-plugin-git-hooks",
+    "@my-org/novaway-plugin-audit@1.2.0",
+    "some-plugin@git+https://gitee.com/my-org/some-plugin.git"
+  ]
 }
 ```
 
-支持常规和带作用域的 npm 包。
+**npm 插件**在启动时由 Bun 安装，缓存在 `~/.cache/novaway/node_modules/`。**本地插件**直接
+import；如果要在本地插件里用第三方包，需要在配置目录放一个 `package.json`（见
+[依赖项](#dependencies)）。
 
-浏览[生态系统](/docs/ecosystem#plugins)中的可用插件。
-
----
-
-### 插件的安装方式
-
-**npm 插件**在启动时使用 Bun 自动安装。包及其依赖项会缓存在 `~/.cache/novaway/node_modules/` 中。
-
-**本地插件**直接从插件目录加载。如果需要使用外部包，你必须在配置目录中创建 `package.json`（参见[依赖项](#dependencies)），或者将插件发布到 npm 并[将其添加到配置中](/docs/config#plugins)。
+加载顺序是：全局配置、项目配置、全局插件目录、项目插件目录。所有插件的所有钩子按这个顺序
+依次执行。名称和版本都相同的 npm 包只加载一次。
 
 ---
 
-### 加载顺序
+## 插件的两种写法
 
-插件从所有来源加载，所有钩子按顺序执行。加载顺序为：
+### 带 id 的 default 导出（推荐）
 
-1. 全局配置 (`~/.config/novaway/novaway.json`)
-2. 项目配置 (`novaway.json`)
-3. 全局插件目录 (`~/.config/novaway/plugins/`)
-4. 项目插件目录 (`.novaway/plugins/`)
+```ts title=".novaway/plugin/release-helper.ts"
+import type { Plugin } from "@novaway/plugin"
 
-名称和版本相同的重复 npm 包只会加载一次。但本地插件和名称相似的 npm 插件会分别独立加载。
+export default {
+  id: "release-helper",
+  server: (async ({ client, directory }) => {
+    return {
+      // 钩子
+    }
+  }) satisfies Plugin,
+}
+```
+
+路径形式的插件必须提供 `id`，NovaWay 用它来去重、报错和热重载。
+
+### 具名导出（简写）
+
+```ts title=".novaway/plugin/release-helper.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const ReleaseHelper: Plugin = async ({ client, directory }) => {
+  return {
+    // 钩子
+  }
+}
+```
+
+一个模块可以用这种方式导出多个函数，每个都会被执行。准备发布给别人用的插件请用 `default`
+写法。
+
+### 传入选项
+
+任何 spec 都可以带一个选项对象，作为插件的第二个参数：
+
+```json title="novaway.json"
+{
+  "plugin": [["./plugin/audit.ts", { "endpoint": "https://audit.example.com" }]]
+}
+```
+
+```ts title=".novaway/plugin/audit.ts"
+export default {
+  id: "audit",
+  server: async (ctx, options) => {
+    const endpoint = String(options?.endpoint ?? "")
+    return {
+      "session.idle": async () => {
+        await fetch(endpoint, { method: "POST", body: JSON.stringify({ cwd: ctx.directory }) })
+      },
+    }
+  },
+}
+```
 
 ---
 
-## 创建插件
+## 插件上下文
 
-插件是一个 **JavaScript/TypeScript 模块**，它导出一个或多个插件函数。每个函数接收一个上下文对象，并返回一个钩子对象。
+你导出的函数会收到一个对象：
+
+| 字段                     | 用途                                                   |
+| ------------------------ | ------------------------------------------------------ |
+| `client`                 | `@novaway/sdk` 客户端，用来调用正在运行的服务           |
+| `project`                | 项目 id 和版本控制信息                                 |
+| `directory`              | 会话工作目录，优先用它而不是 `process.cwd()`            |
+| `worktree`               | 仓库根目录，适合拼稳定的相对路径                       |
+| `serverUrl`              | 当前插件所服务的本地服务地址                           |
+| `$`                      | Bun shell（[文档](https://bun.com/docs/runtime/shell)） |
+| `experimental_workspace` | `register(type, adapter)`，注册远程工作区适配器         |
 
 ---
 
-### 依赖项
+## 依赖项
 
-本地插件和自定义工具可以使用外部 npm 包。在配置目录中添加一个 `package.json`，列出所需的依赖项。
+本地插件和自定义工具可以使用外部 npm 包。在配置目录中添加一个 `package.json`，列出所需的
+依赖项。
 
 ```json title=".novaway/package.json"
 {
@@ -82,12 +154,12 @@ description: 编写自己的插件来扩展 NovaWay。
 }
 ```
 
-NovaWay 会在启动时运行 `bun install` 来安装这些依赖项。之后你的插件和工具就可以导入它们了。
+NovaWay 会在启动时运行 `bun install` 来安装这些依赖项，之后你的插件和工具就可以导入它们。
 
-```ts title=".novaway/plugins/my-plugin.ts"
+```ts title=".novaway/plugin/safe-shell.ts"
 import { escape } from "shescape"
 
-export const MyPlugin = async (ctx) => {
+export const SafeShell = async () => {
   return {
     "tool.execute.before": async (input, output) => {
       if (input.tool === "bash") {
@@ -100,117 +172,67 @@ export const MyPlugin = async (ctx) => {
 
 ---
 
-### 基本结构
+## 钩子
 
-```js title=".novaway/plugins/example.js"
-export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
-  console.log("Plugin initialized!")
+直接原地修改 `output` 对象即可。从 `*.before` 之类的钩子里抛异常会中断这一次操作，并把错误
+信息反馈给模型。
 
-  return {
-    // Hook implementations go here
-  }
-}
-```
+### 对话
 
-插件函数接收以下参数：
+| 钩子 | 输入 | 输出 |
+| ---- | ---- | ---- |
+| `chat.message` | `sessionID`、`agent`、`model`、`messageID`、`variant` | `message`、`parts` |
+| `chat.params` | `sessionID`、`agent`、`model`、`provider`、`message` | `temperature`、`topP`、`topK`、`maxOutputTokens`、`options` |
+| `chat.headers` | 同 `chat.params` | `headers` |
+| `experimental.chat.system.transform` | `sessionID`、`model` | `system: string[]` |
+| `experimental.chat.messages.transform` | — | `messages` |
 
-- `project`：当前项目信息。
-- `directory`：当前工作目录。
-- `worktree`：git 工作树路径。
-- `client`：用于与 AI 交互的 NovaWay SDK 客户端。
-- `$`：Bun 的 [Shell API](https://bun.com/docs/runtime/shell)，用于执行命令。
+### 工具
 
----
+| 钩子 | 输入 | 输出 |
+| ---- | ---- | ---- |
+| `tool` | — | 工具 id 到 `tool()` 定义的映射 |
+| `tool.definition` | `toolID` | `description`、`parameters` |
+| `tool.execute.before` | `tool`、`sessionID`、`callID` | `args` |
+| `tool.execute.after` | `tool`、`sessionID`、`callID`、`args` | `title`、`output`、`metadata` |
 
-### TypeScript 支持
+### 命令与 Shell
 
-对于 TypeScript 插件，你可以从插件包中导入类型：
+| 钩子 | 输入 | 输出 |
+| ---- | ---- | ---- |
+| `command.execute.before` | `command`、`sessionID`、`arguments` | `parts` |
+| `shell.env` | `cwd`、`sessionID`、`callID` | `env` |
 
-```ts title="my-plugin.ts" {1}
-import type { Plugin } from "@novaway/plugin"
+`shell.env` 同时作用于 shell 工具调用和 NovaWay 打开的终端，是注入凭据或项目变量的正确位置。
 
-export const MyPlugin: Plugin = async ({ project, client, $, directory, worktree }) => {
-  return {
-    // Type-safe hook implementations
-  }
-}
-```
+### 会话与压缩
 
----
+| 钩子 | 输入 | 输出 |
+| ---- | ---- | ---- |
+| `experimental.session.compacting` | `sessionID` | `context: string[]`、`prompt?: string` |
+| `experimental.compaction.autocontinue` | `sessionID`、`agent`、`model`、`provider`、`message`、`overflow` | `enabled: boolean` |
+| `experimental.text.complete` | `sessionID`、`messageID`、`partID` | `text` |
 
-### 事件
+### 供应商与鉴权
 
-插件可以订阅事件，如下方示例部分所示。以下是所有可用事件的列表。
+| 钩子 | 用途 |
+| ---- | ---- |
+| `auth` | 为某个供应商增加 `/connect` 流程（API key 或 OAuth） |
+| `provider` | 提供或覆盖某个供应商的模型列表 |
 
-#### 命令事件
+### 生命周期
 
-- `command.executed`
-
-#### 文件事件
-
-- `file.edited`
-- `file.watcher.updated`
-
-#### 安装事件
-
-- `installation.updated`
-
-#### LSP 事件
-
-- `lsp.client.diagnostics`
-- `lsp.updated`
-
-#### 消息事件
-
-- `message.part.removed`
-- `message.part.updated`
-- `message.removed`
-- `message.updated`
-
-#### 权限事件
-
-- `permission.asked`
-- `permission.replied`
-
-#### 服务器事件
-
-- `server.connected`
-
-#### 会话事件
-
-- `session.created`
-- `session.compacted`
-- `session.deleted`
-- `session.diff`
-- `session.error`
-- `session.idle`
-- `session.status`
-- `session.updated`
-
-#### 待办事项事件
-
-- `todo.updated`
-
-#### Shell 事件
-
-- `shell.env`
-
-#### 工具事件
-
-- `tool.execute.after`
-- `tool.execute.before`
-
-#### TUI 事件
-
-- `tui.prompt.append`
-- `tui.command.execute`
-- `tui.toast.show`
+| 钩子 | 输入 | 用途 |
+| ---- | ---- | ---- |
+| `event` | `event` | 所有总线事件：`session.idle`、`message.updated`、`file.edited`、`session.error`、`todo.updated` 等 |
+| `config` | `Config` | 合并后的配置，在启动完成前触发 |
+| `hook` | `event`、`payload` | 内核生命周期事件，如 `SessionStart`、`PreToolUse`、`Stop`、`SubagentStart`。把 `output.result.decision` 设为 `"deny"` 即可拦截 |
 
 ---
 
 ## 示例
 
-以下是一些可用于扩展 NovaWay 的插件示例。
+每个示例都是完整文件。保存到 `.novaway/plugin/` 后重启即可，不需要改配置。
 
 ---
 
@@ -218,23 +240,25 @@ export const MyPlugin: Plugin = async ({ project, client, $, directory, worktree
 
 在特定事件发生时发送通知：
 
-```js title=".novaway/plugins/notification.js"
-export const NotificationPlugin = async ({ project, client, $, directory, worktree }) => {
+```ts title=".novaway/plugin/notify.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const Notify: Plugin = async ({ $ }) => {
   return {
     event: async ({ event }) => {
-      // Send notification on session completion
       if (event.type === "session.idle") {
-        await $`osascript -e 'display notification "Session completed!" with title "novaway"'`
+        await $`osascript -e 'display notification "Session completed!" with title "NovaWay"'`
       }
     },
   }
 }
 ```
 
-这里使用 `osascript` 在 macOS 上运行 AppleScript 来发送通知。
+这里用 `osascript` 在 macOS 上发送通知。Linux 用 `notify-send`，Windows 用 PowerShell 的
+Toast 脚本。
 
 :::note
-如果你使用 NovaWay 桌面应用，它可以在响应就绪或会话出错时自动发送系统通知。
+NovaWay 桌面端在响应就绪或会话出错时本来就会发系统通知，所以通知类插件主要是给 CLI 和 TUI 用。
 :::
 
 ---
@@ -243,11 +267,13 @@ export const NotificationPlugin = async ({ project, client, $, directory, worktr
 
 阻止 NovaWay 读取 `.env` 文件：
 
-```javascript title=".novaway/plugins/env-protection.js"
-export const EnvProtection = async ({ project, client, $, directory, worktree }) => {
+```ts title=".novaway/plugin/env-protection.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const EnvProtection: Plugin = async () => {
   return {
     "tool.execute.before": async (input, output) => {
-      if (input.tool === "read" && output.args.filePath.includes(".env")) {
+      if (input.tool === "read" && String(output.args.filePath).includes(".env")) {
         throw new Error("Do not read .env files")
       }
     },
@@ -259,14 +285,16 @@ export const EnvProtection = async ({ project, client, $, directory, worktree })
 
 ### 注入环境变量
 
-将环境变量注入所有 Shell 执行（AI 工具和用户终端）：
+把环境变量注入每一次 Shell 执行，既包括工具调用，也包括 NovaWay 打开的终端：
 
-```javascript title=".novaway/plugins/inject-env.js"
-export const InjectEnvPlugin = async () => {
+```ts title=".novaway/plugin/inject-env.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const InjectEnv: Plugin = async ({ directory }) => {
   return {
     "shell.env": async (input, output) => {
-      output.env.MY_API_KEY = "secret"
-      output.env.PROJECT_ROOT = input.cwd
+      output.env.PROJECT_ROOT = input.cwd || directory
+      output.env.NOVAWAY_TRACE = "1"
     },
   }
 }
@@ -276,22 +304,21 @@ export const InjectEnvPlugin = async () => {
 
 ### 自定义工具
 
-插件还可以为 NovaWay 添加自定义工具：
+插件可以给模型加上可调用的工具：
 
-```ts title=".novaway/plugins/custom-tools.ts"
+```ts title=".novaway/plugin/custom-tools.ts"
 import { type Plugin, tool } from "@novaway/plugin"
 
-export const CustomToolsPlugin: Plugin = async (ctx) => {
+export const CustomTools: Plugin = async () => {
   return {
     tool: {
       mytool: tool({
         description: "This is a custom tool",
         args: {
-          foo: tool.schema.string(),
+          foo: tool.schema.string().describe("Anything"),
         },
         async execute(args, context) {
-          const { directory, worktree } = context
-          return `Hello ${args.foo} from ${directory} (worktree: ${worktree})`
+          return { title: "mytool", output: `Hello ${args.foo} from ${context.directory}` }
         },
       }),
     },
@@ -299,38 +326,48 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
 }
 ```
 
-`tool` 辅助函数用于创建 NovaWay 可调用的自定义工具。它接受一个 Zod schema 函数，并返回一个工具定义，包含：
+`tool()` 有三个字段：
 
-- `description`：工具的功能描述
-- `args`：工具参数的 Zod schema
-- `execute`：工具被调用时执行的函数
+- `description`：给模型看的说明
+- `args`：[Zod](https://zod.dev) 原始 shape，通过 `tool.schema` 访问
+- `execute`：收到解析后的参数和工具上下文
 
-你的自定义工具将与内置工具一起在 NovaWay 中可用。
+工具上下文里有 `sessionID`、`messageID`、`agent`、`directory`、`worktree`，一个 `abort`
+信号，以及 `metadata()`（实时更新工具卡片）和 `ask()`（申请权限）。完整 API 见
+[自定义工具](/docs/custom-tools)。
 
 :::note
-如果插件工具与内置工具使用相同的名称，则优先使用插件工具。
+如果插件工具与内置工具同名，插件工具优先。
 :::
 
 ---
 
 ### 日志记录
 
-使用 `client.app.log()` 代替 `console.log` 进行结构化日志记录：
+用 `client.app.log()` 而不是 `console.log` 做结构化日志。TUI 里 `console.log` 的输出会被
+吞掉，而服务端日志会落到 `~/.local/share/novaway/log`：
 
-```ts title=".novaway/plugins/my-plugin.ts"
-export const MyPlugin = async ({ client }) => {
-  await client.app.log({
-    body: {
-      service: "my-plugin",
-      level: "info",
-      message: "Plugin initialized",
-      extra: { foo: "bar" },
+```ts title=".novaway/plugin/logging.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const Logging: Plugin = async ({ client }) => {
+  return {
+    event: async ({ event }) => {
+      if (event.type !== "session.idle") return
+      await client.app.log({
+        body: {
+          service: "logging",
+          level: "info",
+          message: "session idle",
+          extra: { session: event.properties.sessionID },
+        },
+      })
     },
-  })
+  }
 }
 ```
 
-日志级别：`debug`、`info`、`warn`、`error`。详情请参阅 [SDK 文档](https://novaway.ai/docs/sdk)。
+日志级别是 `debug`、`info`、`warn`、`error`。客户端 API 见 [SDK](/docs/sdk)。
 
 ---
 
@@ -338,13 +375,12 @@ export const MyPlugin = async ({ client }) => {
 
 自定义会话压缩时包含的上下文：
 
-```ts title=".novaway/plugins/compaction.ts"
+```ts title=".novaway/plugin/compaction.ts"
 import type { Plugin } from "@novaway/plugin"
 
-export const CompactionPlugin: Plugin = async (ctx) => {
+export const Compaction: Plugin = async () => {
   return {
     "experimental.session.compacting": async (input, output) => {
-      // Inject additional context into the compaction prompt
       output.context.push(`
 ## Custom Context
 
@@ -358,19 +394,19 @@ Include any state that should persist across compaction:
 }
 ```
 
-`experimental.session.compacting` 钩子在 LLM 生成续接摘要之前触发。使用它来注入默认压缩提示词可能遗漏的领域特定上下文。
+`experimental.session.compacting` 在模型生成续接摘要之前触发，用来补上默认提示词会漏掉的
+领域上下文。
 
-你还可以通过设置 `output.prompt` 来完全替换压缩提示词：
+也可以直接给 `output.prompt` 赋值来整体替换压缩提示词：
 
-```ts title=".novaway/plugins/custom-compaction.ts"
+```ts title=".novaway/plugin/custom-compaction.ts"
 import type { Plugin } from "@novaway/plugin"
 
-export const CustomCompactionPlugin: Plugin = async (ctx) => {
+export const CustomCompaction: Plugin = async () => {
   return {
     "experimental.session.compacting": async (input, output) => {
-      // Replace the entire compaction prompt
       output.prompt = `
-You are generating a continuation prompt for a multi-agent swarm session.
+You are generating a continuation prompt for a multi-agent session.
 
 Summarize:
 1. The current task and its status
@@ -385,4 +421,175 @@ Format as a structured prompt that a new agent can use to resume work.
 }
 ```
 
-当设置了 `output.prompt` 时，它会完全替换默认的压缩提示词。在这种情况下，`output.context` 数组将被忽略。
+设置了 `output.prompt` 之后默认提示词会被整体替换，`output.context` 不再生效。
+
+---
+
+### 加请求头
+
+网关路由、链路追踪、上游统计都会用到：
+
+```ts title=".novaway/plugin/trace-headers.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const TraceHeaders: Plugin = async ({ project }) => {
+  return {
+    "chat.headers": async (input, output) => {
+      output.headers["X-Session-Id"] = input.sessionID
+      output.headers["X-Project"] = project.id
+    },
+  }
+}
+```
+
+### 按 agent 调模型参数
+
+```ts title=".novaway/plugin/tuning.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const Tuning: Plugin = async () => {
+  return {
+    "chat.params": async (input, output) => {
+      if (input.agent !== "plan") return
+      output.temperature = 0.2
+      output.maxOutputTokens = 8000
+    },
+  }
+}
+```
+
+### 扩展系统提示词
+
+```ts title=".novaway/plugin/house-style.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const HouseStyle: Plugin = async () => {
+  return {
+    "experimental.chat.system.transform": async (input, output) => {
+      output.system.push("修改代码前先看 CONTRIBUTING.md 的约定。")
+    },
+  }
+}
+```
+
+### 从内核钩子拦截动作
+
+`hook` 会收到全部内核生命周期事件，包括那些没有专属钩子的事件：
+
+```ts title=".novaway/plugin/kernel-policy.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const KernelPolicy: Plugin = async () => {
+  return {
+    hook: async (input, output) => {
+      if (input.event === "PreToolUse" && input.payload.tool === "write") {
+        output.result.decision = "deny"
+        output.result.reason = "该工作区禁止写文件"
+      }
+    },
+  }
+}
+```
+
+---
+
+## 供应商与鉴权
+
+`auth` 钩子会在 `/connect` 里加一项：
+
+```ts title=".novaway/plugin/my-gateway-auth.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const MyGatewayAuth: Plugin = async () => {
+  return {
+    auth: {
+      provider: "my-gateway",
+      methods: [
+        {
+          type: "api",
+          label: "API key",
+          prompts: [{ type: "text", key: "accountId", message: "Account id", placeholder: "acct_..." }],
+        },
+      ],
+    },
+  }
+}
+```
+
+需要走浏览器回跳时用 `type: "oauth"` 搭配 `method: "auto"` 或 `method: "code"`。内置的
+GitHub Copilot、GitLab、Codex、Cloudflare、Azure、DigitalOcean 都是这样实现的。
+
+`provider` 钩子给**已经存在**的供应商提供模型列表 —— 供应商本身在 `novaway.json` 里定义
+（或由内置插件创建），这里只负责填模型。每个条目都是一条完整的 v2 `Model` 记录：
+
+```ts title=".novaway/plugin/my-gateway-models.ts"
+import type { Plugin } from "@novaway/plugin"
+import type { Model } from "@novaway/sdk/v2"
+
+export const MyGatewayModels: Plugin = async () => {
+  return {
+    provider: {
+      id: "my-gateway",
+      // 每条记录都要满足 Model 的完整结构，通常是取一个现有模型再覆盖字段
+      models: async () => ({
+        "fast-1": { ...someExistingModel, id: "fast-1", name: "Fast 1" } as Model,
+      }),
+    },
+  }
+}
+```
+
+这个钩子还会拿到供应商信息和已保存的凭据，所以可以直接去上游接口拉列表，而不是写死。
+
+---
+
+## 工作区
+
+`experimental_workspace.register(type, adapter)` 教 NovaWay 如何创建和销毁远程工作区。
+适配器接口从 `@novaway/plugin` 导出为 `WorkspaceAdapter`：`configure`、`create`、`remove`、
+`target`。
+
+---
+
+## TUI 插件
+
+改变终端界面的插件导出 `tui` 而不是 `server`：
+
+```ts title=".novaway/plugin/my-tui.ts"
+import type { TuiPlugin } from "@novaway/plugin/tui"
+
+export default {
+  id: "my-tui",
+  tui: (async (api) => ({
+    // commands, dialogs, keymaps, slots, toast
+  })) satisfies TuiPlugin,
+}
+```
+
+一个模块只能导出 `server` 或 `tui` 其中之一。命令、对话框、输入框、插槽、键位映射、提示音
+都在 `api` 对象上，完整接口见 `@novaway/plugin/tui` 的类型定义。
+
+---
+
+## 调试
+
+- `novaway debug info` 列出所有配置合并后 NovaWay 实际解析到的插件。
+- `novaway plugin <module>` 安装 npm 插件并写入配置。
+- `--pure` 关闭全部外部插件，是排查「是不是某个插件干的」最快的方法。
+- 钩子报错会带插件 id 记进日志。`tool.execute.before` 抛异常只中断那一次调用，不会终止会话。
+
+---
+
+## 迁移
+
+从其他 agent 移植过来的插件通常要改四处：
+
+1. **包名** —— `@opencode-ai/plugin` 改成 `@novaway/plugin`，`@opencode-ai/sdk` 改成
+   `@novaway/sdk`。
+2. **工厂函数** —— `createOpencode` 改成 `createNovaway`，`createOpencodeClient` 改成
+   `createNovawayClient`。
+3. **配置键** —— `opencode.json` 改成 `novaway.json`，`.opencode/` 改成 `.novaway/`。
+4. **钩子名** —— 以本文上方的表格为准，表里没有的钩子不会被调用。
+
+NovaWay 运行时不会把 `@opencode-ai/*` 解析到自己的包上，所以 import 了那些包的插件必须先改
+import 才能加载。

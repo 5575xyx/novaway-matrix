@@ -748,7 +748,6 @@ Utsett deretter applikasjonen ID som miljøvariabel:
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-Mer dokumentasjon på [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth) hjemmeside.
 
 ##### Konfigurasjon
 
@@ -774,7 +773,7 @@ For å få tilgang til GitLab-verktøy (sammenslåingsforespørsler, problemer, 
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -1003,17 +1002,13 @@ Helicone støtter tilpassede headere for funksjoner som bufring, brukersporing o
 
 ##### Sesjonssporing
 
-Helicones [Sessions](https://docs.helicone.ai/features/sessions) funksjon lar deg gruppere relaterte LLM forespørsler sammen. Bruk [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) plugin for automatisk å logge hver NovaWay-samtale som en økt i Helicone.
-
-```bash
-npm install -g opencode-helicone-session
-```
+Helicones [Sessions](https://docs.helicone.ai/features/sessions) funksjon lar deg gruppere relaterte LLM forespørsler sammen. Bruk [`chat.headers`](/docs/plugins) plugin for automatisk å logge hver NovaWay-samtale som en økt i Helicone.
 
 Legg den til i konfigurasjonen din.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

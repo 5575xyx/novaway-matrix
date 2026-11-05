@@ -748,7 +748,6 @@ export GITLAB_TOKEN=glpat-...
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-更多文档请参阅 [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth) 主页。
 
 ##### 配置
 
@@ -774,7 +773,7 @@ export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -999,17 +998,13 @@ Helicone 支持用于缓存、用户跟踪和会话管理等功能的自定义�
 
 ##### 会话跟踪
 
-Helicone 的 [Sessions](https://docs.helicone.ai/features/sessions) 功能允许你将相关的 LLM 请求归为一组。使用 [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) 插件可以自动将每个 NovaWay 对话记录为 Helicone 中的一个会话。
-
-```bash
-npm install -g opencode-helicone-session
-```
+Helicone 的 [Sessions](https://docs.helicone.ai/features/sessions) 功能允许你将相关的 LLM 请求归为一组。使用 [`chat.headers`](/docs/plugins) 插件可以自动将每个 NovaWay 对话记录为 Helicone 中的一个会话。
 
 将其添加到配置中。
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

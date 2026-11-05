@@ -753,7 +753,6 @@ Zatim izložite ID aplikacije kao varijablu okruženja:
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-Više dokumentacije na početnoj stranici [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth).
 
 ##### Konfiguracija
 
@@ -779,7 +778,7 @@ Za pristup GitLab alatima (zahtjevi za spajanje, problemi, cjevovodi, CI/CD, itd
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -1008,17 +1007,13 @@ Helicone podržava prilagođena zaglavlja za funkcije kao što su keširanje, pr
 
 ##### Praćenje sesije
 
-Heliconeova funkcija [Sessions](https://docs.helicone.ai/features/sessions) vam omogućava da grupišete povezane LLM zahtjeve zajedno. Koristite dodatak [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) da automatski prijavite svaki NovaWay razgovor kao sesiju u Helicone-u.
-
-```bash
-npm install -g opencode-helicone-session
-```
+Heliconeova funkcija [Sessions](https://docs.helicone.ai/features/sessions) vam omogućava da grupišete povezane LLM zahtjeve zajedno. Koristite dodatak [`chat.headers`](/docs/plugins) da automatski prijavite svaki NovaWay razgovor kao sesiju u Helicone-u.
 
 Dodajte ga u svoju konfiguraciju.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

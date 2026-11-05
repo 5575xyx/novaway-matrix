@@ -915,7 +915,7 @@ Then expose application ID as environment variable:
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-More documentation on [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth) homepage.
+The GitLab OAuth flow is built in, so no extra package is needed.
 
 ##### Configuration
 
@@ -948,18 +948,12 @@ When a `duo-workflow-*` model is selected, NovaWay will:
 Available DAP workflow models follow the `duo-workflow-*` naming convention and
 are dynamically discovered from your GitLab instance.
 
-##### GitLab API Tools (Optional, but highly recommended)
+##### GitLab API Tools (Optional)
 
-To access GitLab tools (merge requests, issues, pipelines, CI/CD, etc.):
-
-```json title="novaway.json"
-{
-  "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
-}
-```
-
-This plugin provides comprehensive GitLab repository management capabilities including MR reviews, issue tracking, pipeline monitoring, and more.
+GitLab repository tools (merge requests, issues, pipelines) are not bundled. Add them
+with a local plugin that registers [`tool()`](/docs/custom-tools) definitions — the
+[plugin guide](/docs/plugins) shows the shape. A plugin can read the GitLab token from the
+environment and call the GitLab REST API directly.
 
 ---
 
@@ -1182,21 +1176,24 @@ Helicone supports custom headers for features like caching, user tracking, and s
 
 ##### Session tracking
 
-Helicone's [Sessions](https://docs.helicone.ai/features/sessions) feature lets you group related LLM requests together. Use the [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) plugin to automatically log each NovaWay conversation as a session in Helicone.
+Helicone's [Sessions](https://docs.helicone.ai/features/sessions) feature groups related
+LLM requests together. A ten-line local plugin is enough — no third-party package needed:
 
-```bash
-npm install -g opencode-helicone-session
-```
+```ts title=".novaway/plugin/helicone-session.ts"
+import type { Plugin } from "@novaway/plugin"
 
-Add it to your config.
-
-```json title="novaway.json"
-{
-  "plugin": ["opencode-helicone-session"]
+export const HeliconeSession: Plugin = async () => {
+  return {
+    "chat.headers": async (input, output) => {
+      output.headers["Helicone-Session-Id"] = input.sessionID
+      output.headers["Helicone-Session-Name"] = `novaway-${input.sessionID.slice(0, 8)}`
+    },
+  }
 }
 ```
 
-The plugin injects `Helicone-Session-Id` and `Helicone-Session-Name` headers into your requests. In Helicone's Sessions page, you'll see each NovaWay conversation listed as a separate session.
+Every request from a NovaWay conversation then shows up as one session in Helicone. See
+[plugins](/docs/plugins#add-a-request-header) for the full `chat.headers` reference.
 
 ##### Common Helicone headers
 

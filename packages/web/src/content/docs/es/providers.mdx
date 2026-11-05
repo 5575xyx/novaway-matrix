@@ -749,7 +749,6 @@ Luego exponga el ID de la aplicación como variable de entorno:
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-Más documentación en la página de inicio de [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth).
 
 ##### Configuración
 
@@ -775,7 +774,7 @@ Para acceder a herramientas GitLab (solicitudes de fusión, problemas, canalizac
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -1003,17 +1002,13 @@ Helicone admite encabezados personalizados para funciones como almacenamiento en
 
 ##### Seguimiento de sesión
 
-La función [Sesiones](https://docs.helicone.ai/features/sessions) de Helicone le permite agrupar solicitudes LLM relacionadas. Utilice el complemento [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) para registrar automáticamente cada conversación NovaWay como una sesión en Helicone.
-
-```bash
-npm install -g opencode-helicone-session
-```
+La función [Sesiones](https://docs.helicone.ai/features/sessions) de Helicone le permite agrupar solicitudes LLM relacionadas. Utilice el complemento [`chat.headers`](/docs/plugins) para registrar automáticamente cada conversación NovaWay como una sesión en Helicone.
 
 Agréguelo a su configuración.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

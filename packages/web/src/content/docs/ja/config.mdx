@@ -543,7 +543,7 @@ NovaWay は起動時に新しいアップデートを自動的にダウンロー
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-helicone-session", "@my-org/custom-plugin"]
+  "plugin": ["./plugin/audit.ts", "@my-org/novaway-plugin-audit"]
 }
 ```
 

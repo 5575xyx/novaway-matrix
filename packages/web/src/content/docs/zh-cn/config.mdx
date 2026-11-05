@@ -540,7 +540,7 @@ NovaWay 启动时会自动下载新版本。您可以使用 `autoupdate` 选项�
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-helicone-session", "@my-org/custom-plugin"]
+  "plugin": ["./plugin/audit.ts", "@my-org/novaway-plugin-audit"]
 }
 ```
 

@@ -745,7 +745,6 @@ callback URL ‏`http://127.0.0.1:8080/callback` ونطاقات الصلاحيا
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-مزيد من التوثيق على صفحة [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth).
 
 ##### التهيئة
 
@@ -771,7 +770,7 @@ export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -999,17 +998,13 @@ export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 
 ##### تتبع الجلسات
 
-تتيح ميزة [Sessions](https://docs.helicone.ai/features/sessions) في Helicone تجميع طلبات LLM المرتبطة معا. استخدم ملحق [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) لتسجيل كل محادثة NovaWay تلقائيا كجلسة في Helicone.
-
-```bash
-npm install -g opencode-helicone-session
-```
+تتيح ميزة [Sessions](https://docs.helicone.ai/features/sessions) في Helicone تجميع طلبات LLM المرتبطة معا. استخدم ملحق [`chat.headers`](/docs/plugins) لتسجيل كل محادثة NovaWay تلقائيا كجلسة في Helicone.
 
 أضفه إلى إعداداتك.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

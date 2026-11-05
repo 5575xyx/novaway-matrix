@@ -1,30 +1,36 @@
 ---
 title: Custom Tools
-description: Create tools the LLM can call in novaway.
+description: Create tools the model can call in NovaWay.
 ---
 
-Custom tools are functions you create that the LLM can call during conversations. They work alongside novaway's [built-in tools](/docs/tools) like `read`, `write`, and `bash`.
+Custom tools are functions you write that the model can call during a conversation. They
+work alongside the [built-in tools](/docs/tools) like `read`, `write`, and `bash`.
+
+A tool definition is TypeScript or JavaScript. What it does is up to you: the definition
+can shell out to a script in any language.
 
 ---
 
 ## Creating a tool
 
-Tools are defined as **TypeScript** or **JavaScript** files. However, the tool definition can invoke scripts written in **any language** — TypeScript or JavaScript is only used for the tool definition itself.
-
 ---
 
 ### Location
 
-They can be defined:
+Tools can be defined:
 
-- Locally by placing them in the `.novaway/tools/` directory of your project.
-- Or globally, by placing them in `~/.config/novaway/tools/`.
+- Locally in `.novaway/tool/` or `.novaway/tools/` in your project.
+- Globally in `~/.config/novaway/tool/` or `~/.config/novaway/tools/`.
+- Inside a [plugin](/docs/plugins) through its `tool` hook.
+
+Files in those directories are loaded automatically at startup.
 
 ---
 
 ### Structure
 
-The easiest way to create tools is using the `tool()` helper which provides type-safety and validation.
+The easiest way to create a tool is the `tool()` helper, which gives you type safety and
+argument validation.
 
 ```ts title=".novaway/tools/database.ts" {1}
 import { tool } from "@novaway/plugin"
@@ -35,13 +41,12 @@ export default tool({
     query: tool.schema.string().describe("SQL query to execute"),
   },
   async execute(args) {
-    // Your database logic here
     return `Executed query: ${args.query}`
   },
 })
 ```
 
-The **filename** becomes the **tool name**. The above creates a `database` tool.
+The **filename** becomes the **tool name**, so the file above creates a `database` tool.
 
 ---
 
@@ -154,6 +159,63 @@ export default tool({
 
 Use `context.directory` for the session working directory.
 Use `context.worktree` for the git worktree root.
+
+The context also carries `abort`, an `AbortSignal` you should honour on long operations,
+plus two helpers described below.
+
+---
+
+### Progress and permissions
+
+Two methods on the context let a tool talk back while it runs:
+
+```ts title=".novaway/tools/deploy.ts"
+import { tool } from "@novaway/plugin"
+
+export default tool({
+  description: "Deploy the current branch",
+  args: {
+    environment: tool.schema.enum(["staging", "production"]),
+  },
+  async execute(args, context) {
+    await context.ask({
+      permission: "deploy",
+      patterns: [args.environment],
+      always: [],
+      metadata: { environment: args.environment },
+    })
+
+    context.metadata({ title: `Deploying to ${args.environment}` })
+    // ... do the work, checking context.abort between steps
+
+    return { title: "Deploy", output: `Deployed to ${args.environment}` }
+  },
+})
+```
+
+`ask()` requests permission using the same rules as built-in tools, so a user rule for
+`deploy` applies here too. `metadata()` updates the tool card with a title and arbitrary
+metadata while the tool is still running.
+
+---
+
+### Results
+
+Return a string, or an object when you want more control:
+
+```ts
+return {
+  title: "Deploy",
+  output: "Deployed to staging",
+  metadata: { duration: 4200 },
+  attachments: [{ type: "file", mime: "text/plain", url: "file:///tmp/deploy.log" }],
+}
+```
+
+- `title` is the one-line label shown in the tool call.
+- `output` is what the model reads.
+- `metadata` is for the UI and logs.
+- `attachments` add files to the conversation.
 
 ---
 

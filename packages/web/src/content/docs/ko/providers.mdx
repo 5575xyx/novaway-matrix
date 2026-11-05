@@ -751,7 +751,6 @@ GitLab 관리자는 다음을 활성화해야 합니다:
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-[opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth) 홈페이지에 추가 문서가 있습니다.
 
 #### 구성
 
@@ -777,7 +776,7 @@ GitLab 도구(병합 요청, 이슈, 파이프라인, CI/CD 등)에 액세스하
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -1003,17 +1002,13 @@ Helicone는 캐싱, 사용자 추적 및 세션 관리와 같은 기능을 위�
 
 ##### 세션 추적
 
-Helicone의 [Sessions](https://docs.helicone.ai/features/sessions) 기능을 사용하면 관련 LLM 요청을 그룹화할 수 있습니다. [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) 플러그인을 사용하여 각 NovaWay 대화를 Helicone 세션으로 자동 기록하십시오.
-
-```bash
-npm install -g opencode-helicone-session
-```
+Helicone의 [Sessions](https://docs.helicone.ai/features/sessions) 기능을 사용하면 관련 LLM 요청을 그룹화할 수 있습니다. [`chat.headers`](/docs/plugins) 플러그인을 사용하여 각 NovaWay 대화를 Helicone 세션으로 자동 기록하십시오.
 
 설정에 추가하십시오.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

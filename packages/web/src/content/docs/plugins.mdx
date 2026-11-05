@@ -3,77 +3,152 @@ title: Plugins
 description: Write your own plugins to extend NovaWay.
 ---
 
-Plugins allow you to extend NovaWay by hooking into various events and customizing behavior. You can create plugins to add new features, integrate with external services, or modify NovaWay's default behavior.
-
-For examples, check out the [plugins](/docs/ecosystem#plugins) created by the community.
-
----
-
-## Use a plugin
-
-There are two ways to load plugins.
+A plugin is a plain TypeScript or JavaScript module that exports **hooks**. NovaWay calls
+those hooks while it runs, and your code can read the conversation, change what is sent to
+the model, register tools, and add providers. Everything on this page uses
+`@novaway/plugin`.
 
 ---
 
-### From local files
+## Quick start
 
-Place JavaScript or TypeScript files in the plugin directory.
+Create `.novaway/plugin/hello.ts` in your project:
 
-- `.novaway/plugins/` - Project-level plugins
-- `~/.config/novaway/plugins/` - Global plugins
+```ts title=".novaway/plugin/hello.ts"
+import type { Plugin } from "@novaway/plugin"
 
-Files in these directories are automatically loaded at startup.
+export default {
+  id: "hello",
+  server: (async () => ({
+    "tool.execute.before": async (input, output) => {
+      if (input.tool === "bash") {
+        console.log("about to run:", output.args.command)
+      }
+    },
+  })) satisfies Plugin,
+}
+```
+
+Start NovaWay and every `bash` tool call is logged. Files under `.novaway/plugin/` and
+`.novaway/plugins/` are picked up automatically — no config entry needed.
 
 ---
 
-### From npm
+## Where plugins live
 
-Specify npm packages in your config file.
+| Location                        | Scope            | How it is loaded |
+| ------------------------------- | ---------------- | ---------------- |
+| `.novaway/plugin/*.ts`          | Project          | Automatically    |
+| `.novaway/plugins/*.ts`         | Project          | Automatically    |
+| `~/.config/novaway/plugin/*.ts` | Global           | Automatically    |
+| `novaway.json` → `plugin` array | Global or project | By spec         |
+
+The `plugin` array accepts npm package names, git specs, and paths:
 
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-helicone-session", "opencode-wakatime", "@my-org/custom-plugin"]
+  "plugin": [
+    "./plugin/release-helper.ts",
+    "novaway-plugin-git-hooks",
+    "@my-org/novaway-plugin-audit@1.2.0",
+    "some-plugin@git+https://gitee.com/my-org/some-plugin.git"
+  ]
 }
 ```
 
-Both regular and scoped npm packages are supported.
+**npm plugins** are installed with Bun at startup and cached in
+`~/.cache/novaway/node_modules/`. **Local plugins** are imported directly; to use external
+packages from one, add a `package.json` to your config directory (see
+[Dependencies](#dependencies)).
 
-Browse available plugins in the [ecosystem](/docs/ecosystem#plugins).
-
----
-
-### How plugins are installed
-
-**npm plugins** are installed automatically using Bun at startup. Packages and their dependencies are cached in `~/.cache/novaway/node_modules/`.
-
-**Local plugins** are loaded directly from the plugin directory. To use external packages, you must create a `package.json` within your config directory (see [Dependencies](#dependencies)), or publish the plugin to npm and [add it to your config](/docs/config#plugins).
+Load order is: global config, project config, global plugin directory, project plugin
+directory. Every hook of every plugin runs in that order. Duplicate npm packages with the
+same name and version load once.
 
 ---
 
-### Load order
+## Plugin shapes
 
-Plugins are loaded from all sources and all hooks run in sequence. The load order is:
+### Default export with an id (recommended)
 
-1. Global config (`~/.config/novaway/novaway.json`)
-2. Project config (`novaway.json`)
-3. Global plugin directory (`~/.config/novaway/plugins/`)
-4. Project plugin directory (`.novaway/plugins/`)
+```ts title=".novaway/plugin/release-helper.ts"
+import type { Plugin } from "@novaway/plugin"
 
-Duplicate npm packages with the same name and version are loaded once. However, a local plugin and an npm plugin with similar names are both loaded separately.
+export default {
+  id: "release-helper",
+  server: (async ({ client, directory }) => {
+    return {
+      // hooks
+    }
+  }) satisfies Plugin,
+}
+```
+
+`id` is required for path-based plugins, so NovaWay can report, deduplicate, and reload
+them reliably.
+
+### Named exports (short form)
+
+```ts title=".novaway/plugin/release-helper.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const ReleaseHelper: Plugin = async ({ client, directory }) => {
+  return {
+    // hooks
+  }
+}
+```
+
+A module may export several functions this way and each is applied. Prefer the `default`
+form for anything you intend to publish.
+
+### Options
+
+Any spec can carry an options object, passed to your plugin as the second argument:
+
+```json title="novaway.json"
+{
+  "plugin": [["./plugin/audit.ts", { "endpoint": "https://audit.example.com" }]]
+}
+```
+
+```ts title=".novaway/plugin/audit.ts"
+export default {
+  id: "audit",
+  server: async (ctx, options) => {
+    const endpoint = String(options?.endpoint ?? "")
+    return {
+      "session.idle": async () => {
+        await fetch(endpoint, { method: "POST", body: JSON.stringify({ cwd: ctx.directory }) })
+      },
+    }
+  },
+}
+```
 
 ---
 
-## Create a plugin
+## The plugin context
 
-A plugin is a **JavaScript/TypeScript module** that exports one or more plugin
-functions. Each function receives a context object and returns a hooks object.
+Your exported function receives one object:
+
+| Field                    | Use it for                                                  |
+| ------------------------ | ----------------------------------------------------------- |
+| `client`                 | `@novaway/sdk` client for calling the running server        |
+| `project`                | Project id and VCS information                              |
+| `directory`              | Session working directory — prefer this over `process.cwd()` |
+| `worktree`               | Repository root, for stable relative paths                  |
+| `serverUrl`              | The local server this plugin runs against                   |
+| `$`                      | Bun shell ([docs](https://bun.com/docs/runtime/shell))      |
+| `experimental_workspace` | `register(type, adapter)` for remote workspace adapters     |
 
 ---
 
-### Dependencies
+## Dependencies
 
-Local plugins and custom tools can use external npm packages. Add a `package.json` to your config directory with the dependencies you need.
+Local plugins and custom tools can use external npm packages. Add a `package.json` to your
+config directory with the dependencies you need.
 
 ```json title=".novaway/package.json"
 {
@@ -83,12 +158,13 @@ Local plugins and custom tools can use external npm packages. Add a `package.jso
 }
 ```
 
-NovaWay runs `bun install` at startup to install these. Your plugins and tools can then import them.
+NovaWay runs `bun install` at startup to install these. Your plugins and tools can then
+import them.
 
-```ts title=".novaway/plugins/my-plugin.ts"
+```ts title=".novaway/plugin/safe-shell.ts"
 import { escape } from "shescape"
 
-export const MyPlugin = async (ctx) => {
+export const SafeShell = async () => {
   return {
     "tool.execute.before": async (input, output) => {
       if (input.tool === "bash") {
@@ -101,117 +177,69 @@ export const MyPlugin = async (ctx) => {
 
 ---
 
-### Basic structure
+## Hooks
 
-```js title=".novaway/plugins/example.js"
-export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
-  console.log("Plugin initialized!")
+Mutate the `output` object in place. Throwing from a `*.before` hook aborts that single
+operation and the message is surfaced to the model.
 
-  return {
-    // Hook implementations go here
-  }
-}
-```
+### Conversation
 
-The plugin function receives:
+| Hook                                  | Input                                                 | Output                                                             |
+| ------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| `chat.message`                        | `sessionID`, `agent`, `model`, `messageID`, `variant` | `message`, `parts`                                                 |
+| `chat.params`                         | `sessionID`, `agent`, `model`, `provider`, `message`  | `temperature`, `topP`, `topK`, `maxOutputTokens`, `options`        |
+| `chat.headers`                        | same as `chat.params`                                 | `headers`                                                          |
+| `experimental.chat.system.transform`  | `sessionID`, `model`                                  | `system: string[]`                                                 |
+| `experimental.chat.messages.transform` | —                                                    | `messages`                                                         |
 
-- `project`: The current project information.
-- `directory`: The current working directory.
-- `worktree`: The git worktree path.
-- `client`: An novaway SDK client for interacting with the AI.
-- `$`: Bun's [shell API](https://bun.com/docs/runtime/shell) for executing commands.
+### Tools
 
----
+| Hook                  | Input                                     | Output                              |
+| --------------------- | ----------------------------------------- | ----------------------------------- |
+| `tool`                | —                                         | map of tool id to a `tool()` definition |
+| `tool.definition`     | `toolID`                                  | `description`, `parameters`         |
+| `tool.execute.before` | `tool`, `sessionID`, `callID`             | `args`                              |
+| `tool.execute.after`  | `tool`, `sessionID`, `callID`, `args`     | `title`, `output`, `metadata`       |
 
-### TypeScript support
+### Commands and shell
 
-For TypeScript plugins, you can import types from the plugin package:
+| Hook                      | Input                                  | Output  |
+| ------------------------- | -------------------------------------- | ------- |
+| `command.execute.before`  | `command`, `sessionID`, `arguments`    | `parts` |
+| `shell.env`               | `cwd`, `sessionID`, `callID`           | `env`   |
 
-```ts title="my-plugin.ts" {1}
-import type { Plugin } from "@novaway/plugin"
+`shell.env` applies to shell tool calls and to terminals NovaWay opens, so it is the right
+place to inject credentials or project variables.
 
-export const MyPlugin: Plugin = async ({ project, client, $, directory, worktree }) => {
-  return {
-    // Type-safe hook implementations
-  }
-}
-```
+### Session and compaction
 
----
+| Hook                                    | Input                                                                          | Output                                |
+| --------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------- |
+| `experimental.session.compacting`       | `sessionID`                                                                    | `context: string[]`, `prompt?: string` |
+| `experimental.compaction.autocontinue`  | `sessionID`, `agent`, `model`, `provider`, `message`, `overflow`               | `enabled: boolean`                    |
+| `experimental.text.complete`            | `sessionID`, `messageID`, `partID`                                             | `text`                                |
 
-### Events
+### Provider and auth
 
-Plugins can subscribe to events as seen below in the Examples section. Here is a list of the different events available.
+| Hook       | Purpose                                                        |
+| ---------- | -------------------------------------------------------------- |
+| `auth`     | Add a `/connect` flow for a provider (API key or OAuth)         |
+| `provider` | Supply or override the model list for a provider                |
 
-#### Command Events
+### Lifecycle
 
-- `command.executed`
-
-#### File Events
-
-- `file.edited`
-- `file.watcher.updated`
-
-#### Installation Events
-
-- `installation.updated`
-
-#### LSP Events
-
-- `lsp.client.diagnostics`
-- `lsp.updated`
-
-#### Message Events
-
-- `message.part.removed`
-- `message.part.updated`
-- `message.removed`
-- `message.updated`
-
-#### Permission Events
-
-- `permission.asked`
-- `permission.replied`
-
-#### Server Events
-
-- `server.connected`
-
-#### Session Events
-
-- `session.created`
-- `session.compacted`
-- `session.deleted`
-- `session.diff`
-- `session.error`
-- `session.idle`
-- `session.status`
-- `session.updated`
-
-#### Todo Events
-
-- `todo.updated`
-
-#### Shell Events
-
-- `shell.env`
-
-#### Tool Events
-
-- `tool.execute.after`
-- `tool.execute.before`
-
-#### TUI Events
-
-- `tui.prompt.append`
-- `tui.command.execute`
-- `tui.toast.show`
+| Hook     | Input              | Purpose                                                                                                        |
+| -------- | ------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `event`  | `event`            | Every bus event: `session.idle`, `message.updated`, `file.edited`, `session.error`, `todo.updated`, and more    |
+| `config` | `Config`           | The merged config, before startup finishes                                                                     |
+| `hook`   | `event`, `payload` | Kernel lifecycle events such as `SessionStart`, `PreToolUse`, `Stop`, `SubagentStart`. Set `output.result.decision = "deny"` to block |
 
 ---
 
 ## Examples
 
-Here are some examples of plugins you can use to extend novaway.
+Each example is a complete file. Save it under `.novaway/plugin/` and restart — no config
+change is needed.
 
 ---
 
@@ -219,36 +247,41 @@ Here are some examples of plugins you can use to extend novaway.
 
 Send notifications when certain events occur:
 
-```js title=".novaway/plugins/notification.js"
-export const NotificationPlugin = async ({ project, client, $, directory, worktree }) => {
+```ts title=".novaway/plugin/notify.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const Notify: Plugin = async ({ $ }) => {
   return {
     event: async ({ event }) => {
-      // Send notification on session completion
       if (event.type === "session.idle") {
-        await $`osascript -e 'display notification "Session completed!" with title "novaway"'`
+        await $`osascript -e 'display notification "Session completed!" with title "NovaWay"'`
       }
     },
   }
 }
 ```
 
-We are using `osascript` to run AppleScript on macOS. Here we are using it to send notifications.
+We are using `osascript` to run AppleScript on macOS. On Linux call `notify-send`, on
+Windows use a PowerShell toast script.
 
 :::note
-If you’re using the NovaWay desktop app, it can send system notifications automatically when a response is ready or when a session errors.
+The NovaWay desktop app already sends system notifications when a response is ready or a
+session errors, so a notification plugin is mostly useful for the CLI and TUI.
 :::
 
 ---
 
 ### .env protection
 
-Prevent novaway from reading `.env` files:
+Prevent NovaWay from reading `.env` files:
 
-```javascript title=".novaway/plugins/env-protection.js"
-export const EnvProtection = async ({ project, client, $, directory, worktree }) => {
+```ts title=".novaway/plugin/env-protection.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const EnvProtection: Plugin = async () => {
   return {
     "tool.execute.before": async (input, output) => {
-      if (input.tool === "read" && output.args.filePath.includes(".env")) {
+      if (input.tool === "read" && String(output.args.filePath).includes(".env")) {
         throw new Error("Do not read .env files")
       }
     },
@@ -260,14 +293,17 @@ export const EnvProtection = async ({ project, client, $, directory, worktree })
 
 ### Inject environment variables
 
-Inject environment variables into all shell execution (AI tools and user terminals):
+Inject environment variables into every shell execution, both tool calls and the terminals
+NovaWay opens:
 
-```javascript title=".novaway/plugins/inject-env.js"
-export const InjectEnvPlugin = async () => {
+```ts title=".novaway/plugin/inject-env.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const InjectEnv: Plugin = async ({ directory }) => {
   return {
     "shell.env": async (input, output) => {
-      output.env.MY_API_KEY = "secret"
-      output.env.PROJECT_ROOT = input.cwd
+      output.env.PROJECT_ROOT = input.cwd || directory
+      output.env.NOVAWAY_TRACE = "1"
     },
   }
 }
@@ -277,22 +313,21 @@ export const InjectEnvPlugin = async () => {
 
 ### Custom tools
 
-Plugins can also add custom tools to novaway:
+Plugins can add tools the model can call:
 
-```ts title=".novaway/plugins/custom-tools.ts"
+```ts title=".novaway/plugin/custom-tools.ts"
 import { type Plugin, tool } from "@novaway/plugin"
 
-export const CustomToolsPlugin: Plugin = async (ctx) => {
+export const CustomTools: Plugin = async () => {
   return {
     tool: {
       mytool: tool({
         description: "This is a custom tool",
         args: {
-          foo: tool.schema.string(),
+          foo: tool.schema.string().describe("Anything"),
         },
         async execute(args, context) {
-          const { directory, worktree } = context
-          return `Hello ${args.foo} from ${directory} (worktree: ${worktree})`
+          return { title: "mytool", output: `Hello ${args.foo} from ${context.directory}` }
         },
       }),
     },
@@ -300,13 +335,15 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
 }
 ```
 
-The `tool` helper creates a custom tool that novaway can call. It takes a Zod schema function and returns a tool definition with:
+`tool()` takes three fields:
 
-- `description`: What the tool does
-- `args`: Zod schema for the tool's arguments
-- `execute`: Function that runs when the tool is called
+- `description`: what the tool does, shown to the model
+- `args`: a [Zod](https://zod.dev) raw shape, available as `tool.schema`
+- `execute`: called with the parsed args and a tool context
 
-Your custom tools will be available to novaway alongside built-in tools.
+The tool context carries `sessionID`, `messageID`, `agent`, `directory`, `worktree`, an
+`abort` signal, plus `metadata()` for live progress and `ask()` for permission prompts. See
+[Custom tools](/docs/custom-tools) for the full API.
 
 :::note
 If a plugin tool uses the same name as a built-in tool, the plugin tool takes precedence.
@@ -316,22 +353,31 @@ If a plugin tool uses the same name as a built-in tool, the plugin tool takes pr
 
 ### Logging
 
-Use `client.app.log()` instead of `console.log` for structured logging:
+Use `client.app.log()` instead of `console.log` for structured logging. `console.log`
+output is swallowed by the TUI, while server logs land in
+`~/.local/share/novaway/log`:
 
-```ts title=".novaway/plugins/my-plugin.ts"
-export const MyPlugin = async ({ client }) => {
-  await client.app.log({
-    body: {
-      service: "my-plugin",
-      level: "info",
-      message: "Plugin initialized",
-      extra: { foo: "bar" },
+```ts title=".novaway/plugin/logging.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const Logging: Plugin = async ({ client }) => {
+  return {
+    event: async ({ event }) => {
+      if (event.type !== "session.idle") return
+      await client.app.log({
+        body: {
+          service: "logging",
+          level: "info",
+          message: "session idle",
+          extra: { session: event.properties.sessionID },
+        },
+      })
     },
-  })
+  }
 }
 ```
 
-Levels: `debug`, `info`, `warn`, `error`. See [SDK documentation](https://novaway.ai/docs/sdk) for details.
+Levels are `debug`, `info`, `warn`, `error`. See [SDK](/docs/sdk) for the client API.
 
 ---
 
@@ -339,13 +385,12 @@ Levels: `debug`, `info`, `warn`, `error`. See [SDK documentation](https://novawa
 
 Customize the context included when a session is compacted:
 
-```ts title=".novaway/plugins/compaction.ts"
+```ts title=".novaway/plugin/compaction.ts"
 import type { Plugin } from "@novaway/plugin"
 
-export const CompactionPlugin: Plugin = async (ctx) => {
+export const Compaction: Plugin = async () => {
   return {
     "experimental.session.compacting": async (input, output) => {
-      // Inject additional context into the compaction prompt
       output.context.push(`
 ## Custom Context
 
@@ -359,19 +404,19 @@ Include any state that should persist across compaction:
 }
 ```
 
-The `experimental.session.compacting` hook fires before the LLM generates a continuation summary. Use it to inject domain-specific context that the default compaction prompt would miss.
+The `experimental.session.compacting` hook fires before the model generates a continuation
+summary. Use it to inject domain-specific context that the default prompt would miss.
 
 You can also replace the compaction prompt entirely by setting `output.prompt`:
 
-```ts title=".novaway/plugins/custom-compaction.ts"
+```ts title=".novaway/plugin/custom-compaction.ts"
 import type { Plugin } from "@novaway/plugin"
 
-export const CustomCompactionPlugin: Plugin = async (ctx) => {
+export const CustomCompaction: Plugin = async () => {
   return {
     "experimental.session.compacting": async (input, output) => {
-      // Replace the entire compaction prompt
       output.prompt = `
-You are generating a continuation prompt for a multi-agent swarm session.
+You are generating a continuation prompt for a multi-agent session.
 
 Summarize:
 1. The current task and its status
@@ -386,4 +431,185 @@ Format as a structured prompt that a new agent can use to resume work.
 }
 ```
 
-When `output.prompt` is set, it completely replaces the default compaction prompt. The `output.context` array is ignored in this case.
+When `output.prompt` is set it replaces the default prompt completely and
+`output.context` is ignored.
+
+---
+
+### Add a request header
+
+Useful for gateway routing, tracing, or upstream analytics:
+
+```ts title=".novaway/plugin/trace-headers.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const TraceHeaders: Plugin = async ({ project }) => {
+  return {
+    "chat.headers": async (input, output) => {
+      output.headers["X-Session-Id"] = input.sessionID
+      output.headers["X-Project"] = project.id
+    },
+  }
+}
+```
+
+### Change model parameters per agent
+
+```ts title=".novaway/plugin/tuning.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const Tuning: Plugin = async () => {
+  return {
+    "chat.params": async (input, output) => {
+      if (input.agent !== "plan") return
+      output.temperature = 0.2
+      output.maxOutputTokens = 8000
+    },
+  }
+}
+```
+
+### Extend the system prompt
+
+```ts title=".novaway/plugin/house-style.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const HouseStyle: Plugin = async () => {
+  return {
+    "experimental.chat.system.transform": async (input, output) => {
+      output.system.push("Follow CONTRIBUTING.md before proposing edits.")
+    },
+  }
+}
+```
+
+### Deny an action from the kernel hook table
+
+The `hook` hook receives every kernel lifecycle event, including the ones without a
+dedicated named hook:
+
+```ts title=".novaway/plugin/kernel-policy.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const KernelPolicy: Plugin = async () => {
+  return {
+    hook: async (input, output) => {
+      if (input.event === "PreToolUse" && input.payload.tool === "write") {
+        output.result.decision = "deny"
+        output.result.reason = "writes are disabled in this workspace"
+      }
+    },
+  }
+}
+```
+
+---
+
+## Providers and auth
+
+The `auth` hook adds an entry to `/connect`:
+
+```ts title=".novaway/plugin/my-gateway-auth.ts"
+import type { Plugin } from "@novaway/plugin"
+
+export const MyGatewayAuth: Plugin = async () => {
+  return {
+    auth: {
+      provider: "my-gateway",
+      methods: [
+        {
+          type: "api",
+          label: "API key",
+          prompts: [{ type: "text", key: "accountId", message: "Account id", placeholder: "acct_..." }],
+        },
+      ],
+    },
+  }
+}
+```
+
+Use `type: "oauth"` with `method: "auto"` or `method: "code"` when you need a browser
+round-trip. The built-in GitHub Copilot, GitLab, Codex, Cloudflare, Azure and DigitalOcean
+integrations are all implemented this way.
+
+The `provider` hook supplies the model list for a provider that already exists — define the
+provider itself in `novaway.json` (or let a built-in plugin create it), then return its
+models here. Each entry is a complete v2 `Model` record:
+
+```ts title=".novaway/plugin/my-gateway-models.ts"
+import type { Plugin } from "@novaway/plugin"
+import type { Model } from "@novaway/sdk/v2"
+
+export const MyGatewayModels: Plugin = async () => {
+  return {
+    provider: {
+      id: "my-gateway",
+      // each entry must be a complete Model record; usually you spread an existing one
+      models: async () => ({
+        "fast-1": { ...someExistingModel, id: "fast-1", name: "Fast 1" } as Model,
+      }),
+    },
+  }
+}
+```
+
+The hook also receives the provider and the stored auth, so you can fetch the list from the
+upstream API instead of hardcoding it.
+
+---
+
+## Workspaces
+
+`experimental_workspace.register(type, adapter)` teaches NovaWay how to create and tear
+down remote workspaces. The adapter interface is exported from `@novaway/plugin` as
+`WorkspaceAdapter`: `configure`, `create`, `remove`, and `target`.
+
+---
+
+## TUI plugins
+
+Plugins that change the terminal interface export `tui` instead of `server`:
+
+```ts title=".novaway/plugin/my-tui.ts"
+import type { TuiPlugin } from "@novaway/plugin/tui"
+
+export default {
+  id: "my-tui",
+  tui: (async (api) => ({
+    // commands, dialogs, keymaps, slots, toast
+  })) satisfies TuiPlugin,
+}
+```
+
+A module exports either `server` or `tui`, never both. Commands, dialogs, prompts, slots,
+keymaps and attention sounds are all on the `api` object; the type definitions in
+`@novaway/plugin/tui` are the reference.
+
+---
+
+## Debugging
+
+- `novaway debug info` lists the plugins NovaWay resolved after merging all config.
+- `novaway plugin <module>` installs an npm plugin and writes the config entry.
+- `--pure` disables every external plugin, which is the fastest way to confirm a plugin is
+  the cause of a problem.
+- Hook errors are logged with the plugin id. A throwing `tool.execute.before` aborts that
+  single call, not the session.
+
+---
+
+## Migrating
+
+Plugins written for another agent usually need four changes:
+
+1. **Package name** — `@opencode-ai/plugin` becomes `@novaway/plugin`, and
+   `@opencode-ai/sdk` becomes `@novaway/sdk`.
+2. **Factory names** — `createOpencode` becomes `createNovaway`, and
+   `createOpencodeClient` becomes `createNovawayClient`.
+3. **Config keys** — `opencode.json` becomes `novaway.json`, `.opencode/` becomes
+   `.novaway/`.
+4. **Hook names** — the tables above are the authoritative list. A hook that is not listed
+   there is never called.
+
+NovaWay does not resolve `@opencode-ai/*` at runtime, so a plugin that imports those
+packages has to be repointed before it will load.

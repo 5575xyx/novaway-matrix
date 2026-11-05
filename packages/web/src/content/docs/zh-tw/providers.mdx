@@ -738,7 +738,6 @@ export GITLAB_TOKEN=glpat-...
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-更多文件請參閱 [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth) 首頁。
 
 ##### 設定
 
@@ -764,7 +763,7 @@ export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -989,17 +988,13 @@ Helicone 支援用於快取、使用者追蹤和工作階段管理等功能的�
 
 ##### 工作階段追蹤
 
-Helicone 的 [Sessions](https://docs.helicone.ai/features/sessions) 功能允許您將相關的 LLM 請求歸為一組。使用 [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) 外掛可以自動將每個 NovaWay 對話記錄為 Helicone 中的一個工作階段。
-
-```bash
-npm install -g opencode-helicone-session
-```
+Helicone 的 [Sessions](https://docs.helicone.ai/features/sessions) 功能允許您將相關的 LLM 請求歸為一組。使用 [`chat.headers`](/docs/plugins) 外掛可以自動將每個 NovaWay 對話記錄為 Helicone 中的一個工作階段。
 
 將其新增到設定中。
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

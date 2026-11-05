@@ -747,7 +747,6 @@ URL обратного вызова `http://127.0.0.1:8080/callback` и след
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-Дополнительная документация на домашней странице [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth).
 
 ##### Конфигурация
 
@@ -773,7 +772,7 @@ export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -1002,17 +1001,13 @@ Helicone поддерживает пользовательские заголо�
 
 ##### Отслеживание сеансов
 
-Функция Helicone [Sessions](https://docs.helicone.ai/features/sessions) позволяет группировать связанные запросы LLM вместе. Используйте плагин [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session), чтобы автоматически регистрировать каждый диалог novaway как сеанс в Helicone.
-
-```bash
-npm install -g opencode-helicone-session
-```
+Функция Helicone [Sessions](https://docs.helicone.ai/features/sessions) позволяет группировать связанные запросы LLM вместе. Используйте плагин [`chat.headers`](/docs/plugins), чтобы автоматически регистрировать каждый диалог novaway как сеанс в Helicone.
 
 Добавьте его в свою конфигурацию.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

@@ -749,7 +749,6 @@ export GITLAB_TOKEN=glpat-...
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-เอกสารประกอบเพิ่มเติมเกี่ยวกับหน้าแรกของ [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth)
 
 ##### การกำหนดค่า
 
@@ -775,7 +774,7 @@ export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -1004,17 +1003,13 @@ Helicone รองรับส่วนหัวแบบกำหนดเอ�
 
 ##### การติดตามเซสชัน
 
-คุณลักษณะ [เซสชัน](https://docs.helicone.ai/features/sessions) ของ Helicone ช่วยให้คุณสามารถจัดกลุ่มคำขอ LLM ที่เกี่ยวข้องเข้าด้วยกันได้ ใช้ปลั๊กอิน [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) เพื่อบันทึกการสนทนา NovaWay แต่ละรายการเป็นเซสชันใน Helicone โดยอัตโนมัติ
-
-```bash
-npm install -g opencode-helicone-session
-```
+คุณลักษณะ [เซสชัน](https://docs.helicone.ai/features/sessions) ของ Helicone ช่วยให้คุณสามารถจัดกลุ่มคำขอ LLM ที่เกี่ยวข้องเข้าด้วยกันได้ ใช้ปลั๊กอิน [`chat.headers`](/docs/plugins) เพื่อบันทึกการสนทนา NovaWay แต่ละรายการเป็นเซสชันใน Helicone โดยอัตโนมัติ
 
 เพิ่มลงในการกำหนดค่าของคุณ
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

@@ -596,17 +596,13 @@ Helicone støtter tilpassede headere for funksjoner som bufring, brukersporing o
 
 ##### Sesjonssporing
 
-Helicones [Sessions](https://docs.helicone.ai/features/sessions) funksjon lar deg gruppere relaterte LLM forespørsler sammen. Bruk [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) plugin for automatisk å logge hver NovaWay-samtale som en økt i Helicone.
-
-```bash
-npm install -g opencode-helicone-session
-```
+Helicones [Sessions](https://docs.helicone.ai/features/sessions) funksjon lar deg gruppere relaterte LLM forespørsler sammen. Bruk [`chat.headers`](/docs/plugins) plugin for automatisk å logge hver NovaWay-samtale som en økt i Helicone.
 
 Legg den til i konfigurasjonen din.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 

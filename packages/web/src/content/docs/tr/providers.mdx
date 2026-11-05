@@ -750,7 +750,6 @@ Then expose application ID as environment variable:
 export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
 ```
 
-Daha fazla belge [opencode-gitlab-auth](https://www.npmjs.com/package/opencode-gitlab-auth) ana sayfasında.
 
 ##### Yapılandırma
 
@@ -776,7 +775,7 @@ GitLab araçlarına (birleştirme istekleri, sorunlar, işlem hatları, CI/CD vb
 ```json title="novaway.json"
 {
   "$schema": "https://novaway.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "plugin": ["./plugin/gitlab-tools.ts"]
 }
 ```
 
@@ -1004,17 +1003,13 @@ Helicone, önbelleğe alma, kullanıcı izleme ve oturum yönetimi gibi özellik
 
 ##### Oturum izleme
 
-Helicone'un [Sessions](https://docs.helicone.ai/features/sessions) özelliği, ilgili LLM isteklerini birlikte gruplandırmanıza olanak tanır. Her novaway görüşmesini Helicone'da bir oturum olarak otomatik olarak kaydetmek için [opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session) eklentisini kullanın.
-
-```bash
-npm install -g opencode-helicone-session
-```
+Helicone'un [Sessions](https://docs.helicone.ai/features/sessions) özelliği, ilgili LLM isteklerini birlikte gruplandırmanıza olanak tanır. Her novaway görüşmesini Helicone'da bir oturum olarak otomatik olarak kaydetmek için [`chat.headers`](/docs/plugins) eklentisini kullanın.
 
 Yapılandırmanıza ekleyin.
 
 ```json title="novaway.json"
 {
-  "plugin": ["opencode-helicone-session"]
+  "plugin": ["./plugin/helicone-session.ts"]
 }
 ```
 
