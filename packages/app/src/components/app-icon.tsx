@@ -33,6 +33,7 @@ const PRESETS: Record<string, AppIconStyle> = {
   "browser-use": { from: "#5b9dff", to: "#1d4ed8", glyph: "lu-chrome" },
   "computer-use": { from: "#a3b1c6", to: "#475569", glyph: "autopilot" },
   "skill-tools": { from: "#c084fc", to: "#7c3aed", glyph: "lu-wrench" },
+  "media-ops": { from: "#ffd166", to: "#e8590c", glyph: "lu-megaphone" },
   "wxgzh-ops": { from: "#5ad87a", to: "#15803d", glyph: "bubble-5" },
   "xiaohongshu-ops": { from: "#ff7a90", to: "#d81e42", glyph: "lu-square-pen" },
   "memory-service": { from: "#8fa8ff", to: "#4338ca", glyph: "lu-brain" },

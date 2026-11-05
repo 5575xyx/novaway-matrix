@@ -44,6 +44,7 @@ import {
   getPlatform,
   resolveProfile,
   runPublishBatch,
+  precheckPublish,
   getPublishBatches,
   savePublishBatch,
   type PublishInput,
@@ -848,6 +849,17 @@ export function registerIpcHandlers(deps: Deps) {
         })
 
       return { ok: true }
+    },
+  )
+
+  /**
+   * 发布前预检：渲染层在点「发布」时先问一次，把问题展示给用户再决定。
+   * 主进程在 runner 里还会再跑一遍 —— 这条路是给人看的，那条是兜底。
+   */
+  ipcMain.handle(
+    "platform:publish-precheck",
+    async (_event, payload: { platforms: string[]; input: PublishInput }) => {
+      return precheckPublish(payload.input, payload.platforms ?? [])
     },
   )
 

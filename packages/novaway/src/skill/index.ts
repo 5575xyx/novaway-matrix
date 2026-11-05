@@ -28,6 +28,7 @@ import OFFICE_TASK_SKILL_BODY from "./prompt/office-task.md" with { type: "text"
 import OFFICE_WEB_SKILL_BODY from "./prompt/office-web.md" with { type: "text" }
 import FIND_SKILLS_BODY from "./prompt/find-skills.md" with { type: "text" }
 import SKILL_CREATOR_BODY from "./prompt/skill-creator.md" with { type: "text" }
+import MEDIA_OPS_BODY from "./prompt/media-ops/SKILL.md" with { type: "text" }
 import WXGZH_OPS_BODY from "./prompt/wxgzh-ops/SKILL.md" with { type: "text" }
 import XIAOHONGSHU_OPS_BODY from "./prompt/xiaohongshu-ops/SKILL.md" with { type: "text" }
 import { isRecord } from "@/util/record"
@@ -156,6 +157,7 @@ const BUILT_IN_SKILLS = [
   },
   builtInSkillFromMarkdown(FIND_SKILLS_BODY),
   builtInSkillFromMarkdown(SKILL_CREATOR_BODY),
+  builtInSkillFromMarkdown(MEDIA_OPS_BODY),
   builtInSkillFromMarkdown(WXGZH_OPS_BODY),
   builtInSkillFromMarkdown(XIAOHONGSHU_OPS_BODY),
 ]

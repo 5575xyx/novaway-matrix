@@ -1,6 +1,6 @@
 import { createContext, createMemo, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { PublishBatch, PublishBatchInput, PublishProgressEvent } from "@/pages/pulse/publish-types"
+import type { PrecheckResult, PublishBatch, PublishBatchInput, PublishProgressEvent } from "@/pages/pulse/publish-types"
 import { accountDisplayName } from "@/pages/pulse/account-name"
 import xhsIcon from "@/assets/platform-icons/xhs.svg"
 import douyinIcon from "@/assets/platform-icons/douyin.svg"
@@ -159,6 +159,8 @@ interface PlatformAccountsContextValue {
   publish: (accountId: string, input: any) => Promise<any>
   /** 一站式发布：多账号（可跨平台）一次提交，进度从 onPublishProgress 回来。 */
   publishBatch: (accountIds: string[], input: PublishBatchInput) => Promise<{ ok: boolean; error?: string }>
+  /** 发布前预检：有问题先展示给用户，别等平台拒稿。 */
+  publishPrecheck: (platforms: string[], input: PublishBatchInput) => Promise<PrecheckResult>
   cancelPublish: () => Promise<void>
   publishBatches: () => Promise<PublishBatch[]>
   onPublishProgress: (cb: (event: PublishProgressEvent) => void) => () => void
@@ -371,6 +373,12 @@ export function PlatformAccountsProvider(props: { children: any }) {
     return api.publishBatch({ accountIds, input })
   }
 
+  const publishPrecheck = async (platforms: string[], input: PublishBatchInput): Promise<PrecheckResult> => {
+    const api = (window as any).api?.platform
+    if (!api?.publishPrecheck) return { ok: true, issues: [] }
+    return api.publishPrecheck({ platforms, input })
+  }
+
   const cancelPublish = async () => {
     await (window as any).api?.platform?.cancelPublish?.()
   }
@@ -417,6 +425,7 @@ export function PlatformAccountsProvider(props: { children: any }) {
         displayName,
         publish,
         publishBatch,
+        publishPrecheck,
         cancelPublish,
         publishBatches,
         onPublishProgress,

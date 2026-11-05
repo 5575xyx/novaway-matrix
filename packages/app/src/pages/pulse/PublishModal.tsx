@@ -10,7 +10,7 @@
  * - 批次串行执行，进度事件带 accountId，界面用一张表合并，不关心先后顺序。
  * - 关闭弹窗不取消任务（主进程会跑完并落盘），下次打开能在"最近发布"里看到结果。
  */
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { Icon } from "@novaway/ui/icon"
@@ -20,7 +20,7 @@ import {
   supportsPublish,
   type PublishKind,
 } from "@/pages/pulse/publish-capabilities"
-import type { PublishAccountResult, PublishBatch } from "@/pages/pulse/publish-types"
+import type { PrecheckIssue, PublishAccountResult, PublishBatch } from "@/pages/pulse/publish-types"
 
 const KINDS: PublishKind[] = ["video", "image_text", "article"]
 
@@ -170,6 +170,20 @@ export function PublishModal(props: { accountId?: string }) {
   const [batch, setBatch] = createSignal<PublishBatch | undefined>()
   const [error, setError] = createSignal("")
   const [history, setHistory] = createSignal<PublishBatch[]>([])
+  // 预检结果：error 挡发布，warning/hint 只在用户确认后才放行。
+  const [issues, setIssues] = createSignal<PrecheckIssue[]>([])
+  const [acknowledged, setAcknowledged] = createSignal(false)
+
+  // 改了内容就重新预检：否则用户按提示改完，界面还挂着旧的"加微信"警告。
+  createEffect(() => {
+    title()
+    content()
+    tags()
+    kind()
+    files()
+    setIssues([])
+    setAcknowledged(false)
+  })
 
   onMount(() => {
     // 进度事件按 accountId 合并；同一时刻只允许有一个批次在跑，不必区分 batchId。
@@ -255,9 +269,40 @@ export function PublishModal(props: { accountId?: string }) {
     setError("")
   }
 
+  const buildInput = () => ({
+    kind: kind(),
+    title: title().trim(),
+    description: content().trim(),
+    filePaths: files(),
+    tags: tags()
+      .split(/[\s,，]+/)
+      .map((tag) => tag.replace(/^#/, "").trim())
+      .filter(Boolean),
+  })
+
   const submit = async () => {
     if (!canPublish()) return
     setError("")
+
+    // 先过一遍预检：
+    // - 硬错误（公众号空标题、没选素材）直接拦住，省得开窗口白跑；
+    // - 警告（极限词、微信引流）展示出来，用户点第二次才真的发。
+    const input = buildInput()
+    const check = await platform.publishPrecheck(
+      readyAccounts().map((account) => account.platform),
+      input,
+    )
+    setIssues(check.issues)
+    if (!check.ok) {
+      setError("预检未通过，按提示改完再发")
+      return
+    }
+    // 只有 warning 需要用户二次确认；hint（比如「记得勾 AI 生成」）不打断发布。
+    if (check.issues.some((issue) => issue.level === "warning") && !acknowledged()) {
+      setAcknowledged(true)
+      return
+    }
+
     setResults(
       Object.fromEntries(
         readyAccounts().map((account) => [
@@ -278,16 +323,7 @@ export function PublishModal(props: { accountId?: string }) {
     try {
       const result = await platform.publishBatch(
         readyAccounts().map((account) => account.id),
-        {
-          kind: kind(),
-          title: title().trim(),
-          description: content().trim(),
-          filePaths: files(),
-          tags: tags()
-            .split(/[\s,，]+/)
-            .map((tag) => tag.replace(/^#/, "").trim())
-            .filter(Boolean),
-        },
+        input,
       )
       if (!result.ok) {
         setError(result.error || "发布失败")
@@ -337,7 +373,7 @@ export function PublishModal(props: { accountId?: string }) {
               disabled={!canPublish()}
               onClick={submit}
             >
-              发布到 {readyAccounts().length} 个账号
+              {acknowledged() ? "确认风险并发布" : `发布到 ${readyAccounts().length} 个账号`}
             </button>
           </Show>
           <Show when={phase() === "running"}>
@@ -522,6 +558,43 @@ export function PublishModal(props: { accountId?: string }) {
               </div>
             </div>
 
+            <Show when={issues().length > 0}>
+              <div class="rounded-[10px] border border-amber-300/40 bg-amber-300/5 px-3 py-2.5">
+                <div class="mb-1.5 text-12-medium text-amber-600 dark:text-amber-300">
+                  发布前预检 · {issues().length} 条
+                </div>
+                <ul class="space-y-1.5">
+                  <For each={issues()}>
+                    {(issue) => (
+                      <li class="flex items-start gap-2 text-11-regular">
+                        <span
+                          class="mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-10-medium"
+                          classList={{
+                            "bg-rose-300/15 text-rose-600 dark:text-rose-300": issue.level === "error",
+                            "bg-amber-300/15 text-amber-600 dark:text-amber-300": issue.level === "warning",
+                            "bg-background-alt text-foreground-subtle": issue.level === "hint",
+                          }}
+                        >
+                          {issue.level === "error" ? "必须处理" : issue.level === "warning" ? "注意" : "提示"}
+                        </span>
+                        <span class="min-w-0 flex-1 text-foreground-subtle">
+                          {issue.message}
+                          <Show when={issue.fix}>
+                            <span class="text-foreground-subtlest"> · 改法：{issue.fix}</span>
+                          </Show>
+                        </span>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+                <Show when={acknowledged()}>
+                  <div class="mt-1.5 text-11-regular text-foreground-subtlest">
+                    确认无误后，再点一次右下角「确认风险并发布」。
+                  </div>
+                </Show>
+              </div>
+            </Show>
+
             <Show when={error()}>
               <div class="rounded-[8px] border border-rose-300/40 bg-rose-300/10 px-3 py-2 text-12-regular text-rose-600 dark:text-rose-300">
                 {error()}
@@ -580,6 +653,11 @@ export function PublishModal(props: { accountId?: string }) {
                       </span>
                       <span class={`shrink-0 text-11-medium ${statusTone(result)}`}>{statusLabel(result)}</span>
                     </div>
+                    <Show when={result.warnings?.length}>
+                      <div class="mt-1 space-y-0.5 text-11-regular text-amber-600 dark:text-amber-400">
+                        <For each={result.warnings}>{(warning) => <div>预检：{warning}</div>}</For>
+                      </div>
+                    </Show>
                     <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-background-alt">
                       <div
                         class="h-full rounded-full transition-[width] duration-300"

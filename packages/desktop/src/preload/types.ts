@@ -110,6 +110,7 @@ export interface PublishAccountResult {
   message: string
   url?: string
   error?: string
+  warnings?: string[]
   updatedAt: number
 }
 
@@ -119,6 +120,19 @@ export interface PublishBatch {
   results: PublishAccountResult[]
   startedAt: number
   finishedAt?: number
+}
+
+export interface PublishPrecheckIssue {
+  rule: string
+  level: "error" | "warning" | "hint"
+  message: string
+  evidence?: string
+  fix?: string
+}
+
+export interface PublishPrecheckResult {
+  ok: boolean
+  issues: PublishPrecheckIssue[]
 }
 
 export interface PublishProgressEvent {
@@ -148,6 +162,11 @@ export interface PlatformAPI {
   publish: (input: { accountId: string; publishInput: PlatformPublishInput }) => Promise<PlatformPublishResult>
   /** 一站式发布：多账号（可跨平台）一次提交，进度走 onPublishProgress。 */
   publishBatch: (input: { accountIds: string[]; input: PublishBatchInput }) => Promise<{ ok: boolean; error?: string }>
+  /** 发布前预检：长度、素材形态、极限词/引流词，先给人看一遍再发。 */
+  publishPrecheck: (input: {
+    platforms: string[]
+    input: PublishBatchInput
+  }) => Promise<PublishPrecheckResult>
   cancelPublish: () => Promise<{ ok: boolean }>
   getPublishBatches: () => Promise<PublishBatch[]>
   onPublishProgress: (cb: (event: PublishProgressEvent) => void) => () => void

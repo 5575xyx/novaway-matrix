@@ -36,6 +36,7 @@ export { PlatformLoginManager } from "./login"
 export { resolveProfile, mergeProfile } from "./profile"
 export { getDriver, supportsKind, DRIVERS, type PublishDriver } from "./publish/drivers"
 export { runPublishBatch, type PublishAccount } from "./publish/runner"
+export { precheckPublish, type PrecheckResult } from "./publish/precheck"
 export type {
   PublishBatch,
   PublishInput,

@@ -7,6 +7,7 @@
  */
 import type { PublishAccountResult, PublishBatch, PublishInput, PublishProgressEvent, PublishStatus } from "./types"
 import { getDriver, type PublishDriver } from "./drivers"
+import { precheckPublish } from "./precheck"
 import { findOpenSurface } from "./surface"
 import {
   attrOf,
@@ -57,7 +58,7 @@ function result(
   status: PublishStatus,
   progress: number,
   message: string,
-  extra: { url?: string; error?: string } = {},
+  extra: { url?: string; error?: string; warnings?: string[] } = {},
 ): PublishAccountResult {
   return {
     accountId: account.id,
@@ -68,6 +69,7 @@ function result(
     message,
     url: extra.url,
     error: extra.error,
+    warnings: extra.warnings && extra.warnings.length > 0 ? extra.warnings : undefined,
     updatedAt: Date.now(),
   }
 }
@@ -180,8 +182,10 @@ export async function publishToAccount(
   signal: AbortSignal,
 ): Promise<PublishAccountResult> {
   const driver = getDriver(account.platform)
+  // 预检结论要跟着这条账号的每个进度事件走：界面上"哪句踩线"比"失败了"有用得多。
+  const warnings: string[] = []
   const step = (status: PublishStatus, progress: number, message: string, extra: { url?: string; error?: string } = {}) => {
-    const next = result(account, status, progress, message, extra)
+    const next = result(account, status, progress, message, { ...extra, warnings })
     report(next)
     return next
   }
@@ -190,6 +194,15 @@ export async function publishToAccount(
   if (!driver.supports.includes(input.kind)) {
     return step("unsupported", 0, `${driver.name}不支持${kindName(input.kind)}发布`)
   }
+
+  // 预检：硬错误（没有素材、公众号空标题）在这里就挡住，别开窗口白跑一趟；
+  // 警告（极限词、微信引流）只随结果带给用户，最终发不发由他决定。
+  const check = precheckPublish(input, [account.platform])
+  const blockers = check.issues.filter((issue) => issue.level === "error")
+  if (blockers.length > 0) {
+    return step("failed", 0, `预检未通过：${blockers[0].message}`, { error: `precheck:${blockers[0].rule}` })
+  }
+  warnings.push(...check.issues.filter((issue) => issue.level === "warning").map((issue) => issue.message))
 
   // 公众号这类编辑页要 token，只认已登录会话里的地址栏；没有 token 时
   // 先落到平台的首页/入口页，让它自己把 token 带出来。

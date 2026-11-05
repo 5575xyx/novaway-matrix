@@ -121,6 +121,7 @@ const api: ElectronAPI = {
     refreshProfiles: (ids?: string[]) => ipcRenderer.invoke("platform:refresh-profiles", ids),
     publish: (input: any) => ipcRenderer.invoke("platform:publish", input),
     publishBatch: (input) => ipcRenderer.invoke("platform:publish-batch", input),
+    publishPrecheck: (input) => ipcRenderer.invoke("platform:publish-precheck", input),
     cancelPublish: () => ipcRenderer.invoke("platform:cancel-publish"),
     getPublishBatches: () => ipcRenderer.invoke("platform:get-publish-batches"),
     onPublishProgress: (cb) => {

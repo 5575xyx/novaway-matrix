@@ -206,6 +206,30 @@ export const OFFICE_PLUGINS: OfficePlugin[] = [
     ],
   },
   {
+    id: "media-ops",
+    category: "creation",
+    prompts: [
+      prompt(
+        "media-plan",
+        "media-ops",
+        { cn: "做一周的自媒体选题", en: "Plan a week of social posts" },
+        {
+          cn: "帮我做一周的自媒体选题：先看各平台热榜和我的账号数据，给 5 个选题（说明依据），再挑一个写成小红书笔记和抖音口播稿。",
+          en: "Plan a week of social posts: check trending lists and my account data, propose five topics with reasons, then write one as a Xiaohongshu note and a Douyin script.",
+        },
+      ),
+      prompt(
+        "media-review",
+        "media-ops",
+        { cn: "发布前帮我审一遍", en: "Review before publishing" },
+        {
+          cn: "按平台规则审一下这篇内容能不能发抖音/小红书/视频号：指出哪句踩线、依据哪条规则，并给出改法。",
+          en: "Check this content against Douyin/Xiaohongshu/Channels rules: point out risky lines, cite the rule, and suggest fixes.",
+        },
+      ),
+    ],
+  },
+  {
     id: "wxgzh-ops",
     category: "creation",
     prompts: [

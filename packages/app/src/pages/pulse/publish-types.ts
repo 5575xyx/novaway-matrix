@@ -24,6 +24,7 @@ export interface PublishAccountResult {
   message: string
   url?: string
   error?: string
+  warnings?: string[]
   updatedAt: number
 }
 
@@ -38,4 +39,19 @@ export interface PublishBatch {
 export interface PublishProgressEvent {
   batchId: string
   result: PublishAccountResult
+}
+
+export type PrecheckLevel = "error" | "warning" | "hint"
+
+export interface PrecheckIssue {
+  rule: string
+  level: PrecheckLevel
+  message: string
+  evidence?: string
+  fix?: string
+}
+
+export interface PrecheckResult {
+  ok: boolean
+  issues: PrecheckIssue[]
 }

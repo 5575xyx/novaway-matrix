@@ -30,6 +30,8 @@ export interface PublishAccountResult {
   message: string
   url?: string
   error?: string
+  /** 预检给出的警告（极限词、引流话术…）；不挡发布，但要让用户看见。 */
+  warnings?: string[]
   updatedAt: number
 }
 
