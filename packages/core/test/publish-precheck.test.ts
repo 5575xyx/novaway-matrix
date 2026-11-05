@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { charCount, precheckPublish, PLATFORM_LIMITS, summarizeIssues } from "./precheck"
+import { charCount, precheckPublish, PLATFORM_LIMITS, summarizeIssues } from "../src/publish-precheck"
 
 const base = {
   kind: "image_text" as const,

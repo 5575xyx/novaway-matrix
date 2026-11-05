@@ -92,4 +92,37 @@ Use this skill.
       { git: true },
     ),
   )
+
+  it.live("内置运营技能能被 skill 工具真正加载，并列出 references/ 参考资料", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const registry = yield* ToolRegistry.Service
+          const agent = { name: "build", mode: "primary" as const, permission: [], options: {} }
+          const tool = (yield* registry.tools({
+            providerID: "builtin" as any,
+            modelID: "gpt-5" as any,
+            agent,
+          })).find((tool) => tool.id === SkillTool.id)
+          if (!tool) throw new Error("Skill tool not found")
+
+          const ctx: Tool.Context = { ...baseCtx, ask: () => Effect.void }
+          const result = yield* tool.execute({ name: "media-ops" }, ctx)
+
+          // 模型真正拿到手的是 BASE DIRECTORY + 正文 + 目录里的文件清单；
+          // 少任何一项，模型都读不到 references/ 里的平台手册与预检规则。
+          expect(result.output).toContain('<skill_content name="media-ops">')
+          expect(result.output).toContain("Base directory for this skill:")
+          expect(result.output).toContain("references/platform-playbook.md")
+          expect(result.output).toContain("references/precheck-rules.md")
+          // 基准目录必须是技能自己的目录，不是 prompt/：否则 references/ 会指错。
+          const dir = result.metadata.dir!
+          expect(path.basename(dir)).toBe("media-ops")
+          expect(result.output).toContain(`Base directory for this skill: ${pathToFileURL(dir).href}`)
+          // 文件清单只列技能自己的文件，不把别的技能也倒出来。
+          expect(result.output).not.toContain("wxgzh-ops")
+        }),
+      { git: true },
+    ),
+  )
 })

@@ -1,5 +1,6 @@
 import { createContext, createMemo, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
+import { precheckPublish } from "@novaway/core/publish-precheck"
 import type { PrecheckResult, PublishBatch, PublishBatchInput, PublishProgressEvent } from "@/pages/pulse/publish-types"
 import { accountDisplayName } from "@/pages/pulse/account-name"
 import xhsIcon from "@/assets/platform-icons/xhs.svg"
@@ -375,8 +376,10 @@ export function PlatformAccountsProvider(props: { children: any }) {
 
   const publishPrecheck = async (platforms: string[], input: PublishBatchInput): Promise<PrecheckResult> => {
     const api = (window as any).api?.platform
-    if (!api?.publishPrecheck) return { ok: true, issues: [] }
-    return api.publishPrecheck({ platforms, input })
+    // 桌面端走主进程（那里还能顺带做发布前的兜底检查）；Web 版没有主进程，
+    // 就用同一份规则在本地跑 —— 规则来自 @novaway/core，不会两边结论不一致。
+    if (api?.publishPrecheck) return api.publishPrecheck({ platforms, input })
+    return precheckPublish(input, platforms)
   }
 
   const cancelPublish = async () => {

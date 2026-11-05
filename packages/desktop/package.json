@@ -25,6 +25,7 @@
   },
   "main": "./out/main/index.js",
   "dependencies": {
+    "@novaway/core": "workspace:*",
     "crypto-js": "4.2.0",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",

@@ -83,7 +83,12 @@ export const SkillTool = Tool.define(
             }
           }
 
-          const dir = path.dirname(info.location)
+          // 内置技能（带独立目录的那种）的 location 就是目录本身，普通技能是
+          // SKILL.md 的文件路径 —— 直接 dirname 会把前者的基准目录抬到 prompt/，
+          // 模型按 `references/xxx.md` 拼路径就会指到别人家的目录里。
+          const dir = info.location.replace(/\/+$/, "").endsWith("SKILL.md")
+            ? path.dirname(info.location)
+            : info.location
           const base = pathToFileURL(dir).href
           // 带 Python 脚本的技能：把准备好的解释器交给模型，别让它猜 python3。
           const python = yield* Effect.promise(async () => {
