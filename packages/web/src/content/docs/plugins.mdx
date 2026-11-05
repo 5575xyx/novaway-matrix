@@ -610,21 +610,3 @@ keymaps and attention sounds are all on the `api` object; the type definitions i
   the cause of a problem.
 - Hook errors are logged with the plugin id. A throwing `tool.execute.before` aborts that
   single call, not the session.
-
----
-
-## Migrating
-
-Plugins written for another agent usually need four changes:
-
-1. **Package name** — `@opencode-ai/plugin` becomes `@novaway/plugin`, and
-   `@opencode-ai/sdk` becomes `@novaway/sdk`.
-2. **Factory names** — `createOpencode` becomes `createNovaway`, and
-   `createOpencodeClient` becomes `createNovawayClient`.
-3. **Config keys** — `opencode.json` becomes `novaway.json`, `.opencode/` becomes
-   `.novaway/`.
-4. **Hook names** — the tables above are the authoritative list. A hook that is not listed
-   there is never called.
-
-NovaWay does not resolve `@opencode-ai/*` at runtime, so a plugin that imports those
-packages has to be repointed before it will load.

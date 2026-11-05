@@ -289,7 +289,7 @@ export default defineConfig({
             "zh-CN": "开发",
             "zh-TW": "開發",
           },
-          items: ["sdk", "server", "plugins", "ecosystem"],
+          items: ["sdk", "server", "plugins"],
         },
       ],
       components: {
