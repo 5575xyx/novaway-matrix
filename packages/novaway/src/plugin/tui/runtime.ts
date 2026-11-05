@@ -1,5 +1,4 @@
 import { runtimeModules as keymapRuntimeModules } from "@opentui/keymap/runtime-modules"
-import { ensureRuntimePluginSupport } from "@opentui/solid/runtime-plugin-support/configure"
 import {
   type TuiDispose,
   type TuiPlugin,
@@ -43,9 +42,19 @@ import { ConfigPlugin } from "@/config/plugin"
 import { createCommandShim } from "@novaway/tui/plugin/command-shim"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Effect } from "effect"
+import * as Log from "@novaway/core/util/log"
 import { createPluginRuntime, type PluginRuntime, type TuiPluginHost } from "@novaway/tui/plugin/runtime"
 
-ensureRuntimePluginSupport({ additional: keymapRuntimeModules })
+// 运行期插件支持做的是「在加载时用 solid 编译器转换插件的 TSX」——它靠 Bun 的
+// 运行时插件 API 注册一个转译钩子，Node 下这个入口会在模块求值阶段直接抛错。
+// 用动态导入 + 兜底把它降级掉：内置 TUI 不需要它，受影响的只有「运行时加载的
+// TUI 插件里带 JSX」这一种情况，此时会打一条警告而不是让整个 TUI 起不来。
+try {
+  const { ensureRuntimePluginSupport } = await import("@opentui/solid/runtime-plugin-support/configure")
+  ensureRuntimePluginSupport({ additional: keymapRuntimeModules })
+} catch (error) {
+  Log.Default.warn("TUI runtime plugin support unavailable", { error: errorMessage(error) })
+}
 
 type PluginLoad = {
   options: ConfigPlugin.Options | undefined

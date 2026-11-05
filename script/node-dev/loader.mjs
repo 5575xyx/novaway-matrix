@@ -22,8 +22,34 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const repoRoot = path.resolve(here, "../..")
 const novawayDir = path.join(repoRoot, "packages/novaway")
+const require = createRequire(path.join(repoRoot, "noop.js"))
 
 const JSX_IMPORT_SOURCE = "@opentui/solid"
+
+/**
+ * solid-js 的入口在 Node 下会被解析到服务端构建，必须显式指回浏览器/客户端构建。
+ * 与 `@opentui/solid/scripts/solid-transform.js` 里的同名函数保持一致。
+ *
+ * 这里同时覆盖了「直接写死 dist 文件」的形式（`solid-js/dist/solid.js`），因为
+ * `@opentui/solid` 内部就是这么导入的。如果只映射裸写法的 `solid-js`，依赖树里
+ * 就会同时存在两份 solid 核心：`@opentui/solid` 用自己的那份建 context/owner，
+ * 业务代码用另一份读，两边模块状态不共享 —— 表现就是 `useRenderer()` 报
+ * "No renderer found"（RendererContext 看不见）。
+ *
+ * 所以所有等价的入口都归一到同一个绝对路径（用仓库根解析，与业务代码一致）。
+ */
+const SOLID_CANONICAL = new Map([
+  ["solid-js", "solid-js/dist/solid.js"],
+  ["solid-js/jsx-runtime", "solid-js/dist/solid.js"],
+  ["solid-js/jsx-dev-runtime", "solid-js/dist/solid.js"],
+  ["solid-js/dist/solid.js", "solid-js/dist/solid.js"],
+  ["solid-js/store", "solid-js/store/dist/store.js"],
+  ["solid-js/store/dist/store.js", "solid-js/store/dist/store.js"],
+])
+
+function resolveNodeSolidRuntimeImport(specifier) {
+  return SOLID_CANONICAL.get(specifier) ?? null
+}
 
 const CANDIDATES = [".ts", ".tsx", ".mts", ".js", ".mjs", ".jsx", ".json"]
 
@@ -52,6 +78,11 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("bun:")) {
     return { url: `novaway-node-shim:${specifier}`, shortCircuit: true }
   }
+
+  // solid-js 的 `node` 条件导出指向 dist/server.js（SSR，没有响应式、没有渲染器）。
+  // @opentui/solid 自己的 bun 插件也是这么绕开的（见其 resolveNodeSolidRuntimeImport）。
+  const solid = resolveNodeSolidRuntimeImport(specifier)
+  if (solid) return { url: pathToFileURL(require.resolve(solid)).href, shortCircuit: true }
 
   const aliased = expandAlias(specifier)
   if (aliased) {
@@ -167,9 +198,10 @@ export async function load(url, context, nextLoad) {
         shortCircuit: true,
       }
     }
-    // `import wasm from "./x.wasm" with { type: "file" }` 是 bun 的语法，Node 不支持
+    // `import asset from "./x.wasm" with { type: "file" }` 是 bun 的语法，Node 不支持
     // 这个 attribute。bun 的语义是「给我文件路径」，用同样的语义返回字符串。
-    if (file.endsWith(".wasm") && context.importAttributes?.type === "file") {
+    // 源码里除了 wasm 还有 mp3（提示音），所以按 attribute 判断而不是按扩展名。
+    if (context.importAttributes?.type === "file") {
       return {
         format: "module",
         source: `export default ${JSON.stringify(file)}`,
@@ -178,15 +210,14 @@ export async function load(url, context, nextLoad) {
     }
     if (/\.(ts|tsx|mts)$/.test(file) && !file.startsWith(path.join(repoRoot, "node_modules"))) {
       const raw = await readFile(file, "utf8")
+      if (file.endsWith(".tsx")) return { format: "module", source: await transformSolid(file, raw), shortCircuit: true }
       const { transform } = await import("esbuild")
       const result = await transform(raw, {
-        loader: file.endsWith(".tsx") ? "tsx" : "ts",
+        loader: "ts",
         format: "esm",
         target: "node22",
         sourcefile: file,
         sourcemap: "inline",
-        jsx: "automatic",
-        jsxImportSource: JSX_IMPORT_SOURCE,
         // 保持 import 路径原样，交给上面 resolve 处理；不打成 bundle。
         tsconfigRaw: { compilerOptions: { verbatimModuleSyntax: false } },
       })
@@ -195,4 +226,23 @@ export async function load(url, context, nextLoad) {
   }
 
   return nextLoad(url, context)
+}
+
+/**
+ * TSX 走 solid 的编译期转换（`generate: "universal"`），而不是 esbuild 的 jsx runtime。
+ *
+ * 这两者不等价：solid 的组件只应该执行一次，返回值是响应式的 DOM/文本节点；
+ * 纯运行时 JSX 每次重渲染都会重新执行函数组件，`createEffect`/`createMemo` 的
+ * 依赖追踪和生命周期都会乱。`@opentui/solid` 自带这个转换函数（bun 插件内部用的
+ * 就是它），它只依赖 babel，Node 下可以直接调用。
+ */
+async function transformSolid(file, raw) {
+  const mod = await import(
+    pathToFileURL(path.join(repoRoot, "node_modules/@opentui/solid/scripts/solid-transform.js")).href
+  )
+  const code = await mod.transformSolidSource(raw, {
+    filename: file,
+    moduleName: JSX_IMPORT_SOURCE,
+  })
+  return code
 }
