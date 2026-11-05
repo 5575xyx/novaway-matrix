@@ -71,6 +71,7 @@ import {
 } from "./browser"
 import { BrowserService } from "@/browser/browser"
 import {
+  WebviewClickAtTool,
   WebviewClickTool,
   WebviewFillTool,
   WebviewNavigateTool,
@@ -236,6 +237,8 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   webview_snapshot: { readOnly: true, concurrencySafe: false, idempotent: true },
   webview_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true },
   webview_click: { concurrencySafe: false, destructive: true },
+  // 坐标点击：给 closed shadow root（小红书发布按钮）这类点不到的元素用。
+  webview_click_at: { concurrencySafe: false, destructive: true },
   webview_fill: { concurrencySafe: false, destructive: true },
   webview_press: { concurrencySafe: false, destructive: true },
   webview_script: { concurrencySafe: false, destructive: true, deferLoading: true },
@@ -584,6 +587,7 @@ export const layer: Layer.Layer<
     const webviewStatus = yield* WebviewStatusTool
     const webviewSnapshot = yield* WebviewSnapshotTool
     const webviewClick = yield* WebviewClickTool
+    const webviewClickAt = yield* WebviewClickAtTool
     const webviewFill = yield* WebviewFillTool
     const webviewPress = yield* WebviewPressTool
     const webviewNavigate = yield* WebviewNavigateTool
@@ -826,6 +830,7 @@ export const layer: Layer.Layer<
           webview_status: Tool.init(webviewStatus),
           webview_snapshot: Tool.init(webviewSnapshot),
           webview_click: Tool.init(webviewClick),
+          webview_click_at: Tool.init(webviewClickAt),
           webview_fill: Tool.init(webviewFill),
           webview_press: Tool.init(webviewPress),
           webview_navigate: Tool.init(webviewNavigate),
@@ -975,6 +980,7 @@ export const layer: Layer.Layer<
                 tool.webview_status,
                 tool.webview_snapshot,
                 tool.webview_click,
+                tool.webview_click_at,
                 tool.webview_fill,
                 tool.webview_press,
                 tool.webview_navigate,

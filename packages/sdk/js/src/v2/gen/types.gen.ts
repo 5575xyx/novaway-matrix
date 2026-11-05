@@ -5078,10 +5078,12 @@ export type EventPlatformWebviewRequest = {
   properties: {
     id: string
     sessionID: string
-    action: "status" | "script" | "navigate" | "screenshot"
+    action: "status" | "script" | "navigate" | "screenshot" | "click"
     target?: string
     script?: string
     url?: string
+    x?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    y?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
@@ -6066,10 +6068,12 @@ export type EventPlatformWebviewRequest1 = {
   properties: {
     id: string
     sessionID: string
-    action: "status" | "script" | "navigate" | "screenshot"
+    action: "status" | "script" | "navigate" | "screenshot" | "click"
     target?: string
     script?: string
     url?: string
+    x?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    y?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     timeoutMs?: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
@@ -13774,10 +13778,12 @@ export type PlatformWebviewListResponses = {
   200: Array<{
     id: string
     sessionID: string
-    action: "status" | "script" | "navigate" | "screenshot"
+    action: "status" | "script" | "navigate" | "screenshot" | "click"
     target?: string
     script?: string
     url?: string
+    x?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    y?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }>
 }

@@ -67,6 +67,19 @@ export function PlatformWebView(props: PlatformWebViewProps) {
         const image = await target.capturePage()
         return image?.toDataURL?.()
       },
+      // 小红书把发布按钮藏在 <xhs-publish-btn> 的 closed shadow root 里，
+      // 脚本查不到、host.click() 也只打到宿主。只有走浏览器的输入管线
+      // （webview.sendInputEvent）点击才会被路由进影子树。
+      clickAt: async (x: number, y: number) => {
+        const target = webviewRef
+        if (!target?.sendInputEvent) throw new Error("当前页面不支持坐标点击")
+        const px = Math.round(x)
+        const py = Math.round(y)
+        target.sendInputEvent({ type: "mouseMove", x: px - 8, y: py - 6 })
+        target.sendInputEvent({ type: "mouseMove", x: px, y: py })
+        target.sendInputEvent({ type: "mouseDown", x: px, y: py, button: "left", clickCount: 1 })
+        target.sendInputEvent({ type: "mouseUp", x: px, y: py, button: "left", clickCount: 1 })
+      },
     })
     onCleanup(unregister)
 

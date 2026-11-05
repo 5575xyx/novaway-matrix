@@ -40,6 +40,12 @@ const RefParameters = Schema.Struct({
   ref: Schema.String.annotate({ description: "webview_snapshot 返回的 ref（例如 e12）" }),
 })
 
+const ClickAtParameters = Schema.Struct({
+  ...Common,
+  x: Schema.Number.annotate({ description: "视口 x 坐标（CSS 像素，与截图一致）" }),
+  y: Schema.Number.annotate({ description: "视口 y 坐标（CSS 像素，与截图一致）" }),
+})
+
 const FillParameters = Schema.Struct({
   ...Common,
   ref: Schema.String.annotate({ description: "webview_snapshot 返回的 ref" }),
@@ -90,10 +96,69 @@ const unavailable = {
     "当前客户端没有连接内嵌浏览器通道。请在桌面端打开运营工作台、选中平台账号后重试；这类流程不能用 browser_* 代替（没有登录态）。",
 }
 
+/**
+ * 页面里共用的小工具：主文档 + 同源 iframe + 开放 shadow root。
+ *
+ * 平台后台不是普通网页：
+ * - 视频号整页在 wujie 微前端的影子树里（`wujie-app.wujie_iframe`）；
+ * - 公众号正文在同源 iframe（`#ueditor_0`）里。
+ * 只查 `document` 的话，这些地方永远是"找不到元素"。
+ */
+const DEEP_HELPERS = `
+  const allRoots = () => {
+    const out = []
+    const seen = new Set()
+    const walk = (root, depth) => {
+      if (!root || seen.has(root) || depth > 6) return
+      seen.add(root)
+      out.push(root)
+      let nodes = []
+      try { nodes = Array.from(root.querySelectorAll("*")) } catch {}
+      for (const node of nodes) {
+        if (node.shadowRoot) walk(node.shadowRoot, depth + 1)
+        if (node.tagName === "IFRAME") {
+          try { const doc = node.contentDocument; if (doc) walk(doc, depth + 1) } catch {}
+        }
+      }
+    }
+    walk(document, 0)
+    return out
+  }
+  const deepQuery = (selector) => {
+    for (const root of allRoots()) {
+      let found = null
+      try { found = root.querySelector(selector) } catch {}
+      if (found) return found
+    }
+    return null
+  }
+  const deepQueryAll = (selector) => {
+    const out = []
+    for (const root of allRoots()) {
+      try { out.push(...Array.from(root.querySelectorAll(selector))) } catch {}
+    }
+    return out
+  }
+  // 影子树里的文字不会进入外层 body.innerText，只能退回 textContent；
+  // 视频号整页都在 wujie 的影子树里，少了这一步快照就只有标题。
+  const deepText = () =>
+    allRoots()
+      .map((root) => {
+        try {
+          if (root.body) return root.body.innerText || ""
+          return root.textContent || ""
+        } catch {
+          return ""
+        }
+      })
+      .join("\\n")
+`
+
 /** 给元素打 ref 并收集可见文字；和 browser_snapshot 同一套 ref 语义。 */
 const SNAPSHOT_SCRIPT = `(() => {
-  document.querySelectorAll("[data-nv-ref]").forEach((el) => el.removeAttribute("data-nv-ref"))
-  const nodes = document.querySelectorAll('a[href],button,input,textarea,select,summary,[role],[tabindex]:not([tabindex="-1"]),[contenteditable="true"]')
+  ${DEEP_HELPERS}
+  deepQueryAll("[data-nv-ref]").forEach((el) => el.removeAttribute("data-nv-ref"))
+  const nodes = deepQueryAll('a[href],button,input,textarea,select,summary,[role],[tabindex]:not([tabindex="-1"]),[contenteditable="true"]')
   const refs = []
   let index = 0
   for (const el of nodes) {
@@ -108,19 +173,20 @@ const SNAPSHOT_SCRIPT = `(() => {
       el.getAttribute("aria-label") ||
       el.getAttribute("placeholder") ||
       el.getAttribute("title") ||
-      (el.textContent || "").replace(/\s+/g, " ").trim()
+      (el.textContent || "").replace(/\\s+/g, " ").trim()
     ).slice(0, 120)
     refs.push({ ref, tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || el.tagName.toLowerCase(), name })
     if (refs.length >= 400) break
   }
-  const body = document.body ? document.body.innerText || "" : ""
+  const body = deepText()
   return { url: location.href, title: document.title, text: body.slice(0, 8000), refs, overflow: refs.length >= 400 }
 })()`
 
 function scopedSnapshotScript(selector: string) {
   const safe = JSON.stringify(selector)
   return `(() => {
-  const root = document.querySelector(${safe})
+  ${DEEP_HELPERS}
+  const root = deepQuery(${safe})
   if (!root) return { url: location.href, title: document.title, text: "", missing: true }
   return { url: location.href, title: document.title, text: (root.innerText || root.textContent || "").slice(0, 8000) }
 })()`
@@ -129,7 +195,8 @@ function scopedSnapshotScript(selector: string) {
 function clickScript(ref: string) {
   const selector = JSON.stringify(`[data-nv-ref="${ref}"]`)
   return `(() => {
-  const el = document.querySelector(${selector})
+  ${DEEP_HELPERS}
+  const el = deepQuery(${selector})
   if (!el) return { ok: false, error: "ref_not_found", hint: "页面可能已经变化，请重新 webview_snapshot" }
   el.scrollIntoView({ block: "center", inline: "center" })
   const rect = el.getBoundingClientRect()
@@ -147,7 +214,8 @@ function fillScript(ref: string, value: string) {
   const selector = JSON.stringify(`[data-nv-ref="${ref}"]`)
   const payload = JSON.stringify(value)
   return `(() => {
-  const el = document.querySelector(${selector})
+  ${DEEP_HELPERS}
+  const el = deepQuery(${selector})
   if (!el) return { ok: false, error: "ref_not_found" }
   const text = ${payload}
   el.scrollIntoView({ block: "center" })
@@ -179,8 +247,9 @@ function pressScript(key: string, ref: string | undefined) {
   const selector = ref ? JSON.stringify(`[data-nv-ref="${ref}"]`) : "null"
   const payload = JSON.stringify(key)
   return `(() => {
+  ${DEEP_HELPERS}
   const key = ${payload}
-  const target = ${selector} ? document.querySelector(${selector}) : document.activeElement || document.body
+  const target = ${selector} ? deepQuery(${selector}) : document.activeElement || document.body
   if (!target) return { ok: false, error: "ref_not_found" }
   const parts = key.split("+")
   const name = parts[parts.length - 1]
@@ -234,6 +303,8 @@ export const WebviewSnapshotTool = Tool.define(
       description:
         DESCRIPTION +
         "\n\n动作：获取页面快照（标题、URL、可见文字、可交互元素的 ref）。点击/填写都用这里返回的 ref。",
+        "快照会下钻同源 iframe 和开放的 shadow root（公众号正文 #ueditor_0、视频号 wujie 微前端都在里面）；",
+        "如果某个按钮（典型是小红书发布按钮，在 closed shadow root 里）怎么都看不到，改用 webview_click_at 按坐标点。",
       parameters: SnapshotParameters,
       capabilities: { readOnly: true, concurrencySafe: false, idempotent: true },
       execute: (params: Schema.Schema.Type<typeof SnapshotParameters>, ctx: Tool.Context) =>
@@ -270,6 +341,42 @@ export const WebviewClickTool = Tool.define(
             ...(params.target ? { target: params.target } : {}),
           })
           return { title: `点击 ${params.ref}`, metadata: { ref: params.ref, data }, output: text(data) }
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+export const WebviewClickAtTool = Tool.define(
+  "webview_click_at",
+  Effect.gen(function* () {
+    const webview = Option.getOrUndefined(yield* Effect.serviceOption(PlatformWebview.Service))
+    return {
+      description:
+        DESCRIPTION +
+        "\n\n动作：在视口坐标 (x, y) 上用真实鼠标事件点击。\n" +
+        "什么时候用它：按钮在 closed shadow root 里（典型是小红书的发布按钮，snapshot 里看不到），" +
+        "或者普通点击被页面判定为「不是用户操作」而无效。\n" +
+        "坐标怎么来：先 webview_screenshot 看图，再用 webview_script 量一下宿主元素的位置，例如\n" +
+        "`(() => { const h = document.querySelector('xhs-publish-btn'); const r = h.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height } })()`，\n" +
+        "然后取按钮中心点（宿主右侧）。坐标是 CSS 像素，与截图同比例。",
+      parameters: ClickAtParameters,
+      capabilities: { concurrencySafe: false, destructive: true },
+      execute: (params: Schema.Schema.Type<typeof ClickAtParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          if (!webview) return unavailable
+          yield* ask(ctx, "click_at", `${Math.round(params.x)},${Math.round(params.y)}`)
+          const data = yield* webview.exec({
+            sessionID: ctx.sessionID,
+            action: "click",
+            x: params.x,
+            y: params.y,
+            ...(params.target ? { target: params.target } : {}),
+          })
+          return {
+            title: `坐标点击 (${Math.round(params.x)}, ${Math.round(params.y)})`,
+            metadata: { x: params.x, y: params.y, data },
+            output: text(data),
+          }
         }).pipe(Effect.orDie),
     }
   }),

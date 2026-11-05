@@ -16,12 +16,16 @@ interface CapturedScript {
 
 function fakeWindow(result: unknown = false) {
   const captured: CapturedScript[] = []
+  const inputEvents: Array<Record<string, unknown>> = []
   const win = {
     isDestroyed: () => false,
     webContents: {
       executeJavaScript: async (code: string) => {
         captured.push({ code, result })
         return result
+      },
+      sendInputEvent: (event: Record<string, unknown>) => {
+        inputEvents.push(event)
       },
       debugger: {
         isAttached: () => false,
@@ -31,7 +35,7 @@ function fakeWindow(result: unknown = false) {
       },
     },
   }
-  return { win: win as any, captured }
+  return { win: win as any, captured, inputEvents }
 }
 
 const parse = (code: string) => new Function(`return ${code}`)
@@ -68,5 +72,55 @@ describe("publish automation scripts", () => {
     await automation.fillEditor(win, [".editor"], "第一行\n第二行")
     // 必须是「反斜杠 + n」（脚本里的转义），而不是模板字符串展开后的真实换行
     expect(captured[0].code).toContain(String.raw`.split("\n")`)
+  })
+
+  test("深度查询会走进影子树（视频号的 wujie 微前端）", async () => {
+    const automation = await import("./automation")
+    const { win, captured } = fakeWindow(true)
+    await automation.hasSelector(win, ["div.form-btns button"])
+    expect(captured[0].code).toContain("shadowRoot")
+    expect(captured[0].code).toContain("contentDocument")
+  })
+
+  test("公众号 token 的正则没有被模板字符串吃掉", async () => {
+    const automation = await import("./automation")
+    const { win, captured } = fakeWindow("")
+    await automation.readWechatToken(win)
+    const code = captured[0].code
+    expect(code).toContain(String.raw`(\d+)`)
+    expect(code).toContain(String.raw`\s*\{`)
+    expect(() => parse(`async () => (${code})`)).not.toThrow()
+  })
+
+  test("坐标点击走真实输入事件（小红书 closed shadow 里的发布按钮）", async () => {
+    const automation = await import("./automation")
+    const { win, inputEvents } = fakeWindow(undefined)
+    await automation.clickAt(win, 320, 480)
+    const types = inputEvents.map((event) => event.type)
+    expect(types).toEqual(["mouseMove", "mouseMove", "mouseDown", "mouseUp"])
+    const down = inputEvents.find((event) => event.type === "mouseDown")!
+    expect({ x: down.x, y: down.y, button: down.button }).toEqual({ x: 320, y: 480, button: "left" })
+  })
+
+  test("回读比对能容忍 &nbsp; / 零宽字符 / 换行差异", async () => {
+    const automation = await import("./automation")
+    expect(automation.head("🎉🎉 标题一二三四五六", 3)).toBe("🎉🎉 ")
+    const typed = "🎉🎉 标题​一二三"
+    expect(automation.normalizeForCompare(typed)).toBe("🎉🎉标题一二三")
+  })
+
+  test("公众号草稿表单与地址拼装", async () => {
+    const automation = await import("./automation")
+    const form = automation.wechatDraftForm({ title: "标题", html: "<p>正文</p>" })
+    expect(form.get("title0")).toBe("标题")
+    expect(form.get("content0")).toBe("<p>正文</p>")
+    expect(form.get("isnew")).toBe("0")
+    // 没有摘要时让后台自动生成，避免分享卡片空白
+    expect(form.get("auto_gen_digest0")).toBe("1")
+    expect(
+      automation.parseWechatToken('<script>window.wx = { data: {"t":"987654"} }</script>'),
+    ).toBe("987654")
+    expect(automation.parseWechatToken("", "https://mp.weixin.qq.com/?token=123")).toBe("123")
+    expect(automation.wechatDraftUrl("123", "456")).toContain("appmsgid=456")
   })
 })

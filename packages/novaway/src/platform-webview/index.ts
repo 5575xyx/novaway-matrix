@@ -32,7 +32,7 @@ export const DEFAULT_TIMEOUT_MS = 20_000
  *
  * 其余动作都在服务端拼成脚本下发 —— 客户端保持"哑执行器"，改一处不会两边漂移。
  */
-export const Action = Schema.Literals(["status", "script", "navigate", "screenshot"])
+export const Action = Schema.Literals(["status", "script", "navigate", "screenshot", "click"])
 export type Action = Schema.Schema.Type<typeof Action>
 
 export const Request = Schema.Struct({
@@ -43,6 +43,9 @@ export const Request = Schema.Struct({
   target: Schema.optional(Schema.String),
   script: Schema.optional(Schema.String),
   url: Schema.optional(Schema.String),
+  /** `click` 动作的视口坐标：按钮在 closed shadow root 里时只能按坐标点。 */
+  x: Schema.optional(Schema.Number),
+  y: Schema.optional(Schema.Number),
   /** 客户端侧的等待上限（毫秒）：页面加载/元素出现要等多久。 */
   timeoutMs: Schema.optional(Schema.Number),
 })

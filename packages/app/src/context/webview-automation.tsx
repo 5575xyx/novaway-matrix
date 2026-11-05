@@ -15,10 +15,12 @@ import { findWebview, hasWebview, type WebviewHandle } from "@/pages/pulse/platf
 type Request = {
   id: string
   sessionID: string
-  action: "status" | "script" | "navigate" | "screenshot"
+  action: "status" | "script" | "navigate" | "screenshot" | "click"
   target?: string
   script?: string
   url?: string
+  x?: number
+  y?: number
   timeoutMs?: number
 }
 
@@ -81,6 +83,15 @@ export const { use: useWebviewAutomation, provider: WebviewAutomationProvider } 
           }
           const data = await handle.navigate(request.url, request.timeoutMs ?? 30_000)
           await report(request.id, { ok: true, data })
+          return
+        }
+        if (request.action === "click") {
+          if (typeof request.x !== "number" || typeof request.y !== "number") {
+            await report(request.id, { ok: false, error: "缺少坐标（x / y）" })
+            return
+          }
+          await handle.clickAt(request.x, request.y)
+          await report(request.id, { ok: true, data: { x: request.x, y: request.y } })
           return
         }
         if (request.action === "screenshot") {

@@ -22,6 +22,13 @@ export type WebviewHandle = {
   execute: (script: string) => Promise<unknown>
   /** 导航并等待加载完成。 */
   navigate: (url: string, timeoutMs: number) => Promise<{ url: string; title: string }>
+  /**
+   * 在视口坐标上用真实输入事件点一下。
+   *
+   * 平台（典型是小红书）会把发布按钮放进 closed shadow root，脚本里
+   * `querySelector` 根本进不去；只有浏览器自己的输入管线能把点击路由进去。
+   */
+  clickAt: (x: number, y: number) => Promise<void>
   /** 截取用户看到的那一屏（data URL）。 */
   capture: () => Promise<string | undefined>
 }

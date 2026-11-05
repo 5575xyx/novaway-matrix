@@ -26,8 +26,9 @@ description: "Use when the user wants to create and publish content to WeChat Of
 | 工具 | 用途 |
 | --- | --- |
 | `webview_status` | 确认页面开着、是哪个账号、加载完没有 |
-| `webview_snapshot` | 拿页面文字和可点击元素的 ref |
+| `webview_snapshot` | 拿页面文字和可点击元素的 ref（会自动下钻同源 iframe / shadow root） |
 | `webview_click` | 点 ref 对应的按钮 |
+| `webview_click_at` | 按视口坐标点（元素在 closed shadow root 里、snapshot 看不到时用） |
 | `webview_fill` | 往输入框/富文本里写文本 |
 | `webview_script` | 执行页面脚本（正文 iframe 只能这样写） |
 | `webview_navigate` | 跳到编辑页 |
