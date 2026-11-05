@@ -18,8 +18,12 @@ novaway JS/TS SDK 提供了一个类型安全的客户端，用于与服务器�
 从 npm 安装 SDK：
 
 ```bash
-npm install @opencode-ai/sdk
+npm install @novaway/sdk
 ```
+
+:::note
+SDK 尚未发布到 npm。在此之前，请从仓库中的 `packages/sdk/js` 构建使用。
+:::
 
 ---
 
@@ -28,9 +32,9 @@ npm install @opencode-ai/sdk
 创建一个 novaway 实例：
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const { client } = await createNovaWay()
+const { client } = await createNovaway()
 ```
 
 这会同时启动服务器和客户端。
@@ -52,9 +56,9 @@ const { client } = await createNovaWay()
 你可以传入一个配置对象来自定义行为。实例仍然会读取你的 `novaway.json`，但你可以通过内联方式覆盖或添加配置：
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const novaway = await createNovaWay({
+const novaway = await createNovaway({
   hostname: "127.0.0.1",
   port: 4096,
   config: {
@@ -72,9 +76,9 @@ novaway.server.close()
 如果你已经有一个正在运行的 novaway 实例，可以创建一个客户端实例来连接它：
 
 ```javascript
-import { createNovaWayClient } from "@opencode-ai/sdk"
+import { createNovawayClient } from "@novaway/sdk"
 
-const client = createNovaWayClient({
+const client = createNovawayClient({
   baseUrl: "http://localhost:4096",
 })
 ```
@@ -96,7 +100,7 @@ const client = createNovaWayClient({
 SDK 包含所有 API 类型的 TypeScript 定义。你可以直接导入它们：
 
 ```typescript
-import type { Session, Message, Part } from "@opencode-ai/sdk"
+import type { Session, Message, Part } from "@novaway/sdk"
 ```
 
 所有类型均根据服务器的 OpenAPI 规范生成，可在<a href={typesUrl}>类型文件</a>中查看。

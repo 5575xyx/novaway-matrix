@@ -18,8 +18,12 @@ NovaWay JS/TS SDK は、サーバーと対話するための型安全なクラ�
 npm から SDK をインストールします。
 
 ```bash
-npm install @opencode-ai/sdk
+npm install @novaway/sdk
 ```
+
+:::note
+SDK はまだ npm に公開されていません。それまではリポジトリ内の `packages/sdk/js` からビルドしてください。
+:::
 
 ---
 
@@ -28,9 +32,9 @@ npm install @opencode-ai/sdk
 NovaWay のインスタンスを作成します。
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const { client } = await createNovaWay()
+const { client } = await createNovaway()
 ```
 
 これにより、サーバーとクライアントの両方が起動します
@@ -52,9 +56,9 @@ const { client } = await createNovaWay()
 設定オブジェクトを渡して動作をカスタマイズできます。インスタンスは引き続き `novaway.json` を取得しますが、設定をインラインでオーバーライドまたは追加することができます。
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const novaway = await createNovaWay({
+const novaway = await createNovaway({
   hostname: "127.0.0.1",
   port: 4096,
   config: {
@@ -72,9 +76,9 @@ novaway.server.close()
 すでに実行中の NovaWay のインスタンスがある場合は、それに接続するためのクライアントインスタンスを作成できます。
 
 ```javascript
-import { createNovaWayClient } from "@opencode-ai/sdk"
+import { createNovawayClient } from "@novaway/sdk"
 
-const client = createNovaWayClient({
+const client = createNovawayClient({
   baseUrl: "http://localhost:4096",
 })
 ```
@@ -96,7 +100,7 @@ const client = createNovaWayClient({
 SDK には、すべての API タイプの TypeScript 定義が含まれています。それらを直接インポートします。
 
 ```typescript
-import type { Session, Message, Part } from "@opencode-ai/sdk"
+import type { Session, Message, Part } from "@novaway/sdk"
 ```
 
 すべてのタイプはサーバーの OpenAPI 仕様から生成され、<a href={typesUrl}>タイプファイル</a> で使用できます。

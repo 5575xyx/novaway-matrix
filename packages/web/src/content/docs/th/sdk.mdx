@@ -18,8 +18,12 @@ novaway JS/TS SDK จัดเตรียมไคลเอ็นต์ปร�
 ติดตั้ง SDK จาก npm:
 
 ```bash
-npm install @opencode-ai/sdk
+npm install @novaway/sdk
 ```
+
+:::note
+SDK ยังไม่ได้เผยแพร่บน npm ระหว่างนี้ให้บิลด์จาก `packages/sdk/js` ในรีโป
+:::
 
 ---
 
@@ -28,9 +32,9 @@ npm install @opencode-ai/sdk
 สร้างอินสแตนซ์ของ novaway:
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const { client } = await createNovaWay()
+const { client } = await createNovaway()
 ```
 
 สิ่งนี้จะเริ่มต้นทั้งเซิร์ฟเวอร์และไคลเอนต์
@@ -52,9 +56,9 @@ const { client } = await createNovaWay()
 คุณสามารถส่งผ่านออบเจ็กต์การกำหนดค่าเพื่อปรับแต่งลักษณะการทำงานได้ อินสแตนซ์ยังคงรับ `novaway.json` ของคุณ แต่คุณสามารถแทนที่หรือเพิ่มการกำหนดค่าแบบอินไลน์ได้:
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const novaway = await createNovaWay({
+const novaway = await createNovaway({
   hostname: "127.0.0.1",
   port: 4096,
   config: {
@@ -72,9 +76,9 @@ novaway.server.close()
 หากคุณมีอินสแตนซ์ novaway ที่ทำงานอยู่แล้ว คุณสามารถสร้างอินสแตนซ์ไคลเอ็นต์เพื่อเชื่อมต่อได้:
 
 ```javascript
-import { createNovaWayClient } from "@opencode-ai/sdk"
+import { createNovawayClient } from "@novaway/sdk"
 
-const client = createNovaWayClient({
+const client = createNovawayClient({
   baseUrl: "http://localhost:4096",
 })
 ```
@@ -96,7 +100,7 @@ const client = createNovaWayClient({
 SDK มีคำจำกัดความ TypeScript สำหรับ API ประเภททั้งหมด นำเข้าโดยตรง:
 
 ```typescript
-import type { Session, Message, Part } from "@opencode-ai/sdk"
+import type { Session, Message, Part } from "@novaway/sdk"
 ```
 
 ทุกประเภทสร้างขึ้นจากข้อกำหนด OpenAPI ของเซิร์ฟเวอร์และมีอยู่ใน <a href={typesUrl}>ไฟล์ประเภท</a>

@@ -18,8 +18,12 @@ Damit kannst du Integrationen bauen und novaway programmatisch steuern.
 Installiere das SDK ueber npm:
 
 ```bash
-npm install @opencode-ai/sdk
+npm install @novaway/sdk
 ```
+
+:::note
+Das SDK ist noch nicht auf npm veröffentlicht. Bis dahin baust du es aus `packages/sdk/js` im Repository.
+:::
 
 ---
 
@@ -28,9 +32,9 @@ npm install @opencode-ai/sdk
 Erstelle eine novaway-Instanz:
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const { client } = await createNovaWay()
+const { client } = await createNovaway()
 ```
 
 Das startet Server und Client.
@@ -53,9 +57,9 @@ Du kannst ein Konfigurationsobjekt uebergeben, um das Verhalten anzupassen.
 `novaway.json` wird weiterhin geladen, kann aber inline ueberschrieben oder erweitert werden:
 
 ```javascript
-import { createNovaWay } from "@opencode-ai/sdk"
+import { createNovaway } from "@novaway/sdk"
 
-const novaway = await createNovaWay({
+const novaway = await createNovaway({
   hostname: "127.0.0.1",
   port: 4096,
   config: {
@@ -73,9 +77,9 @@ novaway.server.close()
 Wenn novaway bereits laeuft, kannst du nur einen Client erstellen und verbinden:
 
 ```javascript
-import { createNovaWayClient } from "@opencode-ai/sdk"
+import { createNovawayClient } from "@novaway/sdk"
 
-const client = createNovaWayClient({
+const client = createNovawayClient({
   baseUrl: "http://localhost:4096",
 })
 ```
@@ -98,7 +102,7 @@ Das SDK bringt TypeScript-Definitionen fuer alle API-Typen mit.
 Du kannst sie direkt importieren:
 
 ```typescript
-import type { Session, Message, Part } from "@opencode-ai/sdk"
+import type { Session, Message, Part } from "@novaway/sdk"
 ```
 
 Alle Typen werden aus der OpenAPI-Spezifikation des Servers generiert und sind in der <a href={typesUrl}>Typdatei</a> verfuegbar.
