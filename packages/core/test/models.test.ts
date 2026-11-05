@@ -136,22 +136,6 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("get() drops the excluded upstream providers from the catalog", () =>
-    Effect.gen(function* () {
-      const excluded = Object.fromEntries(
-        [...ModelsDev.EXCLUDED_PROVIDER_IDS].map((id) => [id, { ...fixture.acme, id }]),
-      )
-      const upstream = { ...fixture, ...excluded }
-      yield* writeCache(upstream)
-      const state = yield* Ref.make(initialState)
-      const result = yield* provided(
-        state,
-        ModelsDev.Service.use((s) => s.get()),
-      )
-      expect(Object.keys(result)).toEqual(["acme"])
-    }),
-  )
-
   it.live("get() returns an empty catalog when disk empty, fetch disabled, and no bundled snapshot is injected", () =>
     Effect.gen(function* () {
       const state = yield* Ref.make(initialState)

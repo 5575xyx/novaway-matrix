@@ -215,6 +215,46 @@ function selectAzureLanguageModel(sdk: any, modelID: string, useChat: boolean) {
   return sdk.languageModel(modelID)
 }
 
+// 目录是第三方数据，随时会新增条目，其中有些指向别人家的付费/中转服务。旧逻辑
+// 只要用户机器上恰好挂着对应的 *_API_KEY 就会把它注册成可用供应商，请求跟着发到
+// 对方那里，还可能被选成默认模型。
+//
+// 所以自动连接改成白名单：只认「我们自己支持的供应商」，来源有三处 —— 下面写了
+// 专门 loader 的、自带 auth 插件（codex/copilot/gitlab/poe/azure/do/cloudflare…）的、
+// 以及这个列表里靠环境变量即插即用的。
+const ENV_ONLY_PROVIDERS = [
+  // 国内常用
+  "deepseek",
+  "moonshotai",
+  "moonshotai-cn",
+  "minimax",
+  "minimax-cn",
+  "minimax-coding-plan",
+  "minimax-cn-coding-plan",
+  "siliconflow",
+  "siliconflow-cn",
+  "alibaba",
+  "alibaba-cn",
+  "volcengine",
+  "stepfun",
+  "qiniu-ai",
+  // 海外常用
+  "togetherai",
+  "fireworks-ai",
+  "deepinfra",
+  "novita-ai",
+  "chutes",
+  "nebius",
+  "sambanova",
+  "baseten",
+  "vercel",
+  "perplexity",
+  "perplexity-agent",
+  "digitalocean",
+] as const
+
+const ENV_ONLY_PROVIDER_IDS = new Set<string>(ENV_ONLY_PROVIDERS)
+
 function custom(dep: CustomDep): Record<string, CustomLoader> {
   return {
     anthropic: () =>
@@ -2244,6 +2284,9 @@ export const layer = Layer.effect(
           env: () => env.all(),
           get: (key: string) => env.get(key),
         }
+        // 写了专门 loader 的供应商集合。白名单的第一类，见下面 "load env"。
+        const loaders = custom(dep)
+        const loaderProviders = new Set(Object.keys(loaders).map((id) => ProviderID.make(id)))
 
         log.info("init")
 
@@ -2265,6 +2308,12 @@ export const layer = Layer.effect(
 
         // now read config providers - includes any modifications from plugin config() hook
         const configProviders = Object.entries(cfg.provider ?? {})
+        const configuredProviders = new Set(configProviders.map(([id]) => ProviderID.make(id)))
+        // 我们自带 auth 插件（codex/copilot/gitlab/poe/azure/do/cloudflare…）的供应商也算「自己支持的」，
+        // 这些插件的 provider id 是唯一来源，不用再抄一份。
+        const authPluginProviders = new Set(
+          plugins.flatMap((hook) => (hook.auth?.provider ? [ProviderID.make(hook.auth.provider)] : [])),
+        )
         const disabled = new Set(cfg.disabled_providers ?? [])
         const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
         const configModels: Record<string, ReadonlySet<string>> = {}
@@ -2411,6 +2460,15 @@ export const layer = Layer.effect(
         for (const [id, provider] of Object.entries(database)) {
           const providerID = ProviderID.make(id)
           if (disabled.has(providerID)) continue
+          // 目录条目本身不代表我们支持这个供应商。只有这几类才认环境变量：我们自己
+          // 写了 loader 的、自带 auth 插件的、用户在 config 里显式声明过的、以及
+          // ENV_ONLY_PROVIDERS 里列出的常用厂商。
+          const supported =
+            loaderProviders.has(providerID) ||
+            authPluginProviders.has(providerID) ||
+            configuredProviders.has(providerID) ||
+            ENV_ONLY_PROVIDER_IDS.has(providerID)
+          if (!supported) continue
           const apiKey = provider.env.map((item) => envs[item]).find(Boolean)
           if (!apiKey) continue
           mergeProvider(providerID, {
@@ -2466,7 +2524,7 @@ export const layer = Layer.effect(
           mergeProvider(providerID, patch)
         }
 
-        for (const [id, fn] of Object.entries(custom(dep))) {
+        for (const [id, fn] of Object.entries(loaders)) {
           const providerID = ProviderID.make(id)
           if (disabled.has(providerID)) continue
           const data = database[providerID]
