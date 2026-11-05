@@ -286,6 +286,17 @@ bun run build            # 交叉编译全部平台
 
 产物位于 `packages/novaway/dist/<平台包>/bin/novaway`。细节见 [docs/pnpm-install.md](docs/pnpm-install.md)。
 
+## 用 Node 跑开发模式
+
+除了 bun，也可以用 Node 加载同一份源码（不需要额外安装，Node 22+ 即可）：
+
+```bash
+pnpm dev:node            # 或 bun run dev:node
+pnpm dev:node serve      # 任意子命令都可用
+```
+
+能力边界（单测与单文件打包仍必须用 bun）见 [docs/node-dev.md](docs/node-dev.md)。
+
 ## License
 
 [MIT](./LICENSE)

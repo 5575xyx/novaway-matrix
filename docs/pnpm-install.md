@@ -18,6 +18,7 @@
 | 打 sidecar / 桌面安装包 | ✅       | ✅               | 同上；`Bun.build` 用的是 pnpm 装的 bun                        |
 | TUI / 交互式 CLI        | ✅       | ✅               | 同上                                                          |
 | Web / 渲染进程（vite）  | ✅       | ✅               | 本来就与包管理器无关                                          |
+| 不用 bun 二进制（Node 路径） | —        | ⚠️ 见 [node-dev](node-dev.md) | 用 Node 加载同一份源码，单测与打包仍需 bun                    |
 
 也就是说：**pnpm 用户不需要预装 bun，但 bun 仍然是构建与运行时的实际执行者** —— 它只是由
 pnpm 装上，而不是由系统全局安装。这不是「脱离 bun」，是「bun 变成依赖」。

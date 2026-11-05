@@ -20,7 +20,8 @@
     "fix-node-pty": "node ../../script/fix-node-pty.mjs",
     "dev": "bun --env-file=../../.env.local run --conditions=browser ./src/index.ts",
     "dev:temporary": "bun run --conditions=browser ./src/temporary.ts",
-    "db": "bun drizzle-kit"
+    "db": "bun drizzle-kit",
+    "dev:node": "node --env-file-if-exists=../../.env.local --import ../../script/node-dev/register.mjs ./src/index.ts"
   },
   "bin": {
     "novaway": "./bin/novaway"

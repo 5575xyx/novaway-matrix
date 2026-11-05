@@ -20,7 +20,8 @@
     "prepare": "husky",
     "random": "echo 'Random script'",
     "hello": "echo 'Hello World!'",
-    "test": "echo 'do not run tests from root' && exit 1"
+    "test": "echo 'do not run tests from root' && exit 1",
+    "dev:node": "node --env-file-if-exists=.env.local --import ./script/node-dev/register.mjs packages/novaway/src/index.ts"
   },
   "workspaces": {
     "packages": [
