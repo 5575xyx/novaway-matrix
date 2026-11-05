@@ -136,13 +136,12 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("get() drops the upstream Zen providers from the catalog", () =>
+  it.live("get() drops the excluded upstream providers from the catalog", () =>
     Effect.gen(function* () {
-      const upstream = {
-        ...fixture,
-        opencode: { ...fixture.acme, id: "opencode", name: "OpenCode Zen" },
-        "opencode-go": { ...fixture.acme, id: "opencode-go", name: "OpenCode Go" },
-      }
+      const excluded = Object.fromEntries(
+        [...ModelsDev.EXCLUDED_PROVIDER_IDS].map((id) => [id, { ...fixture.acme, id }]),
+      )
+      const upstream = { ...fixture, ...excluded }
       yield* writeCache(upstream)
       const state = yield* Ref.make(initialState)
       const result = yield* provided(

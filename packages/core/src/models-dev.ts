@@ -114,7 +114,7 @@ declare const NOVAWAY_MODELS_DEV: Record<string, Provider> | undefined
 // 用户恰好配了对应 API key 时把请求发到对方那边，界面也会把它显示成 “Default”。
 // 自家网关走 `builtin`，自定义端点走 `provider.<id>` 配置，都不依赖这两个 key。
 // 这里只过滤加载结果，缓存文件与快照本身保持目录原样（所以 key 名照抄目录）。
-const EXCLUDED_PROVIDER_IDS = new Set(["opencode", "opencode-go"])
+export const EXCLUDED_PROVIDER_IDS = new Set(["opencode", "opencode-go"])
 
 function withoutUpstreamCatalog(catalog: Record<string, Provider>): Record<string, Provider> {
   const ids = Object.keys(catalog)
