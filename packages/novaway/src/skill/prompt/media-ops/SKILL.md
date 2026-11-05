@@ -20,6 +20,12 @@ description: "Use when the user runs social media accounts (自媒体运营): pi
 平台口径：小红书 / 抖音 / 视频号 / 快手 / B站 / 公众号。
 闲鱼不是内容平台，不套这套流程。
 
+配套资料（在本技能目录下，按需读取）：
+
+- `references/platform-playbook.md` — 各平台发布入口、选择器、成功判据、失败处理
+- `references/precheck-rules.md` — 发布前预检的完整规则（与发布中心代码一致）
+- 需要选题 → 用 `topic-radar` 技能；需要改文风 → `humanize-writing`；需要看数据 → `account-review`
+
 ## 0. 硬规则（每次都适用）
 
 - **发布前一定过预检**（第 3 节），平台的拒稿和限流比多问一句贵得多。
@@ -67,7 +73,7 @@ description: "Use when the user runs social media accounts (自媒体运营): pi
 ## 3. 预检（发布前必须做）
 
 发布中心会自动做**确定性**预检（长度、素材形态、极限词、引流词、功效承诺），
-在聊天里直接发时，用下面这份清单自己过一遍：
+完整规则见 `references/precheck-rules.md`。在聊天里直接发时，至少过一遍下面这份速查：
 
 **必须改（否则大概率发不出去或被判违规）**
 
@@ -109,6 +115,8 @@ description: "Use when the user runs social media accounts (自媒体运营): pi
 5. 看不到的按钮（如小红书发布）用 `webview_click_at` 按坐标点；
 6. `webview_screenshot` — 发布前截一张给用户确认。
 
+各平台的选择器、提交判据、失败处理在 `references/platform-playbook.md` 里，动手前先读对应平台那一节。
+
 公众号正文在 `iframe#ueditor_0` 里，视频号整页在 wujie 微前端的影子树里，
 `webview_*` 已经处理；不要退回 `browser_*`（没有登录态）。
 
@@ -117,7 +125,9 @@ description: "Use when the user runs social media accounts (自媒体运营): pi
 
 ## 5. 复盘：数据只从后台读
 
-原则：**读页面，不猜**。每个平台的创作中心都有数据页，先导航再取数：
+完整流程（含指标公式、对比基线、结论模板）见 `account-review` 技能；
+它的参考文件里有各平台数据页与取数脚本。原则：**读页面，不猜**。
+每个平台的创作中心都有数据页，先导航再取数：
 
 | 平台 | 数据页（在已登录页面里打开） |
 | --- | --- |

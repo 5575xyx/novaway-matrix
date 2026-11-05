@@ -98,6 +98,35 @@ describe("skill", () => {
     ),
   )
 
+  it.live("registers the social-media skills as built-ins with their reference files", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const skill = yield* Skill.Service
+          const list = yield* skill.all()
+          const names = ["media-ops", "topic-radar", "humanize-writing", "account-review"]
+
+          for (const name of names) {
+            const item = list.find((entry) => entry.name === name)
+            expect(item).toBeDefined()
+            expect(item!.builtIn).toBe(true)
+            expect(item!.description?.length ?? 0).toBeGreaterThan(20)
+            // 带 references/ 的技能必须给出真实目录 —— 模型靠这个路径读配套资料。
+            expect(item!.location).not.toBe("<built-in>")
+          }
+
+          // 技能正文应指向配套资料，否则模型不会去读。
+          expect(list.find((entry) => entry.name === "media-ops")!.content).toContain(
+            "references/platform-playbook.md",
+          )
+          expect(list.find((entry) => entry.name === "account-review")!.content).toContain(
+            "references/data-playbook.md",
+          )
+        }),
+      { git: true },
+    ),
+  )
+
   it.live("discovers skills from .novaway/skill/ directory", () =>
     provideTmpdirInstance(
       (dir) =>

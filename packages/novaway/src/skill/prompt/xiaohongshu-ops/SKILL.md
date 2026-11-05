@@ -101,13 +101,32 @@ cd <SKILL_DIR> && python scripts/cli.py check-login
   - "是否从运营模式 WebView 注入 cookie？"（如果 WebView 已登录）
   - 或 "请扫码登录"（显示二维码）
 
-## 技能边界（强制）
+## 技能边界（按场景选执行通道）
 
-**所有小红书操作只能通过 `python scripts/cli.py` 完成：**
+小红书有两条执行通道，**先看用户眼前有没有已经登录的页面**：
 
-- **唯一执行方式**：只运行 `python scripts/cli.py <子命令>`
-- **忽略其他工具**：不得调用 MCP 工具、Go 命令行工具，或任何非本项目的实现
-- **完成即止**：任务完成后直接告知结果，等待用户下一步指令
+### 通道 A：内嵌浏览器（用户正在「运营工作台」看小红书时优先）
+
+用户选中了小红书账号、中间那栏显示着创作中心 → 用 `webview_*` 工具组：
+`webview_status` / `webview_snapshot` / `webview_click` / `webview_fill` /
+`webview_script` / `webview_navigate` / `webview_screenshot`。
+
+这是真实登录态、用户看得见每一步，**不需要**启动 Bridge、也不要用 `browser_*`（那是无头浏览器，没有登录态）。
+
+- 发布按钮在 `<xhs-publish-btn>` 的 **closed shadow root** 里，snapshot 看不到 →
+  先 `webview_screenshot` 看图，再 `webview_script` 量宿主位置，最后 `webview_click_at` 按坐标点。
+- 正文是 ProseMirror/tiptap 富文本，`webview_fill` 走 `insertText` 才认。
+
+### 通道 B：Python CLI（批量检索 / 无页面时的兜底）
+
+需要搜索笔记、批量评论、导出数据等**页面操作做不了**的事情时，才走 `python scripts/cli.py <子命令>`
+（见下方命令速查）。要求本机 Python 3.11+、uv 与 Bridge 扩展已就绪。
+
+### 共同约束
+
+- **不要同时用两条通道**操作同一个账号，容易互相打断。
+- 不得调用与本项目无关的第三方 MCP / Go 工具。
+- 完成即止：任务完成后直接告知结果，等待用户下一步指令。
 
 ## 输入判断
 

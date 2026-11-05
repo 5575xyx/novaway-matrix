@@ -42,3 +42,22 @@ describe("extensionConfigPatch", () => {
     expect(extensionEnabled(on, browser)).toBe(true)
   })
 })
+
+describe("内置扩展目录", () => {
+  test("id 唯一，技能型扩展都写了要关闭的技能名", () => {
+    const ids = BUILTIN_EXTENSIONS.map((item) => item.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const item of BUILTIN_EXTENSIONS) {
+      if (item.toggle !== "skills") continue
+      expect(item.skills?.length ?? 0).toBeGreaterThan(0)
+    }
+  })
+
+  test("运营类扩展各自绑定一个技能，关掉不会互相影响", () => {
+    const radar = BUILTIN_EXTENSIONS.find((item) => item.id === "topic-radar")!
+    const review = BUILTIN_EXTENSIONS.find((item) => item.id === "account-review")!
+    const off = extensionConfigPatch({}, radar, false) as ExtensionConfigView
+    expect(extensionEnabled(off, radar)).toBe(false)
+    expect(extensionEnabled(off, review)).toBe(true)
+  })
+})

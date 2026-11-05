@@ -28,7 +28,10 @@ import OFFICE_TASK_SKILL_BODY from "./prompt/office-task.md" with { type: "text"
 import OFFICE_WEB_SKILL_BODY from "./prompt/office-web.md" with { type: "text" }
 import FIND_SKILLS_BODY from "./prompt/find-skills.md" with { type: "text" }
 import SKILL_CREATOR_BODY from "./prompt/skill-creator.md" with { type: "text" }
+import ACCOUNT_REVIEW_BODY from "./prompt/account-review/SKILL.md" with { type: "text" }
+import HUMANIZE_WRITING_BODY from "./prompt/humanize-writing/SKILL.md" with { type: "text" }
 import MEDIA_OPS_BODY from "./prompt/media-ops/SKILL.md" with { type: "text" }
+import TOPIC_RADAR_BODY from "./prompt/topic-radar/SKILL.md" with { type: "text" }
 import WXGZH_OPS_BODY from "./prompt/wxgzh-ops/SKILL.md" with { type: "text" }
 import XIAOHONGSHU_OPS_BODY from "./prompt/xiaohongshu-ops/SKILL.md" with { type: "text" }
 import { isRecord } from "@/util/record"
@@ -69,6 +72,11 @@ function builtInSkillFromMarkdown(input: string) {
 const BUILT_IN_SKILL_DIRS: Record<string, string> = {
   "wxgzh-ops": "wxgzh-ops",
   "xiaohongshu-ops": "xiaohongshu-ops",
+  // 带 references/ 资料：平台手册、预检规则、热榜来源、数据口径。
+  "media-ops": "media-ops",
+  "topic-radar": "topic-radar",
+  "humanize-writing": "humanize-writing",
+  "account-review": "account-review",
 }
 
 /** Compute the filesystem source path to a built-in skill's directory. */
@@ -158,6 +166,9 @@ const BUILT_IN_SKILLS = [
   builtInSkillFromMarkdown(FIND_SKILLS_BODY),
   builtInSkillFromMarkdown(SKILL_CREATOR_BODY),
   builtInSkillFromMarkdown(MEDIA_OPS_BODY),
+  builtInSkillFromMarkdown(TOPIC_RADAR_BODY),
+  builtInSkillFromMarkdown(HUMANIZE_WRITING_BODY),
+  builtInSkillFromMarkdown(ACCOUNT_REVIEW_BODY),
   builtInSkillFromMarkdown(WXGZH_OPS_BODY),
   builtInSkillFromMarkdown(XIAOHONGSHU_OPS_BODY),
 ]

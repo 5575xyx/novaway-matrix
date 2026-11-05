@@ -127,6 +127,12 @@ const createEmbeddedSkillAssetsBundle = async () => {
     },
     { name: "xiaohongshu-ops", dir: path.join(dir, "src/skill/prompt/xiaohongshu-ops") },
     { name: "wxgzh-ops", dir: path.join(dir, "src/skill/prompt/wxgzh-ops") },
+    // 运营类技能带 references/（平台手册、预检规则、热榜来源、数据口径），
+    // 打包时必须一起进 bundle，否则 sidecar 里技能目录是空的。
+    { name: "media-ops", dir: path.join(dir, "src/skill/prompt/media-ops") },
+    { name: "topic-radar", dir: path.join(dir, "src/skill/prompt/topic-radar") },
+    { name: "humanize-writing", dir: path.join(dir, "src/skill/prompt/humanize-writing") },
+    { name: "account-review", dir: path.join(dir, "src/skill/prompt/account-review") },
   ]
   const entries = []
   let fileIdx = 0

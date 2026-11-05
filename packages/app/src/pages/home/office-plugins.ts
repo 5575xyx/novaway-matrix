@@ -230,6 +230,51 @@ export const OFFICE_PLUGINS: OfficePlugin[] = [
     ],
   },
   {
+    id: "topic-radar",
+    category: "creation",
+    prompts: [
+      prompt(
+        "topic-radar-week",
+        "topic-radar",
+        { cn: "这周发什么", en: "What to post this week" },
+        {
+          cn: "我在做小红书露营装备号，目标读者是周末自驾的上班族。先看热榜和我账号最近的数据，给 5 个选题（每个带依据和分数），最后说先发哪个。",
+          en: "I run a Xiaohongshu camping-gear account for weekend road-trippers. Check hot lists and my recent data, give five topics with evidence and scores, then say which to post first.",
+        },
+      ),
+    ],
+  },
+  {
+    id: "humanize-writing",
+    category: "creation",
+    prompts: [
+      prompt(
+        "humanize-rewrite",
+        "humanize-writing",
+        { cn: "改得像真人写的", en: "Make it sound human" },
+        {
+          cn: "把下面这段文案改成真人语感，删掉空话和模板句，保留所有事实和数字，最后用表格列出改了哪些地方。",
+          en: "Rewrite the copy below so it sounds human: cut filler and template phrasing, keep every fact and number, then list the changes in a table.",
+        },
+      ),
+    ],
+  },
+  {
+    id: "account-review",
+    category: "creation",
+    prompts: [
+      prompt(
+        "account-review-week",
+        "account-review",
+        { cn: "复盘一下最近的账号", en: "Review recent account performance" },
+        {
+          cn: "帮我看运营工作台里这个账号最近 30 天的数据：算完播率和互动率，找出明显高于和低于中位数的内容，最后给 3 条下一轮的具体动作。",
+          en: "Review the last 30 days for the account open in my workspace: compute completion and engagement rates, find outliers above and below the median, and give three concrete next actions.",
+        },
+      ),
+    ],
+  },
+  {
     id: "wxgzh-ops",
     category: "creation",
     prompts: [
