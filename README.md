@@ -269,16 +269,22 @@ npm install -g xymt-novaway --registry=https://registry.npmmirror.com
 
 ## 从源码构建
 
-需要 [Bun](https://bun.sh)。
+需要 [Bun](https://bun.sh) —— **或者只装 pnpm**。bun 已列为开发依赖（`devDependencies.bun`），
+`pnpm install` 会把它装进 `node_modules/.bin/`，之后的脚本照样调用 bun。两种方式等价：
 
 ```bash
-bun install             # 也可以用 pnpm install，见 docs/pnpm-install.md
+bun install              # 方式一：系统装了 bun
+pnpm install             # 方式二：只装 pnpm，bun 由它装上
+
 cd packages/novaway
 bun run build --single   # 只构建当前平台（快速冒烟）
 bun run build            # 交叉编译全部平台
 ```
 
-产物位于 `packages/novaway/dist/<平台包>/bin/novaway`。
+用 pnpm 时把上面两条换成 `pnpm run build --single` / `pnpm run build`。注意 `pnpm install`
+不要加 `--ignore-scripts`，否则 bun 的 postinstall 会被跳过。
+
+产物位于 `packages/novaway/dist/<平台包>/bin/novaway`。细节见 [docs/pnpm-install.md](docs/pnpm-install.md)。
 
 ## License
 

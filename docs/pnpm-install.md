@@ -1,26 +1,44 @@
-# 用 pnpm 装依赖（bun 仍然保留）
+# 用 pnpm 装依赖并跑完整流程（bun 仍然保留）
 
-仓库原来只支持 `bun install`。现在**装依赖**这一步可以换成 pnpm，其余流程（测试、打包、
-TUI 运行时）继续用 bun —— 这两件事是分开的，不是二选一。
+仓库原来只支持 `bun install`。现在**两种包管理器都能走完整流程**：
+
+- `bun install` + `bun run dev` —— 原来的路径，行为不变。
+- `pnpm install` + `pnpm dev` —— 只需要装 pnpm，**开发机不需要预装 bun**。
+
+第二条能成立，是因为根 `package.json` 的 `devDependencies` 里加了 `bun@1.3.14`（与
+`packageManager` 字段一致）。`pnpm install` 会把 bun 的官方二进制装进
+`node_modules/.bin/bun`，所有脚本里的 `bun ...` 都能通过 npm bin 目录解析到它。
 
 ## 一句话结论
 
-| 环节                    | 能不能换掉 bun    | 说明                                                          |
-| ----------------------- | ----------------- | ------------------------------------------------------------- |
-| 装依赖                  | ✅ 可以换 pnpm    | 本文件讲的就是这件事                                          |
-| 跑单测                  | ❌ 不能           | 全套 `bun:test`（`mock.module`、`--preload`、junit reporter） |
-| 打 sidecar / 桌面安装包 | ❌ 不能           | `Bun.build`、`Bun.$`、`bun --conditions`                      |
-| TUI / 交互式 CLI        | ❌ 不能           | `Bun.stringWidth`、otui                                       |
-| Web / 渲染进程（vite）  | ✅ 与包管理器无关 |                                                               |
+| 环节                    | bun 用户 | 只有 pnpm 的用户 | 说明                                                          |
+| ----------------------- | -------- | ---------------- | ------------------------------------------------------------- |
+| 装依赖                  | ✅       | ✅               | 两套锁文件并存，见下                                          |
+| 跑单测                  | ✅       | ✅               | 脚本内部调 `bun test`，bun 由 pnpm 装进来                     |
+| 打 sidecar / 桌面安装包 | ✅       | ✅               | 同上；`Bun.build` 用的是 pnpm 装的 bun                        |
+| TUI / 交互式 CLI        | ✅       | ✅               | 同上                                                          |
+| Web / 渲染进程（vite）  | ✅       | ✅               | 本来就与包管理器无关                                          |
 
-也就是说：换 pnpm 换来的是「装依赖不必装 bun」，不是「不再需要 bun」。
+也就是说：**pnpm 用户不需要预装 bun，但 bun 仍然是构建与运行时的实际执行者** —— 它只是由
+pnpm 装上，而不是由系统全局安装。这不是「脱离 bun」，是「bun 变成依赖」。
+
+### 什么时候不成立
+
+- `pnpm install --ignore-scripts`（CI 里那个 job 就是这么跑的）会跳过 `bun` 包的
+  postinstall，`node_modules/.bin/bun` 不会被创建。CI 这步只做 tsgo 类型检查，bun 走
+  `setup-bun` action，所以没问题；本地想用 pnpm 跑全流程，必须**不加** `--ignore-scripts`。
+- `bun` 的 postinstall 优先从 `@oven/bun-<platform>` 这个 optionalDependency 复制二进制；
+  只有缺失时才会去 `registry.npmjs.org` / `bun.com` 下载。镜像源正常就能装上。
+- 磁盘上会多一个约 98 MB 的 bun 二进制。
 
 ## 用法
 
 ```bash
-pnpm install                 # 装整个工作区（默认不受 packageManager 字段限制）
+pnpm install                 # 装整个工作区，同时装好 bun
+pnpm dev                     # 等价于 bun run dev
+pnpm --filter novaway test    # 脚本内部调 bun test
+
 pnpm install --frozen-lockfile   # CI：锁文件与 package.json 必须一致
-pnpm --filter novaway test   # 脚本里仍然调用 bun，所以 bun 还是要在 PATH 上
 ```
 
 装完以后所有 `bun ...` 命令照常可用，`node_modules` 布局和 bun 装出来的一致（见下）。
@@ -89,8 +107,9 @@ npm 缺三样东西，改造成本比 pnpm 高得多：
   pnpm 额外要求锁文件里带 tarball 的 `integrity`，否则直接拒绝安装（`ERR_PNPM_MISSING_TARBALL_INTEGRITY`）——
   这里已经把 `bun.lock` 里记录的 sha512 补进 `pnpm-lock.yaml`，所以锁文件本身是合法的；
   真正卡住的是下载这一步。备用方案：能访问 pkg.pr.new 的网络，或把它换成 npm 上的正式版本。
-- **`.husky/pre-push` 仍然调用 bun**：它会校验 `packageManager` 里的 bun 版本并跑 `bun typecheck`。
-  只装了 pnpm 的机器可以跳过 husky，或自行把这一步换成 `pnpm typecheck`（脚本内部还是会用到 bun）。
+- **`.husky/pre-push` 调用 `bun`**：它会校验 `packageManager` 里的 bun 版本并跑 `bun typecheck`。
+  现在 bun 是 devDependency，`pnpm install` 之后这条 hook 可以直接跑通，不需要系统级 bun；
+  `packageManager` 字段里的版本和 `devDependencies.bun` 一样是 `1.3.14`，校验会通过。
 
 ## 两个锁文件
 

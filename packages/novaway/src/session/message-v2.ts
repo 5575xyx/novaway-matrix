@@ -18,7 +18,9 @@ import * as ProviderError from "@/provider/error"
 import { iife } from "@/util/iife"
 import { errorMessage } from "@/util/error"
 import { isMedia } from "@/util/media"
-import type { SystemError } from "bun"
+// Node 的 errno 异常形状（`bun` 的 SystemError 是同一套字段）。用本地类型而不是
+// `import type { SystemError } from "bun"`，免得类型层把源码绑死在 bun 上。
+type SystemError = { code?: string; syscall?: string; message?: string }
 import type { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { Effect, Schema, Types } from "effect"

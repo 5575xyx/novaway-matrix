@@ -5,7 +5,7 @@
 // It produces a PromptState that RunPromptBody renders as an OpenTUI textarea,
 // while the footer view renders the current menu state below it.
 /** @jsxImportSource @opentui/solid */
-import { pathToFileURL } from "bun"
+import { pathToFileURL } from "node:url"
 import { StyledText, bg, fg, type KeyBinding, type KeyEvent, type TextareaRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import fuzzysort from "fuzzysort"
