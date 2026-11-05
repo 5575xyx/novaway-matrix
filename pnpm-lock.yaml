@@ -177,6 +177,9 @@ patchedDependencies:
   '@standard-community/standard-openapi@0.2.9':
     hash: 4c6248f000365bd4af943a672532d6bdeb179f46e6831d05d4f2f1ecc4d6e439
     path: patches/@standard-community%2Fstandard-openapi@0.2.9.patch
+  gitlab-ai-provider@6.6.0:
+    hash: bf27a926af09b880aa71ad8c91c7ecdb6660a3f8ab4b21ba3e047d38f477aa70
+    path: patches/gitlab-ai-provider@6.6.0.patch
   solid-js@1.9.10:
     hash: cbc2d52ca97f05648189d345d194f5a8aff7add36eeed262d6d3a0d43b5a87c9
     path: patches/solid-js@1.9.10.patch
@@ -782,7 +785,7 @@ importers:
         version: 4.0.0-beta.65
       gitlab-ai-provider:
         specifier: 6.6.0
-        version: 6.6.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0)
+        version: 6.6.0(patch_hash=bf27a926af09b880aa71ad8c91c7ecdb6660a3f8ab4b21ba3e047d38f477aa70)(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0)
       glob:
         specifier: 13.0.5
         version: 13.0.5
@@ -844,6 +847,9 @@ importers:
 
   packages/desktop:
     dependencies:
+      '@novaway/core':
+        specifier: workspace:*
+        version: link:../core
       crypto-js:
         specifier: 4.2.0
         version: 4.2.0
@@ -1353,7 +1359,7 @@ importers:
         version: 3.1.0
       gitlab-ai-provider:
         specifier: 6.6.0
-        version: 6.6.0(@ai-sdk/provider-utils@4.0.62(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0)
+        version: 6.6.0(patch_hash=bf27a926af09b880aa71ad8c91c7ecdb6660a3f8ab4b21ba3e047d38f477aa70)(@ai-sdk/provider-utils@4.0.62(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0)
       glob:
         specifier: 13.0.5
         version: 13.0.5
@@ -23252,7 +23258,7 @@ snapshots:
 
   github-slugger@2.0.0: {}
 
-  gitlab-ai-provider@6.6.0(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0):
+  gitlab-ai-provider@6.6.0(patch_hash=bf27a926af09b880aa71ad8c91c7ecdb6660a3f8ab4b21ba3e047d38f477aa70)(@ai-sdk/provider-utils@4.0.23(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0):
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.23(zod@4.1.8)
@@ -23275,7 +23281,7 @@ snapshots:
       - utf-8-validate
       - ws
 
-  gitlab-ai-provider@6.6.0(@ai-sdk/provider-utils@4.0.62(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0):
+  gitlab-ai-provider@6.6.0(patch_hash=bf27a926af09b880aa71ad8c91c7ecdb6660a3f8ab4b21ba3e047d38f477aa70)(@ai-sdk/provider-utils@4.0.62(zod@4.1.8))(@ai-sdk/provider@3.0.8)(@aws-sdk/credential-provider-node@3.972.89)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(graphql@16.14.2)(ws@8.22.0):
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.62(zod@4.1.8)
