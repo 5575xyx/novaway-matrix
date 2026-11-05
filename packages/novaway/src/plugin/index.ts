@@ -13,8 +13,7 @@ import { ServerAuth } from "@/server/auth"
 import { CodexAuthPlugin } from "./codex"
 import { NamedError } from "@novaway/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
-import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
-import { PoeAuthPlugin } from "opencode-poe-auth"
+import { PoeAuthPlugin } from "./poe"
 import { CloudflareAIGatewayAuthPlugin, CloudflareWorkersAuthPlugin } from "./cloudflare"
 import { AzureAuthPlugin } from "./azure"
 import { DigitalOceanAuthPlugin } from "./digitalocean"
@@ -67,7 +66,6 @@ export class Service extends Context.Service<Service, Interface>()("@novaway/Plu
 const INTERNAL_PLUGINS: PluginInstance[] = [
   CodexAuthPlugin as any,
   CopilotAuthPlugin as any,
-  GitlabAuthPlugin as any,
   PoeAuthPlugin as any,
   CloudflareWorkersAuthPlugin as any,
   CloudflareAIGatewayAuthPlugin as any,

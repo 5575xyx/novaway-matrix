@@ -13,9 +13,7 @@ export type CatalogModelStatus = typeof CatalogModelStatus.Type
 
 const USER_AGENT = `novaway/${InstallationChannel}/${InstallationVersion}/${Flag.NOVAWAY_CLIENT}`
 const FETCH_TIMEOUT = "2 seconds"
-// 模型目录取自 models.dev 的公开接口（文档也是这么写的）。之前指向
-// opencode 自建的镜像域名，那个域名属于上游项目，随时可能变；models.dev 是
-// 中立的数据源，Schema 一致。可用 NOVAWAY_MODELS_URL 覆盖成自建镜像。
+// 模型目录取自 models.dev 的公开接口。可用 NOVAWAY_MODELS_URL 覆盖成自建镜像。
 const DEFAULT_MODELS_URL = "https://models.dev"
 
 const CostTier = Schema.Struct({
@@ -112,11 +110,10 @@ export type Provider = Schema.Schema.Type<typeof Provider>
 
 declare const NOVAWAY_MODELS_DEV: Record<string, Provider> | undefined
 
-// 上游 Zen 的两个 provider key 不再内置。它们在目录里指向 opencode.ai/zen，
-// 是别人的服务：留着会让客户端在用户恰好配了 OPENCODE_API_KEY 时把请求
-// 发到上游去，并且界面会把它显示成 “Default”。自家网关走 `builtin`，
-// 自定义端点走 `provider.<id>` 配置，都不依赖这两个 key。
-// 只过滤加载结果，缓存文件与快照本身保持上游原样。
+// 目录里有第三方 Zen 的两个 provider key，指向别人的服务：留着会让客户端在
+// 用户恰好配了对应 API key 时把请求发到对方那边，界面也会把它显示成 “Default”。
+// 自家网关走 `builtin`，自定义端点走 `provider.<id>` 配置，都不依赖这两个 key。
+// 这里只过滤加载结果，缓存文件与快照本身保持目录原样（所以 key 名照抄目录）。
 const EXCLUDED_PROVIDER_IDS = new Set(["opencode", "opencode-go"])
 
 function withoutUpstreamCatalog(catalog: Record<string, Provider>): Record<string, Provider> {
