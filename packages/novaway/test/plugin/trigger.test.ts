@@ -5,7 +5,6 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { EffectFlock } from "@novaway/core/util/effect-flock"
 import path from "path"
 import { pathToFileURL } from "url"
-import { Account } from "../../src/account/account"
 import { Auth } from "../../src/auth"
 import { Bus } from "../../src/bus"
 import { Config } from "../../src/config/config"
@@ -17,10 +16,6 @@ import { provideTmpdirInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { NpmTest } from "../fake/npm"
 
-const emptyAccount = Layer.mock(Account.Service)({
-  active: () => Effect.succeed(Option.none()),
-  activeOrg: () => Effect.succeed(Option.none()),
-})
 const emptyAuth = Layer.mock(Auth.Service)({
   all: () => Effect.succeed({}),
 })
@@ -29,7 +24,6 @@ const configLayer = Config.layer.pipe(
   Layer.provide(AppFileSystem.defaultLayer),
   Layer.provide(Env.defaultLayer),
   Layer.provide(emptyAuth),
-  Layer.provide(emptyAccount),
   Layer.provide(NpmTest.noop),
 )
 const it = testEffect(

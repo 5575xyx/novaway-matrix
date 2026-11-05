@@ -67,7 +67,6 @@ const names: Record<string, string> = {
   nord: "Nord",
   "one-dark": "One Dark",
   onedarkpro: "One Dark Pro",
-  NovaWay: "NovaWay",
   novaway: "NovaWay",
   orng: "Orng",
   "osaka-jade": "Osaka Jade",
@@ -83,10 +82,6 @@ const names: Record<string, string> = {
 }
 const novawayClassicTheme = novawayClassicThemeJson as DesktopTheme
 const novawayTheme = novawayThemeJson as DesktopTheme
-
-function normalize(id: string | null | undefined) {
-  return id === "oc-1" || id === "oc-2" ? "novaway-classic" : id
-}
 
 function read(key: string) {
   if (typeof localStorage !== "object") return null
@@ -177,7 +172,7 @@ function cacheThemeVariants(theme: DesktopTheme, themeId: string) {
 export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
   name: "Theme",
   init: (props: { defaultTheme?: string; onThemeApplied?: (theme: DesktopTheme, mode: "light" | "dark") => void }) => {
-    const themeId = normalize(read(STORAGE_KEYS.THEME_ID) ?? props.defaultTheme) ?? "novaway"
+    const themeId = read(STORAGE_KEYS.THEME_ID) ?? props.defaultTheme ?? "novaway"
     // 默认主题是浅色（产品设定）：只有用户手动选过「跟随系统」才走系统偏好。
     const colorScheme = (read(STORAGE_KEYS.COLOR_SCHEME) as ColorScheme | null) ?? "light"
     const mode = colorScheme === "system" ? getSystemMode() : colorScheme
@@ -196,7 +191,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     const loads = new Map<string, Promise<DesktopTheme | undefined>>()
 
     const load = (id: string) => {
-      const next = normalize(id)
+      const next = id
       if (!next) return Promise.resolve(undefined)
       const hit = store.themes[next]
       if (hit) return Promise.resolve(hit)
@@ -235,7 +230,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.THEME_ID && e.newValue) {
-        const next = normalize(e.newValue)
+        const next = e.newValue
         if (!next) return
         if (next !== "novaway-classic" && !knownThemes().has(next) && !store.themes[next]) return
         setStore("themeId", next)
@@ -265,7 +260,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       makeEventListener(mediaQuery, "change", onMedia)
 
       const rawTheme = read(STORAGE_KEYS.THEME_ID)
-      const savedTheme = normalize(rawTheme ?? props.defaultTheme) ?? "novaway"
+      const savedTheme = rawTheme ?? props.defaultTheme ?? "novaway"
       const savedScheme = (read(STORAGE_KEYS.COLOR_SCHEME) as ColorScheme | null) ?? "light"
       if (rawTheme && rawTheme !== savedTheme) {
         write(STORAGE_KEYS.THEME_ID, savedTheme)
@@ -291,7 +286,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     })
 
     const setTheme = (id: string) => {
-      const next = normalize(id)
+      const next = id
       if (!next) {
         console.warn(`Theme "${id}" not found`)
         return
@@ -331,7 +326,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       setColorScheme,
       registerTheme: (theme: DesktopTheme) => setStore("themes", theme.id, theme),
       previewTheme: (id: string) => {
-        const next = normalize(id)
+        const next = id
         if (!next) return
         if (next !== "novaway-classic" && !knownThemes().has(next) && !store.themes[next]) return
         setStore("previewThemeId", next)

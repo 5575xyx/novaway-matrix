@@ -10,13 +10,6 @@ import { InstallationVersion } from "@novaway/core/installation/version"
 import { hasGit } from "@/util/git"
 import { materializeGitSpec } from "./git-archive"
 
-// Old npm package names for plugins that are now built-in
-export const DEPRECATED_PLUGIN_PACKAGES = ["opencode-openai-codex-auth", "opencode-copilot-auth"]
-
-export function isDeprecatedPlugin(spec: string) {
-  return DEPRECATED_PLUGIN_PACKAGES.some((pkg) => spec.includes(pkg))
-}
-
 function parse(spec: string) {
   try {
     return npa(spec)

@@ -9,7 +9,6 @@ import { Config } from "../../src/config/config"
 import { Env } from "../../src/env"
 import { RuntimeFlags } from "../../src/effect/runtime-flags"
 import { Plugin } from "../../src/plugin"
-import { AccountTest } from "../fake/account"
 import { AuthTest } from "../fake/auth"
 import { NpmTest } from "../fake/npm"
 import { ProviderTest } from "../fake/provider"
@@ -27,7 +26,6 @@ const configLayer = Config.layer.pipe(
   Layer.provide(AppFileSystem.defaultLayer),
   Layer.provide(Env.defaultLayer),
   Layer.provide(AuthTest.empty),
-  Layer.provide(AccountTest.empty),
   Layer.provide(NpmTest.noop),
 )
 const pluginLayer = Plugin.layer.pipe(

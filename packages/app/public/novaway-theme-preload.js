@@ -1,25 +1,7 @@
 ;(function () {
   var key = "novaway-theme-id"
 
-  // 旧版本用 opencode-* 前缀存主题：新键缺失时把旧值搬过来，避免用户丢主题设置；
-  // 旧键无论是否搬迁都清掉，别让它一直躺在 localStorage 里。
-  var LEGACY = ["theme-id", "theme-css-light", "theme-css-dark", "color-scheme"]
-  var hasNew = localStorage.getItem(key) !== null
-  for (var i = 0; i < LEGACY.length; i++) {
-    var legacyKey = "opencode-" + LEGACY[i]
-    var legacyValue = localStorage.getItem(legacyKey)
-    if (legacyValue !== null && !hasNew) localStorage.setItem("novaway-" + LEGACY[i], legacyValue)
-    localStorage.removeItem(legacyKey)
-  }
-
   var themeId = localStorage.getItem(key) || "novaway"
-
-  if (themeId === "oc-1" || themeId === "oc-2") {
-    themeId = "novaway-classic"
-    localStorage.setItem(key, themeId)
-    localStorage.removeItem("novaway-theme-css-light")
-    localStorage.removeItem("novaway-theme-css-dark")
-  }
 
   var scheme = localStorage.getItem("novaway-color-scheme") || "system"
   var isDark = scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches)

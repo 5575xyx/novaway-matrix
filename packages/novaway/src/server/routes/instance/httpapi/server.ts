@@ -11,7 +11,6 @@ import {
 import * as Socket from "effect/unstable/socket/Socket"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { AppProcess } from "@novaway/core/process"
-import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
 import { BackgroundJob } from "@/background/job"
 import { Auth } from "@/auth"
@@ -279,7 +278,6 @@ export function createRoutes(
       corsVaryFix,
       fenceLayer,
       cors(corsOptions),
-      Account.defaultLayer,
       Agent.defaultLayer,
       BackgroundJob.defaultLayer,
       Auth.defaultLayer,

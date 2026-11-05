@@ -350,7 +350,6 @@ function normalizeLegacyErrorResponses(operation: OpenApiOperation) {
 }
 
 function normalizeLegacyOperation(operation: OpenApiOperation, path: string, method: string) {
-  if (path === "/experimental/console/switch" && method === "post") delete operation.responses?.["400"]
   if (path === "/pty/{ptyID}" && method === "put") delete operation.responses?.["404"]
   if ((path !== "/session/{sessionID}/message" && path !== "/session/{sessionID}/command") || method !== "post") return
   const response = operation.responses?.["200"]?.content?.["application/json"]

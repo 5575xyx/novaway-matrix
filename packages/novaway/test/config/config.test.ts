@@ -9,8 +9,6 @@ import { EffectFlock } from "@novaway/core/util/effect-flock"
 import { InstanceRef } from "../../src/effect/instance-ref"
 import type { InstanceContext } from "../../src/project/instance-context"
 import { Auth } from "../../src/auth"
-import { Account } from "../../src/account/account"
-import { AccessToken, AccountID, OrgID } from "../../src/account/schema"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Env } from "../../src/env"
 import { provideTestInstance, provideTmpdirInstance, withTestInstance } from "../fixture/fixture"
@@ -32,11 +30,6 @@ import { Filesystem } from "@/util/filesystem"
 import { ConfigPlugin } from "@/config/plugin"
 import { Npm } from "@novaway/core/npm"
 
-const emptyAccount = Layer.mock(Account.Service)({
-  active: () => Effect.succeed(Option.none()),
-  activeOrg: () => Effect.succeed(Option.none()),
-})
-
 const emptyAuth = Layer.mock(Auth.Service)({
   all: () => Effect.succeed({}),
 })
@@ -54,7 +47,6 @@ const layer = Config.layer.pipe(
   Layer.provide(AppFileSystem.defaultLayer),
   Layer.provide(Env.defaultLayer),
   Layer.provide(emptyAuth),
-  Layer.provide(emptyAccount),
   Layer.provideMerge(infra),
   Layer.provide(noopNpm),
 )
@@ -753,71 +745,6 @@ test("preserves env variables when adding $schema to config", async () => {
   }
 })
 
-test("resolves env templates in account config with account token", async () => {
-  const originalControlToken = process.env["NOVAWAY_CONSOLE_TOKEN"]
-
-  const fakeAccount = Layer.mock(Account.Service)({
-    active: () =>
-      Effect.succeed(
-        Option.some({
-          id: AccountID.make("account-1"),
-          email: "user@example.com",
-          url: "https://control.example.com",
-          active_org_id: OrgID.make("org-1"),
-        }),
-      ),
-    activeOrg: () =>
-      Effect.succeed(
-        Option.some({
-          account: {
-            id: AccountID.make("account-1"),
-            email: "user@example.com",
-            url: "https://control.example.com",
-            active_org_id: OrgID.make("org-1"),
-          },
-          org: {
-            id: OrgID.make("org-1"),
-            name: "Example Org",
-          },
-        }),
-      ),
-    config: () =>
-      Effect.succeed(
-        Option.some({
-          provider: { acme: { options: { apiKey: "{env:NOVAWAY_CONSOLE_TOKEN}" } } },
-        }),
-      ),
-    token: () => Effect.succeed(Option.some(AccessToken.make("st_test_token"))),
-  })
-
-  const layer = Config.layer.pipe(
-    Layer.provide(testFlock),
-    Layer.provide(AppFileSystem.defaultLayer),
-    Layer.provide(Env.defaultLayer),
-    Layer.provide(emptyAuth),
-    Layer.provide(fakeAccount),
-    Layer.provideMerge(infra),
-    Layer.provide(noopNpm),
-  )
-
-  try {
-    await provideTmpdirInstance(() =>
-      Config.Service.use((svc) =>
-        Effect.gen(function* () {
-          const config = yield* svc.get()
-          expect(config.provider?.["acme"]?.options?.apiKey).toBe("st_test_token")
-        }),
-      ),
-    ).pipe(Effect.scoped, Effect.provide(layer), Effect.runPromise)
-  } finally {
-    if (originalControlToken !== undefined) {
-      process.env["NOVAWAY_CONSOLE_TOKEN"] = originalControlToken
-    } else {
-      delete process.env["NOVAWAY_CONSOLE_TOKEN"]
-    }
-  }
-})
-
 test("handles file inclusion substitution", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
@@ -1306,8 +1233,7 @@ test("installs dependencies in writable NOVAWAY_CONFIG_DIR", async () => {
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(emptyAuth),
-    Layer.provide(emptyAccount),
-    Layer.provideMerge(infra),
+      Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 
@@ -2199,8 +2125,7 @@ test("project config overrides remote well-known config", async () => {
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(fakeAuth),
-    Layer.provide(emptyAccount),
-    Layer.provideMerge(infra),
+      Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 
@@ -2257,8 +2182,7 @@ test("wellknown URL with trailing slash is normalized", async () => {
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(fakeAuth),
-    Layer.provide(emptyAccount),
-    Layer.provideMerge(infra),
+      Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 
@@ -2329,8 +2253,7 @@ test("wellknown remote_config supports templated env vars in headers", async () 
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(fakeAuth),
-    Layer.provide(emptyAccount),
-    Layer.provideMerge(infra),
+      Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 
@@ -2359,7 +2282,7 @@ describe("resolvePluginSpec", () => {
   test("keeps package specs unchanged", async () => {
     await using tmp = await tmpdir()
     const file = path.join(tmp.path, "novaway.json")
-    expect(await ConfigPlugin.resolvePluginSpec("oh-my-opencode@2.4.3", file)).toBe("oh-my-opencode@2.4.3")
+    expect(await ConfigPlugin.resolvePluginSpec("oh-my-novaway@2.4.3", file)).toBe("oh-my-novaway@2.4.3")
     expect(await ConfigPlugin.resolvePluginSpec("@scope/pkg", file)).toBe("@scope/pkg")
   })
 
@@ -2448,7 +2371,7 @@ describe("deduplicatePluginOrigins", () => {
   })
 
   test("keeps path plugins separate from package plugins", () => {
-    const plugins = ["oh-my-opencode@2.4.3", "file:///project/.novaway/plugin/oh-my-opencode.js"]
+    const plugins = ["oh-my-novaway@2.4.3", "file:///project/.novaway/plugin/oh-my-novaway.js"]
 
     const result = dedupe(plugins)
 

@@ -3,7 +3,6 @@ import { hideBin } from "yargs/helpers"
 import { RunCommand } from "./cli/cmd/run"
 import { GenerateCommand } from "./cli/cmd/generate"
 import * as Log from "@novaway/core/util/log"
-import { ConsoleCommand } from "./cli/cmd/account"
 import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UpgradeCommand } from "./cli/cmd/upgrade"
@@ -22,6 +21,7 @@ import { McpCommand } from "./cli/cmd/mcp"
 import { GithubCommand } from "./cli/cmd/github"
 import { ExportCommand } from "./cli/cmd/export"
 import { OfficePptCommand } from "./cli/cmd/office-ppt"
+import { OfficeCommand } from "./cli/cmd/office"
 import { ImportCommand } from "./cli/cmd/import"
 import { AttachCommand } from "./cli/cmd/attach"
 import { TuiThreadCommand } from "./cli/cmd/tui"
@@ -191,7 +191,6 @@ const cli = yargs(args)
   .command(RunCommand)
   .command(GenerateCommand)
   .command(DebugCommand)
-  .command(ConsoleCommand)
   .command(ProvidersCommand)
   .command(AgentCommand)
   .command(UpgradeCommand)
@@ -202,6 +201,7 @@ const cli = yargs(args)
   .command(StatsCommand)
   .command(ExportCommand)
   .command(OfficePptCommand)
+  .command(OfficeCommand)
   .command(ImportCommand)
   .command(GithubCommand)
   .command(PrCommand)

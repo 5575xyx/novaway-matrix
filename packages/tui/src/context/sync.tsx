@@ -18,7 +18,6 @@ import type {
   ProviderAuthMethod,
   VcsInfo,
   SnapshotFileDiff,
-  ConsoleState,
 } from "@novaway/sdk-v2-latest/v2"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useProject } from "./project"
@@ -32,11 +31,6 @@ import { batch, onCleanup, onMount } from "solid-js"
 import path from "path"
 import { useKV } from "./kv"
 import { usePermission } from "./permission"
-
-const emptyConsoleState: ConsoleState = {
-  consoleManagedProviders: [],
-  switchableOrgCount: 0,
-}
 
 function search<T>(items: T[], target: string, key: (item: T) => string) {
   let left = 0
@@ -72,7 +66,6 @@ export const {
       provider: Provider[]
       provider_default: Record<string, string>
       provider_next: ProviderListResponse
-      console_state: ConsoleState
       capabilities: {
         experimentalBackgroundSubagents: boolean
       }
@@ -117,7 +110,6 @@ export const {
         default: {},
         connected: [],
       },
-      console_state: emptyConsoleState,
       capabilities: {
         experimentalBackgroundSubagents: false,
       },
@@ -509,10 +501,6 @@ export const {
         .capabilities({ workspace }, { throwOnError: true })
         .then((x) => x.data)
         .catch(() => undefined)
-      const consoleStatePromise = sdk.client.experimental.console
-        .get({ workspace }, { throwOnError: true })
-        .then((x) => x.data)
-        .catch(() => emptyConsoleState)
       const agentsPromise = sdk.client.app.agents({ workspace }, { throwOnError: true })
       const configPromise = sdk.client.config.get({ workspace }, { throwOnError: true })
       await Promise.all([
@@ -528,7 +516,6 @@ export const {
           const providersResponse = providersPromise.then((x) => x.data!)
           const providerListResponse = providerListPromise.then((x) => x.data!)
           const capabilitiesResponse = capabilitiesPromise
-          const consoleStateResponse = consoleStatePromise
           const agentsResponse = agentsPromise.then((x) => x.data ?? [])
           const configResponse = configPromise.then((x) => x.data!)
           const sessionListResponse = args.continue ? sessionListPromise : undefined
@@ -537,7 +524,6 @@ export const {
             providersResponse,
             providerListResponse,
             capabilitiesResponse,
-            consoleStateResponse,
             agentsResponse,
             configResponse,
             ...(sessionListResponse ? [sessionListResponse] : []),
@@ -545,10 +531,9 @@ export const {
             const providers = responses[0]
             const providerList = responses[1]
             const capabilities = responses[2]
-            const consoleState = responses[3]
-            const agents = responses[4]
-            const config = responses[5]
-            const sessions = responses[6]
+            const agents = responses[3]
+            const config = responses[4]
+            const sessions = responses[5]
 
             batch(() => {
               setStore("provider", reconcile(providers.providers))
@@ -559,7 +544,6 @@ export const {
                 "experimentalBackgroundSubagents",
                 capabilities?.features.some((item) => item.id === "background_subagents" && item.enabled) === true,
               )
-              setStore("console_state", reconcile(consoleState))
               setStore("agent", reconcile(agents))
               setStore("config", reconcile(config))
               if (sessions !== undefined) setStore("session", reconcile(sessions))
@@ -571,7 +555,6 @@ export const {
           // non-blocking
           void Promise.all([
             ...(args.continue ? [] : [sessionListPromise.then((sessions) => setStore("session", reconcile(sessions)))]),
-            consoleStatePromise.then((consoleState) => setStore("console_state", reconcile(consoleState))),
             sdk.client.command.list({ workspace }).then((x) => setStore("command", reconcile(x.data ?? []))),
             sdk.client.lsp.status({ workspace }).then((x) => setStore("lsp", reconcile(x.data ?? []))),
             sdk.client.mcp.status({ workspace }).then((x) => setStore("mcp", reconcile(x.data ?? {}))),

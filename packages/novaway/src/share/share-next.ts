@@ -1,7 +1,6 @@
 import type * as SDK from "@novaway/sdk/v2"
-import { Effect, Exit, Layer, Option, Schema, Scope, Context, Stream } from "effect"
+import { Effect, Exit, Layer, Schema, Scope, Context, Stream } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
-import { Account } from "@/account/account"
 import { Bus } from "@/bus"
 import { InstanceState } from "@/effect/instance-state"
 import { Provider } from "@/provider/provider"
@@ -88,8 +87,7 @@ function api(resource: string): Api {
   }
 }
 
-const legacyApi = api("share")
-const consoleApi = api("shares")
+const shareApi = api("share")
 
 function key(item: Data) {
   switch (item.type) {
@@ -109,7 +107,6 @@ function key(item: Data) {
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    const account = yield* Account.Service
     const bus = yield* Bus.Service
     const cfg = yield* Config.Service
     const http = yield* HttpClient.HttpClient
@@ -208,21 +205,13 @@ export const layer = Layer.effect(
     )
 
     const request = Effect.fn("ShareNext.request")(function* () {
-      const headers: Record<string, string> = {}
-      const active = yield* account.active()
-      if (Option.isNone(active) || !active.value.active_org_id) {
-        const baseUrl = (yield* cfg.get()).enterprise?.url ?? "https://opncd.ai"
-        return { headers, api: legacyApi, baseUrl } satisfies Req
+      // 会话分享需要一个自建/企业分享服务端。没有配置时明确报错，
+      // 而不是把会话内容悄悄发到第三方域名。
+      const baseUrl = (yield* cfg.get()).enterprise?.url
+      if (!baseUrl) {
+        throw new Error("Session sharing requires enterprise.url to be configured")
       }
-
-      const token = yield* account.token(active.value.id)
-      if (Option.isNone(token)) {
-        throw new Error("No active account token available for sharing")
-      }
-
-      headers.authorization = `Bearer ${token.value}`
-      headers["x-org-id"] = active.value.active_org_id
-      return { headers, api: consoleApi, baseUrl: active.value.url } satisfies Req
+      return { headers: {}, api: shareApi, baseUrl } satisfies Req
     })
 
     const get = Effect.fnUntraced(function* (sessionID: SessionID) {
@@ -366,7 +355,6 @@ export const layer = Layer.effect(
 
 export const defaultLayer = layer.pipe(
   Layer.provide(Bus.layer),
-  Layer.provide(Account.defaultLayer),
   Layer.provide(Config.defaultLayer),
   Layer.provide(FetchHttpClient.layer),
   Layer.provide(Provider.defaultLayer),

@@ -5,7 +5,6 @@ import * as Observability from "@novaway/core/effect/observability"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Bus } from "@/bus"
 import { Auth } from "@/auth"
-import { Account } from "@/account/account"
 import { Config } from "@/config/config"
 import { Database } from "@/database"
 import { Git } from "@/git"
@@ -77,7 +76,6 @@ export const AppLayer = Layer.mergeAll(
   AppFileSystem.defaultLayer,
   memoryEvolutionLayer,
   Auth.defaultLayer,
-  Account.defaultLayer,
   Config.defaultLayer,
   Git.defaultLayer,
   Ripgrep.defaultLayer,

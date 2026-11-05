@@ -1,11 +1,8 @@
 import { NodeFileSystem } from "@effect/platform-node"
 import { beforeEach, describe, expect } from "bun:test"
-import { Effect, Exit, Layer, Option } from "effect"
+import { Effect, Exit, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 
-import { AccessToken, AccountID, OrgID, RefreshToken } from "../../src/account/schema"
-import { Account } from "../../src/account/account"
-import { AccountRepo } from "../../src/account/repo"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { Bus } from "../../src/bus"
 import { Config } from "@/config/config"
@@ -20,12 +17,7 @@ import { provideTmpdirInstance } from "../fixture/fixture"
 import { resetDatabase } from "../fixture/db"
 import { testEffect } from "../lib/effect"
 
-const env = Layer.mergeAll(
-  Session.defaultLayer,
-  AccountRepo.layer,
-  NodeFileSystem.layer,
-  CrossSpawnSpawner.defaultLayer,
-)
+const env = Layer.mergeAll(Session.defaultLayer, NodeFileSystem.layer, CrossSpawnSpawner.defaultLayer)
 const it = testEffect(env)
 
 const json = (req: Parameters<typeof HttpClientResponse.fromWeb>[0], body: unknown, status = 200) =>
@@ -43,7 +35,6 @@ function live(client: HttpClient.HttpClient) {
   const http = Layer.succeed(HttpClient.HttpClient, client)
   return ShareNext.layer.pipe(
     Layer.provide(Bus.layer),
-    Layer.provide(Account.layer.pipe(Layer.provide(AccountRepo.layer), Layer.provide(http))),
     Layer.provide(Config.defaultLayer),
     Layer.provide(http),
     Layer.provide(Provider.defaultLayer),
@@ -57,12 +48,10 @@ function wired(client: HttpClient.HttpClient) {
     Bus.layer,
     ShareNext.layer,
     Session.defaultLayer,
-    AccountRepo.layer,
     NodeFileSystem.layer,
     CrossSpawnSpawner.defaultLayer,
   ).pipe(
     Layer.provide(Bus.layer),
-    Layer.provide(Account.layer.pipe(Layer.provide(AccountRepo.layer), Layer.provide(http))),
     Layer.provide(Config.defaultLayer),
     Layer.provide(http),
     Layer.provide(Provider.defaultLayer),
@@ -72,25 +61,12 @@ function wired(client: HttpClient.HttpClient) {
 const share = (id: SessionID) =>
   Database.use((db) => db.select().from(SessionShareTable).where(eq(SessionShareTable.session_id, id)).get())
 
-const seed = (url: string, org?: string) =>
-  AccountRepo.Service.use((repo) =>
-    repo.persistAccount({
-      id: AccountID.make("account-1"),
-      email: "user@example.com",
-      url,
-      accessToken: AccessToken.make("st_test_token"),
-      refreshToken: RefreshToken.make("rt_test_token"),
-      expiry: Date.now() + 10 * 60_000,
-      orgID: org ? Option.some(OrgID.make(org)) : Option.none(),
-    }),
-  )
-
 beforeEach(async () => {
   await resetDatabase()
 })
 
 describe("ShareNext", () => {
-  it.live("request uses legacy share API without active org account", () =>
+  it.live("request uses the configured enterprise share server", () =>
     provideTmpdirInstance(
       () =>
         ShareNext.Service.use((svc) =>
@@ -109,36 +85,12 @@ describe("ShareNext", () => {
     ),
   )
 
-  it.live("request uses default URL when no enterprise config", () =>
-    provideTmpdirInstance(() =>
-      ShareNext.Service.use((svc) =>
-        Effect.gen(function* () {
-          const req = yield* svc.request()
-
-          expect(req.baseUrl).toBe("https://opncd.ai")
-          expect(req.api.create).toBe("/api/share")
-          expect(req.headers).toEqual({})
-        }),
-      ).pipe(Effect.provide(live(none))),
-    ),
-  )
-
-  it.live("request uses org share API with auth headers when account is active", () =>
+  it.live("request rejects when no enterprise share server is configured", () =>
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
-        yield* seed("https://control.example.com", "org-1")
+        const exit = yield* ShareNext.Service.use((svc) => Effect.exit(svc.request())).pipe(Effect.provide(live(none)))
 
-        const req = yield* ShareNext.Service.use((svc) => svc.request()).pipe(Effect.provide(live(none)))
-
-        expect(req.api.create).toBe("/api/shares")
-        expect(req.api.sync("shr_123")).toBe("/api/shares/shr_123/sync")
-        expect(req.api.remove("shr_123")).toBe("/api/shares/shr_123")
-        expect(req.api.data("shr_123")).toBe("/api/shares/shr_123/data")
-        expect(req.baseUrl).toBe("https://control.example.com")
-        expect(req.headers).toEqual({
-          authorization: "Bearer st_test_token",
-          "x-org-id": "org-1",
-        })
+        expect(Exit.isFailure(exit)).toBe(true)
       }),
     ),
   )
