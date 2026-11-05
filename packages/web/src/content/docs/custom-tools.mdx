@@ -48,6 +48,20 @@ export default tool({
 
 The **filename** becomes the **tool name**, so the file above creates a `database` tool.
 
+:::note
+`@novaway/plugin` is not published to npm yet. Add it from this repository so the import
+resolves:
+
+```json title=".novaway/package.json"
+{
+  "dependencies": {
+    "@novaway/plugin": "file:../novaway-coder/packages/plugin"
+  }
+}
+```
+
+:::
+
 ---
 
 #### Multiple tools per file

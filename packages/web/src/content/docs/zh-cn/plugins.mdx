@@ -170,6 +170,21 @@ export const SafeShell = async () => {
 }
 ```
 
+:::note
+`@novaway/plugin` 还没有发布到 npm。在发布之前，先在下面的文件里指向本仓库里的副本，import 才
+能解析到：
+
+```json title=".novaway/package.json"
+{
+  "dependencies": {
+    "@novaway/plugin": "file:../novaway-coder/packages/plugin"
+  }
+}
+```
+
+只用钩子的插件不需要任何 import —— `import type` 在运行时会被擦除。
+:::
+
 ---
 
 ## 钩子

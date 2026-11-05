@@ -175,6 +175,21 @@ export const SafeShell = async () => {
 }
 ```
 
+:::note
+`@novaway/plugin` is not published to npm yet. Until it is, point at the copy in this
+repository so the import resolves:
+
+```json title=".novaway/package.json"
+{
+  "dependencies": {
+    "@novaway/plugin": "file:../novaway-coder/packages/plugin"
+  }
+}
+```
+
+A plugin that only uses hooks needs no import at all — the type import is erased at runtime.
+:::
+
 ---
 
 ## Hooks
