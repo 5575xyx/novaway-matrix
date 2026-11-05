@@ -9,6 +9,7 @@ packages:
   - "packages/console/*"
   - "packages/sdk/js"
   - "packages/slack"
+  - "github"
 
 # 与 package.json 的 workspaces.catalog 一一对应（依赖里写 catalog: 就是查这张表）。
 catalog:

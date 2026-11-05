@@ -24,7 +24,7 @@ dist-ssr
 *.sw?
 out/
 
-resources/opencode-cli*
+resources/novaway-cli*
 resources/icons
 resources/*.metainfo.xml
 resources/dbx-mcp
