@@ -1,0 +1,40 @@
+{
+  "name": "acme-weather",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "declarative",
+  "license": "MIT",
+  "categories": ["demo"],
+  "activationEvents": ["onTool:acme-weather_weather"],
+  "capabilities": { "network": ["wttr.in"] },
+  "contributes": {
+    "tools": [
+      {
+        "id": "weather",
+        "entry": "./tools/weather.js",
+        "description": "Get current weather for a city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": { "type": "string", "description": "City name" } },
+          "required": ["city"],
+          "additionalProperties": false
+        },
+        "safety": { "readOnly": true, "concurrencySafe": true, "destructive": false, "idempotent": true }
+      }
+    ],
+    "agents": ["./agents"],
+    "skills": ["./skills"],
+    "commands": ["./commands"],
+    "surfaces": [
+      {
+        "slot": "sidebar.item",
+        "id": "dashboard",
+        "title": "Weather",
+        "icon": "globe",
+        "order": 50,
+        "action": { "type": "view", "viewId": "acme-weather.dashboard" }
+      }
+    ],
+    "storage": { "namespace": "acme-weather", "migrations": "./migrations" }
+  }
+}

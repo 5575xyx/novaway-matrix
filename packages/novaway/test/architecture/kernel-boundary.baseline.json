@@ -1,0 +1,17 @@
+[
+  "src/session/prompt.ts -> @/memory/context",
+  "src/session/prompt.ts -> @/memory/service",
+  "src/session/prompt.ts -> @/team/catalog",
+  "src/session/prompt.ts -> @/team/denials",
+  "src/session/prompt.ts -> @/team/mailbox",
+  "src/session/prompt.ts -> @/team/op-log",
+  "src/session/prompt.ts -> @/team/policy",
+  "src/session/prompt.ts -> @/team/run",
+  "src/session/prompt.ts -> @/team/switch",
+  "src/session/prompt.ts -> @/team/task-board",
+  "src/session/prompt.ts -> @/team/task-list",
+  "src/session/prompt.ts -> @/team/team",
+  "src/session/prompt.ts -> @/team/writer",
+  "src/session/session.ts -> @/memory/service",
+  "src/storage/schema.ts -> ../memory/memory.sql"
+]

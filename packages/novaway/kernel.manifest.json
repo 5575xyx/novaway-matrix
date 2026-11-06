@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "milestone": "M0",
+  "kernel": [
+    "src/session/session.ts",
+    "src/session/prompt.ts",
+    "src/session/message-v2.ts",
+    "src/tool/tool.ts",
+    "src/tool/registry.ts",
+    "src/tool/activation.ts",
+    "src/permission/**",
+    "src/storage/**",
+    "src/bus/**",
+    "src/plugin/**",
+    "src/config/config.ts",
+    "src/provider/provider.ts",
+    "src/agent/agent.ts"
+  ],
+  "shared": ["src/util/**", "src/id/**", "src/effect/**"],
+  "capability": [
+    "src/tool/office-*.ts",
+    "src/tool/browser*.ts",
+    "src/tool/computer.ts",
+    "src/tool/memory*.ts",
+    "src/tool/knowledge*.ts",
+    "src/tool/database.ts",
+    "src/tool/task-tools.ts",
+    "src/tool/team-run.ts",
+    "src/tool/cron.ts",
+    "src/tool/monitor.ts",
+    "src/tool/subscribe.ts",
+    "src/office/**",
+    "src/browser/**",
+    "src/computer/**",
+    "src/memory/**",
+    "src/knowledge/**",
+    "src/team/**",
+    "src/orchestrator/**",
+    "src/dynamic-workflow/**",
+    "src/plugin/codex.ts",
+    "src/plugin/azure.ts",
+    "src/plugin/poe.ts",
+    "src/plugin/cloudflare.ts",
+    "src/plugin/digitalocean.ts",
+    "src/plugin/github-copilot/**",
+    "packages/core/src/office/**",
+    "@novaway/core/office/**"
+  ],
+  "exempt": [
+    { "file": "src/tool/registry.ts", "reason": "115 个能力工具仍静态 import", "until": "M1" },
+    { "file": "src/plugin/index.ts", "reason": "内置认证插件仍直接 import", "until": "M2" }
+  ]
+}

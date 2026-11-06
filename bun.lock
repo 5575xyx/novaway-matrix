@@ -596,6 +596,15 @@
         "@opentui/solid",
       ],
     },
+    "packages/plugin-api": {
+      "name": "@novaway/plugin-api",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@typescript/native-preview": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/script": {
       "name": "@novaway/script",
       "dependencies": {
@@ -1574,6 +1583,8 @@
     "@novaway/llm": ["@novaway/llm@workspace:packages/llm"],
 
     "@novaway/plugin": ["@novaway/plugin@workspace:packages/plugin"],
+
+    "@novaway/plugin-api": ["@novaway/plugin-api@workspace:packages/plugin-api"],
 
     "@novaway/script": ["@novaway/script@workspace:packages/script"],
 

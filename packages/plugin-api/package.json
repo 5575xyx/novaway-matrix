@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@novaway/plugin-api",
+  "version": "0.0.0",
+  "description": "NovaWay 插件作者 API：贡献点类型、Manifest v2、KernelApi / PluginContext。零运行时依赖。",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest": "./src/manifest.ts",
+    "./contributions": "./src/contributions.ts",
+    "./superagent": "./src/superagent.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "typescript": "catalog:"
+  }
+}
