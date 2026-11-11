@@ -32,7 +32,7 @@ const UpdateParams = Schema.Struct({
   title: Schema.optional(Schema.String.annotate({ description: "目标标题" })),
   description: Schema.optional(Schema.String.annotate({ description: "目标描述" })),
   status: Schema.optional(
-    Schema.Literals(["pending", "in_progress", "completed", "cancelled"]).annotate({
+    Schema.Literals(["pending", "in_progress", "paused", "completed", "cancelled"]).annotate({
       description: "目标状态",
     }),
   ),
@@ -103,6 +103,7 @@ export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service | 
             case "update": {
               const updated = yield* goalService.update({
                 goalId: params.goalId,
+                sessionId,
                 title: params.title,
                 description: params.description,
                 status: params.status,
@@ -136,7 +137,7 @@ export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service | 
             }
 
             case "get": {
-              const goal = yield* goalService.get(params.goalId)
+              const goal = yield* goalService.get({ goalId: params.goalId, sessionId })
               if (!goal) {
                 return {
                   title: "获取目标",
@@ -167,7 +168,7 @@ export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service | 
             }
 
             case "progress": {
-              const progress = yield* goalService.getProgress(params.goalId)
+              const progress = yield* goalService.getProgress({ goalId: params.goalId, sessionId })
               const output = `任务: ${progress.total} 总计, ${progress.completed} 完成, ${progress.percentage.toFixed(1)}%`
               return {
                 title: "目标进度",
@@ -177,7 +178,7 @@ export const GoalTool = Tool.define<typeof Parameters, Metadata, Goal.Service | 
             }
 
             case "decompose": {
-              const targetGoal = yield* goalService.get(params.goalId)
+              const targetGoal = yield* goalService.get({ goalId: params.goalId, sessionId })
               if (!targetGoal) {
                 return {
                   title: "分解目标",

@@ -26,7 +26,7 @@ export function useTempFilesSection(sessionID: () => string): () => StatusPanelS
   let inflight = false
   const load = () => {
     const id = sessionID()
-    if (!id || inflight) return
+    if (!id || sdk.directory === "global-chat" || inflight) return
     inflight = true
     void sdk.client.session.tempFiles
       .list({ directory: sdk.directory, sessionID: id })

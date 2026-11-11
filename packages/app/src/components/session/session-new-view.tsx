@@ -59,14 +59,20 @@ export function NewSessionView(props: NewSessionViewProps) {
   return (
     <div class={ROOT_CLASS}>
       <div class="flex-1 flex flex-col items-center justify-center text-center">
-        <div class="w-full max-w-2xl flex flex-col items-center text-center gap-8 px-6">
-          {/* 问候语：对齐 ZCode 草稿态空位（`ConversationDraftEmptyState`）——
+        <div
+          data-component="session-new-hero"
+          class="relative w-full max-w-2xl flex flex-col items-center text-center gap-8 px-6"
+        >
+          {/* 氛围层：一层会呼吸的极光辉光 + 被径向遮罩烧成圆的网格，纯装饰，
+              不参与布局、不吃点击（见 index.css 的 session-new-aurora）。 */}
+          <div data-component="session-new-aurora" aria-hidden="true" />
+          {/* 问候语：草稿态空位（DraftEmptyState）——
               按时段换一句问候、居中、大字，办公模式换成「今天有什么工作，交给我吧」。
-              组件里自带那枚巨大的品牌水印，和 ZCode 一样只是氛围，不参与布局。 */}
-          <DraftEmptyState />
+              组件里自带那枚巨大的品牌水印，只是氛围，不参与布局。 */}
+          <DraftEmptyState class="z-10" />
           <Show when={sync.project}>
             {(project) => (
-              <div class="flex items-start justify-center gap-3 min-h-5">
+              <div class="relative z-10 flex items-start justify-center gap-3 min-h-5">
                 <div class="text-ui-sm text-foreground-subtle leading-5 min-w-0 max-w-120 break-words text-center">
                   {language.t("session.new.lastModified")}&nbsp;
                   <span class="text-foreground-subtle">
@@ -80,7 +86,7 @@ export function NewSessionView(props: NewSessionViewProps) {
           </Show>
 
           {/* Prompt input for new session */}
-          <div class="w-full px-4 pointer-events-auto flex flex-col gap-3">
+          <div class="relative z-10 w-full px-4 pointer-events-auto flex flex-col gap-3">
             <Show when={isForge()}>
               <div class="w-full flex gap-3">
                 {(
@@ -93,6 +99,9 @@ export function NewSessionView(props: NewSessionViewProps) {
                   return (
                     <button
                       type="button"
+                      data-component="new-session-agent-card"
+                      data-active={active()}
+                      style={{ "--agent-tint": agent.color }}
                       class="flex-1 flex items-start gap-4 px-5 py-4 rounded-xl border text-left transition-all"
                       classList={{
                         "border-border bg-background/50 hover:border-border-hover hover:bg-hover": !active(),
@@ -135,7 +144,7 @@ export function NewSessionView(props: NewSessionViewProps) {
                 <PromptInputLoading fading={prompt.ready()()} />
               </Show>
             </div>
-            {/* 办公模式的推荐提示词：ZCode 把它放在**输入框正下方**（草稿态才出现）。
+            {/* 办公模式的推荐提示词：放在**输入框正下方**（草稿态才出现）。
                 点一条等于「选好插件 + 写好开场白」；插件没启用时先问一句再启用。
                 这里写入的是真正的输入框（PromptInput 的 reconcile 会把 store 同步回 DOM），
                 不是另起一个假 textarea。 */}

@@ -20,9 +20,17 @@ export type Scope = {
   readonly workspaceID?: WorkspaceID
 }
 
+export type MediaScope = {
+  readonly path: string
+  readonly directory?: string
+  readonly workspaceID?: WorkspaceID
+}
+
 export interface Interface {
   issue(input: Scope): Effect.Effect<typeof ConnectToken.Type>
   consume(input: Scope & { readonly ticket: string }): Effect.Effect<boolean>
+  issueMedia(input: MediaScope): Effect.Effect<typeof ConnectToken.Type>
+  consumeMedia(input: MediaScope & { readonly ticket: string }): Effect.Effect<boolean>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/PtyTicket") {}
@@ -33,14 +41,24 @@ function matches(record: Scope, input: Scope) {
   )
 }
 
+function matchesMedia(record: MediaScope, input: MediaScope) {
+  return record.path === input.path && record.directory === input.directory && record.workspaceID === input.workspaceID
+}
+
 // Tickets are inserted via Cache.set and removed atomically via invalidateWhen. The lookup is
 // never invoked; it dies if it ever is, which would signal a misuse of the Service interface.
 const noLookup = () => Effect.die("PtyTicket cache must be used via set/invalidateWhen, never get")
+const noMediaLookup = () => Effect.die("PtyTicket media cache must be used via set/get, never lookup")
 
 // Visible for tests so the TTL can be shortened. Production uses `layer` with the default TTL.
 export const make = (ttl: Duration.Input = DEFAULT_TTL) =>
   Effect.gen(function* () {
     const cache = yield* Cache.make<string, Scope>({ capacity: CAPACITY, lookup: noLookup, timeToLive: ttl })
+    const mediaCache = yield* Cache.make<string, MediaScope>({
+      capacity: CAPACITY,
+      lookup: noMediaLookup,
+      timeToLive: ttl,
+    })
     const expiresIn = Math.max(1, Math.round(Duration.toSeconds(Duration.fromInputUnsafe(ttl))))
     return Service.of({
       issue: Effect.fn("PtyTicket.issue")(function* (input) {
@@ -49,7 +67,16 @@ export const make = (ttl: Duration.Input = DEFAULT_TTL) =>
         return { ticket, expires_in: expiresIn }
       }),
       consume: Effect.fn("PtyTicket.consume")(function* (input) {
-        return yield* Cache.invalidateWhen(cache, input.ticket, (stored) => matches(stored, input))
+        return yield* Cache.invalidateWhen(cache, input.ticket, (stored) => "ptyID" in stored && matches(stored, input))
+      }),
+      issueMedia: Effect.fn("PtyTicket.issueMedia")(function* (input) {
+        const ticket = crypto.randomUUID()
+        yield* Cache.set(mediaCache, ticket, input)
+        return { ticket, expires_in: expiresIn }
+      }),
+      consumeMedia: Effect.fn("PtyTicket.consumeMedia")(function* (input) {
+        const stored = yield* Cache.get(mediaCache, input.ticket)
+        return !!stored && matchesMedia(stored, input)
       }),
     })
   })

@@ -13,9 +13,12 @@ function EmptyState() {
       <div class="text-center max-w-sm mx-auto p-8">
         <div
           class="size-20 mx-auto mb-6 rounded-[16px] flex items-center justify-center"
-          style={{ "background-color": "color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent)" }}
+          style={{
+            "background-color":
+              "color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 10%, transparent)",
+          }}
         >
-          <span class="text-4xl" style={{ color: "var(--novaway-mode-color, #FF6B6B)" }}>
+          <span class="text-4xl" style={{ color: "var(--novaway-mode-color, var(--interactive-base))" }}>
             📱
           </span>
         </div>
@@ -34,10 +37,12 @@ function EmptyState() {
           </span>
         </div>
         <button
-          class="inline-flex items-center gap-1.5 rounded-[8px] px-5 py-2.5 text-13-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
+          class="inline-flex items-center gap-1.5 rounded-[8px] px-5 py-2.5 text-13-medium text-[var(--novaway-mode-foreground,var(--text-on-interactive-base))] transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
           style={{
-            background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
-            "box-shadow": "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
+            background:
+              "linear-gradient(135deg, var(--novaway-mode-color, var(--interactive-base)), color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 72%, var(--background-base)))",
+            "box-shadow":
+              "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 30%, transparent)",
           }}
           onClick={openPublish}
         >

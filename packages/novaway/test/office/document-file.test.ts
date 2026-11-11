@@ -9,7 +9,10 @@ describe("文档写回", () => {
     expect(formatOfPath("a.html")).toBe("html")
     expect(formatOfPath("a.md")).toBe("markdown")
     expect(formatOfPath("a.ts")).toBe("text")
-    expect(formatOfPath("a.xlsx")).toBeUndefined()
+    expect(formatOfPath("a.xlsx")).toBe("xlsx")
+    // PDF 现在有页面级编辑引擎（删页 / 旋转 / 批注 / 填表）。
+    expect(formatOfPath("a.pdf")).toBe("pdf")
+    expect(formatOfPath("a.odt")).toBe("legacy")
   })
 
   test("文本行命令整条链路：字节进、字节出", async () => {

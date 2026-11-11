@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { greetingKeyAt } from "./greeting"
 
-// 档位取自 ZCode `getChatEmptyGreetingMessageId`：5-9 清晨 / 9-12 上午 / 12-14 午间 /
-// 14-18 下午 / 18-23 晚间 / 其余深夜。边界值归下一档（与上游一致的左闭右开）。
+// 档位：5-9 清晨 / 9-12 上午 / 12-14 午间 /
+// 14-18 下午 / 18-23 晚间 / 其余深夜。边界值归下一档（左闭右开）。
 describe("greetingKeyAt", () => {
   test("按小时分档", () => {
     expect(greetingKeyAt(5)).toBe("chat.empty.greeting.morningEarly")

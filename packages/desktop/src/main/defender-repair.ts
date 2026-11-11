@@ -28,10 +28,7 @@ export interface DefenderRepairCheck {
 }
 
 /** 检查安装目录下关键文件是否被隔离 */
-export function checkQuarantine(
-  execPath: string,
-  exists: (p: string) => boolean,
-): DefenderRepairCheck {
+export function checkQuarantine(execPath: string, exists: (p: string) => boolean): DefenderRepairCheck {
   if (process.platform !== "win32") return { quarantined: false, missing: [], dirMissing: false }
   const dir = execPath.replace(/[\\/]([^\\/]+)$/, "")
   if (!exists(execPath)) {

@@ -7,15 +7,14 @@ import { useSDK } from "@/context/sdk"
 import { PERMISSION_MODES, type PermissionTone, type SessionPermissionMode } from "@/context/permission-risk"
 
 /**
- * 档位配色：不同权限用不同颜色，扫一眼就知道现在放得有多宽。
- * 灰 → 蓝 → 紫 → 橙，越靠后越"放行"；橙色和 ZCode 的「完全访问」一致。
+ * 档位配色通过主题语义色区分风险等级，不绑定具体色相；越靠后代表权限越宽。
  */
 const TONE_TEXT: Record<PermissionTone, string> = {
   neutral: "text-foreground",
   blue: "text-icon-blue",
-  violet: "text-violet-600 dark:text-violet-300",
-  amber: "text-amber-600 dark:text-amber-300",
-  rose: "text-rose-600 dark:text-rose-300",
+  violet: "text-[var(--icon-agent-plan-base)]",
+  amber: "text-icon-warning-base",
+  rose: "text-[var(--icon-critical-base)]",
 }
 
 /**

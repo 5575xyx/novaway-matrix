@@ -10,8 +10,12 @@ import fuzzysort from "fuzzysort"
 import ignore from "ignore"
 import path from "path"
 import { Global } from "@novaway/core/global"
-import { containsPath } from "../project/instance-context"
+import { containsPath, type InstanceContext } from "../project/instance-context"
+import { Filesystem } from "@/util/filesystem"
 import * as Log from "@novaway/core/util/log"
+import { looksBinary } from "@novaway/core/office/text/format"
+import { officeFormatOf } from "@novaway/core/office/engine/registry"
+import { decodeFileText, encodeFileText } from "./encoding"
 import { Protected } from "./protected"
 import { Ripgrep } from "./ripgrep"
 import { NonNegativeInt, type DeepMutable } from "@novaway/core/schema"
@@ -60,6 +64,42 @@ export const Content = Schema.Struct({
 }).annotate({ identifier: "FileContent" })
 export type Content = DeepMutable<Schema.Schema.Type<typeof Content>>
 
+export const ReadErrorCode = Schema.Literals([
+  "invalid_path",
+  "path_outside_workspace",
+  "not_found",
+  "unsupported_type",
+])
+export type ReadErrorCode = Schema.Schema.Type<typeof ReadErrorCode>
+
+export const MEDIA_PREVIEW_MAX_BYTES = 512 * 1024 * 1024
+export const MEDIA_PREVIEW_RANGE_MAX_BYTES = 1024 * 1024
+export const MEDIA_PREVIEW_INLINE_MAX_BYTES = 8 * 1024 * 1024
+export const MEDIA_PREVIEW_PATH = "/file/media"
+
+export const MediaRange = Schema.Struct({
+  content: Schema.Uint8Array,
+  mimeType: Schema.String,
+  size: Schema.Number,
+  offset: Schema.Number,
+  length: Schema.Number,
+})
+export type MediaRange = Schema.Schema.Type<typeof MediaRange>
+
+/**
+ * base64（预览 / 素材导出）通道的失败原因。
+ *
+ * 读不到必须**失败**，不能回
+ * `{ type: "binary", content: "" }` 当成功。空内容和「还在加载」在前端长得一模一样，
+ * 于是面板会永远停在加载态，越界被拒也一样静默（原来 `throw new Error` 是 defect，
+ * SDK 那侧同样只剩一个 undefined data）。
+ */
+export class ReadError extends Schema.TaggedErrorClass<ReadError>()("FileReadError", {
+  code: ReadErrorCode,
+  path: Schema.String,
+  message: Schema.String,
+}) {}
+
 export const Event = {
   Edited: BusEvent.define(
     "file.edited",
@@ -92,6 +132,8 @@ const binary = new Set([
   "wma",
   "m4a",
   "weba",
+  "opus",
+  "m4v",
   "mp4",
   "avi",
   "mov",
@@ -290,6 +332,68 @@ const isImageByExtension = (file: string) => image.has(ext(file))
 const isTextByExtension = (file: string) => text.has(ext(file))
 const isTextByName = (file: string) => textName.has(name(file))
 const isBinaryByExtension = (file: string) => binary.has(ext(file))
+/**
+ * 面板按「Office 包」预览的格式。清单交给 core 的引擎表，不在这里再抄一份：
+ * 带宏 / 模板的变体（docm、pptm、xltx…）和只读旧格式（odt、rtf、doc…）
+ * 都由同一张别名表映射，前端 `OFFICE_EXTENSIONS` 能点开的前后端一定都认。
+ */
+const OFFICE_FILE_GLOBS = [
+  "*.docx",
+  "*.docm",
+  "*.dotx",
+  "*.dotm",
+  "*.doc",
+  "*.odt",
+  "*.rtf",
+  "*.xlsx",
+  "*.xlsm",
+  "*.xltx",
+  "*.xltm",
+  "*.xls",
+  "*.ods",
+  "*.pptx",
+  "*.pptm",
+  "*.potx",
+  "*.potm",
+  "*.ppsx",
+  "*.ppsm",
+  "*.ppt",
+  "*.odp",
+  "*.pdf",
+  "**/*.docx",
+  "**/*.docm",
+  "**/*.dotx",
+  "**/*.dotm",
+  "**/*.doc",
+  "**/*.odt",
+  "**/*.rtf",
+  "**/*.xlsx",
+  "**/*.xlsm",
+  "**/*.xltx",
+  "**/*.xltm",
+  "**/*.xls",
+  "**/*.ods",
+  "**/*.pptx",
+  "**/*.pptm",
+  "**/*.potx",
+  "**/*.potm",
+  "**/*.ppsx",
+  "**/*.ppsm",
+  "**/*.ppt",
+  "**/*.odp",
+  "**/*.pdf",
+  "!**/.git/**",
+  "!**/node_modules/**",
+  "!**/dist/**",
+  "!**/build/**",
+  "!**/target/**",
+  "!**/vendor/**",
+]
+
+const isOfficePreviewByExtension = (file: string) => {
+  const format = officeFormatOf(file)
+  return format === "docx" || format === "xlsx" || format === "pptx" || format === "pdf" || format === "legacy"
+}
 const isImage = (mimeType: string) => mimeType.startsWith("image/")
 const getImageMimeType = (file: string) => mime[ext(file)] || "image/" + ext(file)
 
@@ -326,7 +430,8 @@ interface State {
 export interface Interface {
   readonly init: () => Effect.Effect<void>
   readonly status: () => Effect.Effect<Info[]>
-  readonly read: (file: string, options?: { encoding?: "base64" }) => Effect.Effect<Content>
+  readonly read: (file: string, options?: { encoding?: "base64" }) => Effect.Effect<Content, ReadError>
+  readonly readMediaRange: (file: string, offset: number, length: number) => Effect.Effect<MediaRange, ReadError>
   readonly write: (file: string, content: string) => Effect.Effect<void>
   readonly list: (dir?: string) => Effect.Effect<Node[]>
   readonly search: (input: {
@@ -389,8 +494,17 @@ export const layer = Layer.effect(
           Stream.runCollect,
           Effect.map((chunk) => [...chunk]),
         )
+        // Office documents are user-facing binary assets. Some repositories (or a
+        // user's global git excludes) ignore old extensions such as .rtf/.ods/.odp,
+        // but that must not make an existing document disappear from Open Files.
+        // Re-scan only the narrow Office suffix set with ignore rules disabled;
+        // the exclusions keep dependency/build/vendor trees out of the workspace index.
+        const officeFiles = yield* rg
+          .files({ cwd: ctx.directory, glob: OFFICE_FILE_GLOBS, noIgnore: true })
+          .pipe(Stream.runCollect, Effect.map((chunk) => [...chunk]))
+        const allFiles = [...new Set([...files, ...officeFiles])]
         const seen = new Set<string>()
-        for (const file of files) {
+        for (const file of allFiles) {
           next.files.push(file)
           let current = file
           while (true) {
@@ -508,27 +622,104 @@ export const layer = Layer.effect(
       })
     })
 
+    /**
+     * base64（预览 / 素材导出）通道的目标解析：
+     * 空值 → 越界 → 扩展名白名单 → 存在性 → symlink 二次越界，
+     * 每一步失败都抛 `ReadError`，绝不返回空内容冒充成功。
+     *
+     * 白名单只放真二进制（Office 包 / 图片 / 音视频）：文本类该走文本通道，
+     * 让它在这里回空串就等于给前端一个永远不会结束的加载态。
+     */
+    const resolveBinaryTarget = Effect.fnUntraced(function* (input: string, ctx: InstanceContext) {
+      const fail = (code: ReadErrorCode, message: string) => new ReadError({ code, path: input, message })
+      const raw = typeof input === "string" ? input.trim() : ""
+      if (!raw || raw.includes("\0")) return yield* Effect.fail(fail("invalid_path", "A file path is required."))
+
+      const full = path.resolve(ctx.directory, raw)
+      if (!containsPath(full, ctx))
+        return yield* Effect.fail(fail("path_outside_workspace", "Access denied: path escapes project directory"))
+
+      if (!isBinaryByExtension(full) && !isImageByExtension(full) && !isOfficePreviewByExtension(full))
+        return yield* Effect.fail(fail("unsupported_type", `Not a binary file, read it as text instead: ${raw}`))
+
+      if (!(yield* appFs.existsSafe(full)))
+        return yield* Effect.fail(fail("not_found", `File not found: ${path.relative(ctx.directory, full)}`))
+
+      // 第二道越界检查针对 symlink：链接本身在项目内，指向的目标可能在项目外。
+      const real = Filesystem.resolve(full)
+      if (!containsPath(real, ctx))
+        return yield* Effect.fail(fail("path_outside_workspace", "Access denied: link escapes project directory"))
+      return real
+    })
+
+    const readMediaRange: Interface["readMediaRange"] = Effect.fn("File.readMediaRange")(function* (
+      file: string,
+      offset: number,
+      length: number,
+    ) {
+      const ctx = yield* InstanceState.context
+      const target = yield* resolveBinaryTarget(file, ctx)
+      const fail = (code: ReadErrorCode, message: string) => new ReadError({ code, path: file, message })
+      if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(length) || length < 1)
+        return yield* Effect.fail(fail("invalid_path", "Invalid media byte range."))
+      if (length > MEDIA_PREVIEW_RANGE_MAX_BYTES)
+        return yield* Effect.fail(fail("unsupported_type", "Requested media range exceeds the maximum chunk size."))
+
+      const info = yield* appFs
+        .stat(target)
+        .pipe(Effect.catch(() => Effect.fail(fail("not_found", `File not found: ${file}`))))
+      const size = Number(info.size)
+      if (!Number.isSafeInteger(size) || size > MEDIA_PREVIEW_MAX_BYTES)
+        return yield* Effect.fail(fail("unsupported_type", "Media preview is limited to 512 MB."))
+      if (size === 0 && offset === 0)
+        return { content: Buffer.alloc(0), mimeType: AppFileSystem.mimeType(target), size, offset, length: 0 }
+      if (offset >= size)
+        return yield* Effect.fail(fail("invalid_path", "Requested media range starts beyond the file."))
+
+      const content = yield* appFs
+        .stream(target, {
+          offset,
+          bytesToRead: Math.min(length, size - offset),
+          chunkSize: Math.min(length, size - offset),
+        })
+        .pipe(
+          Stream.runCollect,
+          Effect.mapError((error) => fail("not_found", String(error))),
+        )
+      return {
+        content: Buffer.concat(Array.from(content, (chunk) => Buffer.from(chunk))),
+        mimeType: AppFileSystem.mimeType(target),
+        size,
+        offset,
+        length: Math.min(length, size - offset),
+      }
+    })
+
     const read: Interface["read"] = Effect.fn("File.read")(function* (file: string, options?: { encoding?: "base64" }) {
       using _ = log.time("read", { file })
       const ctx = yield* InstanceState.context
+
+      if (options?.encoding === "base64") {
+        const target = yield* resolveBinaryTarget(file, ctx)
+        const bytes = yield* appFs.readFile(target).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
+        return {
+          type: "binary" as const,
+          content: Buffer.from(bytes).toString("base64"),
+          mimeType: AppFileSystem.mimeType(target),
+          encoding: "base64" as const,
+        }
+      }
+
       const full = path.join(ctx.directory, file)
 
       if (!containsPath(full, ctx)) {
-        throw new Error("Access denied: path escapes project directory")
-      }
-
-      if (options?.encoding === "base64") {
-        const exists = yield* appFs.existsSafe(full)
-        if (exists) {
-          const bytes = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
-          return {
-            type: "binary" as const,
-            content: Buffer.from(bytes).toString("base64"),
-            mimeType: AppFileSystem.mimeType(full),
-            encoding: "base64" as const,
-          }
-        }
-        return { type: "binary" as const, content: "" }
+        return yield* Effect.fail(
+          new ReadError({
+            code: "path_outside_workspace",
+            path: file,
+            message: "Access denied: path escapes project directory",
+          }),
+        )
       }
 
       if (isImageByExtension(file)) {
@@ -567,10 +758,18 @@ export const layer = Layer.effect(
         }
       }
 
-      const content = yield* appFs.readFileString(full).pipe(
-        Effect.map((s) => s.trim()),
-        Effect.catch(() => Effect.succeed("")),
-      )
+      // 按真实编码解码：GBK / UTF-16 / 带 BOM 的文件在面板里也不能变成乱码。
+      // **不做 trim**：编辑器里改了随便一个字符就会整篇写回，先把首尾空白吃掉
+      // 等于悄悄改了文件（行尾换行、缩进都是内容的一部分）。
+      const raw = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(undefined)))
+
+      // 扩展名不认识的文件按内容判断：文本内容就用文本编辑器打开。
+      // 没有这一步，.bin / .dat 这类二进制会被解码成一屏乱码，还会被当成文本写回。
+      if (!knownText && raw && looksBinary(decodeFileText(raw))) {
+        return { type: "binary" as const, content: "", mimeType }
+      }
+
+      const content = raw ? decodeFileText(raw) : ""
 
       if (ctx.project.vcs === "git") {
         let diff = yield* gitText(["-c", "core.fsmonitor=false", "diff", "--", file])
@@ -602,7 +801,10 @@ export const layer = Layer.effect(
         throw new Error("Cannot edit binary files from the text editor")
       }
 
-      yield* appFs.writeWithDirs(full, content).pipe(Effect.orDie)
+      // 写回时沿用磁盘上原有的编码 / BOM / 换行符：textarea 只给 \n，
+      // 直接写会把 CRLF 变 LF、BOM 丢掉，GBK 文件还会整篇乱码。
+      const existing = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      yield* appFs.writeWithDirs(full, encodeFileText(content, existing)).pipe(Effect.orDie)
     })
 
     const list = Effect.fn("File.list")(function* (dir?: string) {
@@ -654,7 +856,7 @@ export const layer = Layer.effect(
       type?: "file" | "directory"
     }) {
       yield* ensure()
-      const { cache } = yield* InstanceState.get(state)
+      let { cache } = yield* InstanceState.get(state)
 
       const query = input.query.trim()
       const limit = input.limit ?? 100
@@ -668,10 +870,20 @@ export const layer = Layer.effect(
         return sortHiddenLast(cache.dirs.toSorted(), preferHidden).slice(0, limit)
       }
 
-      const items = kind === "file" ? cache.files : kind === "directory" ? cache.dirs : [...cache.files, ...cache.dirs]
-
+      const searchItems = () => (kind === "file" ? cache.files : kind === "directory" ? cache.dirs : [...cache.files, ...cache.dirs])
       const searchLimit = kind === "directory" && !preferHidden ? limit * 20 : limit
-      const sorted = fuzzysort.go(query, items, { limit: searchLimit }).map((item) => item.target)
+      const runSearch = () => fuzzysort.go(query, searchItems(), { limit: searchLimit }).map((item) => item.target)
+      let sorted = runSearch()
+
+      // The initial workspace scan is cached for autocomplete performance, but files
+      // can be created externally after that scan (notably an Office fixture or an
+      // editor writing a new template). Refresh only a miss so newly-created files
+      // become searchable without turning every keystroke into a full disk scan.
+      if (sorted.length === 0) {
+        yield* scan().pipe(Effect.orDie)
+        cache = (yield* InstanceState.get(state)).cache
+        sorted = runSearch()
+      }
       const output = kind === "directory" ? sortHiddenLast(sorted, preferHidden).slice(0, limit) : sorted
 
       log.info("search", { query, kind, results: output.length })
@@ -679,7 +891,7 @@ export const layer = Layer.effect(
     })
 
     log.info("init")
-    return Service.of({ init, status, read, write, list, search })
+    return Service.of({ init, status, read, readMediaRange, write, list, search })
   }),
 )
 

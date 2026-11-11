@@ -15,6 +15,8 @@ import { useTerminal } from "@/context/terminal"
 import { showToast } from "@novaway/ui/toast"
 import { findLast } from "@novaway/core/util/array"
 import { createSessionTabs } from "@/pages/session/helpers"
+import { confirmOfficeEditorClose } from "@/pages/session/office-editor-session"
+import { forgetTextHistory } from "@/pages/session/text-history"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@novaway/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -24,6 +26,8 @@ export type SessionCommandContext = {
   setActiveMessage: (message: UserMessage | undefined) => void
   focusInput: () => void
   review?: () => boolean
+  /** 会话页的回滚：预览受影响文件 → 用户确认 → 执行。命令面板只负责选点。 */
+  revertToMessage: (messageID: string) => void
 }
 
 const withCategory = (category: string) => {
@@ -54,6 +58,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     if (!id) return
     return sync.session.get(id)
   }
+  const globalChatOnly = () => sdk.directory === "global-chat" && (!params.id || info()?.scope !== "project")
   const hasReview = () => !!params.id
   const normalizeTab = (tab: string) => {
     if (!tab.startsWith("file://")) return tab
@@ -68,6 +73,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   })
   const activeFileTab = tabState.activeFileTab
   const closableTab = tabState.closableTab
+  /** 分屏的目标 = 主窗格正在展示的内容（`preview` 宿主展开成具体文件标签）。 */
+  const splitTarget = () => {
+    const active = layout.sidePane.activeTab()
+    if (active !== "preview") return active
+    return activeFileTab()
+  }
 
   const messages = () => {
     const id = params.id
@@ -216,7 +227,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const closeTab = () => {
     const tab = closableTab()
     if (!tab) return
-    tabs().close(tab)
+    void (async () => {
+      const closed = file.pathFromTab(tab)
+      if (!(await confirmOfficeEditorClose(closed))) return
+      if (closed) forgetTextHistory(closed)
+      tabs().close(tab)
+    })()
   }
 
   const addSelection = () => {
@@ -349,6 +365,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
+  const revertTo = () => {
+    void import("@/components/dialog-revert").then((x) => {
+      dialog.show(() => <x.DialogRevert onSelect={(messageID) => actions.revertToMessage(messageID)} />)
+    })
+  }
+
   const shareCmds = () => {
     if (sync.data.config.share === "disabled") return []
     return [
@@ -379,7 +401,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.session.new"),
       keybind: "mod+shift+s",
       slash: "new",
-      onSelect: () => navigate(`/${params.dir}/session`),
+      onSelect: () => navigate(sdk.directory === "global-chat" ? "/global-chat/session" : `/${params.dir}/session`),
     }),
     sessionCommand({
       id: "session.undo",
@@ -396,6 +418,14 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       slash: "redo",
       disabled: !params.id || !info()?.revert?.messageID,
       onSelect: redo,
+    }),
+    sessionCommand({
+      id: "session.revertTo",
+      title: language.t("command.session.revertTo"),
+      description: language.t("command.session.revertTo.description"),
+      slash: "revert",
+      disabled: !params.id || visibleUserMessages().length === 0,
+      onSelect: revertTo,
     }),
     sessionCommand({
       id: "session.compact",
@@ -420,7 +450,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "file.open",
       title: language.t("command.file.open"),
       description: language.t("palette.search.placeholder"),
-      keybind: "mod+k,mod+p",
+      // ⌥⌘O 也绑快速打开；保留 mod+k / mod+p 这两个既有习惯。
+      keybind: "mod+k,mod+p,alt+mod+o",
       slash: "open",
       onSelect: openFile,
     }),
@@ -479,6 +510,35 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.input.focus"),
       keybind: "ctrl+l",
       onSelect: focusInput,
+    }),
+    // 分屏（⌘⌥→ / ⌘⌥↓ 把当前标签拆到右/下窗格，⌘⌥W 收回单栏）。
+    viewCommand({
+      id: "sidePane.split.right",
+      title: language.t("sidePane.tab.openRight"),
+      keybind: "mod+alt+arrowright",
+      disabled: !splitTarget(),
+      onSelect: () => {
+        const id = splitTarget()
+        if (id) layout.sidePane.openSecondary(id, "right")
+      },
+    }),
+    viewCommand({
+      id: "sidePane.split.below",
+      title: language.t("sidePane.tab.openBelow"),
+      // mod+alt+↓ 已经是「下一个项目」，这里加一层 shift，避免抢走既有快捷键。
+      keybind: "mod+shift+alt+arrowdown",
+      disabled: !splitTarget(),
+      onSelect: () => {
+        const id = splitTarget()
+        if (id) layout.sidePane.openSecondary(id, "below")
+      },
+    }),
+    viewCommand({
+      id: "sidePane.split.close",
+      title: language.t("sidePane.split.close"),
+      keybind: "mod+alt+w",
+      disabled: !layout.sidePane.secondary(),
+      onSelect: () => layout.sidePane.closeSecondary(),
     }),
   ]
 
@@ -571,16 +631,18 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   ]
 
   command.register("session", () => [
-    ...sessionCmds(),
-    ...shareCmds(),
-    ...fileCmds(),
-    ...contextCmds(),
-    ...viewCmds(),
-    ...terminalCmds(),
+    ...(globalChatOnly()
+      ? sessionCmds().filter((item) => ["session.new", "message.previous", "message.next"].includes(item.id))
+      : sessionCmds()),
+    ...(globalChatOnly() ? [] : shareCmds()),
+    ...(globalChatOnly() ? [] : fileCmds()),
+    ...(globalChatOnly() ? [] : contextCmds()),
+    ...(globalChatOnly() ? viewCmds().filter((item) => item.id === "input.focus") : viewCmds()),
+    ...(globalChatOnly() ? [] : terminalCmds()),
     ...messageCmds(),
     ...modelCmds(),
-    ...mcpCmds(),
-    ...agentCmds(),
-    ...permissionsCmds(),
+    ...(globalChatOnly() ? [] : mcpCmds()),
+    ...(globalChatOnly() ? [] : agentCmds()),
+    ...(globalChatOnly() ? [] : permissionsCmds()),
   ])
 }

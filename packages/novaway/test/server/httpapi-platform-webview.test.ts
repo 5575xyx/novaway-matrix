@@ -23,8 +23,11 @@ const testStateLayer = Layer.effectDiscard(
   }),
 )
 
-const servedRoutes: Layer.Layer<never, import("effect").Config.ConfigError, import("effect/unstable/http").HttpServer.HttpServer> =
-  HttpRouter.serve(HttpApiApp.routes, { disableListenLog: true, disableLogger: true })
+const servedRoutes: Layer.Layer<
+  never,
+  import("effect").Config.ConfigError,
+  import("effect/unstable/http").HttpServer.HttpServer
+> = HttpRouter.serve(HttpApiApp.routes, { disableListenLog: true, disableLogger: true })
 
 const httpApiServerLayer = servedRoutes.pipe(
   Layer.provideMerge(Socket.layerWebSocketConstructorGlobal),

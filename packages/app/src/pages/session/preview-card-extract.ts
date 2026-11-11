@@ -1,4 +1,4 @@
-// 产物卡提取(对齐 ZCode assistantFileReferences/assistantPreviewCards 的分层方案):
+// 产物卡提取(分层方案):
 // 素材来源是 AI 的回答正文而不是文件变更列表 —— 模型说什么是交付物,什么才出卡;
 // 本轮 diff 只作为 markdown/html 引用的写盘证明,存在性校验由调用方异步兜底。
 // 提取按优先级分层:引用指令 > Markdown 链接 > file:// URL > 引号定界路径 > 裸路径,
@@ -86,7 +86,7 @@ export function normalizeTrailingUrlText(url: string): string {
 /**
  * 正文渲染用的 citation 投影:完整指令行整行移除(卡片已经是它的展示形态,正文不残留裸文本);
  * 流式期间再隐藏末尾未闭合的指令/指令前缀,避免半截 :nova-file-citation 在回答里闪现。
- * 流式结束(含中断)后未闭合的残句保留原文,不吞后续正文 —— 与 ZCode projectZCodeFileCitations 语义一致。
+ * 流式结束(含中断)后未闭合的残句保留原文,不吞后续正文。
  * 只影响渲染,卡提取仍读原始 part.text。
  */
 export function projectCitationText(text: string, options: { streaming: boolean }): string {
@@ -190,7 +190,7 @@ function extractCitationDirectives(content: string): CitationDirective[] {
   })
 }
 
-// 引用指令只允许 Office/PDF/图片产出卡(与 ZCode 的产品边界一致):
+// 引用指令只允许 Office/PDF/图片产出卡:
 // md/html 有自己的 markdown 链接与变更校验通道,不走指令。
 const CITATION_KINDS: ReadonlySet<PreviewRefKind> = new Set(["docx", "xlsx", "pptx", "pdf", "image"])
 const ARTIFACT_KIND_TO_PREVIEW: Readonly<Record<string, PreviewRefKind>> = {

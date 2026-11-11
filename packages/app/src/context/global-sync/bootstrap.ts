@@ -178,6 +178,12 @@ function warmSessions(input: {
   ).then(() => undefined)
 }
 
+export const loadPluginContributionsQuery = (directory: string, sdk: NovawayClient) =>
+  queryOptions({
+    queryKey: [directory, "plugin-contributions"],
+    queryFn: () => retry(() => sdk.plugin.contributions().then((x) => x.data ?? [])),
+  })
+
 export const loadProvidersQuery = (directory: string | null, sdk: NovawayClient) =>
   queryOptions({
     queryKey: [directory, "providers"],
@@ -243,6 +249,10 @@ export async function bootstrapDirectory(input: {
         input.queryClient
           .ensureQueryData(loadAgentsQuery(input.directory, input.sdk))
           .then((data) => input.setStore("agent", data)),
+      () =>
+        input.queryClient
+          .ensureQueryData(loadPluginContributionsQuery(input.directory, input.sdk))
+          .then((data) => input.setStore("plugin_contributions", data)),
       () =>
         retry(() => input.sdk.config.get()).then((x) => {
           const config = x.data ?? {}

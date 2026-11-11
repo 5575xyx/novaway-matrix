@@ -52,9 +52,7 @@ export function hasWebview() {
  */
 export function findWebview(target?: string): WebviewHandle | undefined {
   const all = [...handles]
-  const matched = target
-    ? all.filter((item) => item.platform === target || item.accountId === target)
-    : all
+  const matched = target ? all.filter((item) => item.platform === target || item.accountId === target) : all
   const pool = matched.length > 0 ? matched : all
   return pool.find((item) => item.ready()) ?? pool[0]
 }

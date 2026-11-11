@@ -5,6 +5,7 @@ import { EventPaths } from "../../src/server/routes/instance/httpapi/groups/even
 import { PtyPaths } from "../../src/server/routes/instance/httpapi/groups/pty"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { PtyID } from "../../src/pty/schema"
+import { File } from "../../src/file"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, tmpdir } from "../fixture/fixture"
 import * as Log from "@novaway/core/util/log"
@@ -48,6 +49,28 @@ afterEach(async () => {
 })
 
 describe("HttpApi raw route authorization", () => {
+  test("serves media tickets and ranges without Basic Auth after ticket minting", async () => {
+    await using tmp = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
+    await Bun.write(`${tmp.path}/clip.mp4`, "0123456789")
+    const server = app({ password: "secret" })
+    const headers = { "x-novaway-directory": tmp.path, authorization: basic("novaway", "secret") }
+    const tokenURL = new URL(PtyPaths.mediaToken, "http://localhost")
+    tokenURL.searchParams.set("path", "clip.mp4")
+    tokenURL.searchParams.set("directory", tmp.path)
+    const tokenResponse = await server.request(tokenURL, { method: "POST", headers })
+    expect(tokenResponse.status).toBe(200)
+    const token = (await tokenResponse.json()) as { ticket: string }
+    const response = await server.request(`${File.MEDIA_PREVIEW_PATH}?path=clip.mp4&ticket=${token.ticket}`, {
+      headers: { "x-novaway-directory": tmp.path, range: "bytes=2-5" },
+    })
+    expect(response.status).toBe(206)
+    expect(await response.text()).toBe("2345")
+    const missingTicket = await server.request(`${File.MEDIA_PREVIEW_PATH}?path=clip.mp4`, {
+      headers: { "x-novaway-directory": tmp.path },
+    })
+    expect(missingTicket.status).toBe(401)
+  })
+
   test("requires configured auth before opening the raw instance event stream", async () => {
     await using tmp = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
     const server = app({ password: "secret" })

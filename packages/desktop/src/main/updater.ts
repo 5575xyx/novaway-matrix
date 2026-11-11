@@ -406,12 +406,7 @@ export async function installUpdate(killSidecar: () => Promise<void>) {
       // 直接用它覆盖安装 —— 用户点了「安装」就该装上，不该因为断网卡住。
       // 只对 Windows 的 NSIS 安装包这么做：其它平台的安装器和参数不一样，
       // 交给 electron-updater 自己处理更稳妥。
-      if (
-        process.platform === "win32" &&
-        downloadedInstaller &&
-        downloadedVersion &&
-        existsSync(downloadedInstaller)
-      ) {
+      if (process.platform === "win32" && downloadedInstaller && downloadedVersion && existsSync(downloadedInstaller)) {
         logger.log("installing from cached installer", { version: downloadedVersion })
         await killSidecar()
         launchInstaller(downloadedInstaller)

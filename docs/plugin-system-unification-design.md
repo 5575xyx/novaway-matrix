@@ -1,14 +1,16 @@
 # NovaWay「万物皆插件」改造设计
 
-> 版本：v3.1（2026-11-07）
-> 状态：定稿（验收 D1–D9、门禁 B1–B3、决策 Q1–Q21、M0 任务拆解、作者迁移指南）
+> 版本：v3.2（2026-11-08）
+> 状态：实施基线（验收 D1–D9、门禁 B1–B3、NovaWay Plugin Manifest、兼容边界与里程碑）
 > 姊妹篇：`docs/super-agent-plugin-design.md`（super-agent 运行时改造，与本篇共用插件底座）
-> 取代：v3.0（2026-11-05，本版只修订实现层，未改动任何验收、门禁、决策与里程碑）
+> 当前实施计划：[`plugin-first-implementation-plan.md`](./plugin-first-implementation-plan.md)（先完成并验收插件目标，再启动 Super-Agent 实现）
+> 取代：v3.0（2026-11-05）；本版统一原生格式、兼容边界和实施依赖，保留 D1–D9 与 B1–B3 验收要求。
 > 取代：v2.2（补齐错误模型、可观测性、市场、插件管理 UI、会话内权限、存储 schema、UI 性能预算）
 > 取代：v2.0（补齐边界声明、核心工具判据、依赖顺序、宿主面贡献点）
 > 历史：v1.0（以「统一三套插件机制」为目标），已被取代
-> 目标版本：NovaWay 1.16 → 1.20
-> 验收口径：**在不修改内核任何文件的前提下，能新增一个工具、Agent、Provider、Office 格式、发布平台、界面入口；并且停用任意内置插件后，对应能力从工具、UI、提示词中一起消失。**
+> 项目阶段：尚无外部发布与用户；无需为旧 NovaWay 原生插件格式设计长期迁移期。
+> 规范名称：**NovaWay Plugin Manifest**；当前 schema 使用 `apiVersion: 2`，版本值不构成另一套格式。
+> 验收口径：**在不修改内核的前提下，能新增一个工具、Agent、Provider、Office 格式、发布平台、界面入口；并且停用任意内置插件后，对应能力从工具、UI、提示词中一起消失。**
 
 ---
 
@@ -42,11 +44,11 @@ D8 与 D9 把「上帝视角下能装」升级成「运行期真的可插拔」�
 
 ### 0.3 三项硬门禁
 
-| 门禁            | 判定方式                                                                                                                     |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **B1 依赖方向** | `kernel.manifest.json` 里 `kernel` 列出的文件，不得 import `capability` 列表里的任何文件；CI 静态扫描失败即阻断              |
-| **B2 性能**     | 20 个插件冷启动新增开销 < 400ms；每轮拦截器总开销 < 15ms；停用插件后无残留定时器/监听                                        |
-| **B3 回归**     | `bun lint`、`bun typecheck`、`packages/novaway` 全量测试、`packages/app` 构建通过；旧插件、旧 Extension、Claude 插件行为不变 |
+| 门禁            | 判定方式                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **B1 依赖方向** | `kernel.manifest.json` 里 `kernel` 列出的文件，不得 import `capability` 列表里的任何文件；CI 静态扫描失败即阻断                                   |
+| **B2 性能**     | 20 个插件冷启动新增开销 < 400ms；每轮拦截器总开销 < 15ms；停用插件后无残留定时器/监听                                                             |
+| **B3 回归**     | `bun lint`、`bun typecheck`、`packages/novaway` 全量测试、`packages/app` 构建通过；NovaWay 原生 Manifest 与明确支持的 Claude 兼容输入符合各自契约 |
 
 ### 0.4 什么不算通过
 
@@ -144,7 +146,7 @@ D8 与 D9 把「上帝视角下能装」升级成「运行期真的可插拔」�
 └──────────────────────────────┘  └───────────────────────────────┘
 ```
 
-**关键区别不是「是不是插件」，而是「拿到哪一层 API」**。第一方与第三方走同一套 Manifest、注册表、生命周期、诊断；差别只在能力授权（§5、§11）。
+**关键区别不是「是不是插件」，而是「拿到哪一层 API」**。第一方与第三方走同一套 Manifest、PluginHost、贡献注册表、权限检查、生命周期和诊断；差别只在能力授权（§5、§11）。任何内置能力在完成迁移后都不得绕过统一运行时；迁移期间的桥接也必须最终注册进同一运行时，不得并行保留原执行路径。
 
 ### 2.2 依赖方向（唯一硬约束）
 
@@ -285,7 +287,7 @@ Agent Loop 的语义依赖它们，迁出去会让「插件坏了连读文件都
 
 18 个扩展点。每个都对应一个内核接口、一个注册表，前 14 个各有演练。后 4 个是宿主面能力——它们在现有 Claude 兼容 schema 里已经存在，迁移时不能丢。
 
-super-agent 运行时（`docs/super-agent-plugin-design.md` §12.1）再增加 6 个：触发器、快速路径规则、路由策略、Worker 类型、监督规则、通知通道。它们走同一套 Manifest 与注册表，因此本文的 M0 地基必须先把注册表抽象做对，否则后面还要返工。
+super-agent 运行时（`docs/super-agent-plugin-design.md` §12.1）后续可增加 6 个：触发器、快速路径规则、路由策略、Worker 类型、监督规则、通知通道。它们应复用同一 Manifest/Host/注册表的扩展机制，因此本轮只需保证通用注册表抽象可扩展；这些 contribution 的 Super-Agent 专属运行语义与调用点不属于 `plugin-first-implementation-plan.md` 的验收范围，须等插件计划结项后再实现和验收。
 
 | #   | 扩展点       | 内核接口                                                | 现状                                    | 目标                     | 演练  |
 | --- | ------------ | ------------------------------------------------------- | --------------------------------------- | ------------------------ | ----- |
@@ -1119,7 +1121,8 @@ type PluginError = Error & {
 
 具体做法：
 
-- 工具贡献在 manifest 里必须能给出 `description` 与 `parameters`（JSON Schema），否则视为 eager。
+- 工具贡献在 manifest 里必须能给出 `description` 与 `parameters`（JSON Schema），否则**贡献声明**视为 eager，须在发现期给出诊断；宿主不得为补 schema 而违反模块 lazy 边界。
+- 有静态 schema 的工具可在发现期列出名称、描述和参数，不代表已加载可执行代码；带 `entry` 的模块仍须等所属插件的 `activationEvents` 命中后才导入，且只加载一次。缺失 schema 的代码贡献不能进入模型工具块，需等激活注册完整定义后可见。
 - 内置插件允许在构建期生成 manifest（`script/gen-plugin-manifest.ts` 从 TS 定义抽取工具 schema），避免手写两份。
 - 第三方插件如果无法内联 schema，则标记 eager，并在诊断里提示「该插件会拖慢启动」。
 
@@ -1154,7 +1157,7 @@ type PluginError = Error & {
 - 缓存损坏或版本不匹配时静默重建，不报错。
 - 首次启动（无缓存）允许慢一次；之后 `discover` 目标是 < 30ms。
 
-`shadow` 模式下新旧索引都建，但缓存只写 v2 的，避免两套格式互相覆盖。
+所有来源归一到同一索引模型；缓存键使用归一后的插件身份与声明摘要，适配器来源只用于诊断，不形成并行索引/运行时。
 
 ### 6.6 可观测性
 
@@ -1177,11 +1180,13 @@ type PluginError = Error & {
 
 ---
 
-## 7. Manifest（v2）
+## 7. NovaWay Plugin Manifest
+
+NovaWay Plugin Manifest 是唯一原生插件格式。当前实现的 schema/API 版本为 `apiVersion: 2`；文档、产品界面与作者入口称其为 NovaWay Plugin Manifest，不称“v2 插件格式”。Claude 插件不是第二种 NovaWay 原生格式，而是由兼容适配器导入并归一到本 Manifest。旧 NovaWay `config.plugin`、Extension、TUI Plugin 仅作为开发期输入桥接，在对应能力切换到统一 Host 后删除，不提供平行运行时或长期兼容承诺。
 
 ### 7.1 文件与发现
 
-文件名顺序：`.claude-plugin/plugin.json` → `plugin.json` → `extension.json` → `manifest.json`。
+新建 NovaWay 插件只使用 `plugin.json`。Claude 来源可从 `.claude-plugin/plugin.json` 读取并由专用适配器归一；`extension.json` 等旧 NovaWay 文件名仅在对应过渡桥接仍未退役时识别。
 
 目录顺序（低 → 高）：
 
@@ -1195,23 +1200,23 @@ type PluginError = Error & {
 
 ### 7.2 字段
 
-| 字段               | 必填               | 说明                                                                                 |
-| ------------------ | ------------------ | ------------------------------------------------------------------------------------ |
-| `name`             | 是                 | 插件 id，小写字母/数字/`-`/`_`                                                       |
-| `version`          | 否                 | semver                                                                               |
-| `apiVersion`       | 是（旧插件缺省 1） | 宿主 API 版本                                                                        |
-| `engines.novaway`  | 否                 | 宿主版本范围                                                                         |
-| `kind`             | 否                 | `declarative` / `code` / `mixed`                                                     |
-| `main`             | 代码型必填         | 入口模块，默认导出 `activate`                                                        |
-| `activationEvents` | 否                 | 惰性激活事件                                                                         |
-| `dependencies`     | 否                 | 插件 id → 版本范围；硬依赖，拓扑激活（§4.9）                                         |
-| `capabilities`     | 否                 | 权限声明                                                                             |
-| `contributes`      | 是                 | 贡献点                                                                               |
-| `priority`         | 否                 | 覆盖优先级，默认 0                                                                   |
-| `overrides`        | 否                 | 显式覆盖：`builtin.knowledge`（全部）或 `builtin.knowledge:knowledge_search`（单项） |
-| `categories`       | 否                 | 市场分类标签                                                                         |
-| `license`          | 否                 | `spdx` 表达式；市场分发必填                                                          |
-| `legacy`           | 否                 | 加载器写入，作者不写                                                                 |
+| 字段               | 必填       | 说明                                                                                 |
+| ------------------ | ---------- | ------------------------------------------------------------------------------------ |
+| `name`             | 是         | 插件 id，小写字母/数字/`-`/`_`                                                       |
+| `version`          | 否         | semver                                                                               |
+| `apiVersion`       | 是         | 宿主 API 版本；当前唯一支持的 schema/API 版本为 `2`                                  |
+| `engines.novaway`  | 否         | 宿主版本范围                                                                         |
+| `kind`             | 否         | `declarative` / `code` / `mixed`                                                     |
+| `main`             | 代码型必填 | 入口模块，默认导出 `activate`                                                        |
+| `activationEvents` | 否         | 惰性激活事件                                                                         |
+| `dependencies`     | 否         | 插件 id → 版本范围；硬依赖，拓扑激活（§4.9）                                         |
+| `capabilities`     | 否         | 权限声明                                                                             |
+| `contributes`      | 是         | 贡献点                                                                               |
+| `priority`         | 否         | 覆盖优先级，默认 0                                                                   |
+| `overrides`        | 否         | 显式覆盖：`builtin.knowledge`（全部）或 `builtin.knowledge:knowledge_search`（单项） |
+| `categories`       | 否         | 市场分类标签                                                                         |
+| `license`          | 否         | `spdx` 表达式；市场分发必填                                                          |
+| `legacy`           | 否         | 加载器写入，作者不写                                                                 |
 
 ### 7.3 市场与发布（安装到运行的最后一公里）
 
@@ -1331,6 +1336,8 @@ my-plugin/
 
 ### 8.2 转成第一方插件的清单
 
+下表是目标拆分地图，不代表当前已完成统一运行时接入。状态需以代码与验收证据维护；“已搬到插件目录”不等于“已由 PluginHost 激活、停用并完整撤销贡献”。在所有能力接入同一 Host 前，“万物皆插件”仍未端到端完成。
+
 | 插件 id                      | 现有文件                                                                                                                          | 需要的 Kernel API                            | 风险                      | 里程碑 |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------- | ------ |
 | `builtin.office`             | `tool/office-doc.ts`、`office-pptx.ts`、`office-setup.ts`、`office/*`、`skill/prompt/office-*`、`agent.ts` 里的 9 个 office Agent | tools、agents、skills、files、storage        | 中：提示词与技能耦合      | M2     |
@@ -1349,13 +1356,13 @@ my-plugin/
 | `builtin.publish`            | `desktop/src/main/platform/**`、`app/src/pages/pulse/**`                                                                          | publish、surfaces、storage、secrets          | 高：Electron 与渲染层双端 | M4     |
 | `builtin.ui`（或各插件自带） | `layout.tsx` 的 railItems、`settings-runtime.tsx` 的分节、`file-tabs.tsx` 的预览分发                                              | surfaces、previewers                         | 中                        | M4     |
 
-迁移原则：
+实施原则：
 
-1. **代码先搬家，不改逻辑。** 先让行为一致地跑在插件容器里，再优化。
-2. **一个能力一个里程碑，不要一次性全搬。** 每个插件独立开关，出问题只回退一个。
-3. **提示词是契约。** 迁移时工具名、技能名、Agent 名保持不变（`global: true`），否则模型行为会变。
-4. **跨插件依赖显式化。** 例如 `builtin.office` 依赖 `builtin.office-engines`，用 manifest `dependencies` 声明。
-5. **第一方插件是独立的 workspace 包。** 目录 `packages/plugins/<id>/`，各自 `package.json`，只依赖 `@novaway/plugin-api` 和自己的 npm 依赖；`packages/novaway` 只保留宿主与构建期生成的 manifest。禁止把插件源码放回 `packages/novaway/src`（§0.4 最后一条）。
+1. **代码先接入统一运行时，再按边界搬包。** 包目录拆分不能替代通过 PluginHost 激活、注册和停用。
+2. **按风险分批切换调用点。** 每批都要有可复现的当前 `main` 行为基线和针对性回归；不以旧运行时作为长期回退。
+3. **提示词是契约。** 工具名、技能名、Agent 名通过显式贡献契约保持稳定；确需变化时同步更新兼容测试。
+4. **跨插件依赖显式化。** 例如 `builtin.office` 依赖 `builtin.office-engines`，用 Manifest `dependencies` 声明。
+5. **第一方插件是独立的 workspace 包。** 目标目录 `packages/plugins/<id>/`，各自 `package.json`；宿主只保留稳定内核和 PluginHost。拆包顺序服从可测试的运行时边界，不为目录整洁提前制造依赖层。
 
 ### 8.3 拆分顺序
 
@@ -1585,17 +1592,17 @@ discovered ──parse──► invalid
 
 ### 10.6 默认状态、安全模式与紧急开关
 
-这一节回答「升级之后用户会看到什么」。改默认值比改代码更容易造成事故。
+这一节定义插件默认启停与故障处理；项目尚无旧版本用户迁移场景，新安装与开发环境统一遵循同一默认策略。
 
-| 场景                  | 行为                                                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 从旧版本升级          | 全部内置插件 `enabled: true`；旧 `config.plugin` / Extension 自动转为安装实例并保持原启用状态                             |
-| 全新安装              | 同上；`builtin.office`、`builtin.providers` 默认启用，`builtin.browser` / `builtin.computer` 跟随原 `capabilities` 默认值 |
-| 首次启动              | 后台建索引缓存；UI 不阻塞等待                                                                                             |
-| 插件反复失败          | 3 次激活失败后自动 `disabled`，诊断页与通知各提示一次，不循环重试                                                         |
-| `NOVAWAY_SAFE_MODE=1` | 跳过所有非内置插件；内置插件只加载内核必需（`builtin.providers`），其余 `disabled`                                        |
-| `NOVAWAY_PLUGINS=off` | 只有内核工具与基础 UI；用于确认「卡顿是不是插件造成的」                                                                   |
-| 升级后大面积报错      | 设置页一键「回到安全模式」，写入 `plugins.safeMode = true`                                                                |
+| 场景                      | 行为                                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------- |
+| 当前开发环境接入统一 Host | 内置插件按显式默认值启用；尚未迁出的 NovaWay 输入由对应临时 bridge 保持可测试行为              |
+| 全新开发配置              | 与内置默认策略一致；所有插件均经统一 Host 决定启停，不维护旧 `capabilities.*` 与插件状态双真相 |
+| 首次启动                  | 后台建索引缓存；UI 不阻塞等待                                                                  |
+| 插件反复失败              | 3 次激活失败后自动 `disabled`，诊断页与通知各提示一次，不循环重试                              |
+| `NOVAWAY_SAFE_MODE=1`     | 跳过所有非内置插件；内置插件只加载内核必需（`builtin.providers`），其余 `disabled`             |
+| `NOVAWAY_PLUGINS=off`     | 只有内核工具与基础 UI；用于确认「卡顿是不是插件造成的」                                        |
+| 升级后大面积报错          | 设置页一键「回到安全模式」，写入 `plugins.safeMode = true`                                     |
 
 安全模式必须能在**不修改任何文件**的情况下启动，否则用户没法自救。
 
@@ -1684,7 +1691,8 @@ L2（第三方 UI）的协议见 §9.8。
 ```sql
 CREATE TABLE plugin_state (
   plugin_id      TEXT NOT NULL,
-  scope          TEXT NOT NULL,          -- builtin / global / project / session
+  scope          TEXT NOT NULL,          -- builtin / global / project（session 仅内存）
+  instance_key   TEXT NOT NULL DEFAULT '', -- project: canonical directory；global/builtin: 空串
   source         TEXT NOT NULL,
   root           TEXT,
   version        TEXT,
@@ -1699,7 +1707,7 @@ CREATE TABLE plugin_state (
   activated_at   INTEGER,
   installed_at   INTEGER,
   updated_at     INTEGER NOT NULL,
-  PRIMARY KEY (plugin_id, scope)
+  PRIMARY KEY (plugin_id, scope, instance_key)
 );
 CREATE INDEX idx_plugin_state_status ON plugin_state(status);
 
@@ -1721,9 +1729,9 @@ CREATE TABLE plugin_migration (
 );
 ```
 
-主键从 `plugin_id` 变为 `(plugin_id, scope)`，因为同一插件可以同时以 global 和 project 两个实例存在（§10.5），它们的启停、错误、权限互相独立。所有查询按 `(scope, project?)` 过滤；`session` scope 的行不落库，只在内存。
+状态主键为 `(plugin_id, scope, instance_key)`。同一插件的 global/project 实例及不同目录中的 project 实例，启停、错误与权限必须互不覆盖；project 的 `instance_key` 使用 InstanceState 的 canonical directory，global/builtin 使用空串。生产查询只读当前目录的 project 行和全局行；`session` scope 的状态只在 Host 内存，不落库。
 
-迁移文件：`packages/novaway/migration/20261105000001_plugin_host/migration.sql`。
+基础迁移：`packages/novaway/migration/20261105000001_plugin_host/migration.sql`；目录隔离前向迁移：`packages/novaway/migration/20261108000000_plugin_instance_identity/migration.sql`。旧版缺少目录归属的 project 行保留为空 `instance_key`，不自动套用到任意项目；对应插件诊断给出 `state_instance_unassigned`，要求在当前项目重新确认启停。迁移测试必须证明旧行保留、不同目录独立更新、全量迁移可重复执行。
 
 ### 12.2 插件迁移
 
@@ -1748,96 +1756,62 @@ CREATE TABLE plugin_migration (
 
 - `plugins.config.<id>` 由声明式设置写入，插件通过 `ctx.config` 读取。
 - 密钥类字段写入 secrets 存储，不落 `novaway.json`。
-- 旧 `config.plugin` 继续作为安装来源。
+- `config.plugin` 只作为对应能力接入统一 Host 前的开发期 bridge；新的插件安装与配置以 NovaWay Plugin Manifest/Host 为唯一入口。
 
 ---
 
 ## 13. 兼容与迁移
 
-### 13.1 适配器
+### 13.1 兼容边界与适配器
 
-| 旧输入                                        | 适配器                 | 行为                                                                |
-| --------------------------------------------- | ---------------------- | ------------------------------------------------------------------- |
-| `config.plugin` spec                          | `legacy-config-plugin` | 解析为安装实例；模块返回的 `Hooks` → 拦截器                         |
-| 旧 Extension Manifest                         | `legacy-extension`     | 补 `apiVersion=1`、`kind`，字段别名映射                             |
-| 旧 `Hooks`（含 `tool` / `auth` / `provider`） | `legacy-hooks`         | `tool` → 工具贡献；`auth`/`provider` → Provider 贡献；其余 → 拦截器 |
-| 旧 TUI Plugin                                 | `legacy-tui`           | `ui.tui` 贡献                                                       |
-| `hooks.json`                                  | `lifecycle-hooks`      | 继续由 `Hook.Service` 执行                                          |
-| `extensions.json` 的 `disabled`               | 启动迁移               | 导入 `plugin_state.enabled`                                         |
+唯一长期兼容目标是 Claude 插件输入；旧 NovaWay 机制仅是把现有代码接入统一运行时的临时桥接，不得形成第二条执行路径。
 
-### 13.2 三种运行模式
+| 输入来源                     | 处理方式                                                                                           | 生命周期                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------ |
+| NovaWay Plugin Manifest      | 原生解析、校验并交给 PluginHost                                                                    | 长期唯一原生格式         |
+| Claude Plugin / Marketplace  | Claude 适配器将可映射的声明与目录约定归一为 NovaWay Manifest；不支持的语义给出明确诊断，不静默丢弃 | 保留兼容边界             |
+| `config.plugin` / 旧 `Hooks` | 临时 adapter 将当前内置实现或开发期配置包装成统一插件实例与贡献；切换完对应调用点即删除            | 过渡桥接，无长期兼容承诺 |
+| 旧 Extension / TUI Plugin    | 只为尚未迁出的现有能力提供短期发现/加载桥接，最终入口改为 NovaWay Manifest                         | 逐能力删除               |
+| `hooks.json`                 | 若仍需要，转换为 Manifest 声明的 lifecycle hook；不得绕过 PluginHost 独立执行                      | 过渡桥接                 |
 
-```jsonc
-{ "plugins": { "mode": "legacy" | "shadow" | "v2" } }
-```
+“归一”必须满足：同一最终贡献类型、命名/冲突/排序、权限判定、激活/停用与诊断语义；不能映射的源语义必须报 issue，不得假称行为等价。
 
-| 模式     | 行为                                 | 用途           |
-| -------- | ------------------------------------ | -------------- |
-| `legacy` | 旧机制照常，新 Host 只做旁路发现     | 默认值，灰度期 |
-| `shadow` | 新旧同时加载，新旧结果对比，以旧为准 | 验证迁移正确性 |
-| `v2`     | 只走 Host                            | 迁移完成后     |
+### 13.2 唯一运行路径
 
-`shadow` 模式的价值：迁移 `builtin.providers` 时，可以同时跑旧分支与新适配器，对比模型列表与请求参数，避免静默行为差异。
+不提供 `legacy` / `shadow` / `v2` 模式。所有声明（含 Claude 适配后的输入及过渡期 NovaWay 内置能力）最终经同一个 PluginHost、贡献注册表、权限检查与生命周期运行时。适配器只转换输入，不自行加载、注册或调用能力。
 
-### 13.3 弃用时间表
+改造期间用自动化测试记录当前 `main` 的可复现行为基线，并对每一类接入能力做新旧结果对比；该基线是开发验证材料，不是旧运行时或发布版回滚承诺。兼容行为只在明确的 Claude 输入契约与现有产品测试覆盖范围内保留。
 
-| 版本 | 动作                                                   |
-| ---- | ------------------------------------------------------ |
-| 1.16 | Host 上线，`legacy` 默认；`/extension` 标记 deprecated |
-| 1.17 | `shadow` 默认；设置页只展示 Host 数据                  |
-| 1.18 | `v2` 默认；删除 `Extension.Service` 写接口             |
-| 1.19 | 删除旧 `/extension` 写接口；旧 Manifest 只读兼容       |
-| 2.0  | 要求显式 `apiVersion`；移除旧 `Hooks` 直接返回         |
+### 13.3 过渡桥接的删除条件
 
-### 13.4 迁移风险
+每个旧 NovaWay 入口都要登记其对应统一贡献点、调用点和删除测试。只有当对应能力已由统一 Host 激活、停用会完整撤销其工具/UI/提示词/资源，且针对该能力的回归测试通过后，才删除桥接；不得以“以后再迁移”为由保留平行执行路径。
 
-| 风险                   | 对策                                                             |
-| ---------------------- | ---------------------------------------------------------------- |
-| 工具改名破坏提示词     | 内置插件 `global: true` 保留原名；迁移期生成别名表；诊断 warning |
-| Hook 顺序变化          | 默认保持现有加载顺序；`priority` 仅在显式设置时生效              |
-| 启停后缓存不一致       | 统一 `Generation.bump()`；所有缓存监听同一代数                   |
-| 旧插件 import 内部模块 | 兼容层保留旧导出路径；诊断给出明确错误                           |
-| Bun/Node 差异          | 插件 API 不依赖 Bun-only；CI 双运行时 smoke test                 |
+不设与产品版本号绑定的弃用日程。项目发布并产生外部兼容承诺后，若确有需要，再单独评审兼容政策。
 
-### 13.5 升级、回滚与灰度
+### 13.4 安全与回归要求
 
-模式开关只解决「新旧并存」，不解决「怎么把用户从 A 带到 B」。补充发布纪律：
+| 风险                   | 要求                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| 工具名或提示词行为变化 | 通过当前 `main` 的基线测试与显式命名契约验证；内置名称是否全局保留按贡献契约决定 |
+| Hook 顺序变化          | 统一由贡献排序键决定并有确定性测试                                               |
+| 启停后缓存或资源残留   | 统一 generation、逆序释放与泄漏测试                                              |
+| Claude 语义无法映射    | 诊断指出不支持字段/行为；不得静默忽略                                            |
+| Bun/Node 差异          | Plugin API 不依赖 Bun-only；CI 双运行时 smoke test                               |
 
-| 阶段   | 版本  | 默认模式 | 回滚动作                                        |
-| ------ | ----- | -------- | ----------------------------------------------- |
-| 灰度 1 | 1.16  | `legacy` | 关闭 `plugins.enabled`，无数据迁移              |
-| 灰度 2 | 1.17  | `shadow` | 同上；对比日志保留最近 7 天                     |
-| 切换   | 1.18  | `v2`     | 单插件 `enabled: false` 或全局 `mode: "legacy"` |
-| 收口   | 1.19+ | `v2`     | 仅支持单插件停用                                |
-
-**回滚必须是无损的**：
-
-- 迁移只**新增** `plugin_state` / `plugin_kv`，不改旧表。
-- 旧 `config.plugin`、`extensions.json`、`hooks.json` 原样保留到 1.19；Host 只读不写。
-- 降级安装旧版本时，新表被忽略，旧配置仍然可用。
-- 每个里程碑给一次 `mode: "legacy"` 的回归跑（B3 的一部分），保证回滚路径全年可用。
-
-**灰度判据**（每个内置插件独立看）：
-
-| 指标                   | 通过线           |
-| ---------------------- | ---------------- |
-| 激活失败率             | < 0.1%           |
-| 注入前后工具块差异     | 仅预期的名称变化 |
-| 会话首 token 延迟变化  | < +10%           |
-| 用户主动停用后重新启用 | 无报错           |
+安全、权限、边界、故障隔离、全量 lint/typecheck/test 与 app 构建门禁不因“尚未发布”而放宽。
 
 ---
 
 ## 14. 里程碑（以演练通过为准）
 
-假设 2 名全栈工程师 + 1 名兼职评审。每个里程碑结束都必须通过 B3 回归门禁。
+项目尚未发布，不绑定旧的目标版本号或灰度日历。下列 M0–M5 表示能力依赖顺序；每个里程碑结束都必须通过 B3 回归门禁，计划工期仅作估算，不构成发布承诺。
 
 ### M0｜内核与运行时地基（2 周）
 
 产出：
 
-- `plugin/manifest.ts`：v2 Schema + 旧字段归一化
-- `plugin/host.ts`：发现、校验、状态机、激活/停用
+- `plugin/manifest.ts`：NovaWay Plugin Manifest Schema（当前 `apiVersion: 2`）+ Claude 兼容归一化
+- `plugin/host.ts`：发现、校验、状态机、激活/停用；所有插件输入只经此 Host 进入运行时
 - `plugin/contributions/*`：tool / agent / skill / command 四个注册表
 - `plugin/runtime/`：拦截器隔离、超时、熔断
 - `plugin/state.sql.ts` + 迁移
@@ -1846,7 +1820,7 @@ CREATE TABLE plugin_migration (
 
 通过条件：
 
-- 旧 npm 插件、旧 Extension、TUI 插件都出现在 `/plugin` 列表
+- NovaWay Manifest 与 Claude 兼容适配后的插件都由 `/plugin` 列出；开发期旧 NovaWay 输入仅作为临时桥接并标记来源
 - 抛错/超时的拦截器不影响对话
 - 现有测试全绿
 
@@ -1856,11 +1830,11 @@ CREATE TABLE plugin_migration (
 
 产出：
 
-- `tool/registry.ts` 改为从注册表取工具（13 个内核工具仍内联，见 §8.1.1）
+- `tool/registry.ts` 改为从注册表取工具（仅满足 §8.1.1 判据的核心工具可留在内核）
 - `agent/agent.ts` 改为从注册表取 Agent
 - `skill/index.ts`、`command/index.ts` 改为贡献目录
 - `config/config.ts` 接入 Host
-- `plugin_install` 改为调用 Host
+- 插件安装/启停入口直接调用 Host，不新增旧格式专属运行路径
 
 通过演练：**D1、D2**。B1 边界测试扩展到 `tool/registry.ts`、`agent/agent.ts`。
 
@@ -1871,7 +1845,7 @@ CREATE TABLE plugin_migration (
 - `ProviderRegistry` + `ProviderAdapter` 契约
 - `provider.ts` 收缩；`builtin.providers` 迁移 6 个认证插件与 20+ SDK 适配器
 - `OfficeEngineRegistry`；9 个引擎改为贡献
-- `shadow` 模式：新旧 Provider 列表与请求参数对比
+- 接入前记录当前 `main` 的 Provider 列表与请求参数基线，并对统一运行时做差异回归
 
 通过演练：**D3**；**D4 的后端一半**（格式识别、读写 API、CLI）。
 
@@ -1909,7 +1883,7 @@ CREATE TABLE plugin_migration (
 - `builtin.browser`、`builtin.computer`、`builtin.media`、`builtin.integrations`
 - `builtin.team`、`builtin.workflow`
 - 全部 rail 图标、设置分组由贡献提供
-- `v2` 模式成为默认；`legacy` 仅保留一个版本
+- 删除全部已完成迁移的 NovaWay 旧入口与临时桥接；Claude 兼容适配器继续归一到 NovaWay Manifest
 - **边界判定改为目录约束**：`src/kernel/**`、`src/plugin-api/**`、`src/shared/**` 之外不得被内核 import；`kernel.manifest.json` 降级为目录列表的说明文件（Q16）
 - 第一方插件全部迁到 `packages/plugins/<id>/`，`packages/novaway/src` 里不再残留能力实现（Q17）
 
@@ -1933,13 +1907,13 @@ CREATE TABLE plugin_migration (
 
 ### 14.1 每个里程碑的完成定义（DoD）
 
-里程碑「完成」不看代码写完，看下面五条全绿。少一条都算没完成。
+里程碑「完成」不看代码写完，看适用于该里程碑的阶段门禁是否全部满足；未适用的后续阶段能力不得伪装成已通过。`known-red` 只可描述已确认的环境/平台限制或明确登记的未完成演练，必须给出责任里程碑与复核条件；不能把未实现目标包装为通过。
 
-1. **演练**：本节表格里该里程碑对应的 D 项在 CI 里通过（§15.1）。
+1. **演练**：本节表格里该里程碑对应的 D 项在 CI 里通过（§15.1）。D1–D9 不是 M0 地基验收项；未实现的演练明确记录为后续未完成能力，不得计作通过，也不得据 M0 地基宣称整体验收完成。
 2. **边界**：`bun test test/architecture/kernel-boundary.test.ts` 通过，且该里程碑新增的内核文件已登记。
-3. **回归**：`bun lint && bun typecheck && bun test packages/novaway` 全绿；`packages/app` 构建通过。
-4. **可回滚**：`plugins.mode = legacy` 下行为与上一个发布版本一致（快照对比）。
-5. **文档**：`docs/plugin-authoring.md` 与 manifest schema 同步更新；`/plugin/diagnostics` 能列出本里程碑新增的贡献类型。
+3. **回归**：仓库根目录运行 `bun lint && bun typecheck`，然后在 `packages/novaway` 运行 `bun run test`，在 `packages/app` 运行 `bun run build`，全部通过。禁止从根目录直接运行测试。M0 仍受此通用门禁约束；专项 `verify:plugins` 不能替代全仓回归。
+4. **可验证与可恢复**：切换调用点前记录当前 `main` 的可复现行为基线，按能力做差异测试；基线更新必须对应经评审的预期行为变更，并保留变更原因与旧/新结果，不能为让测试通过而静默改写。上线代码必须支持通过插件停用/重新启用恢复能力状态，不要求保留第二套 legacy 运行时；不可逆数据变更需提供向前修复或备份方案。
+5. **文档**：`docs/plugin-authoring.md` 与 manifest schema 同步更新；`/plugin/diagnostics` 能列出本里程碑新增的注册型贡献条目。插件级配置（当前 `lifecycleHooks`、`storage`）以 manifest issue 诊断，不伪装为注册表条目；Super-Agent 的 `scheduler`、`event-source` 是运行时注册 kind，不属于 M0 静态 manifest 声明。
 
 ### 14.2 验收总命令
 
@@ -1948,31 +1922,35 @@ bun run verify:plugins
 # = kernel-boundary + drill:D1..D9 + contracts + perf + leak
 
 bun run verify:all
-# = verify:plugins + verify:superagent（S1–S8、G1–G3）
+# 目标聚合入口 = verify:plugins + verify:superagent（S1–S10、G1–G3）
 ```
 
-`verify:plugins` 是唯一的验收入口。任何人问「现在算不算万物皆插件」，跑这一条，不看文档、不看代码结构。
+当前可执行入口是在 `packages/novaway` 运行 `bun run verify:plugins`；根目录尚无聚合脚本，`verify:all` 与 `verify:superagent` 是待实现目标，不得当作已有验收证据。
+
+`verify:plugins` 是插件专项门禁入口，验证插件边界、发现/状态、存储/API 契约、资源泄漏与性能；它不替代 §14.1 的全仓回归、当前 `main` 行为基线或 D1–D9 能力演练。任何未实现的演练都应明确列为未完成，不计通过；不能仅凭专项命令宣称「万物皆插件」整体验收完成。
 
 ### 14.3 M0 拆解（可直接开工）
 
-M0 是唯一「零用户可见变化但决定后面全部成败」的阶段。按下面的顺序做，每一步都有独立可验证的产物：
+M0 是统一插件运行时的地基阶段，不是最终目标。项目尚未发布，因此无需维持旧 NovaWay 原生格式的灰度期；可先保留适配器帮助现有能力接入，但所有新能力必须直接使用 NovaWay Plugin Manifest，每完成一类切换就删除该类旧桥接。按下面顺序完成地基，每一步都有独立可验证的产物：
 
-| #   | 任务                                                                    | 完成判定                                                                        |
-| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| 1   | `packages/plugin-api`：`definePlugin` / `defineTool` / 全部贡献类型     | 一个纯 JS fixture 插件能通过 `tsc --noEmit`；包内无运行时 import                |
-| 2   | `kernel.manifest.json` v0 + `script/scan-boundary.ts`                   | 对现有代码跑一遍，输出当前违规清单（基线），写入文档附录                        |
-| 3   | `plugin/manifest.ts`：v2 Schema + 旧字段归一化                          | 现存 `plugin.json` / Claude manifest / `config.plugin` 样本全部能解析成同一结构 |
-| 4   | `plugin/host.ts`：发现 → 校验 → 状态机（不激活）                        | `/plugin` 能看到三套旧机制的实例，状态正确                                      |
-| 5   | `plugin/contributions/*`：四个注册表 + `orderContributions()`           | 同名冲突、覆盖、排序的单测全绿                                                  |
-| 6   | `plugin/runtime/hooks.ts`：隔离 / 超时 / 熔断 / 逆序释放                | 故障注入 8 项（§15.5）全部按预期降级                                            |
-| 7   | `plugin_state` / `plugin_kv` / `plugin_migration` + 存储 + 配置命名空间 | 迁移可在空库与旧库上重复执行；插件 KV 越权写入被拒                              |
-| 8   | `KernelApi` / `PluginContext` 构造器 + 能力检查                         | 同一个 fixture 在两种 ctx 下，受限 API 抛 `capability_denied`                   |
-| 9   | `/plugin`、`/plugin/contributions`、`/plugin/diagnostics` + SSE         | 停用插件后 SSE 推 `plugin.changed`，前端无需刷新可重建列表                      |
-| 10  | 三个兼容适配器（只读旁路）                                              | 旧插件、旧 Extension、TUI 插件的贡献都能在 `/plugin/contributions` 看到         |
-| 11  | 索引缓存 + 启动性能基线                                                 | 20 个插件 `discover` < 30ms（有缓存）、< 120ms（无缓存）                        |
-| 12  | `script/verify-plugins.ts` 串起 B1 + 故障注入 + 泄漏检测                | `bun run verify:plugins` 在 M0 结束时全绿（D1–D9 跳过并标记 known-red）         |
+| #   | 任务                                                                    | 完成判定                                                                      |
+| --- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1   | `packages/plugin-api`：`definePlugin` / `defineTool` / 全部贡献类型     | 一个纯 JS fixture 插件能通过 `bun typecheck`（tsgo）；包内无运行时 import     |
+| 2   | `kernel.manifest.json` v0 + `script/scan-boundary.ts`                   | 对现有代码跑一遍，输出当前违规清单（基线），写入文档附录                      |
+| 3   | `plugin/manifest.ts`：NovaWay Plugin Manifest Schema + Claude 归一化    | 原生与支持的 Claude 声明归一为同一结构；不支持语义有明确 issue                |
+| 4   | `plugin/host.ts`：发现 → 校验 → 状态机                                  | NovaWay 插件与 Claude 适配插件进入同一个 Host，激活、停用、诊断状态正确       |
+| 5   | `plugin/contributions/*`：四个注册表 + `orderContributions()`           | 同名冲突、覆盖、排序的单测全绿                                                |
+| 6   | `plugin/runtime/hooks.ts`：隔离 / 超时 / 熔断 / 逆序释放                | 故障注入 8 项（§15.5）全部按预期降级                                          |
+| 7   | `plugin_state` / `plugin_kv` / `plugin_migration` + 存储 + 配置命名空间 | 迁移可在空库与旧库上重复执行；插件 KV 越权写入被拒                            |
+| 8   | `KernelApi` / `PluginContext` 构造器 + 能力检查                         | 同一个 fixture 在两种 ctx 下，受限 API 抛 `capability_denied`                 |
+| 9   | `/plugin`、`/plugin/contributions`、`/plugin/diagnostics` + SSE         | 停用插件后 SSE 推 `plugin.changed`，前端无需刷新可重建列表                    |
+| 10  | Claude 兼容适配器 + 必要的开发期 NovaWay 桥接                           | Claude 声明进入统一 Host；旧 NovaWay 桥接逐调用点退役，不作为只读旁路长期存在 |
+| 11  | 索引缓存 + 启动性能基线                                                 | 20 个插件 `discover` < 30ms（有缓存）、< 120ms（无缓存）                      |
+| 12  | `script/verify-plugins.ts` 串起 B1 + 故障注入 + 泄漏检测                | 专项门禁通过；未实现的 D 演练单独列为未完成能力，不计为通过                   |
 
-M0 明确**不做**：不切换任何调用点、不改 `tool/registry.ts`、不动 UI、不迁移任何内置能力。M0 的唯一产物是「一个能装插件但还没人用它的宿主」——这样 M1 出问题时，回滚只需要一个开关。
+当前实现状态（2026-11-08）：已有静态 Host 发现/校验、四类注册表、拦截器、能力上下文、存储与查询 API；Host 尚无连接到产品调用点的激活/停用执行链。激活资源所有权组件正在补齐，独立组件测试通过不能视为 Host 生命周期已接通。M0 尚未完成，D1–D9 与 Super-Agent 演练尚未通过。
+
+M0 只建立统一运行时地基，不等同于整体验收完成；后续里程碑必须把能力调用点接入该运行时，并逐项移除旧 NovaWay 执行桥接。首个调用点切换前记录当前 `main` 的可复现行为基线，验证名称、输出、权限与失败语义；不要求不存在的发布版快照，也不保留 parallel legacy 回退路径。Claude 兼容适配器作为唯一明确的外部格式边界继续保留。
 
 ---
 
@@ -2115,35 +2093,35 @@ test/fixture/plugin-slow-hook/
 
 ### 16.1 新增
 
-| 文件                                                    | 作用                                           | 里程碑 |
-| ------------------------------------------------------- | ---------------------------------------------- | ------ |
-| `packages/novaway/kernel.manifest.json`                 | 内核 / 能力 / 共享文件清单                     | M0     |
-| `src/plugin/manifest.ts`                                | v2 Manifest Schema 与归一化                    | M0     |
-| `src/plugin/host.ts`                                    | PluginHost 服务                                | M0     |
-| `src/plugin/contributions/*.ts`                         | 各注册表实现                                   | M0–M4  |
-| `src/plugin/runtime/hooks.ts`                           | 拦截器运行时（隔离/超时/熔断）                 | M0     |
-| `src/plugin/runtime/disposable.ts`                      | 逆序释放                                       | M0     |
-| `src/plugin/runtime/context.ts`                         | KernelApi / PluginContext 构造与能力检查       | M0     |
-| `src/plugin/runtime/activation.ts`                      | activationEvents 惰性激活                      | M1     |
-| `src/plugin/runtime/transport.ts`                       | L1 子进程接口（预留）                          | M5     |
-| `src/plugin/storage.ts`                                 | KV、迁移执行                                   | M0     |
-| `src/plugin/state.sql.ts`                               | Drizzle 表                                     | M0     |
-| `src/plugin/diagnostics.ts`                             | 诊断聚合与事件                                 | M0     |
-| `src/plugin/compat/*.ts`                                | 旧机制适配器                                   | M1     |
-| `packages/plugins/<id>/`                                | 第一方插件（独立 workspace 包，见 Q17）        | M2–M5  |
-| `packages/plugins/<id>/plugin.json`                     | 构建期由 `script/gen-plugin-manifest.ts` 生成  | M2–M5  |
-| `packages/plugin-api/`                                  | 作者 API 与类型，无运行时依赖                  | M0     |
-| `script/verify-plugins.ts`                              | `bun run verify:plugins` 入口                  | M0     |
-| `packages/plugin-api/src/index.ts`                      | 作者 API（`definePlugin`、`defineTool`、类型） | M0     |
-| `script/gen-plugin-manifest.ts`                         | 构建期抽取工具 schema                          | M1     |
-| `src/server/routes/instance/httpapi/groups/plugin.ts`   | `/plugin` API                                  | M0     |
-| `src/server/routes/instance/httpapi/handlers/plugin.ts` | handler                                        | M0     |
-| `migration/20261105000001_plugin_host/migration.sql`    | 三张表                                         | M0     |
-| `app/src/plugin/contributions.tsx`                      | 前端贡献拉取与缓存                             | M4     |
-| `app/src/plugin/surface-renderer.tsx`                   | Slot 通用渲染                                  | M4     |
-| `app/src/components/settings-plugins.tsx`               | 插件设置页                                     | M4     |
-| `test/architecture/kernel-boundary.test.ts`             | B1                                             | M0     |
-| `test/architecture/drill-*.test.ts`                     | D1–D9                                          | M1–M5  |
+| 文件                                                    | 作用                                            | 里程碑 |
+| ------------------------------------------------------- | ----------------------------------------------- | ------ |
+| `packages/novaway/kernel.manifest.json`                 | 内核 / 能力 / 共享文件清单                      | M0     |
+| `src/plugin/manifest.ts`                                | NovaWay Plugin Manifest Schema 与 Claude 归一化 | M0     |
+| `src/plugin/host.ts`                                    | PluginHost 服务                                 | M0     |
+| `src/plugin/contributions/*.ts`                         | 各注册表实现                                    | M0–M4  |
+| `src/plugin/runtime/hooks.ts`                           | 拦截器运行时（隔离/超时/熔断）                  | M0     |
+| `src/plugin/runtime/disposable.ts`                      | 逆序释放                                        | M0     |
+| `src/plugin/runtime/context.ts`                         | KernelApi / PluginContext 构造与能力检查        | M0     |
+| `src/plugin/runtime/activation.ts`                      | activationEvents 惰性激活                       | M1     |
+| `src/plugin/runtime/transport.ts`                       | L1 子进程接口（预留）                           | M5     |
+| `src/plugin/storage.ts`                                 | KV、迁移执行                                    | M0     |
+| `src/plugin/state.sql.ts`                               | Drizzle 表                                      | M0     |
+| `src/plugin/diagnostics.ts`                             | 诊断聚合与事件                                  | M0     |
+| `src/plugin/compat/*.ts`                                | 旧机制适配器                                    | M1     |
+| `packages/plugins/<id>/`                                | 第一方插件（独立 workspace 包，见 Q17）         | M2–M5  |
+| `packages/plugins/<id>/plugin.json`                     | 构建期由 `script/gen-plugin-manifest.ts` 生成   | M2–M5  |
+| `packages/plugin-api/`                                  | 作者 API 与类型，无运行时依赖                   | M0     |
+| `script/verify-plugins.ts`                              | `bun run verify:plugins` 入口                   | M0     |
+| `packages/plugin-api/src/index.ts`                      | 作者 API（`definePlugin`、`defineTool`、类型）  | M0     |
+| `script/gen-plugin-manifest.ts`                         | 构建期抽取工具 schema                           | M1     |
+| `src/server/routes/instance/httpapi/groups/plugin.ts`   | `/plugin` API                                   | M0     |
+| `src/server/routes/instance/httpapi/handlers/plugin.ts` | handler                                         | M0     |
+| `migration/20261105000001_plugin_host/migration.sql`    | 三张表                                          | M0     |
+| `app/src/plugin/contributions.tsx`                      | 前端贡献拉取与缓存                              | M4     |
+| `app/src/plugin/surface-renderer.tsx`                   | Slot 通用渲染                                   | M4     |
+| `app/src/components/settings-plugins.tsx`               | 插件设置页                                      | M4     |
+| `test/architecture/kernel-boundary.test.ts`             | B1                                              | M0     |
+| `test/architecture/drill-*.test.ts`                     | D1–D9                                           | M1–M5  |
 
 ### 16.2 修改（按里程碑）
 
@@ -2166,14 +2144,15 @@ test/fixture/plugin-slow-hook/
 
 ### 16.3 退役
 
-| 接口                                            | 时间 |
-| ----------------------------------------------- | ---- |
-| `Extension.Service` 写接口                      | 1.18 |
-| `/extension` 写接口                             | 1.19 |
-| `publish-capabilities.ts` 的 `MATRIX`           | M4   |
-| `provider.ts` 的厂商分支                        | M2   |
-| `office/engine/registry.ts` 的 `engineFor` 分支 | M2   |
-| `layout.tsx` 的 `railItems` 硬编码              | M4   |
+| 接口/分支                                       | 退役条件                                                        |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| `Extension.Service` 写接口                      | 对应能力已由 NovaWay Manifest + PluginHost 提供并通过回归后删除 |
+| `/extension` 写接口                             | 迁移到 `/plugin` 与贡献 API 后删除                              |
+| `config.plugin` / 旧 Hooks 执行入口             | 对应模块已经 Host 激活、停用和释放后删除                        |
+| `publish-capabilities.ts` 的 `MATRIX`           | M4，改为读取 PublishDriver 贡献                                 |
+| `provider.ts` 的厂商分支                        | M2，改为 Providers 贡献                                         |
+| `office/engine/registry.ts` 的 `engineFor` 分支 | M2，改为 OfficeEngine 注册表                                    |
+| `layout.tsx` 的 `railItems` 硬编码              | M4，改为基础宿主项 + Surface 贡献                               |
 
 ### 16.4 构建与打包
 
@@ -2201,53 +2180,55 @@ packages/plugins/office-engines/
 
 | #   | 风险                                  | 概率 | 影响 | 对策                                                               |
 | --- | ------------------------------------- | ---- | ---- | ------------------------------------------------------------------ |
-| R1  | 迁移内置能力导致行为回归              | 高   | 高   | 代码先原样搬家；`shadow` 模式对比；每个插件独立开关                |
-| R2  | 工具/Agent 改名破坏提示词             | 中   | 高   | 内置插件 `global: true`；别名表；回归测试用真实 transcript         |
+| R1  | 内置能力接入统一运行时导致行为回归    | 高   | 高   | 记录当前 main 的基线；差异测试；逐类切换并验证停用/恢复            |
+| R2  | 工具/Agent 改名破坏提示词             | 中   | 高   | 对提示词依赖名称建立显式稳定契约；回归测试用真实 transcript        |
 | R3  | 内核边界反复被打破                    | 高   | 中   | B1 静态测试进 CI；PR 模板提示                                      |
 | R4  | UI 贡献发现接口成为新瓶颈             | 中   | 中   | 一次拉取 + SSE 增量；本地缓存；接口 < 200ms                        |
 | R5  | 插件数量增长拖慢启动                  | 中   | 中   | 惰性激活；性能门禁；诊断显示每个插件的激活耗时                     |
 | R6  | 第一方与第三方 API 分叉               | 中   | 高   | 同一 Manifest/注册表；差异只在 capability；每季度审计              |
 | R7  | 团队/工作流插件需要过多内核能力       | 高   | 中   | 最后迁移；KernelApi 只增不改；对外仍是 Restricted                  |
-| R8  | 旧插件依赖内部模块                    | 中   | 中   | 兼容层保留导出；诊断给迁移建议                                     |
+| R8  | Claude 或过渡期插件依赖不支持语义     | 中   | 中   | Claude 适配器给出明确诊断；NovaWay 临时桥接随调用点迁移删除        |
 | R9  | Bun/Node 差异                         | 中   | 中   | 插件 API 不依赖 Bun-only；CI 双运行时                              |
-| R10 | 改动面过大导致合并冲突                | 高   | 中   | 按里程碑小步合并；注册表先行，调用点后改                           |
+| R10 | 改动面过大导致合并冲突                | 高   | 中   | 按可验证能力批次推进；共享调用点串行修改，批次完成后移除旧桥接     |
 | R11 | 插件工具缺 `safety` 导致并发/权限事故 | 中   | 高   | 保守缺省值 + conformance suite + 内置插件构建期抽取（§4.2、§15.6） |
 | R12 | 动态工具列表击穿 prompt 缓存          | 中   | 中   | 固定排序 + 快照 + 工具块文本快照测试（§4.2.1、§4.11）              |
-| R13 | 升级后大面积插件失效，用户无法自救    | 中   | 高   | 安全模式 + `NOVAWAY_PLUGINS=off` + 一键回退（§10.6、§13.5）        |
+| R13 | 插件加载失败导致能力不可用            | 中   | 高   | 安全模式 + `NOVAWAY_PLUGINS=off` + 诊断与逐插件停用（§10.6、§13）  |
 | R14 | 覆盖机制被滥用导致内置能力被静默替换  | 低   | 高   | 覆盖需显式声明 + 安装确认 + 诊断可见 + 内核工具不可覆盖（§4.9）    |
 
 ---
 
 ## 18. 决策记录
 
-| #   | 问题                         | 决定                                                            |
-| --- | ---------------------------- | --------------------------------------------------------------- |
-| Q1  | 工具命名分隔符               | `_`（与现有 Extension 前缀一致）                                |
-| Q2  | 内置插件是否保留原名         | 是，`global: true`，迁移期最多保留到 2.0                        |
-| Q3  | 拦截器与生命周期 Hook 字段名 | 分开：`interceptors` / `lifecycleHooks`                         |
-| Q4  | 插件 KV 位置                 | 小状态 SQLite KV；大文件数据目录                                |
-| Q5  | 卸载是否删数据               | 默认保留，`purge: true` 才删                                    |
-| Q6  | 第三方默认信任级别           | L1；本期只开放 L0 给内置与显式信任的插件                        |
-| Q7  | 前端如何发现能力             | HTTP 贡献接口 + SSE，禁止编译期 import                          |
-| Q8  | 第一方与第三方是否同一套 API | Manifest/生命周期/注册表相同；API 分 KernelApi 与 PluginContext |
-| Q9  | 是否要求 `activationEvents`  | 代码型插件必须声明，缺省按 `onStartup`                          |
-| Q10 | `apiVersion` 支持窗口        | 当前 + 上一版；不满足时 `blocked`                               |
+| #   | 问题                         | 决定                                                                         |
+| --- | ---------------------------- | ---------------------------------------------------------------------------- |
+| Q1  | 工具命名分隔符               | `_`（与现有 Extension 前缀一致）                                             |
+| Q2  | 内置插件是否保留原名         | 按显式贡献契约决定；提示词依赖的既有名称默认保持稳定                         |
+| Q3  | 拦截器与生命周期 Hook 字段名 | 分开：`interceptors` / `lifecycleHooks`                                      |
+| Q4  | 插件 KV 位置                 | 小状态 SQLite KV；大文件数据目录                                             |
+| Q5  | 卸载是否删数据               | 默认保留，`purge: true` 才删                                                 |
+| Q6  | 第三方默认信任级别           | L1；本期只开放 L0 给内置与显式信任的插件                                     |
+| Q7  | 前端如何发现能力             | HTTP 贡献接口 + SSE，禁止编译期 import                                       |
+| Q8  | 第一方与第三方是否同一套 API | Manifest/生命周期/注册表相同；API 分 KernelApi 与 PluginContext              |
+| Q9  | 是否要求 `activationEvents`  | 代码型插件必须声明，缺省按 `onStartup`                                       |
+| Q10 | `apiVersion` 支持窗口        | 当前规范版本为 2；升级兼容窗口在出现外部发布承诺后再评审，不支持即 `blocked` |
 
-### 18.1 已决（原「仍待确认」项 + 本次补充）
+### 18.1 已决（含本次统一格式与兼容边界修订）
 
-| #   | 问题                     | 决定                                                                                                                 | 理由                                                                                                          |
-| --- | ------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Q11 | `builtin.providers` 粒度 | **一个插件**，内部按 `onProvider:<id>` 惰性 import 厂商模块                                                          | 20+ 厂商大多是配置适配器；拆成 20 个插件带来 20 份版本/状态/manifest 成本，隔离收益接近零（同进程、同一 SDK） |
-| Q12 | pulse 拆分               | 拆成 `builtin.publish`（驱动与能力计算）+ `builtin.publish.ui`（页面与入口）                                         | 桌面端只要驱动，Web 端只要 UI；启用条件不同                                                                   |
-| Q13 | 第三方继承团队编排       | 第一期不允许                                                                                                         | 并发、成本归属、权限模型未稳定；以 `task` / `task_status` 作为稳定契约                                        |
-| Q14 | 前端加载方式             | 第一方 `viewId` + 第三方 iframe，**不做 ESM 联邦**                                                                   | Solid 双实例破坏响应式；见 §9.8                                                                               |
-| Q15 | 核心工具范围             | 13 个白名单，其余全部下沉                                                                                            | 判据是「去掉它插件还能不能装进来」；见 §8.1.1                                                                 |
-| Q16 | 边界判定形式             | 过渡期用 `kernel.manifest.json` 文件清单，M5 后改为目录约束（`src/kernel/**`、`src/plugin-api/**`、`src/shared/**`） | 清单会腐烂；目录是唯一能长期维护的形式                                                                        |
-| Q17 | 第一方插件仓库形态       | `packages/plugins/<id>/` 独立 workspace 包                                                                           | 让「第一方也走插件流程」在构建层成立；见 §8.2 原则 5                                                          |
-| Q18 | 插件自有 HTTP 路由       | 允许，强制前缀 `/plugin/<id>/`，需声明 `capabilities.http`                                                           | 避免与宿主 API 命名空间冲突，统一代理与审计入口                                                               |
-| Q19 | 覆盖内置贡献             | 允许，需显式 `overrides` 声明；内核工具不可覆盖                                                                      | 区分「增强」与「劫持」；见 §4.9                                                                               |
-| Q20 | 工具列表稳定性           | 全局统一排序函数 + 每轮快照 + 文本快照测试                                                                           | 动态贡献不能破坏 prompt 缓存；见 §4.2.1                                                                       |
-| Q21 | 旧 `capabilities.*` 开关 | 降级为派生只读值，写入时转成插件启停                                                                                 | 避免两套开关并存产生幽灵贡献；见 §4.10                                                                        |
+| #   | 问题                     | 决定                                                                                                                                         | 理由                                                                                                          |
+| --- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Q11 | `builtin.providers` 粒度 | **一个插件**，内部按 `onProvider:<id>` 惰性 import 厂商模块                                                                                  | 20+ 厂商大多是配置适配器；拆成 20 个插件带来 20 份版本/状态/manifest 成本，隔离收益接近零（同进程、同一 SDK） |
+| Q12 | pulse 拆分               | 拆成 `builtin.publish`（驱动与能力计算）+ `builtin.publish.ui`（页面与入口）                                                                 | 桌面端只要驱动，Web 端只要 UI；启用条件不同                                                                   |
+| Q13 | 第三方继承团队编排       | 第一期不允许                                                                                                                                 | 并发、成本归属、权限模型未稳定；以 `task` / `task_status` 作为稳定契约                                        |
+| Q14 | 前端加载方式             | 第一方 `viewId` + 第三方 iframe，**不做 ESM 联邦**                                                                                           | Solid 双实例破坏响应式；见 §9.8                                                                               |
+| Q15 | 核心工具范围             | 13 个白名单，其余全部下沉                                                                                                                    | 判据是「去掉它插件还能不能装进来」；见 §8.1.1                                                                 |
+| Q16 | 边界判定形式             | 过渡期用 `kernel.manifest.json` 文件清单，M5 后改为目录约束（`src/kernel/**`、`src/plugin-api/**`、`src/shared/**`）                         | 清单会腐烂；目录是唯一能长期维护的形式                                                                        |
+| Q17 | 第一方插件仓库形态       | `packages/plugins/<id>/` 独立 workspace 包                                                                                                   | 让「第一方也走插件流程」在构建层成立；见 §8.2 原则 5                                                          |
+| Q18 | 插件自有 HTTP 路由       | 允许，强制前缀 `/plugin/<id>/`，需声明 `capabilities.http`                                                                                   | 避免与宿主 API 命名空间冲突，统一代理与审计入口                                                               |
+| Q19 | 覆盖内置贡献             | 允许，需显式 `overrides` 声明；内核工具不可覆盖                                                                                              | 区分「增强」与「劫持」；见 §4.9                                                                               |
+| Q20 | 工具列表稳定性           | 全局统一排序函数 + 每轮快照 + 文本快照测试                                                                                                   | 动态贡献不能破坏 prompt 缓存；见 §4.2.1                                                                       |
+| Q21 | 旧 `capabilities.*` 开关 | 降级为派生只读值，写入时转成插件启停                                                                                                         | 避免两套开关并存产生幽灵贡献；见 §4.10                                                                        |
+| Q22 | 原生格式与兼容策略       | 唯一原生格式 NovaWay Plugin Manifest（当前 `apiVersion: 2`）；Claude 输入经适配器归一，旧 NovaWay 机制只作逐能力退役的临时桥接，不设双运行时 | 不为未发布产品保留旧 NovaWay 格式迁移期                                                                       |
+| Q23 | 切换行为基线             | 以当前 `main` 的可复现测试为改造基线；不要求不存在的发布版快照，也不因此降低安全与回归门禁                                                   | 区分开发回归证据与外部兼容承诺                                                                                |
 
 ---
 
@@ -2274,7 +2255,7 @@ if (providerID === "openrouter") {
 **之后**（`plugins/builtin/providers/openrouter.ts`）：
 
 ```ts
-import type { ProviderAdapter } from "@novaway/plugin/v2"
+import type { ProviderAdapter } from "@novaway/plugin-api"
 
 export default {
   id: "openrouter",
@@ -2426,21 +2407,21 @@ DELETE /plugin/:id?purge=true
 
 ## 附录 E：术语
 
-| 术语                 | 含义                                         |
-| -------------------- | -------------------------------------------- |
-| **Kernel**           | 不包含任何具体能力的内核；只认识贡献点       |
-| **Contribution**     | 插件注册到内核的一个点                       |
-| **Registry**         | 某类贡献的注册表，负责命名、冲突、覆盖、释放 |
-| **KernelApi**        | 第一方插件可用的完整内核接口                 |
-| **PluginContext**    | 第三方插件可用的受限接口                     |
-| **Activation Event** | 触发插件代码加载的事件                       |
-| **Surface**          | 界面贡献（侧栏项、视图、设置分组、渲染器）   |
-| **Shadow Mode**      | 新旧机制并行加载、对比结果、以旧为准         |
-| **Drill**            | 本文档定义的验收演练（D1–D9）                |
+| 术语                 | 含义                                               |
+| -------------------- | -------------------------------------------------- |
+| **Kernel**           | 不包含任何具体能力的内核；只认识贡献点             |
+| **Contribution**     | 插件注册到内核的一个点                             |
+| **Registry**         | 某类贡献的注册表，负责命名、冲突、覆盖、释放       |
+| **KernelApi**        | 第一方插件可用的完整内核接口                       |
+| **PluginContext**    | 第三方插件可用的受限接口                           |
+| **Activation Event** | 触发插件代码加载的事件                             |
+| **Surface**          | 界面贡献（侧栏项、视图、设置分组、渲染器）         |
+| **开发期行为基线**   | 以固定测试比较接入前后行为，不并行运行两套插件机制 |
+| **Drill**            | 本文档定义的验收演练（D1–D9）                      |
 
 ---
 
-## 附录 F：插件作者视角（从旧 API 到 v2）
+## 附录 F：插件作者视角（唯一原生格式）
 
 设计的最终裁判是插件作者。同一个 `weather` 工具，三种写法：
 
@@ -2459,7 +2440,7 @@ export const Hooks = {
 
 问题：没有 schema（模型看不到参数说明）、没有名字隔离（和别的插件的 weather 冲突）、没有启停（装了就在）。
 
-**v2（声明 + 激活）：**
+**NovaWay Plugin Manifest（声明 + 激活）：**
 
 ```jsonc
 // plugin.json
@@ -2502,15 +2483,15 @@ export default (api) => ({
 - `id` 在运行时是 `acme-weather_weather`（§4.8 命名空间），manifest 里只写本名 `weather`。
 - 没有 `main`：这个例子只声明、不写激活代码，`activationEvents` 命中时宿主直接加载 `entry`。要写激活代码就用 `definePlugin` + `ctx.tools.register(defineTool({...}))`（§5.2），两条路径产出的贡献结构一致。
 
-**迁移对照**（写进 `docs/plugin-authoring.md` 的核心表）：
+**开发期接入对照**（作者指南只推荐 NovaWay Plugin Manifest；下表用于清理现有内部调用点）：
 
-| 旧                              | v2                                                  | 说明                          |
+| 待退役的内部入口                | NovaWay Plugin Manifest                             | 说明                          |
 | ------------------------------- | --------------------------------------------------- | ----------------------------- |
 | `Hooks.tool[id].execute`        | `defineTool` 贡献                                   | 获得 schema、命名空间、safety |
 | `Hooks.auth` / `Hooks.provider` | `providers` 贡献                                    | ProviderAdapter               |
 | `Hooks.event`                   | `interceptors` + `activationEvents: onEvent:<name>` | 获得超时与熔断                |
 | 顶层 `tool: true` 等            | `capabilities.tools`                                | 未声明即拒绝                  |
-| `config.plugin` 安装            | 不变（来源），运行走 Host                           | 老用户无感                    |
+| `config.plugin` 安装            | 原生 Manifest 发现与 Host 安装/启停入口             | 接入完成后删除临时输入桥接    |
 
 作者要的新增概念只有四个：`activationEvents`、`capabilities`、`safety`、命名空间。其余（生命周期、注册、启停）都是宿主的事。如果作者指南超过两页纸，说明 API 设计有问题，回头改 API 而不是加文档。
 

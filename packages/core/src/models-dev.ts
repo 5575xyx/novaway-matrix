@@ -13,8 +13,9 @@ export type CatalogModelStatus = typeof CatalogModelStatus.Type
 
 const USER_AGENT = `novaway/${InstallationChannel}/${InstallationVersion}/${Flag.NOVAWAY_CLIENT}`
 const FETCH_TIMEOUT = "2 seconds"
-// 模型目录取自 models.dev 的公开接口。可用 NOVAWAY_MODELS_URL 覆盖成自建镜像。
-const DEFAULT_MODELS_URL = "https://models.dev"
+// 模型目录取自自建镜像（fork sst/models.dev，每日同步上游，见 script/models-mirror/）。
+// 可用 NOVAWAY_MODELS_URL 覆盖回 https://models.dev 或其他源。
+const DEFAULT_MODELS_URL = "https://5575xyx.github.io/models.dev"
 
 const CostTier = Schema.Struct({
   input: Schema.Finite,
@@ -160,9 +161,7 @@ export const layer = Layer.effect(
       Effect.map((v) => v as Record<string, Provider> | undefined),
     )
 
-    const loadSnapshot = Effect.sync(() =>
-      typeof NOVAWAY_MODELS_DEV === "undefined" ? undefined : NOVAWAY_MODELS_DEV,
-    )
+    const loadSnapshot = Effect.sync(() => (typeof NOVAWAY_MODELS_DEV === "undefined" ? undefined : NOVAWAY_MODELS_DEV))
 
     const fetchAndWrite = Effect.fn("ModelsDev.fetchAndWrite")(function* () {
       const text = yield* fetchApi()

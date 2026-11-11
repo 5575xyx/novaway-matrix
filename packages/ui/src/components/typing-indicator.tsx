@@ -15,7 +15,7 @@ export function TypingIndicator(props: { class?: string; label?: string }) {
               data-slot="typing-dot"
               class="size-2 rounded-full"
               style={{
-                background: "var(--novaway-mode-color, #FF6B6B)",
+                background: "var(--novaway-mode-color, var(--icon-interactive-base))",
                 animation: "typing-pulse 1.4s ease-in-out infinite",
                 "animation-delay": `${dot.delay}s`,
               }}

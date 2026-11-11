@@ -4,6 +4,7 @@ import markedShiki from "marked-shiki"
 import katex from "katex"
 import { bundledLanguages, type BundledLanguage } from "shiki"
 import { createSimpleContext } from "./helper"
+import { markdownNotes, markdownWikiLinks } from "./marked-notes"
 import { getSharedHighlighter, registerCustomTheme, ThemeRegistrationResolved } from "@pierre/diffs"
 
 registerCustomTheme("NovaWay", () => {
@@ -477,6 +478,8 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
           },
         },
       },
+      markdownNotes(),
+      markdownWikiLinks(),
       markedKatex({
         throwOnError: false,
         nonStandard: true,

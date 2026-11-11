@@ -147,6 +147,23 @@ export type OfficeEngineContribution<Engine = unknown> = {
 
 export type PublishKind = "video" | "image_text" | "article"
 
+export type PublishAccount = {
+  id: string
+  label: string
+  profile: Record<string, unknown>
+  token: string
+}
+
+/** Runtime methods are only consumed by the trusted builtin host bridge. */
+export type PublishRuntime = {
+  login?: (input: { profile?: Record<string, unknown> }) => Promise<PublishAccount>
+  publish?: (input: {
+    account: PublishAccount
+    kind: PublishKind
+    payload: Record<string, unknown>
+  }) => Promise<Record<string, unknown>>
+}
+
 export type PublishDriverContribution = {
   id: LocalName
   name: string
@@ -158,6 +175,7 @@ export type PublishDriverContribution = {
   automation: PublishAutomationSpec
   account: { login: "oauth" | "qrcode" | "cookie"; profileFields: string[] }
   ui?: { accent?: string; docs?: string }
+  runtime?: PublishRuntime
 }
 
 /** 声明式设置分组的最小字段集（§4.7）。 */

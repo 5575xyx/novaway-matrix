@@ -28,9 +28,7 @@ describe("platform webview", () => {
     Effect.gen(function* () {
       const webview = yield* PlatformWebview.Service
 
-      const fiber = yield* webview
-        .exec({ sessionID, action: "script", script: "1 + 1" })
-        .pipe(Effect.forkScoped)
+      const fiber = yield* webview.exec({ sessionID, action: "script", script: "1 + 1" }).pipe(Effect.forkScoped)
 
       const request = yield* nextRequest()
       expect(request.action).toBe("script")

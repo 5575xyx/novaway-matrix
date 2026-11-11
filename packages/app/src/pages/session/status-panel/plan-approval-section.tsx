@@ -40,7 +40,7 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
   let inflight = false
   const load = () => {
     const id = sessionID()
-    if (!id || inflight) return
+    if (!id || sdk.directory === "global-chat" || inflight) return
     inflight = true
     void sdk.client.session.planApproval
       .list({ directory: sdk.directory, sessionID: id })
@@ -152,7 +152,7 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
             )}
           </For>
           <Show when={store.error}>
-            <div class="px-2 text-ui-xs text-destructive">{store.error}</div>
+            <div class="px-2 text-ui-xs text-icon-critical-base">{store.error}</div>
           </Show>
         </div>
       ),

@@ -56,6 +56,8 @@ import {
   focusTerminalById,
   shouldFocusTerminalOnKeyDown,
 } from "@/pages/session/helpers"
+import { requestPreviewOpenMode } from "@/pages/session/editor-memory"
+import { isOfficePreviewPath } from "@/pages/session/office-preview-utils"
 import { MessageTimeline } from "@/pages/session/message-timeline"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -362,6 +364,7 @@ export default function Page() {
       (id) => (id ? untrack(() => sync.session.get(id)) : undefined),
     ),
   )
+  const globalChatOnly = () => sdk.directory === "global-chat" && (!params.id || info()?.scope !== "project")
   const isChildSession = createMemo(() => !!info()?.parentID)
   const canReview = createMemo(() => !!sync.project)
   const reviewTab = createMemo(() => isDesktop())
@@ -512,19 +515,21 @@ export default function Page() {
   // 常驻在右上角既占位置又和"这次任务的状态"混在一起（用户反馈）。
   // 完整入口仍在 设置 → 记忆与进化。
   const statusSections = createMemo(() =>
-    visibleStatusSections(
-      [
-        hooksSection(),
-        documentReviewSection(),
-        planApprovalSection(),
-        agents.section(),
-        backgroundSection(),
-        tempFilesSection(),
-        gitSection(),
-        todoSection(),
-      ].filter((section): section is StatusPanelSection => section !== null),
-      statusRunning(),
-    ),
+    globalChatOnly()
+      ? []
+      : visibleStatusSections(
+          [
+            hooksSection(),
+            documentReviewSection(),
+            planApprovalSection(),
+            agents.section(),
+            backgroundSection(),
+            tempFilesSection(),
+            gitSection(),
+            todoSection(),
+          ].filter((section): section is StatusPanelSection => section !== null),
+          statusRunning(),
+        ),
   )
 
   const [followup, setFollowup] = persisted(
@@ -637,10 +642,12 @@ export default function Page() {
     return list
   })
   const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
-  const wantsReview = createMemo(() =>
-    isDesktop()
-      ? sidePaneShowsReview() || (desktopReviewOpen() && activeTab() === "review")
-      : store.mobileTab === "changes",
+  const wantsReview = createMemo(
+    () =>
+      !globalChatOnly() &&
+      (isDesktop()
+        ? sidePaneShowsReview() || (desktopReviewOpen() && activeTab() === "review")
+        : store.mobileTab === "changes"),
   )
   /**
    * vcs 改动的取数条件。
@@ -1093,7 +1100,8 @@ export default function Page() {
     if (side.collapse) layout.sidebar.setExpanded(false)
     void tabs().open(tab)
     tabs().setActive(tab)
-    layout.sidePane.add("preview")
+    const followedPath = file.pathFromTab(tab)
+    layout.sidePane.add(followedPath && isOfficePreviewPath(followedPath) ? "office" : "preview")
     // 上一个自动标签在这一刻才关：先切走再关，避免中途把用户眼前的内容清空。
     for (const stale of step.close) tabs().close(stale)
   }
@@ -1346,18 +1354,29 @@ export default function Page() {
     inputRef?.focus()
   }
 
+  // 统一回滚入口的两个触发点（左侧轮次导航条 / 命令面板选轮次对话框）都走这里：
+  // 选一个轮次 = 回到那条提问发出之前，后面回复与文件改动由 revert 预览后让用户确认。
+  const revertToTurn = (messageID: string) => {
+    const sessionID = params.id
+    if (!sessionID) return
+    void revert({ sessionID, messageID })
+  }
+
   useSessionCommands({
     navigateMessageByOffset,
     setActiveMessage,
     focusInput,
     review: reviewTab,
+    revertToMessage: revertToTurn,
   })
 
   const openReviewFile = createOpenReviewFile({
     tabForPath: file.tab,
     openTab: (tab) => {
+      const target = file.pathFromTab(tab)
+      if (target) requestPreviewOpenMode(sdk.directory, target, "diff")
       void tabs().open(tab)
-      layout.sidePane.add("preview")
+      layout.sidePane.add(target && isOfficePreviewPath(target) ? "office" : "preview")
     },
     setActive: tabs().setActive,
     loadFile: file.load,
@@ -1848,7 +1867,7 @@ export default function Page() {
    * 返回 false 时走 `promptAsync` 立即投递 —— 服务端的 `runLoop` 每轮都会重读会话消息，
    * 而退出条件是「最后一条 assistant 晚于最后一条 user」，所以新追加的 user 消息
    * 会让循环**继续**并把这条消息喂给模型，即"在下一个安全边界生效、不中断当前运行"
-   * （对齐 Qoder 的 Steer）。服务端的 `ensureRunning` 会让第二次 prompt **并入**
+   * （即 steer 语义）。服务端的 `ensureRunning` 会让第二次 prompt **并入**
    * 正在跑的那个 loop，不会起第二个循环。
    *
    * 权限/提问挂起时（`blocked`）不算运行中：那时输入框本身不渲染，
@@ -2227,7 +2246,6 @@ export default function Page() {
         params.id && !isChildSession()
           ? {
               queue: queueEnabled,
-              live: followupLive,
               items: followupDock(),
               sending: sendingFollowup(),
               edit: editingFollowup(),
@@ -2302,7 +2320,7 @@ export default function Page() {
           >
             <WorkspaceHeader />
             <div class="relative flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
-              {/* 消息列不再为状态面板留白:面板是纯悬浮浮层(对齐 ZCode 现版形态),
+              {/* 消息列不再为状态面板留白:面板是纯悬浮浮层,
                       聊天区保持全宽 —— 主要内容是聊天,不能被右侧卡片挤压。 */}
               <div class="flex-1 min-w-0 min-h-0 flex flex-col">
                 <div
@@ -2398,7 +2416,7 @@ export default function Page() {
                     data-composer-drop={composerDropFrom() !== null ? "run" : undefined}
                     data-composer-drop-from={composerDropFrom() !== null ? Math.round(composerDropFrom()!) : undefined}
                   >
-                    {/* 办公模式不再给会话套第二套版式：ZCode 的办公模式就是普通会话，
+                    {/* 办公模式不再给会话套第二套版式：办公模式就是普通会话，
                             只改问候语和输入框占位。传 "embed" 那一层外壳已经移除。 */}
                     {composerRegion({
                       centered: centered(),
@@ -2414,11 +2432,13 @@ export default function Page() {
                     面板里挂着 TanStack 查询，区块一旦重建就会新建查询资源并挂起；
                     没有这层边界时，挂起会被会话页外层的 Suspense 接住，整页闪成空白。
                     这里就地兜住：面板自己的异步只影响面板，不影响消息区。 */}
-              <Suspense fallback={null}>
-                <SessionStatusPanel sections={statusSections()} />
-              </Suspense>
+              <Show when={!globalChatOnly()}>
+                <Suspense fallback={null}>
+                  <SessionStatusPanel sections={statusSections()} />
+                </Suspense>
+              </Show>
 
-              {/* 对话问题导航(对齐 ZCode 的 Turn Navigator):必须挂在这一层 ——
+              {/* 对话问题导航(Turn Navigator):必须挂在这一层 ——
                       这层的边界包含状态面板预留区,条区才能落进聊天列与状态卡片的空隙;
                       放进时间线里会被 overflow-hidden 祖先裁掉。 */}
               <TurnNavigator
@@ -2429,14 +2449,16 @@ export default function Page() {
                   autoScroll.pause()
                   scrollToMessage(message, behavior)
                 }}
+                onRevert={(message) => revertToTurn(message.id)}
               />
             </div>
           </div>
 
           {/* 面板常驻、关闭时宽度归 0（见 SessionSidePanel 的说明）：只有常驻才能在
-                  展开/收起时过渡宽度，ZCode 也是这么做的，只是条件从 opened() 换成 desktop。 */}
+                  展开/收起时过渡宽度，只是条件从 opened() 换成 desktop。 */}
           <Show when={isDesktop()}>
             <SessionSidePanel
+              workspaceAvailable={sdk.directory !== "global-chat"}
               canReview={canReview}
               diffs={reviewDiffs}
               diffsReady={reviewReady}
@@ -2453,7 +2475,7 @@ export default function Page() {
           </Show>
         </div>
 
-        <Show when={!paneShowsTerminal()}>
+        <Show when={!globalChatOnly() && !paneShowsTerminal()}>
           <TerminalPanel />
         </Show>
       </div>

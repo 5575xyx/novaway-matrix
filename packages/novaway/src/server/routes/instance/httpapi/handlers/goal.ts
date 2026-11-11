@@ -1,8 +1,9 @@
 import { Goal } from "@/session/goal"
 import { SessionID } from "@/session/schema"
 import { Effect } from "effect"
-import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
+import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
+import { notFound } from "../errors"
 
 export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handlers) =>
   Effect.gen(function* () {
@@ -33,16 +34,19 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       .handle("createGoal", (ctx) =>
         Effect.gen(function* () {
           const sessionId = SessionID.make(ctx.params.sessionId)
-          const created = yield* goal.create({
-            sessionId,
-            parentId: ctx.payload.parentId,
-            title: ctx.payload.title,
-            description: ctx.payload.description,
-            priority: ctx.payload.priority as any,
-            successCriteria: ctx.payload.successCriteria as string[] | undefined,
-            deadline: ctx.payload.deadline ? new Date(ctx.payload.deadline) : undefined,
-            tags: ctx.payload.tags as string[] | undefined,
-          })
+          const created = yield* goal
+            .create({
+              sessionId,
+              parentId: ctx.payload.parentId,
+              title: ctx.payload.title,
+              description: ctx.payload.description,
+              status: ctx.payload.status,
+              priority: ctx.payload.priority as any,
+              successCriteria: ctx.payload.successCriteria as string[] | undefined,
+              deadline: ctx.payload.deadline ? new Date(ctx.payload.deadline) : undefined,
+              tags: ctx.payload.tags as string[] | undefined,
+            })
+            .pipe(Effect.catchTag("NotFoundError", (error) => Effect.fail(notFound(error.message))))
           return {
             id: created.id,
             sessionId: created.sessionId,
@@ -62,10 +66,9 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       )
       .handle("getGoal", (ctx) =>
         Effect.gen(function* () {
-          const g = yield* goal.get(ctx.params.goalId)
-          if (!g) {
-            return yield* Effect.fail(new HttpApiError.NotFound({}))
-          }
+          const g = yield* goal.get({ goalId: ctx.params.goalId, sessionId: SessionID.make(ctx.params.sessionId) })
+          if (!g) return yield* Effect.fail(notFound(`Goal not found: ${ctx.params.goalId}`))
+
           return {
             id: g.id,
             sessionId: g.sessionId,
@@ -85,15 +88,18 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       )
       .handle("updateGoal", (ctx) =>
         Effect.gen(function* () {
-          const updated = yield* goal.update({
-            goalId: ctx.params.goalId,
-            ...ctx.payload,
-            status: ctx.payload.status as any,
-            priority: ctx.payload.priority as any,
-            successCriteria: ctx.payload.successCriteria as string[] | undefined,
-            tags: ctx.payload.tags as string[] | undefined,
-            deadline: ctx.payload.deadline ? new Date(ctx.payload.deadline) : undefined,
-          })
+          const updated = yield* goal
+            .update({
+              goalId: ctx.params.goalId,
+              sessionId: SessionID.make(ctx.params.sessionId),
+              ...ctx.payload,
+              status: ctx.payload.status as any,
+              priority: ctx.payload.priority as any,
+              successCriteria: ctx.payload.successCriteria as string[] | undefined,
+              tags: ctx.payload.tags as string[] | undefined,
+              deadline: ctx.payload.deadline ? new Date(ctx.payload.deadline) : undefined,
+            })
+            .pipe(Effect.catchTag("NotFoundError", (error) => Effect.fail(notFound(error.message))))
           return {
             id: updated.id,
             sessionId: updated.sessionId,
@@ -113,13 +119,20 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       )
       .handle("deleteGoal", (ctx) =>
         Effect.gen(function* () {
-          yield* goal.delete(ctx.params.goalId)
+          yield* goal
+            .delete({ goalId: ctx.params.goalId, sessionId: SessionID.make(ctx.params.sessionId) })
+            .pipe(Effect.catchTag("NotFoundError", (error) => Effect.fail(notFound(error.message))))
           return { success: true }
         }),
       )
       .handle("getGoalProgress", (ctx) =>
         Effect.gen(function* () {
-          const progress = yield* goal.getProgress(ctx.params.goalId)
+          const progress = yield* goal
+            .getProgress({
+              goalId: ctx.params.goalId,
+              sessionId: SessionID.make(ctx.params.sessionId),
+            })
+            .pipe(Effect.catchTag("NotFoundError", (error) => Effect.fail(notFound(error.message))))
           return progress
         }),
       )

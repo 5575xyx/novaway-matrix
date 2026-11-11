@@ -23,14 +23,14 @@ export function shouldMountStatusPanel(sections: readonly { id: string }[]): boo
 }
 
 // todo / agents 是「这一轮运行」的进度与参与者：任务停下来它们只是上一轮的残留，
-// 空闲期不出现（对齐 ZCode 的 hasContent 只认活内容）。
-// git 对齐 ZCode 的 buildGitModel：有行级变更才算内容——clean 仓库也挂状态卡是
-// ZCode 修过的 bug；有变更时空闲期必须留着，提交入口在这张卡的 body 里。
+// 空闲期不出现（hasContent 只认活内容）。
+// git：有行级变更才算内容——clean 仓库也挂状态卡是
+// 修过的 bug；有变更时空闲期必须留着，提交入口在这张卡的 body 里。
 // 其余（background / plan-approval / hooks / temp-files）各自按内容出现
 // （模型为 null 就不进 sections），列在这里只表达「空闲期也允许出现」。
 // 「记忆与进化」已从面板移除（全局能力，不该占会话状态的位置，见 pages/session.tsx）。
-// context 卡已退出面板：占用显示在输入框工具条（session-context-usage，对齐 ZCode 的
-// ChatContextUsage），明细仍在审查面板的 context 标签里。
+// context 卡已退出面板：占用显示在输入框工具条（session-context-usage），
+// 明细仍在审查面板的 context 标签里。
 const ALWAYS_VISIBLE_SECTIONS = new Set([
   "git",
   "background",
@@ -47,7 +47,7 @@ export function visibleStatusSections<T extends { id: string }>(sections: readon
 
 // 组件函数体只执行一次，挂载判定必须放在响应式 <Show> 里随 sections 变化重算，
 // 否则首次渲染时 sections 为空（数据仍在异步加载）会永久停留在 null，整个状态面板再也不出现。
-// 运行相关的区块在「从无到有」时自动展开一次(对齐 ZCode:任务触及某块功能时,
+// 运行相关的区块在「从无到有」时自动展开一次(任务触及某块功能时,
 // 用户直接看到内容,而不是一行收着的摘要)。只在出现瞬间触发:用户随后手动收起
 // 不会被再次顶开;git/context 等常驻区块不自动展开,保持默认折叠。
 const AUTO_EXPAND_SECTIONS = new Set(["todo", "hooks", "document-review", "plan-approval", "agents"])
@@ -100,7 +100,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
         data-component="status-panel-expanded"
         class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(76dvh,42rem)] flex-col origin-top-right transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none group-data-[collapsed=true]:invisible group-data-[collapsed=true]:pointer-events-none group-data-[collapsed=true]:opacity-0 group-data-[collapsed=true]:-translate-y-1 group-data-[collapsed=true]:scale-[0.98] @max-[768px]:invisible @max-[768px]:pointer-events-none @max-[768px]:opacity-0 @max-[768px]:scale-[0.98] @max-[768px]:group-hover:visible @max-[768px]:group-hover:pointer-events-auto @max-[768px]:group-hover:opacity-100 @max-[768px]:group-hover:scale-100"
       >
-        {/* 无标题胶囊(对齐 ZCode):面板直接是卡片列表;收起入口是一个右上角的小图标钮,
+        {/* 无标题胶囊:面板直接是卡片列表;收起入口是一个右上角的小图标钮,
             悬浮在卡片列表之上,不占一行高度。 */}
         <div class="pointer-events-none absolute top-0.5 right-0 z-10">
           <IconButton
@@ -117,7 +117,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
           这里**不**用 `no-scrollbar`：区块多于两个时面板会超高超限（max-h 64dvh / 32rem），
           展开的区块被裁掉、又没有滚动条提示，看起来就是"挤在一起显示不全"。
           留一条细滚动条，用户一眼知道还能往下翻。
-          间距对齐 ZCode:卡与卡 gap-1.5,不再套外层 padding。
+          间距:卡与卡 gap-1.5,不再套外层 padding。
         */}
         <div class="status-panel-scroll flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-1 pt-3">
           {/*
@@ -132,7 +132,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
               const isOpen = layout.statusPanel.open(directory(), id, section()?.defaultOpen)
               // shrink-0：卡片不能被 flex 压扁。之前总高度超限时每张卡都被压缩，
               // 卡片体被裁掉，看起来"挤在一起、显示不全"。让外层滚动条承担溢出。
-              // 无边框半透明卡(对齐 ZCode):圆角悬浮,不带 border。
+              // 无边框半透明卡:圆角悬浮,不带 border。
               return (
                 <div class="shrink-0 overflow-hidden rounded-xl bg-background/85 shadow-md backdrop-blur-sm">
                   <StatusSection
@@ -154,7 +154,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
 
       {/* 窄容器强制 mini 时显示。悬停浮现:指上胶囊时 mini 淡出、完整面板从右上浮出
           (见 status-panel-expanded 的 @max-[768px]:group-hover 覆盖);纯 CSS,无 JS 状态。
-          胶囊按需出现(对齐 ZCode 的 !summaryMetric → return null):没有一条可显示的
+          胶囊按需出现(!summaryMetric → return null):没有一条可显示的
           摘要时连壳都不渲染,只留一个图标空壳挂在右上角只会被当成 bug。 */}
       <Show when={summaries().length > 0}>
         <div

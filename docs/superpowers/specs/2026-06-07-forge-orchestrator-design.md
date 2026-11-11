@@ -39,25 +39,25 @@
 
 ### novaway 原生调度机制（可复用）
 
-| 机制                                         | 位置                                            | 作用                                                                                                      |
-| -------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 机制                                         | 位置                                           | 作用                                                                                                      |
+| -------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `task` 工具                                  | `packages/novaway/src/tool/task.ts:103`        | primary agent 委派任务给任意 agent（包括 primary 和 subagent）                                            |
 | `task_status` 工具                           | `packages/novaway/src/tool/task_status.ts`     | 轮询 / 阻塞后台任务                                                                                       |
 | `question` 工具                              | `packages/novaway/src/tool/question.ts`        | 需求澄清（所有 primary 默认 `allow`）                                                                     |
-| `subagent_type` 参数                         | `task.ts:139`                                   | `agent.get(params.subagent_type)`，**任意 agent 名均可**                                                  |
+| `subagent_type` 参数                         | `task.ts:139`                                  | `agent.get(params.subagent_type)`，**任意 agent 名均可**                                                  |
 | `SystemPrompt.skills`                        | `packages/novaway/src/session/system.ts:65-77` | system prompt 注入 skill 列表的模式可复用                                                                 |
-| `Permission.deriveSubagentSessionPermission` | `subagent-permissions.ts:17-34`                 | subagent 默认 `task: "deny"`，orchestrator 作为 primary 可调 task 委派 subagent；subagent 不能再嵌套 task |
+| `Permission.deriveSubagentSessionPermission` | `subagent-permissions.ts:17-34`                | subagent 默认 `task: "deny"`，orchestrator 作为 primary 可调 task 委派 subagent；subagent 不能再嵌套 task |
 
 ### 已存在的 `agents-orchestrator`
 
-| 属性   | 值                                                                                    | 位置                                         |
-| ------ | ------------------------------------------------------------------------------------- | -------------------------------------------- |
-| ID     | `agents-orchestrator`                                                                 | `packages/novaway/src/agent/agency.ts:5-12` |
-| Mode   | `primary`                                                                             | `agency.ts:292`                              |
-| 显示名 | "Agent 编排总控"                                                                      | `agency.ts:38`                               |
-| 分类   | "专项能力"                                                                            | `agency.ts:23`                               |
-| 权限   | `*` allow + `question: "allow"`（继承 `defaults` 的 `*: allow`）                      | `agency.ts:297-303`                          |
-| Prompt | `packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 367 行                                       |
+| 属性   | 值                                                                                   | 位置                                        |
+| ------ | ------------------------------------------------------------------------------------ | ------------------------------------------- |
+| ID     | `agents-orchestrator`                                                                | `packages/novaway/src/agent/agency.ts:5-12` |
+| Mode   | `primary`                                                                            | `agency.ts:292`                             |
+| 显示名 | "Agent 编排总控"                                                                     | `agency.ts:38`                              |
+| 分类   | "专项能力"                                                                           | `agency.ts:23`                              |
+| 权限   | `*` allow + `question: "allow"`（继承 `defaults` 的 `*: allow`）                     | `agency.ts:297-303`                         |
+| Prompt | `packages/novaway/src/agent/prompt/agency-agents/specialized/agents-orchestrator.md` | 367 行                                      |
 
 ### `agents-orchestrator` 当前 prompt 的 3 个问题
 
@@ -264,16 +264,16 @@ const [store, setStore] = createStore<{
 
 ### 单元测试
 
-| 覆盖点                                                                                 | 文件                                                 |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `forgeAgentForPrompt` 改后行为：forge 模式非命令输入返回 current（不再 plan）          | `packages/app/src/context/local.test.ts`             |
-| `local.tsx` 初始 current：forge 模式 → `agents-orchestrator`，其他模式 → 原行为        | 新增 `packages/app/src/context/local.test.ts`        |
+| 覆盖点                                                                                 | 文件                                                |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `forgeAgentForPrompt` 改后行为：forge 模式非命令输入返回 current（不再 plan）          | `packages/app/src/context/local.test.ts`            |
+| `local.tsx` 初始 current：forge 模式 → `agents-orchestrator`，其他模式 → 原行为        | 新增 `packages/app/src/context/local.test.ts`       |
 | `SystemPrompt.availableAgents`：orchestrator agent 注入列表，其他 agent 注入 undefined | 新增 `packages/novaway/test/session/system.test.ts` |
 
 ### 集成测试
 
-| 覆盖点                                                                                           | 文件                                                              |
-| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| 覆盖点                                                                                           | 文件                                                             |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `agents-orchestrator` 加载新 prompt，prompt 包含 4 节（角色定位/调度协议/任务分类路由/工具约束） | `packages/novaway/test/agent/agent.test.ts:199` 现有 case 需更新 |
 | `agents.list()` 过滤 hidden 后的数量                                                             | `packages/novaway/test/agent/agent.test.ts`                      |
 

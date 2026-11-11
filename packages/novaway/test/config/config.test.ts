@@ -199,118 +199,6 @@ test("creates global jsonc config with schema when no global configs exist", asy
   }
 })
 
-test("seeds default global plugins into new config file", async () => {
-  await using tmp = await tmpdir()
-  const prev = Global.Path.config
-  ;(Global.Path as { config: string }).config = tmp.path
-  await clear(true)
-
-  try {
-    await withTestInstance({
-      directory: tmp.path,
-      fn: async (ctx) => {
-        await load(ctx)
-      },
-    })
-
-    const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
-    const file = path.join(tmp.path, "novaway.json")
-    const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual(["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
-  } finally {
-    ;(Global.Path as { config: string }).config = prev
-    await clear(true)
-  }
-})
-
-test("PowersNexus remains seeded as default Gitee plugin even if FIRST_PARTY env is set", async () => {
-  await using tmp = await tmpdir()
-  const prev = Global.Path.config
-  const firstParty = process.env.POWERSNEXUS_FIRST_PARTY
-  ;(Global.Path as { config: string }).config = tmp.path
-  process.env.POWERSNEXUS_FIRST_PARTY = "1"
-  await clear(true)
-
-  try {
-    await withTestInstance({
-      directory: tmp.path,
-      fn: async (ctx) => {
-        await load(ctx)
-      },
-    })
-
-    const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
-    const file = path.join(tmp.path, "novaway.json")
-    const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual(["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
-  } finally {
-    ;(Global.Path as { config: string }).config = prev
-    if (firstParty === undefined) delete process.env.POWERSNEXUS_FIRST_PARTY
-    else process.env.POWERSNEXUS_FIRST_PARTY = firstParty
-    await clear(true)
-  }
-})
-
-test("adds default global plugins to existing config file that lacks them", async () => {
-  await using tmp = await tmpdir()
-  const prev = Global.Path.config
-  ;(Global.Path as { config: string }).config = tmp.path
-  await clear(true)
-
-  try {
-    const initial: Record<string, unknown> = {
-      $schema: "https://novaway.ai/config.json",
-      plugin: ["other-plugin@1.0"],
-    }
-    await Bun.write(path.join(tmp.path, "novaway.json"), JSON.stringify(initial, null, 2))
-
-    await withTestInstance({
-      directory: tmp.path,
-      fn: async (ctx) => {
-        await load(ctx)
-      },
-    })
-
-    const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
-    const file = path.join(tmp.path, "novaway.json")
-    const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual(["other-plugin@1.0", "PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
-  } finally {
-    ;(Global.Path as { config: string }).config = prev
-    await clear(true)
-  }
-})
-
-test("creates novaway.json with default plugins when only novaway.jsonc exists", async () => {
-  await using tmp = await tmpdir()
-  const prev = Global.Path.config
-  ;(Global.Path as { config: string }).config = tmp.path
-  await clear(true)
-
-  try {
-    const initial: Record<string, unknown> = {
-      $schema: "https://novaway.ai/config.json",
-      plugin: ["old-plugin@1.0"],
-    }
-    await Bun.write(path.join(tmp.path, "novaway.jsonc"), JSON.stringify(initial, null, 2))
-
-    await withTestInstance({
-      directory: tmp.path,
-      fn: async (ctx) => {
-        await load(ctx)
-      },
-    })
-
-    const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
-    const file = path.join(tmp.path, "novaway.json")
-    const parsed = ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
-    expect(parsed.plugin).toEqual(["old-plugin@1.0", "PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
-  } finally {
-    ;(Global.Path as { config: string }).config = prev
-    await clear(true)
-  }
-})
-
 test("updateGlobal removes deleted agent permission.skill keys", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
@@ -1233,7 +1121,7 @@ test("installs dependencies in writable NOVAWAY_CONFIG_DIR", async () => {
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(emptyAuth),
-      Layer.provideMerge(infra),
+    Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 
@@ -2125,7 +2013,7 @@ test("project config overrides remote well-known config", async () => {
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(fakeAuth),
-      Layer.provideMerge(infra),
+    Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 
@@ -2182,7 +2070,7 @@ test("wellknown URL with trailing slash is normalized", async () => {
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(fakeAuth),
-      Layer.provideMerge(infra),
+    Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 
@@ -2253,7 +2141,7 @@ test("wellknown remote_config supports templated env vars in headers", async () 
     Layer.provide(AppFileSystem.defaultLayer),
     Layer.provide(Env.defaultLayer),
     Layer.provide(fakeAuth),
-      Layer.provideMerge(infra),
+    Layer.provideMerge(infra),
     Layer.provide(noopNpm),
   )
 

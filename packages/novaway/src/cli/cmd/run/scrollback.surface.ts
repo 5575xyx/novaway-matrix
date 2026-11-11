@@ -116,7 +116,7 @@ export class RunScrollbackStream {
     const id = `run-scrollback-entry-${nextId++}`
     const style = entryLook(commit, this.theme.entry)
     const renderable =
-      body.type === "text"
+      body.type === "text" || (commit.kind === "reasoning" && body.type === "code")
         ? new TextRenderable(surface.renderContext, {
             id,
             content: "",
@@ -133,7 +133,7 @@ export class RunScrollbackStream {
               syntaxStyle: entrySyntax(commit, this.theme),
               width: "100%",
               wrapMode: "word",
-              drawUnstyledText: false,
+              drawUnstyledText: true,
               streaming: true,
               fg: entryColor(commit, this.theme),
               treeSitterClient: this.treeSitterClient,
@@ -195,7 +195,7 @@ export class RunScrollbackStream {
       return false
     }
 
-    if (active.body.type === "text") {
+    if (active.body.type === "text" || (active.commit.kind === "reasoning" && active.body.type === "code")) {
       if (!(active.renderable instanceof TextRenderable)) {
         return false
       }

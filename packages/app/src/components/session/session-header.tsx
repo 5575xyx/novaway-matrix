@@ -243,7 +243,7 @@ export function SessionHeader(): JSX.Element {
   }
 
   // 会话页头部不再往全局标题栏里塞 Portal：桌面端已经没有全局标题栏，
-  // 这些入口直接由会话帧内的 WorkspaceHeader 就地渲染（对齐 ZCode：Header 属于会话面板）。
+  // 这些入口直接由会话帧内的 WorkspaceHeader 就地渲染（Header 属于会话面板）。
   return (
     <>
       <Show when={search()}>

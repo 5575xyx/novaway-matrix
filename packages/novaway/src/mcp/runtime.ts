@@ -3,10 +3,10 @@
  *
  * 配置里常见的写法是 `npx -y <package>`、`node <script>`、`uvx <package>`。
  * 在干净的 Windows 机器上这三样都可能不存在，MCP 就会报 `spawn ENOENT`，
- * 而用户完全不知道缺的是什么。ZCode 的做法是给 MCP 子进程准备 node/npm 回退
- * （见其 `mcp-node-fallback.md`）：用户自己的 node/npm 优先，缺失时才用内置的。
+ * 而用户完全不知道缺的是什么。解决办法是给 MCP 子进程准备 node/npm 回退：
+ * 用户自己的 node/npm 优先，缺失时才用内置的。
  *
- * 这里做同样的事，但按我们的运行时组织：
+ * 这里按我们的运行时组织：
  * - 桌面端随包带一份 Node（`NOVAWAY_NODE_PATH`），npm/npx 用它跑 `bin/*-cli.js`；
  * - uv 走 NovaWay 自己下载的那份（`Global.Path.bin/uv`），`uvx` 等价于 `uv tool run`；
  * - 用户 PATH 上已有的命令永远优先，回退只在缺失时生效。
@@ -139,7 +139,7 @@ export type PlanInput = {
 /**
  * 把配置里的命令解析成真正能 spawn 的命令。
  *
- * 规则（与 ZCode 的 node fallback 一致）：
+ * node 回退规则：
  * 1. 用户机器上有的东西永远优先；
  * 2. `node` 缺失 → 内置 Node；
  * 3. `npx` / `npm` 缺失 → 内置 Node + 内置 npm 的 CLI 脚本；

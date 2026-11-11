@@ -121,7 +121,9 @@ export const layer = Layer.effect(
       // Pre-capture snapshot before the LLM stream starts. The AI SDK
       // may execute tools internally before emitting start-step events,
       // so capturing inside the event handler can be too late.
-      const initialSnapshot = yield* snapshot.track()
+      const currentSession = yield* session.get(input.sessionID).pipe(Effect.orDie)
+      const globalChat = currentSession.scope === "global"
+      const initialSnapshot = globalChat ? undefined : yield* snapshot.track()
       const ctx: ProcessorContext = {
         assistantMessage: input.assistantMessage,
         sessionID: input.sessionID,
@@ -398,6 +400,7 @@ export const layer = Layer.effect(
             }
 
             const agent = yield* agents.get(ctx.assistantMessage.agent)
+            if (!agent) throw new Error(`agent "${ctx.assistantMessage.agent}" is not available`)
             yield* permission.ask({
               permission: "doom_loop",
               patterns: [value.toolName],
@@ -501,7 +504,7 @@ export const layer = Layer.effect(
             }
             ctx.currentReasoning = undefined
             ctx.reasoningMap = {}
-            if (!ctx.snapshot) ctx.snapshot = yield* snapshot.track()
+            if (!globalChat && !ctx.snapshot) ctx.snapshot = yield* snapshot.track()
             if (!ctx.assistantMessage.summary) {
               // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
               if (flags.experimentalEventSystem) {
@@ -528,7 +531,7 @@ export const layer = Layer.effect(
             return
 
           case "finish-step": {
-            const completedSnapshot = yield* snapshot.track()
+            const completedSnapshot = globalChat ? undefined : yield* snapshot.track()
             const usage = Session.getUsage({
               model: ctx.model,
               usage: value.usage,
@@ -575,12 +578,14 @@ export const layer = Layer.effect(
               }
               ctx.snapshot = undefined
             }
-            yield* summary
-              .summarize({
-                sessionID: ctx.sessionID,
-                messageID: ctx.assistantMessage.parentID,
-              })
-              .pipe(Effect.ignore, Effect.forkIn(scope))
+            if (!globalChat) {
+              yield* summary
+                .summarize({
+                  sessionID: ctx.sessionID,
+                  messageID: ctx.assistantMessage.parentID,
+                })
+                .pipe(Effect.ignore, Effect.forkIn(scope))
+            }
             if (
               !ctx.assistantMessage.summary &&
               isOverflow({ cfg: yield* config.get(), tokens: usage.tokens, model: ctx.model })
@@ -629,15 +634,17 @@ export const layer = Layer.effect(
             if (!ctx.currentText) return
             // oxlint-disable-next-line no-self-assign -- reactivity trigger
             ctx.currentText.text = ctx.currentText.text
-            ctx.currentText.text = (yield* plugin.trigger(
-              "experimental.text.complete",
-              {
-                sessionID: ctx.sessionID,
-                messageID: ctx.assistantMessage.id,
-                partID: ctx.currentText.id,
-              },
-              { text: ctx.currentText.text },
-            )).text
+            if (!globalChat) {
+              ctx.currentText.text = (yield* plugin.trigger(
+                "experimental.text.complete",
+                {
+                  sessionID: ctx.sessionID,
+                  messageID: ctx.assistantMessage.id,
+                  partID: ctx.currentText.id,
+                },
+                { text: ctx.currentText.text },
+              )).text
+            }
             if (!ctx.assistantMessage.summary) {
               // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
               if (flags.experimentalEventSystem) {

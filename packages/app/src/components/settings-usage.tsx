@@ -2,7 +2,7 @@ import type { AssistantMessage } from "@novaway/sdk/v2/client"
 import { createMemo, For, Show, type Component } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { SettingsGroup } from "./settings-parts"
+import { SettingsGroup, SettingsPage } from "./settings-parts"
 
 type Totals = {
   sessions: number
@@ -29,7 +29,7 @@ const emptyTotals = (): Totals => ({
 })
 
 /**
- * 使用统计（对齐 ZCode 的「数据与统计 → 使用统计」）。
+ * 使用统计。
  *
  * 数据来自本目录已加载的会话消息：每条 assistant 消息自带 tokens 与 cost。
  * 只统计**当前工作区**，因为同步 store 按目录隔离；换目录后数字随之变化，
@@ -109,60 +109,54 @@ export const SettingsUsage: Component<{ directory?: string }> = (props) => {
   ])
 
   return (
-    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
-      <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-          <h2 class="text-16-medium text-foreground">{language.t("settings.usage.title" as never)}</h2>
-          <p class="text-13-regular text-foreground-subtle">{language.t("settings.usage.description" as never)}</p>
-        </div>
+    <SettingsPage
+      title={language.t("settings.usage.title" as never)}
+      description={language.t("settings.usage.description" as never)}
+    >
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <For each={summary()}>
+          {(item) => (
+            <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-3">
+              <span class="text-11-regular text-foreground-subtle">{item.label}</span>
+              <span class="text-16-medium tabular-nums text-foreground">{item.value}</span>
+            </div>
+          )}
+        </For>
       </div>
 
-      <div class="flex flex-col gap-8 w-full">
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <For each={summary()}>
-            {(item) => (
-              <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-3">
-                <span class="text-11-regular text-foreground-subtle">{item.label}</span>
-                <span class="text-16-medium tabular-nums text-foreground">{item.value}</span>
+      <div>
+        <h3 class="pb-2 text-14-medium text-foreground">{language.t("settings.usage.byModel" as never)}</h3>
+        <SettingsGroup>
+          <Show
+            when={byModel().length > 0}
+            fallback={
+              <div class="px-4 py-6 text-center text-13-regular text-foreground-subtle">
+                {language.t("settings.usage.empty" as never)}
               </div>
-            )}
-          </For>
-        </div>
-
-        <div>
-          <h3 class="pb-2 text-14-medium text-foreground">{language.t("settings.usage.byModel" as never)}</h3>
-          <SettingsGroup>
-            <Show
-              when={byModel().length > 0}
-              fallback={
-                <div class="px-4 py-6 text-center text-13-regular text-foreground-subtle">
-                  {language.t("settings.usage.empty" as never)}
-                </div>
-              }
-            >
-              <For each={byModel()}>
-                {(item) => (
-                  <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 first:border-t-0">
-                    <div class="flex min-w-0 flex-1 flex-col">
-                      <span class="truncate text-13-medium text-foreground">
-                        {modelName(item.providerID, item.modelID)}
-                      </span>
-                      <span class="mt-0.5 truncate text-11-regular text-foreground-subtle">
-                        {item.providerID} · {number(item.messages)} 条
-                      </span>
-                    </div>
-                    <div class="flex shrink-0 items-center gap-4 text-11-regular tabular-nums text-foreground-subtle">
-                      <span title={language.t("settings.usage.total.input" as never)}>{number(item.input)}</span>
-                      <span title={language.t("settings.usage.total.output" as never)}>{number(item.output)}</span>
-                      <span class="min-w-14 text-right text-12-medium text-foreground">{money(item.cost)}</span>
-                    </div>
+            }
+          >
+            <For each={byModel()}>
+              {(item) => (
+                <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 first:border-t-0">
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate text-13-medium text-foreground">
+                      {modelName(item.providerID, item.modelID)}
+                    </span>
+                    <span class="mt-0.5 truncate text-11-regular text-foreground-subtle">
+                      {item.providerID} · {number(item.messages)} 条
+                    </span>
                   </div>
-                )}
-              </For>
-            </Show>
-          </SettingsGroup>
-        </div>
+                  <div class="flex shrink-0 items-center gap-4 text-11-regular tabular-nums text-foreground-subtle">
+                    <span title={language.t("settings.usage.total.input" as never)}>{number(item.input)}</span>
+                    <span title={language.t("settings.usage.total.output" as never)}>{number(item.output)}</span>
+                    <span class="min-w-14 text-right text-12-medium text-foreground">{money(item.cost)}</span>
+                  </div>
+                </div>
+              )}
+            </For>
+          </Show>
+        </SettingsGroup>
       </div>
-    </div>
+    </SettingsPage>
   )
 }

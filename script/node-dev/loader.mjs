@@ -210,7 +210,8 @@ export async function load(url, context, nextLoad) {
     }
     if (/\.(ts|tsx|mts)$/.test(file) && !file.startsWith(path.join(repoRoot, "node_modules"))) {
       const raw = await readFile(file, "utf8")
-      if (file.endsWith(".tsx")) return { format: "module", source: await transformSolid(file, raw), shortCircuit: true }
+      if (file.endsWith(".tsx"))
+        return { format: "module", source: await transformSolid(file, raw), shortCircuit: true }
       const { transform } = await import("esbuild")
       const result = await transform(raw, {
         loader: "ts",

@@ -49,8 +49,8 @@ export function SessionContextWarning() {
           data-slot="session-context-warning"
           classList={{
             "mx-1 mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-2 py-1 text-ui-xs": true,
-            "text-warning": value.budget!.status !== "blocking",
-            "text-destructive": value.budget!.status === "blocking",
+            "text-icon-warning-base": value.budget!.status !== "blocking",
+            "text-icon-critical-base": value.budget!.status === "blocking",
           }}
         >
           <span class="font-medium">

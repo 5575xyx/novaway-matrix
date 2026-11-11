@@ -1,6 +1,5 @@
 import { runtimeModules as keymapRuntimeModules } from "@opentui/keymap/runtime-modules"
 import {
-  type TuiDispose,
   type TuiPlugin,
   type TuiPluginApi,
   type TuiPluginInstallResult,
@@ -44,6 +43,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Effect } from "effect"
 import * as Log from "@novaway/core/util/log"
 import { createPluginRuntime, type PluginRuntime, type TuiPluginHost } from "@novaway/tui/plugin/runtime"
+import { createPluginScope, type PluginScope } from "./scope"
 
 // 运行期插件支持做的是「在加载时用 solid 编译器转换插件的 TSX」——它靠 Bun 的
 // 运行时插件 API 注册一个转译钩子，Node 下这个入口会在模块求值阶段直接抛错。
@@ -56,7 +56,7 @@ try {
   Log.Default.warn("TUI runtime plugin support unavailable", { error: errorMessage(error) })
 }
 
-type PluginLoad = {
+export type PluginLoad = {
   options: ConfigPlugin.Options | undefined
   spec: string
   target: string
@@ -70,12 +70,6 @@ type PluginLoad = {
 }
 
 type Api = HostPluginApi
-
-type PluginScope = {
-  lifecycle: TuiPluginApi["lifecycle"]
-  track: (fn: (() => void) | undefined) => () => void
-  dispose: () => Promise<void>
-}
 
 type PluginEntry = {
   id: string
@@ -210,30 +204,6 @@ function createScopedMode(mode: TuiPluginApi["mode"], scope: PluginScope): TuiPl
       return scope.track(mode.push(value))
     },
   }
-}
-
-type CleanupResult = { type: "ok" } | { type: "error"; error: unknown } | { type: "timeout" }
-
-function runCleanup(fn: () => unknown, ms: number): Promise<CleanupResult> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      resolve({ type: "timeout" })
-    }, ms)
-
-    Promise.resolve()
-      .then(fn)
-      .then(
-        () => {
-          resolve({ type: "ok" })
-        },
-        (error) => {
-          resolve({ type: "error", error })
-        },
-      )
-      .finally(() => {
-        clearTimeout(timer)
-      })
-  })
 }
 
 function isTheme(value: unknown) {
@@ -396,88 +366,6 @@ async function syncPluginThemes(plugin: PluginEntry) {
   }
 }
 
-function createPluginScope(load: PluginLoad, id: string, disposeTimeoutMs: number) {
-  const ctrl = new AbortController()
-  let list: { key: symbol; fn: TuiDispose }[] = []
-  let done = false
-
-  const onDispose = (fn: TuiDispose) => {
-    if (done) return () => {}
-    const key = Symbol()
-    list.push({ key, fn })
-    let drop = false
-    return () => {
-      if (drop) return
-      drop = true
-      list = list.filter((x) => x.key !== key)
-    }
-  }
-
-  const track = (fn: (() => void) | undefined) => {
-    if (!fn) return () => {}
-    let drop = false
-    let off = () => {}
-    const wrapped = () => {
-      if (drop) return
-      drop = true
-      off()
-      fn()
-    }
-    off = onDispose(wrapped)
-    return wrapped
-  }
-
-  const lifecycle: TuiPluginApi["lifecycle"] = {
-    signal: ctrl.signal,
-    onDispose,
-  }
-
-  const dispose = async () => {
-    if (done) return
-    done = true
-    ctrl.abort()
-    const queue = [...list].reverse()
-    list = []
-    const until = Date.now() + disposeTimeoutMs
-    for (const item of queue) {
-      const left = until - Date.now()
-      if (left <= 0) {
-        fail("timed out cleaning up tui plugin", {
-          path: load.spec,
-          id,
-          timeout: disposeTimeoutMs,
-        })
-        break
-      }
-
-      const out = await runCleanup(item.fn, left)
-      if (out.type === "ok") continue
-      if (out.type === "timeout") {
-        fail("timed out cleaning up tui plugin", {
-          path: load.spec,
-          id,
-          timeout: disposeTimeoutMs,
-        })
-        break
-      }
-
-      if (out.type === "error") {
-        fail("failed to clean up tui plugin", {
-          path: load.spec,
-          id,
-          error: out.error,
-        })
-      }
-    }
-  }
-
-  return {
-    lifecycle,
-    track,
-    dispose,
-  }
-}
-
 function readPluginEnabledMap(value: unknown) {
   if (!isRecord(value)) return {}
   return Object.fromEntries(
@@ -532,7 +420,7 @@ async function activatePluginEntry(state: RuntimeState, plugin: PluginEntry, per
     return true
   }
 
-  const scope = createPluginScope(plugin.load, plugin.id, state.dispose_timeout_ms)
+  const scope = createPluginScope(plugin.load, plugin.id, state.dispose_timeout_ms, fail)
   const api = pluginApi(state, plugin, scope, plugin.id)
   const ok = await Promise.resolve()
     .then(async () => {
@@ -800,10 +688,14 @@ async function refreshGitPlugins(origins: ConfigPlugin.Origin[]) {
   })
 }
 
-async function addExternalPluginEntries(state: RuntimeState, ready: PluginLoad[]) {
+async function addExternalPluginEntries(
+  state: RuntimeState,
+  ready: PluginLoad[],
+  touchPluginMeta: typeof PluginMeta.touchMany = PluginMeta.touchMany,
+) {
   if (!ready.length) return { plugins: [] as PluginEntry[], ok: true }
 
-  const meta = await PluginMeta.touchMany(
+  const meta = await touchPluginMeta(
     ready.map((item) => ({
       spec: item.spec,
       target: item.target,
@@ -1078,12 +970,20 @@ export async function dispose() {
   }
 }
 
+export type LegacyTuiHostOptions = {
+  resolvePlugins?: (origins: ConfigPlugin.Origin[]) => Promise<PluginLoad[]>
+  internalPlugins?: typeof internalTuiPlugins
+  touchPluginMeta?: typeof PluginMeta.touchMany
+  refreshGitPlugins?: (origins: ConfigPlugin.Origin[]) => void
+}
+
 async function load(input: {
   api: Api
   config: TuiConfig.Resolved & TuiConfig.HostMetadata
   runtime: PluginRuntime
   dispose?: () => void
   disposeTimeoutMs?: number
+  options?: LegacyTuiHostOptions
 }) {
   const { api, config } = input
   const cwd = process.cwd()
@@ -1120,7 +1020,7 @@ async function load(input: {
     if (Flag.NOVAWAY_PURE && pluginOrigins.length) {
     }
 
-    for (const item of internalTuiPlugins(flags)) {
+    for (const item of (input.options?.internalPlugins ?? internalTuiPlugins)(flags)) {
       const entry = loadInternalPlugin(item)
       const meta = createMeta(entry.source, entry.spec, entry.target, undefined, entry.id)
       addPluginEntry(next, {
@@ -1133,8 +1033,10 @@ async function load(input: {
       })
     }
 
-    const ready = await resolveExternalPlugins(records, () => TuiConfig.waitForDependencies())
-    await addExternalPluginEntries(next, ready)
+    const ready = input.options?.resolvePlugins
+      ? await input.options.resolvePlugins(records)
+      : await resolveExternalPlugins(records, () => TuiConfig.waitForDependencies())
+    await addExternalPluginEntries(next, ready, input.options?.touchPluginMeta)
 
     applyInitialPluginEnabledState(next, config)
     for (const plugin of next.plugins) {
@@ -1146,17 +1048,39 @@ async function load(input: {
       await activatePluginEntry(next, plugin, false)
     }
     next.view.update({ status: listPluginStatus(next) })
-    next.background = refreshGitPlugins(records).catch((error) => {
-      fail("failed to schedule git tui plugin refresh", { directory: cwd, error })
-    })
+    if (input.options?.refreshGitPlugins) {
+      input.options.refreshGitPlugins(records)
+    } else {
+      next.background = refreshGitPlugins(records).catch((error) => {
+        fail("failed to schedule git tui plugin refresh", { directory: cwd, error })
+      })
+    }
   } catch (error) {
     fail("failed to load tui plugins", { directory: cwd, error })
   }
 }
 
-export function createLegacyTuiPluginHost(): TuiPluginHost {
+export function createLegacyTuiPluginHost(options: LegacyTuiHostOptions = {}): TuiPluginHost {
   return {
-    start: init,
+    start(input) {
+      const cwd = process.cwd()
+      if (loaded) {
+        if (dir !== cwd) {
+          throw new Error(
+            `TuiPluginRuntime.init() called with a different working directory. expected=${dir} got=${cwd}`,
+          )
+        }
+        return loaded
+      }
+
+      dir = cwd
+      loaded = load({
+        ...input,
+        runtime: input.runtime ?? createPluginRuntime(),
+        options,
+      })
+      return loaded
+    },
     dispose,
   }
 }

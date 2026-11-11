@@ -17,7 +17,10 @@ function SettingsRow(props: {
   disabled?: boolean
 }) {
   return (
-    <div class="border-t border-border px-4 py-3 first:border-t-0">
+    <div
+      data-row-hover
+      class="group border-t border-border/80 px-4 py-4 transition-colors first:border-t-0 hover:bg-hover/40"
+    >
       <div class="grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div class="min-w-0">
           <div class="text-13-medium text-foreground">{props.title}</div>
@@ -69,7 +72,7 @@ function FeishuAppHelpTip() {
         tabIndex={0}
         role="button"
         aria-label="配置帮助"
-        class="shrink-0 cursor-help text-foreground-subtle outline-none transition-colors hover:text-emerald-200 focus-visible:text-emerald-200"
+        class="shrink-0 cursor-help text-foreground-subtle outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
@@ -77,17 +80,20 @@ function FeishuAppHelpTip() {
       </span>
       <Show when={open()}>
         <span aria-hidden="true" class="absolute left-0 top-full h-2 w-72" />
-        <span class="absolute left-0 top-[calc(100%+8px)] z-50 w-72 rounded-[8px] border border-border-hover bg-popover p-3 text-left shadow-[0_18px_44px_rgba(0,0,0,0.20)]">
+        <span
+          class="absolute left-0 top-[calc(100%+8px)] z-50 w-72 rounded-lg border border-border-hover bg-popover p-3 text-left"
+          style={{ "box-shadow": "0 18px 44px color-mix(in srgb, var(--text-strong) 20%, transparent)" }}
+        >
           <span class="block text-11-regular leading-relaxed text-foreground-subtle">
             打开飞书开放平台，创建「企业自建应用」。进入「凭证与基础信息」复制 App ID 和 App
             Secret，然后在「添加应用能力」中添加机器人，申请 im:message.p2p_msg:readonly、im:message:send_as_bot
             权限，并订阅 im.message.receive_v1，事件订阅方式选择长连接。
           </span>
-          <span class="mt-2 flex items-center gap-2 rounded-[7px] border border-border bg-background p-2">
+          <span class="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none p-2">
             <code class="min-w-0 flex-1 truncate text-11-regular text-foreground">{link}</code>
             <button
               type="button"
-              class="h-7 shrink-0 rounded-[6px] border border-emerald-300/40 bg-emerald-300/10 px-2 text-10-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_6px_14px_rgba(16,185,129,0.16)] active:translate-y-0 active:scale-95"
+              class="h-7 shrink-0 rounded-md border border-border bg-surface px-2 text-10-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
               onClick={() => copyLink()}
             >
               <span class="flex items-center gap-1">
@@ -98,7 +104,7 @@ function FeishuAppHelpTip() {
           </span>
           <Show when={copied()}>
             <span
-              class="mt-2 flex items-center gap-1.5 rounded-[7px] border border-emerald-300/40 bg-emerald-300/10 px-2 py-1.5 text-11-medium text-emerald-100"
+              class="mt-2 flex items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-2 py-1.5 text-11-medium text-icon-success-base"
               aria-live="polite"
             >
               <Icon name="circle-check" size="small" />
@@ -227,13 +233,13 @@ export const SettingsNotifications: Component = () => {
   }
 
   return (
-    <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
-      <div>
-        <h2 class="text-16-medium text-foreground">消息通知</h2>
+    <div class="mx-auto flex h-full w-full max-w-[1040px] flex-col gap-5 overflow-y-auto px-4 pb-10 pt-8 sm:px-8 lg:px-10">
+      <header class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)] pb-2">
+        <h2 class="text-24-semibold tracking-tight text-foreground">消息通知</h2>
         <p class="mt-1 text-12-regular leading-relaxed text-foreground-subtle">
           将 NovaWay 的通知转发到飞书群，后续可在这里继续扩展其他通知渠道。
         </p>
-      </div>
+      </header>
 
       <div class="flex flex-col gap-1">
         <h3 class="pb-2 text-14-medium text-foreground">飞书连接配置</h3>
@@ -244,7 +250,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuWebhookDraft()}
               onInput={(event) => setFeishuWebhookDraft(event.currentTarget.value)}
               placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -255,7 +261,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuKeywordDraft()}
               onInput={(event) => setFeishuKeywordDraft(event.currentTarget.value)}
               placeholder="默认 NovaWay"
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[160px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[160px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -271,7 +277,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuAppIdDraft()}
               onInput={(event) => setFeishuAppIdDraft(event.currentTarget.value)}
               placeholder="cli_..."
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -288,7 +294,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuAppSecretDraft()}
               onInput={(event) => setFeishuAppSecretDraft(event.currentTarget.value)}
               placeholder="请输入 App Secret"
-              class="h-9 w-full min-w-0 rounded-[7px] border border-border bg-background px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -301,7 +307,7 @@ export const SettingsNotifications: Component = () => {
               </span>
               <button
                 type="button"
-                class="h-9 rounded-[7px] border border-border px-3 text-11-medium text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100"
+                class="h-9 rounded-lg border border-border bg-surface px-3 text-11-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
                 disabled={pollingBinding()}
                 classList={{ "opacity-50": pollingBinding() }}
                 onClick={() => void refreshFeishuBinding()}
@@ -313,7 +319,7 @@ export const SettingsNotifications: Component = () => {
           <SettingsRow title="保存飞书配置" description="保存后，办公平台连接器会同步显示已配置。">
             <button
               type="button"
-              class="flex h-9 items-center rounded-[7px] border border-emerald-300/45 bg-emerald-300/10 px-3 text-11-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_8px_20px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+              class="flex h-9 items-center rounded-lg border border-border bg-surface px-3 text-11-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
               onClick={() => void saveFeishuConfig()}
             >
               保存配置
@@ -399,7 +405,7 @@ export const SettingsNotifications: Component = () => {
           >
             <button
               type="button"
-              class="flex h-9 items-center gap-1.5 rounded-[7px] border border-emerald-300/45 bg-emerald-300/10 px-3 text-11-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_8px_20px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+              class="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-11-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
               disabled={!feishuConnected() || testing()}
               classList={{ "opacity-50": !feishuConnected() || testing() }}
               onClick={() => void sendTestMessage()}

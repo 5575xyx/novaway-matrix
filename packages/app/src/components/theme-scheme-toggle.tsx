@@ -8,6 +8,8 @@ export function ThemeSchemeToggle(props: { variant?: "row" | "icon" }) {
   const isDark = () => theme.mode() === "dark"
   const nextScheme = (): ColorScheme => (isDark() ? "light" : "dark")
   const title = () => language.t(isDark() ? "theme.toggle.light" : "theme.toggle.dark")
+  // 主题切换沿用原来的连续 SVG 扩散效果。这个方案在当前窗口环境里比
+  // View Transition 的整页快照更顺滑，且能保持用户熟悉的 3 秒扩散节奏。
   const toggle = (event: MouseEvent) => {
     const next = nextScheme()
     const target = event.currentTarget as HTMLElement
@@ -22,7 +24,7 @@ export function ThemeSchemeToggle(props: { variant?: "row" | "icon" }) {
       "inset:0",
       "pointer-events:none",
       "z-index:2147483647",
-      `background:${readPageBackground(next)}`,
+      `background:${readPageBackground()}`,
     ].join(";")
 
     setRevealMask(overlay, x, y, 0, 0)
@@ -53,7 +55,7 @@ export function ThemeSchemeToggle(props: { variant?: "row" | "icon" }) {
     <span
       class="flex size-6.5 shrink-0 items-center justify-center rounded-[7px] [&_svg]:size-[17px]"
       style={{
-        color: isDark() ? "#818cf8" : "#f59e0b",
+        color: isDark() ? "var(--icon-agent-plan-base)" : "var(--icon-warning-base)",
         background: "color-mix(in srgb, currentColor 14%, transparent)",
       }}
     >
@@ -92,14 +94,14 @@ export function ThemeSchemeToggle(props: { variant?: "row" | "icon" }) {
   )
 }
 
-function readPageBackground(next: ColorScheme) {
+function readPageBackground() {
   const bodyBackground = getComputedStyle(document.body).backgroundColor
   if (bodyBackground && bodyBackground !== "rgba(0, 0, 0, 0)" && bodyBackground !== "transparent") return bodyBackground
 
   const rootBackground = getComputedStyle(document.documentElement).backgroundColor
   if (rootBackground && rootBackground !== "rgba(0, 0, 0, 0)" && rootBackground !== "transparent") return rootBackground
 
-  return next === "dark" ? "#F8FAFC" : "#020817"
+  return "var(--background-base)"
 }
 
 function setRevealMask(element: HTMLElement, x: number, y: number, radius: number, progress: number) {
@@ -124,7 +126,6 @@ function setRevealMask(element: HTMLElement, x: number, y: number, radius: numbe
   element.style.maskImage = mask
   element.style.webkitMaskImage = mask
 }
-
 function SunIcon() {
   return (
     <svg

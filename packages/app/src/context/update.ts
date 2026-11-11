@@ -172,7 +172,10 @@ export function configureUpdate(input: { platform: Platform; t: Translate }) {
   subscribed = true
   currentPlatform.onUpdateStatus?.(apply)
   // 窗口重载 / 首次挂载：拉一次主进程当前状态，避免错过之前的推送。
-  void currentPlatform.updateStatus?.().then(apply).catch(() => {})
+  void currentPlatform
+    .updateStatus?.()
+    .then(apply)
+    .catch(() => {})
 }
 
 /** 把「已下载」当成一条完整状态写进快照（老版 update-available 推送的兜底）。 */

@@ -102,7 +102,7 @@ const formatNext = (time: number) =>
 /**
  * 自动化（定时任务）页。
  *
- * 对齐 ZCode 的「自动化」：把一段提示词按「每天 / 每周 / 每 N 小时」定时跑一次，
+ * 把一段提示词按「每天 / 每周 / 每 N 小时」定时跑一次，
  * 每次运行创建一条新的会话并执行，运行记录可回看。
  *
  * 调度在服务端完成（/office/platform/schedules，ticker 每分钟检查一次），
@@ -234,7 +234,7 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
 
       <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-14 sm:px-10">
         <div class="mx-auto flex w-full max-w-[1000px] flex-col gap-8 pt-4">
-          {/* 大标题 + 分段（对齐 ZCode 的「自动化 / 工作流」）。 */}
+          {/* 大标题 + 分段（「自动化 / 工作流」）。 */}
           <div class="flex flex-col gap-1">
             <div class="flex items-baseline gap-3">
               <For each={["automation", "workflow"] as const}>
@@ -348,7 +348,10 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                       <div class="flex items-center gap-2">
                         <span
                           class="grid size-6 place-items-center rounded-md"
-                          style={{ color: "#f59e0b", background: "color-mix(in srgb, #f59e0b 16%, transparent)" }}
+                          style={{
+                            color: "var(--icon-warning-base)",
+                            background: "color-mix(in srgb, var(--icon-warning-base) 16%, transparent)",
+                          }}
                         >
                           <Icon name="autopilot" size="small" />
                         </span>
@@ -407,7 +410,7 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
             </Show>
           </Show>
 
-          {/* 保持唤醒（对齐 ZCode 的提示行 + 开关）。 */}
+          {/* 保持唤醒（提示行 + 开关）。 */}
           <div class="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
             <Icon name="help" size="small" class="shrink-0 text-foreground-subtle" />
             <span class="min-w-0 flex-1 text-13-regular text-foreground-subtle">
@@ -568,7 +571,7 @@ const AutomationDialog: Component<{
           </div>
         </div>
         <Show when={error()}>
-          <span class="text-12-regular text-destructive">{error()}</span>
+          <span class="text-12-regular text-icon-critical-base">{error()}</span>
         </Show>
         <div class="flex justify-end gap-2">
           <Button type="button" variant="secondary" disabled={saving()} onClick={() => dialog.close()}>

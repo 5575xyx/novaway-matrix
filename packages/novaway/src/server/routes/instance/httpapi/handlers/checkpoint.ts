@@ -87,8 +87,9 @@ export const checkpointHandlers = HttpApiBuilder.group(InstanceHttpApi, "checkpo
       )
       .handle("restoreCheckpoint", (ctx) =>
         Effect.gen(function* () {
-          const data = yield* checkpoint.restore(ctx.params.checkpointId)
-          return data
+          const existing = yield* checkpoint.get(ctx.params.checkpointId)
+          if (!existing) return yield* Effect.fail(new HttpApiError.NotFound({}))
+          return yield* checkpoint.restore(ctx.params.checkpointId)
         }),
       )
       .handle("deleteCheckpoint", (ctx) =>

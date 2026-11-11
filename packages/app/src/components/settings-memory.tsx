@@ -31,7 +31,7 @@ import {
   type CandidateSource,
   type ReviewStatus,
 } from "./settings-memory.helpers"
-import { SettingsGroup, SettingsRow } from "./settings-parts"
+import { SettingsGroup, SettingsPage, SettingsRow } from "./settings-parts"
 import { formatRelativeTime } from "@/utils/relative-time"
 import { aiFixLabels, buildAiFixDetails, type AiFixContext } from "@/utils/ai-fix"
 
@@ -53,18 +53,6 @@ const sourceLabels: Record<CandidateSource, string> = {
   compaction: "settings.review.source.compaction",
   "session-end": "settings.review.source.sessionEnd",
 }
-
-const SettingsPage: Component<{ title: string; description: string; children: JSX.Element }> = (props) => (
-  <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
-    <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-      <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-        <h2 class="text-16-medium text-foreground">{props.title}</h2>
-        <p class="text-13-regular text-foreground-subtle">{props.description}</p>
-      </div>
-    </div>
-    <div class="flex flex-col gap-8 w-full">{props.children}</div>
-  </div>
-)
 
 const SectionTitle: Component<{ title: string; description?: string }> = (props) => (
   <div class="flex flex-col gap-1 pb-2">
@@ -250,11 +238,11 @@ const MemoryViewTabs: Component<{ value: MemoryView; onChange: (value: MemoryVie
 )
 
 function relationNodeColor(type?: string) {
-  if (type === "person") return "#22d3ee"
-  if (type === "product") return "#a78bfa"
-  if (type === "organization" || type === "company") return "#f59e0b"
-  if (type === "place") return "#34d399"
-  return "#64748b"
+  if (type === "person") return "var(--icon-info-base)"
+  if (type === "product") return "var(--icon-agent-plan-base)"
+  if (type === "organization" || type === "company") return "var(--icon-warning-base)"
+  if (type === "place") return "var(--icon-success-base)"
+  return "var(--icon-weak-base)"
 }
 
 const RelationGraph: Component<{
@@ -325,7 +313,7 @@ const RelationGraph: Component<{
                       y1={edge.from.y}
                       x2={edge.to.x}
                       y2={edge.to.y}
-                      stroke="#64748b"
+                      stroke="var(--border-weak-base)"
                       stroke-opacity="0.45"
                       stroke-width="1.5"
                     />
@@ -387,7 +375,7 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
   const [view, setView] = createSignal<MemoryView>("config")
   const [candidateSearch, setCandidateSearch] = createSignal("")
   const [entrySearch, setEntrySearch] = createSignal("")
-  // ZCode 记忆页左侧的项目下拉：这里用记忆的写入范围代替（全局 / 本项目 / 本会话），
+  // 记忆页左侧的下拉：用记忆的写入范围（全局 / 本项目 / 本会话），
   // 默认「全部范围」，与右侧条数、搜索同一行。
   const [entryScope, setEntryScope] = createSignal<"all" | "global" | "project" | "session">("all")
   const scopeOptions = createMemo(() => [
@@ -1095,7 +1083,7 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
       <Show when={view() === "entries"}>
         <div class="flex flex-col gap-3">
           {/*
-            对齐 ZCode 的记忆页（`MemorySettingsSection`）：顶部一行是
+            记忆页：顶部一行是
             「条数 + 搜索」，下面是**文件行**（图标 + 名称 + 时间 + 右侧操作），
             不是一堆带边框的卡片。我们的记忆是 DB 记录而不是磁盘文件，
             所以"文件名"用 `summary`（没有就截断 content），"时间"用 updated。
@@ -1172,7 +1160,7 @@ export const SettingsMemory: Component<{ embedded?: boolean; directory?: string 
                           <span class="line-clamp-2 text-11-regular text-foreground-subtle">{item.content}</span>
                         </Show>
                       </div>
-                      {/* ZCode 的文件行右侧有编辑器操作；记忆是 DB 记录，对应操作就是删除。 */}
+                      {/* 记忆是 DB 记录，行右侧的操作就是删除。 */}
                       <IconButton
                         icon="trash"
                         variant="ghost"

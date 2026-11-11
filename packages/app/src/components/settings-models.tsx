@@ -198,10 +198,10 @@ export const SettingsModels: Component = () => {
   })
 
   return (
-    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
+    <div class="flex h-full flex-col overflow-y-auto no-scrollbar px-4 pb-10 sm:px-8 lg:px-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-4 pt-6 pb-6 w-full">
-          <h2 class="text-16-medium text-foreground">{language.t("settings.models.title")}</h2>
+        <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-4 pt-8 pb-6">
+          <h2 class="text-24-semibold tracking-tight text-foreground">{language.t("settings.models.title")}</h2>
           <div class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface">
             <Icon name="magnifying-glass" class="text-foreground-subtlest flex-shrink-0" />
             <TextField
@@ -223,7 +223,7 @@ export const SettingsModels: Component = () => {
         </div>
       </div>
 
-      <div class="flex flex-col gap-8 w-full">
+      <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-8">
         <Show
           when={!list.grouped.loading}
           fallback={
@@ -258,7 +258,7 @@ export const SettingsModels: Component = () => {
                           const key = { providerID: item.provider.id, modelID: item.id }
                           return (
                             <div
-                              class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 cursor-default"
+                              class="flex cursor-default flex-col gap-2 rounded-xl border border-border/80 bg-surface p-4 shadow-sm transition-colors hover:border-border-hover hover:bg-hover/30"
                               onContextMenu={(e) =>
                                 handleContextMenu(e, {
                                   providerID: item.provider.id,

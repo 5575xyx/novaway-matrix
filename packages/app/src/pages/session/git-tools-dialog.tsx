@@ -93,7 +93,7 @@ export function GitBranchDialog(props: { git: Git; onClose: () => void }) {
                       </button>
                       <button
                         type="button"
-                        class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-rose-600 group-hover:opacity-100 disabled:opacity-40"
+                        class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-[var(--icon-critical-base)] group-hover:opacity-100 disabled:opacity-40"
                         disabled={props.git.busy() || pending() !== undefined}
                         onClick={() => run(`remove:${branch.name}`, () => props.git.removeBranch(branch.name))}
                       >
@@ -130,7 +130,7 @@ export function GitBranchDialog(props: { git: Git; onClose: () => void }) {
         </div>
 
         <Show when={props.git.error()}>
-          <div class="rounded-md bg-rose-500/10 px-2 py-1.5 text-ui-xs text-rose-600 dark:text-rose-400">
+          <div class="rounded-md bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-2 py-1.5 text-ui-xs text-[var(--icon-critical-base)]">
             {props.git.error()}
           </div>
         </Show>
@@ -189,7 +189,7 @@ export function GitRemoteDialog(props: { git: Git; onClose: () => void }) {
                     <span class="min-w-0 flex-1 truncate text-ui-xs text-foreground-subtle">{remote.url}</span>
                     <button
                       type="button"
-                      class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-rose-600 group-hover:opacity-100 disabled:opacity-40"
+                      class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-[var(--icon-critical-base)] group-hover:opacity-100 disabled:opacity-40"
                       disabled={props.git.busy()}
                       onClick={() => void props.git.removeRemote(remote.name)}
                     >
@@ -231,7 +231,7 @@ export function GitRemoteDialog(props: { git: Git; onClose: () => void }) {
         </div>
 
         <Show when={props.git.error()}>
-          <div class="rounded-md bg-rose-500/10 px-2 py-1.5 text-ui-xs text-rose-600 dark:text-rose-400">
+          <div class="rounded-md bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-2 py-1.5 text-ui-xs text-[var(--icon-critical-base)]">
             {props.git.error()}
           </div>
         </Show>

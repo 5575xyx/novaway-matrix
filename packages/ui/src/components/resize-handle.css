@@ -1,6 +1,6 @@
 /* 工作区拖拽热区。
  *
- * 规格来源：ZCode `docs/design/workspace-independent-panels.md` —— 面板之间保留 4px 透明间距，
+ * 面板之间保留 4px 透明间距，
  * 间距承载 resize handle；热区透明、指示线 2px、颜色用第三层文字色再降到 50% 不透明度；
  * 默认隐藏，hover / 键盘聚焦 / 拖动时显示；指示线沿面板边缘延伸，两端按面板圆角内缩且端点圆润。
  *

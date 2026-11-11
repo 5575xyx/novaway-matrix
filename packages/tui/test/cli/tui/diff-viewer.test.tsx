@@ -200,6 +200,7 @@ const session = {
   id: "session-1",
   slug: "session-1",
   projectID: "project-1",
+  scope: "project",
   directory: "/repo/session",
   title: "Session",
   version: "1",

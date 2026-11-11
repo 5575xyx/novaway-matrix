@@ -109,6 +109,11 @@ export const layer = Layer.effect(
     return Service.of({
       environment: Effect.fn("SystemPrompt.environment")(function* (model: Provider.Model) {
         const ctx = yield* InstanceState.context
+        if (ctx.scope === "global") {
+          return [
+            `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}. Today's date: ${new Date().toDateString()}.`,
+          ]
+        }
         // 使用实际解析出的模型 id：提示词按模型族选择，环境块也据此告知模型身份。
         const modelName = model.api.id
         const modelId = `${model.providerID}/${model.api.id}`
@@ -145,6 +150,7 @@ export const layer = Layer.effect(
       }),
 
       skills: Effect.fn("SystemPrompt.skills")(function* (agent: Agent.Info, activatedPaths?: string[]) {
+        if ((yield* InstanceState.context).scope === "global") return
         if (Permission.disabled(["skill"], agent.permission).has("skill")) return
 
         const list = yield* skill.available(agent, activatedPaths)

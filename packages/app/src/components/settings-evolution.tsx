@@ -6,7 +6,7 @@ import { Tag } from "@novaway/ui/tag"
 import { TextField } from "@novaway/ui/text-field"
 import { showToast } from "@novaway/ui/toast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
-import { createMemo, createSignal, For, Show, type Component, type JSX } from "solid-js"
+import { createMemo, createSignal, For, Show, type Component } from "solid-js"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -23,6 +23,7 @@ import {
   type CandidateStatus,
 } from "./settings-evolution.helpers"
 import { SettingsList } from "./settings-list"
+import { SettingsPage } from "./settings-parts"
 
 type CandidateContentFormat = EvolutionCandidate["contentFormat"]
 
@@ -51,18 +52,6 @@ const sourceLabels: Record<CandidateSource, string> = {
 function errorMessage(err: unknown) {
   return err instanceof Error ? err.message : String(err)
 }
-
-const SettingsPage: Component<{ title: string; description: string; children: JSX.Element }> = (props) => (
-  <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
-    <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-      <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-        <h2 class="text-16-medium text-foreground">{props.title}</h2>
-        <p class="text-13-regular text-foreground-subtle">{props.description}</p>
-      </div>
-    </div>
-    <div class="flex flex-col gap-8 w-full">{props.children}</div>
-  </div>
-)
 
 const SectionTitle: Component<{ title: string; description?: string }> = (props) => (
   <div class="flex flex-col gap-1 pb-2">

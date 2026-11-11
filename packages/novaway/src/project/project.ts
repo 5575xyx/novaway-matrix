@@ -113,6 +113,7 @@ export interface Interface {
    */
   readonly init: () => Effect.Effect<void>
   readonly fromDirectory: (directory: string) => Effect.Effect<{ project: Info; sandbox: string }>
+  readonly globalChat: () => Effect.Effect<Info>
   readonly discover: (input: Info) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Info[]>
   readonly get: (id: ProjectID) => Effect.Effect<Info | undefined>
@@ -353,6 +354,39 @@ export const layer: Layer.Layer<
       return { project: result, sandbox: data.sandbox }
     })
 
+    const globalChat = Effect.fn("Project.globalChat")(function* () {
+      const id = ProjectID.chat
+      const existing = yield* db((d) => d.select().from(ProjectTable).where(eq(ProjectTable.id, id)).get())
+      const now = Date.now()
+      const result: Info = existing
+        ? fromRow(existing)
+        : {
+            id,
+            worktree: "/",
+            sandboxes: [],
+            time: { created: now, updated: now },
+          }
+
+      if (!existing) {
+        yield* db((d) =>
+          d
+            .insert(ProjectTable)
+            .values({
+              id,
+              worktree: result.worktree,
+              vcs: null,
+              name: "Global Chat",
+              time_created: now,
+              time_updated: now,
+              sandboxes: [],
+              commands: null,
+            })
+            .run(),
+        )
+      }
+      return result
+    })
+
     const discover = Effect.fn("Project.discover")(function* (input: Info) {
       if (input.vcs !== "git") return
       if (input.icon?.override) return
@@ -489,6 +523,7 @@ export const layer: Layer.Layer<
     return Service.of({
       init,
       fromDirectory,
+      globalChat,
       discover,
       list,
       get,

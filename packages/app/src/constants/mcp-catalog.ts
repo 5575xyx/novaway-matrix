@@ -1,8 +1,7 @@
 /**
  * MCP 市场目录。
  *
- * 对齐 ZCode 的 MCP Settings（`settings/McpServerList.tsx` + `McpServerForm.tsx`）：
- * 它的安装面板是一个「扫一眼就能添加」的目录，而不是让用户手写 command/args。
+ * 安装面板是一个「扫一眼就能添加」的目录，而不是让用户手写 command/args。
  *
  * 这里是一份**内置精选目录**（离线可用，不依赖远端 marketplace 源）。
  * 后端 config 的 `mcp` 段已支持 local / remote 两种形态，所以「安装」= 把 template 写进 config，

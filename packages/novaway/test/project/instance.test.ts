@@ -5,6 +5,7 @@ import { InstanceRef } from "../../src/effect/instance-ref"
 import { registerDisposer } from "../../src/effect/instance-registry"
 import { InstanceBootstrap } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
+import { ProjectID } from "../../src/project/schema"
 import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
@@ -44,6 +45,25 @@ describe("InstanceStore", () => {
 
       expect(ctx.directory).toBe(dir)
       expect(ctx.worktree).toBe(dir)
+    }),
+  )
+
+  it.live("loads a global chat instance without project discovery", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      const store = yield* InstanceStore.Service
+      let initializedDirectory: string | undefined
+      yield* setBootstrap(
+        Effect.gen(function* () {
+          initializedDirectory = (yield* InstanceRef)?.directory
+        }),
+      )
+
+      const ctx = yield* store.load({ directory: dir, scope: "global" })
+      expect(ctx.scope).toBe("global")
+      expect(ctx.project.id).toBe(ProjectID.chat)
+      expect(ctx.directory).not.toBe(dir)
+      expect(initializedDirectory).toBe(ctx.directory)
     }),
   )
 

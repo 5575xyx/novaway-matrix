@@ -63,10 +63,11 @@ describe("mcp.headers", () => {
         })
         .pipe(Effect.catch(() => Effect.void))
 
-      // Both transports should have been created with headers
-      expect(transportCalls.length).toBeGreaterThanOrEqual(1)
+      // MCP state eagerly attempts configured default servers too; assert only this test endpoint.
+      const calls = transportCalls.filter((call) => call.url === "https://example.com/mcp")
+      expect(calls.length).toBeGreaterThanOrEqual(1)
 
-      for (const call of transportCalls) {
+      for (const call of calls) {
         expect(call.options.requestInit).toBeDefined()
         expect(call.options.requestInit?.headers).toEqual({
           Authorization: "Bearer test-token",
@@ -92,9 +93,11 @@ describe("mcp.headers", () => {
         })
         .pipe(Effect.catch(() => Effect.void))
 
-      expect(transportCalls.length).toBeGreaterThanOrEqual(1)
+      // This instance may also initialize default MCPs; isolate assertions to the explicit test server.
+      const calls = transportCalls.filter((call) => call.url === "https://example.com/mcp")
+      expect(calls.length).toBeGreaterThanOrEqual(1)
 
-      for (const call of transportCalls) {
+      for (const call of calls) {
         expect(call.options.requestInit).toBeDefined()
         expect(call.options.requestInit?.headers).toEqual({
           Authorization: "Bearer test-token",
@@ -115,9 +118,11 @@ describe("mcp.headers", () => {
         })
         .pipe(Effect.catch(() => Effect.void))
 
-      expect(transportCalls.length).toBeGreaterThanOrEqual(1)
+      // Ignore configured default servers so only the no-header test transport is checked.
+      const calls = transportCalls.filter((call) => call.url === "https://example.com/mcp")
+      expect(calls.length).toBeGreaterThanOrEqual(1)
 
-      for (const call of transportCalls) {
+      for (const call of calls) {
         // No headers means requestInit should be undefined
         expect(call.options.requestInit).toBeUndefined()
       }

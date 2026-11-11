@@ -1,6 +1,7 @@
 import { defineConfig } from "vite"
 import solidPlugin from "vite-plugin-solid"
 import { iconsSpritesheet } from "vite-plugin-icons-spritesheet"
+import { themeProviderSvg } from "./src/theme/theme-provider-svg"
 import fs from "fs"
 
 export default defineConfig({
@@ -45,7 +46,7 @@ function providerIconsPlugin() {
 }
 
 async function fetchProviderIcons() {
-  const url = process.env.NOVAWAY_MODELS_URL || "https://models.dev"
+  const url = process.env.NOVAWAY_MODELS_URL || "https://5575xyx.github.io/models.dev"
   const providers = await fetch(`${url}/api.json`)
     .then((res) => res.json())
     .then((json) => Object.keys(json))
@@ -53,7 +54,7 @@ async function fetchProviderIcons() {
     providers.map((provider) =>
       fetch(`${url}/logos/${provider}.svg`)
         .then((res) => res.text())
-        .then((svg) => fs.writeFileSync(`./src/assets/icons/provider/${provider}.svg`, svg)),
+        .then((svg) => fs.writeFileSync(`./src/assets/icons/provider/${provider}.svg`, themeProviderSvg(svg))),
     ),
   )
 }

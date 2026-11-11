@@ -60,10 +60,10 @@
 
 ## 失败速查
 
-| 现象 | 原因 | 处理 |
-| --- | --- | --- |
-| 找不到元素 | 元素在 iframe / shadow root 里 | 用 `webview_snapshot`（深度查询），别自己写 `document.querySelector` |
-| 点不动发布按钮 | closed shadow root | `webview_click_at` 按坐标点 |
-| 填完是空的 | 富文本只认用户输入 | `webview_script` 里用 `execCommand("insertText")` |
-| 上传一直转圈 | 大文件 / 弱网 | 等，并确认「取消上传」是否消失 |
-| 公众号没 token | 页面不在后台域名 | 先导航到 `mp.weixin.qq.com` 让后台自己带出 token |
+| 现象           | 原因                           | 处理                                                                 |
+| -------------- | ------------------------------ | -------------------------------------------------------------------- |
+| 找不到元素     | 元素在 iframe / shadow root 里 | 用 `webview_snapshot`（深度查询），别自己写 `document.querySelector` |
+| 点不动发布按钮 | closed shadow root             | `webview_click_at` 按坐标点                                          |
+| 填完是空的     | 富文本只认用户输入             | `webview_script` 里用 `execCommand("insertText")`                    |
+| 上传一直转圈   | 大文件 / 弱网                  | 等，并确认「取消上传」是否消失                                       |
+| 公众号没 token | 页面不在后台域名               | 先导航到 `mp.weixin.qq.com` 让后台自己带出 token                     |

@@ -140,7 +140,7 @@ export function createMainWindow() {
       ? {
           frame: false,
           titleBarStyle: "hidden" as const,
-          // 对齐 ZCode：最小化/最大化/关闭由 Header 内联自绘，**不用** 原生 titleBarOverlay。
+          // 最小化/最大化/关闭由 Header 内联自绘，**不用** 原生 titleBarOverlay。
           // 两者并存会让原生按钮盖在自绘按钮上（点击被原生按钮吃掉、视觉也重叠）。
         }
       : {}),
@@ -259,7 +259,11 @@ export function registerLocalFileProtocol() {
       getLogger().warn("[oc-file] 本地文件预览未找到", { request: request.url, file })
       return new Response("Not found", { status: 404 })
     }
-    return withInspector(await net.fetch(pathToFileURL(file).toString()), file)
+    const range = request.headers.get("range")
+    const response = await net.fetch(pathToFileURL(file).toString(), {
+      headers: range ? { Range: range } : undefined,
+    })
+    return withInspector(response, file)
   })
 }
 

@@ -54,6 +54,17 @@ import type {
   DatabaseTestConnectionErrors,
   DatabaseTestConnectionResponses,
   DocumentReviewReplyPayload,
+  DynamicWorkflowGetRunErrors,
+  DynamicWorkflowGetRunResponses,
+  DynamicWorkflowListActorsErrors,
+  DynamicWorkflowListActorsResponses,
+  DynamicWorkflowListEventsErrors,
+  DynamicWorkflowListEventsResponses,
+  DynamicWorkflowListNodesErrors,
+  DynamicWorkflowListNodesResponses,
+  DynamicWorkflowListRunsResponses,
+  DynamicWorkflowStopRunErrors,
+  DynamicWorkflowStopRunResponses,
   ElicitationListResponses,
   ElicitationRejectErrors,
   ElicitationRejectResponses,
@@ -93,11 +104,6 @@ import type {
   EvolutionStatusResponses,
   EvolutionUpdateCandidateErrors,
   EvolutionUpdateCandidateResponses,
-  ExperimentalConsoleGetErrors,
-  ExperimentalConsoleGetResponses,
-  ExperimentalConsoleListOrgsErrors,
-  ExperimentalConsoleListOrgsResponses,
-  ExperimentalConsoleSwitchOrgResponses,
   ExperimentalResourceListResponses,
   ExperimentalSessionListResponses,
   ExperimentalWorkspaceAdapterListResponses,
@@ -124,6 +130,7 @@ import type {
   FileListResponses,
   FilePartInput,
   FilePartSource,
+  FileReadErrors,
   FileReadResponses,
   FileStatusResponses,
   FileWriteResponses,
@@ -344,10 +351,16 @@ import type {
   OfficeArtifactListResponses,
   OfficeArtifactSaveErrors,
   OfficeArtifactSaveResponses,
+  OfficeDocumentCreateErrors,
+  OfficeDocumentCreateResponses,
   OfficeDocumentEditErrors,
   OfficeDocumentEditResponses,
+  OfficeDocumentExportErrors,
+  OfficeDocumentExportResponses,
   OfficeDocumentRedoErrors,
   OfficeDocumentRedoResponses,
+  OfficeDocumentSaveErrors,
+  OfficeDocumentSaveResponses,
   OfficeDocumentStateErrors,
   OfficeDocumentStateResponses,
   OfficeDocumentUndoErrors,
@@ -433,6 +446,21 @@ import type {
   PlatformWebviewListResponses,
   PlatformWebviewResolveErrors,
   PlatformWebviewResolveResponses,
+  PluginContributionsErrors,
+  PluginContributionsResponses,
+  PluginDiagnosticsResponses,
+  PluginEventsResponses,
+  PluginListResponses,
+  PluginPublishAccountDeleteErrors,
+  PluginPublishAccountDeleteResponses,
+  PluginPublishAccountErrors,
+  PluginPublishAccountResponses,
+  PluginPublishAccountsErrors,
+  PluginPublishAccountsResponses,
+  PluginPublishExecuteErrors,
+  PluginPublishExecuteResponses,
+  PluginToggleErrors,
+  PluginToggleResponses,
   ProfileCreateErrors,
   ProfileCreateResponses,
   ProfileDetailErrors,
@@ -468,6 +496,8 @@ import type {
   PtyGetErrors,
   PtyGetResponses,
   PtyListResponses,
+  PtyMediaTokenErrors,
+  PtyMediaTokenResponses,
   PtyRemoveErrors,
   PtyRemoveResponses,
   PtyShellsResponses,
@@ -527,6 +557,7 @@ import type {
   SessionDeleteMessageResponses,
   SessionDeleteResponses,
   SessionDelivery,
+  SessionDiffErrors,
   SessionDiffResponses,
   SessionDocumentReviewListErrors,
   SessionDocumentReviewListResponses,
@@ -538,6 +569,8 @@ import type {
   SessionForkResponses,
   SessionGetErrors,
   SessionGetResponses,
+  SessionGlobalCreateErrors,
+  SessionGlobalCreateResponses,
   SessionImportErrors,
   SessionImportPayload,
   SessionImportResponses,
@@ -568,6 +601,8 @@ import type {
   SessionShellResponses,
   SessionStatusErrors,
   SessionStatusResponses,
+  SessionSuggestionsErrors,
+  SessionSuggestionsResponses,
   SessionSummarizeErrors,
   SessionSummarizeResponses,
   SessionTempFilesCleanErrors,
@@ -1401,16 +1436,18 @@ export class Config2 extends HeyApiClient {
   }
 }
 
-export class Console extends HeyApiClient {
+export class Tool extends HeyApiClient {
   /**
-   * Get active Console provider metadata
+   * List tools
    *
-   * Get the active Console org name and the set of provider IDs managed by that Console org.
+   * Get a list of available tools with their JSON schema parameters for a specific provider and model combination.
    */
-  public get<ThrowOnError extends boolean = false>(
-    parameters?: {
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
       directory?: string
       workspace?: string
+      provider: string
+      model: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1421,27 +1458,25 @@ export class Console extends HeyApiClient {
           args: [
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "provider" },
+            { in: "query", key: "model" },
           ],
         },
       ],
     )
-    return (options?.client ?? this.client).get<
-      ExperimentalConsoleGetResponses,
-      ExperimentalConsoleGetErrors,
-      ThrowOnError
-    >({
-      url: "/experimental/console",
+    return (options?.client ?? this.client).get<ToolListResponses, ToolListErrors, ThrowOnError>({
+      url: "/experimental/tool",
       ...options,
       ...params,
     })
   }
 
   /**
-   * List switchable Console orgs
+   * List tool IDs
    *
-   * Get the available Console orgs across logged-in accounts, including the current active org.
+   * Get a list of all available tool IDs, including both built-in tools and dynamically registered tools.
    */
-  public listOrgs<ThrowOnError extends boolean = false>(
+  public ids<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string
       workspace?: string
@@ -1459,28 +1494,23 @@ export class Console extends HeyApiClient {
         },
       ],
     )
-    return (options?.client ?? this.client).get<
-      ExperimentalConsoleListOrgsResponses,
-      ExperimentalConsoleListOrgsErrors,
-      ThrowOnError
-    >({
-      url: "/experimental/console/orgs",
+    return (options?.client ?? this.client).get<ToolIdsResponses, ToolIdsErrors, ThrowOnError>({
+      url: "/experimental/tool/ids",
       ...options,
       ...params,
     })
   }
 
   /**
-   * Switch active Console org
+   * Call a tool
    *
-   * Persist a new active Console account/org selection for the current local NovaWay state.
+   * Call an available tool by ID, including dynamically registered MCP tools.
    */
-  public switchOrg<ThrowOnError extends boolean = false>(
+  public call<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string
       workspace?: string
-      accountID?: string
-      orgID?: string
+      toolCallPayload?: ToolCallPayload
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1491,14 +1521,156 @@ export class Console extends HeyApiClient {
           args: [
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
-            { in: "body", key: "accountID" },
-            { in: "body", key: "orgID" },
+            { key: "toolCallPayload", map: "body" },
           ],
         },
       ],
     )
-    return (options?.client ?? this.client).post<ExperimentalConsoleSwitchOrgResponses, unknown, ThrowOnError>({
-      url: "/experimental/console/switch",
+    return (options?.client ?? this.client).post<ToolCallResponses, ToolCallErrors, ThrowOnError>({
+      url: "/experimental/tool/call",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Worktree extends HeyApiClient {
+  /**
+   * Remove worktree
+   *
+   * Remove a git worktree and delete its branch.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      worktreeRemoveInput?: WorktreeRemoveInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "worktreeRemoveInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<WorktreeRemoveResponses, WorktreeRemoveErrors, ThrowOnError>({
+      url: "/experimental/worktree",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List worktrees
+   *
+   * List all sandbox worktrees for the current project.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<WorktreeListResponses, WorktreeListErrors, ThrowOnError>({
+      url: "/experimental/worktree",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create worktree
+   *
+   * Create a new git worktree for the current project and run any configured startup scripts.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      worktreeCreateInput?: WorktreeCreateInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "worktreeCreateInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<WorktreeCreateResponses, WorktreeCreateErrors, ThrowOnError>({
+      url: "/experimental/worktree",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Reset worktree
+   *
+   * Reset a worktree branch to the primary default branch.
+   */
+  public reset<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      worktreeResetInput?: WorktreeResetInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "worktreeResetInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<WorktreeResetResponses, WorktreeResetErrors, ThrowOnError>({
+      url: "/experimental/worktree/reset",
       ...options,
       ...params,
       headers: {
@@ -1520,6 +1692,7 @@ export class Session extends HeyApiClient {
     parameters?: {
       directory?: string
       workspace?: string
+      scope?: "global" | "project"
       roots?: boolean | "true" | "false"
       start?: number
       cursor?: number
@@ -1536,6 +1709,7 @@ export class Session extends HeyApiClient {
           args: [
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "query", key: "scope" },
             { in: "query", key: "roots" },
             { in: "query", key: "start" },
             { in: "query", key: "cursor" },
@@ -1844,11 +2018,6 @@ export class Workspace extends HeyApiClient {
 }
 
 export class Experimental extends HeyApiClient {
-  private _console?: Console
-  get console(): Console {
-    return (this._console ??= new Console({ client: this.client }))
-  }
-
   private _session?: Session
   get session(): Session {
     return (this._session ??= new Session({ client: this.client }))
@@ -1862,252 +2031,6 @@ export class Experimental extends HeyApiClient {
   private _workspace?: Workspace
   get workspace(): Workspace {
     return (this._workspace ??= new Workspace({ client: this.client }))
-  }
-}
-
-export class Tool extends HeyApiClient {
-  /**
-   * List tools
-   *
-   * Get a list of available tools with their JSON schema parameters for a specific provider and model combination.
-   */
-  public list<ThrowOnError extends boolean = false>(
-    parameters: {
-      directory?: string
-      workspace?: string
-      provider: string
-      model: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "query", key: "provider" },
-            { in: "query", key: "model" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<ToolListResponses, ToolListErrors, ThrowOnError>({
-      url: "/experimental/tool",
-      ...options,
-      ...params,
-    })
-  }
-
-  /**
-   * List tool IDs
-   *
-   * Get a list of all available tool IDs, including both built-in tools and dynamically registered tools.
-   */
-  public ids<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<ToolIdsResponses, ToolIdsErrors, ThrowOnError>({
-      url: "/experimental/tool/ids",
-      ...options,
-      ...params,
-    })
-  }
-
-  /**
-   * Call a tool
-   *
-   * Call an available tool by ID, including dynamically registered MCP tools.
-   */
-  public call<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      toolCallPayload?: ToolCallPayload
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { key: "toolCallPayload", map: "body" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<ToolCallResponses, ToolCallErrors, ThrowOnError>({
-      url: "/experimental/tool/call",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-}
-
-export class Worktree extends HeyApiClient {
-  /**
-   * Remove worktree
-   *
-   * Remove a git worktree and delete its branch.
-   */
-  public remove<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      worktreeRemoveInput?: WorktreeRemoveInput
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { key: "worktreeRemoveInput", map: "body" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).delete<WorktreeRemoveResponses, WorktreeRemoveErrors, ThrowOnError>({
-      url: "/experimental/worktree",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * List worktrees
-   *
-   * List all sandbox worktrees for the current project.
-   */
-  public list<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<WorktreeListResponses, WorktreeListErrors, ThrowOnError>({
-      url: "/experimental/worktree",
-      ...options,
-      ...params,
-    })
-  }
-
-  /**
-   * Create worktree
-   *
-   * Create a new git worktree for the current project and run any configured startup scripts.
-   */
-  public create<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      worktreeCreateInput?: WorktreeCreateInput
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { key: "worktreeCreateInput", map: "body" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<WorktreeCreateResponses, WorktreeCreateErrors, ThrowOnError>({
-      url: "/experimental/worktree",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * Reset worktree
-   *
-   * Reset a worktree branch to the primary default branch.
-   */
-  public reset<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      worktreeResetInput?: WorktreeResetInput
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { key: "worktreeResetInput", map: "body" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<WorktreeResetResponses, WorktreeResetErrors, ThrowOnError>({
-      url: "/experimental/worktree/reset",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
   }
 }
 
@@ -2695,6 +2618,7 @@ export class Find extends HeyApiClient {
       directory?: string
       workspace?: string
       pattern: string
+      limit?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2706,6 +2630,7 @@ export class Find extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "query", key: "pattern" },
+            { in: "query", key: "limit" },
           ],
         },
       ],
@@ -2826,7 +2751,7 @@ export class File extends HeyApiClient {
   /**
    * Read file
    *
-   * Read the content of a specified file.
+   * Read the content of a specified file. The base64 channel fails with FileReadError (not empty content) when the path is missing, escapes the project, or is not a binary preview format.
    */
   public read<ThrowOnError extends boolean = false>(
     parameters: {
@@ -2850,7 +2775,7 @@ export class File extends HeyApiClient {
         },
       ],
     )
-    return (options?.client ?? this.client).get<FileReadResponses, unknown, ThrowOnError>({
+    return (options?.client ?? this.client).get<FileReadResponses, FileReadErrors, ThrowOnError>({
       url: "/file/content",
       ...options,
       ...params,
@@ -6888,6 +6813,51 @@ export class PptxTemplate extends HeyApiClient {
 
 export class Document extends HeyApiClient {
   /**
+   * Create an Office document
+   *
+   * Create a native DOCX / XLSX / PPTX file from a title and optional body, using the same writers as the CLI and Agent tools. Refuses to overwrite an existing path.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      title?: string
+      body?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "title" },
+            { in: "body", key: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficeDocumentCreateResponses,
+      OfficeDocumentCreateErrors,
+      ThrowOnError
+    >({
+      url: "/office/document-create",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
    * Edit a document by node
    *
    * Apply node-level operations to a DOCX / HTML / Markdown / plain-text file. Editing is surgical: only the touched paragraph or XML part is rewritten; untouched bytes are preserved. Human UI and Agent tools share the same operation vocabulary.
@@ -6906,12 +6876,23 @@ export class Document extends HeyApiClient {
           bold?: boolean
           italic?: boolean
           underline?: boolean
+          strike?: boolean
           size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
           color?: string
+          highlight?: string
+          lineSpacing?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          firstLineIndent?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          indent?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          clear?: boolean
           align?: "l" | "ctr" | "r" | "just"
           font?: string
+          paragraphStyle?: string
+          list?: "bullet" | "number" | "none"
+          listLevel?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         }
         tag?: string
+        kind?: string
+        level?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         align?: string
         value?:
           | number
@@ -6935,11 +6916,33 @@ export class Document extends HeyApiClient {
           color?: string
           highlight?: string
           size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          link?: string
           clear?: boolean
         }
+        find?: string
+        replace?: string
+        all?: boolean
         html?: string
         after?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        table?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        row?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        col?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        count?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         sheet?: string
+        name?: string
+        slide?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        layout?: string
+        from?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        to?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        shapeId?: string
+        shapeName?: string
+        box?: {
+          x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        }
         cell?: string
         range?: string
         cellStyle?: {
@@ -6952,12 +6955,65 @@ export class Document extends HeyApiClient {
           format?: string
           align?: "l" | "ctr" | "r"
           wrap?: boolean
+          border?: string
+          merge?: boolean
         }
         descending?: boolean
+        hidden?: boolean
         keepHardBreaks?: boolean
         marker?: string
         indent?: string
+        mode?: string
+        toTabs?: boolean
+        width?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        key?: string
+        rows?: Array<Array<string>>
+        header?: boolean
+        dataBase64?: string
+        mime?: string
+        index?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        height?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        orientation?: "portrait" | "landscape"
+        pages?: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
+        size?: "A4" | "A3" | "Letter"
+        margins?: {
+          top?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          right?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          bottom?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          left?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        }
+        page?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        degrees?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        rotation?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        top?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        right?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        bottom?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        left?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        x?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        y?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        color?: string
+        fontSize?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        contents?: string
+        annotation?: string
+        id?: string
+        replyTo?: string
+        fields?: Array<{
+          name: string
+          value: string | boolean
+        }>
+        property?:
+          | string
+          | number
+          | "NaN"
+          | "Infinity"
+          | "-Infinity"
+          | "Infinity"
+          | "-Infinity"
+          | "NaN"
+          | boolean
+          | Array<string>
       }>
+      password?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6970,12 +7026,105 @@ export class Document extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "path" },
             { in: "body", key: "ops" },
+            { in: "body", key: "password" },
           ],
         },
       ],
     )
     return (options?.client ?? this.client).post<OfficeDocumentEditResponses, OfficeDocumentEditErrors, ThrowOnError>({
       url: "/office/document-edit",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Save whole document bytes back to the file
+   *
+   * Write the editor-produced bytes of a DOCX / XLSX / PPTX / PDF back to the original path. Optional expectedBaselineSha256 enables a server-side compare-and-swap check before the write. The write is recorded on the host undo stack and atomically swapped (temp file + rename). Used by the in-browser office editor host; the op-level editDocument remains the surgical path.
+   */
+  public save<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      contentBase64?: string
+      password?: string
+      expectedBaselineSha256?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "contentBase64" },
+            { in: "body", key: "password" },
+            { in: "body", key: "expectedBaselineSha256" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeDocumentSaveResponses, OfficeDocumentSaveErrors, ThrowOnError>({
+      url: "/office/document-save",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Export a document to text
+   *
+   * Read-only export of a DOCX / XLSX / HTML / Markdown / text file into csv, tsv, html, md, txt, docx, xlsx or pptx. Binary targets come back base64-encoded in `content` with `encoding: "base64"`. The original file is never modified; the same engine and operation contract back the panel button and Agent tools.
+   */
+  public export<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      target?: string
+      password?: string
+      page?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      scale?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "target" },
+            { in: "body", key: "password" },
+            { in: "body", key: "page" },
+            { in: "body", key: "scale" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficeDocumentExportResponses,
+      OfficeDocumentExportErrors,
+      ThrowOnError
+    >({
+      url: "/office/document-export",
       ...options,
       ...params,
       headers: {
@@ -7143,6 +7292,69 @@ export class Pptx extends HeyApiClient {
         dataBase64: string
         mime: string
       }>
+      structure?: Array<
+        | {
+            op: "addTextBox"
+            slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            text: string
+            box?: {
+              x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            }
+            style?: {
+              bold?: boolean
+              italic?: boolean
+              underline?: boolean
+              size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              color?: string
+              align?: "l" | "ctr" | "r" | "just"
+              font?: string
+            }
+          }
+        | {
+            op: "addShape"
+            slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            kind: "rect" | "roundRect" | "ellipse" | "triangle" | "diamond" | "rightArrow" | "line" | "star5"
+            box?: {
+              x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            }
+            fill?: string
+            line?: string
+            text?: string
+            style?: {
+              bold?: boolean
+              italic?: boolean
+              underline?: boolean
+              size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              color?: string
+              align?: "l" | "ctr" | "r" | "just"
+              font?: string
+            }
+          }
+        | {
+            op: "addPicture"
+            slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            dataBase64: string
+            mime: string
+            box?: {
+              x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+              h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            }
+          }
+        | {
+            op: "deleteShape"
+            slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            shapeId?: string
+            shapeName?: string
+          }
+      >
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7157,6 +7369,7 @@ export class Pptx extends HeyApiClient {
             { in: "body", key: "edits" },
             { in: "body", key: "shapes" },
             { in: "body", key: "images" },
+            { in: "body", key: "structure" },
           ],
         },
       ],
@@ -8794,6 +9007,38 @@ export class Pty extends HeyApiClient {
   }
 
   /**
+   * Create media preview token
+   *
+   * Create a short-lived ticket for range-based media playback.
+   */
+  public mediaToken<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      path: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "path" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<PtyMediaTokenResponses, PtyMediaTokenErrors, ThrowOnError>({
+      url: "/pty/media-token",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Connect to PTY session
    *
    * Establish a WebSocket connection to interact with a pseudo-terminal (PTY) session in real-time.
@@ -10062,7 +10307,7 @@ export class Session3 extends HeyApiClient {
         },
       ],
     )
-    return (options?.client ?? this.client).get<SessionDiffResponses, unknown, ThrowOnError>({
+    return (options?.client ?? this.client).get<SessionDiffResponses, SessionDiffErrors, ThrowOnError>({
       url: "/session/{sessionID}/diff",
       ...options,
       ...params,
@@ -10115,6 +10360,10 @@ export class Session3 extends HeyApiClient {
       sessionID: string
       directory?: string
       workspace?: string
+      goalExecution?: {
+        goalId: string
+        maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
       messageID?: string
       model?: {
         providerID: string
@@ -10141,6 +10390,7 @@ export class Session3 extends HeyApiClient {
             { in: "path", key: "sessionID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "body", key: "goalExecution" },
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
@@ -10237,6 +10487,63 @@ export class Session3 extends HeyApiClient {
       ...options,
       ...params,
     })
+  }
+
+  /**
+   * Create global chat session
+   */
+  public globalCreate<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      parentID?: string
+      title?: string
+      agent?: string
+      model?: {
+        id: string
+        providerID: string
+        variant?: string
+      }
+      permission?: PermissionRuleset
+      permissionMode?: PermissionMode
+      teamMode?: "off" | "auto" | "selected"
+      teamIDs?: Array<string>
+      workspaceID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "parentID" },
+            { in: "body", key: "title" },
+            { in: "body", key: "agent" },
+            { in: "body", key: "model" },
+            { in: "body", key: "permission" },
+            { in: "body", key: "permissionMode" },
+            { in: "body", key: "teamMode" },
+            { in: "body", key: "teamIDs" },
+            { in: "body", key: "workspaceID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionGlobalCreateResponses, SessionGlobalCreateErrors, ThrowOnError>(
+      {
+        url: "/session/global",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
   }
 
   /**
@@ -10521,6 +10828,38 @@ export class Session3 extends HeyApiClient {
   }
 
   /**
+   * Generate contextual follow-up questions
+   *
+   * Generate next-question suggestions from the most recently completed user and assistant turn.
+   */
+  public suggestions<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionSuggestionsResponses, SessionSuggestionsErrors, ThrowOnError>({
+      url: "/session/{sessionID}/suggestions",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Summarize session
    *
    * Generate a concise summary of the session using AI compaction to preserve key information.
@@ -10575,6 +10914,10 @@ export class Session3 extends HeyApiClient {
       sessionID: string
       directory?: string
       workspace?: string
+      goalExecution?: {
+        goalId: string
+        maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
       messageID?: string
       model?: {
         providerID: string
@@ -10601,6 +10944,7 @@ export class Session3 extends HeyApiClient {
             { in: "path", key: "sessionID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "body", key: "goalExecution" },
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
@@ -12526,6 +12870,357 @@ export class Videos extends HeyApiClient {
   }
 }
 
+export class Account extends HeyApiClient {
+  /**
+   * Remove a publish account
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      driverID: string
+      accountID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "driverID" },
+            { in: "path", key: "accountID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      PluginPublishAccountDeleteResponses,
+      PluginPublishAccountDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/accounts/{driverID}/{accountID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Publish extends HeyApiClient {
+  /**
+   * List publish accounts
+   */
+  public accounts<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      PluginPublishAccountsResponses,
+      PluginPublishAccountsErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/accounts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Add a publish account
+   */
+  public account<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      driverID?: string
+      profile?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "driverID" },
+            { in: "body", key: "profile" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      PluginPublishAccountResponses,
+      PluginPublishAccountErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/accounts",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Execute a publish driver
+   */
+  public execute<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      driverID?: string
+      accountID?: string
+      kind?: "video" | "image_text" | "article"
+      payload?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "driverID" },
+            { in: "body", key: "accountID" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "payload" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      PluginPublishExecuteResponses,
+      PluginPublishExecuteErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/execute",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _account?: Account
+  get account2(): Account {
+    return (this._account ??= new Account({ client: this.client }))
+  }
+}
+
+export class Plugin extends HeyApiClient {
+  /**
+   * List plugins
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PluginListResponses, unknown, ThrowOnError>({
+      url: "/plugin",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List plugin contributions
+   */
+  public contributions<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      kind?:
+        | "tool"
+        | "agent"
+        | "skill"
+        | "command"
+        | "provider"
+        | "office-engine"
+        | "previewer"
+        | "publish-driver"
+        | "surface"
+        | "interceptor"
+        | "mcp"
+        | "output-style"
+        | "scheduler"
+        | "event-source"
+        | "http-route"
+        | "lsp"
+        | "trigger"
+        | "fast-path"
+        | "routing-policy"
+        | "worker-type"
+        | "watchdog-policy"
+        | "channel"
+      slot?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "kind" },
+            { in: "query", key: "slot" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PluginContributionsResponses, PluginContributionsErrors, ThrowOnError>({
+      url: "/plugin/contributions",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List plugin diagnostics
+   */
+  public diagnostics<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PluginDiagnosticsResponses, unknown, ThrowOnError>({
+      url: "/plugin/diagnostics",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Enable or disable a plugin
+   */
+  public toggle<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      enabled?: boolean
+      scope?: "builtin" | "global" | "project" | "session"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "enabled" },
+            { in: "body", key: "scope" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<PluginToggleResponses, PluginToggleErrors, ThrowOnError>({
+      url: "/plugin/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Subscribe to plugin changes
+   */
+  public events<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).sse.get<PluginEventsResponses, unknown, ThrowOnError>({
+      url: "/plugin/events",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _publish?: Publish
+  get publish(): Publish {
+    return (this._publish ??= new Publish({ client: this.client }))
+  }
+}
+
 export class Control extends HeyApiClient {
   /**
    * Get next TUI request
@@ -12996,6 +13691,7 @@ export class Goal extends HeyApiClient {
       parentId?: string
       priority?: "high" | "medium" | "low"
       successCriteria?: Array<string>
+      status?: "pending" | "in_progress"
       deadline?: string
       tags?: Array<string>
     },
@@ -13012,6 +13708,7 @@ export class Goal extends HeyApiClient {
             { in: "body", key: "parentId" },
             { in: "body", key: "priority" },
             { in: "body", key: "successCriteria" },
+            { in: "body", key: "status" },
             { in: "body", key: "deadline" },
             { in: "body", key: "tags" },
           ],
@@ -13032,13 +13729,24 @@ export class Goal extends HeyApiClient {
 
   public deleteGoal<ThrowOnError extends boolean = false>(
     parameters: {
+      sessionId: string
       goalId: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "goalId" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "path", key: "goalId" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).delete<GoalDeleteGoalResponses, GoalDeleteGoalErrors, ThrowOnError>({
-      url: "/goals/{goalId}",
+      url: "/session/{sessionId}/goals/{goalId}",
       ...options,
       ...params,
     })
@@ -13046,13 +13754,24 @@ export class Goal extends HeyApiClient {
 
   public getGoal<ThrowOnError extends boolean = false>(
     parameters: {
+      sessionId: string
       goalId: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "goalId" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "path", key: "goalId" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<GoalGetGoalResponses, GoalGetGoalErrors, ThrowOnError>({
-      url: "/goals/{goalId}",
+      url: "/session/{sessionId}/goals/{goalId}",
       ...options,
       ...params,
     })
@@ -13060,10 +13779,11 @@ export class Goal extends HeyApiClient {
 
   public updateGoal<ThrowOnError extends boolean = false>(
     parameters: {
+      sessionId: string
       goalId: string
       title?: string
       description?: string
-      status?: "pending" | "in_progress" | "completed" | "cancelled"
+      status?: "pending" | "in_progress" | "paused" | "completed" | "cancelled"
       priority?: "high" | "medium" | "low"
       successCriteria?: Array<string>
       deadline?: string
@@ -13076,6 +13796,7 @@ export class Goal extends HeyApiClient {
       [
         {
           args: [
+            { in: "path", key: "sessionId" },
             { in: "path", key: "goalId" },
             { in: "body", key: "title" },
             { in: "body", key: "description" },
@@ -13089,7 +13810,7 @@ export class Goal extends HeyApiClient {
       ],
     )
     return (options?.client ?? this.client).patch<GoalUpdateGoalResponses, GoalUpdateGoalErrors, ThrowOnError>({
-      url: "/goals/{goalId}",
+      url: "/session/{sessionId}/goals/{goalId}",
       ...options,
       ...params,
       headers: {
@@ -13102,13 +13823,24 @@ export class Goal extends HeyApiClient {
 
   public getGoalProgress<ThrowOnError extends boolean = false>(
     parameters: {
+      sessionId: string
       goalId: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "goalId" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "path", key: "goalId" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<GoalGetGoalProgressResponses, GoalGetGoalProgressErrors, ThrowOnError>({
-      url: "/goals/{goalId}/progress",
+      url: "/session/{sessionId}/goals/{goalId}/progress",
       ...options,
       ...params,
     })
@@ -13334,6 +14066,202 @@ export class Workflow2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+}
+
+export class DynamicWorkflow extends HeyApiClient {
+  public listRuns<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      all?: "true" | "false"
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "all" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<DynamicWorkflowListRunsResponses, unknown, ThrowOnError>({
+      url: "/dynamic-workflow/runs",
+      ...options,
+      ...params,
+    })
+  }
+
+  public getRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runId: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      DynamicWorkflowGetRunResponses,
+      DynamicWorkflowGetRunErrors,
+      ThrowOnError
+    >({
+      url: "/dynamic-workflow/runs/{runId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listNodes<ThrowOnError extends boolean = false>(
+    parameters: {
+      runId: string
+      directory?: string
+      workspace?: string
+      kinds?: string
+      limit?: string
+      withResult?: "true" | "false"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "kinds" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "withResult" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      DynamicWorkflowListNodesResponses,
+      DynamicWorkflowListNodesErrors,
+      ThrowOnError
+    >({
+      url: "/dynamic-workflow/runs/{runId}/nodes",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listActors<ThrowOnError extends boolean = false>(
+    parameters: {
+      runId: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      DynamicWorkflowListActorsResponses,
+      DynamicWorkflowListActorsErrors,
+      ThrowOnError
+    >({
+      url: "/dynamic-workflow/runs/{runId}/actors",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listEvents<ThrowOnError extends boolean = false>(
+    parameters: {
+      runId: string
+      directory?: string
+      workspace?: string
+      after?: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "after" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      DynamicWorkflowListEventsResponses,
+      DynamicWorkflowListEventsErrors,
+      ThrowOnError
+    >({
+      url: "/dynamic-workflow/runs/{runId}/events",
+      ...options,
+      ...params,
+    })
+  }
+
+  public stopRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runId: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      DynamicWorkflowStopRunResponses,
+      DynamicWorkflowStopRunErrors,
+      ThrowOnError
+    >({
+      url: "/dynamic-workflow/runs/{runId}/stop",
+      ...options,
+      ...params,
     })
   }
 }
@@ -15246,11 +16174,6 @@ export class NovawayClient extends HeyApiClient {
     return (this._config ??= new Config2({ client: this.client }))
   }
 
-  private _experimental?: Experimental
-  get experimental(): Experimental {
-    return (this._experimental ??= new Experimental({ client: this.client }))
-  }
-
   private _tool?: Tool
   get tool(): Tool {
     return (this._tool ??= new Tool({ client: this.client }))
@@ -15259,6 +16182,11 @@ export class NovawayClient extends HeyApiClient {
   private _worktree?: Worktree
   get worktree(): Worktree {
     return (this._worktree ??= new Worktree({ client: this.client }))
+  }
+
+  private _experimental?: Experimental
+  get experimental(): Experimental {
+    return (this._experimental ??= new Experimental({ client: this.client }))
   }
 
   private _evolution?: Evolution
@@ -15426,6 +16354,11 @@ export class NovawayClient extends HeyApiClient {
     return (this._videos ??= new Videos({ client: this.client }))
   }
 
+  private _plugin?: Plugin
+  get plugin(): Plugin {
+    return (this._plugin ??= new Plugin({ client: this.client }))
+  }
+
   private _tui?: Tui
   get tui(): Tui {
     return (this._tui ??= new Tui({ client: this.client }))
@@ -15439,6 +16372,11 @@ export class NovawayClient extends HeyApiClient {
   private _workflow?: Workflow2
   get workflow(): Workflow2 {
     return (this._workflow ??= new Workflow2({ client: this.client }))
+  }
+
+  private _dynamicWorkflow?: DynamicWorkflow
+  get dynamicWorkflow(): DynamicWorkflow {
+    return (this._dynamicWorkflow ??= new DynamicWorkflow({ client: this.client }))
   }
 
   private _orchestrator?: Orchestrator

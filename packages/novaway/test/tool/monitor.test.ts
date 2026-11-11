@@ -77,7 +77,8 @@ describe("monitor tool", () => {
         context(dir),
       )
       const job = yield* background.wait({ id: output.metadata.jobID!, timeout: 15_000 })
-      expect(job.info?.status).toBe("completed")
+      expect(job.info?.status).toBe("error")
+      expect(job.info?.error).toContain("command exited with code 3")
 
       const messages = yield* mailbox.drain(sessionID)
       expect(messages[0]!.content).toContain("state: exit (code 3)")

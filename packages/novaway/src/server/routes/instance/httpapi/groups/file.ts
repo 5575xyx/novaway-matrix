@@ -21,6 +21,10 @@ export const FileQuery = Schema.Struct({
 export const FindTextQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   pattern: Schema.String,
+  /** 最多返回多少条匹配（默认 10，和原来一致）。 */
+  limit: Schema.optional(
+    Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(500)),
+  ),
 })
 
 export const FindFileQuery = Schema.Struct({
@@ -42,6 +46,28 @@ export const FileWritePayload = Schema.Struct({
   path: Schema.String,
   content: Schema.String,
 })
+
+/**
+ * base64 预览通道读不到文件时的公开契约。
+ *
+ * 失败必须是带 code 的错误，不能是 200 + 空 content。
+ * 前端按 `code` 选文案（不存在 / 越界 / 类型不支持），所以这里用一个错误类而不是
+ * 按状态码拆成 404/403/415 —— 判别信息在 code 里，状态码只是 transport。
+ */
+export class FileReadError extends Schema.ErrorClass<FileReadError>("FileReadError")(
+  {
+    name: Schema.Literal("FileReadError"),
+    data: Schema.Struct({
+      code: File.ReadErrorCode,
+      path: Schema.String,
+      message: Schema.String,
+    }),
+  },
+  { httpApiStatus: 400 },
+) {}
+
+export const fileReadError = (error: File.ReadError) =>
+  new FileReadError({ name: "FileReadError", data: { code: error.code, path: error.path, message: error.message } })
 
 export const FilePaths = {
   findText: "/find",
@@ -99,12 +125,14 @@ export const FileApi = HttpApi.make("file")
         ),
         HttpApiEndpoint.get("content", FilePaths.content, {
           query: FileQuery,
+          error: [FileReadError],
           success: described(File.Content, "File content"),
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "file.read",
             summary: "Read file",
-            description: "Read the content of a specified file.",
+            description:
+              "Read the content of a specified file. The base64 channel fails with FileReadError (not empty content) when the path is missing, escapes the project, or is not a binary preview format.",
           }),
         ),
         HttpApiEndpoint.post("write", FilePaths.write, {

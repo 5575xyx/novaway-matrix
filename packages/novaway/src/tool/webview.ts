@@ -302,8 +302,8 @@ export const WebviewSnapshotTool = Tool.define(
     return {
       description:
         DESCRIPTION +
-        "\n\n动作：获取页面快照（标题、URL、可见文字、可交互元素的 ref）。点击/填写都用这里返回的 ref。",
-        "快照会下钻同源 iframe 和开放的 shadow root（公众号正文 #ueditor_0、视频号 wujie 微前端都在里面）；",
+        "\n\n动作：获取页面快照（标题、URL、可见文字、可交互元素的 ref）。点击/填写都用这里返回的 ref。" +
+        "快照会下钻同源 iframe 和开放的 shadow root（公众号正文 #ueditor_0、视频号 wujie 微前端都在里面）；" +
         "如果某个按钮（典型是小红书发布按钮，在 closed shadow root 里）怎么都看不到，改用 webview_click_at 按坐标点。",
       parameters: SnapshotParameters,
       capabilities: { readOnly: true, concurrencySafe: false, idempotent: true },
@@ -388,8 +388,7 @@ export const WebviewFillTool = Tool.define(
     const webview = Option.getOrUndefined(yield* Effect.serviceOption(PlatformWebview.Service))
     return {
       description:
-        DESCRIPTION +
-        "\n\n动作：向 snapshot ref 对应的输入框（input / textarea / contenteditable 富文本）写入文本。",
+        DESCRIPTION + "\n\n动作：向 snapshot ref 对应的输入框（input / textarea / contenteditable 富文本）写入文本。",
       parameters: FillParameters,
       capabilities: { concurrencySafe: false, destructive: true },
       execute: (params: Schema.Schema.Type<typeof FillParameters>, ctx: Tool.Context) =>
@@ -441,9 +440,7 @@ export const WebviewNavigateTool = Tool.define(
   Effect.gen(function* () {
     const webview = Option.getOrUndefined(yield* Effect.serviceOption(PlatformWebview.Service))
     return {
-      description:
-        DESCRIPTION +
-        "\n\n动作：把工作台的页面导航到指定地址（例如平台的文章编辑页）。会等待页面加载完成。",
+      description: DESCRIPTION + "\n\n动作：把工作台的页面导航到指定地址（例如平台的文章编辑页）。会等待页面加载完成。",
       parameters: NavigateParameters,
       capabilities: { concurrencySafe: false },
       execute: (params: Schema.Schema.Type<typeof NavigateParameters>, ctx: Tool.Context) =>

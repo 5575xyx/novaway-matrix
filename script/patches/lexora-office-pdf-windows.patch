@@ -1,0 +1,20 @@
+--- a/build-pdf.mjs
++++ b/build-pdf.mjs
+@@ -11,7 +11,7 @@
+     name: "pdf-browser",
+     setup(api) {
+       api.onResolve({ filter: /^\.\/(?:font-locate|wasm-path|atomic-write)$/ }, (args) =>
+-        args.importer.includes("/apps/pdf/src/main/") ? { path: shim } : undefined,
++        args.importer.replaceAll("\\", "/").includes("/apps/pdf/src/main/") ? { path: shim } : undefined,
+       )
+       api.onResolve({ filter: /^electron$/ }, () => ({ path: shim }))
+       api.onResolve({ filter: /^pdfjs-dist\/.*\?url$/ }, () => ({ path: "pdf-worker", namespace: "pdf-worker-url" }))
+@@ -19,7 +19,7 @@
+         contents: 'export default new URL("./pdf-worker.js", import.meta.url).href',
+         loader: "js",
+       }))
+-      api.onLoad({ filter: /apps\/pdf\/src\/renderer\/view-config\.ts$/ }, (args) => ({
++      api.onLoad({ filter: /apps[\\/]pdf[\\/]src[\\/]renderer[\\/]view-config\.ts$/ }, (args) => ({
+         contents: fs
+           .readFileSync(args.path, "utf8")
+           .replace("new URL('pdfjs/', document.baseURI)", "new URL('./pdfjs/', import.meta.url)"),

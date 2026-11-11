@@ -1,0 +1,59 @@
+# 复制到 fork 仓库的 .github/workflows/sync-upstream.yml
+# 每天合并 sst/models.dev 上游 dev 分支，校验后生成 api.json + logos 发布到 GitHub Pages。
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream dev
+        run: |
+          git remote add upstream https://github.com/anomalyco/models.dev.git
+          git fetch upstream dev
+          git config user.name "models-mirror-bot"
+          git config user.email "actions@github.com"
+          git merge upstream/dev --no-edit
+          git push origin HEAD
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Validate catalog
+        run: bun validate
+
+      - name: Generate api.json and logos
+        run: bun script/generate-api.ts
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

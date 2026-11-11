@@ -5,11 +5,26 @@ export type SidebarMenuTone = "neutral" | "blue" | "violet" | "amber" | "emerald
 // 带色图标块：不是 emoji，而是给线性图标一个浅色底 + 同色描边感。
 // 颜色按功能固定，用户扫一眼就能靠颜色定位（数据库蓝、知识库绿、自动化琥珀…）。
 const TONES: Record<Exclude<SidebarMenuTone, "neutral">, { color: string; background: string }> = {
-  blue: { color: "#3b82f6", background: "color-mix(in srgb, #3b82f6 16%, transparent)" },
-  violet: { color: "#8b5cf6", background: "color-mix(in srgb, #8b5cf6 16%, transparent)" },
-  amber: { color: "#f59e0b", background: "color-mix(in srgb, #f59e0b 18%, transparent)" },
-  emerald: { color: "#10b981", background: "color-mix(in srgb, #10b981 16%, transparent)" },
-  pink: { color: "#ec4899", background: "color-mix(in srgb, #ec4899 16%, transparent)" },
+  blue: {
+    color: "var(--icon-interactive-base)",
+    background: "color-mix(in oklab, var(--icon-interactive-base) 16%, transparent)",
+  },
+  violet: {
+    color: "var(--icon-agent-plan-base)",
+    background: "color-mix(in oklab, var(--icon-agent-plan-base) 16%, transparent)",
+  },
+  amber: {
+    color: "var(--icon-warning-base)",
+    background: "color-mix(in oklab, var(--icon-warning-base) 18%, transparent)",
+  },
+  emerald: {
+    color: "var(--icon-success-base)",
+    background: "color-mix(in oklab, var(--icon-success-base) 16%, transparent)",
+  },
+  pink: {
+    color: "var(--icon-critical-base)",
+    background: "color-mix(in oklab, var(--icon-critical-base) 16%, transparent)",
+  },
 }
 
 // 侧栏底部导航：一行一项，图标 + 文字标签。

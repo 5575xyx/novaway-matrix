@@ -185,7 +185,7 @@
     flex-shrink: 0;
   }
 
-  /* 「动了哪些文件」的 chip 行（对齐 ZCode 的 file chip）。 */
+  /* 「动了哪些文件」的 chip 行。 */
   [data-slot="tool-file-chips"] {
     display: inline-flex;
     align-items: center;
@@ -231,7 +231,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 状态词（对齐 ZCode ToolLayout 的 statusNode）。
+  /* 状态词。
      跟在摘要内容之后、箭头之前，用父级的 gap 拉开距离 —— 这里**不能**用
      `margin-left: auto`：父容器 `trigger-content` 是 `flex: 0 1 auto`（内容宽度），
      没有可分配的剩余空间，auto 会静默失效。 */
@@ -254,7 +254,7 @@
     }
 
     &[data-tone="error"] {
-      color: var(--destructive);
+      color: var(--icon-critical-base);
     }
   }
 
@@ -383,7 +383,7 @@
   width: auto;
   max-width: 100%;
 
-  /* 左侧 NovaWay teal 渐变指示条 */
+  /* 左侧主题语义色渐变指示条 */
   &::before {
     content: "";
     position: absolute;
@@ -393,7 +393,11 @@
     width: 3px;
     height: 60%;
     border-radius: 999px;
-    background: linear-gradient(180deg, #2dd4bf 0%, #06b6d4 100%);
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--icon-info-base) 72%, var(--icon-interactive-base)) 0%,
+      var(--icon-info-base) 100%
+    );
     opacity: 0.5;
     transition: opacity 0.15s ease;
   }
@@ -432,41 +436,57 @@
   }
 }
 
-/* ===== 工具行配色：每种工具一个色相 =====
- * 统一用 `--tool-tone` 派生：左侧指示条、徽标底色、徽标文字、卡片浅染都取同一个色，
- * 换色只需改一行。之前所有工具都是同一套 teal，读起来分不出"在跑什么"。 */
+/* ===== 工具行配色：每种工具映射到可换肤的语义色 =====
+ * 统一用 `--tool-tone` 派生指示条、徽标与卡片浅染；工具类型的色彩区分随主题调色板变化。 */
 [data-component="tool-trigger"][data-badge] {
-  --tool-tone: #0d9488;
+  --tool-tone: var(--icon-info-base);
   border-radius: 10px;
   background: color-mix(in oklab, var(--tool-tone) 5%, transparent);
 }
 
 [data-component="tool-trigger"][data-badge="green"] {
-  --tool-tone: var(--syntax-success, #16a34a);
+  --tool-tone: var(--icon-success-base);
 }
 
 [data-component="tool-trigger"][data-badge="blue"] {
-  --tool-tone: var(--icon-blue, #2563eb);
+  --tool-tone: var(--icon-info-base);
 }
 
 [data-component="tool-trigger"][data-badge="purple"] {
-  --tool-tone: var(--syntax-type, #8b5cf6);
+  --tool-tone: var(--icon-agent-plan-base);
 }
 
 [data-component="tool-trigger"][data-badge="orange"] {
-  --tool-tone: var(--syntax-property, #ea580c);
+  --tool-tone: var(--icon-warning-base);
 }
 
 [data-component="tool-trigger"][data-badge="indigo"] {
-  --tool-tone: var(--syntax-constant, #6366f1);
+  --tool-tone: var(--icon-interactive-base);
 }
 
-[data-component="tool-trigger"][data-badge="cyan"] {
-  --tool-tone: var(--syntax-primitive, #0891b2);
+[data-component="tool-trigger"][data-badge="cyan"],
+[data-component="tool-trigger"][data-badge="teal"] {
+  --tool-tone: var(--icon-info-base);
+}
+
+[data-component="tool-trigger"][data-badge="violet"] {
+  --tool-tone: var(--icon-agent-plan-base);
+}
+
+[data-component="tool-trigger"][data-badge="red"] {
+  --tool-tone: var(--icon-critical-base);
+}
+
+[data-component="tool-trigger"][data-badge="yellow"] {
+  --tool-tone: var(--icon-warning-base);
 }
 
 [data-component="tool-trigger"][data-badge]::before {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--tool-tone) 85%, white) 0%, var(--tool-tone) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--tool-tone) 85%, var(--text-invert-base)) 0%,
+    var(--tool-tone) 100%
+  );
   opacity: 0.8;
 }
 
@@ -478,9 +498,9 @@
   place-items: center;
   border-radius: 7px;
   flex-shrink: 0;
-  background: color-mix(in oklab, var(--tool-tone, #0d9488) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--tool-tone, #0d9488) 22%, transparent);
-  color: var(--tool-tone, #0d9488);
+  background: color-mix(in oklab, var(--tool-tone, var(--icon-info-base)) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--tool-tone, var(--icon-info-base)) 22%, transparent);
+  color: var(--tool-tone, var(--icon-info-base));
 }
 
 /* 字体差异化:工具行的路径/参数用等宽字体,和正文的无衬线明显区分。

@@ -4,7 +4,7 @@ import { Switch } from "@novaway/ui/switch"
 import { createMemo, Show, type Component } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { SettingsGroup, SettingsRow } from "./settings-parts"
+import { SettingsGroup, SettingsPage, SettingsRow } from "./settings-parts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value)
@@ -12,7 +12,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const PERMISSION_OPTIONS = ["ask", "allow", "deny"] as const
 
 /**
- * 电脑控制（对齐 ZCode 的设置页）。
+ * 电脑控制。
  *
  * 这一页只做两个开关：
  * - 启用电脑控制：是否把桌面自动化工具（截图 / 鼠标 / 键盘 / 窗口）交给 AI；
@@ -33,7 +33,7 @@ export const SettingsComputer: Component = () => {
   const showInComposer = createMemo(() => experimental()["computer_control_composer"] === true)
 
   /**
-   * 电脑操作的权限档位，与 ZCode 一致的三档：
+   * 电脑操作的权限档位，三档：
    * - ask：每个动作都弹确认（默认，最安全）
    * - allow：直接执行，不再逐次确认（适合信任的自动化脚本）
    * - deny：禁用所有电脑操作（保留开关但拒绝执行）
@@ -60,83 +60,77 @@ export const SettingsComputer: Component = () => {
     } as Config)
 
   return (
-    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
-      <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-          <h2 class="text-16-medium text-foreground">{language.t("settings.computer.title" as never)}</h2>
-          <p class="text-13-regular text-foreground-subtle">{language.t("settings.computer.description" as never)}</p>
-        </div>
-      </div>
-
-      <div class="flex flex-col gap-8 w-full">
-        <SettingsGroup>
-          <SettingsRow
-            label={language.t("settings.computer.enabled.title" as never)}
-            description={language.t("settings.computer.enabled.description" as never)}
-            control={
-              <Switch checked={enabled()} onChange={(value) => update({ computer_control: value })} hideLabel>
-                {language.t("settings.computer.enabled.title" as never)}
-              </Switch>
-            }
-          />
-          <SettingsRow
-            label={language.t("settings.computer.composer.title" as never)}
-            description={language.t("settings.computer.composer.description" as never)}
-            control={
-              <Switch
-                checked={showInComposer()}
-                disabled={!enabled()}
-                onChange={(value) => update({ computer_control_composer: value })}
-                hideLabel
-              >
-                {language.t("settings.computer.composer.title" as never)}
-              </Switch>
-            }
-          />
-          <SettingsRow
-            label={language.t("settings.computer.permission.title" as never)}
-            description={language.t(`settings.computer.permission.${computerPermission()}.description` as never)}
-            control={
-              <Select
-                data-action="settings-computer-permission"
-                options={PERMISSION_OPTIONS.map((value) => ({
-                  value,
-                  label: language.t(`settings.computer.permission.${value}.label` as never),
-                }))}
-                current={PERMISSION_OPTIONS.map((value) => ({
-                  value,
-                  label: language.t(`settings.computer.permission.${value}.label` as never),
-                })).find((option) => option.value === computerPermission())}
-                value={(option) => option.value}
-                label={(option) => option.label}
-                onSelect={(option) => option && setComputerPermission(option.value)}
-                disabled={!enabled()}
-                variant="secondary"
-                size="small"
-                triggerVariant="settings"
-              />
-            }
-          />
-          <Show when={!enabled()}>
-            <div class="px-4 py-3 text-12-regular text-foreground-subtle">
-              {language.t("settings.computer.disabledHint" as never)}
-            </div>
-          </Show>
-        </SettingsGroup>
-
-        {/* 「怎么用」比开关更重要：这一页只有三个开关时，用户根本不知道开完该说什么。 */}
-        <div class="rounded-xl border border-border bg-surface px-4 py-3">
-          <div class="text-13-medium text-foreground">{language.t("settings.computer.usage.title" as never)}</div>
-          <ol class="mt-1.5 flex list-decimal flex-col gap-1 pl-4 text-12-regular text-foreground-subtle">
-            <li>{language.t("settings.computer.usage.1" as never)}</li>
-            <li>{language.t("settings.computer.usage.2" as never)}</li>
-            <li>{language.t("settings.computer.usage.3" as never)}</li>
-          </ol>
-          <div class="mt-2 text-12-regular text-foreground-subtlest">
-            {language.t("settings.computer.usage.note" as never)}
+    <SettingsPage
+      title={language.t("settings.computer.title" as never)}
+      description={language.t("settings.computer.description" as never)}
+    >
+      <SettingsGroup>
+        <SettingsRow
+          label={language.t("settings.computer.enabled.title" as never)}
+          description={language.t("settings.computer.enabled.description" as never)}
+          control={
+            <Switch checked={enabled()} onChange={(value) => update({ computer_control: value })} hideLabel>
+              {language.t("settings.computer.enabled.title" as never)}
+            </Switch>
+          }
+        />
+        <SettingsRow
+          label={language.t("settings.computer.composer.title" as never)}
+          description={language.t("settings.computer.composer.description" as never)}
+          control={
+            <Switch
+              checked={showInComposer()}
+              disabled={!enabled()}
+              onChange={(value) => update({ computer_control_composer: value })}
+              hideLabel
+            >
+              {language.t("settings.computer.composer.title" as never)}
+            </Switch>
+          }
+        />
+        <SettingsRow
+          label={language.t("settings.computer.permission.title" as never)}
+          description={language.t(`settings.computer.permission.${computerPermission()}.description` as never)}
+          control={
+            <Select
+              data-action="settings-computer-permission"
+              options={PERMISSION_OPTIONS.map((value) => ({
+                value,
+                label: language.t(`settings.computer.permission.${value}.label` as never),
+              }))}
+              current={PERMISSION_OPTIONS.map((value) => ({
+                value,
+                label: language.t(`settings.computer.permission.${value}.label` as never),
+              })).find((option) => option.value === computerPermission())}
+              value={(option) => option.value}
+              label={(option) => option.label}
+              onSelect={(option) => option && setComputerPermission(option.value)}
+              disabled={!enabled()}
+              variant="secondary"
+              size="small"
+              triggerVariant="settings"
+            />
+          }
+        />
+        <Show when={!enabled()}>
+          <div class="px-4 py-3 text-12-regular text-foreground-subtle">
+            {language.t("settings.computer.disabledHint" as never)}
           </div>
+        </Show>
+      </SettingsGroup>
+
+      {/* 「怎么用」比开关更重要：这一页只有三个开关时，用户根本不知道开完该说什么。 */}
+      <div class="rounded-xl border border-border bg-surface px-4 py-3">
+        <div class="text-13-medium text-foreground">{language.t("settings.computer.usage.title" as never)}</div>
+        <ol class="mt-1.5 flex list-decimal flex-col gap-1 pl-4 text-12-regular text-foreground-subtle">
+          <li>{language.t("settings.computer.usage.1" as never)}</li>
+          <li>{language.t("settings.computer.usage.2" as never)}</li>
+          <li>{language.t("settings.computer.usage.3" as never)}</li>
+        </ol>
+        <div class="mt-2 text-12-regular text-foreground-subtlest">
+          {language.t("settings.computer.usage.note" as never)}
         </div>
       </div>
-    </div>
+    </SettingsPage>
   )
 }

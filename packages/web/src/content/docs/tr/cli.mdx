@@ -78,13 +78,13 @@ novaway attach http://10.20.30.40:4096
 
 #### Bayraklar
 
-| Bayrak                                   | Kısa | Tanım                                                                                         |
-| ---------------------------------------- | ---- | --------------------------------------------------------------------------------------------- |
-| <nobr><code>{"--dir"}</code></nobr>      |      | TUI'yi başlatmak için çalışma dizini                                                          |
-| <nobr><code>{"--continue"}</code></nobr> | `-c` | Son oturuma devam et                                                                          |
-| <nobr><code>{"--session"}</code></nobr>  | `-s` | Devam edecek oturum açma bilgileri                                                            |
-| <nobr><code>{"--fork"}</code></nobr>     |      | Devam ederken oturumu çatalla (`--continue` veya `--session` ile kullanın)                    |
-| <nobr><code>{"--password"}</code></nobr> | `-p` | Temel kimlik doğrulama parolası (varsayılan: `NOVAWAY_SERVER_PASSWORD`)                      |
+| Bayrak                                   | Kısa | Tanım                                                                                       |
+| ---------------------------------------- | ---- | ------------------------------------------------------------------------------------------- |
+| <nobr><code>{"--dir"}</code></nobr>      |      | TUI'yi başlatmak için çalışma dizini                                                        |
+| <nobr><code>{"--continue"}</code></nobr> | `-c` | Son oturuma devam et                                                                        |
+| <nobr><code>{"--session"}</code></nobr>  | `-s` | Devam edecek oturum açma bilgileri                                                          |
+| <nobr><code>{"--fork"}</code></nobr>     |      | Devam ederken oturumu çatalla (`--continue` veya `--session` ile kullanın)                  |
+| <nobr><code>{"--password"}</code></nobr> | `-p` | Temel kimlik doğrulama parolası (varsayılan: `NOVAWAY_SERVER_PASSWORD`)                     |
 | <nobr><code>{"--username"}</code></nobr> | `-u` | Temel kimlik doğrulama kullanıcı adı (varsayılan: `NOVAWAY_SERVER_USERNAME` veya `novaway`) |
 
 ---
@@ -339,25 +339,25 @@ novaway run --attach http://localhost:4096 "Explain async/await in JavaScript"
 
 #### Bayraklar
 
-| Bayrak                                   | Kısa | Açıklama                                                                                      |
-| ---------------------------------------- | ---- | --------------------------------------------------------------------------------------------- |
-| <nobr><code>{"--command"}</code></nobr>  |      | Çalıştırılacak komut, args için mesajı kullanın                                               |
-| <nobr><code>{"--continue"}</code></nobr> | `-c` | Son oturuma devam et                                                                          |
-| <nobr><code>{"--session"}</code></nobr>  | `-s` | Devam edecek oturum kimliği                                                                   |
-| <nobr><code>{"--fork"}</code></nobr>     |      | Devam ederken oturumu fork'lar (`--continue` veya `--session` ile kullanın)                   |
-| <nobr><code>{"--share"}</code></nobr>    |      | Oturumu paylaşın                                                                              |
-| <nobr><code>{"--model"}</code></nobr>    | `-m` | provider/model biçiminde kullanılacak model                                                   |
-| <nobr><code>{"--agent"}</code></nobr>    |      | Kullanılacak temsilci                                                                         |
-| <nobr><code>{"--file"}</code></nobr>     | `-f` | Mesaja eklenecek dosya(lar)                                                                   |
-| <nobr><code>{"--format"}</code></nobr>   |      | Biçim: varsayılan (biçimlendirilmiş) veya json (ham JSON olayları)                            |
-| <nobr><code>{"--title"}</code></nobr>    |      | Oturumun başlığı (değer sağlanmazsa kısaltılmış bilgi istemi kullanılır)                      |
-| <nobr><code>{"--attach"}</code></nobr>   |      | Çalışan bir novaway sunucusuna ekleyin (ör. http://localhost:4096)                           |
-| <nobr><code>{"--password"}</code></nobr> | `-p` | Temel kimlik doğrulama parolası (varsayılan: `NOVAWAY_SERVER_PASSWORD`)                      |
+| Bayrak                                   | Kısa | Açıklama                                                                                    |
+| ---------------------------------------- | ---- | ------------------------------------------------------------------------------------------- |
+| <nobr><code>{"--command"}</code></nobr>  |      | Çalıştırılacak komut, args için mesajı kullanın                                             |
+| <nobr><code>{"--continue"}</code></nobr> | `-c` | Son oturuma devam et                                                                        |
+| <nobr><code>{"--session"}</code></nobr>  | `-s` | Devam edecek oturum kimliği                                                                 |
+| <nobr><code>{"--fork"}</code></nobr>     |      | Devam ederken oturumu fork'lar (`--continue` veya `--session` ile kullanın)                 |
+| <nobr><code>{"--share"}</code></nobr>    |      | Oturumu paylaşın                                                                            |
+| <nobr><code>{"--model"}</code></nobr>    | `-m` | provider/model biçiminde kullanılacak model                                                 |
+| <nobr><code>{"--agent"}</code></nobr>    |      | Kullanılacak temsilci                                                                       |
+| <nobr><code>{"--file"}</code></nobr>     | `-f` | Mesaja eklenecek dosya(lar)                                                                 |
+| <nobr><code>{"--format"}</code></nobr>   |      | Biçim: varsayılan (biçimlendirilmiş) veya json (ham JSON olayları)                          |
+| <nobr><code>{"--title"}</code></nobr>    |      | Oturumun başlığı (değer sağlanmazsa kısaltılmış bilgi istemi kullanılır)                    |
+| <nobr><code>{"--attach"}</code></nobr>   |      | Çalışan bir novaway sunucusuna ekleyin (ör. http://localhost:4096)                          |
+| <nobr><code>{"--password"}</code></nobr> | `-p` | Temel kimlik doğrulama parolası (varsayılan: `NOVAWAY_SERVER_PASSWORD`)                     |
 | <nobr><code>{"--username"}</code></nobr> | `-u` | Temel kimlik doğrulama kullanıcı adı (varsayılan: `NOVAWAY_SERVER_USERNAME` veya `novaway`) |
-| <nobr><code>{"--dir"}</code></nobr>      |      | Çalıştırılacak dizin veya bağlanırken uzak sunucudaki yol                                     |
-| <nobr><code>{"--variant"}</code></nobr>  |      | Model varyantı (sağlayıcıya özgü muhakeme düzeyi)                                             |
-| <nobr><code>{"--thinking"}</code></nobr> |      | Düşünme bloklarını göster                                                                     |
-| <nobr><code>{"--port"}</code></nobr>     |      | Yerel sunucunun bağlantı noktası (varsayılan olarak rastgele bağlantı noktasıdır)             |
+| <nobr><code>{"--dir"}</code></nobr>      |      | Çalıştırılacak dizin veya bağlanırken uzak sunucudaki yol                                   |
+| <nobr><code>{"--variant"}</code></nobr>  |      | Model varyantı (sağlayıcıya özgü muhakeme düzeyi)                                           |
+| <nobr><code>{"--thinking"}</code></nobr> |      | Düşünme bloklarını göster                                                                   |
+| <nobr><code>{"--port"}</code></nobr>     |      | Yerel sunucunun bağlantı noktası (varsayılan olarak rastgele bağlantı noktasıdır)           |
 
 ---
 
@@ -562,32 +562,32 @@ novaway CLI aşağıdaki global bayrakları destekler.
 
 novaway ortam değişkenleri kullanılarak yapılandırılabilir.
 
-| Değişken                              | Tip     | Açıklama                                                                    |
-| ------------------------------------- | ------- | --------------------------------------------------------------------------- |
-| `NOVAWAY_AUTO_SHARE`                 | boolean | Oturumları otomatik olarak paylaş                                           |
-| `NOVAWAY_GIT_BASH_PATH`              | string  | Windows'ta yürütülebilir Git Bash'in Yolu                                   |
-| `NOVAWAY_CONFIG`                     | string  | Yapılandırma dosyasının yolu                                                |
-| `NOVAWAY_TUI_CONFIG`                 | string  | TUI yapılandırma dosyasının yolu                                            |
-| `NOVAWAY_CONFIG_DIR`                 | string  | Yapılandırma dizinine giden yol                                             |
-| `NOVAWAY_CONFIG_CONTENT`             | string  | Satır içi JSON config içeriği                                               |
-| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Otomatik güncelleme kontrollerini devre dışı bırak                          |
-| `NOVAWAY_DISABLE_PRUNE`              | boolean | Eski verilerin temizlenmesini devre dışı bırak                              |
-| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Otomatik terminal başlığı güncellemelerini devre dışı bırakın               |
-| `NOVAWAY_PERMISSION`                 | string  | Satır içi JSON izin config'i                                                |
-| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Varsayılan eklentileri devre dışı bırakın                                   |
-| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Otomatik LSP sunucu indirmelerini devre dışı bırakın                        |
-| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Deneysel modelleri etkinleştir                                              |
-| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Otomatik context sıkıştırmayı devre dışı bırak                              |
-| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | `.claude`'den okumayı devre dışı bırak (istem + beceriler)                  |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | `~/.claude/CLAUDE.md` dosyasını okumayı devre dışı bırak                    |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | `.claude/skills` yüklemesini devre dışı bırak                               |
-| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Uzak kaynaklardan model getirmeyi devre dışı bırakın                        |
-| `NOVAWAY_FAKE_VCS`                   | string  | Test amaçlı sahte VCS sağlayıcısı                                           |
-| `NOVAWAY_CLIENT`                     | string  | Client kimliği (varsayılan: `cli`)                                          |
-| `NOVAWAY_ENABLE_EXA`                 | boolean | Exa web arama araçlarını etkinleştir                                        |
-| `NOVAWAY_SERVER_PASSWORD`            | string  | `serve`/`web` için temel kimlik doğrulamayı etkinleştirin                   |
+| Değişken                             | Tip     | Açıklama                                                                   |
+| ------------------------------------ | ------- | -------------------------------------------------------------------------- |
+| `NOVAWAY_AUTO_SHARE`                 | boolean | Oturumları otomatik olarak paylaş                                          |
+| `NOVAWAY_GIT_BASH_PATH`              | string  | Windows'ta yürütülebilir Git Bash'in Yolu                                  |
+| `NOVAWAY_CONFIG`                     | string  | Yapılandırma dosyasının yolu                                               |
+| `NOVAWAY_TUI_CONFIG`                 | string  | TUI yapılandırma dosyasının yolu                                           |
+| `NOVAWAY_CONFIG_DIR`                 | string  | Yapılandırma dizinine giden yol                                            |
+| `NOVAWAY_CONFIG_CONTENT`             | string  | Satır içi JSON config içeriği                                              |
+| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Otomatik güncelleme kontrollerini devre dışı bırak                         |
+| `NOVAWAY_DISABLE_PRUNE`              | boolean | Eski verilerin temizlenmesini devre dışı bırak                             |
+| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Otomatik terminal başlığı güncellemelerini devre dışı bırakın              |
+| `NOVAWAY_PERMISSION`                 | string  | Satır içi JSON izin config'i                                               |
+| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Varsayılan eklentileri devre dışı bırakın                                  |
+| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Otomatik LSP sunucu indirmelerini devre dışı bırakın                       |
+| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Deneysel modelleri etkinleştir                                             |
+| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Otomatik context sıkıştırmayı devre dışı bırak                             |
+| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | `.claude`'den okumayı devre dışı bırak (istem + beceriler)                 |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | `~/.claude/CLAUDE.md` dosyasını okumayı devre dışı bırak                   |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | `.claude/skills` yüklemesini devre dışı bırak                              |
+| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Uzak kaynaklardan model getirmeyi devre dışı bırakın                       |
+| `NOVAWAY_FAKE_VCS`                   | string  | Test amaçlı sahte VCS sağlayıcısı                                          |
+| `NOVAWAY_CLIENT`                     | string  | Client kimliği (varsayılan: `cli`)                                         |
+| `NOVAWAY_ENABLE_EXA`                 | boolean | Exa web arama araçlarını etkinleştir                                       |
+| `NOVAWAY_SERVER_PASSWORD`            | string  | `serve`/`web` için temel kimlik doğrulamayı etkinleştirin                  |
 | `NOVAWAY_SERVER_USERNAME`            | string  | Temel kimlik doğrulama kullanıcı adını geçersiz kıl (varsayılan `novaway`) |
-| `NOVAWAY_MODELS_URL`                 | string  | Model yapılandırmasını almak için özel URL                                  |
+| `NOVAWAY_MODELS_URL`                 | string  | Model yapılandırmasını almak için özel URL                                 |
 
 ---
 
@@ -595,8 +595,8 @@ novaway ortam değişkenleri kullanılarak yapılandırılabilir.
 
 Bu ortam değişkenleri değişebilecek veya kaldırılabilecek deneysel özellikleri etkinleştirir.
 
-| Değişken                                        | Tip     | Tanım                                                   |
-| ----------------------------------------------- | ------- | ------------------------------------------------------- |
+| Değişken                                       | Tip     | Tanım                                                   |
+| ---------------------------------------------- | ------- | ------------------------------------------------------- |
 | `NOVAWAY_EXPERIMENTAL`                         | boolean | Tüm deneysel özellikleri etkinleştir                    |
 | `NOVAWAY_EXPERIMENTAL_ICON_DISCOVERY`          | boolean | Simge bulmayı etkinleştir                               |
 | `NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | boolean | TUI'da seçim yapıldığında kopyalamayı devre dışı bırak  |

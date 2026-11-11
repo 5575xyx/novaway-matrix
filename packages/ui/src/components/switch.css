@@ -17,7 +17,7 @@
     border-width: 0;
   }
 
-  /* 对齐 ZCode `components/ui/switch.tsx`：p-px + **rounded-full** 药丸形，
+  /* p-px + **rounded-full** 药丸形，
      默认 32×18、sm 28×16；选中 `bg-primary`、未选中 `bg-primary/30`；拇指圆形纯色。
      旧版是 28×16 直角(3px)开关 + 带边框的方块拇指。 */
   [data-slot="switch-control"] {
@@ -62,7 +62,7 @@
     transition:
       transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1),
       width 160ms ease;
-    box-shadow: 0 1px 2px color-mix(in oklab, var(--shadow-color, #000) 18%, transparent);
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--shadow-color) 18%, transparent);
   }
 
   /* 切换瞬间拇指稍微拉长一点，像被"推"过去，比匀速滑动更有反馈。 */
@@ -91,7 +91,7 @@
   }
 
   [data-slot="switch-error"] {
-    color: var(--destructive);
+    color: var(--icon-critical-base);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-ui-sm);
     font-weight: var(--font-weight-regular);

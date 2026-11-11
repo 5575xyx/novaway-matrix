@@ -3,10 +3,9 @@
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
-  /* 对齐 ZCode `components/ai-elements/message.tsx`：
-     正文 `text-ui-base leading-[1.75] tracking-wide`；标题按 DESIGN.md「Markdown type scale」
+  /* 正文 `text-ui-base leading-[1.75] tracking-wide`；标题按 Markdown type scale
      —— h1=text-ui-xl、h2=text-ui-lg、h3~h6 统一 text-ui-base，靠字重区分层级。
-     旧版标题是 24/20/18/16px 的「文档式」层级，比 ZCode 大一到两档。 */
+     旧版标题是 24/20/18/16px 的「文档式」层级，比现刻度大一到两档。 */
   color: var(--foreground);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-ui-base);
@@ -21,7 +20,7 @@
     margin-bottom: 0;
   }
 
-  /* Headings —— 字号层级见 DESIGN.md「Markdown type scale」，间距取 ZCode 的 mt-6 mb-4 */
+  /* Headings —— 字号层级见上方 Markdown type scale，间距取 mt-6 mb-4 */
   h1 {
     font-size: var(--font-size-ui-xl);
     font-weight: var(--font-weight-semibold);
@@ -100,6 +99,18 @@
     cursor: pointer;
   }
 
+  /* 行内文件 / 目录图标：跟正文同高、贴在路径前面；点击仍然归 code。
+     `display` 必须显式改回 inline-block —— Tailwind preflight 把 svg 设成 block，
+     图标会整只掉到文字上面一行。 */
+  code svg[data-component="file-icon"] {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-right: 4px;
+    vertical-align: -0.125em;
+    pointer-events: none;
+  }
+
   code[data-file-open]:hover {
     text-decoration: underline;
     text-underline-offset: 2px;
@@ -162,6 +173,78 @@
     padding-left: 0.75rem;
     color: var(--foreground-subtle);
     font-style: normal;
+  }
+
+  /* Callout（`> [!note] 标题`）：和 Obsidian 一样按类型上色。
+     未知类型落到默认的 note 样式，不会因为拼错一个词就变成裸引用块。 */
+  .md-callout {
+    border-left: 3px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-base);
+    padding: 8px 12px;
+    margin: 12px 0;
+  }
+  .md-callout > p {
+    margin: 0;
+  }
+  .md-callout-title {
+    font-weight: var(--font-weight-medium);
+    margin-bottom: 2px;
+  }
+  .md-callout-note,
+  .md-callout-info {
+    border-left-color: var(--icon-info-base);
+    background: color-mix(in srgb, var(--icon-info-base) 8%, transparent);
+  }
+  .md-callout-tip,
+  .md-callout-success {
+    border-left-color: var(--icon-success-base);
+    background: color-mix(in srgb, var(--icon-success-base) 8%, transparent);
+  }
+  .md-callout-warning,
+  .md-callout-caution {
+    border-left-color: var(--icon-warning-base);
+    background: color-mix(in srgb, var(--icon-warning-base) 10%, transparent);
+  }
+  .md-callout-important,
+  .md-callout-danger,
+  .md-callout-error {
+    border-left-color: var(--icon-critical-base);
+    background: color-mix(in srgb, var(--icon-critical-base) 8%, transparent);
+  }
+
+  /* [[wikilink]]：和 Obsidian 一样是「内部链接」的样子，点开由宿主换标签。 */
+  .md-wikilink {
+    color: var(--icon-info-base);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--icon-info-base) 40%, transparent);
+    cursor: pointer;
+  }
+  .md-wikilink:hover {
+    border-bottom-color: currentColor;
+  }
+
+  /* 脚注：正文里是上标序号，文末是按引用顺序排的列表。 */
+  .md-footnote-ref {
+    font-size: 0.75em;
+    vertical-align: super;
+    line-height: 0;
+  }
+  .md-footnote-ref a,
+  .md-footnote-back {
+    text-decoration: none;
+    color: var(--icon-info-base);
+  }
+  .md-footnotes {
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: var(--font-size-ui-sm);
+    color: var(--foreground-subtle);
+  }
+  .md-footnotes ol {
+    margin: 0;
+    padding-left: 1.4em;
   }
 
   /* Horizontal Rule - Invisible spacing only */

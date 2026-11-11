@@ -309,7 +309,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                   type="button"
                   class="rounded-md border px-2 py-1 text-11-regular transition-colors"
                   classList={{
-                    "border-[color-mix(in_srgb,#10b981_45%,var(--border))] bg-[color-mix(in_srgb,#10b981_12%,transparent)] text-foreground":
+                    "border-[color-mix(in_srgb,var(--success)_45%,var(--border))] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-foreground":
                       !template(),
                     "border-border bg-surface text-foreground-subtle hover:bg-hover": !!template(),
                   }}
@@ -323,7 +323,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                       type="button"
                       class="max-w-40 truncate rounded-md border px-2 py-1 text-11-regular transition-colors"
                       classList={{
-                        "border-[color-mix(in_srgb,#10b981_45%,var(--border))] bg-[color-mix(in_srgb,#10b981_12%,transparent)] text-foreground":
+                        "border-[color-mix(in_srgb,var(--success)_45%,var(--border))] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-foreground":
                           template() === item.id,
                         "border-border bg-surface text-foreground-subtle hover:bg-hover": template() !== item.id,
                       }}
@@ -467,7 +467,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
             </Button>
             <Button
               variant="secondary"
-              class="text-destructive"
+              class="text-icon-critical-base"
               onClick={() => {
                 setBusy(true)
                 void input
@@ -1067,7 +1067,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                   <For each={report.issues}>
                     {(issue) => (
                       <div class="flex min-w-0 items-start gap-2 text-12-regular">
-                        <Icon name="warning" size="small" class="mt-0.5 shrink-0 text-warning" />
+                        <Icon name="warning" size="small" class="mt-0.5 shrink-0 text-icon-warning-base" />
                         <span class="min-w-0 flex-1 break-words text-foreground">
                           {issue.kind}
                           <span class="text-foreground-subtlest"> · {issue.detail}</span>
@@ -1804,7 +1804,10 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
         <IconButton icon="arrow-left" variant="ghost" aria-label={language.t("common.goBack")} onClick={props.onBack} />
         <span
           class="grid size-8 shrink-0 place-items-center rounded-lg"
-          style={{ color: "#10b981", background: "color-mix(in srgb, #10b981 16%, transparent)" }}
+          style={{
+            color: "var(--icon-success-base)",
+            background: "color-mix(in srgb, var(--icon-success-base) 16%, transparent)",
+          }}
         >
           <Icon name="review" size="normal" />
         </span>
@@ -1819,7 +1822,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
               type="button"
               class="flex h-7 items-center gap-1.5 rounded-md border px-2 text-11-regular transition-colors"
               classList={{
-                "border-[color-mix(in_srgb,#f59e0b_35%,var(--border))] bg-[color-mix(in_srgb,#f59e0b_10%,transparent)] text-[#b45309] hover:bg-[color-mix(in_srgb,#f59e0b_16%,transparent)]":
+                "border-[color-mix(in_srgb,var(--warning)_35%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] text-icon-warning-base hover:bg-[color-mix(in_srgb,var(--warning)_16%,transparent)]":
                   status().kind === "none",
                 "border-border bg-surface text-foreground-subtle hover:bg-hover": status().kind !== "none",
               }}
@@ -1902,7 +1905,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
 
       <Show when={runningImport()}>
         {(job) => (
-          <div class="flex items-center gap-2 border-b border-border bg-[color-mix(in_srgb,#3b82f6_8%,transparent)] px-3 py-1.5">
+          <div class="flex items-center gap-2 border-b border-border bg-[color-mix(in_srgb,var(--icon-info-base)_8%,transparent)] px-3 py-1.5">
             <span class="size-3 shrink-0 animate-spin rounded-full border-2 border-[var(--icon-blue)] border-t-transparent" />
             <span class="min-w-0 flex-1 truncate text-11-regular text-foreground">
               {language.t("knowledge.import.running", {
@@ -1981,7 +1984,10 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                       >
                         <span
                           class="grid size-6 shrink-0 place-items-center rounded-md"
-                          style={{ color: "#10b981", background: "color-mix(in srgb, #10b981 14%, transparent)" }}
+                          style={{
+                            color: "var(--icon-success-base)",
+                            background: "color-mix(in srgb, var(--icon-success-base) 14%, transparent)",
+                          }}
                         >
                           <Icon name="review" size="small" />
                         </span>
@@ -1992,12 +1998,12 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                               {num(collection.documentCount)} {language.t("knowledge.documentsShort")}
                             </span>
                             <Show when={mounted().includes(collection.id)}>
-                              <span class="rounded bg-[color-mix(in_srgb,#10b981_16%,transparent)] px-1 text-[10px] text-[#059669]">
+                              <span class="rounded bg-[color-mix(in_srgb,var(--success)_16%,transparent)] px-1 text-[10px] text-icon-success-base">
                                 {language.t("knowledge.mounted")}
                               </span>
                             </Show>
                             <Show when={collection.scope === "project"}>
-                              <span class="rounded bg-[color-mix(in_srgb,#3b82f6_16%,transparent)] px-1 text-[10px] text-[#2563eb]">
+                              <span class="rounded bg-[color-mix(in_srgb,var(--icon-info-base)_16%,transparent)] px-1 text-[10px] text-[var(--icon-info-base)]">
                                 {language.t("knowledge.scope.project")}
                               </span>
                             </Show>
@@ -2014,7 +2020,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                         variant="ghost"
                         size="small"
                         class="h-5 w-5 shrink-0"
-                        classList={{ "text-[#059669]": mounted().includes(collection.id) }}
+                        classList={{ "text-icon-success-base": mounted().includes(collection.id) }}
                         title={language.t("knowledge.mount.toggle")}
                         aria-label={language.t("knowledge.mount.toggle")}
                         disabled={!sessionID()}
@@ -2128,7 +2134,10 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                       <div class="flex min-w-0 items-center gap-3">
                         <span
                           class="grid size-10 shrink-0 place-items-center rounded-xl"
-                          style={{ color: "#10b981", background: "color-mix(in srgb, #10b981 16%, transparent)" }}
+                          style={{
+                            color: "var(--icon-success-base)",
+                            background: "color-mix(in srgb, var(--icon-success-base) 16%, transparent)",
+                          }}
                         >
                           <Icon name="review" size="normal" />
                         </span>
@@ -2136,7 +2145,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                           <div class="flex min-w-0 items-center gap-2">
                             <span class="truncate text-15-medium text-foreground">{collection().name}</span>
                             <Show when={mounted().includes(collection().id)}>
-                              <span class="shrink-0 rounded bg-[color-mix(in_srgb,#10b981_16%,transparent)] px-1.5 py-0.5 text-11-regular text-[#059669]">
+                              <span class="shrink-0 rounded bg-[color-mix(in_srgb,var(--success)_16%,transparent)] px-1.5 py-0.5 text-11-regular text-icon-success-base">
                                 {language.t("knowledge.mount.current")}
                               </span>
                             </Show>
@@ -2329,7 +2338,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                             size="small"
                             variant="ghost"
                             icon="trash"
-                            class="text-destructive"
+                            class="text-icon-critical-base"
                             disabled={busy()}
                             onClick={bulkRemove}
                           >
@@ -2510,7 +2519,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                             <For each={highlight(hit.title, query())}>
                               {(part) => (
                                 <Show when={part.hit} fallback={<>{part.text}</>}>
-                                  <mark class="rounded bg-[color-mix(in_srgb,#f59e0b_30%,transparent)] px-0.5 text-foreground">
+                                  <mark class="rounded bg-[color-mix(in_srgb,var(--warning)_30%,transparent)] px-0.5 text-foreground">
                                     {part.text}
                                   </mark>
                                 </Show>
@@ -2525,7 +2534,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                           <For each={highlight(hit.snippet, query())}>
                             {(part) => (
                               <Show when={part.hit} fallback={<>{part.text}</>}>
-                                <mark class="rounded bg-[color-mix(in_srgb,#f59e0b_28%,transparent)] px-0.5 text-foreground">
+                                <mark class="rounded bg-[color-mix(in_srgb,var(--warning)_28%,transparent)] px-0.5 text-foreground">
                                   {part.text}
                                 </mark>
                               </Show>
@@ -2614,7 +2623,7 @@ function KnowledgeGraphView(props: { graph: KnowledgeGraph; onSelect?: (label: s
                   cx={node.x}
                   cy={node.y}
                   r={Math.min(7 + Math.log2(num(node.weight) + 1) * 1.6, 15)}
-                  fill={hover() === node.id ? "#059669" : "#10b981"}
+                  fill={hover() === node.id ? "var(--success-strong)" : "var(--success)"}
                   fill-opacity={0.85}
                   stroke="var(--background)"
                   stroke-width={1.5}

@@ -8,7 +8,9 @@ import * as Log from "@novaway/core/util/log"
 import { Npm } from "@novaway/core/npm"
 import { Hash } from "@novaway/core/util/hash"
 import { Plugin } from "../plugin"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { type LanguageModelV3 } from "@ai-sdk/provider"
+import type { ModelInfo, ProviderAdapter } from "@novaway/plugin-api"
 import * as ModelsDev from "@novaway/core/models-dev"
 import { Auth } from "../auth"
 import { Env } from "../env"
@@ -17,7 +19,7 @@ import { iife } from "@/util/iife"
 import { Global } from "@novaway/core/global"
 import path from "path"
 import { pathToFileURL } from "url"
-import { Effect, Layer, Context, Schema, Types, Schedule, Duration } from "effect"
+import { Effect, Layer, Context, Schema, Types, Schedule, Duration, Option } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { EffectPromise } from "@/effect/promise"
@@ -1962,6 +1964,7 @@ interface State {
   providers: Record<ProviderID, Info>
   catalog: Record<ProviderID, Info>
   sdk: Map<string, BundledSDK>
+  sdkFactories: Record<string, string>
   modelLoaders: Record<string, CustomModelLoader>
   varsLoaders: Record<string, CustomVarsLoader>
   discoveryLoaders: Record<string, CustomDiscoverModels>
@@ -2093,6 +2096,75 @@ function fromModelsDevModel(provider: ModelsDev.Provider, model: ModelsDev.Model
   return {
     ...base,
     variants: mapValues(ProviderTransform.variants(base), (v) => v),
+  }
+}
+
+function fromPluginModel(provider: ProviderAdapter, modelID: string, model: ModelInfo): Model {
+  const id = model.id ?? modelID
+  const npm = model.provider?.npm ??
+    (typeof provider.sdk === "string" ? provider.sdk : provider.sdk?.package) ??
+    "@ai-sdk/openai-compatible"
+  const baseURL = model.provider?.api ?? provider.options?.baseURL ?? ""
+  const input = model.modalities?.input ?? []
+  const output = model.modalities?.output ?? []
+  return {
+    id: ModelID.make(id),
+    providerID: ProviderID.make(provider.id),
+    name: model.name ?? id,
+    family: model.family,
+    api: { id, url: baseURL, npm },
+    status: model.status ?? (model.experimental ? "alpha" : "active"),
+    headers: model.headers ?? {},
+    options: model.options ?? {},
+    cost: {
+      input: model.cost?.input ?? 0,
+      output: model.cost?.output ?? 0,
+      cache: {
+        read: model.cost?.cache_read ?? 0,
+        write: model.cost?.cache_write ?? 0,
+      },
+    },
+    limit: {
+      context: model.limit?.context ?? 128_000,
+      input: model.limit?.input,
+      output: model.limit?.output ?? 32_768,
+    },
+    capabilities: {
+      temperature: model.temperature ?? false,
+      reasoning: model.reasoning ?? false,
+      attachment: model.attachment ?? false,
+      toolcall: model.tool_call ?? true,
+      input: {
+        text: input.includes("text"),
+        audio: input.includes("audio"),
+        image: input.includes("image"),
+        video: input.includes("video"),
+        pdf: input.includes("pdf"),
+      },
+      output: {
+        text: output.includes("text"),
+        audio: output.includes("audio"),
+        image: output.includes("image"),
+        video: output.includes("video"),
+        pdf: output.includes("pdf"),
+      },
+      interleaved: model.interleaved ?? false,
+    },
+    release_date: model.release_date ?? "",
+    variants: model.variants ?? {},
+  }
+}
+
+function fromPluginProvider(provider: ProviderAdapter, models: Record<string, ModelInfo>): Info {
+  const converted: Record<string, Model> = {}
+  for (const [id, model] of Object.entries(models)) converted[id] = fromPluginModel(provider, id, model)
+  return {
+    id: ProviderID.make(provider.id),
+    name: provider.name,
+    source: "custom",
+    env: provider.auth?.type === "env" ? [...(provider.auth.key ?? [])] : [],
+    options: { ...(provider.options ?? {}) },
+    models: converted,
   }
 }
 
@@ -2274,6 +2346,7 @@ export const layer = Layer.effect(
           [providerID: string]: CustomVarsLoader
         } = {}
         const sdk = new Map<string, BundledSDK>()
+        const sdkFactories: Record<string, string> = {}
         const discoveryLoaders: {
           [providerID: string]: CustomDiscoverModels
         } = {}
@@ -2570,6 +2643,64 @@ export const layer = Layer.effect(
           mergeProvider(providerID, partial)
         }
 
+        // Plugin providers are first-class providers, not metadata-only registry entries.
+        // Read the instance-scoped registry after auth/config have been applied so the
+        // regular provider list, model lookup, and SDK path all see the same provider.
+        const runtimeOption = yield* Effect.serviceOption(PluginRuntimeService.Service)
+        if (Option.isSome(runtimeOption)) {
+          const host = yield* runtimeOption.value.get
+          for (const adapter of host.registries.providers?.list() ?? []) {
+            const providerID = ProviderID.make(adapter.id)
+            if (disabled.has(providerID)) continue
+
+            const configured = providers[providerID]
+            const stored = yield* auth.get(providerID).pipe(Effect.orDie)
+            const envValues = yield* env.all()
+            const apiKey = configured?.key ??
+              (stored?.type === "api" ? stored.key : undefined) ??
+              (adapter.auth?.type === "env" ? adapter.auth.key?.map((key) => envValues[key]).find(Boolean) : undefined) ??
+              ""
+            const baseURL = adapter.options?.baseURL ?? ""
+            let declared: Record<string, ModelInfo>
+            const modelDeclaration = adapter.models
+            if (typeof modelDeclaration === "function") {
+              declared = yield* Effect.promise(() => modelDeclaration())
+            } else {
+              declared = modelDeclaration ?? {}
+            }
+            if (Object.keys(declared).length === 0 && adapter.discoverModels) {
+              declared = yield* Effect.promise(() => adapter.discoverModels!({ apiKey, baseURL }))
+            }
+
+            const info = fromPluginProvider(adapter, declared)
+            for (const [modelID, model] of Object.entries(info.models)) {
+              if (adapter.transform?.headers) {
+                model.headers = {
+                  ...model.headers,
+                  ...adapter.transform.headers({ modelID, apiKey }),
+                }
+              }
+              if (adapter.transform?.params) {
+                model.options = {
+                  ...model.options,
+                  ...adapter.transform.params({ modelID }),
+                }
+              }
+            }
+            if (Object.keys(info.models).length === 0) continue
+            info.key = apiKey || undefined
+            providers[providerID] = info
+            modelLoaders[providerID] = async (sdk, modelID, options) => {
+              const language = sdk.languageModel(modelID)
+              return adapter.transform?.languageModel
+                ? adapter.transform.languageModel(language, options ?? {})
+                : language
+            }
+            if (adapter.sdk && typeof adapter.sdk !== "string") sdkFactories[providerID] = adapter.sdk.factory
+            log.info("found plugin provider", { providerID, models: Object.keys(info.models).length })
+          }
+        }
+
         // 通用模型发现：各 loader 拉厂商 live /models（或本地实例），
         // 只补目录没有的模型；配置了 discoverPrune 的免费通道额外清理
         // 「目录有但 live 已下架」的条目（用户手动配置的模型受保护）。
@@ -2718,6 +2849,7 @@ export const layer = Layer.effect(
           providers,
           catalog,
           sdk,
+          sdkFactories,
           modelLoaders,
           varsLoaders,
           discoveryLoaders,
@@ -2873,7 +3005,9 @@ export const layer = Layer.effect(
         const importSpec = installedPath.startsWith("file://") ? installedPath : pathToFileURL(installedPath).href
         const mod = await import(importSpec)
 
-        const fn = mod[Object.keys(mod).find((key) => key.startsWith("create"))!]
+        const factoryName = s.sdkFactories[model.providerID]
+        const fn = mod[factoryName ?? Object.keys(mod).find((key) => key.startsWith("create"))!]
+        if (typeof fn !== "function") throw new Error(`Provider package ${model.api.npm} has no factory ${factoryName ?? "create*"}`)
         const loaded = fn({
           name: model.providerID,
           ...options,

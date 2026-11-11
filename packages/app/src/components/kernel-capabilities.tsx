@@ -104,7 +104,7 @@ export const KernelCapabilitiesCard: Component<{
       </div>
 
       <Show when={error()}>
-        <div class="border-b border-border px-4 py-1.5 text-ui-xs text-destructive">{error()}</div>
+        <div class="border-b border-border px-4 py-1.5 text-ui-xs text-icon-critical-base">{error()}</div>
       </Show>
 
       <Show when={summary()}>
@@ -128,7 +128,7 @@ export const KernelCapabilitiesCard: Component<{
                   size="small"
                   class="shrink-0"
                   classList={{
-                    "text-success": feature.enabled,
+                    "text-icon-success-base": feature.enabled,
                     "text-foreground-subtlest": !feature.enabled,
                   }}
                 />

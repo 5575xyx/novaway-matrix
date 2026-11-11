@@ -38,7 +38,7 @@ import { ProviderSetupTool } from "./provider-setup"
 import { LspSetupTool } from "./lsp-setup"
 import { OfficeSetupTool } from "./office-setup"
 import { OfficePptxEditTool, OfficePptxReadTool } from "./office-pptx"
-import { OfficeDocumentEditTool, OfficeDocumentReadTool } from "./office-doc"
+import { OfficeDocumentEditTool, OfficeDocumentExportTool, OfficeDocumentReadTool } from "./office-doc"
 import { TempFilesTool } from "./temp_files"
 import { VerifyTool } from "./verify"
 import { ReviewDocumentTool } from "./review"
@@ -108,6 +108,10 @@ import { SleepTool } from "./sleep"
 import { CronCreateTool, CronDeleteTool, CronListTool } from "./cron"
 import { Service as CronService, defaultLayer as CronDefaultLayer } from "@/cron/service"
 import { WorkflowTool } from "./workflow"
+import { CreateWorkflowTool } from "./workflow-script"
+import { WorkflowRunTool } from "./workflow-run"
+import { ResumeWorkflowTool } from "./workflow-resume"
+import { ListSavedWorkflowsTool, SaveWorkflowTool } from "./workflow-save"
 import { OrchestratorTool } from "./orchestrator"
 import { OrchestratorService, defaultLayer as OrchestratorDefaultLayer } from "@/orchestrator/orchestrator"
 import { Glob } from "@novaway/core/util/glob"
@@ -145,6 +149,9 @@ import { BackgroundJob } from "@/background/job"
 import { SessionStatus } from "@/session/status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ClientCapabilities } from "@/effect/client-capabilities"
+import { EffectBridge } from "@/effect/bridge"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
+import { PluginToolRuntime } from "@/plugin/runtime/tool"
 import { Auth } from "@/auth"
 import { Goal } from "@/session/goal"
 import { PlanApproval } from "@/session/plan-approval"
@@ -208,6 +215,18 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   plan: { concurrencySafe: false, idempotent: true },
   // 工作流引擎会派生会话，重跑会重复派发。
   workflow: { concurrencySafe: false },
+  // 动态工作流：一次调用会派生多个子会话并跑一段时间，不能并发，也不碰工作区锁
+  // （锁要落在真正写文件的子代理身上，否则派发器持锁等子代理，子代理等锁）。
+  create_workflow: { concurrencySafe: false, workspace: false, interrupt: "cancel" },
+  resume_workflow_run: { concurrencySafe: false, workspace: false, interrupt: "cancel" },
+  save_workflow: { concurrencySafe: false, workspace: true },
+  list_saved_workflows: { concurrencySafe: true, workspace: false, readOnly: true },
+  // 只有 stop 会改变东西（请求停止一次 run），get / list 是只读的。
+  workflow_run: {
+    concurrencySafe: true,
+    workspace: false,
+    readOnly: (args: unknown) => (args as { action?: string } | undefined)?.action !== "stop",
+  },
   // 电脑操作与人共用一个桌面：既非只读也不幂等（点击可能下单）。
   computer_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true },
   computer_windows: { readOnly: true, concurrencySafe: false, idempotent: true },
@@ -455,6 +474,7 @@ export const layer: Layer.Layer<
   Service,
   never,
   | Config.Service
+  | PluginRuntimeService.Service
   | Plugin.Service
   | Question.Service
   | Todo.Service
@@ -496,7 +516,8 @@ export const layer: Layer.Layer<
     const capabilities = yield* ClientCapabilities.Service
     const auth = yield* Auth.Service
     const activation = yield* ActivationService
-
+    const runtimeOption = yield* Effect.serviceOption(PluginRuntimeService.Service)
+    const pluginRuntime = runtimeOption._tag === "Some" ? runtimeOption.value : undefined
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
     const taskStatus = yield* TaskStatusTool
@@ -556,6 +577,7 @@ export const layer: Layer.Layer<
     // DOCX / HTML / Markdown / 纯文本：同一套 OfficeOp，和右侧面板共用引擎。
     const officeDocumentRead = yield* OfficeDocumentReadTool
     const officeDocumentEdit = yield* OfficeDocumentEditTool
+    const officeDocumentExport = yield* OfficeDocumentExportTool
     const skillInstall = yield* SkillInstallTool
     const skillPython = yield* SkillPythonTool
     const pluginInstall = yield* PluginInstallTool
@@ -596,6 +618,12 @@ export const layer: Layer.Layer<
     const pdfCreate = yield* PdfCreateTool
     const goal = yield* optional(Goal.Service, GoalTool)
     const workflow = yield* optional(WorkflowService, WorkflowTool)
+    // 动态工作流：脚本式编排。不依赖可选的 WorkflowService —— 它自带编译、沙箱与引擎。
+    const createWorkflowTool = yield* CreateWorkflowTool
+    const workflowRunTool = yield* WorkflowRunTool
+    const resumeWorkflowTool = yield* ResumeWorkflowTool
+    const saveWorkflowTool = yield* SaveWorkflowTool
+    const listSavedWorkflowsTool = yield* ListSavedWorkflowsTool
     const orchestrator = yield* optional(OrchestratorService, OrchestratorTool)
     const agent = yield* Agent.Service
     const monitorTool = yield* MonitorTool
@@ -621,7 +649,18 @@ export const layer: Layer.Layer<
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("ToolRegistry.state")(function* (ctx) {
-        const custom: Tool.Def[] = []
+        const pluginHost = pluginRuntime ? yield* pluginRuntime.get : undefined
+        const bridge = yield* EffectBridge.make()
+        if (pluginHost) {
+          const subscription = pluginHost.registries.tools.onDidChange(() => {
+            bridge.fork(Effect.asVoid(InstanceState.invalidate(state)))
+          })
+          yield* Effect.addFinalizer(() => Effect.sync(() => subscription.dispose()))
+        }
+        const custom: Tool.Def[] =
+          pluginHost?.registries.tools
+            .list()
+            .map((entry) => PluginToolRuntime.adaptTool({ name: entry.name, contribution: entry.item })) ?? []
 
         function fromPlugin(id: string, def: ToolDefinition): Tool.Def {
           // Plugin tools still expose Zod args publicly; keep that compatibility
@@ -651,6 +690,7 @@ export const layer: Layer.Layer<
                 const metadata = typeof result === "string" ? {} : (result.metadata ?? {})
                 const attachments = typeof result === "string" ? undefined : result.attachments
                 const info = yield* agent.get(toolCtx.agent)
+                if (!info) throw new Error(`agent "${toolCtx.agent}" is not available`)
                 const out = yield* truncate.output(output, {}, info)
                 return {
                   title: typeof result === "string" ? "" : (result.title ?? ""),
@@ -788,6 +828,7 @@ export const layer: Layer.Layer<
           office_pptx_edit: Tool.init(officePptxEdit as any),
           office_document_read: Tool.init(officeDocumentRead as any),
           office_document_edit: Tool.init(officeDocumentEdit as any),
+          office_document_export: Tool.init(officeDocumentExport as any),
           skill_install: Tool.init(skillInstall),
           skill_python: Tool.init(skillPython),
           plugin_install: Tool.init(pluginInstall),
@@ -839,6 +880,11 @@ export const layer: Layer.Layer<
           pdf_create: Tool.init(pdfCreate),
           goal: goal ? Tool.init(goal) : Effect.succeed(undefined),
           workflow: workflow ? Tool.init(workflow) : Effect.succeed(undefined),
+          create_workflow: Tool.init(createWorkflowTool),
+          workflow_run: Tool.init(workflowRunTool),
+          resume_workflow_run: Tool.init(resumeWorkflowTool),
+          save_workflow: Tool.init(saveWorkflowTool),
+          list_saved_workflows: Tool.init(listSavedWorkflowsTool),
           orchestrator: orchestrator ? Tool.init(orchestrator) : Effect.succeed(undefined),
           team_run: Tool.init(teamRunTool),
           team_run_status: Tool.init(teamRunStatusTool),
@@ -991,6 +1037,11 @@ export const layer: Layer.Layer<
           tool.pdf_create,
           tool.goal!,
           tool.workflow!,
+          tool.create_workflow,
+          tool.workflow_run,
+          tool.resume_workflow_run,
+          tool.save_workflow,
+          tool.list_saved_workflows,
           tool.orchestrator!,
           ...(teamOrchestrationEnabled ? [tool.team_run, tool.team_run_status] : []),
           tool.team_create!,
@@ -1304,6 +1355,7 @@ export const defaultLayer: Layer.Layer<Service> = Layer.suspend(() =>
       Layer.provide(Truncate.defaultLayer),
     )
     .pipe(
+      Layer.provide(PluginRuntimeService.defaultLayer),
       Layer.provide(DatabaseModule.defaultLayer),
       Layer.provide(Evolution.defaultLayer),
       Layer.provide(MCP.defaultLayer),

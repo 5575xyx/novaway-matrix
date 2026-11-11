@@ -87,6 +87,22 @@ test("打字过程中前缀行永远不消失，长度单调增长（不闪）",
   await expect.poll(shown, { timeout: 5000 }).toBe(written)
 })
 
+test("动画期间收到后续写入时保留已显示前缀并追到最新内容", async ({ page }) => {
+  const { shown, set, live } = await setup(page)
+  await live(false)
+  await set(base)
+  await expect.poll(shown).toBe(base)
+  await live(true)
+  await set(`${base}\n// first update`)
+  await page.waitForTimeout(90)
+  const beforeSecond = await shown()
+  await set(`${base}\n// first update\n// second update`)
+  const afterSecond = await shown()
+  expect(afterSecond.length).toBeGreaterThanOrEqual(beforeSecond.length)
+  expect(afterSecond.split("\n").slice(0, 40)).toEqual(base.split("\n"))
+  await expect.poll(shown, { timeout: 5000 }).toBe(`${base}\n// first update\n// second update`)
+})
+
 test("内容没变时不重启动画（重复写盘不闪）", async ({ page }) => {
   const { shown, set, live } = await setup(page)
   await live(false)

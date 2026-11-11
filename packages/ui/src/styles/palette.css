@@ -1,13 +1,13 @@
-/* NovaWay × ZCode 对齐：ZCode 引用的 Tailwind 默认色板。
+/* 语义 token 引用的 Tailwind 默认色板。
  *
- * ZCode 的语义 token（--color-foreground / --color-surface / --color-git-* 等）直接引用 Tailwind
- * 默认色阶（--color-neutral-50 / --color-sky-500 …），因为它完整 @import "tailwindcss"。
+ * 语义 token（--color-foreground / --color-surface / --color-git-* 等）直接引用 Tailwind
+ * 默认色阶（--color-neutral-50 / --color-sky-500 …），这套引用以完整 @import "tailwindcss" 为前提。
  * NovaWay 在 styles/tailwind/colors.css 里用 `--color-*: initial` 清空了整套色板，所以这里按需补回
- * ZCode 实际引用的 13 个色阶 + white/black。
+ * 实际引用的 13 个色阶 + white/black。
  *
  * 双写原因：`@theme` 供 Tailwind 生成色板工具类，但 Tailwind 只发射「被用到」的 @theme 变量，
- * 而 ZCode 的 token 值里用 color-mix() 直接引用这些变量 —— 被摇掉就会整条色值失效。
- * 因此同时以普通 :root 变量（--palette-*）落一份，ZCode 的 token 值统一引用 --palette-*，不依赖发射。
+ * 而 token 值里用 color-mix() 直接引用这些变量 —— 被摇掉就会整条色值失效。
+ * 因此同时以普通 :root 变量（--palette-*）落一份，token 值统一引用 --palette-*，不依赖发射。
  * 必须放在 colors.css 之后 —— 那里的 `--color-*: initial` 会清空整套色板。
  */
 :root {

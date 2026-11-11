@@ -27,6 +27,24 @@ export const listenForDeepLinks = () => {
   return window.api.onDeepLink((urls) => emitDeepLinks(urls))
 }
 
+// 从 Finder / 资源管理器 / 命令行打开的文档：和深链一样先排队再广播，
+// 冷启动时渲染层可能还没挂好监听，`consumeInitialOpenFiles` 会把队列里剩下的取走。
+const openFilesEvent = "NovaWay:open-files"
+
+export const emitOpenFiles = (paths: string[]) => {
+  if (paths.length === 0) return
+  // 应用还没挂监听时事件会丢，先排队；app 挂载后 `drainPendingOpenFiles` 取走。
+  window.__NOVAWAY__ ??= {}
+  const pending = window.__NOVAWAY__.openFiles ?? []
+  window.__NOVAWAY__.openFiles = [...pending, ...paths]
+  window.dispatchEvent(new CustomEvent(openFilesEvent, { detail: { paths } }))
+}
+
+export const listenForOpenFiles = () => {
+  void window.api.consumeInitialOpenFiles().then((paths) => emitOpenFiles(paths))
+  return window.api.onOpenFiles((paths) => emitOpenFiles(paths))
+}
+
 export function createPlatform(): Platform {
   const os = (() => {
     const ua = navigator.userAgent
@@ -125,8 +143,20 @@ export function createPlatform(): Platform {
       return window.api.readLocalFileBase64(filePath)
     },
 
+    toPreviewUrl(url) {
+      return window.api.toPreviewUrl(url)
+    },
+
+    async printToPdf(input) {
+      return window.api.printToPdf(input)
+    },
+
     async writeLocalFileText(filePath, content) {
       return window.api.writeLocalFileText(filePath, content)
+    },
+
+    async writeLocalFileBase64(filePath, data, expectedBaselineSha256) {
+      return window.api.writeLocalFileBase64(filePath, data, expectedBaselineSha256)
     },
 
     async saveFilePickerDialog(opts) {
@@ -171,6 +201,23 @@ export function createPlatform(): Platform {
         return window.api.showItemInFolder(resolvedPath)
       }
       return window.api.showItemInFolder(path)
+    },
+
+    getInstalledEditors: () => window.api.getInstalledEditors(),
+
+    async openInEditor(editorId, path, kind, connection) {
+      if (connection.type === "sidecar" && connection.variant === "base") {
+        return window.api.openInEditor(editorId, path, kind)
+      }
+      if (connection.type !== "http") return false
+      let url: URL
+      try {
+        url = new URL(connection.http.url)
+      } catch {
+        return false
+      }
+      if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1" && url.hostname !== "::1") return false
+      return window.api.openInEditor(editorId, path, kind)
     },
 
     back() {

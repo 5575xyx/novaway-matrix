@@ -1,7 +1,8 @@
 import { describe, expect } from "bun:test"
-import { Effect, Exit } from "effect"
+import { Effect, Exit, Layer } from "effect"
 import { ProjectTable } from "../../src/project/project.sql"
 import { ProjectID } from "../../src/project/schema"
+import { Goal } from "../../src/session/goal"
 import { Todo } from "../../src/session/todo"
 import { SessionID } from "../../src/session/schema"
 import { SessionTable } from "../../src/session/session.sql"
@@ -23,10 +24,10 @@ function seedSession(id: string) {
 
 const freshSession = () => seedSession(`ses_todo_${Date.now()}_${Math.random().toString(36).slice(2)}`)
 
-// getByGoal 是跨会话查询(goal.ts 的进度统计依赖这个语义),测试间用唯一 goalId 隔离。
+// 测试间用唯一 goalId 隔离。
 const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2)}`
 
-const it = testEffect(Todo.defaultLayer)
+const it = testEffect(Layer.mergeAll(Todo.defaultLayer, Goal.defaultLayer))
 
 const seed = (
   sessionID: SessionID,
@@ -47,6 +48,43 @@ const seed = (
 const list = (sessionID: SessionID) => Todo.Service.use((svc) => svc.get(sessionID))
 
 describe("Todo service", () => {
+  it.instance("getByGoal only returns rows owned by the same session", () =>
+    Effect.gen(function* () {
+      const sessionID = freshSession()
+      const otherSessionID = freshSession()
+      const goal = yield* Goal.Service.use((svc) =>
+        svc.create({ sessionId: sessionID, title: "scoped goal", successCriteria: ["all matching todos complete"] }),
+      )
+      yield* seed(sessionID, [
+        { content: "done", status: "completed", goalId: goal.id },
+        { content: "remaining", status: "pending", goalId: goal.id },
+      ])
+      yield* seed(otherSessionID, [{ content: "foreign", status: "completed", goalId: goal.id }])
+
+      const todos = yield* Todo.Service.use((svc) => svc.getByGoal({ goalId: goal.id, sessionID }))
+      const progress = yield* Goal.Service.use((svc) => svc.getProgress({ goalId: goal.id, sessionId: sessionID }))
+
+      expect(todos.map((todo) => todo.content)).toEqual(["done", "remaining"])
+      expect(progress).toEqual({ total: 2, completed: 1, percentage: 50 })
+      expect(yield* Goal.Service.use((svc) => svc.get({ goalId: goal.id, sessionId: otherSessionID }))).toBeNull()
+    }),
+  )
+
+  it.instance("rejects a parent goal from another session", () =>
+    Effect.gen(function* () {
+      const sessionID = freshSession()
+      const otherSessionID = freshSession()
+      const parent = yield* Goal.Service.use((svc) =>
+        svc.create({ sessionId: otherSessionID, title: "foreign parent" }),
+      )
+      const result = yield* Goal.Service.use((svc) =>
+        svc.create({ sessionId: sessionID, parentId: parent.id, title: "invalid child" }),
+      ).pipe(Effect.exit)
+
+      expect(Exit.isFailure(result)).toBe(true)
+    }),
+  )
+
   it.instance("update persists goalId onto the row", () =>
     Effect.gen(function* () {
       const sessionID = freshSession()
@@ -158,21 +196,16 @@ describe("Todo service", () => {
     }),
   )
 
-  it.instance("getByGoal returns only todos bound to that goal", () =>
+  it.instance("getByGoal scopes results to the requested session", () =>
     Effect.gen(function* () {
       const sessionID = freshSession()
+      const otherSessionID = freshSession()
       const goal = `goal_${uid()}`
-      const other = `goal_${uid()}`
-      yield* seed(sessionID, [
-        { content: "g1-a", goalId: goal },
-        { content: "g2-a", goalId: other },
-        { content: "loose" },
-        { content: "g1-b", goalId: goal },
-      ])
+      yield* seed(sessionID, [{ content: "owned", goalId: goal }])
+      yield* seed(otherSessionID, [{ content: "foreign", goalId: goal }])
 
-      const rows = yield* Todo.Service.use((svc) => svc.getByGoal(goal))
-      expect(rows.map((row) => row.content)).toEqual(["g1-a", "g1-b"])
-      expect(rows.every((row) => row.goalId === goal)).toBe(true)
+      const rows = yield* Todo.Service.use((svc) => svc.getByGoal({ goalId: goal, sessionID }))
+      expect(rows.map((row) => row.content)).toEqual(["owned"])
     }),
   )
 

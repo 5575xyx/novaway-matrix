@@ -2,8 +2,8 @@
  * 极简 XML 定位工具。
  *
  * 办公文档的写回不能用「解析成对象树再序列化」：那样会把解析器不认识的
- * 扩展（SmartArt、墨迹、图表缓存、批注、修订）全丢掉。Weave 的做法是在原始
- * XML 文本上做外科手术，我们也一样 —— 所以只需要能可靠地找到某个标签的
+ * 扩展（SmartArt、墨迹、图表缓存、批注、修订）全丢掉。正确做法是在原始
+ * XML 文本上做外科手术 —— 所以只需要能可靠地找到某个标签的
  * 起止，不需要完整 DOM。
  */
 
@@ -19,11 +19,7 @@ export function decodeXmlText(input: string): string {
 }
 
 export function encodeXmlText(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 
 /**
@@ -98,7 +94,12 @@ export function findElement(
   return undefined
 }
 
-export function findAll(xml: string, tag: string, from = 0, to = xml.length): Array<{ start: number; end: number; openEnd: number }> {
+export function findAll(
+  xml: string,
+  tag: string,
+  from = 0,
+  to = xml.length,
+): Array<{ start: number; end: number; openEnd: number }> {
   const out: Array<{ start: number; end: number; openEnd: number }> = []
   let cursor = from
   while (cursor < to) {

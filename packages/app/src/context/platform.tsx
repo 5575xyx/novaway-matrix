@@ -9,6 +9,7 @@ type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: stri
 type SaveFilePickerOptions = { title?: string; defaultPath?: string; data?: Uint8Array }
 type UpdateInfo = { updateAvailable: boolean; version?: string; downloaded?: boolean; failed?: boolean }
 export type NotificationMetadata = { sessionID?: string; requestID?: string }
+export type InstalledEditor = { id: string; name: string }
 export type UpdateReadyEvent = { version?: string }
 
 /**
@@ -44,6 +45,15 @@ export type Platform = {
   /** 在系统文件管理器中显示该文件/文件夹(选中);仅桌面端实现。 */
   showItemInFolder?(path: string): Promise<boolean>
 
+  getInstalledEditors?(): Promise<InstalledEditor[]>
+
+  openInEditor?(
+    editorId: string,
+    path: string,
+    kind: "file" | "directory",
+    connection: ServerConnection.Any,
+  ): Promise<boolean>
+
   restart(): Promise<void>
 
   back(): void
@@ -64,8 +74,17 @@ export type Platform = {
   /** 读项目目录外的本地二进制文件为 base64(Office/PDF/图片预览);失败返回 null。 */
   readLocalFileBase64?(path: string): Promise<string | null>
 
+  /** 把本机 file:// 地址转换成桌面预览协议地址。 */
+  toPreviewUrl?(url: string): string
+
   /** 写回本地文本文件(桌面端);成功返回 true。 */
   writeLocalFileText?(path: string, content: string): Promise<boolean>
+
+  /** 写回本地二进制文件(桌面端,base64 载荷):PDF 拆分等一次产出多个文件时用。 */
+  writeLocalFileBase64?(path: string, data: string, expectedBaselineSha256?: string): Promise<boolean>
+
+  /** 把自包含 HTML 打印成 PDF 写到 filePath(桌面端);成功返回 true。 */
+  printToPdf?(input: { html: string; filePath: string; landscape?: boolean }): Promise<boolean>
 
   saveFilePickerDialog?(opts?: SaveFilePickerOptions): Promise<string | null>
 

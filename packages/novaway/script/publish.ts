@@ -273,5 +273,4 @@ async function syncNpmmirror(entries: [string, string][]) {
 
 await syncNpmmirror([...Object.entries(binaries), [MAIN_PACKAGE, version]])
 
-// Docker/AUR/Homebrew 的发布脚本原本指向上游(anomalyco)的镜像与仓库，
-// 我们只在 npm 发布（平台包 + 主包），这些渠道不再维护，需要时再按自己的仓库补。
+// Docker/AUR/Homebrew 渠道暂不维护，只做 npm 发布（平台包 + 主包），需要时再按自己的仓库补。

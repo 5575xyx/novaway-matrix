@@ -5,6 +5,7 @@ declare global {
     api: ElectronAPI
     __NOVAWAY__?: {
       deepLinks?: string[]
+      openFiles?: string[]
     }
   }
 

@@ -9,7 +9,7 @@ export interface DrawerProps extends ParentProps {
   action?: JSXElement
   class?: ComponentProps<"div">["class"]
   classList?: ComponentProps<"div">["classList"]
-  /** 默认开启开合动效（对齐 ZCode）。 */
+  /** 默认开启开合动效。 */
   transition?: boolean
 }
 

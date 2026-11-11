@@ -34,7 +34,7 @@ export const CheckpointApi = HttpApiGroup.make("checkpoint")
     HttpApiEndpoint.post("restoreCheckpoint", "/checkpoints/:checkpointId/restore", {
       params: { checkpointId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )
   .add(

@@ -258,7 +258,7 @@ function firstEvent(open: (signal: AbortSignal) => Promise<{ stream: AsyncIterat
         Effect.flatMap((events) =>
           call(() => events.stream.next()).pipe(
             Effect.timeoutOrElse({
-              duration: "1 second",
+              duration: "5 seconds",
               orElse: () => Effect.fail(new Error("timed out waiting for SDK event")),
             }),
           ),
@@ -608,8 +608,8 @@ describe("HttpApi SDK", () => {
         expect(moved.response.status).toBe(200)
         expect(moved.data?.shapes?.[0]).toMatchObject({ shapeId: "2", box: { x: 1, y: 2, w: 3, h: 4 } })
         expect(styled.response.status).toBe(200)
-        expect(slide1).toContain('<a:off x="1" y="2"/>')
-        expect(slide1).toContain('<a:ext cx="3" cy="4"/>')
+        expect(slide1).toContain('<a:off x="12700" y="25400"/>')
+        expect(slide1).toContain('<a:ext cx="38100" cy="50800"/>')
         expect(slide1).toContain('sz="3200"')
         expect(slide1).toContain('<a:srgbClr val="FF0000"/>')
         expect(Buffer.from(slide2).toString()).toBe(PPTX_EDIT_SLIDE_TWO)

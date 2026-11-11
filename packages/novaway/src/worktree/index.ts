@@ -304,7 +304,11 @@ export const layer: Layer.Layer<
     })
 
     const canonical = Effect.fnUntraced(function* (input: string) {
-      const abs = pathSvc.resolve(input)
+      const ctx = yield* InstanceState.context
+      // Resolve worktree paths against the project's drive, not the process cwd.
+      // On Windows Git may report C:/tmp/... while `input` was created as `\\tmp\\...`;
+      // resolving that root-relative path against a different process drive makes lookup fail.
+      const abs = pathSvc.resolve(ctx.worktree, input)
       const real = yield* fs.realPath(abs).pipe(Effect.catch(() => Effect.succeed(abs)))
       const normalized = pathSvc.normalize(real)
       return process.platform === "win32" ? normalized.toLowerCase() : normalized

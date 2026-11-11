@@ -56,7 +56,10 @@ test("打开技能详情能看到正文，并且指向 references/ 里的配套�
     .locator("div.border-t.border-border.px-4.py-3")
     .filter({ has: page.getByText("自媒体运营技能", { exact: true }) })
   await expect(row).toHaveCount(1)
-  await row.getByRole("button", { name: /View|查看/ }).first().click()
+  await row
+    .getByRole("button", { name: /View|查看/ })
+    .first()
+    .click()
 
   const detail = page.locator('[data-component="dialog"]').last()
   await expect(detail).toBeVisible({ timeout: 10_000 })

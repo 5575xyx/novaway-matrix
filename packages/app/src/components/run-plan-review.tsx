@@ -106,7 +106,7 @@ export function RunPlanReview(props: {
           )}
         </For>
         <Show when={props.teams.length === 0}>
-          <span class="text-ui-xs text-warning">{t("run.plan.noTeams")}</span>
+          <span class="text-ui-xs text-icon-warning-base">{t("run.plan.noTeams")}</span>
         </Show>
       </div>
 
@@ -128,7 +128,9 @@ export function RunPlanReview(props: {
         </span>
         <Show
           when={props.acceptances.length > 0}
-          fallback={<div class="text-ui-xs leading-relaxed text-warning">{t("run.plan.acceptanceEmpty")}</div>}
+          fallback={
+            <div class="text-ui-xs leading-relaxed text-icon-warning-base">{t("run.plan.acceptanceEmpty")}</div>
+          }
         >
           <For each={props.acceptances}>
             {(acceptance) => (

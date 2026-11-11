@@ -80,7 +80,7 @@ export function RunLive(props: {
             </span>
           </Show>
           <Show when={summary().failed > 0}>
-            <span class="text-destructive">{t("run.live.failed", { count: String(summary().failed) })}</span>
+            <span class="text-icon-critical-base">{t("run.live.failed", { count: String(summary().failed) })}</span>
           </Show>
         </div>
       </Show>

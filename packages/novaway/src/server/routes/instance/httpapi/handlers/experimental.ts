@@ -94,6 +94,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       const limit = ctx.query.limit ?? 100
       const sessions = Array.from(
         Session.listGlobal({
+          scope: ctx.query.scope,
           directory: ctx.query.directory,
           roots: ctx.query.roots,
           start: ctx.query.start,

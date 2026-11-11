@@ -286,7 +286,10 @@ export async function changedFiles(input: { directory: string; baseSHA: string }
   const status = await git(input.directory, ["status", "--porcelain", "--untracked-files=all"])
   return [
     ...new Set([
-      ...tracked.stdout.split("\n").map((line) => line.trim()).filter(Boolean),
+      ...tracked.stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
       ...(status.code === 0 ? untrackedFiles(status.stdout) : []),
     ]),
   ]
@@ -321,7 +324,9 @@ export async function affectedTests(input: { directory: string; paths: readonly 
     // 单包仓库：src/ → test/；monorepo：<pkg>/src/ → <pkg>/test/。
     const marker = base.startsWith("src/") ? 0 : base.indexOf("/src/")
     const mirrored =
-      marker === -1 ? undefined : base.slice(0, marker) + (marker === 0 ? "" : "/") + "test/" + base.slice(marker === 0 ? 4 : marker + 5)
+      marker === -1
+        ? undefined
+        : base.slice(0, marker) + (marker === 0 ? "" : "/") + "test/" + base.slice(marker === 0 ? 4 : marker + 5)
     for (const extension of TEST_EXTENSIONS) {
       candidates.add((directoryPart ? directoryPart + "/" : "") + name + extension)
       if (mirrored) candidates.add(mirrored + extension)

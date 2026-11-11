@@ -454,9 +454,7 @@ export const layer = Layer.effect(
     })
 
     const appendEvent: Interface["appendEvent"] = Effect.fn("TeamRun.appendEvent")(function* (input) {
-      return yield* Effect.sync(() =>
-        Database.transaction((tx) => appendEventTx(tx, input), { behavior: "immediate" }),
-      )
+      return yield* Effect.sync(() => Database.transaction((tx) => appendEventTx(tx, input), { behavior: "immediate" }))
     })
 
     const update: Interface["update"] = Effect.fn("TeamRun.update")(function* (input) {
@@ -472,29 +470,28 @@ export const layer = Layer.effect(
       yield* Effect.sync(() =>
         Database.transaction(
           (tx) => {
-            tx
-            .update(TeamRunTable)
-            .set({
-              ...(input.state ? { state: input.state } : {}),
-              ...(input.phase !== undefined ? { phase: input.phase } : {}),
-              ...(input.plan ? { plan: input.plan } : {}),
-              ...(input.planVersion !== undefined ? { plan_version: input.planVersion } : {}),
-              ...(input.approval ? { approval: input.approval } : {}),
-              ...(input.budget ? { budget: input.budget } : {}),
-              ...(input.usage !== undefined ? { usage: input.usage } : {}),
-              ...(input.mergedVerification !== undefined ? { merged_verification: input.mergedVerification } : {}),
-              ...(input.mergeState !== undefined ? { merge_state: input.mergeState } : {}),
-              ...(input.mergedAt !== undefined ? { merged_at: input.mergedAt } : {}),
-              ...(input.roundMain !== undefined ? { round_main: input.roundMain } : {}),
-              ...(input.attempts ? { attempts: input.attempts } : {}),
-              ...(input.error !== undefined ? { error: input.error } : {}),
-              ...(input.terminalReason !== undefined ? { terminal_reason: input.terminalReason } : {}),
-              ...(input.startedAt !== undefined ? { started_at: input.startedAt } : {}),
-              ...(input.endedAt !== undefined ? { ended_at: input.endedAt } : {}),
-              time_updated: now,
-            })
-            .where(eq(TeamRunTable.id, input.runID))
-            .run()
+            tx.update(TeamRunTable)
+              .set({
+                ...(input.state ? { state: input.state } : {}),
+                ...(input.phase !== undefined ? { phase: input.phase } : {}),
+                ...(input.plan ? { plan: input.plan } : {}),
+                ...(input.planVersion !== undefined ? { plan_version: input.planVersion } : {}),
+                ...(input.approval ? { approval: input.approval } : {}),
+                ...(input.budget ? { budget: input.budget } : {}),
+                ...(input.usage !== undefined ? { usage: input.usage } : {}),
+                ...(input.mergedVerification !== undefined ? { merged_verification: input.mergedVerification } : {}),
+                ...(input.mergeState !== undefined ? { merge_state: input.mergeState } : {}),
+                ...(input.mergedAt !== undefined ? { merged_at: input.mergedAt } : {}),
+                ...(input.roundMain !== undefined ? { round_main: input.roundMain } : {}),
+                ...(input.attempts ? { attempts: input.attempts } : {}),
+                ...(input.error !== undefined ? { error: input.error } : {}),
+                ...(input.terminalReason !== undefined ? { terminal_reason: input.terminalReason } : {}),
+                ...(input.startedAt !== undefined ? { started_at: input.startedAt } : {}),
+                ...(input.endedAt !== undefined ? { ended_at: input.endedAt } : {}),
+                time_updated: now,
+              })
+              .where(eq(TeamRunTable.id, input.runID))
+              .run()
             // 状态与事件同一个事务：不能出现「状态改了、事件没写」（§21.2）。
             if (input.state && input.state !== existing.state) {
               appendEventTx(tx, {

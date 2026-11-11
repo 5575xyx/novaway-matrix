@@ -51,6 +51,7 @@ const mergeOptions = (target: Record<string, any>, source: Record<string, any> |
 export type StreamInput = {
   user: MessageV2.User
   sessionID: string
+  scope?: "project" | "global"
   parentSessionID?: string
   model: Provider.Model
   agent: Agent.Info
@@ -200,18 +201,30 @@ const live: Layer.Layer<
         // 语言指令(最高优先级,置顶)
         LANGUAGE_DIRECTIVE,
         // use agent prompt otherwise provider prompt
-        ...(input.agent.prompt ? [input.agent.prompt] : SystemPrompt.provider(input.model)),
+        ...(input.scope === "global"
+          ? ["You are a helpful assistant. Respond to the user's message without accessing a project or workspace."]
+          : input.agent.prompt
+            ? [input.agent.prompt]
+            : SystemPrompt.provider(input.model)),
         // 自动并行编排策略：默认关闭。只有显式 experimental.auto_delegate = true
         // 时才注入；否则简单任务也会先建团队/看板，浪费回合并让父代理丢失细节。
-        ...(input.agent.mode !== "subagent" && !input.small && cfg.experimental?.auto_delegate === true
+        ...(input.scope !== "global" &&
+        input.agent.mode !== "subagent" &&
+        !input.small &&
+        cfg.experimental?.auto_delegate === true
           ? [AUTO_DELEGATE_DIRECTIVE]
           : []),
         // 完成前验收契约：默认开启，可用 experimental.verification_agent=false 关闭。
-        ...(input.agent.mode !== "subagent" && !input.small && cfg.experimental?.verification_agent !== false
+        ...(input.scope !== "global" &&
+        input.agent.mode !== "subagent" &&
+        !input.small &&
+        cfg.experimental?.verification_agent !== false
           ? [VERIFICATION_DIRECTIVE]
           : []),
         // 文档评审契约：主代理产出需要拍板的文档时走 review_document。
-        ...(input.agent.mode !== "subagent" && !input.small ? [DOCUMENT_REVIEW_DIRECTIVE] : []),
+        ...(input.scope !== "global" && input.agent.mode !== "subagent" && !input.small
+          ? [DOCUMENT_REVIEW_DIRECTIVE]
+          : []),
         // any custom prompt passed into this call
         ...input.system,
         // any custom prompt from last user message
@@ -228,11 +241,13 @@ const live: Layer.Layer<
         input.model.api.npm === "@ai-sdk/alibaba"
       // 仅对支持显式缓存断点的模型保留多段 system；其他模型保持原来的单段 payload，避免兼容性变化。
       const system = splitSystem ? systemParts : [systemParts.join("\n")]
-      yield* plugin.trigger(
-        "experimental.chat.system.transform",
-        { sessionID: input.sessionID, model: input.model },
-        { system },
-      )
+      if (input.scope !== "global") {
+        yield* plugin.trigger(
+          "experimental.chat.system.transform",
+          { sessionID: input.sessionID, model: input.model },
+          { system },
+        )
+      }
 
       const variant =
         !input.small && input.model.variants && input.user.model.variant
@@ -265,39 +280,44 @@ const live: Layer.Layer<
               ...input.messages,
             ]
 
-      const params = yield* plugin.trigger(
-        "chat.params",
-        {
-          sessionID: input.sessionID,
-          agent: input.agent.name,
-          model: input.model,
-          provider: item,
-          message: input.user,
-        },
-        {
-          temperature: input.model.capabilities.temperature
-            ? (input.agent.temperature ?? ProviderTransform.temperature(input.model))
-            : undefined,
-          topP: input.agent.topP ?? ProviderTransform.topP(input.model),
-          topK: ProviderTransform.topK(input.model),
-          maxOutputTokens: ProviderTransform.maxOutputTokens(input.model, flags.outputTokenMax),
-          options,
-        },
-      )
+      const requestParams = {
+        temperature: input.model.capabilities.temperature
+          ? (input.agent.temperature ?? ProviderTransform.temperature(input.model))
+          : undefined,
+        topP: input.agent.topP ?? ProviderTransform.topP(input.model),
+        topK: ProviderTransform.topK(input.model),
+        maxOutputTokens: ProviderTransform.maxOutputTokens(input.model, flags.outputTokenMax),
+        options,
+      }
+      const params =
+        input.scope === "global"
+          ? requestParams
+          : yield* plugin.trigger(
+              "chat.params",
+              {
+                sessionID: input.sessionID,
+                agent: input.agent.name,
+                model: input.model,
+                provider: item,
+                message: input.user,
+              },
+              requestParams,
+            )
 
-      const { headers } = yield* plugin.trigger(
-        "chat.headers",
-        {
-          sessionID: input.sessionID,
-          agent: input.agent.name,
-          model: input.model,
-          provider: item,
-          message: input.user,
-        },
-        {
-          headers: {},
-        },
-      )
+      const { headers } =
+        input.scope === "global"
+          ? { headers: {} }
+          : yield* plugin.trigger(
+              "chat.headers",
+              {
+                sessionID: input.sessionID,
+                agent: input.agent.name,
+                model: input.model,
+                provider: item,
+                message: input.user,
+              },
+              { headers: {} },
+            )
 
       const tools = resolveTools(input)
 

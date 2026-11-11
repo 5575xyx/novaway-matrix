@@ -29,7 +29,11 @@ function provideInstanceContext<E>(
 ): Effect.Effect<HttpServerResponse.HttpServerResponse, E, WorkspaceRouteContext> {
   return Effect.gen(function* () {
     const route = yield* WorkspaceRouteContext
-    const ctx = yield* store.load({ directory: decode(route.directory) })
+    const directory = decode(route.directory)
+    const ctx = yield* store.load({
+      directory,
+      ...(route.scope === "global" ? { scope: "global" as const } : {}),
+    })
     // Restart watchers that were interrupted by a process restart. The service
     // memoizes the pass per instance, so hitting it on every request is a
     // cheap boolean check after the first one.

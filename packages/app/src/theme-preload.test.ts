@@ -26,6 +26,20 @@ describe("theme preload", () => {
     expect(document.documentElement.dataset.colorScheme).toBe("light")
   })
 
+  test("defaults to light even when the operating system is dark", () => {
+    Object.defineProperty(window, "matchMedia", {
+      value: () =>
+        ({
+          matches: true,
+        }) as MediaQueryList,
+      configurable: true,
+    })
+
+    run()
+
+    expect(document.documentElement.dataset.colorScheme).toBe("light")
+  })
+
   test("applies the stored theme", () => {
     localStorage.setItem("novaway-theme-id", "nightowl")
 
@@ -34,7 +48,6 @@ describe("theme preload", () => {
     expect(document.documentElement.dataset.theme).toBe("nightowl")
     expect(document.documentElement.dataset.colorScheme).toBe("light")
   })
-
   test("honours the stored color scheme", () => {
     localStorage.setItem("novaway-color-scheme", "dark")
 

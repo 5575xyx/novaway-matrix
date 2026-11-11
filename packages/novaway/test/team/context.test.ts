@@ -120,9 +120,7 @@ describe("dispatch context manifest", () => {
     const scope = Array.from({ length: DEFAULT_LIMITS.brief + 2 }, (_, index) => "范围 " + index)
     const { manifest, prompt } = build({ goal: "g", brief: { scope }, acceptance: [], members: [], feedback: [] })
     expect(manifest.truncated).toBe(true)
-    expect(manifest.omitted).toEqual([
-      { kind: "brief", count: 2, reason: expect.stringContaining("范围 条数上限") },
-    ])
+    expect(manifest.omitted).toEqual([{ kind: "brief", count: 2, reason: expect.stringContaining("范围 条数上限") }])
     expect(prompt).toContain("brief 少了 2 条")
   })
 

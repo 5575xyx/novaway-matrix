@@ -1,7 +1,7 @@
 /**
  * 运行中提交消息的去向：排队还是立即引导。
  *
- * 对齐 Qoder 的 Settings → General → "Send while running"（文档 `qoder/conversation-input.md`）：
+ * 「Send while running」的两种行为：
  *
  * | 方式 | 用途 | 行为 |
  * | --- | --- | --- |
@@ -12,7 +12,7 @@
  * 每轮开头重读会话消息，退出条件是「最后一条 assistant 晚于最后一条 user」——
  * 所以运行中追加的 user 消息会让循环**继续**并把新消息喂给模型；
  * 而 `effect/runner.ts` 的 `ensureRunning` 会把第二次 prompt 并入正在跑的那个 loop，
- * 不会起第二个循环。两者合起来正好是 Qoder 描述的 steer 语义。
+ * 不会起第二个循环。两者合起来正好是 steer 语义。
  *
  * 单独成模块是为了能单测：这段判定藏在 session.tsx 里的话，
  * 只能靠"跑一次真模型"来验证，成本高且不稳定。

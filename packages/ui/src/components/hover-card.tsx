@@ -6,10 +6,11 @@ export interface HoverCardProps extends ParentProps, Omit<ComponentProps<typeof 
   mount?: HTMLElement
   class?: ComponentProps<"div">["class"]
   classList?: ComponentProps<"div">["classList"]
+  contentRef?: (el: HTMLElement) => void
 }
 
 export function HoverCard(props: HoverCardProps) {
-  const [local, rest] = splitProps(props, ["trigger", "mount", "class", "classList", "children"])
+  const [local, rest] = splitProps(props, ["trigger", "mount", "class", "classList", "children", "contentRef"])
 
   return (
     <Kobalte gutter={4} {...rest}>
@@ -18,6 +19,7 @@ export function HoverCard(props: HoverCardProps) {
       </Kobalte.Trigger>
       <Kobalte.Portal mount={local.mount}>
         <Kobalte.Content
+          ref={local.contentRef}
           data-component="hover-card-content"
           classList={{
             ...local.classList,

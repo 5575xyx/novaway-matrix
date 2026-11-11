@@ -1,7 +1,7 @@
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
-import { createSignal, Show, type Accessor, type JSX } from "solid-js"
+import { createSignal, For, Show, type Accessor, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { DialogDeleteSession } from "@/pages/layout/dialog-delete-session"
@@ -34,6 +34,15 @@ export type TaskRowProps = {
   /** 已置顶（行首显示一个图钉）。 */
   pinned?: boolean
   onTogglePin?: () => void
+  /**
+   * 「移动到组」子菜单，只在「视图 → 分组方式 = 自定义」下由调用方传入。
+   * `onMove(null)` = 退回未分组。
+   */
+  group?: {
+    items: Array<{ id: string; name: string }>
+    current?: string
+    onMove: (groupId: string | null) => void
+  }
 }
 
 const STATUS_DOT_CLASS: Record<TaskStatus, string> = {
@@ -89,7 +98,7 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
     setSaving(false)
   }
 
-  const hasMenu = () => !!(props.onRename || props.onArchive || props.onDelete)
+  const hasMenu = () => !!(props.group || props.onRename || props.onArchive || props.onDelete)
 
   return (
     <div
@@ -164,7 +173,7 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
         />
       </Show>
       <Show when={props.waitingBadge?.()}>
-        <span class="text-ui-xs px-1 rounded border border-warning text-warning shrink-0">
+        <span class="text-ui-xs px-1 rounded border border-warning text-icon-warning-base shrink-0">
           {t("taskCenter.waiting")}
         </span>
       </Show>
@@ -201,11 +210,39 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
               aria-label={t("common.moreOptions")}
             />
             <DropdownMenu.Portal>
-              <DropdownMenu.Content style={{ "min-width": "140px" }}>
+              <DropdownMenu.Content
+                style={{ "min-width": "160px", "max-height": "min(70vh, 420px)", overflow: "auto" }}
+              >
                 <Show when={props.onTogglePin}>
                   <DropdownMenu.Item onSelect={() => props.onTogglePin?.()}>
                     <DropdownMenu.ItemLabel>{t(props.pinned ? "common.unpin" : "common.pin")}</DropdownMenu.ItemLabel>
                   </DropdownMenu.Item>
+                </Show>
+                <Show when={props.group}>
+                  {(group) => (
+                    <>
+                      <div class="px-2 pt-1.5 pb-1 text-11-regular text-foreground-subtlest">
+                        {t("sidebar.task.group.move")}
+                      </div>
+                      <For each={group().items}>
+                        {(item) => (
+                          <DropdownMenu.Item onSelect={() => group().onMove(item.id)}>
+                            <DropdownMenu.ItemLabel>{item.name}</DropdownMenu.ItemLabel>
+                            <Show when={group().current === item.id}>
+                              <Icon name="check-small" size="small" class="ml-auto text-foreground-subtlest" />
+                            </Show>
+                          </DropdownMenu.Item>
+                        )}
+                      </For>
+                      <DropdownMenu.Item onSelect={() => group().onMove(null)}>
+                        <DropdownMenu.ItemLabel>{t("sidebar.task.group.unassigned")}</DropdownMenu.ItemLabel>
+                        <Show when={!group().current}>
+                          <Icon name="check-small" size="small" class="ml-auto text-foreground-subtlest" />
+                        </Show>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Separator />
+                    </>
+                  )}
                 </Show>
                 <Show when={props.onRename}>
                   <DropdownMenu.Item onSelect={openTitleEditor}>

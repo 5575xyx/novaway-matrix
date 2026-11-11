@@ -153,9 +153,10 @@ function applyThemeCss(theme: DesktopTheme, themeId: string, mode: "light" | "da
     document.documentElement.classList.remove("dark")
   }
 
-  // Update theme-color meta tag to match light/dark mode
+  // Match browser chrome to the active theme, including custom palette/background overrides.
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.setAttribute("content", isDark ? "#131010" : "#F8F7F7")
+  const themeColor = getComputedStyle(document.documentElement).getPropertyValue("--background-base").trim()
+  if (meta && themeColor) meta.setAttribute("content", themeColor)
 }
 
 function cacheThemeVariants(theme: DesktopTheme, themeId: string) {

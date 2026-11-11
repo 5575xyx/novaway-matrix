@@ -6,19 +6,9 @@ import { providerBrandColor } from "./provider-icons/brand"
 
 export type ProviderIconProps = JSX.SVGElementTags["svg"] & {
   id: string
-  /**
-   * 用厂商品牌色渲染。
-   *
-   * 默认关闭（保持用界面前景色，适合"选中态"这种需要统一的场景）；
-   * 供应商列表、模型选择这类"要一眼认出是谁"的地方应开启。
-   */
+  /** Use the manufacturer's primary hue, resolved by the active theme for contrast. */
   brand?: boolean
-  /**
-   * 查品牌色用的 id（默认等于 `id`）。
-   *
-   * 多个供应商可能共用同一个图标（SenseNova 与 NovaWay 都用 `nova`），
-   * 但品牌色不同；调用方把原始 provider id 传进来即可各用各的颜色。
-   */
+  /** Provider id for manufacturer color lookup (defaults to `id`). */
   colorId?: string
 }
 

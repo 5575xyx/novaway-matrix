@@ -184,15 +184,20 @@ describe("TurnFold.fold", () => {
     const folded = out.at(1)! as TimelineRowByTag<"TurnFold">
     expect(folded.rows.map((row) => row._tag)).toEqual(["AssistantPart"])
     expect(folded.userMessageID).toBe("msg_user")
+    // 跑完的大容器报整轮耗时,不是某一段的。
     expect(folded.durationMs).toBe(5000)
+    expect(folded.bare).toBeUndefined()
+    expect(folded.active).toBeUndefined()
   })
 
-  test("active turn stays unfolded even when trailing result text is streaming", () => {
-    const parts = [[toolPart(1000, 2000)], [textPart("result")]]
+  test("active turn closes the group above the narration and opens a new one below it", () => {
+    const parts = [[toolPart(1000, 2000)], [textPart("narration")], [toolPart(2500, 3000)]]
     const rows = [
       new TimelineRow.UserMessage({ userMessageID: "msg_user", anchor: true, previousUserMessage: false }),
+      new TimelineRow.Thinking({ userMessageID: "msg_user", reasoningHeading: "读代码", startedAt: 900 }),
       assistantPartRow(parts[0]!),
-      assistantPartRow(parts[1]!, { last: true }),
+      assistantPartRow(parts[1]!),
+      assistantPartRow(parts[2]!, { last: true }),
     ]
 
     const out = TurnFold.fold(rows, {
@@ -201,20 +206,89 @@ describe("TurnFold.fold", () => {
       isTurnActive: (id) => id === "msg_user",
     })
 
-    expect(out.map((row) => row._tag)).toEqual(["UserMessage", "AssistantPart", "AssistantPart"])
+    // 正文一出现,上面那组就收尾;下面新开一组跟着当前动作。
+    expect(out.map((row) => row._tag)).toEqual(["UserMessage", "TurnFold", "AssistantPart", "TurnFold"])
+    const closed = out.at(1)! as TimelineRowByTag<"TurnFold">
+    expect(closed.active).toBeUndefined()
+    expect(closed.durationMs).toBe(1000)
+    expect(closed.rows.length).toBe(1)
+
+    const live = out.at(3)! as TimelineRowByTag<"TurnFold">
+    expect(live.active).toBe(true)
+    expect(live.startedAt).toBe(1000)
+    expect(live.rows.length).toBe(1)
+    // 顶部那条工作指示的标题/计时被提升到常驻容器里,不再单独成行(否则同一屏两个计时)。
+    expect(out.some((row) => row._tag === "Thinking")).toBe(false)
+    expect(live.reasoningHeading).toBe("读代码")
+    // 同一轮多组必须各有各的 key:行表按 key 建 Map,撞了就直接丢行。
+    expect(TimelineRow.key(closed)).not.toBe(TimelineRow.key(live))
   })
 
-  test("active turn without trailing result text stays unfolded", () => {
-    const parts = [[toolPart(1000, 2000)]]
-    const rows = [assistantPartRow(parts[0]!, { last: true })]
+  test("active turn writing the final text keeps the working line under it", () => {
+    const parts = [[toolPart(1000, 2000)], [textPart("结果正在流出来")]]
+    const rows = [
+      new TimelineRow.Thinking({ userMessageID: "msg_user", reasoningHeading: "写结果", startedAt: 900 }),
+      assistantPartRow(parts[0]!),
+      assistantPartRow(parts[1]!, { last: true }),
+      new TimelineRow.PreviewCard({ userMessageID: "msg_user", targets: [] }),
+    ]
 
     const out = TurnFold.fold(rows, {
       getPart: fixtureMap(parts),
       turnTime: () => ({ start: 1000 }),
+      isTurnActive: () => true,
     })
 
-    expect(out.some((row) => row._tag === "TurnFold")).toBe(false)
-    expect(out.map((row) => row._tag)).toEqual(["AssistantPart"])
+    // 工作指示跟在正在写的那段正文后面,不越过产物卡,也不留在轮首。
+    expect(out.map((row) => row._tag)).toEqual(["TurnFold", "AssistantPart", "Thinking", "PreviewCard"])
+    expect((out.at(0)! as TimelineRowByTag<"TurnFold">).active).toBeUndefined()
+  })
+
+  test("active turn keeps question cards outside the container", () => {
+    const parts = [[toolPart(1000, 2000)], [toolPart(2500, 3000, "question")]]
+    const rows = [assistantPartRow(parts[0]!), assistantPartRow(parts[1]!, { last: true })]
+
+    const out = TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000 }),
+      isTurnActive: () => true,
+    })
+
+    expect(out.map((row) => row._tag)).toEqual(["TurnFold", "AssistantPart"])
+    const folded = out.at(0)! as TimelineRowByTag<"TurnFold">
+    expect(folded.rows.length).toBe(1)
+  })
+
+  test("active turn keeps the todo checklist card outside the container", () => {
+    const parts = [[toolPart(1000, 2000)]]
+    const rows = [
+      assistantPartRow(parts[0]!, { last: true }),
+      new TimelineRow.TodoOverview({ anchorPartID: "prt_tool_1", done: 0, total: 2, sections: [] }),
+    ]
+
+    const out = TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000 }),
+      isTurnActive: () => true,
+    })
+
+    expect(out.map((row) => row._tag)).toEqual(["TurnFold", "TodoOverview"])
+  })
+
+  test("active turn before the first tool call keeps the working row", () => {
+    const parts = [[textPart("narration")]]
+    const rows = [
+      new TimelineRow.Thinking({ userMessageID: "msg_user", startedAt: 900 }),
+      assistantPartRow(parts[0]!, { last: true }),
+    ]
+
+    const out = TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000 }),
+      isTurnActive: () => true,
+    })
+
+    expect(out.map((row) => row._tag)).toEqual(["Thinking", "AssistantPart"])
   })
 
   test("turn without trailing result text is left unfolded", () => {
@@ -291,7 +365,7 @@ describe("TurnFold.fold", () => {
     expect(out.map((row) => row._tag)).toEqual(["TurnFold", "AssistantPart", "DiffSummary"])
   })
 
-  test("mid-turn text stays inside the fold, only the last text run is the result", () => {
+  test("completed turn keeps the big container and re-splits its interior by narration", () => {
     const parts = [[textPart("narration")], [toolPart(1000, 2000)], [textPart("result")]]
     const rows = [assistantPartRow(parts[0]!), assistantPartRow(parts[1]!), assistantPartRow(parts[2]!, { last: true })]
 
@@ -300,9 +374,75 @@ describe("TurnFold.fold", () => {
       turnTime: () => ({ start: 1000, end: 6000 }),
     })
 
-    const folded = out.at(0)! as TimelineRowByTag<"TurnFold">
+    // 两层都在:外面一张大容器收整轮过程,里面那句中间旁白仍留在段外,和它下面那段一一对应。
     expect(out.map((row) => row._tag)).toEqual(["TurnFold", "AssistantPart"])
-    expect(folded.rows.map((row) => row._tag)).toEqual(["AssistantPart", "AssistantPart"])
+    const folded = out.at(0)! as TimelineRowByTag<"TurnFold">
+    expect(folded.rows.map((row) => row._tag)).toEqual(["AssistantPart", "TurnFold"])
+    expect(folded.durationMs).toBe(5000)
+    expect(folded.bare).toBeUndefined()
+    // 大容器头部数的是步数,不是子项数(切段后子项里还夹着正文)。
+    expect(folded.stepCount).toBe(1)
+
+    const segment = folded.rows.at(1)! as TimelineRowByTag<"TurnFold">
+    expect(segment.rows.length).toBe(1)
+    // 一行的段不挂第二层折叠头,直接摆在引导线上。
+    expect(segment.bare).toBe(true)
+  })
+
+  test("narration inside the container closes the segment above and opens the next", () => {
+    const parts = [
+      [toolPart(1000, 1400)],
+      [toolPart(1500, 2000)],
+      [textPart("先看清结构")],
+      [toolPart(2500, 3000)],
+      [textPart("result")],
+    ]
+    const rows = parts.map((group, index) => assistantPartRow(group, { last: index === parts.length - 1 }))
+
+    const out = TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000, end: 6000 }),
+    })
+
+    const folded = out.at(0)! as TimelineRowByTag<"TurnFold">
+    // 段 / 正文 / 段:正文永远在段外,两段各自带自己的耗时。
+    expect(folded.rows.map((row) => row._tag)).toEqual(["TurnFold", "AssistantPart", "TurnFold"])
+    const segments = folded.rows.filter((row) => row._tag === "TurnFold") as TimelineRowByTag<"TurnFold">[]
+    expect(segments.map((segment) => segment.durationMs)).toEqual([1000, 500])
+    expect(segments.map((segment) => segment.active)).toEqual([undefined, undefined])
+    // 多行的段有自己的折叠头;只有一行的那段直接摆在引导线上。
+    expect(segments.map((segment) => segment.bare)).toEqual([undefined, true])
+    // 两段锚在自己的第一行,否则虚拟列表按 key 去重会静默丢一段。
+    expect(segments[0]!.anchorKey).not.toBe(segments[1]!.anchorKey)
+    // 大容器头部数的是步数:3 段过程行,夹在中间的正文不算一步。
+    expect(folded.stepCount).toBe(3)
+  })
+
+  test("todo sections fold their own tool runs and keep the step narration outside", () => {
+    const parts = [[toolPart(1000, 2000)], [textPart("这一步做完了")]]
+    const section = new TimelineRow.TodoSection({
+      todoID: "todo_1",
+      segment: 0,
+      title: "第一步",
+      status: "completed",
+      rows: [assistantPartRow(parts[0]!), assistantPartRow(parts[1]!)],
+      outputCount: 1,
+    })
+    const rows = [
+      new TimelineRow.UserMessage({ userMessageID: "msg_user", anchor: true, previousUserMessage: false }),
+      new TimelineRow.TodoOverview({ anchorPartID: "prt_todo", done: 1, total: 1, sections: [section] }),
+    ]
+
+    const out = TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000, end: 6000 }),
+    })
+
+    const overview = out.at(1)! as TimelineRowByTag<"TodoOverview">
+    const folded = overview.sections[0]!.rows
+    expect(folded.map((row) => row._tag)).toEqual(["TurnFold", "AssistantPart"])
+    // 分区不抢"运行中末段"的位置:清单卡自己就是进度面板。
+    expect((folded[0] as TimelineRowByTag<"TurnFold">).active).toBeUndefined()
   })
 
   test("turns are bucketed independently by user message (each folds on its own trailing text)", () => {
@@ -345,9 +485,14 @@ describe("TurnFold.fold", () => {
     expect(folds.map((row) => (row as TimelineRowByTag<"TurnFold">).userMessageID)).toEqual(["msg_user", "msg_two"])
   })
 
-  test("durationMs is omitted when turn time is unknown", () => {
+  test("durationMs is omitted when the group has no times of its own", () => {
     const parts = [[toolPart(1000, 2000)], [textPart("result")]]
-    const rows = [assistantPartRow(parts[0]!), assistantPartRow(parts[1]!, { last: true })]
+    // 重试行不带时间,整段就出不了耗时 —— 宁可只显示"已完成",也不要报一个错的秒数。
+    const rows = [
+      assistantPartRow(parts[0]!),
+      new TimelineRow.Retry({ userMessageID: "msg_user" }),
+      assistantPartRow(parts[1]!, { last: true }),
+    ]
 
     const out = TurnFold.fold(rows, {
       getPart: fixtureMap(parts),

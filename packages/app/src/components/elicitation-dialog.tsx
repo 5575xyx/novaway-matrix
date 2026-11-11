@@ -255,7 +255,7 @@ export function ElicitationDialog(props: { directory: string }) {
                             <span class="text-12-regular text-foreground-subtle">
                               {field.label}
                               <Show when={field.required}>
-                                <span class="text-rose-500"> *</span>
+                                <span class="text-[var(--icon-critical-base)]"> *</span>
                               </Show>
                             </span>
                             <Show

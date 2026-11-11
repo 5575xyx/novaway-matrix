@@ -1,5 +1,5 @@
 import { iconNames } from "@novaway/ui/icons/provider"
-import { providerBrandColor } from "@novaway/ui/provider-brand"
+import { modelBrandColor, providerBrandColor } from "@novaway/ui/provider-brand"
 
 export { providerBrandColor }
 
@@ -102,8 +102,8 @@ export function modelIconId(
  * 全都落到同一个灰值会让网关列表里的模型看起来"没有颜色自适应"。
  */
 const MODEL_COLORS: Array<[RegExp, string]> = [
-  [/sensenova|u1\.5/i, "#0EA5A4"],
-  [/agnes/i, "#F59E0B"],
+  [/sensenova|u1\.5/i, "sensenova"],
+  [/agnes/i, "agnes"],
 ]
 
 export function modelColor(
@@ -115,8 +115,8 @@ export function modelColor(
   const icon = modelIconId(providerID, providerName, modelID, modelName)
   if (icon === "nova" && providerID && GATEWAYS.has(providerID)) {
     const text = [modelID ?? "", modelName ?? ""].join(" ")
-    for (const [pattern, color] of MODEL_COLORS) {
-      if (pattern.test(text)) return color
+    for (const [pattern, model] of MODEL_COLORS) {
+      if (pattern.test(text)) return modelBrandColor(model)
     }
   }
   return providerBrandColor(icon) ?? providerBrandColor(providerID)

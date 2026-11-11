@@ -8,6 +8,9 @@ beforeAll(async () => {
   mock.module("@solidjs/router", () => ({
     useNavigate: () => () => undefined,
     useParams: () => ({}),
+    // mock.module 是全局的，会影响后续文件里的 import：这里只 mock 两个 hook，
+    // 其他测试链路上的组件用到的 useLocation 就会「导出缺失」直接报错。补一个空壳。
+    useLocation: () => ({ path: "/", params: {}, query: "", hash: "" }),
   }))
   mock.module("@/context/file", () => ({
     useFile: () => ({

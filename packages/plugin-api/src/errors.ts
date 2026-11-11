@@ -7,6 +7,7 @@ export type PluginErrorCode =
   | "capability_denied"
   | "api_version"
   | "activation_failed"
+  | "cleanup_failed"
   | "contribution_invalid"
   | "tool_unavailable"
   | "timeout"
@@ -25,6 +26,7 @@ export const pluginErrorCodes = [
   "capability_denied",
   "api_version",
   "activation_failed",
+  "cleanup_failed",
   "contribution_invalid",
   "tool_unavailable",
   "timeout",
@@ -32,6 +34,32 @@ export const pluginErrorCodes = [
   "storage_conflict",
   "transport",
 ] as const satisfies readonly PluginErrorCode[]
+
+/**
+ * 宿主与插件共用同一个构造入口：错误分类靠 `code`，不靠解析 message。
+ *
+ * 用 `Error`  subclass 而不是普通对象，`catch` 到的东西才能既保留堆栈又被宿主策略化。
+ */
+export class PluginErrorImpl extends Error implements PluginError {
+  constructor(
+    public readonly code: PluginErrorCode,
+    message: string,
+    public readonly pluginID?: string,
+    public readonly contributionID?: string,
+    public readonly retryable?: boolean,
+  ) {
+    super(message)
+    this.name = "PluginError"
+  }
+}
+
+export function pluginError(
+  code: PluginErrorCode,
+  message: string,
+  input?: { pluginID?: string; contributionID?: string; retryable?: boolean },
+): PluginError {
+  return new PluginErrorImpl(code, message, input?.pluginID, input?.contributionID, input?.retryable)
+}
 
 /**
  * `tool_unavailable` 是正常路径（插件文档 §4.9）：调用方必须处理，它不算插件故障，也不触发熔断。

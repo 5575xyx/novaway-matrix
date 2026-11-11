@@ -70,7 +70,8 @@ export function useGitSection(): () => StatusPanelSection | null {
     }
     return (
       <span>
-        <span class="text-success-base">+{stat.added}</span> <span class="text-error-base">-{stat.removed}</span>
+        <span class="text-icon-success-base">+{stat.added}</span>{" "}
+        <span class="text-icon-critical-base">-{stat.removed}</span>
       </span>
     )
   }
@@ -80,21 +81,21 @@ export function useGitSection(): () => StatusPanelSection | null {
     // 目录还不是 Git 仓库：状态面板整体不出现。
     // 「初始化仓库」的入口移到左侧栏项目行（folder 旁边的 branch 图标 + 浮层），
     // 那里才是"这个项目还没有版本控制"该被看到的位置；常驻在会话右上角会一直占着
-    // 一块空卡，且与本次会话无关（对齐 ZCode：状态面板只收本轮有内容的信息）。
+    // 一块空卡，且与本次会话无关（状态面板只收本轮有内容的信息）。
     if (!current) return null
 
     return {
       id: "git",
-      // 对齐 ZCode 的 `chat.statusPanel.environment`：标题是「Git 工具」。
+      // 标题是「Git 工具」。
       title: language.t("git.toolsTitle"),
       summary: diffStat(current),
       children: (
         <div class="flex flex-col gap-0.5 pb-1">
-          {/* 「更改」行：整行可点，打开审查面板 —— 对齐 ZCode 的 Changes 行
-              （同一个文件 diff 图标 + 右侧 +N -M）。
+          {/* 「更改」行：整行可点，打开审查面板 ——
+              文件 diff 图标 + 右侧 +N -M。
               「全部暂存 / 取消暂存」是我们多出的能力，压成右侧的小文字按钮，
               不额外占一行。原来这里是「已暂存 / 未暂存」两行、各带一组按钮，
-              和 ZCode 的一行 Changes 差得比较远。 */}
+              和一行 Changes 的紧凑形态差得比较远。 */}
           <div class="flex items-center gap-1">
             <button
               type="button"
@@ -131,7 +132,7 @@ export function useGitSection(): () => StatusPanelSection | null {
             </Show>
           </div>
 
-          {/* 分支行整行是切换菜单（对齐 ZCode 的 GitBranchSwitcher）：列出全部分支、
+          {/* 分支行整行是切换菜单：列出全部分支、
               当前分支打勾、底部可直接新建分支并切过去。旧版这行只是个只读文本。 */}
           <DropdownMenu>
             <DropdownMenu.Trigger
@@ -145,10 +146,10 @@ export function useGitSection(): () => StatusPanelSection | null {
               <Show when={current.ahead > 0 || current.behind > 0}>
                 <span class="shrink-0 text-ui-sm tabular-nums text-foreground-subtle">
                   <Show when={current.ahead > 0}>
-                    <span class="text-success">↑{current.ahead}</span>
+                    <span class="text-icon-success-base">↑{current.ahead}</span>
                   </Show>
                   <Show when={current.behind > 0}>
-                    <span class="text-warning">↓{current.behind}</span>
+                    <span class="text-icon-warning-base">↓{current.behind}</span>
                   </Show>
                 </span>
               </Show>
@@ -287,7 +288,7 @@ export function useGitSection(): () => StatusPanelSection | null {
               </DropdownMenu.Portal>
             </DropdownMenu>
           </div>
-          {/* 「提交或推送」行（对齐 ZCode 的 GitActionMenu status-row 形态）：
+          {/* 「提交或推送」行（status-row 形态）：
               整行是主操作入口，提交信息在点开后的浮层里填，不再常驻占一行。 */}
           <Popover
             gutter={6}
@@ -326,7 +327,7 @@ export function useGitSection(): () => StatusPanelSection | null {
                 class={messageInputClass}
               />
               <div class="flex items-center gap-1.5">
-                {/* 主操作按仓库状态切换，对齐 ZCode 的 GitActionMenu：有未推送就先给推送，
+                {/* 主操作按仓库状态切换：有未推送就先给推送，
                     否则给提交；提交信息为空时提交按钮保持禁用。 */}
                 <Show
                   when={store.message.trim().length > 0 || current.ahead === 0}
@@ -356,7 +357,7 @@ export function useGitSection(): () => StatusPanelSection | null {
                 </Show>
               </div>
               <Show when={git.error()}>
-                <div class="text-ui-xs text-destructive break-words">{git.error()}</div>
+                <div class="text-ui-xs text-icon-critical-base break-words">{git.error()}</div>
               </Show>
             </div>
           </Popover>

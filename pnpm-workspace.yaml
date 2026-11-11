@@ -6,6 +6,7 @@
 
 packages:
   - "packages/*"
+  - "!packages/novaway.tmp-*"
   - "packages/console/*"
   - "packages/sdk/js"
   - "packages/slack"

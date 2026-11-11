@@ -38,8 +38,8 @@ export default function PrivacyPolicy() {
 
               <p>
                 Remember that your use of NovaWay is at all times subject to our Terms of Use,{" "}
-                <a href={language.route("/legal/terms-of-service")}>https://novaway.ai/legal/terms-of-service</a>,
-                which incorporates this Privacy Policy. Any terms we use in this Policy without defining them have the
+                <a href={language.route("/legal/terms-of-service")}>https://novaway.ai/legal/terms-of-service</a>, which
+                incorporates this Privacy Policy. Any terms we use in this Policy without defining them have the
                 definitions given to them in the Terms of Use.
               </p>
 

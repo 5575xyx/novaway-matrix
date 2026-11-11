@@ -51,10 +51,9 @@ describe("发布前预检", () => {
   })
 
   test("「最近」「最后」不该被当成极限词（词表最常见的误报）", () => {
-    const result = precheckPublish(
-      { ...base, title: "最近在用的三样东西", description: "最后一个是意外之喜。" },
-      ["xhs"],
-    )
+    const result = precheckPublish({ ...base, title: "最近在用的三样东西", description: "最后一个是意外之喜。" }, [
+      "xhs",
+    ])
     expect(result.issues.filter((issue) => issue.rule === "absolute-words")).toEqual([])
   })
 
@@ -74,10 +73,9 @@ describe("发布前预检", () => {
   })
 
   test("重复标签、过去的定时时间、AI 标识提醒", () => {
-    const result = precheckPublish(
-      { ...base, tags: ["露营", "露营", "周末"], scheduleTime: Date.now() - 60_000 },
-      ["douyin"],
-    )
+    const result = precheckPublish({ ...base, tags: ["露营", "露营", "周末"], scheduleTime: Date.now() - 60_000 }, [
+      "douyin",
+    ])
     const rules = result.issues.map((issue) => issue.rule)
     expect(rules).toContain("tags-duplicate")
     expect(rules).toContain("schedule-past")

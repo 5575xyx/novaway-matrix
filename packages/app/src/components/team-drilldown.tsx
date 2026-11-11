@@ -106,7 +106,9 @@ export function TeamDrilldown(props: {
           <span>{t("team.drill.acceptance", { pass: String(passed()), total: String(totalAcceptances()) })}</span>
         </Show>
         <Show when={props.view.kind === "captain" && props.view.unassigned > 0}>
-          <span class="text-warning">{t("team.graph.unassigned", { count: String(props.view.unassigned) })}</span>
+          <span class="text-icon-warning-base">
+            {t("team.graph.unassigned", { count: String(props.view.unassigned) })}
+          </span>
         </Show>
       </div>
 

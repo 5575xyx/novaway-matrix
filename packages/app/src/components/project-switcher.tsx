@@ -62,6 +62,9 @@ export const ProjectSwitcherChip: Component = () => {
   }
 
   function selectProject(project: LocalProject) {
+    // 项目切换会卸载当前会话。右侧面板的宿主状态是全局持久化的，
+    // 必须在导航前完整关闭，避免新项目恢复旧项目的文件树/文件标签。
+    layout.sidePane.close()
     layout.projects.open(project.worktree)
     layout.projectPicker.hide()
     navigate(`/${base64Encode(project.worktree)}`)
@@ -69,12 +72,21 @@ export const ProjectSwitcherChip: Component = () => {
 
   function openCreateDialog() {
     layout.projectPicker.hide()
-    void dialog.show(() => <DialogCreateProject onCreate={(path) => navigate(`/${base64Encode(path)}`)} />)
+    void dialog.show(() => (
+      <DialogCreateProject
+        onCreate={(path) => {
+          layout.sidePane.close()
+          navigate(`/${base64Encode(path)}`)
+        }}
+      />
+    ))
   }
 
   function leaveProject() {
+    layout.sidePane.close()
     layout.projectPicker.hide()
-    navigate("/")
+    // 不指定工作区仍然要进入完整的全局聊天会话，而不是回到会被首页自动选中项目的根路由。
+    navigate("/global-chat/session")
   }
 
   // Auto-focus search input when popover opens

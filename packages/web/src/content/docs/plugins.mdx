@@ -36,12 +36,12 @@ Start NovaWay and every `bash` tool call is logged. Files under `.novaway/plugin
 
 ## Where plugins live
 
-| Location                        | Scope            | How it is loaded |
-| ------------------------------- | ---------------- | ---------------- |
-| `.novaway/plugin/*.ts`          | Project          | Automatically    |
-| `.novaway/plugins/*.ts`         | Project          | Automatically    |
-| `~/.config/novaway/plugin/*.ts` | Global           | Automatically    |
-| `novaway.json` → `plugin` array | Global or project | By spec         |
+| Location                        | Scope             | How it is loaded |
+| ------------------------------- | ----------------- | ---------------- |
+| `.novaway/plugin/*.ts`          | Project           | Automatically    |
+| `.novaway/plugins/*.ts`         | Project           | Automatically    |
+| `~/.config/novaway/plugin/*.ts` | Global            | Automatically    |
+| `novaway.json` → `plugin` array | Global or project | By spec          |
 
 The `plugin` array accepts npm package names, git specs, and paths:
 
@@ -133,15 +133,15 @@ export default {
 
 Your exported function receives one object:
 
-| Field                    | Use it for                                                  |
-| ------------------------ | ----------------------------------------------------------- |
-| `client`                 | `@novaway/sdk` client for calling the running server        |
-| `project`                | Project id and VCS information                              |
+| Field                    | Use it for                                                   |
+| ------------------------ | ------------------------------------------------------------ |
+| `client`                 | `@novaway/sdk` client for calling the running server         |
+| `project`                | Project id and VCS information                               |
 | `directory`              | Session working directory — prefer this over `process.cwd()` |
-| `worktree`               | Repository root, for stable relative paths                  |
-| `serverUrl`              | The local server this plugin runs against                   |
-| `$`                      | Bun shell ([docs](https://bun.com/docs/runtime/shell))      |
-| `experimental_workspace` | `register(type, adapter)` for remote workspace adapters     |
+| `worktree`               | Repository root, for stable relative paths                   |
+| `serverUrl`              | The local server this plugin runs against                    |
+| `$`                      | Bun shell ([docs](https://bun.com/docs/runtime/shell))       |
+| `experimental_workspace` | `register(type, adapter)` for remote workspace adapters      |
 
 ---
 
@@ -199,54 +199,54 @@ operation and the message is surfaced to the model.
 
 ### Conversation
 
-| Hook                                  | Input                                                 | Output                                                             |
-| ------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
-| `chat.message`                        | `sessionID`, `agent`, `model`, `messageID`, `variant` | `message`, `parts`                                                 |
-| `chat.params`                         | `sessionID`, `agent`, `model`, `provider`, `message`  | `temperature`, `topP`, `topK`, `maxOutputTokens`, `options`        |
-| `chat.headers`                        | same as `chat.params`                                 | `headers`                                                          |
-| `experimental.chat.system.transform`  | `sessionID`, `model`                                  | `system: string[]`                                                 |
-| `experimental.chat.messages.transform` | —                                                    | `messages`                                                         |
+| Hook                                   | Input                                                 | Output                                                      |
+| -------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------- |
+| `chat.message`                         | `sessionID`, `agent`, `model`, `messageID`, `variant` | `message`, `parts`                                          |
+| `chat.params`                          | `sessionID`, `agent`, `model`, `provider`, `message`  | `temperature`, `topP`, `topK`, `maxOutputTokens`, `options` |
+| `chat.headers`                         | same as `chat.params`                                 | `headers`                                                   |
+| `experimental.chat.system.transform`   | `sessionID`, `model`                                  | `system: string[]`                                          |
+| `experimental.chat.messages.transform` | —                                                     | `messages`                                                  |
 
 ### Tools
 
-| Hook                  | Input                                     | Output                              |
-| --------------------- | ----------------------------------------- | ----------------------------------- |
-| `tool`                | —                                         | map of tool id to a `tool()` definition |
-| `tool.definition`     | `toolID`                                  | `description`, `parameters`         |
-| `tool.execute.before` | `tool`, `sessionID`, `callID`             | `args`                              |
-| `tool.execute.after`  | `tool`, `sessionID`, `callID`, `args`     | `title`, `output`, `metadata`       |
+| Hook                  | Input                                 | Output                                  |
+| --------------------- | ------------------------------------- | --------------------------------------- |
+| `tool`                | —                                     | map of tool id to a `tool()` definition |
+| `tool.definition`     | `toolID`                              | `description`, `parameters`             |
+| `tool.execute.before` | `tool`, `sessionID`, `callID`         | `args`                                  |
+| `tool.execute.after`  | `tool`, `sessionID`, `callID`, `args` | `title`, `output`, `metadata`           |
 
 ### Commands and shell
 
-| Hook                      | Input                                  | Output  |
-| ------------------------- | -------------------------------------- | ------- |
-| `command.execute.before`  | `command`, `sessionID`, `arguments`    | `parts` |
-| `shell.env`               | `cwd`, `sessionID`, `callID`           | `env`   |
+| Hook                     | Input                               | Output  |
+| ------------------------ | ----------------------------------- | ------- |
+| `command.execute.before` | `command`, `sessionID`, `arguments` | `parts` |
+| `shell.env`              | `cwd`, `sessionID`, `callID`        | `env`   |
 
 `shell.env` applies to shell tool calls and to terminals NovaWay opens, so it is the right
 place to inject credentials or project variables.
 
 ### Session and compaction
 
-| Hook                                    | Input                                                                          | Output                                |
-| --------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------- |
-| `experimental.session.compacting`       | `sessionID`                                                                    | `context: string[]`, `prompt?: string` |
-| `experimental.compaction.autocontinue`  | `sessionID`, `agent`, `model`, `provider`, `message`, `overflow`               | `enabled: boolean`                    |
-| `experimental.text.complete`            | `sessionID`, `messageID`, `partID`                                             | `text`                                |
+| Hook                                   | Input                                                            | Output                                 |
+| -------------------------------------- | ---------------------------------------------------------------- | -------------------------------------- |
+| `experimental.session.compacting`      | `sessionID`                                                      | `context: string[]`, `prompt?: string` |
+| `experimental.compaction.autocontinue` | `sessionID`, `agent`, `model`, `provider`, `message`, `overflow` | `enabled: boolean`                     |
+| `experimental.text.complete`           | `sessionID`, `messageID`, `partID`                               | `text`                                 |
 
 ### Provider and auth
 
-| Hook       | Purpose                                                        |
-| ---------- | -------------------------------------------------------------- |
-| `auth`     | Add a `/connect` flow for a provider (API key or OAuth)         |
-| `provider` | Supply or override the model list for a provider                |
+| Hook       | Purpose                                                 |
+| ---------- | ------------------------------------------------------- |
+| `auth`     | Add a `/connect` flow for a provider (API key or OAuth) |
+| `provider` | Supply or override the model list for a provider        |
 
 ### Lifecycle
 
-| Hook     | Input              | Purpose                                                                                                        |
-| -------- | ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `event`  | `event`            | Every bus event: `session.idle`, `message.updated`, `file.edited`, `session.error`, `todo.updated`, and more    |
-| `config` | `Config`           | The merged config, before startup finishes                                                                     |
+| Hook     | Input              | Purpose                                                                                                                               |
+| -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `event`  | `event`            | Every bus event: `session.idle`, `message.updated`, `file.edited`, `session.error`, `todo.updated`, and more                          |
+| `config` | `Config`           | The merged config, before startup finishes                                                                                            |
 | `hook`   | `event`, `payload` | Kernel lifecycle events such as `SessionStart`, `PreToolUse`, `Stop`, `SubagentStart`. Set `output.result.decision = "deny"` to block |
 
 ---

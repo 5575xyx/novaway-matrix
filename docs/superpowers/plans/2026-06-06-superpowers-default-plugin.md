@@ -14,9 +14,9 @@
 
 ## File Structure
 
-| 文件                                           | 责任                                                             |
-| ---------------------------------------------- | ---------------------------------------------------------------- |
-| `packages/core/src/flag/flag.ts`               | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 字段                     |
+| 文件                                          | 责任                                                             |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| `packages/core/src/flag/flag.ts`              | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS` 字段                      |
 | `packages/novaway/src/config/config.ts`       | 新增 `DEFAULT_GLOBAL_PLUGINS` 常量；修改 `loadGlobal` 首次写入处 |
 | `packages/novaway/test/config/config.test.ts` | 追加 1 个核心测试                                                |
 

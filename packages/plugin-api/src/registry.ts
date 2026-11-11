@@ -1,31 +1,90 @@
-/**
- * 贡献点全集（插件文档 §3 + §4.1，super-agent 文档 §12.1）。
- *
- * 新增第 25 个贡献点时改这里与一个注册表，不改内核的 if 链。
- */
-export type ContributionKind =
-  | "tool"
-  | "agent"
-  | "skill"
-  | "command"
-  | "provider"
-  | "office-engine"
-  | "previewer"
-  | "publish-driver"
-  | "surface"
-  | "interceptor"
-  | "mcp"
-  | "output-style"
-  | "scheduler"
-  | "event-source"
-  | "http-route"
-  | "lsp"
-  | "trigger"
-  | "fast-path"
-  | "routing-policy"
-  | "worker-type"
-  | "watchdog-policy"
-  | "channel"
+import type { ContributesKey } from "./manifest"
+import { contributesKeys } from "./manifest"
+
+/** Contribution entries have a stable per-item identity; manifest settings do not. */
+export const contributionKinds = [
+  "tool",
+  "agent",
+  "skill",
+  "command",
+  "provider",
+  "office-engine",
+  "previewer",
+  "publish-driver",
+  "surface",
+  "interceptor",
+  "mcp",
+  "output-style",
+  "scheduler",
+  "event-source",
+  "http-route",
+  "lsp",
+  "trigger",
+  "fast-path",
+  "routing-policy",
+  "worker-type",
+  "watchdog-policy",
+  "channel",
+] as const
+
+export type ContributionKind = (typeof contributionKinds)[number]
+
+export const contributionDeclarationKinds = [
+  "tool",
+  "agent",
+  "skill",
+  "command",
+  "provider",
+  "office-engine",
+  "previewer",
+  "publish-driver",
+  "surface",
+  "interceptor",
+  "mcp",
+  "output-style",
+  "http-route",
+  "lsp",
+  "trigger",
+  "fast-path",
+  "routing-policy",
+  "worker-type",
+  "watchdog-policy",
+  "channel",
+] as const satisfies readonly ContributionKind[]
+
+export const contributionDeclarationKeys = [
+  "tools",
+  "agents",
+  "skills",
+  "commands",
+  "providers",
+  "officeEngines",
+  "previewers",
+  "publishDrivers",
+  "surfaces",
+  "interceptors",
+  "mcpServers",
+  "outputStyles",
+  "httpRoutes",
+  "lspServers",
+  "triggers",
+  "fastPath",
+  "routingPolicies",
+  "workerTypes",
+  "watchdogPolicies",
+  "channels",
+] as const satisfies readonly ContributesKey[]
+
+export const contributionSettingKeys = ["lifecycleHooks", "storage"] as const satisfies readonly ContributesKey[]
+
+export const runtimeOnlyContributionKinds = ["scheduler", "event-source"] as const satisfies readonly ContributionKind[]
+
+if (
+  contributesKeys.length !== contributionDeclarationKeys.length + contributionSettingKeys.length ||
+  contributionKinds.length !== contributionDeclarationKinds.length + runtimeOnlyContributionKinds.length
+) {
+  throw new Error("Plugin contribution keys and kinds must be classified")
+}
 
 /** 贡献来源作用域；覆盖优先级 session > project > global > builtin（§4.9、§10.5）。 */
 export type PluginScope = "builtin" | "global" | "project" | "session"

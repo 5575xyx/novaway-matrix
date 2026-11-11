@@ -25,6 +25,7 @@
   },
   "main": "./out/main/index.js",
   "dependencies": {
+    "@napi-rs/canvas": "0.1.100",
     "@novaway/core": "workspace:*",
     "crypto-js": "4.2.0",
     "drizzle-orm": "catalog:",
@@ -35,6 +36,7 @@
     "electron-updater": "^6",
     "electron-window-state": "^5.0.3",
     "marked": "^15",
+    "pdfjs-dist": "5.7.284",
     "qs": "6.15.2"
   },
   "devDependencies": {

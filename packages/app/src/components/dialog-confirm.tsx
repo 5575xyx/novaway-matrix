@@ -36,7 +36,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
               class="text-14-regular"
               classList={{
                 "text-foreground-subtle": props.variant !== "danger",
-                "text-rose-600 dark:text-rose-400": props.variant === "danger",
+                "text-[var(--icon-critical-base)]": props.variant === "danger",
               }}
             >
               {props.description}
@@ -50,7 +50,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
               variant="primary"
               size="large"
               classList={{
-                "bg-rose-600 hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600 border-rose-600 dark:border-rose-500":
+                "bg-[var(--surface-critical-strong)] hover:bg-[var(--surface-critical-strong)] border-[var(--surface-critical-strong)] text-on-critical-strong":
                   props.variant === "danger",
               }}
               onClick={() => {

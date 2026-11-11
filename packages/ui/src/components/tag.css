@@ -1,4 +1,4 @@
-/* 对齐 ZCode `components/ui/badge.tsx`：`rounded-full` + `h-5` + `px-2` + `py-0.5` +
+/* `rounded-full` + `h-5` + `px-2` + `py-0.5` +
  * `text-ui-xs` + `font-medium`，边框透明，胶囊形。
  * 旧版是 `rounded-xs`(2px) + 0.5px 边框 + surface 底色 + text-base，方块感很重。
  */

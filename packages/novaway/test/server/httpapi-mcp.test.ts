@@ -1,6 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Context, Effect, Layer } from "effect"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
+import { DEFAULT_MCP_SERVERS } from "../../src/config/config"
 import { McpPaths } from "../../src/server/routes/instance/httpapi/groups/mcp"
 import { Server } from "../../src/server/server"
 import * as Log from "@novaway/core/util/log"
@@ -19,16 +20,27 @@ const testStateLayer = Layer.effectDiscard(
 )
 const it = testEffect(testStateLayer)
 
+// Config seeds enabled network-backed MCP servers globally. Disable them in these
+// isolated API fixtures so tests neither spawn external processes nor retain clients.
+const offlineDefaults = Object.fromEntries(
+  Object.entries(DEFAULT_MCP_SERVERS).map(([name, config]) => [name, { ...config, enabled: false }]),
+)
+const demoMcp = {
+  ...offlineDefaults,
+  demo: {
+    type: "local" as const,
+    command: ["echo", "demo"],
+    enabled: false,
+  },
+}
+
 function app() {
   return Server.Default().app
 }
 type TestApp = ReturnType<typeof app>
 type TestHandler = ReturnType<typeof HttpApiApp.webHandler>
 
-const handlerScoped = Effect.acquireRelease(
-  Effect.sync(() => HttpApiApp.webHandler()),
-  (handler) => Effect.promise(() => handler.dispose()).pipe(Effect.ignore),
-)
+const handlerScoped = Effect.sync(() => HttpApiApp.webHandler())
 
 const request = Effect.fnUntraced(function* (
   handler: TestHandler,
@@ -73,17 +85,13 @@ describe("mcp HttpApi", () => {
         const response = yield* request(handler, McpPaths.status, tmp.directory)
 
         expect(response.status).toBe(200)
-        expect(yield* json(response)).toEqual({ demo: { status: "disabled" } })
+        expect(yield* json(response)).toEqual(
+          Object.fromEntries(Object.keys(demoMcp).map((name) => [name, { status: "disabled" }])),
+        )
       }),
     {
       config: {
-        mcp: {
-          demo: {
-            type: "local",
-            command: ["echo", "demo"],
-            enabled: false,
-          },
-        },
+        mcp: demoMcp,
       },
     },
   )
@@ -119,13 +127,7 @@ describe("mcp HttpApi", () => {
       }),
     {
       config: {
-        mcp: {
-          demo: {
-            type: "local",
-            command: ["echo", "demo"],
-            enabled: false,
-          },
-        },
+        mcp: demoMcp,
       },
     },
   )
@@ -148,13 +150,7 @@ describe("mcp HttpApi", () => {
       }),
     {
       config: {
-        mcp: {
-          demo: {
-            type: "local",
-            command: ["echo", "demo"],
-            enabled: false,
-          },
-        },
+        mcp: demoMcp,
       },
     },
   )
@@ -182,13 +178,7 @@ describe("mcp HttpApi", () => {
       config: {
         formatter: false,
         lsp: false,
-        mcp: {
-          demo: {
-            type: "local",
-            command: ["echo", "demo"],
-            enabled: false,
-          },
-        },
+        mcp: demoMcp,
       },
     },
   )

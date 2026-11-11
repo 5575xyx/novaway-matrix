@@ -59,19 +59,20 @@ type TerminalColors = {
   selectionBackground: string
 }
 
-const DEFAULT_TERMINAL_COLORS: Record<"light" | "dark", TerminalColors> = {
-  light: {
-    background: "#fcfcfc",
-    foreground: "#211e1e",
-    cursor: "#211e1e",
-    selectionBackground: withAlpha("#211e1e", 0.2),
-  },
-  dark: {
-    background: "#191515",
-    foreground: "#d4d4d4",
-    cursor: "#d4d4d4",
-    selectionBackground: withAlpha("#d4d4d4", 0.25),
-  },
+const readTerminalFallback = (): TerminalColors => {
+  const root = getComputedStyle(document.documentElement)
+  const body = getComputedStyle(document.body)
+  const background = root.getPropertyValue("--background-stronger").trim() || body.backgroundColor
+  const foreground = root.getPropertyValue("--text-stronger").trim() || body.color
+  const selectionBackground = colorWithAlpha(foreground, 0.22)
+  return { background, foreground, cursor: foreground, selectionBackground }
+}
+
+const colorWithAlpha = (color: string, alpha: number) => {
+  if (color.startsWith("#")) return withAlpha(color as HexColor, alpha)
+  const match = color.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i)
+  if (match) return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`
+  return color
 }
 
 const debugTerminal = (...values: unknown[]) => {
@@ -244,7 +245,7 @@ export const Terminal = (props: TerminalProps) => {
 
   const getTerminalColors = (): TerminalColors => {
     const mode = theme.mode() === "dark" ? "dark" : "light"
-    const fallback = DEFAULT_TERMINAL_COLORS[mode]
+    const fallback = readTerminalFallback()
     const currentTheme = theme.themes()[theme.themeId()]
     if (!currentTheme) return fallback
     const variant = mode === "dark" ? currentTheme.dark : currentTheme.light
@@ -252,14 +253,11 @@ export const Terminal = (props: TerminalProps) => {
     const resolved = resolveThemeVariant(variant, mode === "dark")
     const text = resolved["text-stronger"] ?? fallback.foreground
     const background = resolved["background-stronger"] ?? fallback.background
-    const alpha = mode === "dark" ? 0.25 : 0.2
-    const base = text.startsWith("#") ? (text as HexColor) : (fallback.foreground as HexColor)
-    const selectionBackground = withAlpha(base, alpha)
     return {
       background,
       foreground: text,
       cursor: text,
-      selectionBackground,
+      selectionBackground: colorWithAlpha(text, mode === "dark" ? 0.25 : 0.2),
     }
   }
 

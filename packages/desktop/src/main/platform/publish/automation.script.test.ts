@@ -117,9 +117,7 @@ describe("publish automation scripts", () => {
     expect(form.get("isnew")).toBe("0")
     // 没有摘要时让后台自动生成，避免分享卡片空白
     expect(form.get("auto_gen_digest0")).toBe("1")
-    expect(
-      automation.parseWechatToken('<script>window.wx = { data: {"t":"987654"} }</script>'),
-    ).toBe("987654")
+    expect(automation.parseWechatToken('<script>window.wx = { data: {"t":"987654"} }</script>')).toBe("987654")
     expect(automation.parseWechatToken("", "https://mp.weixin.qq.com/?token=123")).toBe("123")
     expect(automation.wechatDraftUrl("123", "456")).toContain("appmsgid=456")
   })

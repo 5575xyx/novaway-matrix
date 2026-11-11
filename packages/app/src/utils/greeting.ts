@@ -1,9 +1,8 @@
 /**
  * 会话空态的时段问候语。
  *
- * 对齐 ZCode `v4/ConversationDraftEmptyState.tsx` 的 `getChatEmptyGreetingMessageId`：
- * 按「小时」分 6 档，边界时刻自动换档（ZCode 另有一套按边界时刻重排定时器的逻辑，
- * 这里简化为渲染时取一次 —— 空态通常只停留几秒，不值得为此挂定时器）。
+ * 按「小时」分 6 档，边界时刻自动换档（不按边界时刻重排定时器，
+ * 渲染时取一次 —— 空态通常只停留几秒，不值得为此挂定时器）。
  */
 export type GreetingKey =
   | "chat.empty.greeting.morningEarly"

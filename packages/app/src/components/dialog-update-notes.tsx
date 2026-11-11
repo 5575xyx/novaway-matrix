@@ -41,9 +41,7 @@ export function DialogUpdateNotes(props: {
             {language.t("toast.update.action.notYet")}
           </Button>
           <Button variant="primary" size="large" disabled={props.busy} onClick={props.onAction}>
-            {props.action === "download"
-              ? language.t("update.action.download")
-              : language.t("update.action.install")}
+            {props.action === "download" ? language.t("update.action.download") : language.t("update.action.install")}
           </Button>
         </div>
       }

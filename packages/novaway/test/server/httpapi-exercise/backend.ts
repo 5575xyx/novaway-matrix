@@ -106,7 +106,12 @@ function authProbePath(path: string) {
 }
 
 async function capture(response: Response, mode: CaptureMode): Promise<CallResult> {
-  const text = mode === "stream" ? await captureStream(response) : await response.text()
+  const text =
+    mode === "stream"
+      ? await captureStream(response, false)
+      : mode === "stream-headers"
+        ? await captureStream(response, true)
+        : await response.text()
   return {
     status: response.status,
     contentType: response.headers.get("content-type") ?? "",
@@ -116,7 +121,7 @@ async function capture(response: Response, mode: CaptureMode): Promise<CallResul
   }
 }
 
-async function captureStream(response: Response) {
+async function captureStream(response: Response, allowNoEvent: boolean) {
   if (!response.body) return ""
   const reader = response.body.getReader()
   const read = reader.read().then(
@@ -126,6 +131,7 @@ async function captureStream(response: Response) {
   const winner = await Promise.race([read, Bun.sleep(1_000).then(() => ({ timeout: true }))])
   if ("timeout" in winner) {
     await reader.cancel("timed out waiting for stream chunk").catch(() => undefined)
+    if (allowNoEvent) return ""
     throw new Error("timed out waiting for stream chunk")
   }
   if ("error" in winner) throw winner.error

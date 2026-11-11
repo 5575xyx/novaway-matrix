@@ -1,5 +1,5 @@
 import { afterEach, describe, expect } from "bun:test"
-import { mkdir } from "node:fs/promises"
+import { mkdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { Effect, Layer } from "effect"
 import { Flag } from "@novaway/core/flag/flag"
@@ -11,7 +11,9 @@ import { ModelID, ProviderID } from "../../src/provider/schema"
 import { InstanceBootstrap } from "../../src/project/bootstrap"
 import { InstanceBootstrap as InstanceBootstrapService } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
+import { InstanceRef } from "../../src/effect/instance-ref"
 import { Project } from "../../src/project/project"
+import { ProjectID } from "../../src/project/schema"
 import { Server } from "../../src/server/server"
 import { SessionPaths } from "../../src/server/routes/instance/httpapi/groups/session"
 import { Session } from "@/session/session"
@@ -197,6 +199,50 @@ afterEach(async () => {
 })
 
 describe("session HttpApi", () => {
+  it.instance("creates isolated conversations outside user project scope", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const response = yield* request(SessionPaths.globalCreate, { method: "POST" })
+      const created = yield* json<Session.Info>(response)
+      expect(created.scope).toBe("project")
+      expect(created.projectID).toBe(ProjectID.chat)
+      expect(created.workspaceID).toBeUndefined()
+      expect(created.directory).toContain(path.join("global-chat", "sessions"))
+      expect((yield* Effect.promise(() => stat(created.directory))).isDirectory()).toBe(true)
+      const second = yield* json<Session.Info>(
+        yield* request(SessionPaths.globalCreate, { method: "POST" }),
+      )
+      expect(second.directory).not.toBe(created.directory)
+      expect((yield* Effect.promise(() => stat(second.directory))).isDirectory()).toBe(true)
+      const projectInstance = yield* InstanceStore.Service.use((store) => store.load({ directory: test.directory }))
+      const listed = yield* Session.Service.use((service) => service.list()).pipe(
+        Effect.provideService(InstanceRef, projectInstance),
+      )
+      expect(listed.map((item) => item.id)).not.toContain(created.id)
+
+      const headers = { "x-novaway-directory": "global-chat" }
+      // 目录别名必须解析到隔离的 global-chat 实例，而不是服务器 cwd 下的同名目录。
+      const resolvedPath = yield* json<{ directory: string }>(yield* request("/path", { headers }))
+      expect(resolvedPath.directory).toContain("global-chat")
+      expect(resolvedPath.directory).not.toContain("packages")
+      const sessionPath = (route: string) => pathFor(route, { sessionID: created.id })
+      const accepted = yield* request(sessionPath(SessionPaths.prompt), {
+        headers: { ...headers, "content-type": "application/json" },
+        method: "POST",
+        body: JSON.stringify({ noReply: true, parts: [{ type: "text", text: "hello" }] }),
+      })
+      expect(accepted.status).toBe(200)
+      // The alias route must resolve subsequent session operations to its private
+      // project instance; accepting the first prompt proves the session is not
+      // being sent back through the restricted global-scope runtime.
+      const sessionInfo = yield* json<Session.Info>(
+        yield* request(sessionPath(SessionPaths.get), { headers }),
+      )
+      expect(sessionInfo.id).toBe(created.id)
+      expect(sessionInfo.scope).toBe("project")
+      expect(sessionInfo.directory).toBe(created.directory)
+    }),
+  )
   it.instance(
     "returns declared not found errors for read routes",
     () =>

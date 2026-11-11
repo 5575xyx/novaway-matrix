@@ -1,4 +1,4 @@
-# 会话状态面板与 Side Pane 收敛设计（ZCode 对标 Round 3）
+# 会话状态面板与 Side Pane 收敛设计（参照产品对标 Round 3）
 
 日期：2026-10-11 · 状态：待评审（修订版 v2，含 Status Panel 方案）
 
@@ -13,13 +13,13 @@ Round 2 落地后，桌面端右栏（Side Pane）出现**功能重复与常驻�
 - 6 个 tab 全部常驻，无空态，右栏始终拥挤
 - 状态类信息（Git、Context）与重交互面板（预览、审查、终端）混在同一个 tab strip 里
 
-本次目标：对标 ZCode（`zai-org/ZCode`），**拆分「状态」与「功能面板」两层**——状态进右上角卡片面板，功能面板收敛为按需创建的 Side Pane tab。
+本次目标：对标参照产品（上游仓库为 Apache-2.0 许可），**拆分「状态」与「功能面板」两层**——状态进右上角卡片面板，功能面板收敛为按需创建的 Side Pane tab。
 
-## 2. ZCode 参考依据
+## 2. 参照产品的参考依据
 
 ### 2.1 两套独立结构
 
-ZCode 的会话界面同时存在两个互不相干的东西（`docs/ui/chat-summary-panel.md`、`docs/design/workspace-independent-panels.md`）：
+参照产品的会话界面同时存在两个互不相干的东西（`docs/ui/chat-summary-panel.md`、`docs/design/workspace-independent-panels.md`）：
 
 ```
 ┌── conversation frame ────────────────────┐  ┌─ side frame ──────┐
@@ -58,13 +58,13 @@ ZCode 的会话界面同时存在两个互不相干的东西（`docs/ui/chat-sum
 
 ### 2.4 不照搬的部分
 
-ZCode 的 Goal、计划（sessionPlans）、Workflow、终端/智能体（`backgroundWorks`）区块依赖 NovaWay 不存在的协议投影（`GoalState`、`PlanState`、`WorkflowRunState`、`backgroundWorks`）。**这四类区块不实现**。
+参照产品的 Goal、计划（sessionPlans）、Workflow、终端/智能体（`backgroundWorks`）区块依赖 NovaWay 不存在的协议投影（`GoalState`、`PlanState`、`WorkflowRunState`、`backgroundWorks`）。**这四类区块不实现**。
 
 ## 3. 重开的决策
 
 Round 2 规格 `2026-10-10-desktop-layout-ui-redesign-design.md` §3 **决策 3「右栏既有 6 tabs 全部保留进 Side Pane，不减功能」本次作废**。
 
-作废理由：该决策导致 6 个常驻 tab 被完整保留，直接造成「东西太多、功能重复」。ZCode 右栏干净的原因不是 tab 少，而是**状态与功能分层 + tab 按需创建**。
+作废理由：该决策导致 6 个常驻 tab 被完整保留，直接造成「东西太多、功能重复」。参照产品右栏干净的原因不是 tab 少，而是**状态与功能分层 + tab 按需创建**。
 
 ## 4. 现状
 
@@ -131,7 +131,7 @@ const wantsReview = createMemo(() =>
 ### 4.6 可复用的既有实现
 
 - `preview` tab 内部已是多 tab 模型（`session-side-panel.tsx:255-296`：`openedTabs()` + `SortableTab` + 拖拽排序 + `+` 新建），顶层 Side Pane 改造复用同一交互约定
-- `conv-frame`（`session.tsx:1865`）**已是 `@container`**，可直接用 CSS container query 裁决 Status Panel 形态（与 ZCode 同款，不读 `window.innerWidth`）
+- `conv-frame`（`session.tsx:1865`）**已是 `@container`**，可直接用 CSS container query 裁决 Status Panel 形态（与参照产品同款，不读 `window.innerWidth`）
 - Git snapshot 已有 5s 轮询链路（`git-panel.tsx:16`）
 - Context metrics 已有（`session-context-metrics.ts`、`session-context-tab.tsx`）
 
@@ -139,7 +139,7 @@ const wantsReview = createMemo(() =>
 
 ### 5.1 Status Panel（新增，conversation 右上角）
 
-**挂载**：`conv-frame` 内、`WorkspaceHeader` 下方的相对容器（`session.tsx:1869`），`absolute top-4 right-4 z-10`（距顶 16px、距右 16px，ZCode 同值）。
+**挂载**：`conv-frame` 内、`WorkspaceHeader` 下方的相对容器（`session.tsx:1869`），`absolute top-4 right-4 z-10`（距顶 16px、距右 16px，参照产品同值）。
 
 **区块**（按渲染顺序，缺失不占位、无多余分割线）：
 
@@ -155,10 +155,10 @@ const wantsReview = createMemo(() =>
 - 收起态 = mini 摘要胶囊（`w-max`，仅一条主状态），点击展开
 - 展开态 = `w-80`，高度上限 `min(64dvh, 32rem)`
 - `conv-frame` container query 裁决：容器 < 1280px 强制 mini；≥ 1280px 展开（用户手动收起/展开写入 per-workspace 偏好覆盖自动）
-- 区块折叠状态与限高滚动按 ZCode：进度区块 `max-h-80`、其余 `max-h-48`，标题固定在滚动视口外
+- 区块折叠状态与限高滚动按参照产品：进度区块 `max-h-80`、其余 `max-h-48`，标题固定在滚动视口外
 - 字号只用 `text-ui-base` / `text-ui-sm`（禁 `text-14-regular` 之类非 `text-ui-*` 类）
 
-**明确不做**：WorkspaceHeader 不加 Status Panel 开关按钮（ZCode 决策）；不实现 Goal / 计划 / Workflow / 后台任务区块（NovaWay 无对应协议投影）。
+**明确不做**：WorkspaceHeader 不加 Status Panel 开关按钮（参照产品的决策）；不实现 Goal / 计划 / Workflow / 后台任务区块（NovaWay 无对应协议投影）。
 
 ### 5.2 Side Pane：6 → 3 tab + 按需创建
 
@@ -229,11 +229,11 @@ const wantsReview = createMemo(() =>
 
 `git-panel.tsx` 是完整重交互面板（文件勾选 + `MAX_BATCH 200` 批量提交 + 分支下拉 + 轮询）。收敛后：
 
-- **进卡片**：Changes 行、分支行、Commit 主动作（ZCode Git Tools 三行同构）
+- **进卡片**：Changes 行、分支行、Commit 主动作（参照产品 Git Tools 三行同构）
 - **由 review tab 承担**：文件级变更浏览（review 已有 diff 列表）
 - **退化**：「勾选任意文件子集批量提交」不再有独立界面——提交走卡片的 Commit 动作提交全部变更，文件级精细操作需经 review 查看后用其它途径
 
-此退化是 ZCode 对标的一部分（ZCode 同样没有独立文件勾选提交界面），记入验收对照。
+此退化是对标参照产品的一部分（参照产品同样没有独立文件勾选提交界面），记入验收对照。
 
 ## 6. 范围
 
@@ -253,7 +253,7 @@ const wantsReview = createMemo(() =>
 **排除**：
 
 - 底部 Terminal frame 结构与交互（Round 2 已定）
-- 左栏「任务 | 文件」segmented 切换（已与 ZCode 一致）
+- 左栏「任务 | 文件」segmented 切换（已与参照产品一致）
 - Git 状态在左栏文件树的内联标记（`M`/`A`/`D`）— 独立跟进项
 - Goal / 计划 / Workflow / 后台任务区块（无协议投影）
 - Composer、悬浮桌宠、移动端抽屉、`parity.test.ts`

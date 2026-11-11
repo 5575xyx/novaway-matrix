@@ -16,13 +16,13 @@
 | 全局搜索 / ripgrep                                         | ✅                        | 随包 ripgrep                                                                                               |
 | 用户自己加的 `uvx` MCP 服务器                              | ✅（需联网，首次约 30MB） | 缺 uv 时自动下载到 `Global.Path.bin`，再改写为 `uv tool run`                                               |
 | 内置扩展（ppt-master）                                     | ✅（需联网）              | 启动后后台自动安装并准备 Python 环境，无需用户操作                                                         |
-| 需要系统编译工具链的 npm 包                                | ❌                        | 与 ZCode 一致，不提供 C++ 构建环境                                                                         |
+| 需要系统编译工具链的 npm 包                                | ❌                        | 与参照产品一致，不提供 C++ 构建环境                                                                         |
 
 ## 实现
 
 ### 1. 本地 MCP 命令解析
 
-`packages/novaway/src/mcp/runtime.ts`：`planLocalCommand` 是纯函数，规则与 ZCode 的
+`packages/novaway/src/mcp/runtime.ts`：`planLocalCommand` 是纯函数，规则与参照产品的
 `mcp-node-fallback` 一致 —— 用户自己的运行时永远优先。
 
 - `node` 缺失 → 用 `NOVAWAY_NODE_PATH`（桌面端指向随包 Node）；
@@ -125,5 +125,5 @@ uv 是单文件可执行程序（Windows 约 30 MB zip），由 `packages/novawa
 
 - 需要联网：归档下载、npm 安装、uv/Python 下载、模型调用都依赖网络；离线状态下只有随包能力可用。
 - 私有仓库：归档通道只支持公开仓库的托管平台；私有仓库仍需要 git + 凭据。
-- 与 ZCode 的差异：ZCode 用 Electron 自带 Node 当运行时，我们随包 Node 加 npm；
-  ZCode 明确不在范围内支持 `uvx`/`python`/`bun`，我们额外覆盖了 Python（uv 托管环境）。
+- 与参照产品的差异：参照产品用 Electron 自带 Node 当运行时，我们随包 Node 加 npm；
+  参照产品明确不在范围内支持 `uvx`/`python`/`bun`，我们额外覆盖了 Python（uv 托管环境）。

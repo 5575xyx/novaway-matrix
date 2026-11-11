@@ -12,6 +12,7 @@ async function setup() {
     title,
     slug: id,
     projectID: "project",
+    scope: "project",
     directory: "/workspace",
     ...(parentID && { parentID }),
     version: "0.0.0-test",

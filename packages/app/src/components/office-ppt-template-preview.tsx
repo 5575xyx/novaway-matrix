@@ -45,7 +45,7 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
               when={realPreviews().length > 0}
               fallback={<span class="text-11-medium text-foreground-subtle">版式示意</span>}
             >
-              <span class="rounded-[6px] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-11-medium text-emerald-600">
+              <span class="rounded-[6px] border border-[color-mix(in_srgb,var(--icon-info-base)_25%,transparent)] bg-[color-mix(in_srgb,var(--icon-info-base)_10%,transparent)] px-2 py-1 text-11-medium text-[var(--icon-info-base)]">
                 {metadata()?.source === "Pptx"
                   ? "真实 PPTX 模板页面"
                   : metadata()?.source === "Reveal"
@@ -63,13 +63,13 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
           <div class="grid gap-4 md:grid-cols-3">
             <For each={realPreviews()}>
               {(preview) => (
-                <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border bg-white shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+                <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border bg-white shadow-[0_18px_48px_color-mix(in_srgb,var(--text-strong)_18%,transparent)]">
                   <img
                     src={preview.src}
                     alt={`${officePptTemplateName(props.template)} ${preview.label}`}
                     class="h-full w-full object-cover"
                   />
-                  <span class="absolute bottom-2 right-2 rounded-[5px] bg-black/70 px-2 py-1 text-[9px] font-medium text-white backdrop-blur-sm">
+                  <span class="absolute bottom-2 right-2 rounded-[5px] bg-[color-mix(in_srgb,var(--shadow-color)_70%,transparent)] px-2 py-1 text-[9px] font-medium text-[var(--text-invert-strong)] backdrop-blur-sm">
                     {preview.label}
                   </span>
                 </div>
@@ -89,7 +89,7 @@ function GeneratedLayoutPreview(props: { template: OfficePptTemplateID }) {
     <div class="grid gap-4 md:grid-cols-3">
       <For each={["封面", "概览", "内容", "卡片", "数据", "收尾"]}>
         {(label, index) => (
-          <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border bg-white shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+          <div class="relative aspect-[16/9] overflow-hidden rounded-[8px] border border-border bg-white shadow-[0_18px_48px_color-mix(in_srgb,var(--text-strong)_18%,transparent)]">
             <div class="relative h-full w-full p-3" style={{ "background-color": `#${visual.pageBg}` }}>
               <span class="absolute left-0 top-0 h-full w-1.5" style={{ "background-color": `#${visual.accent}` }} />
               <div class="flex h-full flex-col justify-center pl-3">
@@ -107,7 +107,7 @@ function GeneratedLayoutPreview(props: { template: OfficePptTemplateID }) {
                 </div>
               </div>
             </div>
-            <span class="absolute bottom-2 right-2 rounded-[5px] bg-black/70 px-2 py-1 text-[9px] font-medium text-white backdrop-blur-sm">
+            <span class="absolute bottom-2 right-2 rounded-[5px] bg-[color-mix(in_srgb,var(--shadow-color)_70%,transparent)] px-2 py-1 text-[9px] font-medium text-[var(--text-invert-strong)] backdrop-blur-sm">
               {String(index() + 1).padStart(2, "0")}
             </span>
           </div>

@@ -9,6 +9,7 @@ import {
 import { type Session } from "@novaway/sdk/v2/client"
 import {
   childSessionOnPath,
+  dateBucketOf,
   displayName,
   effectiveWorkspaceOrder,
   errorMessage,
@@ -221,5 +222,34 @@ describe("layout workspace helpers", () => {
     expect(errorMessage({ data: { message: "boom" } }, "fallback")).toBe("boom")
     expect(errorMessage(new Error("broken"), "fallback")).toBe("broken")
     expect(errorMessage("unknown", "fallback")).toBe("fallback")
+  })
+})
+
+describe("task date buckets", () => {
+  // 固定成本地正午，日界才与运行机器的时区无关：桶的边界全部落在「本地零点」上。
+  const noon = new Date(2026, 10, 7, 12, 0, 0).getTime()
+  const dayStart = new Date(2026, 10, 7, 0, 0, 0).getTime()
+  const day = 24 * 60 * 60 * 1000
+  const bucket = (updated: number) =>
+    dateBucketOf(session({ id: "s", directory: "/root", time: { created: 0, updated, archived: undefined } }), noon)
+
+  test("uses local day boundaries, not rolling 24 hours", () => {
+    expect(bucket(noon)).toBe("today")
+    // 今天零点整仍算今天；差一毫秒就是昨天。
+    expect(bucket(dayStart)).toBe("today")
+    expect(bucket(dayStart - 1)).toBe("yesterday")
+  })
+
+  test("keeps the last 6 days in the week bucket", () => {
+    expect(bucket(dayStart - day)).toBe("yesterday")
+    expect(bucket(dayStart - 6 * day)).toBe("week")
+    expect(bucket(dayStart - 6 * day - 1)).toBe("older")
+    expect(bucket(dayStart - 30 * day)).toBe("older")
+  })
+
+  test("falls back to created time", () => {
+    // updated 在类型上必填，这里只测运行时真的缺了怎么办。
+    const stale = { ...session({ id: "s", directory: "/root" }), time: { created: dayStart - day } } as Session
+    expect(dateBucketOf(stale, noon)).toBe("yesterday")
   })
 })

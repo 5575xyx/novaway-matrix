@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import { pathToFileURL, fileURLToPath } from "url"
 import matter from "gray-matter"
 import { Effect, Layer, Context, Schema } from "effect"
+import * as Option from "effect/Option"
 import { NamedError } from "@novaway/core/util/error"
 import type { Agent } from "@/agent/agent"
 import { Bus } from "@/bus"
@@ -28,6 +29,7 @@ import OFFICE_TASK_SKILL_BODY from "./prompt/office-task.md" with { type: "text"
 import OFFICE_WEB_SKILL_BODY from "./prompt/office-web.md" with { type: "text" }
 import FIND_SKILLS_BODY from "./prompt/find-skills.md" with { type: "text" }
 import SKILL_CREATOR_BODY from "./prompt/skill-creator.md" with { type: "text" }
+import DYNAMIC_WORKFLOWS_BODY from "./prompt/dynamic-workflows.md" with { type: "text" }
 import ACCOUNT_REVIEW_BODY from "./prompt/account-review/SKILL.md" with { type: "text" }
 import HUMANIZE_WRITING_BODY from "./prompt/humanize-writing/SKILL.md" with { type: "text" }
 import MEDIA_OPS_BODY from "./prompt/media-ops/SKILL.md" with { type: "text" }
@@ -38,6 +40,7 @@ import { isRecord } from "@/util/record"
 import { ensureSkillExtracted } from "./skill-assets"
 import * as ExtensionLoader from "@/extension/loader"
 import * as Generation from "@/extension/generation"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { contributions as extensionContributions } from "@/extension/schema"
 
 const log = Log.create({ service: "skill" })
@@ -165,6 +168,9 @@ const BUILT_IN_SKILLS = [
   },
   builtInSkillFromMarkdown(FIND_SKILLS_BODY),
   builtInSkillFromMarkdown(SKILL_CREATOR_BODY),
+  // 与 `create_workflow` / `workflow_run` 两个工具配套：描述里写清了「什么时候不该用」，
+  // 因为这段正文只在模型决定要看它之后才进上下文，真正的分流判断发生在 description 里。
+  builtInSkillFromMarkdown(DYNAMIC_WORKFLOWS_BODY),
   builtInSkillFromMarkdown(MEDIA_OPS_BODY),
   builtInSkillFromMarkdown(TOPIC_RADAR_BODY),
   builtInSkillFromMarkdown(HUMANIZE_WRITING_BODY),
@@ -515,18 +521,37 @@ export const layer = Layer.effect(
       yield* InstanceState.invalidate(state)
     })
 
+    const contributedSkills = Effect.gen(function* () {
+      const serviceOption = yield* Effect.serviceOption(PluginRuntimeService.Service)
+      if (Option.isNone(serviceOption)) return [] as Info[]
+      const host = yield* serviceOption.value.get
+      return host.registries.skills.list().map((entry) => ({
+        name: entry.name,
+        description: entry.item.description,
+        location: entry.root
+          ? "file" in entry.item.source ? path.dirname(path.resolve(entry.root, entry.item.source.file)) : entry.root
+          : `plugin://${entry.pluginID}/${entry.localName}`,
+        content: "text" in entry.item.source ? entry.item.source.text : "",
+        paths: [],
+        ...(entry.item.allowedTools === undefined ? {} : { allowedTools: [...entry.item.allowedTools] }),
+      }))
+    })
+
     const get = Effect.fn("Skill.get")(function* (name: string) {
       yield* refreshIfStale()
       const s = yield* InstanceState.get(state)
       if (yield* Effect.map(disabledNames(), (names) => names.has(name))) return undefined
-      return s.skills[name]
+      return s.skills[name] ?? (yield* Effect.map(contributedSkills, (items) => items.find((skill) => skill.name === name)))
     })
 
     const all = Effect.fn("Skill.all")(function* () {
       yield* refreshIfStale()
       const s = yield* InstanceState.get(state)
       const disabled = yield* disabledNames()
-      return Object.values(s.skills).filter((skill) => !disabled.has(skill.name))
+      const pluginSkills = yield* contributedSkills
+      const skills = new Map(pluginSkills.map((item) => [item.name, item]))
+      for (const item of Object.values(s.skills)) skills.set(item.name, item)
+      return [...skills.values()].filter((skill) => !disabled.has(skill.name))
     })
 
     const dirs = Effect.fn("Skill.dirs")(function* () {
@@ -535,12 +560,7 @@ export const layer = Layer.effect(
     })
 
     const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info, activatedPaths?: string[]) {
-      yield* refreshIfStale()
-      const s = yield* InstanceState.get(state)
-      const disabled = yield* disabledNames()
-      let list = Object.values(s.skills)
-        .filter((skill) => !disabled.has(skill.name))
-        .toSorted((a, b) => a.name.localeCompare(b.name))
+      let list = (yield* all()).toSorted((a, b) => a.name.localeCompare(b.name))
       if (activatedPaths) {
         // Skills with a `paths` frontmatter are only visible after the model has
         // touched a matching file.
@@ -564,7 +584,7 @@ export const layer = Layer.effect(
         count: Object.keys(next.skills).length,
         matches: nextDiscovered.matches.length,
       })
-      return Object.values(next.skills).toSorted((a, b) => a.name.localeCompare(b.name))
+      return (yield* all()).toSorted((a, b) => a.name.localeCompare(b.name))
     })
 
     const compositionsFilePath = path.join(process.cwd(), ".novaway", "compositions.json")

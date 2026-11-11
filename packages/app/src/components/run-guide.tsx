@@ -62,10 +62,10 @@ export function RunGuide(props: { steps: GuideStep[] }): JSX.Element {
                   type="button"
                   class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-ui-xs transition-colors"
                   classList={{
-                    "border-success/40 bg-success/10 text-success": step.state === "done",
-                    "border-primary/50 bg-primary/10 text-primary": step.state === "current",
+                    "border-success/40 bg-success/10 text-icon-success-base": step.state === "done",
+                    "border-primary/50 bg-primary/10 text-text-interactive-base": step.state === "current",
                     "border-border text-foreground-subtle hover:bg-hover": step.state === "todo",
-                    "border-warning/40 bg-warning/10 text-warning": step.state === "attention",
+                    "border-warning/40 bg-warning/10 text-icon-warning-base": step.state === "attention",
                     "ring-1 ring-primary/40": selected() === step.id,
                   }}
                   title={step.hint}
@@ -78,9 +78,9 @@ export function RunGuide(props: { steps: GuideStep[] }): JSX.Element {
                       <span
                         class="grid size-4 shrink-0 place-items-center rounded-full text-[10px]"
                         classList={{
-                          "bg-primary/15 text-primary": step.state === "current",
+                          "bg-primary/15 text-text-interactive-base": step.state === "current",
                           "bg-border text-foreground-subtle": step.state === "todo",
-                          "bg-warning/15 text-warning": step.state === "attention",
+                          "bg-warning/15 text-icon-warning-base": step.state === "attention",
                         }}
                       >
                         {index() + 1}
@@ -106,10 +106,10 @@ export function RunGuide(props: { steps: GuideStep[] }): JSX.Element {
               <span class="text-foreground">{step().title}</span>
               <span
                 classList={{
-                  "text-success": step().state === "done",
-                  "text-primary": step().state === "current",
+                  "text-icon-success-base": step().state === "done",
+                  "text-text-interactive-base": step().state === "current",
                   "text-foreground-subtlest": step().state === "todo",
-                  "text-warning": step().state === "attention",
+                  "text-icon-warning-base": step().state === "attention",
                 }}
               >
                 {t(`run.guide.state.${step().state}`)}

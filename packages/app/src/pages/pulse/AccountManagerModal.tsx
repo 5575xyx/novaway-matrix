@@ -4,6 +4,7 @@ import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { usePlatformAccounts, PLATFORM_LIST, type PlatformAccount } from "@/context/platform-accounts"
+import { PlatformIcon } from "@/components/platform-icon"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 
 function GroupSidebar(props: {
@@ -129,7 +130,7 @@ function GroupSidebar(props: {
                 </Show>
                 <Show when={group.id !== 1 && editingId() !== group.id}>
                   <button
-                    class="size-5 shrink-0 rounded flex items-center justify-center text-foreground-subtlest hover:text-rose-500 hover:bg-hover transition-colors opacity-0 group-hover:opacity-100"
+                    class="size-5 shrink-0 rounded flex items-center justify-center text-foreground-subtlest hover:text-[var(--icon-critical-base)] hover:bg-hover transition-colors opacity-0 group-hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation()
                       setDeleteConfirmGroupId(group.id)
@@ -237,7 +238,12 @@ function AccountTable(props: {
                     </td>
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-1.5">
-                        <img src={info()?.icon} alt="" class="size-4" />
+                        <PlatformIcon
+                          color={info()?.iconColor}
+                          markColor={info()?.iconMarkColor}
+                          svg={info()?.icon ?? ""}
+                          class="size-4"
+                        />
                         <span class="text-12-regular text-foreground-subtle">{info()?.name}</span>
                       </div>
                     </td>
@@ -245,17 +251,17 @@ function AccountTable(props: {
                       <span
                         class="inline-flex items-center gap-1 text-12-regular"
                         classList={{
-                          "text-emerald-600 dark:text-emerald-400": account.status === "valid",
-                          "text-amber-600 dark:text-amber-400": account.status === "expired",
-                          "text-rose-600 dark:text-rose-400": account.status === "login_failed",
+                          "text-icon-success-base": account.status === "valid",
+                          "text-icon-warning-base": account.status === "expired",
+                          "text-[var(--icon-critical-base)]": account.status === "login_failed",
                         }}
                       >
                         <span
                           class="size-1.5 rounded-full"
                           classList={{
-                            "bg-emerald-500": account.status === "valid",
-                            "bg-amber-500": account.status === "expired",
-                            "bg-rose-500": account.status === "login_failed",
+                            "bg-success": account.status === "valid",
+                            "bg-warning": account.status === "expired",
+                            "bg-[var(--icon-critical-base)]": account.status === "login_failed",
                           }}
                         />
                         {account.status === "valid" ? "在线" : account.status === "expired" ? "离线" : "异常"}

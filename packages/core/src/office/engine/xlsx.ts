@@ -14,8 +14,26 @@ import type { ApplyOutcome, OfficeEngine, OfficeOp, OfficeResult } from "./contr
 import { fail, ok } from "./contract"
 import { decodeXmlText, findAll, findElement } from "./xml"
 import { inflateEntry, readZip, rebuildZip, type ZipArchive } from "./zip"
-import { cellStyleIndex, parseSheetXml, writeCell, type XlsxSheetGrid, type XlsxCellValue } from "./xlsx-sheet"
+import {
+  cellStyleIndex,
+  clearRange,
+  deleteColumns,
+  deleteRows,
+  insertColumns,
+  insertRows,
+  mergeRange,
+  parseSheetXml,
+  setSheetTabColor,
+  unmergeRange,
+  writeCell,
+  type XlsxSheetGrid,
+  type XlsxCellValue,
+} from "./xlsx-sheet"
 import { ensureCellStyle, type XlsxStylePatch } from "./xlsx-styles"
+import { addSheet, deleteSheet, renameSheet } from "./xlsx-workbook"
+import { evaluateFormulas } from "./xlsx-formula"
+import { sheetToDelimited, sheetToHtmlTable, workbookToDelimited } from "./export"
+import { printToPdf } from "../pdf/print"
 
 export type XlsxState = { sheets: XlsxSheetGrid[] }
 
@@ -91,6 +109,8 @@ async function readSheetGrids(zip: ZipArchive): Promise<XlsxState> {
     if (!target) continue
     sheets.push(parseSheetXml(decodeEntry(await inflateEntry(zip, target)), resolved, sheet.name, shared))
   }
+  // 公式单元格在文件里通常没有缓存值；补一份只读的求值结果给预览和 Agent。
+  evaluateFormulas(sheets)
   return { sheets }
 }
 
@@ -121,7 +141,98 @@ function columnLabel(index: number): string {
   return label
 }
 
+const XLSX_OPS = new Set<string>([
+  "setCellValue",
+  "setCellStyle",
+  "clearCells",
+  "insertRows",
+  "deleteRows",
+  "insertColumns",
+  "deleteColumns",
+  "setSheetTabColor",
+])
+
+/** 工作簿级操作：改的是 workbook.xml / rels / Content_Types。
+    单元格级操作：改的是某个 sheet 部件。 */
+const WORKBOOK_OPS = new Set<string>(["addSheet", "renameSheet", "deleteSheet"])
+
 type SheetPatch = { xml: string; stylesXml?: string; applied: unknown[] }
+
+const CONTENT_TYPES_ENTRY = "[Content_Types].xml"
+
+/**
+ * 工作簿级操作：改 workbook.xml / rels / [Content_Types].xml，必要时新增一张工作表部件。
+ *
+ * 和单元格写入一样「只重写必要的那几个文件」：其余包内条目（样式、共享字符串、
+ * 图表、数据验证）连本地头一起原样拷贝。
+ */
+async function patchWorkbook(
+  zip: ZipArchive,
+  replacements: Map<string, Uint8Array>,
+  additions: Map<string, Uint8Array>,
+  ops: readonly OfficeOp[],
+  sheets: ReadonlyArray<{ name: string; path: string }>,
+): Promise<OfficeResult<{ applied: unknown[]; sheets: Array<{ name: string; path: string }> }>> {
+  const encoder = new TextEncoder()
+  const read = async (name: string) => {
+    const entry = zip.entries.find((item) => item.name === name)
+    return entry ? decodeEntry(await inflateEntry(zip, entry)) : undefined
+  }
+
+  let workbook = await read(WORKBOOK_ENTRY)
+  if (workbook === undefined) return fail("engine", "这个工作簿没有 xl/workbook.xml")
+  let rels = await read(WORKBOOK_RELS)
+  if (rels === undefined) return fail("engine", "这个工作簿没有 xl/_rels/workbook.xml.rels")
+  let types = await read(CONTENT_TYPES_ENTRY)
+  if (types === undefined) return fail("engine", "这个工作簿没有 [Content_Types].xml")
+
+  const applied: unknown[] = []
+  // 工作表清单跟着一起走：新增/改名/删表之后，同一批次里后续的单元格操作要能
+  // 找到「刚建出来的那张表」，而不是按调用前的旧清单找，从而把操作静默丢掉。
+  let roster = sheets.map((sheet) => ({ name: sheet.name, path: sheet.path }))
+
+  for (const op of ops) {
+    if (op.op === "addSheet") {
+      const result = addSheet(
+        workbook,
+        rels,
+        types,
+        op.name,
+        roster.map((sheet) => sheet.path),
+      )
+      if (!result.ok) return result
+      workbook = result.data.workbook
+      rels = result.data.rels
+      types = result.data.types
+      additions.set(result.data.path, encoder.encode(result.data.content))
+      roster.push({ name: op.name, path: result.data.path })
+      applied.push({ op: op.op, sheet: op.name, path: result.data.path })
+      continue
+    }
+    if (op.op === "renameSheet") {
+      const result = renameSheet(workbook, op.sheet, op.name)
+      if (!result.ok) return result
+      workbook = result.data
+      roster = roster.map((sheet) => (sheet.name === op.sheet ? { name: op.name, path: sheet.path } : sheet))
+      applied.push({ op: op.op, from: op.sheet, to: op.name })
+      continue
+    }
+    if (op.op === "deleteSheet") {
+      const result = deleteSheet(workbook, rels, op.sheet)
+      if (!result.ok) return result
+      workbook = result.data.workbook
+      rels = result.data.rels
+      roster = roster.filter((sheet) => sheet.name !== op.sheet)
+      applied.push({ op: op.op, sheet: op.sheet })
+      continue
+    }
+  }
+
+  replacements.set(WORKBOOK_ENTRY, encoder.encode(workbook))
+  replacements.set(WORKBOOK_RELS, encoder.encode(rels))
+  replacements.set(CONTENT_TYPES_ENTRY, encoder.encode(types))
+  return ok({ applied, sheets: roster })
+}
 
 function patchSheet(
   sheetXml: string,
@@ -165,7 +276,61 @@ function patchSheet(
           cells.push(ref)
         }
       }
+      // merge 不是单元格样式，而是对整块区域的结构操作：
+      // true = 合并这块，false = 取消这块上的合并。
+      if (op.style.merge !== undefined) {
+        const start = { row: from.row, col: from.col }
+        const end = { row: to.row, col: to.col }
+        xml = op.style.merge ? mergeRange(xml, start, end) : unmergeRange(xml, start, end)
+        applied.push({ op: op.style.merge ? "mergeCells" : "unmergeCells", range: [formatRef(start), formatRef(end)] })
+      }
       applied.push({ cells, style: op.style })
+      continue
+    }
+
+    if (op.op === "clearCells") {
+      const from = {
+        row: Math.min(op.range.start.row, op.range.end.row),
+        col: Math.min(op.range.start.col, op.range.end.col),
+      }
+      const to = {
+        row: Math.max(op.range.start.row, op.range.end.row),
+        col: Math.max(op.range.start.col, op.range.end.col),
+      }
+      if ((to.row - from.row + 1) * (to.col - from.col + 1) > 100000) {
+        return fail("invalid_params", "一次最多清空 100000 个单元格")
+      }
+      const cleared = clearRange(xml, from, to)
+      xml = cleared.xml
+      applied.push({ op: op.op, range: [formatRef(from), formatRef(to)], cleared: cleared.cleared })
+      continue
+    }
+
+    if (op.op === "insertRows" || op.op === "deleteRows" || op.op === "insertColumns" || op.op === "deleteColumns") {
+      const count = op.count ?? 1
+      if (!Number.isInteger(op.at) || op.at < 1) {
+        return fail("invalid_params", "插入/删除位置从 1 开始：" + String(op.at))
+      }
+      if (!Number.isInteger(count) || count < 1 || count > 10000) {
+        return fail("invalid_params", "一次最多改 10000 行/列，且至少 1")
+      }
+      xml =
+        op.op === "insertRows"
+          ? insertRows(xml, op.at, count)
+          : op.op === "deleteRows"
+            ? deleteRows(xml, op.at, count)
+            : op.op === "insertColumns"
+              ? insertColumns(xml, op.at, count)
+              : deleteColumns(xml, op.at, count)
+      applied.push({ op: op.op, at: op.at, count })
+      continue
+    }
+
+    if (op.op === "setSheetTabColor") {
+      const result = setSheetTabColor(xml, op.color)
+      if (!result.ok) return result
+      xml = result.data
+      applied.push({ op: op.op, color: op.color ?? null })
       continue
     }
 
@@ -193,30 +358,45 @@ export const xlsxEngine: OfficeEngine<XlsxState> = {
     if (ops.length === 0) return fail("invalid_params", "没有要执行的操作")
     if (state.sheets.length === 0) return fail("not_found", "工作簿里没有可编辑的工作表")
 
-    const unsupported = ops.find((op) => op.op !== "setCellValue" && op.op !== "setCellStyle")
+    const unsupported = ops.find((op) => !XLSX_OPS.has(op.op) && !WORKBOOK_OPS.has(op.op))
     if (unsupported) return fail("unsupported_format", `${unsupported.op} 不适用于 XLSX`)
 
     try {
       const zip = await readZip(bytes)
       const replacements = new Map<string, Uint8Array>()
+      const additions = new Map<string, Uint8Array>()
       let stylesBytes: Uint8Array | undefined
       const stylesEntry = zip.entries.find((item) => item.name === STYLES_ENTRY)
       if (stylesEntry) stylesBytes = await inflateEntry(zip, stylesEntry)
       let stylesXml = stylesBytes ? decodeEntry(stylesBytes) : undefined
 
       const applied: unknown[] = []
-      for (const sheet of state.sheets) {
-        const sheetOps = ops.filter(
-          (op) => (op.op === "setCellValue" || op.op === "setCellStyle") && op.sheet === sheet.name,
-        )
+
+      // 工作簿级操作先做：新增/改名/删表之后再往物理部件里写单元格，
+      // 这样同一个批次里「新建表 + 往新表写 A1」也是成立的。
+      let roster = state.sheets.map((sheet) => ({ name: sheet.name, path: sheet.path }))
+      const workbookOps = ops.filter((op) => WORKBOOK_OPS.has(op.op))
+      if (workbookOps.length > 0) {
+        const patched = await patchWorkbook(zip, replacements, additions, workbookOps, roster)
+        if (!patched.ok) return patched
+        applied.push(...patched.data.applied)
+        roster = patched.data.sheets
+      }
+
+      for (const sheet of roster) {
+        const sheetOps = ops.filter((op) => XLSX_OPS.has(op.op) && (op as { sheet?: string }).sheet === sheet.name)
         if (sheetOps.length === 0) continue
+        // 刚新增的工作表还不在这份 zip 里，它的 XML 在 additions 里；
+        // 没有这个分支，往新表写单元格的操作会被静默丢掉。
+        const added = additions.get(sheet.path)
         const entry = zip.entries.find((item) => item.name === sheet.path)
-        if (!entry) return fail("not_found", `找不到工作表 ${sheet.name} 的包内条目`)
-        const current = decodeEntry(await inflateEntry(zip, entry))
+        if (added === undefined && !entry) return fail("not_found", `找不到工作表 ${sheet.name} 的包内条目`)
+        const current = decodeEntry(added ?? (await inflateEntry(zip, entry!)))
         const patched = patchSheet(current, stylesXml, sheetOps)
         if (!patched.ok) return patched
         stylesXml = patched.data.stylesXml ?? stylesXml
-        replacements.set(sheet.path, new TextEncoder().encode(patched.data.xml))
+        if (added !== undefined) additions.set(sheet.path, new TextEncoder().encode(patched.data.xml))
+        else replacements.set(sheet.path, new TextEncoder().encode(patched.data.xml))
         applied.push(...patched.data.applied)
       }
 
@@ -226,18 +406,34 @@ export const xlsxEngine: OfficeEngine<XlsxState> = {
         replacements.set(STYLES_ENTRY, new TextEncoder().encode(stylesXml))
       }
 
-      const nextZip = rebuildZip(zip, replacements)
+      const nextZip = rebuildZip(zip, replacements, additions)
       const reopened = await xlsxEngine.open(nextZip)
       if (!reopened.ok) return reopened
       const outcome: ApplyOutcome<XlsxState> = {
         state: reopened.data,
         bytes: nextZip,
-        changed: [...replacements.keys()],
+        changed: [...replacements.keys(), ...additions.keys()],
         applied,
       }
       return ok(outcome)
     } catch (error) {
       return fail("engine", error instanceof Error ? error.message : "XLSX 写入失败")
     }
+  },
+
+  /**
+   * 导出成文本格式：csv / tsv 导出整本工作簿，html 导出全部 sheet 的表格。
+   * 只读操作，原文件与会话状态都不动。
+   */
+  async export(state, target) {
+    const kind = target.toLowerCase().replace(/^\./, "")
+    const encoder = new TextEncoder()
+    if (kind === "csv") return ok(encoder.encode(workbookToDelimited(state.sheets, ",")))
+    if (kind === "tsv" || kind === "txt") return ok(encoder.encode(workbookToDelimited(state.sheets, "\t")))
+    if (kind === "html" || kind === "htm") {
+      return ok(encoder.encode(state.sheets.map((sheet) => sheetToHtmlTable(sheet)).join("\n")))
+    }
+    if (kind === "pdf") return ok(await printToPdf("xlsx", state))
+    return fail("unsupported_format", "XLSX 不能导出成 " + target, "支持 pdf / csv / tsv / html / txt")
   },
 }

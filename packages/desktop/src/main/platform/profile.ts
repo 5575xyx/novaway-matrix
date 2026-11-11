@@ -41,8 +41,7 @@ export async function resolveProfile(
 
   // 接口缺昵称/头像时，用隐藏窗口读一次页面。页面是用户眼前看到的，
   // 优先级高于接口（接口可能只返回了 uid 或是旧缓存）。
-  const page =
-    !apiNickname || !apiAvatar ? await platform.captureProfileFromPage(cookies).catch(() => null) : null
+  const page = !apiNickname || !apiAvatar ? await platform.captureProfileFromPage(cookies).catch(() => null) : null
 
   return mergeProfile(account, {
     nickname: (page?.nickname || apiNickname).trim(),

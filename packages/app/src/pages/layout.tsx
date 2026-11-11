@@ -25,13 +25,13 @@ import { decode64 } from "@/utils/base64"
 import { ResizeHandle } from "@novaway/ui/resize-handle"
 import { Button } from "@novaway/ui/button"
 import { IconButton } from "@novaway/ui/icon-button"
-import { Icon } from "@novaway/ui/icon"
+import { Icon, isIconName } from "@novaway/ui/icon"
 import { Keybind } from "@novaway/ui/keybind"
 import { Mark } from "@novaway/ui/logo"
 import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { Dialog } from "@novaway/ui/dialog"
 import { TextField } from "@novaway/ui/text-field"
-import { getFilename } from "@novaway/core/util/path"
+import { getDirectory, getFilename } from "@novaway/core/util/path"
 import { Session, type Message, type QuestionRequest } from "@novaway/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
 import {
@@ -73,7 +73,7 @@ import { setSessionHandoff } from "@/pages/session/handoff"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
-import { DialogSettings, type SettingsTab } from "@/components/dialog-settings"
+import { DialogSettings, isSettingsTab, type SettingsTab } from "@/components/dialog-settings"
 import { DialogCreateProject } from "@/components/dialog-create-project"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { applyPath, backPath, forwardPath, type TitlebarHistory } from "@/components/titlebar-history"
@@ -84,11 +84,14 @@ import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
 import {
   CLOSE_FRAME_PAGES_EVENT,
+  dateBucketOf,
   effectiveWorkspaceOrder,
   errorMessage,
   latestRootSession,
   sessionStatusOf,
   sortedRootSessions,
+  TASK_DATE_BUCKETS,
+  withinRecency,
 } from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
@@ -96,7 +99,10 @@ import {
   deepLinkEvent,
   drainPendingDeepLinks,
 } from "./layout/deep-links"
+import { drainPendingOpenFiles, openFilesEvent, queueOpenFiles } from "./layout/open-files"
+import { resolveWorkspaceTreeDirectory } from "./layout/workspace-file-tree-helpers"
 import { SidebarFiles } from "./layout/sidebar-files"
+import { DialogTaskGroups } from "./layout/dialog-task-groups"
 import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { ProjectGitInit } from "./layout/sidebar-project-git"
 import { ModeSwitchButton } from "@/components/mode-switch"
@@ -114,9 +120,47 @@ import { ExtensionsPage } from "./extensions"
 import { KernelPage } from "./kernel"
 import { TeamPage } from "./team"
 import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
+import { GlobalChatTasks } from "./layout/global-chat-tasks"
 
 import { AutomationPage } from "./automation"
 import { KnowledgePage } from "./knowledge"
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+type PluginSurfaceAction =
+  | { type: "view"; viewId: string }
+  | { type: "command"; command: string }
+  | { type: "url"; url: string }
+
+function parsePluginSurfaceAction(value: unknown): PluginSurfaceAction | undefined {
+  if (!isRecord(value) || typeof value.type !== "string") return undefined
+  if (value.type === "view" && typeof value.viewId === "string" && value.viewId.length > 0) {
+    return { type: "view", viewId: value.viewId }
+  }
+  if (value.type === "command" && typeof value.command === "string" && value.command.length > 0) {
+    return { type: "command", command: value.command }
+  }
+  if (value.type === "url" && typeof value.url === "string" && value.url.length > 0) {
+    return { type: "url", url: value.url }
+  }
+  return undefined
+}
+
+function pluginSurfaceViewPath(directorySlug: string, pluginID: string, viewId: string) {
+  return `/${directorySlug}/plugin-view/${encodeURIComponent(pluginID)}/${encodeURIComponent(viewId)}`
+}
+
+function openPluginSurfaceUrl(value: string) {
+  try {
+    const url = new URL(value, window.location.href)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return
+    window.open(url.href, "_blank", "noopener,noreferrer")
+  } catch {
+    // Invalid declarative URLs are ignored rather than interpreted as script URLs.
+  }
+}
 
 function feishuQuestionText(questions: QuestionRequest["questions"]) {
   if (!Array.isArray(questions)) return ""
@@ -265,14 +309,19 @@ export default function Layout(props: ParentProps) {
     if (!mode) return {}
     return {
       "--novaway-mode-color": mode.color,
+      "--novaway-mode-foreground": mode.foreground,
       "--novaway-mode-tint": `color-mix(in srgb, ${mode.color} 14%, transparent)`,
       "--novaway-mode-soft": `color-mix(in srgb, ${mode.color} 8%, transparent)`,
       "--novaway-mode-border": `color-mix(in srgb, ${mode.color} 38%, transparent)`,
     }
   })
 
+  // 无项目聊天是独立路由（没有 :dir），不能触发「自动打开最近项目」——
+  // 否则进去的瞬间会被重定向回项目会话。
+  const isGlobalChatRoute = () => location.pathname.startsWith("/global-chat")
+
   const [state, setState] = createStore({
-    autoselect: !initialDirectory,
+    autoselect: !initialDirectory && !isGlobalChatRoute(),
     busyWorkspaces: {} as Record<string, boolean>,
     hoverProject: undefined as string | undefined,
     scrollSessionKey: undefined as string | undefined,
@@ -428,6 +477,18 @@ export default function Layout(props: ParentProps) {
     if (layout.sidebar.opened()) layout.sidebar.close()
   })
 
+  // 项目/工作区切换时会复用同一个布局持久化状态，但右侧文件面板属于当前目录。
+  // 路由变化后统一关闭并清理，避免新项目恢复旧项目的文件标签、文件树或分屏。
+  createEffect(
+    on(
+      () => params.dir,
+      (directory, previous) => {
+        if (previous !== undefined && directory !== previous) layout.sidePane.close()
+      },
+      { defer: true },
+    ),
+  )
+
   createEffect(() => {
     if (!state.autoselect) return
     const dir = params.dir
@@ -436,6 +497,17 @@ export default function Layout(props: ParentProps) {
     if (!directory) return
     setState("autoselect", false)
   })
+
+  createEffect(
+    on(
+      () => location.pathname,
+      (pathname) => {
+        if (!pathname.startsWith("/global-chat")) return
+        setState("autoselect", false)
+      },
+      { defer: true },
+    ),
+  )
 
   const clearSidebarHoverState = () => {}
 
@@ -539,8 +611,9 @@ export default function Layout(props: ParentProps) {
 
   const updateButtonBusy = () => updateState.stage === "checking" || updateState.stage === "downloading"
 
-  // icon 组件基础色是 foreground-subtle；绿色按钮上要显式换成白色。
-  const updateIconColor = () => (updateState.stage === "checking" ? "var(--foreground-subtle)" : "#fff")
+  // icon 组件基础色是 foreground-subtle；成功色按钮上使用对应的对比文字色。
+  const updateIconColor = () =>
+    updateState.stage === "checking" ? "var(--foreground-subtle)" : "var(--text-on-success-base)"
 
   // 点按钮先看「这次更新改了什么」：manual 路径在「有新版本」时点开是下载，
   // 自动路径在「已下载」时点开是安装。两者都先弹更新说明。
@@ -819,6 +892,7 @@ export default function Layout(props: ParentProps) {
   const [autoselecting] = createResource(async () => {
     await ready.promise
     await layout.ready.promise
+    if (isGlobalChatRoute()) return
     if (!untrack(() => state.autoselect)) return
 
     const list = layout.projects.list()
@@ -1340,7 +1414,8 @@ export default function Layout(props: ParentProps) {
         title: language.t("command.settings.open"),
         category: language.t("command.category.settings"),
         keybind: "mod+comma",
-        onSelect: () => openSettings(),
+        // args 是标签页名(输入框「+」里的"技能/插件"直接落到对应页)。
+        onSelect: (_source, args) => openSettings(args && isSettingsTab(args) ? args : undefined),
       },
       {
         id: "settings.memory.open",
@@ -1445,6 +1520,22 @@ export default function Layout(props: ParentProps) {
         },
       },
       {
+        id: "fileTree.toggle",
+        title: language.t("command.fileTree.toggle"),
+        category: language.t("command.category.view"),
+        keybind: "mod+alt+e",
+        disabled: !currentDir(),
+        onSelect: () => {
+          // 树是「工作区文件」面板里的右栏：再按一次收起；展开时把预览标签拉到前面。
+          if (layout.sidePane.tree() && layout.sidePane.opened()) {
+            layout.sidePane.setTree(false)
+            return
+          }
+          layout.sidePane.setTree(true)
+          layout.sidePane.add("preview")
+        },
+      },
+      {
         id: "theme.cycle",
         title: language.t("command.theme.cycle"),
         category: language.t("command.category.theme"),
@@ -1503,6 +1594,11 @@ export default function Layout(props: ParentProps) {
       })
     }
 
+    if (location.pathname.startsWith("/global-chat/")) {
+      return commands.filter(
+        (item) => !item.id.startsWith("project.") && !item.id.startsWith("workspace.") && item.id !== "fileTree.toggle",
+      )
+    }
     return commands
   })
 
@@ -1533,7 +1629,7 @@ export default function Layout(props: ParentProps) {
   }
 
   /**
-   * 侧栏「辅助对话」入口（对齐 ZCode 在侧栏提供辅助对话入口的做法）：
+   * 侧栏「辅助对话」入口：
    * 当前任务已有辅助对话就聚焦最近一条，否则新建一条；
    * 两种情况都会把右侧面板展开。
    */
@@ -1823,6 +1919,12 @@ export default function Layout(props: ParentProps) {
    * 面板展开时是顶部那颗整宽按钮，面板收起后在图标条里（同一个动作两个位置）。
    */
   function startNewTask() {
+    // When the workspace-free inbox is active, the primary action starts another
+    // workspace-free conversation instead of unexpectedly jumping into a project.
+    if (isGlobalChatRoute()) {
+      navigateWithSidebarReset("/global-chat/session")
+      return
+    }
     const first = layout.projects.list()[0]
     if (first) navigateWithSidebarReset(`/${base64Encode(first.worktree)}/session`)
     else void chooseProject()
@@ -1846,6 +1948,17 @@ export default function Layout(props: ParentProps) {
     }
   }
 
+  /**
+   * 从系统打开的文档：先把文件所在目录当成项目打开，再让任务页把文件标签开出来。
+   * 文件本身先排进队列 —— 导航到项目需要一帧，右侧面板此时还没挂载。
+   */
+  const handleOpenFiles = (paths: string[]) => {
+    if (paths.length === 0) return
+    const directories = [...new Set(paths.map((path) => getDirectory(path)).filter((dir): dir is string => !!dir))]
+    directories.forEach((directory, index) => openProject(directory, index === 0))
+    queueOpenFiles(paths)
+  }
+
   onMount(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ urls: string[] }>).detail
@@ -1856,6 +1969,14 @@ export default function Layout(props: ParentProps) {
 
     handleDeepLinks(drainPendingDeepLinks(window))
     makeEventListener(window, deepLinkEvent, handler as EventListener)
+
+    const files = (event: Event) => {
+      const detail = (event as CustomEvent<{ paths: string[] }>).detail
+      handleOpenFiles(detail?.paths ?? [])
+    }
+
+    handleOpenFiles(drainPendingOpenFiles(window))
+    makeEventListener(window, openFilesEvent, files as EventListener)
   })
 
   const renameWorkspace = (directory: string, next: string, projectId?: string, branch?: string) => {
@@ -2324,7 +2445,7 @@ export default function Layout(props: ParentProps) {
   const modeAccent = createMemo(
     () => layout.mode.all.find((mode) => mode.id === layout.mode.current())?.color ?? "var(--border-hover)",
   )
-  // 会话面板内容宽度（下限对齐 ZCode 侧栏默认 264px）。
+  // 会话面板内容宽度（下限 264px）。
   const panel = createMemo(() => Math.max(264, layout.sidebar.width()))
   // 侧栏总占位 = 图标条 + 展开时的面板宽度；收起后只剩图标条。
   const side = createMemo(() => RAIL_WIDTH + (layout.sidebar.expanded() ? panel() : 0))
@@ -2452,9 +2573,81 @@ export default function Layout(props: ParentProps) {
     const warmedProjects = new Set<string>()
     const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
     const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
+    // 侧栏「视图」菜单的两档口径：
+    // - 工作区筛（选中单个工作区时只显示它，"all" 显示全部）
+    // - 分组方式（"workspace" = 每个项目一个可折叠分组；"none" = 摊平成一张列表）
+    const visibleProjects = createMemo(() => {
+      const selected = layout.taskList.workspace()
+      if (selected === "all") return projectList()
+      return projectList().filter((project) => pathKey(project.worktree) === selected)
+    })
+    const isGrouped = createMemo(() => layout.taskList.groupBy() === "workspace")
+    // 不分组时不再逐项目渲染分组头（那一支走 mergedProject 的摊平列表）。
+    const groupedProjects = createMemo(() => (isGrouped() ? visibleProjects() : []))
+    // 「不分组」把可见项目合成一个伪项目传给 ProjectTaskList —— 它只需要目录列表，
+    // 而 sortedRootSessionsFrom 自己按会话 id 去重，跨项目合并不会出现重复行。
+    const mergedProject = createMemo<LocalProject>(() => {
+      const head = visibleProjects()[0]
+      const dirs = visibleProjects().flatMap((project) => [project.worktree, ...(project.sandboxes ?? [])])
+      return {
+        expanded: true,
+        worktree: head?.worktree ?? "",
+        sandboxes: dirs.filter((dir) => pathKey(dir) !== pathKey(head?.worktree ?? "")),
+      }
+    })
+    const mergedArchived = createMemo(() =>
+      [mergedProject().worktree, ...(mergedProject().sandboxes ?? [])].flatMap((dir) => archived()[dir] ?? []),
+    )
+    /**
+     * 「按日期 / 自定义」的分段。两者共用一条渲染路径：都先把可见工作区摊平成
+     * 一个伪项目（mergedProject），再按各自的分桶函数切段 —— 分桶只做筛选，
+     * 行渲染、状态点、菜单这些仍由 ProjectTaskList 负责，不复制第二套列表。
+     */
+    const [bucketCollapsed, setBucketCollapsed] = createStore<Record<string, boolean | undefined>>({})
+    const bucketExpanded = (key: string) => bucketCollapsed[key] !== true
+    const toggleBucket = (key: string) => setBucketCollapsed(key, (value) => !(value ?? false))
+    const dateBuckets = createMemo(() =>
+      TASK_DATE_BUCKETS.map((bucket) => ({
+        key: bucket,
+        label: language.t(`sidebar.bucket.${bucket}`),
+        where: (session: Session) => dateBucketOf(session, sortNow()) === bucket,
+      })),
+    )
+    const customBuckets = createMemo(() => [
+      ...layout.taskList.groups().map((group) => ({
+        key: group.id,
+        label: group.name,
+        where: (session: Session) => layout.taskList.groupOf(session.id) === group.id,
+      })),
+      {
+        key: "unassigned",
+        label: language.t("sidebar.task.group.unassigned"),
+        where: (session: Session) => !layout.taskList.groupOf(session.id),
+      },
+    ])
+    const bucketList = createMemo(() => {
+      const mode = layout.taskList.groupBy()
+      if (mode === "date") return dateBuckets()
+      if (mode === "custom") return customBuckets()
+      return []
+    })
+    // 「视图 → 工作区」当前选中项在菜单触发器上的回显。筛掉的项目已被关掉时
+    // 不显示空名字，而是说明它已经不在了。
+    const workspaceViewLabel = createMemo(() => {
+      const selected = layout.taskList.workspace()
+      if (selected === "all") return language.t("sidebar.view.workspace.all")
+      const project = projectList().find((item) => pathKey(item.worktree) === selected)
+      if (!project) return language.t("sidebar.view.workspace.missing")
+      return project.name || getFilename(project.worktree)
+    })
     // 分段上的数量（全部 / 运行中 / 待确认 / 已归档）。归档列表要等它被拉起来才有数字，
     // 所以这里顺带触发一次加载 —— 否则"已归档"永远显示 0，看着像功能没接上。
-    const taskCounts = useTaskCounts({ projects: () => projectList(), archived, sortNow })
+    const taskCounts = useTaskCounts({
+      projects: visibleProjects,
+      archived,
+      sortNow,
+      recency: layout.taskList.recency,
+    })
     let archivedLoaded = false
     createEffect(() => {
       if (archivedLoaded || projectList().length === 0) return
@@ -2468,17 +2661,8 @@ export default function Layout(props: ParentProps) {
       () => !!branchChannel() && projectList().length > 0 && taskCounts().all === 0 && taskCounts().archived === 0,
     )
 
-    const treeKey = createMemo(() => pathKey(currentProject()?.worktree ?? currentDir())) // 文件树是侧栏内整层 slide-over 的目标目录：跟随当前项目（对齐 ZCode 的
-    // WorkspaceFileTree —— 它挂在当前工作区上，不是每个项目各一份）。
-    // 文件树的目标目录。
-    // 之前只取「当前项目 → 路由目录」，两者都拿不到时整棵树就空着、且看不出原因
-    // （实测桌面端在部分路由下 route().dir 为空，树直接不可用）。
-    // 现在再退一层到「项目列表里的第一个」，保证只要打开了项目就有树可看。
-    const treeDirectory = createMemo(() => {
-      const direct = currentProject()?.worktree ?? currentDir()
-      if (direct) return direct
-      return projectList()[0]?.worktree ?? ""
-    })
+    const treeDirectory = createMemo(() => resolveWorkspaceTreeDirectory(currentDir(), currentProject()?.worktree))
+    const treeKey = createMemo(() => pathKey(treeDirectory()))
     const treeOpen = createMemo(() => layout.sidebarView.current() === "tree")
     // 桌面端 macOS 的红绿灯压在这一带左上角，需要让出安全区。
     const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
@@ -2539,12 +2723,14 @@ export default function Layout(props: ParentProps) {
                 type="button"
                 data-component="update-ready-button"
                 data-stage={updateState.stage}
-                class="relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden rounded-full px-2 text-12-medium shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-[filter,color,background-color] hover:brightness-110 disabled:opacity-70"
+                class="relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden rounded-full px-2 text-12-medium shadow-[0_1px_2px_color-mix(in_srgb,var(--text-strong)_18%,transparent)] transition-[filter,color,background-color] hover:brightness-110 disabled:opacity-70"
                 classList={{
                   // 下载中/可下载/已下载用绿色实心；检查中用中性色，避免"有新版本"的误读。
-                  "bg-[#16a34a] text-white": updateState.stage === "available" || updateState.stage === "downloaded",
+                  "bg-[var(--surface-success-base)] text-[var(--text-on-success-base)]":
+                    updateState.stage === "available" || updateState.stage === "downloaded",
                   "border border-border bg-surface text-foreground-subtle": updateState.stage === "checking",
-                  "bg-[#15803d] text-white": updateState.stage === "downloading",
+                  "bg-[var(--surface-success-strong)] text-[var(--text-on-success-base)]":
+                    updateState.stage === "downloading",
                 }}
                 aria-label={updateButtonTooltip()}
                 disabled={updateButtonBusy()}
@@ -2553,7 +2739,7 @@ export default function Layout(props: ParentProps) {
                 {/* 下载进度：一条从左侧填充的浅色层，百分比文本叠在上面。 */}
                 <Show when={updateState.stage === "downloading"}>
                   <span
-                    class="pointer-events-none absolute inset-y-0 left-0 bg-white/25 transition-[width] duration-300"
+                    class="pointer-events-none absolute inset-y-0 left-0 bg-[color-mix(in_srgb,currentColor_22%,transparent)] transition-[width] duration-300"
                     style={{ width: `${updateState.percent}%` }}
                   />
                 </Show>
@@ -2622,10 +2808,11 @@ export default function Layout(props: ParentProps) {
           </Show>
         </div>
 
-        {/* 动作区：整宽「新建任务」+ 自动化 + 整宽「搜索」。对齐 ZCode 侧栏顶部的两个整宽入口，
+        {/* 动作区：整宽「新建任务」+ 自动化 + 整宽「搜索」。两个整宽入口
             取代原来那行把图标挤在一起的 icon-only 工具条。 */}
         <div class="flex shrink-0 flex-col gap-1 px-2 pb-2">
           <Button
+            data-component="sidebar-new-task"
             variant="primary"
             size="large"
             class="w-full justify-start gap-2"
@@ -2643,7 +2830,7 @@ export default function Layout(props: ParentProps) {
             aria-label={language.t("sidebar.automation")}
             onClick={openAutomationPage}
           >
-            <Icon name="autopilot" size="small" class="shrink-0 text-[#f59e0b]" />
+            <Icon name="autopilot" size="small" class="shrink-0 text-[var(--icon-warning-base)]" />
             <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.automation")}</span>
           </Button>
           {/* 命令面板开关（设置 → 通用 → 高级 → 命令面板）：关掉后这条入口整条消失。 */}
@@ -2660,8 +2847,8 @@ export default function Layout(props: ParentProps) {
               <Keybind class="shrink-0 text-ui-xs text-foreground-subtlest">{command.keybind("file.open")}</Keybind>
             </Button>
           </Show>
-          {/* 视图切换 + 打开项目：对齐 ZCode 侧栏任务行上方那排胶囊分段与右侧操作。
-             分段用滑动指示器（ZCode TabsList 同款），不是两个各自变色的按钮。 */}
+          {/* 视图切换 + 打开项目：任务行上方那排胶囊分段与右侧操作。
+             分段用滑动指示器，不是两个各自变色的按钮。 */}
           <div class="flex items-center gap-1 pt-1">
             <div class="relative flex h-7 shrink-0 items-center rounded-full bg-surface p-0.5">
               <span
@@ -2694,11 +2881,186 @@ export default function Layout(props: ParentProps) {
                 {language.t("sidebar.view.files")}
               </button>
             </div>
+            <span class="min-w-0 truncate px-1 text-ui-caption font-medium text-foreground-subtle">
+              {language.t("sidebar.workspaces.title")}
+            </span>
             {/* 「打开项目」保留；收起入口不在这里重复一份 —— 侧栏顶带已经有了，
                 同屏两个「折叠工作区」是重复入口（用户反馈的正是这个）。
                 入口改成菜单：「打开已有项目」之外再给「新建项目」，
                 两条路都在同一个 + 号里，不用先去文件管理器建好目录。 */}
             <div class="ml-auto flex shrink-0 items-center gap-0.5">
+              {/* 视图菜单：分组方式 / 排序方式 /
+                  工作区筛选 / 最近活动时间窗 / 恢复默认。
+                  偏好存在 layout 的持久化 store 里，刷新与切项目都不会丢。 */}
+              <DropdownMenu gutter={4} placement="bottom-end">
+                <DropdownMenu.Trigger
+                  as={IconButton}
+                  icon="sliders"
+                  variant="ghost"
+                  size="small"
+                  aria-label={language.t("sidebar.view.menu")}
+                  title={language.t("sidebar.view.menu")}
+                />
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content style={{ "min-width": "190px" }}>
+                    <DropdownMenu.Sub>
+                      <DropdownMenu.SubTrigger>
+                        <span>{language.t("sidebar.view.groupBy")}</span>
+                        <span class="ml-auto text-ui-xs text-foreground-subtlest">
+                          {language.t(`sidebar.view.groupBy.${layout.taskList.groupBy()}`)}
+                        </span>
+                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                      </DropdownMenu.SubTrigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
+                          <DropdownMenu.RadioGroup
+                            value={layout.taskList.groupBy()}
+                            onChange={(value) =>
+                              layout.taskList.setGroupBy(
+                                value === "date" || value === "custom" || value === "none" ? value : "workspace",
+                              )
+                            }
+                          >
+                            <For each={["workspace", "date", "custom", "none"] as const}>
+                              {(mode) => (
+                                <DropdownMenu.RadioItem value={mode} onSelect={() => layout.taskList.setGroupBy(mode)}>
+                                  <DropdownMenu.ItemLabel>
+                                    {language.t(`sidebar.view.groupBy.${mode}`)}
+                                  </DropdownMenu.ItemLabel>
+                                  <DropdownMenu.ItemIndicator>
+                                    <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                  </DropdownMenu.ItemIndicator>
+                                </DropdownMenu.RadioItem>
+                              )}
+                            </For>
+                          </DropdownMenu.RadioGroup>
+                          <DropdownMenu.Separator />
+                          <DropdownMenu.Item onSelect={() => dialog.show(() => <DialogTaskGroups />)}>
+                            <DropdownMenu.ItemLabel>{language.t("sidebar.task.group.manage")}</DropdownMenu.ItemLabel>
+                          </DropdownMenu.Item>
+                        </DropdownMenu.SubContent>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Sub>
+                    <DropdownMenu.Sub>
+                      <DropdownMenu.SubTrigger>
+                        <span>{language.t("sidebar.view.sortBy")}</span>
+                        <span class="ml-auto text-ui-xs text-foreground-subtlest">
+                          {language.t(`sidebar.view.sortBy.${layout.taskList.sortBy()}`)}
+                        </span>
+                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                      </DropdownMenu.SubTrigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
+                          <DropdownMenu.RadioGroup
+                            value={layout.taskList.sortBy()}
+                            onChange={(value) =>
+                              layout.taskList.setSortBy(value === "created" || value === "name" ? value : "recent")
+                            }
+                          >
+                            <For each={["recent", "created", "name"] as const}>
+                              {(order) => (
+                                <DropdownMenu.RadioItem value={order} onSelect={() => layout.taskList.setSortBy(order)}>
+                                  <DropdownMenu.ItemLabel>
+                                    {language.t(`sidebar.view.sortBy.${order}`)}
+                                  </DropdownMenu.ItemLabel>
+                                  <DropdownMenu.ItemIndicator>
+                                    <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                  </DropdownMenu.ItemIndicator>
+                                </DropdownMenu.RadioItem>
+                              )}
+                            </For>
+                          </DropdownMenu.RadioGroup>
+                        </DropdownMenu.SubContent>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Sub>
+                    <DropdownMenu.Sub>
+                      <DropdownMenu.SubTrigger>
+                        <span>{language.t("sidebar.view.workspace")}</span>
+                        <span class="ml-auto max-w-32 truncate text-ui-xs text-foreground-subtlest">
+                          {workspaceViewLabel()}
+                        </span>
+                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                      </DropdownMenu.SubTrigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.SubContent class="max-h-96 overflow-y-auto" style={{ "min-width": "180px" }}>
+                          <DropdownMenu.RadioGroup
+                            value={layout.taskList.workspace()}
+                            onChange={(value) => layout.taskList.setWorkspace(String(value))}
+                          >
+                            <DropdownMenu.RadioItem value="all" onSelect={() => layout.taskList.setWorkspace("all")}>
+                              <DropdownMenu.ItemLabel>
+                                {language.t("sidebar.view.workspace.all")}
+                              </DropdownMenu.ItemLabel>
+                              <DropdownMenu.ItemIndicator>
+                                <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                              </DropdownMenu.ItemIndicator>
+                            </DropdownMenu.RadioItem>
+                            <For each={projectList()}>
+                              {(project) => {
+                                const key = pathKey(project.worktree)
+                                return (
+                                  <DropdownMenu.RadioItem
+                                    value={key}
+                                    onSelect={() => layout.taskList.setWorkspace(key)}
+                                  >
+                                    <DropdownMenu.ItemLabel>
+                                      {project.name || getFilename(project.worktree)}
+                                    </DropdownMenu.ItemLabel>
+                                    <DropdownMenu.ItemIndicator>
+                                      <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                    </DropdownMenu.ItemIndicator>
+                                  </DropdownMenu.RadioItem>
+                                )
+                              }}
+                            </For>
+                          </DropdownMenu.RadioGroup>
+                        </DropdownMenu.SubContent>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Sub>
+                    <DropdownMenu.Sub>
+                      <DropdownMenu.SubTrigger>
+                        <span>{language.t("sidebar.view.recency")}</span>
+                        <span class="ml-auto text-ui-xs text-foreground-subtlest">
+                          {language.t(`sidebar.view.recency.${layout.taskList.recency()}`)}
+                        </span>
+                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                      </DropdownMenu.SubTrigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
+                          <DropdownMenu.RadioGroup
+                            value={layout.taskList.recency()}
+                            onChange={(value) =>
+                              layout.taskList.setRecency(
+                                value === "today" || value === "week" || value === "month" ? value : "all",
+                              )
+                            }
+                          >
+                            <For each={["all", "today", "week", "month"] as const}>
+                              {(window) => (
+                                <DropdownMenu.RadioItem
+                                  value={window}
+                                  onSelect={() => layout.taskList.setRecency(window)}
+                                >
+                                  <DropdownMenu.ItemLabel>
+                                    {language.t(`sidebar.view.recency.${window}`)}
+                                  </DropdownMenu.ItemLabel>
+                                  <DropdownMenu.ItemIndicator>
+                                    <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                  </DropdownMenu.ItemIndicator>
+                                </DropdownMenu.RadioItem>
+                              )}
+                            </For>
+                          </DropdownMenu.RadioGroup>
+                        </DropdownMenu.SubContent>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Sub>
+                    <DropdownMenu.Separator />
+                    <DropdownMenu.Item onSelect={() => layout.taskList.reset()}>
+                      <DropdownMenu.ItemLabel>{language.t("sidebar.view.reset")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu>
               <DropdownMenu gutter={4} placement="bottom-end">
                 <DropdownMenu.Trigger
                   as={IconButton}
@@ -2718,13 +3080,18 @@ export default function Layout(props: ParentProps) {
                       <Icon name="folder-add-left" size="small" />
                       <DropdownMenu.ItemLabel>{language.t("command.project.create")}</DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
+                    {/* 无工作区会话不依赖已打开项目，始终可从项目操作菜单进入。 */}
+                    <DropdownMenu.Item onSelect={() => navigateWithSidebarReset("/global-chat/session")}>
+                      <Icon name="comment" size="small" />
+                      <DropdownMenu.ItemLabel>{language.t("sidebar.globalChat.title")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
               </DropdownMenu>
             </div>
           </div>
         </div>
-        {/* 列表层与文件树层叠放：文件树是整层 slide-over（对齐 ZCode 的 WorkspaceFileTree），
+        {/* 列表层与文件树层叠放：文件树是整层 slide-over，
             不再用「任务/文件」分段控件把同一列替换掉。 */}
         <div class="relative flex-1 min-h-0">
           <div
@@ -2745,21 +3112,80 @@ export default function Layout(props: ParentProps) {
             />
 
             <Show
-              when={projectList().length > 0}
+              when={visibleProjects().length > 0}
               fallback={
                 <div class="flex-1 min-h-0 flex items-center justify-center px-6 pb-64 text-center">
-                  <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
-                    <div class="text-14-medium text-foreground">{language.t("sidebar.empty.title")}</div>
-                    <div class="text-14-regular text-foreground">{language.t("sidebar.empty.description")}</div>
-                    <Button size="large" icon="folder-add-left" onClick={chooseProject}>
-                      {language.t("command.project.open")}
-                    </Button>
-                  </div>
+                  <Show
+                    when={projectList().length > 0}
+                    fallback={
+                      <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
+                        <div class="text-14-medium text-foreground">{language.t("sidebar.empty.title")}</div>
+                        <div class="text-14-regular text-foreground">{language.t("sidebar.empty.description")}</div>
+                        <Button size="large" icon="folder-add-left" onClick={chooseProject}>
+                          {language.t("command.project.open")}
+                        </Button>
+                      </div>
+                    }
+                  >
+                    {/* 项目其实开着，只是被「视图 → 工作区」筛走了。
+                        不给一句说明的话这里看起来像侧栏坏了。 */}
+                    <div class="mt-8 flex max-w-60 flex-col items-center gap-3 text-center">
+                      <div class="text-14-regular text-foreground">{language.t("sidebar.view.workspaceEmpty")}</div>
+                      <Button
+                        size="large"
+                        variant="ghost"
+                        icon="folder"
+                        onClick={() => layout.taskList.setWorkspace("all")}
+                      >
+                        {language.t("sidebar.view.workspaceEmpty.action")}
+                      </Button>
+                    </div>
+                  </Show>
                 </div>
               }
             >
               <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 [overflow-anchor:none]">
-                <For each={projectList()}>
+                {/* 「视图 → 分组方式 = 不分组」：所有可见工作区的任务摊平成一张列表。
+                    mergedProject 只是给 ProjectTaskList 喂目录集合，分组头不渲染。 */}
+                <Show when={layout.taskList.groupBy() === "none"}>
+                  <ProjectTaskList
+                    project={mergedProject()}
+                    sidebarExpanded={() => layout.sidebar.expanded()}
+                    prefetchSession={prefetchSession}
+                    archiveSession={archiveSession}
+                    filter={taskFilter}
+                    archived={mergedArchived}
+                    sortNow={sortNow}
+                    pinned={layout.pinned.sessions}
+                    sort={layout.taskList.sortBy}
+                    recency={layout.taskList.recency}
+                  />
+                </Show>
+                {/* 「按日期 / 自定义」：每段一个 ProjectTaskList，段头与计数由它自己出，
+                    空段直接不渲染（四段日期里"没有半年前的任务"时不该挂一个空标题）。 */}
+                <For each={bucketList()}>
+                  {(bucket) => (
+                    <ProjectTaskList
+                      project={mergedProject()}
+                      sidebarExpanded={() => layout.sidebar.expanded()}
+                      prefetchSession={prefetchSession}
+                      archiveSession={archiveSession}
+                      filter={taskFilter}
+                      archived={mergedArchived}
+                      sortNow={sortNow}
+                      pinned={layout.pinned.sessions}
+                      sort={layout.taskList.sortBy}
+                      recency={layout.taskList.recency}
+                      where={bucket.where}
+                      bucket={{
+                        label: bucket.label,
+                        expanded: () => bucketExpanded(bucket.key),
+                        onToggle: () => toggleBucket(bucket.key),
+                      }}
+                    />
+                  )}
+                </For>
+                <For each={groupedProjects()}>
                   {(proj) => {
                     // 展开态直接读持久化的 store，不要用本地 signal 快照：
                     // 桌面端 `persisted` 走异步 IPC，面板先渲染、store 后水合，
@@ -2782,6 +3208,9 @@ export default function Layout(props: ParentProps) {
                         const sessions = globalSync.child(directory, { bootstrap: false })[0].session ?? []
                         for (const session of sessions) {
                           if (session.parentID || session.time?.archived) continue
+                          // 与下方列表同口径：「视图 → 最近活动」筛掉的会话不计入徽章，
+                          // 否则数字说"5"、列表只有 2 行。
+                          if (!withinRecency(session, layout.taskList.recency(), sortNow())) continue
                           if (filter === "all") {
                             total += 1
                             continue
@@ -2844,7 +3273,7 @@ export default function Layout(props: ParentProps) {
                             <span class="text-ui-caption text-foreground font-medium truncate min-w-0">
                               {projectName()}
                             </span>
-                            {/* 项目有多少任务：对齐 ZCode 分组头右侧那个圆角计数
+                            {/* 项目有多少任务：分组头右侧的圆角计数
                                 （只用缩进不写数字的话，收起时完全看不出里面有东西）。 */}
                             <Show when={(projectTaskCount(proj) ?? 0) > 0}>
                               <span class="ml-auto shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-ui-xs font-medium leading-none text-foreground-subtle tabular-nums">
@@ -2878,6 +3307,8 @@ export default function Layout(props: ParentProps) {
                               archived={projectArchived}
                               sortNow={sortNow}
                               pinned={layout.pinned.sessions}
+                              sort={layout.taskList.sortBy}
+                              recency={layout.taskList.recency}
                             />
                           </div>
                         </Show>
@@ -2911,6 +3342,10 @@ export default function Layout(props: ParentProps) {
               </div>
             </Show>
 
+            {/* 无工作区会话作为独立的「最近任务」分组，样式与工作区分组头一致。 */}
+            <div class="shrink-0 px-2 pb-2 pt-1">
+              <GlobalChatTasks />
+            </div>
             <div
               class="shrink-0 px-3 py-3"
               classList={{
@@ -3034,7 +3469,7 @@ export default function Layout(props: ParentProps) {
         id: "automation",
         icon: "autopilot",
         label: language.t("sidebar.automation"),
-        tone: "#f59e0b",
+        tone: "var(--icon-warning-base)",
         active: state.automationPage.open,
         onClick: openAutomationPage,
       })
@@ -3044,7 +3479,7 @@ export default function Layout(props: ParentProps) {
         id: "database",
         icon: "database",
         label: language.t("sidebar.database"),
-        tone: "var(--icon-blue)",
+        tone: "var(--icon-interactive-base)",
         active: state.databasePage.open,
         onClick: () => command.trigger("database.open"),
       })
@@ -3054,7 +3489,7 @@ export default function Layout(props: ParentProps) {
         id: "knowledge",
         icon: "review",
         label: language.t("sidebar.knowledge"),
-        tone: "#10b981",
+        tone: "var(--icon-success-base)",
         active: state.knowledgePage.open,
         onClick: openKnowledgePage,
       },
@@ -3062,7 +3497,7 @@ export default function Layout(props: ParentProps) {
         id: "teams",
         icon: "lu-users",
         label: language.t("sidebar.team"),
-        tone: "#0ea5e9",
+        tone: "var(--icon-info-base)",
         active: state.teamPage.open,
         onClick: openTeamPage,
       },
@@ -3070,7 +3505,7 @@ export default function Layout(props: ParentProps) {
         id: "extensions",
         icon: "dot-grid",
         label: language.t("sidebar.extensionsMarket"),
-        tone: "#ec4899",
+        tone: "var(--icon-agent-plan-base)",
         active: state.extensionsPage.open,
         onClick: openExtensionsPage,
       },
@@ -3078,7 +3513,7 @@ export default function Layout(props: ParentProps) {
         id: "kernel",
         icon: "lu-activity",
         label: language.t("sidebar.kernel"),
-        tone: "#6366f1",
+        tone: "var(--icon-agent-plan-base)",
         active: state.kernelPage.open,
         onClick: openKernelPage,
       },
@@ -3088,11 +3523,45 @@ export default function Layout(props: ParentProps) {
         id: "pulse",
         icon: "globe",
         label: language.t("sidebar.pulseWorkspace"),
-        tone: "#ff6b6b",
+        tone: "var(--icon-critical-base)",
         active: state.pulsePage.open,
         onClick: openPulsePage,
       },
     )
+
+    if (!params.dir) return items
+    const directorySlug = params.dir
+    const directory = currentDir()
+    const pluginContributions = directory
+      ? globalSync.child(directory, { bootstrap: false })[0].plugin_contributions
+      : []
+    for (const contribution of pluginContributions) {
+      if (contribution.kind !== "surface" || contribution.slot !== "sidebar.item" || contribution.status !== "active")
+        continue
+      if (!contribution.title) continue
+      const action = parsePluginSurfaceAction(contribution.action)
+      if (!action) continue
+      const viewPath =
+        action.type === "view" ? pluginSurfaceViewPath(directorySlug, contribution.pluginID, action.viewId) : undefined
+      items.push({
+        id: `plugin-surface:${contribution.pluginID}:${contribution.localName}`,
+        icon: contribution.icon && isIconName(contribution.icon) ? contribution.icon : "dot-grid",
+        label: contribution.title,
+        tone: "var(--icon-agent-plan-base)",
+        active: viewPath !== undefined && location.pathname === viewPath,
+        onClick: () => {
+          if (action.type === "command") {
+            command.trigger(action.command)
+            return
+          }
+          if (action.type === "url") {
+            openPluginSurfaceUrl(action.url)
+            return
+          }
+          navigate(pluginSurfaceViewPath(directorySlug, contribution.pluginID, action.viewId))
+        },
+      })
+    }
     return items
   }
 
@@ -3103,7 +3572,7 @@ export default function Layout(props: ParentProps) {
         id: "sideChat",
         icon: "speech-bubble",
         label: language.t("sidebar.sideChat"),
-        tone: "#8b5cf6",
+        tone: "var(--icon-agent-plan-base)",
         onClick: openSideChatFromSidebar,
       })
     }
@@ -3128,7 +3597,7 @@ export default function Layout(props: ParentProps) {
   return (
     <div
       // 窗口根底色比面板暗（深色主题下比面板亮）一档，让四帧之间那 4px 外留白/间隙成为可视线，
-      // 而不是和面板同色糊成一片。对应 ZCode 的 `bg-background-win-alt`。
+      // 而不是和面板同色糊成一片。
       class="relative bg-background-win-alt flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
       style={{
         ...modeStyle(),
@@ -3170,7 +3639,7 @@ export default function Layout(props: ParentProps) {
                 classList={{
                   "hidden xl:block": true,
                   "transition-[width] will-change-[width] motion-reduce:transition-none": true,
-                  // 侧栏是 flush 的：不设边框与圆角，直接铺在窗口根色上（对齐 ZCode —— 侧栏
+                  // 侧栏是 flush 的：不设边框与圆角，直接铺在窗口根色上（侧栏
                   // 不作为一个「帧」，4px 外留白只给右侧主工作区）。
                   "absolute inset-y-0 left-0": true,
                   "z-10": true,
@@ -3201,7 +3670,7 @@ export default function Layout(props: ParentProps) {
                         </button>
                       </Tooltip>
                     }
-                    // 主题切换在**底部**、设置之上（与 ZCode 的底部工具区一致）；
+                    // 主题切换在**底部**、设置之上；
                     // 它有圆形扩散的切换动效，不能塞进 SidebarRailItem 的纯 onClick 列表，
                     // 所以走 footerLeading 槽。
                     footerLeading={<ThemeSchemeToggle variant="icon" />}
@@ -3291,7 +3760,7 @@ export default function Layout(props: ParentProps) {
                 "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
               }}
             >
-              {/* 展开入口已移进会话帧 Header（对齐 ZCode：侧栏收起时展开按钮归 Header，
+              {/* 展开入口已移进会话帧 Header（侧栏收起时展开按钮归 Header，
                   展开时收起入口归侧栏顶带）。原先浮在这里的那个 chevron 只有 24px，
                   还正好压在 Header 标题上，既难点中又遮住标题。 */}
               <main class="size-full overflow-x-hidden flex flex-col items-start min-w-0">

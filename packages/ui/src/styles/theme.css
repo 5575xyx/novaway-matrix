@@ -56,11 +56,11 @@
   --letter-spacing-wider: 0.025em;
   --paragraph-spacing-base: 0;
 
-  /* 圆角系统：对齐 ZCode（= Tailwind 默认刻度）。
+  /* 圆角系统：Tailwind 默认刻度。
    *
-   * ZCode 的 styles.css 没有覆盖 --radius-*，用的就是 Tailwind 默认值，
-   * DESIGN.md 的「容器层级 rounded-xl → lg → md → sm，控件默认 rounded-lg」全部基于这套刻度。
-   * 旧版是 Aurora 的 6/8/12/16/20，与 ZCode 的 4/6/8/12/16 整体偏大一级。
+   * --radius-* 用 Tailwind 默认值，
+   * 「容器层级 rounded-xl → lg → md → sm，控件默认 rounded-lg」全部基于这套刻度。
+   * 旧版是 Aurora 的 6/8/12/16/20，与现刻度 4/6/8/12/16 相比整体偏大一级。
    */
   --radius-xs: 2px;
   --radius-sm: 4px;
@@ -97,43 +97,52 @@
   --radius-xs: 0.125rem;
 
   --shadow-xs:
-    0 1px 2px -0.5px light-dark(hsl(215 20% 25% / 0.05), hsl(0 0% 0% / 0.06)),
-    0 0.5px 1.5px 0 light-dark(hsl(215 20% 25% / 0.03), hsl(0 0% 0% / 0.08)),
-    0 1px 3px 0 light-dark(hsl(215 20% 25% / 0.06), hsl(0 0% 0% / 0.1));
+    0 1px 2px -0.5px color-mix(in srgb, var(--text-strong) 5%, transparent),
+    0 0.5px 1.5px 0 color-mix(in srgb, var(--text-strong) 3%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--text-strong) 6%, transparent);
   --shadow-md:
-    0 6px 12px -2px light-dark(hsl(215 20% 25% / 0.08), hsl(0 0% 0% / 0.1)),
-    0 4px 8px -2px light-dark(hsl(215 20% 25% / 0.08), hsl(0 0% 0% / 0.15)),
-    0 1px 2px light-dark(hsl(215 20% 25% / 0.1), hsl(0 0% 0% / 0.15));
+    0 6px 12px -2px color-mix(in srgb, var(--text-strong) 8%, transparent),
+    0 4px 8px -2px color-mix(in srgb, var(--text-strong) 8%, transparent),
+    0 1px 2px color-mix(in srgb, var(--text-strong) 10%, transparent);
   --shadow-lg:
-    0 16px 48px -6px light-dark(hsl(215 20% 25% / 0.06), hsl(0 0% 0% / 0.15)),
-    0 6px 12px -2px light-dark(hsl(215 20% 25% / 0.03), hsl(0 0% 0% / 0.1)),
-    0 1px 2.5px light-dark(hsl(215 20% 25% / 0.03), hsl(0 0% 0% / 0.1));
-  --shadow-xxs-border: 0 0 0 0.5px var(--border-weak-base, rgba(30, 58, 95, 0.08));
+    0 16px 48px -6px color-mix(in srgb, var(--text-strong) 6%, transparent),
+    0 6px 12px -2px color-mix(in srgb, var(--text-strong) 3%, transparent),
+    0 1px 2.5px color-mix(in srgb, var(--text-strong) 3%, transparent);
+  --shadow-xxs-border: 0 0 0 0.5px var(--border-weak-base);
   --shadow-xs-border:
-    0 0 0 1px var(--border-base, rgba(30, 58, 95, 0.2)), 0 1px 2px -1px rgba(30, 58, 95, 0.04),
-    0 1px 2px 0 rgba(30, 58, 95, 0.06), 0 1px 3px 0 rgba(30, 58, 95, 0.08);
+    0 0 0 1px var(--border-base), 0 1px 2px -1px color-mix(in srgb, var(--text-strong) 4%, transparent),
+    0 1px 2px 0 color-mix(in srgb, var(--text-strong) 6%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--text-strong) 8%, transparent);
   --shadow-xs-border-base:
-    0 0 0 1px var(--border-weak-base, rgba(30, 58, 95, 0.12)), 0 1px 2px -1px rgba(30, 58, 95, 0.04),
-    0 1px 2px 0 rgba(30, 58, 95, 0.06), 0 1px 3px 0 rgba(30, 58, 95, 0.08);
+    0 0 0 1px var(--border-weak-base), 0 1px 2px -1px color-mix(in srgb, var(--text-strong) 4%, transparent),
+    0 1px 2px 0 color-mix(in srgb, var(--text-strong) 6%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--text-strong) 8%, transparent);
   --shadow-xs-border-select:
-    0 0 0 3px var(--border-weak-selected, rgba(1, 103, 255, 0.29)),
-    0 0 0 1px var(--border-selected, rgba(0, 74, 255, 0.99)), 0 1px 2px -1px rgba(30, 58, 95, 0.25),
-    0 1px 2px 0 rgba(30, 58, 95, 0.08), 0 1px 3px 0 rgba(30, 58, 95, 0.12);
+    0 0 0 3px var(--border-weak-selected), 0 0 0 1px var(--border-selected),
+    0 1px 2px -1px color-mix(in srgb, var(--text-strong) 25%, transparent),
+    0 1px 2px 0 color-mix(in srgb, var(--text-strong) 8%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--text-strong) 12%, transparent);
   --shadow-xs-border-focus:
-    0 0 0 1px var(--border-base, rgba(30, 58, 95, 0.2)), 0 1px 2px -1px rgba(30, 58, 95, 0.25),
-    0 1px 2px 0 rgba(30, 58, 95, 0.08), 0 1px 3px 0 rgba(30, 58, 95, 0.12), 0 0 0 2px var(--background-weak, #e4e8ee),
-    0 0 0 3px var(--border-selected, rgba(0, 74, 255, 0.99));
+    0 0 0 1px var(--border-base), 0 1px 2px -1px color-mix(in srgb, var(--text-strong) 25%, transparent),
+    0 1px 2px 0 color-mix(in srgb, var(--text-strong) 8%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--text-strong) 12%, transparent), 0 0 0 2px var(--background-weak),
+    0 0 0 3px var(--border-selected);
   --shadow-xs-border-hover:
-    0 0 0 1px var(--border-weak-selected, rgba(0, 112, 255, 0.22)), 0 1px 2px -1px rgba(30, 58, 95, 0.04),
-    0 1px 2px 0 rgba(30, 58, 95, 0.06), 0 1px 3px 0 rgba(30, 58, 95, 0.08);
-  --shadow-xs-border-critical-base: 0 0 0 1px var(--border-critical-selected, #fc543a);
+    0 0 0 1px var(--border-weak-selected), 0 1px 2px -1px color-mix(in srgb, var(--text-strong) 4%, transparent),
+    0 1px 2px 0 color-mix(in srgb, var(--text-strong) 6%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--text-strong) 8%, transparent);
+  --shadow-xs-border-critical-base: 0 0 0 1px var(--border-critical-selected);
   --shadow-xs-border-critical-focus:
-    0 0 0 3px var(--border-critical-weak, rgba(251, 34, 0, 0.18)), 0 0 0 1px var(--border-critical-selected, #fc543a),
-    0 1px 2px -1px rgba(30, 58, 95, 0.25), 0 1px 2px 0 rgba(30, 58, 95, 0.08), 0 1px 3px 0 rgba(30, 58, 95, 0.12);
+    0 0 0 3px var(--border-critical-weak), 0 0 0 1px var(--border-critical-selected),
+    0 1px 2px -1px color-mix(in srgb, var(--text-strong) 25%, transparent),
+    0 1px 2px 0 color-mix(in srgb, var(--text-strong) 8%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--text-strong) 12%, transparent);
   --shadow-lg-border-base:
-    0 0 0 1px var(--border-weak-base, rgba(30, 58, 95, 0.08)), 0 36px 80px 0 rgba(30, 58, 95, 0.03),
-    0 13.141px 29.201px 0 rgba(30, 58, 95, 0.04), 0 6.38px 14.177px 0 rgba(30, 58, 95, 0.05),
-    0 3.127px 6.95px 0 rgba(30, 58, 95, 0.06), 0 1.237px 2.748px 0 rgba(30, 58, 95, 0.09);
+    0 0 0 1px var(--border-weak-base), 0 36px 80px 0 color-mix(in srgb, var(--text-strong) 3%, transparent),
+    0 13.141px 29.201px 0 color-mix(in srgb, var(--text-strong) 4%, transparent),
+    0 6.38px 14.177px 0 color-mix(in srgb, var(--text-strong) 5%, transparent),
+    0 3.127px 6.95px 0 color-mix(in srgb, var(--text-strong) 6%, transparent),
+    0 1.237px 2.748px 0 color-mix(in srgb, var(--text-strong) 9%, transparent);
 
   color-scheme: light;
   --text-mix-blend-mode: multiply;

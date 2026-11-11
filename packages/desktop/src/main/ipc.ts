@@ -1,5 +1,6 @@
+import { writeLocalFileBase64Atomically } from "./conditional-file-write"
 import { execFile } from "node:child_process"
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import {
@@ -18,6 +19,7 @@ import {
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron"
 
 import { copyLocalFileToClipboard, downloadUrlToTempFile } from "./clipboard-file"
+import { getInstalledEditors, openInEditor } from "./editors"
 
 import type {
   InitStep,
@@ -94,6 +96,8 @@ type Deps = {
   awaitInitialization: (sendStep: (step: InitStep) => void) => Promise<ServerReadyData>
   getWindowConfig: () => Promise<WindowConfig> | WindowConfig
   consumeInitialDeepLinks: () => Promise<string[]> | string[]
+  /** 启动时系统通过命令行 / Finder 递进来的文件；取走即清空。 */
+  consumeInitialOpenFiles: () => Promise<string[]> | string[]
   getDefaultServerUrl: () => Promise<string | null> | string | null
   setDefaultServerUrl: (url: string | null) => Promise<void> | void
   getWslConfig: () => Promise<WslConfig>
@@ -131,6 +135,7 @@ export function registerIpcHandlers(deps: Deps) {
   })
   ipcMain.handle("get-window-config", () => deps.getWindowConfig())
   ipcMain.handle("consume-initial-deep-links", () => deps.consumeInitialDeepLinks())
+  ipcMain.handle("consume-initial-open-files", () => deps.consumeInitialOpenFiles())
   ipcMain.handle("get-default-server-url", () => deps.getDefaultServerUrl())
   ipcMain.handle("set-default-server-url", (_event: IpcMainInvokeEvent, url: string | null) =>
     deps.setDefaultServerUrl(url),
@@ -157,7 +162,7 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("update:auto-enabled", (_event: IpcMainInvokeEvent, enabled: boolean) => deps.setAutoUpdate(enabled))
   ipcMain.handle("install-update", () => deps.installUpdate())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
-  // 窗口控制：ZCode 在 Header 里内联自绘最小化/最大化/关闭，不用 Windows 原生 titleBarOverlay。
+  // 窗口控制：在 Header 里内联自绘最小化/最大化/关闭，不用 Windows 原生 titleBarOverlay。
   // 最大化状态要让渲染层知道，才能切换图标（最大化↔还原）。
   ipcMain.handle("window:minimize", () => deps.minimizeWindow())
   ipcMain.handle("window:toggle-maximize", () => deps.toggleMaximizeWindow())
@@ -433,6 +438,50 @@ export function registerIpcHandlers(deps: Deps) {
     }
   })
 
+  // 二进制写回（PDF 拆分后的多个文件等）：先写临时文件再 rename，
+  // 和目标文件正被别的程序打开时也能落盘，不会留下写了一半的文件。
+  ipcMain.handle(
+    "write-local-file-base64",
+    async (_event: IpcMainInvokeEvent, filePath: string, data: string, expectedBaselineSha256?: string) =>
+      writeLocalFileBase64Atomically(filePath, data, expectedBaselineSha256),
+  )
+
+  /**
+   * HTML → PDF（预览面板的「导出 PDF」）。
+   *
+   * 用离屏窗口让 Chromium 自己排版：和屏幕上看到的分页、字体一致，
+   * 不需要再引一份 PDF 生成库。HTML 先落到临时文件再 loadFile ——
+   * data: URL 在 Chromium 里有长度上限，长文档会被截断。
+   */
+  ipcMain.handle(
+    "print-to-pdf",
+    async (_event: IpcMainInvokeEvent, payload: { html: string; filePath: string; landscape?: boolean }) => {
+      const dir = await mkdtemp(path.join(os.tmpdir(), "novaway-print-"))
+      const source = path.join(dir, "document.html")
+      try {
+        await writeFile(source, payload.html, "utf8")
+        const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } })
+        try {
+          await window.loadFile(source)
+          const pdf = await window.webContents.printToPDF({
+            printBackground: true,
+            landscape: payload.landscape ?? false,
+            margins: { marginType: "default" },
+          })
+          await writeFile(payload.filePath, pdf)
+          return true
+        } finally {
+          window.destroy()
+        }
+      } catch (error) {
+        console.warn("导出 PDF 失败", error)
+        return false
+      } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => {})
+      }
+    },
+  )
+
   ipcMain.handle(
     "save-file-picker",
     async (_event: IpcMainInvokeEvent, opts?: { title?: string; defaultPath?: string; data?: Uint8Array }) => {
@@ -465,6 +514,13 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.on("open-link", (_event: IpcMainEvent, url: string) => {
     void shell.openExternal(url)
   })
+
+  ipcMain.handle("get-installed-editors", () => getInstalledEditors())
+  ipcMain.handle(
+    "open-in-editor",
+    (_event: IpcMainInvokeEvent, editorId: string, targetPath: string, kind: "file" | "directory") =>
+      openInEditor(editorId, targetPath, kind),
+  )
 
   ipcMain.handle("open-path", async (_event: IpcMainInvokeEvent, path: string, app?: string) => {
     if (!app) return shell.openPath(path)
@@ -650,7 +706,7 @@ export function registerIpcHandlers(deps: Deps) {
         avatar,
         cookies: result.loginCookie || "",
         fansCount: result.fansCount || 0,
-      }).catch(() => ({} as any))
+      }).catch(() => ({}) as any)
       nickname = patch.nickname || nickname
       avatar = patch.avatar || avatar
       uid = uid || patch.uid || ""
@@ -696,7 +752,7 @@ export function registerIpcHandlers(deps: Deps) {
     if (valid) {
       // 巡检顺便补资料：旧版本迁移过来的记录里昵称/头像是空的，
       // 用户点一次"一键检测"就该自动长回来。
-      const patch = await resolveProfile(platform, account).catch(() => ({} as any))
+      const patch = await resolveProfile(platform, account).catch(() => ({}) as any)
       if (Object.keys(patch).length > 0) updateAccountInfo(id, patch)
       return { valid, nickname: patch.nickname, avatar: patch.avatar }
     }
@@ -716,7 +772,7 @@ export function registerIpcHandlers(deps: Deps) {
         let nickname: string | undefined
         let avatar: string | undefined
         if (valid) {
-          const patch = await resolveProfile(platform, account).catch(() => ({} as any))
+          const patch = await resolveProfile(platform, account).catch(() => ({}) as any)
           if (Object.keys(patch).length > 0) updateAccountInfo(id, patch)
           nickname = patch.nickname
           avatar = patch.avatar
@@ -803,65 +859,59 @@ export function registerIpcHandlers(deps: Deps) {
    * 批次结束后写入历史，前端可随时用 `platform:get-publish-batches` 取回。
    * 同一时刻只允许一个批次在跑：多个批次会用同一个 store 抢写，还会互相抢窗口焦点。
    */
-  ipcMain.handle(
-    "platform:publish-batch",
-    async (event, payload: { accountIds: string[]; input: PublishInput }) => {
-      if (activePublish) return { ok: false, error: "已有发布任务在进行中" }
-      const accounts = payload.accountIds
-        .map((id) => getAccount(id))
-        .filter((account): account is NonNullable<typeof account> => !!account)
-        .map((account) => ({
-          id: account.id,
-          platform: account.platform,
-          nickname: account.nickname,
-          cookies: account.cookies,
-        }))
-      if (accounts.length === 0) return { ok: false, error: "没有可发布的账号" }
+  ipcMain.handle("platform:publish-batch", async (event, payload: { accountIds: string[]; input: PublishInput }) => {
+    if (activePublish) return { ok: false, error: "已有发布任务在进行中" }
+    const accounts = payload.accountIds
+      .map((id) => getAccount(id))
+      .filter((account): account is NonNullable<typeof account> => !!account)
+      .map((account) => ({
+        id: account.id,
+        platform: account.platform,
+        nickname: account.nickname,
+        cookies: account.cookies,
+      }))
+    if (accounts.length === 0) return { ok: false, error: "没有可发布的账号" }
 
-      const controller = new AbortController()
-      activePublish = controller
-      const sender = event.sender
+    const controller = new AbortController()
+    activePublish = controller
+    const sender = event.sender
 
-      void runPublishBatch(
-        accounts,
-        payload.input,
-        ({ batchId, result }) => {
-          if (sender.isDestroyed()) return
-          try {
-            sender.send("platform:publish-progress", { batchId, result })
-          } catch {
-            /* 窗口已关闭：批次继续跑完并落盘即可 */
-          }
-        },
-        controller.signal,
-      )
-        .then((batch) => {
-          savePublishBatch(batch)
-          if (!sender.isDestroyed()) sender.send("platform:publish-finished", batch)
-        })
-        .catch((error) => {
-          if (!sender.isDestroyed()) {
-            sender.send("platform:publish-finished", { error: error instanceof Error ? error.message : String(error) })
-          }
-        })
-        .finally(() => {
-          if (activePublish === controller) activePublish = undefined
-        })
+    void runPublishBatch(
+      accounts,
+      payload.input,
+      ({ batchId, result }) => {
+        if (sender.isDestroyed()) return
+        try {
+          sender.send("platform:publish-progress", { batchId, result })
+        } catch {
+          /* 窗口已关闭：批次继续跑完并落盘即可 */
+        }
+      },
+      controller.signal,
+    )
+      .then((batch) => {
+        savePublishBatch(batch)
+        if (!sender.isDestroyed()) sender.send("platform:publish-finished", batch)
+      })
+      .catch((error) => {
+        if (!sender.isDestroyed()) {
+          sender.send("platform:publish-finished", { error: error instanceof Error ? error.message : String(error) })
+        }
+      })
+      .finally(() => {
+        if (activePublish === controller) activePublish = undefined
+      })
 
-      return { ok: true }
-    },
-  )
+    return { ok: true }
+  })
 
   /**
    * 发布前预检：渲染层在点「发布」时先问一次，把问题展示给用户再决定。
    * 主进程在 runner 里还会再跑一遍 —— 这条路是给人看的，那条是兜底。
    */
-  ipcMain.handle(
-    "platform:publish-precheck",
-    async (_event, payload: { platforms: string[]; input: PublishInput }) => {
-      return precheckPublish(payload.input, payload.platforms ?? [])
-    },
-  )
+  ipcMain.handle("platform:publish-precheck", async (_event, payload: { platforms: string[]; input: PublishInput }) => {
+    return precheckPublish(payload.input, payload.platforms ?? [])
+  })
 
   ipcMain.handle("platform:cancel-publish", async () => {
     activePublish?.abort()
@@ -896,4 +946,14 @@ export function sendUpdateStatus(win: BrowserWindow, status: unknown) {
 
 export function sendDeepLinks(win: BrowserWindow, urls: string[]) {
   win.webContents.send("deep-link", urls)
+}
+
+/**
+ * 从系统里打开的文档（Finder 双击 / 资源管理器「打开方式」/ 拖到图标上）。
+ *
+ * 和深链一样是「外部事件推到渲染进程」，区别是载荷是本地文件路径；
+ * 渲染进程拿到后按普通文件打开成右侧标签。
+ */
+export function sendOpenFiles(win: BrowserWindow, paths: string[]) {
+  win.webContents.send("open-files", paths)
 }

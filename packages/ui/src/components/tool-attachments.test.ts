@@ -1,5 +1,12 @@
-import { describe, expect, test } from "bun:test"
-import { imageAttachmentsOf, toolImageAttachments } from "./tool-attachments"
+import { describe, expect, mock, test } from "bun:test"
+
+// The behavior under test is attachment filtering; keep the core classifier out of the unit-test
+// dependency graph so the UI package tests do not require workspace package symlinks.
+mock.module("@novaway/core/tool-media", () => ({
+  isScreenshotTool: (tool: string) => tool === "browser_screenshot" || tool === "computer_screenshot",
+}))
+
+const { imageAttachmentsOf, toolImageAttachments } = await import("./tool-attachments")
 
 const img = (url: string, filename?: string) => ({ type: "file", mime: "image/png", url, filename })
 
@@ -8,9 +15,7 @@ describe("工具行里的图片附件", () => {
   // `read` 行里（展开可见），而不是被时间线当成「验证结果」挂到回复末尾。
   test("read 读进来的图片属于这一行", () => {
     const state = { attachments: [img("data:image/png;base64,AAA", "原型.png")] }
-    expect(toolImageAttachments("read", state)).toEqual([
-      { url: "data:image/png;base64,AAA", filename: "原型.png" },
-    ])
+    expect(toolImageAttachments("read", state)).toEqual([{ url: "data:image/png;base64,AAA", filename: "原型.png" }])
   })
 
   test("截图工具的图片不在这里重复渲染（它们在轮尾「验证结果」）", () => {

@@ -318,21 +318,23 @@ describe("team HttpApi", () => {
       type Detail = {
         teams: Array<{ id: string; profileID?: string; profileVersion?: number }>
       }
-      const captain = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "甲", job: "review" })).json) as {
+      const captain = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "甲", job: "review" }))
+        .json) as {
         id: string
       }
-      const profile = (yield* (
-        yield* post(dir, "/team/profile", {
-          directory: dir,
-          name: "审查组",
-          captain: captain.id,
-          members: [{ employeeID: captain.id }],
-        })
-      ).json) as { profile: { id: string; version: number } }
+      const profile = (yield* (yield* post(dir, "/team/profile", {
+        directory: dir,
+        name: "审查组",
+        captain: captain.id,
+        members: [{ employeeID: captain.id }],
+      })).json) as { profile: { id: string; version: number } }
 
-      const run = (yield* (
-        yield* post(dir, "/run", { sessionID: "ses_plan_roster", directory: dir, mode: "team", goal: "审查" })
-      ).json) as { run: { id: string } }
+      const run = (yield* (yield* post(dir, "/run", {
+        sessionID: "ses_plan_roster",
+        directory: dir,
+        mode: "team",
+        goal: "审查",
+      })).json) as { run: { id: string } }
       const planned = yield* post(dir, `/run/${run.run.id}/plan`, {
         directory: dir,
         teams: [{ name: "审查组", profileID: profile.profile.id }],
@@ -349,9 +351,12 @@ describe("team HttpApi", () => {
       expect(after.teams[0].profileVersion).toBe(1)
 
       // 计划点名一个不存在的模板：现在拒绝还能说清是哪一步错了。
-      const other = (yield* (
-        yield* post(dir, "/run", { sessionID: "ses_plan_missing", directory: dir, mode: "team", goal: "审查" })
-      ).json) as { run: { id: string } }
+      const other = (yield* (yield* post(dir, "/run", {
+        sessionID: "ses_plan_missing",
+        directory: dir,
+        mode: "team",
+        goal: "审查",
+      })).json) as { run: { id: string } }
       const missing = yield* post(dir, `/run/${other.run.id}/plan`, {
         directory: dir,
         teams: [{ name: "不存在的组", profileID: "prof_missing" }],
@@ -364,15 +369,13 @@ describe("team HttpApi", () => {
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })
       const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
-      const created = (yield* (
-        yield* post(dir, "/run", {
-          sessionID: "ses_run_tasks",
-          directory: dir,
-          mode: "team",
-          goal: "审查这次改动",
-          profileID: profiles[0].id,
-        })
-      ).json) as { run: { id: string }; teams: Array<{ id: string }> }
+      const created = (yield* (yield* post(dir, "/run", {
+        sessionID: "ses_run_tasks",
+        directory: dir,
+        mode: "team",
+        goal: "审查这次改动",
+        profileID: profiles[0].id,
+      })).json) as { run: { id: string }; teams: Array<{ id: string }> }
       const teamID = created.teams[0].id
       const now = Date.now()
       // 运行里创建的任务挂在运行团队上（`team_run_team.id`），不是会话临时团队。
@@ -396,21 +399,35 @@ describe("team HttpApi", () => {
       )
 
       const detail = (yield* (yield* get(dir, "/run/" + created.run.id, dir)).json) as {
-        teams: Array<{ id: string; tasks?: Array<{ id: string; subject: string; status: string; owner?: string }> }>
+        teams: Array<{
+          id: string
+          tasks?: Array<{
+            id: string
+            subject: string
+            status: string
+            owner?: string
+            createdAt: number
+            updatedAt: number
+          }>
+        }>
       }
       // 看板要能回答「做到哪一步、谁在做」，而不是只有状态机。
-      expect(detail.teams[0].tasks).toEqual([
+      expect(detail.teams[0].tasks).toMatchObject([
         { id: "task_board_1", subject: "补 refund 边界用例", status: "in_progress", owner: "ses_member" },
       ])
+      expect(detail.teams[0].tasks?.[0]).toMatchObject({ createdAt: now, updatedAt: now })
     }),
   )
 
   it.live("execute accepts an empty body: that is what the board's button sends", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })
-      const created = (yield* (
-        yield* post(dir, "/run", { sessionID: "ses_empty_execute", directory: dir, mode: "team", goal: "空请求体" })
-      ).json) as { run: { id: string } }
+      const created = (yield* (yield* post(dir, "/run", {
+        sessionID: "ses_empty_execute",
+        directory: dir,
+        mode: "team",
+        goal: "空请求体",
+      })).json) as { run: { id: string } }
       const id = created.run.id
       yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "alpha" }] })
       yield* post(dir, `/run/${id}/approve`, { directory: dir, planVersion: 1, budget: { tokens: 10_000 } })
@@ -429,9 +446,12 @@ describe("team HttpApi", () => {
   it.live("an approval only covers the plan version it was given for", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })
-      const created = (yield* (
-        yield* post(dir, "/run", { sessionID: "ses_approval", directory: dir, mode: "team", goal: "审查" })
-      ).json) as { run: { id: string } }
+      const created = (yield* (yield* post(dir, "/run", {
+        sessionID: "ses_approval",
+        directory: dir,
+        mode: "team",
+        goal: "审查",
+      })).json) as { run: { id: string } }
       const id = created.run.id
 
       // 还没批准：执行是拒绝的，而不是拿一份没人批过的计划开跑。
@@ -439,15 +459,16 @@ describe("team HttpApi", () => {
       expect(early.status).toBe(400)
 
       yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "alpha" }] })
-      const approved = (yield* (
-        yield* post(dir, `/run/${id}/approve`, { directory: dir, planVersion: 1, budget: { tokens: 10_000 } })
-      ).json) as { run: { state: string } }
+      const approved = (yield* (yield* post(dir, `/run/${id}/approve`, {
+        directory: dir,
+        planVersion: 1,
+        budget: { tokens: 10_000 },
+      })).json) as { run: { state: string } }
       expect(approved.run.state).toBe("running")
 
       // 批准之后改计划：版本变了，旧批准不再代表它，运行退回等批准（§13.1）。
-      const replanned = (yield* (
-        yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "beta" }] })
-      ).json) as { run: { state: string; planVersion: number } }
+      const replanned = (yield* (yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "beta" }] }))
+        .json) as { run: { state: string; planVersion: number } }
       expect(replanned.run.planVersion).toBe(2)
       expect(replanned.run.state).toBe("awaiting_approval")
 
@@ -689,31 +710,33 @@ describe("team HttpApi", () => {
         }
         members: Array<{ employeeID: string; role: string; duty?: string; order: number }>
       }
-      const first = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "甲", job: "review" })).json) as {
+      const first = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "甲", job: "review" }))
+        .json) as {
         id: string
       }
-      const second = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "乙", job: "review" })).json) as {
+      const second = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "乙", job: "review" }))
+        .json) as {
         id: string
       }
-      const third = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "丙", job: "review" })).json) as {
+      const third = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "丙", job: "review" }))
+        .json) as {
         id: string
       }
 
-      const created = (yield* (
-        yield* post(dir, "/team/profile", {
-          directory: dir,
-          name: "两人组",
-          description: "旧描述",
-          captain: first.id,
-          members: [{ employeeID: first.id }, { employeeID: second.id, duty: "只看测试" }],
-        })
-      ).json) as Detail
+      const created = (yield* (yield* post(dir, "/team/profile", {
+        directory: dir,
+        name: "两人组",
+        description: "旧描述",
+        captain: first.id,
+        members: [{ employeeID: first.id }, { employeeID: second.id, duty: "只看测试" }],
+      })).json) as Detail
       expect(created.profile.version).toBe(1)
 
       // 改名：没传的字段保持原样，版本 +1。
-      const renamed = (yield* (
-        yield* patch(dir, `/team/profile/${created.profile.id}`, { name: "三人组", autoEligible: true })
-      ).json) as Detail
+      const renamed = (yield* (yield* patch(dir, `/team/profile/${created.profile.id}`, {
+        name: "三人组",
+        autoEligible: true,
+      })).json) as Detail
       expect(renamed.profile).toMatchObject({
         name: "三人组",
         description: "旧描述",
@@ -724,9 +747,8 @@ describe("team HttpApi", () => {
       })
 
       // 只换队长：名册行的 role 跟着走，顺序不变。
-      const swapped = (yield* (
-        yield* patch(dir, `/team/profile/${created.profile.id}`, { captain: second.id })
-      ).json) as Detail
+      const swapped = (yield* (yield* patch(dir, `/team/profile/${created.profile.id}`, { captain: second.id }))
+        .json) as Detail
       expect(swapped.profile.captainMember).toBe(second.id)
       expect(swapped.profile.version).toBe(3)
       expect(swapped.members.map((member) => [member.employeeID, member.role])).toEqual([
@@ -735,12 +757,10 @@ describe("team HttpApi", () => {
       ])
 
       // 整表替换：顺序即 order，被删掉的人不在名册里。
-      const replaced = (yield* (
-        yield* patch(dir, `/team/profile/${created.profile.id}`, {
-          description: "  ",
-          members: [{ employeeID: third.id, duty: "安全" }, { employeeID: second.id }],
-        })
-      ).json) as Detail
+      const replaced = (yield* (yield* patch(dir, `/team/profile/${created.profile.id}`, {
+        description: "  ",
+        members: [{ employeeID: third.id, duty: "安全" }, { employeeID: second.id }],
+      })).json) as Detail
       expect(replaced.profile.description).toBeUndefined()
       expect(replaced.profile.version).toBe(4)
       expect(replaced.members.map((member) => [member.employeeID, member.order, member.role])).toEqual([
@@ -757,10 +777,7 @@ describe("team HttpApi", () => {
       expect((yield* patch(dir, `/team/profile/${created.profile.id}`, { captain: "emp_missing" })).status).toBe(400)
       expect(
         (yield* patch(dir, `/team/profile/${created.profile.id}`, {
-          members: [
-            { employeeID: third.id },
-            { employeeID: third.id },
-          ],
+          members: [{ employeeID: third.id }, { employeeID: third.id }],
         })).status,
       ).toBe(400)
       expect((yield* patch(dir, "/team/profile/prof_missing", { name: "不存在" })).status).toBe(404)
@@ -793,16 +810,14 @@ describe("team HttpApi", () => {
       const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
       const profile = profiles[0]
       // 两次运行：一次团体、一次带计划里同一个团队 —— 指标按目录取样。
-      const first = (yield* (
-        yield* post(dir, "/run", {
-          sessionID: "ses_metrics_a",
-          directory: dir,
-          mode: "team",
-          goal: "第一次",
-          profileID: profile.id,
-          acceptance: [{ text: "没有高危问题" }],
-        })
-      ).json) as { run: { id: string } }
+      const first = (yield* (yield* post(dir, "/run", {
+        sessionID: "ses_metrics_a",
+        directory: dir,
+        mode: "team",
+        goal: "第一次",
+        profileID: profile.id,
+        acceptance: [{ text: "没有高危问题" }],
+      })).json) as { run: { id: string } }
       yield* post(dir, "/run", {
         sessionID: "ses_metrics_b",
         directory: dir,
@@ -839,9 +854,7 @@ describe("team HttpApi", () => {
       expect(elsewhere.window.runs).toBe(0)
 
       // 按团队过滤：同一个目录里用别的模板查，查不到这两次运行。
-      const filtered = (yield* (
-        yield* get(dir, `/run/metrics?teamID=${profile.id}`, dir)
-      ).json) as Metrics
+      const filtered = (yield* (yield* get(dir, `/run/metrics?teamID=${profile.id}`, dir)).json) as Metrics
       expect(filtered.window.runs).toBe(2)
       const missing = (yield* (yield* get(dir, "/run/metrics?teamID=prof_missing", dir)).json) as Metrics
       expect(missing.window.runs).toBe(0)
@@ -867,16 +880,14 @@ describe("team HttpApi", () => {
       }
 
       const profiles = (yield* (yield* get(dir, "/team/profile", dir)).json) as Array<{ id: string }>
-      const created = (yield* (
-        yield* post(dir, "/run", {
-          sessionID: "ses_replay",
-          directory: dir,
-          mode: "team",
-          goal: "审查",
-          profileID: profiles[0].id,
-          acceptance: [{ text: "没有高危问题" }],
-        })
-      ).json) as { run: { id: string } }
+      const created = (yield* (yield* post(dir, "/run", {
+        sessionID: "ses_replay",
+        directory: dir,
+        mode: "team",
+        goal: "审查",
+        profileID: profiles[0].id,
+        acceptance: [{ text: "没有高危问题" }],
+      })).json) as { run: { id: string } }
       const runID = created.run.id
 
       // 刚建好的运行：事件有（plan.created 等），但还没有任何验证结论。
@@ -912,14 +923,12 @@ describe("team HttpApi", () => {
         .json) as { id: string }
       const member = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "review" }))
         .json) as { id: string }
-      const profile = (yield* (
-        yield* post(dir, "/team/profile", {
-          directory: dir,
-          name: "记录组",
-          captain: captain.id,
-          members: [{ employeeID: captain.id }, { employeeID: member.id }],
-        })
-      ).json) as { profile: { id: string } }
+      const profile = (yield* (yield* post(dir, "/team/profile", {
+        directory: dir,
+        name: "记录组",
+        captain: captain.id,
+        members: [{ employeeID: captain.id }, { employeeID: member.id }],
+      })).json) as { profile: { id: string } }
 
       // 发起前：没有任何参与记录，比率也不该造假。
       const before = (yield* (yield* get(dir, `/team/employee/${member.id}/record`, dir)).json) as Facts
@@ -1126,7 +1135,14 @@ describe("team HttpApi", () => {
       const set = (
         id: string,
         values: { employee_id?: string; run_id?: string; tokens_input?: number; tokens_output?: number; cost?: number },
-      ) => Database.use((db) => db.update(SessionTable).set(values).where(eq(SessionTable.id, SessionID.make(id))).run())
+      ) =>
+        Database.use((db) =>
+          db
+            .update(SessionTable)
+            .set(values)
+            .where(eq(SessionTable.id, SessionID.make(id)))
+            .run(),
+        )
       set(mine.id, { employee_id: employee.id, run_id: "run_1", tokens_input: 100, tokens_output: 20, cost: 0.5 })
       set(helper.id, { employee_id: employee.id, run_id: "run_1", tokens_input: 30, cost: 0.25 })
       set(verify.id, { run_id: "run_1", tokens_input: 10 })

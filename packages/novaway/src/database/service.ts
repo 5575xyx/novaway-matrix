@@ -111,8 +111,8 @@ export interface Interface {
   readonly remove: (id: string) => Effect.Effect<boolean>
   readonly test: (id: string) => Effect.Effect<TestResult>
   readonly query: (input: QueryInput) => Effect.Effect<QueryResult, Error>
-  readonly tables: (id: string, database?: string) => Effect.Effect<TableInfo[]>
-  readonly columns: (id: string, table: string, database?: string) => Effect.Effect<ColumnInfo[]>
+  readonly tables: (id: string, database?: string) => Effect.Effect<TableInfo[], Error>
+  readonly columns: (id: string, table: string, database?: string) => Effect.Effect<ColumnInfo[], Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/Database") {}
@@ -215,20 +215,26 @@ export const layer = Layer.effect(
     const tables = Effect.fn("Database.tables")((id: string, database?: string) =>
       Effect.gen(function* () {
         const resolved = yield* Effect.promise(() => Store.resolveConnection(id))
-        if (!resolved) throw new Error("连接不存在")
+        if (!resolved) return yield* Effect.fail(new Error("连接不存在"))
         const target = useDatabase(yield* Effect.promise(() => connect(resolved)), database)
-        return yield* Effect.promise(() => driver(target).listTables(target))
+        return yield* Effect.tryPromise({
+          try: () => driver(target).listTables(target),
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        })
       }),
     )
 
     const columns = Effect.fn("Database.columns")((id: string, table: string, database?: string) =>
       Effect.gen(function* () {
         const resolved = yield* Effect.promise(() => Store.resolveConnection(id))
-        if (!resolved) throw new Error("连接不存在")
+        if (!resolved) return yield* Effect.fail(new Error("连接不存在"))
         const target = useDatabase(yield* Effect.promise(() => connect(resolved)), database)
         const describe = driver(target).describeTable
-        if (!describe) throw new Error("该连接类型不支持查看表结构")
-        return yield* Effect.promise(() => describe(target, table))
+        if (!describe) return yield* Effect.fail(new Error("该连接类型不支持查看表结构"))
+        return yield* Effect.tryPromise({
+          try: () => describe(target, table),
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        })
       }),
     )
 

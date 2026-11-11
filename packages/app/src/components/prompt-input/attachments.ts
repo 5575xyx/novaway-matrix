@@ -4,8 +4,10 @@ import { showToast } from "@novaway/ui/toast"
 import { usePrompt, type ContentPart, type ImageAttachmentPart } from "@/context/prompt"
 import { useLanguage } from "@/context/language"
 import { uuid } from "@/utils/uuid"
+import { WORKSPACE_FILE_DRAG_MIME, readWorkspaceFileDragPayload } from "@/utils/workspace-file-drag"
 import { getCursorPosition } from "./editor-dom"
 import { attachmentMime } from "./files"
+import { createDragFeedback } from "./drag-feedback"
 import { normalizePaste, pasteMode } from "./paste"
 
 function dataUrl(file: File, mime: string) {
@@ -34,7 +36,11 @@ type PromptAttachmentsInput = {
   readClipboardImage?: () => Promise<File | null>
 }
 
-export function createPromptAttachments(input: PromptAttachmentsInput) {
+export function createPromptAttachments(
+  input: PromptAttachmentsInput,
+  events: Document = document,
+  globalEvents: Window = window,
+) {
   const prompt = usePrompt()
   const language = useLanguage()
 
@@ -140,31 +146,49 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
     put()
   }
 
-  const handleGlobalDragOver = (event: DragEvent) => {
-    if (input.isDialogActive()) return
+  const dragFeedback = createDragFeedback(input.setDraggingType)
+  const resetDragging = dragFeedback.reset
 
-    event.preventDefault()
-    const hasFiles = event.dataTransfer?.types.includes("Files")
-    const hasText = event.dataTransfer?.types.includes("text/plain")
-    if (hasFiles) {
-      input.setDraggingType("image")
-    } else if (hasText) {
-      input.setDraggingType("@mention")
+  const handleGlobalDragOver = (event: DragEvent) => {
+    if (input.isDialogActive()) {
+      resetDragging()
+      return
+    }
+
+    const types = event.dataTransfer?.types
+    const hasFiles = types?.includes("Files")
+    const hasText = types?.includes("text/plain")
+    const hasWorkspaceFile = types?.includes(WORKSPACE_FILE_DRAG_MIME)
+    if (hasWorkspaceFile || hasText) {
+      event.preventDefault()
+      dragFeedback.activate("@mention")
+    } else if (hasFiles) {
+      event.preventDefault()
+      dragFeedback.activate("image")
     }
   }
 
   const handleGlobalDragLeave = (event: DragEvent) => {
-    if (input.isDialogActive()) return
-    if (!event.relatedTarget) {
-      input.setDraggingType(null)
-    }
+    if (!event.relatedTarget) resetDragging()
   }
 
   const handleGlobalDrop = async (event: DragEvent) => {
+    resetDragging()
     if (input.isDialogActive()) return
 
     event.preventDefault()
-    input.setDraggingType(null)
+
+    const workspaceFile = readWorkspaceFileDragPayload(event.dataTransfer)
+    if (workspaceFile) {
+      input.focusEditor()
+      // 目录没有文件可读，作为 @ 路径引用插入，交给 agent 自行展开。
+      if (workspaceFile.type === "directory") {
+        input.addPart({ type: "text", content: `@${workspaceFile.path} `, start: 0, end: 0 })
+        return
+      }
+      input.addPart({ type: "file", path: workspaceFile.path, content: "@" + workspaceFile.path, start: 0, end: 0 })
+      return
+    }
 
     const plainText = event.dataTransfer?.getData("text/plain")
     const filePrefix = "file:"
@@ -182,9 +206,12 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
   }
 
   onMount(() => {
-    makeEventListener(document, "dragover", handleGlobalDragOver)
-    makeEventListener(document, "dragleave", handleGlobalDragLeave)
-    makeEventListener(document, "drop", handleGlobalDrop)
+    makeEventListener(events, "dragover", handleGlobalDragOver)
+    makeEventListener(events, "dragleave", handleGlobalDragLeave)
+    makeEventListener(events, "drop", handleGlobalDrop)
+    makeEventListener(globalEvents, "dragend", resetDragging)
+    makeEventListener(globalEvents, "drop", resetDragging)
+    makeEventListener(globalEvents, "blur", resetDragging)
   })
 
   return {

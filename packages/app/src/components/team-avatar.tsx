@@ -9,11 +9,11 @@ import { For, Show, type Component } from "solid-js"
  */
 
 const TONES = [
-  "bg-primary/10 text-primary",
-  "bg-success/10 text-success",
-  "bg-warning/10 text-warning",
+  "bg-primary/10 text-text-interactive-base",
+  "bg-success/10 text-icon-success-base",
+  "bg-warning/10 text-icon-warning-base",
   "bg-icon-blue/10 text-icon-blue",
-  "bg-destructive/10 text-destructive",
+  "bg-destructive/10 text-icon-critical-base",
 ] as const
 
 const hash = (value: string) => {

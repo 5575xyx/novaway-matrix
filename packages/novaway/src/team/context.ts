@@ -132,7 +132,12 @@ type Assembled = {
 }
 
 /** 范围与约束里的一类条目：逐条截字、按条数上限取舍，并把省掉的记成 `brief`。 */
-function briefList(items: readonly string[] | undefined, cap: { count: number; chars: number }, label: string, reason: string) {
+function briefList(
+  items: readonly string[] | undefined,
+  cap: { count: number; chars: number },
+  label: string,
+  reason: string,
+) {
   const omitted: Omission[] = []
   if (!items || items.length === 0) return { lines: [] as string[], omitted }
   const trimmed = items.map((item) => trim(item.trim(), cap.chars))
@@ -190,12 +195,7 @@ function assemble(input: Input, cap: Limits, reason: string): Assembled {
   // 范围与约束：用户自己写的，原样投喂；超长/超条数一律记账。
   const scope = briefList(input.brief?.scope, { count: cap.brief, chars: cap.briefChars }, "范围", reason)
   const files = briefList(input.brief?.files, { count: cap.brief, chars: cap.briefChars }, "相关文件", reason)
-  const constraints = briefList(
-    input.brief?.constraints,
-    { count: cap.brief, chars: cap.briefChars },
-    "约束",
-    reason,
-  )
+  const constraints = briefList(input.brief?.constraints, { count: cap.brief, chars: cap.briefChars }, "约束", reason)
   for (const part of [scope, files, constraints]) omitted.push(...part.omitted)
   const rawContext = input.brief?.context?.trim() ?? ""
   const contextText = trim(rawContext, cap.contextChars)

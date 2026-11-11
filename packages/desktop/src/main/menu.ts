@@ -131,7 +131,8 @@ export function createMenu(deps: Deps) {
         },
         {
           label: "Report a Bug",
-          click: () => shell.openExternal("https://github.com/5575xyx/novaway-matrix/issues/new?template=bug_report.yml"),
+          click: () =>
+            shell.openExternal("https://github.com/5575xyx/novaway-matrix/issues/new?template=bug_report.yml"),
         },
       ],
     },

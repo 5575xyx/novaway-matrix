@@ -15,7 +15,7 @@ import { createPathHelpers } from "./file/path"
 import { pathKey } from "@/utils/path-key"
 
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
-// 对齐 ZCode 侧栏宽度规格：default = min = 264px，max 为容器 50%，键盘步进 16px。
+// 侧栏宽度规格：default = min = 264px，max 为容器 50%，键盘步进 16px。
 const DEFAULT_SIDEBAR_WIDTH = 264
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
@@ -30,7 +30,7 @@ export type AppModeConfig = {
   icon: string
   description: string
   color: string
-  accent: string
+  foreground: string
 }
 
 export const APP_MODES: AppModeConfig[] = [
@@ -40,8 +40,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "编码",
     icon: "F",
     description: "编程、调试、项目工程和代码协作专用工作舱。",
-    color: "#4A90D9",
-    accent: "from-sky-500/30 via-blue-500/20 to-cyan-400/20",
+    color: "var(--interactive-base)",
+    foreground: "var(--text-on-interactive-base)",
   },
   {
     id: "zen",
@@ -49,8 +49,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "办公",
     icon: "Z",
     description: "文档、日程、办公协作和轻量知识处理空间。",
-    color: "#4CAF50",
-    accent: "from-emerald-500/30 via-green-500/20 to-lime-400/20",
+    color: "var(--surface-success-base)",
+    foreground: "var(--text-on-success-base)",
   },
   {
     id: "spark",
@@ -58,8 +58,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "创意",
     icon: "S",
     description: "写作、视频、短剧、海报和创意生成工作室。",
-    color: "#FF9800",
-    accent: "from-amber-500/35 via-orange-500/20 to-rose-400/20",
+    color: "var(--surface-warning-base)",
+    foreground: "var(--text-on-warning-base)",
   },
   {
     id: "future",
@@ -67,8 +67,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "探索",
     icon: "N",
     description: "为高级用户预留的自定义工作流和探索空间。",
-    color: "#9C27B0",
-    accent: "from-violet-500/35 via-fuchsia-500/20 to-indigo-400/20",
+    color: "var(--surface-brand-base)",
+    foreground: "var(--text-on-brand-base)",
   },
 ]
 
@@ -129,6 +129,22 @@ export type ReviewDiffStyle = "unified" | "split"
  */
 export type SidePaneTab = string
 export type SidebarView = "tasks" | "tree"
+
+/** 侧栏任务列表的视图偏好（「视图」菜单的四项）。 */
+export type TaskGroupBy = "workspace" | "date" | "custom" | "none"
+export type TaskSortBy = "recent" | "created" | "name"
+export type TaskRecency = "all" | "today" | "week" | "month"
+
+/** 自定义分组的一个组；`id` 稳定，改名不动归属。 */
+export type TaskGroup = { id: string; name: string }
+
+export const DEFAULT_TASK_LIST_VIEW = {
+  groupBy: "workspace" as TaskGroupBy,
+  sortBy: "recent" as TaskSortBy,
+  /** pathKey(worktree)，"all" = 不按工作区筛。 */
+  workspace: "all",
+  recency: "all" as TaskRecency,
+}
 
 export function ensureSessionKey(key: string, touch: (key: string) => void, seed: (key: string) => void) {
   touch(key)
@@ -216,6 +232,26 @@ export type SidePaneState = {
   activeTab: SidePaneTab | null
   /** 动态标签的元数据，键 = 标签 id（见 SidePaneSessionTab）。 */
   dynamic: Record<string, SidePaneSessionTab>
+  /** 分屏：有值时内容区拆成主 + 次两栏。 */
+  secondary?: SidePaneSecondary
+  /**
+   * 「工作区文件」面板内嵌的文件树右栏是否展开（可折叠树）。
+   * 可选：旧持久化数据没有这个键，按收起处理。
+   */
+  tree?: boolean
+  /** 内嵌文件树的宽度（像素）；旧数据没有这个键时用默认值。 */
+  treeWidth?: number
+}
+
+/** 分屏方向：左右并排或上下排列。 */
+export type SidePaneSplitAxis = "right" | "below"
+
+export type SidePaneSecondary = {
+  /** 次要窗格显示的标签（文件标签 id 或内置标签）。 */
+  tab: SidePaneTab
+  axis: SidePaneSplitAxis
+  /** 主窗格占比，0.15–0.85。 */
+  ratio: number
 }
 
 export type SidePaneAction =
@@ -228,24 +264,36 @@ export type SidePaneAction =
   | { type: "move"; from: number; to: number }
   | { type: "addSession"; tab: SidePaneSessionTab }
   | { type: "removeSession"; id: string }
+  | { type: "openSecondary"; tab: SidePaneTab; axis: SidePaneSplitAxis }
+  | { type: "closeSecondary" }
+  | { type: "setSecondaryRatio"; ratio: number }
+  | { type: "setTree"; value: boolean }
 
-export const DEFAULT_SIDE_PANE_STATE: SidePaneState = { opened: true, tabs: [], activeTab: null, dynamic: {} }
+export const DEFAULT_SIDE_PANE_STATE: SidePaneState = {
+  opened: true,
+  tabs: [],
+  activeTab: null,
+  dynamic: {},
+  tree: false,
+}
 
-// 对齐 ZCode：网页预览（浏览器）与文件预览是两个并列的内置标签 ——
-// "preview" 是文件标签条的宿主，"browser" 是 URL iframe（网页预览）的宿主。
-export const SIDE_PANE_TABS = ["preview", "browser", "terminal", "review"] as const
+/** 内嵌文件树的宽度约束：太窄放不下文件名，太宽会把内容区挤没。 */
+export const SIDE_PANE_TREE_MIN_WIDTH = 180
+export const SIDE_PANE_TREE_MAX_WIDTH = 480
+export const DEFAULT_SIDE_PANE_TREE_WIDTH = 260
+
+// 网页预览（浏览器）、工作区文件与 Office 文件是并列的内置标签。
+export const SIDE_PANE_TABS = ["preview", "office", "browser", "terminal", "review"] as const
 
 /**
  * Side Pane 的动态标签：一个标签对应一个**会话**（`background` 例外——它对应
  * 一个后台任务的输出视图，挂在发起会话下面）。
  *
- * 对齐 ZCode 的 `WorkspaceSidePaneTab`（一个可辨识联合，带 `subagent-session` /
- * `selection-side-chat` / `bash-output` 三种标签）：
+ * 一个可辨识联合，三种标签：
  *
- * - `subagent` —— 从工具行的子代理摘要点进来的子会话（ZCode 的 `subagent-session`）
+ * - `subagent` —— 从工具行的子代理摘要点进来的子会话
  * - `sideChat` —— 侧边对话：独立小会话，继承主对话上下文但**不写入主对话历史**
- *                 （ZCode 的 `selection-side-chat`）
- * - `background` —— 后台任务输出（ZCode 的 `bash-output`）：任务 id 编在标签 id 里
+ * - `background` —— 后台任务输出：任务 id 编在标签 id 里
  *
  * 生命周期上子代理/侧边对话都是「跟着父会话走」：父会话结束或标签关闭时，服务端的会话一起关掉。
  */
@@ -401,22 +449,49 @@ export function migrateLayoutStore(value: unknown) {
         : (storedTabs[0] ?? null)
     const opened = typeof sidePane.opened === "boolean" ? sidePane.opened : DEFAULT_SIDE_PANE_STATE.opened
     const width = typeof sidePane.width === "number" ? sidePane.width : DEFAULT_SIDE_PANE_WIDTH
+    // 文件树只属于「工作区文件」宿主。旧持久化状态可能在宿主被关闭后
+    // 仍留下 tree: true，恢复时必须一并丢弃，不能让重新打开的空面板带回文件树。
+    const tree = sidePane.tree === true && opened && storedTabs.includes("preview")
+    const treeWidth =
+      typeof sidePane.treeWidth === "number"
+        ? Math.min(SIDE_PANE_TREE_MAX_WIDTH, Math.max(SIDE_PANE_TREE_MIN_WIDTH, sidePane.treeWidth))
+        : DEFAULT_SIDE_PANE_TREE_WIDTH
+    // 分屏状态只在「标签非空且与主窗格不同」时保留。文件标签不在 sidePane.tabs 里，
+    // 所以这里只校验字符串本身，渲染时找不到对应标签会自然回落为空态。
+    const secondary: SidePaneSecondary | undefined = (() => {
+      const raw = sidePane.secondary
+      if (!isRecord(raw)) return undefined
+      if (typeof raw.tab !== "string" || !raw.tab) return undefined
+      if (raw.tab === activeTab) return undefined
+      const axis = raw.axis === "below" ? "below" : "right"
+      const ratio = typeof raw.ratio === "number" ? Math.min(0.85, Math.max(0.15, raw.ratio)) : 0.5
+      return { tab: raw.tab, axis, ratio }
+    })()
+    const secondarySame = (() => {
+      const raw = sidePane.secondary
+      if (!secondary) return raw === undefined
+      if (!isRecord(raw)) return false
+      return raw.tab === secondary.tab && raw.axis === secondary.axis && raw.ratio === secondary.ratio
+    })()
 
     if (
       !("tab" in sidePane) &&
       opened === sidePane.opened &&
       width === sidePane.width &&
+      tree === sidePane.tree &&
+      treeWidth === sidePane.treeWidth &&
       activeTab === sidePane.activeTab &&
       same(Array.isArray(sidePane.tabs) ? sidePane.tabs : [], storedTabs) &&
       // `same` 只比数组；动态表按「键与值都一致」比（值本身是纯数据，逐字段比没有意义，
       // 引用相等就够 —— 迁移时要么原样返回、要么新建，不会出现"内容相同但引用不同"）。
-      sameDynamicTabs(sidePane.dynamic, dynamic)
+      sameDynamicTabs(sidePane.dynamic, dynamic) &&
+      secondarySame
     ) {
       return sidePane
     }
 
     const { tab: _legacyTab, dynamic: _legacyDynamic, ...rest } = sidePane
-    return { ...rest, opened, tabs: storedTabs, activeTab, width, dynamic }
+    return { ...rest, opened, tabs: storedTabs, activeTab, width, dynamic, secondary, tree, treeWidth }
   })()
 
   const mode = value.mode
@@ -474,11 +549,35 @@ function sameDynamicTabs(a: unknown, b: Record<string, SidePaneSessionTab>): boo
   return keys.every((key) => a[key] === b[key])
 }
 
+function closeSidePaneState(state: SidePaneState): SidePaneState {
+  const tabs = state.tabs.filter((tab) => tab !== "preview" && tab !== "office")
+  const activeTab = tabs.includes(state.activeTab as SidePaneTab) ? state.activeTab : (tabs[0] ?? null)
+  const secondary =
+    state.secondary && state.secondary.tab !== "preview" && state.secondary.tab !== "office"
+      ? state.secondary
+      : undefined
+  return {
+    ...state,
+    opened: false,
+    tabs,
+    activeTab,
+    ...(state.secondary !== undefined ? { secondary } : {}),
+    ...(state.tree !== undefined ? { tree: false } : {}),
+  }
+}
+
 /** Side Pane 状态模型的唯一写入口：容器展开/收起与 tab 集合的操作语义都在这里裁决。 */
 export function reduceSidePane(state: SidePaneState, action: SidePaneAction): SidePaneState {
-  if (action.type === "toggle") return { ...state, opened: !state.opened }
-  if (action.type === "open") return state.opened ? state : { ...state, opened: true }
-  if (action.type === "close") return state.opened ? { ...state, opened: false } : state
+  if (action.type === "toggle") {
+    if (!state.opened) return { ...closeSidePaneState(state), opened: true }
+    return closeSidePaneState(state)
+  }
+  if (action.type === "open") {
+    if (state.opened) return state
+    return { ...closeSidePaneState(state), opened: true }
+  }
+  if (action.type === "close") return closeSidePaneState(state)
+  if (action.type === "setTree") return state.tree === action.value ? state : { ...state, tree: action.value }
   if (action.type === "add") {
     const tabs = state.tabs.includes(action.tab) ? state.tabs : [...state.tabs, action.tab]
     return { ...state, opened: true, tabs, activeTab: action.tab }
@@ -488,15 +587,49 @@ export function reduceSidePane(state: SidePaneState, action: SidePaneAction): Si
     const { tab } = action
     const tabs = state.tabs.includes(tab.id) ? state.tabs : [...state.tabs, tab.id]
     // 同一会话的标签不重复：id 就是 `kind:sessionID`，重复打开只会聚焦已有的那个。
-    return { opened: true, tabs, activeTab: tab.id, dynamic: { ...state.dynamic, [tab.id]: tab } }
+    return { ...state, opened: true, tabs, activeTab: tab.id, dynamic: { ...state.dynamic, [tab.id]: tab } }
   }
   if (action.type === "removeSession") {
     const tabs = state.tabs.filter((id) => id !== action.id)
     const dynamic = { ...state.dynamic }
     delete dynamic[action.id]
-    if (tabs.length === 0) return { ...state, opened: false, tabs, activeTab: null, dynamic }
-    if (state.activeTab !== action.id) return { ...state, tabs, dynamic }
-    return { ...state, tabs, dynamic, activeTab: tabs[tabs.length - 1] ?? null }
+    if (tabs.length === 0) return { ...state, opened: false, tabs, activeTab: null, dynamic, secondary: undefined }
+    const secondary = state.secondary?.tab === action.id ? undefined : state.secondary
+    return {
+      ...state,
+      tabs,
+      dynamic,
+      ...(secondary ? { secondary } : { secondary: undefined }),
+      ...(state.activeTab === action.id ? { activeTab: tabs[tabs.length - 1] ?? null } : {}),
+    }
+  }
+  if (action.type === "openSecondary") {
+    // 文件标签不在 sidePane.tabs 里（它们是会话级标签，由标签条单独渲染），
+    // 只有内置面板/动态会话标签才需要顺手补进标签集合。
+    const isPanel = (SIDE_PANE_TABS as readonly string[]).includes(action.tab) || !!state.dynamic[action.tab]
+    const tabs = isPanel && !state.tabs.includes(action.tab) ? [...state.tabs, action.tab] : state.tabs
+    // 同一标签不能同时占两个窗格：次要窗格用了内置面板且正是当前激活标签时，把主窗格换到另一个标签。
+    const activeTab =
+      isPanel && action.tab === state.activeTab
+        ? (tabs.find((tab) => tab !== action.tab) ?? state.activeTab)
+        : state.activeTab
+    return {
+      ...state,
+      opened: true,
+      tabs,
+      activeTab,
+      secondary: { tab: action.tab, axis: action.axis, ratio: state.secondary?.ratio ?? 0.5 },
+    }
+  }
+  if (action.type === "closeSecondary") {
+    if (!state.secondary) return state
+    return { ...state, secondary: undefined }
+  }
+  if (action.type === "setSecondaryRatio") {
+    if (!state.secondary) return state
+    const ratio = Math.min(0.85, Math.max(0.15, action.ratio))
+    if (ratio === state.secondary.ratio) return state
+    return { ...state, secondary: { ...state.secondary, ratio } }
   }
   if (action.type === "move") {
     const { from, to } = action
@@ -511,12 +644,20 @@ export function reduceSidePane(state: SidePaneState, action: SidePaneAction): Si
   const index = state.tabs.indexOf(action.tab)
   if (index === -1) return state
   const tabs = state.tabs.filter((tab) => tab !== action.tab)
+  // 文件树只在 preview 宿主存在时有效。关闭工作区文件宿主（顶部标签的 ×）
+  // 走的是 remove，不是 close；这里也必须清掉 tree，否则下一次展开面板会把
+  // 上一次的文件树带回来。
+  const tree = state.tree !== undefined ? tabs.includes("preview") && state.tree : undefined
+  const treeState = tree === undefined ? {} : { tree }
   // 关掉一个动态标签时，它的元数据也一起清掉，否则会永远留在持久化里。
   const dynamic = { ...state.dynamic }
   delete dynamic[action.tab]
-  if (tabs.length === 0) return { opened: false, tabs, activeTab: null, dynamic }
-  if (state.activeTab !== action.tab) return { ...state, tabs, dynamic }
-  return { ...state, tabs, dynamic, activeTab: tabs[Math.min(index, tabs.length - 1)] ?? null }
+  // 关掉的正是次要窗格里的标签：分屏一起收起，内容区回到单栏。
+  const secondary = state.secondary?.tab === action.tab ? undefined : state.secondary
+  if (tabs.length === 0)
+    return { ...state, opened: false, tabs, activeTab: null, dynamic, secondary: undefined, ...treeState }
+  if (state.activeTab !== action.tab) return { ...state, tabs, dynamic, secondary, ...treeState }
+  return { ...state, tabs, dynamic, secondary, activeTab: tabs[Math.min(index, tabs.length - 1)] ?? null, ...treeState }
 }
 
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext({
@@ -561,12 +702,22 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           tabs: [] as SidePaneTab[],
           activeTab: DEFAULT_SIDE_PANE_STATE.activeTab,
           dynamic: {} as Record<string, SidePaneSessionTab>,
+          secondary: undefined as SidePaneSecondary | undefined,
+          tree: false,
+          treeWidth: DEFAULT_SIDE_PANE_TREE_WIDTH,
           width: DEFAULT_SIDE_PANE_WIDTH,
           // false = 用户没手动拖过宽度，跟随「窗口 45%」的默认值（见 sidePane.width）。
           // 旧持久化数据没有这个键 → undefined → 也会走默认值，属于一次性对齐。
           widthCustom: false,
         },
         sidebarView: "tasks" as SidebarView,
+        // 侧栏任务列表的视图偏好；老数据缺这个键时 merge() 用上面的默认值补齐。
+        taskListView: { ...DEFAULT_TASK_LIST_VIEW },
+        // 自定义分组（手动归类）：组定义 + sessionID → 组 id 的归属。
+        // 换回「按工作区」等别的分组方式时这两份数据照旧留着 ——
+        // 视图偏好不该把用户整理出来的结果丢掉。
+        taskGroups: [] as TaskGroup[],
+        taskGroupOf: {} as Record<string, string>,
         sessionTabs: {} as Record<string, SessionTabs>,
         sessionView: {} as Record<string, SessionView>,
         handoff: {
@@ -594,8 +745,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       }),
     )
 
-    // 视口宽度信号：sidePane 默认宽度按「窗口 45%」计算（对齐 ZCode 的
-    // SIDE_PANE_DEFAULT_EXPANDED_SIZE），窗口缩放时默认宽度要跟着变。
+    // 视口宽度信号：sidePane 默认宽度按「窗口 45%」计算，
+    // 窗口缩放时默认宽度要跟着变。
     const [viewportWidth, setViewportWidth] = createSignal(typeof window === "undefined" ? 1280 : window.innerWidth)
     if (typeof window !== "undefined") {
       makeEventListener(window, "resize", () => setViewportWidth(window.innerWidth))
@@ -903,6 +1054,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       tabs: store.sidePane?.tabs ?? DEFAULT_SIDE_PANE_STATE.tabs,
       activeTab: store.sidePane?.activeTab ?? DEFAULT_SIDE_PANE_STATE.activeTab,
       dynamic: store.sidePane?.dynamic ?? DEFAULT_SIDE_PANE_STATE.dynamic,
+      secondary: store.sidePane?.secondary,
+      tree: store.sidePane?.tree ?? false,
+      treeWidth: store.sidePane?.treeWidth ?? DEFAULT_SIDE_PANE_TREE_WIDTH,
     })
     const updateSidePane = (action: SidePaneAction) => {
       setStore("sidePane", {
@@ -1039,6 +1193,71 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("sidebar", "workspaces", directory, !current)
         },
       },
+      /**
+       * 侧栏任务列表的视图偏好（「视图」菜单）。
+       *
+       * 存持久化 store 而不是组件里的 signal：刷新后分组/排序不该回到默认，
+       * 而且「不分组」这种视图选择本来就该跨项目记住。
+       */
+      taskList: {
+        groupBy: createMemo(() => store.taskListView?.groupBy ?? DEFAULT_TASK_LIST_VIEW.groupBy),
+        sortBy: createMemo(() => store.taskListView?.sortBy ?? DEFAULT_TASK_LIST_VIEW.sortBy),
+        workspace: createMemo(() => store.taskListView?.workspace ?? DEFAULT_TASK_LIST_VIEW.workspace),
+        recency: createMemo(() => store.taskListView?.recency ?? DEFAULT_TASK_LIST_VIEW.recency),
+        setGroupBy(value: TaskGroupBy) {
+          setStore("taskListView", "groupBy", value)
+        },
+        setSortBy(value: TaskSortBy) {
+          setStore("taskListView", "sortBy", value)
+        },
+        setWorkspace(value: string) {
+          setStore("taskListView", "workspace", value)
+        },
+        setRecency(value: TaskRecency) {
+          setStore("taskListView", "recency", value)
+        },
+        /** 自定义分组的组定义（按用户创建顺序）。 */
+        groups: createMemo<TaskGroup[]>(() => store.taskGroups ?? []),
+        createGroup(name: string) {
+          const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+          setStore(
+            "taskGroups",
+            produce((draft) => draft.push({ id, name })),
+          )
+          return id
+        },
+        renameGroup(id: string, name: string) {
+          setStore("taskGroups", (list) => list.map((group) => (group.id === id ? { ...group, name } : group)))
+        },
+        /** 删组时把组里的会话退回「未分组」，否则归属表会一直留着指向不存在组的键。 */
+        deleteGroup(id: string) {
+          setStore("taskGroups", (list) => list.filter((group) => group.id !== id))
+          setStore(
+            "taskGroupOf",
+            produce((draft) => {
+              for (const [sessionID, groupId] of Object.entries(draft)) {
+                if (groupId === id) delete draft[sessionID]
+              }
+            }),
+          )
+        },
+        assignGroup(sessionID: string, groupId: string | null) {
+          if (!groupId) {
+            setStore(
+              "taskGroupOf",
+              produce((draft) => {
+                delete draft[sessionID]
+              }),
+            )
+            return
+          }
+          setStore("taskGroupOf", sessionID, groupId)
+        },
+        groupOf: (sessionID: string) => store.taskGroupOf?.[sessionID],
+        reset() {
+          setStore("taskListView", { ...DEFAULT_TASK_LIST_VIEW })
+        },
+      },
       terminal: {
         height: createMemo(() => store.terminal.height),
         resize(height: number) {
@@ -1069,10 +1288,29 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           return store.sidePane?.dynamic?.[id]
         }),
         activeTab: createMemo<SidePaneTab | null>(() => store.sidePane?.activeTab ?? DEFAULT_SIDE_PANE_STATE.activeTab),
+        /** 分屏的次要窗格；undefined = 单栏。 */
+        secondary: createMemo<SidePaneSecondary | undefined>(() => store.sidePane?.secondary),
+        /** 「工作区文件」面板内的文件树右栏是否展开。 */
+        tree: createMemo(() => store.sidePane?.tree ?? false),
+        setTree(value: boolean) {
+          updateSidePane({ type: "setTree", value })
+        },
+        toggleTree() {
+          updateSidePane({ type: "setTree", value: !(store.sidePane?.tree ?? false) })
+        },
+        /** 内嵌文件树宽度：拖动分割线时写回持久化。 */
+        treeWidth: createMemo(() => store.sidePane?.treeWidth ?? DEFAULT_SIDE_PANE_TREE_WIDTH),
+        resizeTree(width: number) {
+          setStore(
+            "sidePane",
+            "treeWidth",
+            Math.min(SIDE_PANE_TREE_MAX_WIDTH, Math.max(SIDE_PANE_TREE_MIN_WIDTH, Math.round(width))),
+          )
+        },
         /**
          * 面板宽度。用户拖过（widthCustom）就用持久化的像素值；
-         * 没拖过就跟随「窗口 45%」的默认值（对齐 ZCode 的
-         * SIDE_PANE_DEFAULT_EXPANDED_SIZE = 45%，下限取 ResizeHandle 的 min 320）。
+         * 没拖过就跟随「窗口 45%」的默认值
+         * （下限取 ResizeHandle 的 min 320）。
          */
         width: createMemo(() => {
           const pane = store.sidePane
@@ -1083,10 +1321,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("sidePane", "opened", true)
         },
         close() {
-          setStore("sidePane", "opened", false)
+          updateSidePane({ type: "close" })
         },
         toggle() {
-          setStore("sidePane", "opened", (value) => !value)
+          updateSidePane({ type: "toggle" })
         },
         add(tab: SidePaneTab) {
           updateSidePane({ type: "add", tab })
@@ -1094,7 +1332,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         /**
          * 打开（或聚焦）一个会话标签。同一 `kind:sessionID` 只会有一个标签。
          *
-         * 对齐 ZCode 的 `openSubagentSessionPane` / `openSelectionSideChatPane`：
          * 子代理与侧边对话都是"在右侧面板里看另一个会话"，而不是整页跳走 ——
          * 整页跳转会把主线上下文从眼前挪走，回来还得再找。
          */
@@ -1124,6 +1361,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             setStore("sidePane", "widthCustom", true)
           })
         },
+        /** 把标签拆到次要窗格（右/下）。 */
+        openSecondary(tab: SidePaneTab, axis: SidePaneSplitAxis) {
+          updateSidePane({ type: "openSecondary", tab, axis })
+        },
+        closeSecondary() {
+          updateSidePane({ type: "closeSecondary" })
+        },
+        setSecondaryRatio(ratio: number) {
+          updateSidePane({ type: "setSecondaryRatio", ratio })
+        },
       },
       statusPanel: {
         collapsed(directory: string) {
@@ -1133,7 +1380,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         open(directory: string, sectionId: string, defaultOpen?: boolean) {
           return () => {
             const workspace = store.statusPanel.workspaces[directory]
-            // 默认折叠(对齐 ZCode 的状态卡):收起时标题行仍显示摘要,用户点击展开;
+            // 默认折叠:收起时标题行仍显示摘要,用户点击展开;
             // 运行相关的区块由面板在「出现」时自动展开一次(见 status-panel 的 AUTO_EXPAND)。
             return workspace?.open[sectionId] ?? defaultOpen ?? false
           }

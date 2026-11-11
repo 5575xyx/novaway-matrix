@@ -11,8 +11,12 @@ import { useSideChat } from "@/pages/session/use-side-chat"
 import { useSync } from "@/context/sync"
 import { useLayout, type SidePaneSessionTab } from "@/context/layout"
 import { useSettings } from "@/context/settings"
+import { usePermission } from "@/context/permission"
 import { base64Encode } from "@novaway/core/util/encode"
 import type { AssistantMessage, UserMessage } from "@novaway/sdk/v2"
+import { workingActivity } from "./working-status"
+import { useWorkingPhrase } from "./use-working-phrase"
+import { sessionPermissionRequest, sessionQuestionRequest } from "./composer/session-request-tree"
 
 /** 面板里最多渲染多少条消息（更早的请点"打开完整会话"）。 */
 const MAX_ROWS = 40
@@ -20,10 +24,9 @@ const MAX_ROWS = 40
 /**
  * Side Pane 里的**会话面板**：子代理钻取与侧边对话共用。
  *
- * 对齐 ZCode 的 `SubagentDrilldown` / `SelectionSideChatPane`：
  * 两者都是"在右侧面板里看另一个会话"，而不是整页跳走 —— 整页跳会把主线从眼前挪走。
  *
- * 与 ZCode 的差别（刻意简化，避免把主时间线那套虚拟滚动/历史窗口搬进 360px 的面板）：
+ * 刻意简化（避免把主时间线那套虚拟滚动/历史窗口搬进 360px 的面板）：
  * - **不虚拟化**，只渲染最近 `MAX_ROWS` 条；
  * - **只读**：不提供 fork / retry / 编辑。要这些能力点顶部的"在主线打开"回到完整会话。
  *
@@ -36,6 +39,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   const sync = useSync()
   const layout = useLayout()
   const sideChat = useSideChat()
+  const permission = usePermission()
 
   const directory = createMemo(() => sdk.directory)
   // `sync.data` 就是当前 directory 的会话 store（message / part 都挂在上面）。
@@ -45,8 +49,8 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
    * 面板一打开就把这条会话的消息拉进来。
    *
    * 子会话/辅助对话通常从没被打开过，`sync.data.message[id]` 是空的 ——
-   * 不主动 sync 的话面板永远显示"还没有消息"（对齐 ZCode
-   * `SubagentDrilldown` 挂载即 acquire 租约、由数据层负责取数）。
+   * 不主动 sync 的话面板永远显示"还没有消息"（挂载即 acquire 租约、
+   * 由数据层负责取数）。
    */
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal<string | undefined>()
@@ -61,9 +65,8 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
           .catch((err: unknown) => {
             const message = err instanceof Error ? err.message : String(err)
             // 会话在服务端已经不存在（CLI 重启后临时会话丢失）→ 静默收掉标签，
-            // 而不是留一个永远报错的空面板。对齐 ZCode 的
-            // `onSelectionSideChatUnavailable`（它监听 sessionNotFound 后清 tab，
-            // 下一次框选按父会话重建）。
+            // 而不是留一个永远报错的空面板：监听 sessionNotFound 后清 tab，
+            // 下一次框选按父会话重建。
             if (message.includes("sessionNotFound") || message.includes("NotFound")) {
               if (props.tab.kind === "sideChat") sideChat.drop(props.tab)
               else layout.sidePane.closeSession(props.tab.id)
@@ -132,6 +135,36 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
     return !!last && last.role === "assistant" && typeof last.time?.completed !== "number"
   })
 
+  // 与主聊天区/输入框状态条共用 workingActivity 一份推导：文案随本轮真正在动的东西变。
+  const turnParts = createMemo(
+    () =>
+      turns()
+        .at(-1)
+        ?.assistants.flatMap((message) => partsOf(message.id)) ?? [],
+  )
+  const workWaiting = createMemo((): "permission" | "question" | undefined => {
+    const id = props.tab.sessionID
+    if (
+      sessionPermissionRequest(
+        store().session,
+        store().permission,
+        id,
+        (item) => !permission.autoResponds(item, sdk.directory),
+      )
+    )
+      return "permission"
+    if (sessionQuestionRequest(store().session, store().question, id)) return "question"
+    return undefined
+  })
+  const workActivity = createMemo(() =>
+    workingActivity({
+      status: store().session_status[props.tab.sessionID],
+      waiting: workWaiting(),
+      parts: turnParts(),
+    }),
+  )
+  const workPhrase = useWorkingPhrase(workActivity)
+
   /**
    * 兜底轮询：侧栏里的子会话偶尔收不到实时事件（消息已落库但 store 不更新），
    * 表现为「发了消息但面板还是空的」。面板打开期间每 2 秒强制同步一次，
@@ -179,14 +212,18 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
       .reduce<number | undefined>((min, value) => (min === undefined ? value : Math.min(min, value)), undefined)
   })
   const thinkingLabel = createMemo(() => {
+    const phrase = workPhrase()
     const start = thinkingStartedAt()
-    if (typeof start !== "number") return language.t("session.turn.fold.working")
+    if (typeof start !== "number") return phrase
     const seconds = Math.max(0, Math.floor((now() - start) / 1000))
-    if (seconds < 60) return language.t("session.turn.fold.workingSec", { seconds })
-    return language.t("session.turn.fold.workingMinSec", {
-      minutes: Math.floor(seconds / 60),
-      seconds: seconds % 60,
-    })
+    const elapsed =
+      seconds < 60
+        ? language.t("session.turn.fold.durationSec", { seconds })
+        : language.t("session.turn.fold.durationMinSec", {
+            minutes: Math.floor(seconds / 60),
+            seconds: seconds % 60,
+          })
+    return `${phrase} · ${elapsed}`
   })
 
   /** 流式输出时跟着底部走：面板不会自动滚，用户得手动追着看。 */
@@ -244,8 +281,8 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
           size="small"
           class="shrink-0 text-foreground-subtle"
         />
-        {/* 类别徽标：对齐 ZCode 在子代理摘要行/钻取面板里标出"这是什么"
-            （它显示 subagentType）。我们只有 kind 两档，够区分就够了。 */}
+        {/* 类别徽标：在子代理摘要行/钻取面板里标出"这是什么"。
+            我们只有 kind 两档，够区分就够了。 */}
         <span
           data-slot="side-pane-session-kind"
           class="shrink-0 rounded border border-border bg-surface px-1.5 py-0.5 text-ui-xs leading-none text-foreground-subtlest"
@@ -296,7 +333,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
                 when={!error()}
                 fallback={
                   <div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                    <Icon name="circle-ban-sign" size="small" class="text-[var(--destructive)]" />
+                    <Icon name="circle-ban-sign" size="small" class="text-icon-critical-base" />
                     <p class="text-ui-caption leading-5 text-foreground-subtle">{error()}</p>
                   </div>
                 }

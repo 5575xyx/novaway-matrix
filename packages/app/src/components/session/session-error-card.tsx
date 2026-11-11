@@ -74,7 +74,7 @@ export function SessionErrorCard(props: { kind: ErrorKind; detail: string }) {
   return (
     <div data-component="session-error" class="flex flex-col gap-1.5">
       <div class="flex items-start gap-2">
-        <Icon name="circle-ban-sign" size="small" class="mt-0.5 shrink-0 text-[var(--destructive)]" />
+        <Icon name="circle-ban-sign" size="small" class="mt-0.5 shrink-0 text-icon-critical-base" />
         <div class="flex min-w-0 flex-col gap-0.5">
           <span class="text-ui-base font-medium text-foreground">{text("title")}</span>
           <span class="text-ui-caption text-foreground-subtle">{text("hint")}</span>

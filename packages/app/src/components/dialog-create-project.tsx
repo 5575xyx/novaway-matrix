@@ -92,7 +92,7 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
             }}
           />
           <Show when={nameError()}>
-            <span class="text-12-regular text-destructive">{nameError()}</span>
+            <span class="text-12-regular text-icon-critical-base">{nameError()}</span>
           </Show>
         </div>
 
@@ -112,7 +112,7 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
             </Button>
           </div>
           <Show when={pathError()}>
-            <span class="text-12-regular text-destructive">{pathError()}</span>
+            <span class="text-12-regular text-icon-critical-base">{pathError()}</span>
           </Show>
         </div>
 

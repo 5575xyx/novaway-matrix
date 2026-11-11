@@ -43,4 +43,3 @@ export function sanitizeEvidence(text: string): string {
 
 export const sanitizeOptional = (text: string | undefined): string | undefined =>
   text === undefined ? undefined : sanitizeEvidence(text)
-

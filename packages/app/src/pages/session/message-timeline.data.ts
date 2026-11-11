@@ -1,4 +1,5 @@
 import { classifyError, type ErrorKind } from "./session-error"
+import { workingActivity, type WorkingActivity } from "./working-status"
 import { parseCommentNote, readCommentMetadata, type PromptComment } from "@/utils/comment-note"
 import { AssistantMessage, Part, SessionStatus, SnapshotFileDiff, UserMessage } from "@novaway/sdk/v2"
 import { groupParts, PartGroup, renderable } from "@novaway/ui/message-part"
@@ -51,7 +52,7 @@ export type TimelineRowMap = {
   Retry: { userMessageID: string }
   DiffSummary: { userMessageID: string; diffs: SummaryDiff[] }
   /**
-   * 轮尾操作行(复制/赞/踩/分叉/时间):一轮末尾只挂一条,ZCode 同款。
+   * 轮尾操作行(复制/赞/踩/分叉/时间):一轮末尾只挂一条。
    * copyText 是本轮全部 assistant 正文合并后的文本;createdAt 为 assistant 消息创建时间。
    */
   TurnActions: { userMessageID: string; copyText: string; createdAt?: number }
@@ -120,8 +121,10 @@ export namespace TimelineRow {
   export class Thinking extends Data.TaggedClass("Thinking")<{
     userMessageID: string
     reasoningHeading?: string
-    /** 本轮开始时间(用户消息/首条助手消息),用于"工作中 · X"的实时计时。 */
+    /** 本轮开始时间(用户消息/首条助手消息),用于"正在执行中 · X"的实时计时。 */
     startedAt?: number
+    /** 本轮此刻正在做的事(翻阅代码中 / 深入思考中…),由 workingActivity 从 parts 推导。 */
+    activity?: WorkingActivity
   }> {}
   export class DiffSummary extends Data.TaggedClass("DiffSummary")<{
     userMessageID: string
@@ -163,6 +166,8 @@ export namespace TimelineRow {
     sections: TodoSection[]
     /** 清单首次开始执行的时间(最早一条工具调用);头部总计时从它起算。 */
     startedAt?: number
+    /** 执行中的实时状态(执行命令中/深入思考中…),运行中显示在卡头部。 */
+    activity?: WorkingActivity
   }> {}
   export class TodoSection extends Data.TaggedClass("TodoSection")<{
     todoID: string
@@ -181,8 +186,29 @@ export namespace TimelineRow {
     userMessageID: string
     rows: TimelineRow.TimelineRow[]
     durationMs?: number
-    /** 本轮开始时间;运行中的折叠卡用它继续走"工作中 · X"的计时。 */
+    /**
+     * 本段第一个过程行的稳定 key。一轮会被旁白切成多段,只用 userMessageID 会让段与段撞 key
+     * (行表按 key 建 Map,撞了就直接丢行),所以锚在段首。
+     */
+    anchorKey?: string
+    /** 本轮开始时间;运行中的折叠卡用它继续走"正在执行中 · X"的计时。 */
     startedAt?: number
+    /** 该段仍在运行:容器默认展开、头部实时计时,模型开始讲正文后自动收成"已执行 X"。 */
+    active?: boolean
+    /** 运行中折叠卡底部那行思考摘要(原本挂在 Thinking 行上的标题)。 */
+    reasoningHeading?: string
+    /** 运行中折叠卡头部的实时状态(原本挂在 Thinking 行上的 activity)。 */
+    activity?: WorkingActivity
+    /**
+     * 只有一行的收尾段:不给折叠头,直接把这一行显示在引导线上。
+     * 一行也要点开才能看,太累。
+     */
+    bare?: boolean
+    /**
+     * 大容器头部那句"执行 N 步"的 N。容器里再按旁白切段后,`rows.length` 数的是子项
+     * (段 + 正文),不再等于步数,所以步数单独带过来。
+     */
+    stepCount?: number
   }> {}
   /** 轮尾操作行。 */
   export class TurnActions extends Data.TaggedClass("TurnActions")<{
@@ -237,7 +263,7 @@ export namespace TimelineRow {
       case "TodoSection":
         return `todo-section:${row.todoID}:${row.segment}`
       case "TurnFold":
-        return `turn-fold:${row.userMessageID}`
+        return `turn-fold:${row.userMessageID}:${row.anchorKey ?? "turn"}`
       case "TurnActions":
         return `turn-actions:${row.userMessageID}`
     }
@@ -330,11 +356,12 @@ export namespace Timeline {
       )
     }
 
-    // 运行中的轮次始终在顶部挂一条工作指示:即使已经有工具卡/正文也保留,
-    // 头部实时显示"工作中 · X 秒",轮次完成后再由 TurnFold 折叠成"已工作 X"。
+    // 运行中的轮次始终在顶部挂一条工作指示:还没有过程行可折时,由它单独显示进度
+    // ("正在执行中 · X 秒");一旦有工具行折进容器,这一行的标题和起始时间会被提升到
+    // 容器里(TurnFold.active),进度改由容器头部计时,避免同一屏出现两个计时。
     if (isActive && status === "busy" && !error) {
-      const heading = assistantMessages
-        .flatMap((message) => getMessageParts(message.id))
+      const turnParts = assistantMessages.flatMap((message) => getMessageParts(message.id))
+      const heading = turnParts
         .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))
         .find((value): value is string => !!value)
       const startedAt = [userMessage.time?.created, ...assistantMessages.map((message) => message.time?.created)]
@@ -346,6 +373,7 @@ export namespace Timeline {
           userMessageID: userMessage.id,
           reasoningHeading: heading,
           startedAt,
+          activity: workingActivity({ status: undefined, parts: turnParts }),
         }),
       )
     }
@@ -495,11 +523,13 @@ export namespace MessageComment {
 }
 
 /**
- * 按轮折叠过程:轮次**结束后**,把全部过程行(思考、工具、待办清单卡、中间旁白)
- * 折成一张 TurnFold 卡,外面只留收尾文本和产物卡(文件变更/预览)。
- * 运行中的轮次不折叠(见 FoldOptions.isTurnActive) —— 否则模型输出一段旁白再继续
- * 调工具时,折叠卡会反复展开/收起,过程区一直在跳。
- * 出错、被中断、无收尾文本或无过程行的轮次不折叠。
+ * 按轮折叠过程,两种形态:
+ * - 运行中:按"连续过程行"切段,一段一张容器,与正文一一对应 —— 模型"调工具 → 讲一段 →
+ *   再调工具"时,讲正文那一刻前一段收尾,后面新开一段;只有末段是常驻容器(展开 + 实时计时)。
+ * - 跑完:整轮过程(思考、工具、中间旁白)收成**一张**大容器,头部"已执行 X",
+ *   外面只留收尾正文、提问/评审卡和产物卡 —— 用户要的是"执行完就收起来"。
+ * 出错、被中断的轮次不折叠;跑完却没有收尾正文的轮次保持原样,让用户看到最后一次动作。
+ * 待办清单卡留在大容器外当进度面板,分区内部走同一套折叠(见 foldSections)。
  */
 export namespace TurnFold {
   export type FoldOptions = {
@@ -507,15 +537,20 @@ export namespace TurnFold {
     /** 该轮的起止时间,取自助手消息的 time.created / time.completed;缺一项就出不了耗时。 */
     turnTime: (userMessageID: string) => { start?: number; end?: number }
     /**
-     * 该轮是否仍在运行。运行中一律不折叠 —— 否则"模型输出一段收尾文字 → 又去调工具"
-     * 会让折叠卡一秒展开、一秒收起，过程区反复跳动。折叠只在轮次真正结束后发生。
+     * 该轮是否仍在运行。运行中把末段留成常驻容器(默认展开、头部实时计时),
+     * 前面的段按已收尾折叠。
      */
     isTurnActive?: (userMessageID: string) => boolean
   }
 
-  /** 属于"过程"的行:可被折进 TurnFold 卡。 */
+  /** 属于"过程"的行:可被折进 TurnFold 容器。 */
   const PROCESS_TAGS = new Set(["AssistantPart", "Thinking", "Retry", "TodoOverview"])
-  /** 永远留在折叠卡之外的行:产物卡与兜底件。 */
+  /**
+   * 运行中的轮次只折真正在跑的过程行:工具调用组、重试。
+   * 待办清单卡是用户盯着看的进度面板,轮次跑完再折进去。
+   */
+  const ACTIVE_PROCESS_TAGS = new Set(["AssistantPart", "Retry"])
+  /** 产物卡与兜底件:始终在正文之后,实时工作指示也别插到它们下面。 */
   const TAIL_TAGS = new Set(["DiffSummary", "PreviewCard", "ToolEvidence", "Error", "BottomSpacer", "TurnActions"])
 
   const partsOf = (group: PartGroup, options: FoldOptions): Part[] => {
@@ -531,9 +566,248 @@ export namespace TurnFold {
     )
   }
 
+  /** 只有正文的组 = 模型在说话，不属于"过程"，运行中的轮次要留在容器外。 */
+  const narration = (row: TimelineRow.TimelineRow, options: FoldOptions) => {
+    if (row._tag !== "AssistantPart") return false
+    const parts = partsOf(row.group, options)
+    return parts.length > 0 && parts.every((part) => part.type === "text")
+  }
+
+  /** 分桶结果:同一轮的行 + 该轮的 userMessageID(结构性行可能没有 id)。 */
+  type Bucket = { id: string | undefined; rows: TimelineRow.TimelineRow[] }
+
+  /** 切段结果:一段连续的过程行(折成容器),或一行留在容器外的内容。 */
+  type Piece = { _tag: "Process"; rows: TimelineRow.TimelineRow[] } | { _tag: "Outside"; row: TimelineRow.TimelineRow }
+
+  /** 部件自己的起止时间:工具看 state.time,正文/思考看 time;pending 的工具还没开始。 */
+  const partTime = (part: Part): { start?: number; end?: number } => {
+    if (part.type === "tool") {
+      const state = part.state
+      if (state.status === "pending") return {}
+      if (state.status === "running") return { start: state.time.start }
+      return { start: state.time.start, end: state.time.end }
+    }
+    if (part.type === "text" || part.type === "reasoning") return { start: part.time?.start, end: part.time?.end }
+    return {}
+  }
+
+  /**
+   * 一段过程行自己的耗时:段内最早的开始到最晚的结束,折叠头部报"已执行 X"用的是它,
+   * 不是整轮耗时 —— 一轮里有好几段,只有最后一段该用整轮时间。
+   * 只要有一行还没跑完或没带时间就出不了耗时,渲染层退到"已完成"。
+   */
+  const segmentDuration = (rows: TimelineRow.TimelineRow[], options: FoldOptions) => {
+    let start: number | undefined
+    let end: number | undefined
+    for (const row of rows) {
+      if (row._tag !== "AssistantPart") return undefined
+      for (const part of partsOf(row.group, options)) {
+        const time = partTime(part)
+        if (time.start === undefined || time.end === undefined) return undefined
+        start = start === undefined ? time.start : Math.min(start, time.start)
+        end = end === undefined ? time.end : Math.max(end, time.end)
+      }
+    }
+    return start !== undefined && end !== undefined && end >= start ? end - start : undefined
+  }
+
+  /** 按"容器外的行收尾"切段:连续过程行合成一段,旁白/提问卡/产物卡/结构行各自独立。 */
+  const splitPieces = (
+    body: TimelineRow.TimelineRow[],
+    isProcess: (row: TimelineRow.TimelineRow) => boolean,
+  ): Piece[] => {
+    const pieces: Piece[] = []
+    let process: TimelineRow.TimelineRow[] | undefined
+    for (const row of body) {
+      if (!isProcess(row)) {
+        process = undefined
+        pieces.push({ _tag: "Outside", row })
+        continue
+      }
+      if (!process) {
+        process = []
+        pieces.push({ _tag: "Process", rows: process })
+      }
+      process.push(row)
+    }
+    return pieces
+  }
+
+  /**
+   * 跑完的轮次:外面收成**一张**大容器("执行 N 步 · 用时 X"),但容器里面仍按旁白切段。
+   * 两层都要有,不是二选一:大容器管"这轮跑完了没",里面的段管"哪句正文对应哪段过程"。
+   * 只有一段(中间没插正文)时不再套第二层折叠头,直接平铺。
+   * 提问/评审卡始终露在外面(用户随时要点),待办清单卡也留在外面当进度面板。
+   * `undefined` = 保持原样:没有收尾正文(最后一次动作露出来更有用),或压根没有过程可折。
+   */
+  const foldCompletedRows = (
+    rows: TimelineRow.TimelineRow[],
+    userMessageID: string,
+    options: FoldOptions,
+  ): TimelineRow.TimelineRow[] | undefined => {
+    let cut = rows.length
+    while (cut > 0 && TAIL_TAGS.has(rows[cut - 1]!._tag)) cut -= 1
+    // 再往前的连续纯文本组 = 这一轮给用户看的那句结论。
+    let start = cut
+    while (start > 0 && narration(rows[start - 1]!, options)) start -= 1
+    if (start === cut) return undefined
+
+    const isInside = (row: TimelineRow.TimelineRow) =>
+      PROCESS_TAGS.has(row._tag) && row._tag !== "TodoOverview" && !interactive(row, options)
+    const inside = rows.slice(0, start).filter(isInside)
+    if (inside.length === 0) return undefined
+
+    // 容器内部:纯文本旁白收尾上一段,过程行开新段。
+    const pieces = splitPieces(inside, (row) => !narration(row, options))
+    const segmented = pieces.length > 1 || pieces[0]?._tag === "Outside"
+    const body = segmented
+      ? pieces.map((piece) =>
+          piece._tag === "Outside"
+            ? piece.row
+            : new TimelineRow.TurnFold({
+                userMessageID,
+                rows: piece.rows,
+                anchorKey: TimelineRow.key(piece.rows[0]!),
+                durationMs: segmentDuration(piece.rows, options),
+                // 一行的段不挂折叠头:点开才能看见一步,比不折还累。
+                bare: piece.rows.length === 1 ? true : undefined,
+              }),
+        )
+      : inside
+
+    const time = options.turnTime(userMessageID)
+    const turnMs =
+      time.start !== undefined && time.end !== undefined && time.end >= time.start ? time.end - time.start : undefined
+    // 大容器头部报的是"步数",切段后容器里的子项数量不再等于步数,单独数一遍过程行。
+    const steps = inside.reduce((count, row) => count + (narration(row, options) ? 0 : 1), 0)
+
+    const out: TimelineRow.TimelineRow[] = []
+    let folded = false
+    rows.forEach((row, index) => {
+      // 过程行在第一个位置合成一张容器,其余从流里拿走 —— 它们已经在那张容器里了。
+      if (index < start && isInside(row)) {
+        if (folded) return
+        folded = true
+        out.push(
+          new TimelineRow.TurnFold({
+            userMessageID,
+            rows: body,
+            durationMs: turnMs ?? segmentDuration(inside, options),
+            stepCount: steps,
+          }),
+        )
+        return
+      }
+      out.push(row)
+    })
+    return out
+  }
+
+  /**
+   * 运行中的轮次:按"连续过程行"切段,一段一张容器 —— 正文一出现就收尾上一段,
+   * 只有末段是常驻展开的实时容器。
+   */
+  const foldActiveRows = (
+    rows: TimelineRow.TimelineRow[],
+    userMessageID: string,
+    options: FoldOptions,
+    thinking?: TimelineRow.Thinking,
+  ): TimelineRow.TimelineRow[] | undefined => {
+    const isProcess = (row: TimelineRow.TimelineRow) => {
+      // 纯文本旁白 = 模型在说话,永远留在容器外,并由它收尾前一段。
+      if (narration(row, options) || interactive(row, options)) return false
+      // 运行中只折真正在跑的行;待办清单卡是进度面板,跑完再折进去。
+      return ACTIVE_PROCESS_TAGS.has(row._tag)
+    }
+    const pieces = splitPieces(
+      rows.filter((row) => row._tag !== "Thinking"),
+      isProcess,
+    )
+    if (!pieces.some((piece) => piece._tag === "Process")) return undefined
+
+    const last = pieces[pieces.length - 1]!
+    // 还在跑且末段是过程行:那一段就是当前动作,收成常驻容器(展开 + 实时计时)。
+    const live = last._tag === "Process"
+
+    const time = options.turnTime(userMessageID)
+    const out: TimelineRow.TimelineRow[] = []
+    for (const piece of pieces) {
+      if (piece._tag === "Outside") {
+        out.push(piece.row)
+        continue
+      }
+      const isLive = piece === last && live
+      out.push(
+        new TimelineRow.TurnFold({
+          userMessageID,
+          rows: piece.rows,
+          anchorKey: TimelineRow.key(piece.rows[0]!),
+          durationMs: segmentDuration(piece.rows, options),
+          startedAt: isLive ? (time.start ?? thinking?.startedAt) : undefined,
+          active: isLive || undefined,
+          reasoningHeading: isLive ? thinking?.reasoningHeading : undefined,
+          activity: isLive ? thinking?.activity : undefined,
+          bare: !isLive && piece.rows.length === 1 ? true : undefined,
+        }),
+      )
+    }
+    // 模型正在写正文、没有常驻容器接走计时时,工作指示还得留在外面,否则运行中没人报进度。
+    // 插在最后一句正文之后、产物卡之前:进度跟着用户正在看的那段走,不会掉到预览卡下面。
+    if (!live && thinking) {
+      const at = out.findIndex((row) => TAIL_TAGS.has(row._tag))
+      out.splice(at === -1 ? out.length : at, 0, thinking)
+    }
+    return out
+  }
+
+  const foldRows = (
+    rows: TimelineRow.TimelineRow[],
+    userMessageID: string,
+    active: boolean,
+    options: FoldOptions,
+    thinking?: TimelineRow.Thinking,
+  ): TimelineRow.TimelineRow[] | undefined =>
+    active ? foldActiveRows(rows, userMessageID, options, thinking) : foldCompletedRows(rows, userMessageID, options)
+
+  /**
+   * 待办分区内部走同一套切段:讲一句、跑一段,正文和过程一一对应,而不是整段过程堆在清单项里。
+   * 分区永远不当"运行中的末段" —— 清单卡本身就是进度面板,计时由它自己负责。
+   */
+  const foldSections = (
+    overview: TimelineRow.TodoOverview,
+    userMessageID: string,
+    options: FoldOptions,
+  ): TimelineRow.TodoOverview => {
+    let changed = false
+    const sections = overview.sections.map((section) => {
+      const rows = foldRows(section.rows, userMessageID, false, options)
+      if (!rows) return section
+      changed = true
+      return new TimelineRow.TodoSection({
+        todoID: section.todoID,
+        segment: section.segment,
+        title: section.title,
+        status: section.status,
+        rows,
+        durationMs: section.durationMs,
+        outputCount: section.outputCount,
+        startedAt: section.startedAt,
+        endedAt: section.endedAt,
+      })
+    })
+    if (!changed) return overview
+    return new TimelineRow.TodoOverview({
+      anchorPartID: overview.anchorPartID,
+      done: overview.done,
+      total: overview.total,
+      sections,
+      startedAt: overview.startedAt,
+      activity: overview.activity,
+    })
+  }
+
   export function fold(rows: TimelineRow.TimelineRow[], options: FoldOptions): TimelineRow.TimelineRow[] {
     // 先按轮分桶:userMessageID 变化即开新桶;没有 id 的行(TodoOverview/BottomSpacer)跟着当前桶。
-    type Bucket = { id: string | undefined; rows: TimelineRow.TimelineRow[] }
     const buckets: Bucket[] = []
     let current: Bucket | undefined
     for (const row of rows) {
@@ -548,60 +822,18 @@ export namespace TurnFold {
 
     const foldBucket = (bucket: Bucket): TimelineRow.TimelineRow[] => {
       const body = bucket.rows
-      if (bucket.id === undefined) return body
-      // 运行中的轮次不折叠：过程区保持展开，轮尾的"工作中 · X"负责显示进度。
-      // 这样不会因为中间旁白/继续调工具而反复折叠又展开。
-      if (options.isTurnActive?.(bucket.id) === true) return body
+      const userMessageID = bucket.id
+      if (userMessageID === undefined) return body
       // 出错或被中断/压缩的轮次:保持原样,让用户看得到发生了什么。
       if (body.some((row) => row._tag === "Error" || row._tag === "TurnDivider")) return body
 
-      // 结尾的产物卡留在外面。
-      let cut = body.length
-      let endIndex = cut
-      while (endIndex > 0 && TAIL_TAGS.has(body[endIndex - 1]!._tag)) endIndex -= 1
-      cut = endIndex
-      // 再往前的连续"纯文本"组就是最终结果。
-      while (endIndex > 0) {
-        const row = body[endIndex - 1]!
-        if (row._tag !== "AssistantPart") break
-        const parts = partsOf(row.group, options)
-        if (parts.length === 0 || !parts.every((part) => part.type === "text")) break
-        endIndex -= 1
-      }
-      const finalRun = body.slice(endIndex, cut)
-      const processRows = body
-        .slice(0, endIndex)
-        .filter((row) => PROCESS_TAGS.has(row._tag) && !interactive(row, options))
-      if (finalRun.length === 0 || processRows.length === 0) return body
-
-      const time = options.turnTime(bucket.id)
-      const durationMs =
-        time.start !== undefined && time.end !== undefined && time.end >= time.start ? time.end - time.start : undefined
-
-      let folded = false
-      const out: TimelineRow.TimelineRow[] = []
-      for (const row of body) {
-        if (interactive(row, options)) {
-          out.push(row)
-          continue
-        }
-        if (PROCESS_TAGS.has(row._tag) && !finalRun.includes(row)) {
-          if (!folded) {
-            folded = true
-            out.push(
-              new TimelineRow.TurnFold({
-                userMessageID: bucket.id!,
-                rows: processRows,
-                durationMs,
-                startedAt: time.start,
-              }),
-            )
-          }
-          continue
-        }
-        out.push(row)
-      }
-      return out
+      const active = options.isTurnActive?.(userMessageID) === true
+      // 轮首那条实时工作指示不进容器:它的标题/起始时间提升到常驻容器里,
+      // 由渲染层画成容器底部的一行,避免容器头部和它各显示一个计时。
+      const thinking = body.find((row): row is TimelineRow.Thinking => row._tag === "Thinking")
+      // 清单分区先各自切段,再随整轮一起切:分区内外都是"讲一句、跑一段"。
+      const rows = body.map((row) => (row._tag === "TodoOverview" ? foldSections(row, userMessageID, options) : row))
+      return foldRows(rows, userMessageID, active, options, thinking) ?? rows
     }
 
     return buckets.flatMap((bucket) => foldBucket(bucket))
@@ -843,12 +1075,17 @@ export namespace TodoGrouping {
     // 回填:清单卡是唯一入口,各待办的执行区间全部嵌进卡内(原地展开),不再单独成行。
     if (overviewIndex >= 0) {
       const starts = sections.flatMap((section) => (section.startedAt === undefined ? [] : [section.startedAt]))
+      // 卡头部的实时状态:把各分区的 parts 按时间顺序并起来取「最后一个还在动的东西」。
+      const sectionParts = sections.flatMap((section) =>
+        section.rows.flatMap((row) => (row._tag === "AssistantPart" ? groupPartsOf(row.group, options.getPart) : [])),
+      )
       out[overviewIndex] = new TimelineRow.TodoOverview({
         anchorPartID: overviewAnchor,
         done: overviewDone,
         total: overviewTotal,
         sections,
         startedAt: starts.length > 0 ? Math.min(...starts) : undefined,
+        activity: sectionParts.length > 0 ? workingActivity({ status: undefined, parts: sectionParts }) : undefined,
       })
     }
     return out

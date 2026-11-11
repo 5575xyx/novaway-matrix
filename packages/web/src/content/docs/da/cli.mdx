@@ -78,13 +78,13 @@ novaway attach http://10.20.30.40:4096
 
 #### Flag
 
-| Flag                                     | Kort | Beskrivelse                                                                       |
-| ---------------------------------------- | ---- | --------------------------------------------------------------------------------- |
-| <nobr><code>{"--dir"}</code></nobr>      |      | Arbejdsmappe til at starte TUI i                                                  |
-| <nobr><code>{"--continue"}</code></nobr> | `-c` | Fortsæt den seneste session                                                       |
-| <nobr><code>{"--session"}</code></nobr>  | `-s` | Sessions-id for at fortsætte                                                      |
-| <nobr><code>{"--fork"}</code></nobr>     |      | Forgren sessionen ved fortsættelse (brug med `--continue` eller `--session`)      |
-| <nobr><code>{"--password"}</code></nobr> | `-p` | Adgangskode til basic auth (standard: `NOVAWAY_SERVER_PASSWORD`)                 |
+| Flag                                     | Kort | Beskrivelse                                                                     |
+| ---------------------------------------- | ---- | ------------------------------------------------------------------------------- |
+| <nobr><code>{"--dir"}</code></nobr>      |      | Arbejdsmappe til at starte TUI i                                                |
+| <nobr><code>{"--continue"}</code></nobr> | `-c` | Fortsæt den seneste session                                                     |
+| <nobr><code>{"--session"}</code></nobr>  | `-s` | Sessions-id for at fortsætte                                                    |
+| <nobr><code>{"--fork"}</code></nobr>     |      | Forgren sessionen ved fortsættelse (brug med `--continue` eller `--session`)    |
+| <nobr><code>{"--password"}</code></nobr> | `-p` | Adgangskode til basic auth (standard: `NOVAWAY_SERVER_PASSWORD`)                |
 | <nobr><code>{"--username"}</code></nobr> | `-u` | Brugernavn til basic auth (standard: `NOVAWAY_SERVER_USERNAME` eller `novaway`) |
 
 ---
@@ -351,9 +351,9 @@ novaway run --attach http://localhost:4096 "Explain async/await in JavaScript"
 | <nobr><code>{"--file"}</code></nobr>     | `-f` | Fil(er), der skal vedhæftes til meddelelsen                                         |
 | <nobr><code>{"--format"}</code></nobr>   |      | Format: standard (formateret) eller json (rå JSON hændelser)                        |
 | <nobr><code>{"--title"}</code></nobr>    |      | Titel for sessionen (bruger trunkeret prompt, hvis der ikke er angivet nogen værdi) |
-| <nobr><code>{"--attach"}</code></nobr>   |      | Tilslut til en kørende novaway-server (f.eks. http://localhost:4096)               |
-| <nobr><code>{"--password"}</code></nobr> | `-p` | Adgangskode til basic auth (standard: `NOVAWAY_SERVER_PASSWORD`)                   |
-| <nobr><code>{"--username"}</code></nobr> | `-u` | Brugernavn til basic auth (standard: `NOVAWAY_SERVER_USERNAME` eller `novaway`)   |
+| <nobr><code>{"--attach"}</code></nobr>   |      | Tilslut til en kørende novaway-server (f.eks. http://localhost:4096)                |
+| <nobr><code>{"--password"}</code></nobr> | `-p` | Adgangskode til basic auth (standard: `NOVAWAY_SERVER_PASSWORD`)                    |
+| <nobr><code>{"--username"}</code></nobr> | `-u` | Brugernavn til basic auth (standard: `NOVAWAY_SERVER_USERNAME` eller `novaway`)     |
 | <nobr><code>{"--dir"}</code></nobr>      |      | Mappe at køre i, eller sti på fjernserveren ved tilkobling                          |
 | <nobr><code>{"--variant"}</code></nobr>  |      | Modelvariant (udbyder-specifik ræsonneringsindsats)                                 |
 | <nobr><code>{"--thinking"}</code></nobr> |      | Vis tænkeblokke                                                                     |
@@ -562,32 +562,32 @@ novaway CLI tager følgende globale flag.
 
 NovaWay kan konfigureres ved hjælp af miljøvariabler.
 
-| Variabel                              | Skriv   | Beskrivelse                                                           |
-| ------------------------------------- | ------- | --------------------------------------------------------------------- |
-| `NOVAWAY_AUTO_SHARE`                 | boolean | Del automatisk session                                                |
-| `NOVAWAY_GIT_BASH_PATH`              | string  | Sti til Git Bash eksekverbar på Windows                               |
-| `NOVAWAY_CONFIG`                     | string  | Sti til konfigurationsfil                                             |
-| `NOVAWAY_TUI_CONFIG`                 | string  | Sti til TUI-konfigurationsfil                                         |
-| `NOVAWAY_CONFIG_DIR`                 | string  | Sti til konfigurationsmappe                                           |
-| `NOVAWAY_CONFIG_CONTENT`             | string  | Indbygget json-konfigurationsindhold                                  |
-| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Deaktiver automatisk opdateringskontrol                               |
-| `NOVAWAY_DISABLE_PRUNE`              | boolean | Deaktiver beskæring af gamle data                                     |
-| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Deaktiver automatisk opdatering af terminaltitel                      |
-| `NOVAWAY_PERMISSION`                 | string  | Indbygget json-tilladelseskonfiguration                               |
-| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Deaktiver standard plugins                                            |
-| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Deaktiver automatisk LSP-serverdownloads                              |
-| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Aktive eksperimentelle modeller                                       |
-| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Deaktiver automatisk kontekstkomprimering                             |
-| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | Deaktiver læsning fra `.claude` (prompt + færdigheder)                |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | Deaktiver læsning `~/.claude/CLAUDE.md`                               |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | Deaktiver indlæsning af `.claude/skills`                              |
-| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Deaktivering af modeller fra eksterne kilder                          |
-| `NOVAWAY_FAKE_VCS`                   | string  | Falsk VCS-udbyder til testformål                                      |
-| `NOVAWAY_CLIENT`                     | string  | Klient-id (standard til `cli`)                                        |
-| `NOVAWAY_ENABLE_EXA`                 | boolean | Aktiver Exa-websøgeværktøjer                                          |
-| `NOVAWAY_SERVER_PASSWORD`            | string  | Aktiver grundlæggende godkendelse for `serve`/`web`                   |
+| Variabel                             | Skriv   | Beskrivelse                                                          |
+| ------------------------------------ | ------- | -------------------------------------------------------------------- |
+| `NOVAWAY_AUTO_SHARE`                 | boolean | Del automatisk session                                               |
+| `NOVAWAY_GIT_BASH_PATH`              | string  | Sti til Git Bash eksekverbar på Windows                              |
+| `NOVAWAY_CONFIG`                     | string  | Sti til konfigurationsfil                                            |
+| `NOVAWAY_TUI_CONFIG`                 | string  | Sti til TUI-konfigurationsfil                                        |
+| `NOVAWAY_CONFIG_DIR`                 | string  | Sti til konfigurationsmappe                                          |
+| `NOVAWAY_CONFIG_CONTENT`             | string  | Indbygget json-konfigurationsindhold                                 |
+| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Deaktiver automatisk opdateringskontrol                              |
+| `NOVAWAY_DISABLE_PRUNE`              | boolean | Deaktiver beskæring af gamle data                                    |
+| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Deaktiver automatisk opdatering af terminaltitel                     |
+| `NOVAWAY_PERMISSION`                 | string  | Indbygget json-tilladelseskonfiguration                              |
+| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Deaktiver standard plugins                                           |
+| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Deaktiver automatisk LSP-serverdownloads                             |
+| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Aktive eksperimentelle modeller                                      |
+| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Deaktiver automatisk kontekstkomprimering                            |
+| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | Deaktiver læsning fra `.claude` (prompt + færdigheder)               |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | Deaktiver læsning `~/.claude/CLAUDE.md`                              |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | Deaktiver indlæsning af `.claude/skills`                             |
+| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Deaktivering af modeller fra eksterne kilder                         |
+| `NOVAWAY_FAKE_VCS`                   | string  | Falsk VCS-udbyder til testformål                                     |
+| `NOVAWAY_CLIENT`                     | string  | Klient-id (standard til `cli`)                                       |
+| `NOVAWAY_ENABLE_EXA`                 | boolean | Aktiver Exa-websøgeværktøjer                                         |
+| `NOVAWAY_SERVER_PASSWORD`            | string  | Aktiver grundlæggende godkendelse for `serve`/`web`                  |
 | `NOVAWAY_SERVER_USERNAME`            | string  | Tilsidesæt grundlæggende godkendelsesbrugernavn (standard `novaway`) |
-| `NOVAWAY_MODELS_URL`                 | string  | Brugerdefineret URL til hentning af modelkonfiguration                |
+| `NOVAWAY_MODELS_URL`                 | string  | Brugerdefineret URL til hentning af modelkonfiguration               |
 
 ---
 
@@ -595,8 +595,8 @@ NovaWay kan konfigureres ved hjælp af miljøvariabler.
 
 Disse miljøvariabler muliggør eksperimentelle funktioner, der kan ændres eller fjernes.
 
-| Variabel                                        | Skriv   | Beskrivelse                               |
-| ----------------------------------------------- | ------- | ----------------------------------------- |
+| Variabel                                       | Skriv   | Beskrivelse                               |
+| ---------------------------------------------- | ------- | ----------------------------------------- |
 | `NOVAWAY_EXPERIMENTAL`                         | boolean | Aktiver alle eksperimentelle funktioner   |
 | `NOVAWAY_EXPERIMENTAL_ICON_DISCOVERY`          | boolean | Aktiver ikonopdagelse                     |
 | `NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | boolean | Deaktiver kopi ved valg i TUI             |

@@ -3,6 +3,9 @@ import path from "path"
 import fs from "fs/promises"
 import { Filesystem } from "@/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
+import { canCreateSymlinks } from "../lib/symlink-support"
+
+const symlinksAvailable = await canCreateSymlinks()
 
 describe("filesystem", () => {
   describe("exists()", () => {
@@ -592,7 +595,7 @@ describe("filesystem", () => {
       expect(Filesystem.resolve(`/mnt/${drive}`)).toBe(Filesystem.resolve(`${drive.toUpperCase()}:/`))
     })
 
-    test("resolves symlinked directory to canonical path", async () => {
+    test.skipIf(!symlinksAvailable)("resolves symlinked directory to canonical path", async () => {
       await using tmp = await tmpdir()
       const target = path.join(tmp.path, "real")
       await fs.mkdir(target)
@@ -608,7 +611,7 @@ describe("filesystem", () => {
       expect(result).toBe(Filesystem.normalizePath(path.resolve(missing)))
     })
 
-    test("throws ELOOP on symlink cycle", async () => {
+    test.skipIf(!symlinksAvailable)("throws ELOOP on symlink cycle", async () => {
       await using tmp = await tmpdir()
       const a = path.join(tmp.path, "a")
       const b = path.join(tmp.path, "b")

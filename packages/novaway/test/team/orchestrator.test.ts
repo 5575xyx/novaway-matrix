@@ -974,7 +974,8 @@ describe("team orchestrator", () => {
         runID: run.id,
         snapshot: () => Effect.succeed("snap_1"),
         // 名册里的人已经归档：这一轮一个都不派。
-        addressing: () => Effect.succeed([{ employeeID: "emp_b", name: "小红", job: "build", reason: "archived" as const }]),
+        addressing: () =>
+          Effect.succeed([{ employeeID: "emp_b", name: "小红", job: "build", reason: "archived" as const }]),
         dispatch: (input) => {
           dispatched += 1
           return Effect.succeed(report(input.team.id))
@@ -993,9 +994,7 @@ describe("team orchestrator", () => {
       expect(event?.payload?.reason).toContain("小红")
       expect(event?.payload?.reason).toContain("已归档")
       // 名单要能被看板点名：结构化一份，界面不用解析那句中文。
-      expect(event?.payload?.members).toEqual([
-        { employeeID: "emp_b", name: "小红", job: "build", reason: "archived" },
-      ])
+      expect(event?.payload?.members).toEqual([{ employeeID: "emp_b", name: "小红", job: "build", reason: "archived" }])
       const after = yield* runs.get(run.id)
       expect(after?.error).toContain("小红")
     }),
@@ -1024,7 +1023,9 @@ describe("team orchestrator", () => {
         runID: run.id,
         snapshot: () => Effect.succeed("snap_1"),
         addressing: (team) =>
-          Effect.succeed(team.profileID === "prof_broken" ? [{ employeeID: "emp_b", reason: "archived" as const }] : []),
+          Effect.succeed(
+            team.profileID === "prof_broken" ? [{ employeeID: "emp_b", reason: "archived" as const }] : [],
+          ),
         dispatch: (input) => Effect.succeed(report(input.team.id)),
         verify: () => Effect.succeed({ outcome: "pass" as const }),
       })
@@ -1162,7 +1163,11 @@ describe("team orchestrator", () => {
         dispatch: (input) => {
           dispatched.push({ round: input.round, attempt: dispatched.length + 1 })
           // 前两次只回一句客套话（读不出报告），第三次才是正常报告。
-          return Effect.succeed(dispatched.length < 3 ? { ...report(input.team.id), claims: [], malformed: "回复里没有可解析的 JSON 对象" } : report(input.team.id))
+          return Effect.succeed(
+            dispatched.length < 3
+              ? { ...report(input.team.id), claims: [], malformed: "回复里没有可解析的 JSON 对象" }
+              : report(input.team.id),
+          )
         },
         verify: () => Effect.succeed({ outcome: "pass" as const }),
       })

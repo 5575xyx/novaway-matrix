@@ -7,6 +7,7 @@ import type {
   SettingsAgentListResponse,
   SettingsRuleListResponse,
   SettingsSkillListResponse,
+  PluginContributionsResponse,
 } from "@novaway/sdk/v2/client"
 import { Button } from "@novaway/ui/button"
 import { useDialog } from "@novaway/ui/context/dialog"
@@ -44,7 +45,7 @@ import { agentAvatar, agentAvatarSeeds, agentAvatarSrc } from "@/utils/agent-ava
 import { pathKey } from "@/utils/path-key"
 import { AiFixButton } from "./ai-fix-button"
 import { AppIcon, appIcon } from "./app-icon"
-import { rowAccent, rowAccentTint, SettingsGroup } from "./settings-parts"
+import { rowAccent, rowAccentTint, SettingsGroup, SettingsPage } from "./settings-parts"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
 
@@ -291,18 +292,6 @@ function nextName(existing: Record<string, unknown>, base: string) {
   return `${base}-${Date.now()}`
 }
 
-const SettingsPage: Component<{ title: string; description: string; children: JSX.Element }> = (props) => (
-  <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
-    <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-      <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-        <h2 class="text-16-medium text-foreground">{props.title}</h2>
-        <p class="text-13-regular text-foreground-subtle">{props.description}</p>
-      </div>
-    </div>
-    <div class="flex flex-col gap-8 w-full">{props.children}</div>
-  </div>
-)
-
 const SectionTitle: Component<{ title: string; description?: string }> = (props) => (
   <div class="flex flex-col gap-1 pb-2">
     <h3 class="text-14-medium text-foreground">{props.title}</h3>
@@ -496,7 +485,7 @@ const SkillSelectDialog: Component<{
     >
       <div class="flex flex-col gap-3 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <Show when={error()}>
-          <div class="text-12-regular text-danger-base">{error()}</div>
+          <div class="text-12-regular text-icon-critical-base">{error()}</div>
         </Show>
         <SettingsGroup>
           <Show
@@ -737,7 +726,7 @@ const SourceImportDialog: Component<{
           disabled={save.isPending || !!success()}
         />
         <Show when={success()}>
-          <div class="rounded-md border border-success-base/30 bg-success-base/10 px-3 py-2 text-13-regular text-success-base">
+          <div class="rounded-md border border-border-success-base/30 bg-surface-success-weak px-3 py-2 text-13-regular text-icon-success-base">
             {success()}
           </div>
         </Show>
@@ -811,7 +800,7 @@ const ConfirmActionDialog: Component<{
         <div class="flex flex-col gap-1">
           <span class="text-14-regular text-foreground">{props.description}</span>
           <Show when={error()}>
-            <span class="text-12-regular text-danger-base">{error()}</span>
+            <span class="text-12-regular text-icon-critical-base">{error()}</span>
           </Show>
         </div>
       </div>
@@ -1763,7 +1752,7 @@ const ProjectInstructionGenerateDialog: Component<{
                     <span
                       classList={{
                         "mt-1 size-1.5 shrink-0 rounded-full": true,
-                        "bg-success-base": item.step === "written",
+                        "bg-surface-success-base": item.step === "written",
                         "bg-foreground animate-pulse": item.step !== "written",
                       }}
                     />
@@ -2182,7 +2171,9 @@ const AgentGenerateDialog: Component<{
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-12-medium text-foreground-subtle">{language.t("settings.agents.ai.field.model")}</label>
+              <label class="text-12-medium text-foreground-subtle">
+                {language.t("settings.agents.ai.field.model")}
+              </label>
               <Select
                 options={options()}
                 current={currentModel()}
@@ -3704,7 +3695,7 @@ export const SettingsMcp: Component = () => {
         onEdit={editMcp}
         onDelete={(name) => void deleteMcp(name)}
       />
-      {/* 市场：对齐 ZCode 的 MCP 安装面板 —— 浏览 + 一键添加，不用手写 command/args。
+      {/* 市场：MCP 安装面板 —— 浏览 + 一键添加，不用手写 command/args。
           密钥一律走 {env:...} 占位，不写进配置文件。 */}
       <McpCatalogSection configured={configured()} onAdd={updateMcp} />
     </SettingsPage>
@@ -3789,7 +3780,166 @@ const McpCatalogSection: Component<{
   )
 }
 
-export const SettingsPlugins: Component = () => {
+type PluginSettingsField =
+  | { key: string; type: "text" | "secret" | "number"; label: string; placeholder?: string }
+  | { key: string; type: "boolean"; label: string; default?: boolean }
+  | { key: string; type: "select"; label: string; options: string[]; default?: string }
+  | { key: string; type: "list"; label: string; item: "text" | "secret" }
+
+type PluginSettingsSection = {
+  pluginID: string
+  localName: string
+  title: string
+  description?: string
+  fields: PluginSettingsField[]
+}
+
+function parsePluginSettingsSections(items: PluginContributionsResponse): PluginSettingsSection[] {
+  return items.flatMap((item) => {
+    if (item.kind !== "surface" || item.slot !== "settings.section" || item.status !== "active") return []
+    if (!item.title || typeof item.view !== "object" || item.view === null) return []
+    const view = item.view as { type?: unknown; fields?: unknown }
+    if (view.type !== "declarative" || !Array.isArray(view.fields)) return []
+    const fields = view.fields.filter((field): field is PluginSettingsField => {
+      if (typeof field !== "object" || field === null) return false
+      const value = field as Record<string, unknown>
+      if (typeof value.key !== "string" || typeof value.label !== "string" || typeof value.type !== "string")
+        return false
+      if (value.type === "select")
+        return Array.isArray(value.options) && value.options.every((option) => typeof option === "string")
+      if (value.type === "list") return value.item === "text" || value.item === "secret"
+      return value.type === "text" || value.type === "secret" || value.type === "number" || value.type === "boolean"
+    })
+    return fields.length > 0
+      ? [
+          {
+            pluginID: item.pluginID,
+            localName: item.localName,
+            title: item.title,
+            description: item.description,
+            fields,
+          },
+        ]
+      : []
+  })
+}
+
+const PluginSettingsSections: Component<{ directory?: string }> = (props) => {
+  const globalSync = useGlobalSync()
+  const sections = createMemo(() => {
+    if (!props.directory) return []
+    const [store] = globalSync.child(props.directory, { bootstrap: false })
+    return parsePluginSettingsSections(store.plugin_contributions)
+  })
+
+  const valueOf = (section: PluginSettingsSection, field: PluginSettingsField) =>
+    globalSync.data.config.plugins?.config?.[section.pluginID]?.[field.key] ??
+    (field.type === "boolean" ? field.default : field.type === "select" ? field.default : undefined)
+
+  const save = (section: PluginSettingsSection, field: PluginSettingsField, raw: unknown) => {
+    const config = globalSync.data.config
+    const pluginConfig = config.plugins?.config ?? {}
+    const current = pluginConfig[section.pluginID] ?? {}
+    void globalSync.updateConfig({
+      ...config,
+      plugins: {
+        ...config.plugins,
+        config: {
+          ...pluginConfig,
+          [section.pluginID]: { ...current, [field.key]: raw },
+        },
+      },
+    })
+  }
+
+  return (
+    <Show when={sections().length > 0}>
+      <div class="mt-8">
+        <SectionTitle title="Plugin settings" description="Declarative settings supplied by active plugins." />
+        <For each={sections()}>
+          {(section) => (
+            <div class="mb-6">
+              <SectionTitle title={section.title} description={section.description} />
+              <SettingsGroup>
+                <For each={section.fields}>
+                  {(field) => {
+                    const value = () => valueOf(section, field)
+                    if (field.type === "boolean") {
+                      return (
+                        <RuntimeRow
+                          icon="server"
+                          title={field.label}
+                          actions={
+                            <Switch
+                              checked={Boolean(value())}
+                              onChange={(checked) => save(section, field, checked)}
+                              hideLabel
+                            />
+                          }
+                        />
+                      )
+                    }
+                    if (field.type === "select") {
+                      const options = field.options.map((option) => ({ value: option, label: option }))
+                      const current = () => options.find((option) => option.value === value())
+                      return (
+                        <div class="flex items-center justify-between gap-4 border-b border-border px-3 py-3 last:border-b-0">
+                          <span class="text-14-regular text-foreground">{field.label}</span>
+                          <Select
+                            options={options}
+                            current={current()}
+                            value={(option) => option.value}
+                            label={(option) => option.label}
+                            onSelect={(option) => option && save(section, field, option.value)}
+                            variant="secondary"
+                            triggerVariant="settings"
+                          />
+                        </div>
+                      )
+                    }
+                    if (field.type === "list") {
+                      const listValue = value()
+                      const list = () =>
+                        Array.isArray(listValue) ? listValue.map(String).join(", ") : String(listValue ?? "")
+                      return (
+                        <TextField
+                          label={field.label}
+                          value={list()}
+                          onChange={(next) =>
+                            save(
+                              section,
+                              field,
+                              next
+                                .split(",")
+                                .map((item) => item.trim())
+                                .filter(Boolean),
+                            )
+                          }
+                          placeholder={`comma-separated ${field.item} values`}
+                        />
+                      )
+                    }
+                    return (
+                      <TextField
+                        label={field.label}
+                        type={field.type === "secret" ? "password" : field.type === "number" ? "number" : "text"}
+                        value={String(value() ?? "")}
+                        onChange={(next) => save(section, field, field.type === "number" ? Number(next) : next)}
+                        placeholder={field.placeholder}
+                      />
+                    )
+                  }}
+                </For>
+              </SettingsGroup>
+            </div>
+          )}
+        </For>
+      </div>
+    </Show>
+  )
+}
+
+export const SettingsPlugins: Component<{ directory?: string }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
   const globalSync = useGlobalSync()
@@ -3870,6 +4020,7 @@ export const SettingsPlugins: Component = () => {
           </Show>
         </SettingsGroup>
       </div>
+      <PluginSettingsSections directory={props.directory} />
     </SettingsPage>
   )
 }
@@ -4041,7 +4192,7 @@ export const PluginStoreSection: Component<{
       </SettingsGroup>
 
       <Show when={error()}>
-        {(message) => <div class="pt-2 text-12-regular text-destructive break-words">{message()}</div>}
+        {(message) => <div class="pt-2 text-12-regular text-icon-critical-base break-words">{message()}</div>}
       </Show>
       <p class="pt-2 text-12-regular text-foreground-subtle">{language.t("settings.plugins.store.restartHint")}</p>
     </div>
@@ -4073,7 +4224,7 @@ const RuntimeRow: Component<{
   // 长列表里靠颜色就能区分"这是哪一条"。
   const accent = createMemo(() => appIcon(props.title, { fallback: "dot-grid" }).to)
   return (
-    // 对齐 ZCode 的资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
+    // 资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
     // 中间标题 + 标签 + 描述，右侧操作。行与行之间由外层 SettingsGroup 的分隔线切分。
     <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
       <Show when={props.avatar} fallback={<AppIcon seed={props.title} glyph={props.icon} fallback="dot-grid" />}>
@@ -4240,12 +4391,12 @@ const McpRow: Component<{
   const statusColor = () => {
     switch (status()) {
       case "connected":
-        return "#34d399"
+        return "var(--icon-success-base)"
       case "failed":
-        return "#f87171"
+        return "var(--icon-critical-base)"
       case "needs_auth":
       case "needs_client_registration":
-        return "#fbbf24"
+        return "var(--icon-warning-base)"
       default:
         return "var(--foreground-subtlest)"
     }

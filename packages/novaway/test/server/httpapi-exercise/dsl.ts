@@ -66,6 +66,11 @@ class ScenarioBuilder<S = undefined> {
     return this.clone({ capture: "stream" })
   }
 
+  /** Assert headers for a long-lived stream that intentionally has no initial event. */
+  streamHeaders() {
+    return this.clone({ capture: "stream-headers" })
+  }
+
   protected() {
     return this.auth("protected")
   }
@@ -202,9 +207,10 @@ export function route(template: string, params: Record<string, string>) {
 }
 
 export function controlledPtyInput(title: string | undefined) {
+  const windows = process.platform === "win32"
   return {
-    command: "/bin/sh",
-    args: ["-c", "sleep 30"],
+    command: windows ? (process.env.COMSPEC ?? "cmd.exe") : "/bin/sh",
+    args: windows ? ["/c", "ping 127.0.0.1 -n 31 >NUL"] : ["-c", "sleep 30"],
     ...(title ? { title } : {}),
   }
 }

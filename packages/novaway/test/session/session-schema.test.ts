@@ -9,6 +9,7 @@ const info = {
   slug: "test-session",
   projectID: ProjectID.global,
   workspaceID: undefined,
+  scope: "project",
   directory: "/tmp/novaway",
   parentID: undefined,
   summary: undefined,
@@ -50,6 +51,7 @@ describe("Session schema", () => {
     }) as Record<string, unknown>
 
     expect(Object.hasOwn(encoded, "parentID")).toBe(false)
+    expect(encoded.scope).toBe("project")
     expect(Object.hasOwn(encoded.project as Record<string, unknown>, "name")).toBe(false)
   })
 

@@ -4,7 +4,9 @@ import { EffectBridge } from "@/effect/bridge"
 import type { InstanceContext } from "@/project/instance-context"
 import { SessionID, MessageID } from "@/session/schema"
 import { Effect, Layer, Context, Schema } from "effect"
+import * as Option from "effect/Option"
 import { Config } from "@/config/config"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { MCP } from "../mcp"
 import { Skill } from "../skill"
 import PROMPT_INITIALIZE from "./template/initialize.txt"
@@ -140,19 +142,6 @@ export const layer = Layer.effect(
         }
       }
 
-      for (const item of yield* skill.all()) {
-        if (commands[item.name]) continue
-        commands[item.name] = {
-          name: item.name,
-          description: item.description,
-          source: "skill",
-          get template() {
-            return item.content
-          },
-          hints: [],
-        }
-      }
-
       return {
         commands,
       }
@@ -160,14 +149,44 @@ export const layer = Layer.effect(
 
     const state = yield* InstanceState.make<State>((ctx) => init(ctx))
 
-    const get = Effect.fn("Command.get")(function* (name: string) {
-      const s = yield* InstanceState.get(state)
-      return s.commands[name]
+    const contributedCommands = Effect.gen(function* () {
+      const serviceOption = yield* Effect.serviceOption(PluginRuntimeService.Service)
+      if (Option.isNone(serviceOption)) return [] as Info[]
+      const host = yield* serviceOption.value.get
+      return host.registries.commands.list().map((entry) => ({
+        name: entry.name,
+        description: entry.item.description,
+        agent: entry.item.agent,
+        model: entry.item.model,
+        source: "command" as const,
+        template: entry.item.template,
+        subtask: entry.item.subtask,
+        hints: hints(entry.item.template),
+      }))
     })
 
     const list = Effect.fn("Command.list")(function* () {
       const s = yield* InstanceState.get(state)
-      return Object.values(s.commands)
+      const pluginCommands = yield* contributedCommands
+      const commands = new Map(pluginCommands.map((item) => [item.name, item]))
+      for (const item of Object.values(s.commands)) commands.set(item.name, item)
+      // Skill-backed commands share the live Skill snapshot. Caching them in
+      // init() leaves disabled plugins executable or hides newly enabled skills.
+      for (const item of yield* skill.all()) {
+        if (commands.has(item.name)) continue
+        commands.set(item.name, {
+          name: item.name,
+          description: item.description,
+          source: "skill",
+          template: item.content,
+          hints: [],
+        })
+      }
+      return [...commands.values()]
+    })
+
+    const get = Effect.fn("Command.get")(function* (name: string) {
+      return (yield* list()).find((item) => item.name === name)
     })
 
     const reload = Effect.fn("Command.reload")(function* () {

@@ -4,11 +4,11 @@
 // 只会觉得右栏"乱弹"。所以把开关摆在输入框右上角，运行中常驻：
 // 现在到底跟不跟、是不是正在跟，一眼能看出来，点一下就能切，不用翻设置页。
 //
-// 四个视觉状态（颜色只在绿 / 灰之间走，不引入第三种色相）：
-// - off   ：灰、圆点静止 —— 设置里关掉了
-// - armed ：绿、圆点缓慢呼吸 —— 开着，等下一笔写盘（轻动，表示"在待命"）
-// - live  ：绿更实、圆点外圈脉冲 + 呼吸 + 胶囊扫光 —— 正在跟着某一笔写盘
-// - taken ：灰、圆点静止 —— 用户碰了右栏接管了，本轮自动跟随暂停
+// 四个视觉状态沿用 success / neutral 语义色，由当前主题决定具体色相：
+// - off   ：中性色、圆点静止 —— 设置里关掉了
+// - armed ：成功色、圆点缓慢呼吸 —— 开着，等下一笔写盘（轻动，表示"在待命"）
+// - live  ：更强的成功色、圆点外圈脉冲 + 呼吸 + 胶囊扫光 —— 正在跟着某一笔写盘
+// - taken ：中性色、圆点静止 —— 用户碰了右栏接管了，本轮自动跟随暂停
 //
 // 点击反馈单独一条扩散环（.live-follow-flash）：它只表示"这一下点到了"，
 // 不参与状态配色——否则按下的一瞬间颜色乱跳，反而看不清切没切。
@@ -86,7 +86,7 @@ export function SessionLiveFollowChip(props: { sessionID: string }) {
         "focus-visible:ring-2 focus-visible:ring-syntax-success/50": true,
         "border-syntax-success/35 bg-syntax-success/10 text-syntax-success hover:border-syntax-success/55 hover:bg-syntax-success/15":
           state() === "armed" || state() === "live",
-        "border-syntax-success/60 bg-syntax-success/15 text-syntax-success shadow-[0_0_0_1px_rgba(45,186,38,0.12),0_2px_10px_-4px_rgba(45,186,38,0.45)]":
+        "border-syntax-success/60 bg-syntax-success/15 text-syntax-success shadow-[0_0_0_1px_color-mix(in_srgb,var(--syntax-success)_12%,transparent),0_2px_10px_-4px_color-mix(in_srgb,var(--syntax-success)_45%,transparent)]":
           state() === "live",
         "border-border bg-surface text-foreground-subtlest hover:border-foreground-subtlest/40 hover:text-foreground-subtle":
           state() === "off",

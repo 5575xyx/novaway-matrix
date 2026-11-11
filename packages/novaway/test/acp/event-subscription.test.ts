@@ -177,9 +177,22 @@ function createEventStream() {
       }
       if (state.closed) return
       const value = await new Promise<GlobalEventEnvelope | undefined>((resolve) => {
+        if (!signal) {
+          waiters.push(resolve)
+          return
+        }
+        if (signal.aborted) {
+          resolve(undefined)
+          return
+        }
+        const onAbort = () => {
+          const index = waiters.indexOf(resolve)
+          if (index >= 0) waiters.splice(index, 1)
+          resolve(undefined)
+        }
         waiters.push(resolve)
-        if (!signal) return
-        signal.addEventListener("abort", () => resolve(undefined), { once: true })
+        signal.addEventListener("abort", onAbort, { once: true })
+        if (signal.aborted) onAbort()
       })
       if (!value) return
       yield value
@@ -336,7 +349,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, updates, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
 
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const sessionB = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
@@ -374,7 +387,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
         controller.push({
@@ -432,7 +445,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, chunks, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
 
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const sessionB = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
@@ -489,7 +502,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, calls, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
 
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
@@ -516,7 +529,7 @@ describe("acp.agent event subscription", () => {
           permissionReplies.push(params.requestID)
           return { data: true }
         }
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
 
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
@@ -573,7 +586,7 @@ describe("acp.agent event subscription", () => {
           return { data: true }
         }
 
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
 
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const sessionB = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
@@ -634,7 +647,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const input = { command: "echo hello", description: "run command" }
 
@@ -676,7 +689,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
         controller.push(
@@ -728,7 +741,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const data = Buffer.from("image-data").toString("base64")
 
@@ -788,7 +801,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, sessionUpdates, stop, sdk } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const data = Buffer.from("replay-image").toString("base64")
 
@@ -855,7 +868,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, sessionUpdates, stop, sdk } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const input = { command: "echo hi", description: "run command" }
 
@@ -923,7 +936,7 @@ describe("acp.agent event subscription", () => {
       directory: tmp.path,
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
-        const cwd = "/tmp/novaway-acp-test"
+        const cwd = tmp.path
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const input = { command: "echo hello", description: "run command" }
 

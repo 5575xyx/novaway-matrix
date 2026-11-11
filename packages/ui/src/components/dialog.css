@@ -1,6 +1,6 @@
 /* [data-component="dialog-trigger"] { } */
 
-/* 对齐 ZCode `components/ui/dialog.tsx`：外壳 `rounded-2xl` + `border-popover-border` +
+/* 外壳 `rounded-2xl` + `border-popover-border` +
    `bg-popover` + `p-4` + `gap-4` + `text-ui-base` + `shadow-md`，动效 fade + zoom 95%（100ms）。
    旧版是 rounded-lg + 自算背景 + 自定义大阴影。 */
 [data-component="dialog-overlay"] {
@@ -8,7 +8,7 @@
   inset: 0;
   z-index: 100;
   background-color: color-mix(in oklab, var(--background) 60%, transparent);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
   /* 遮罩本身也淡入，否则弹窗还没出来背景先"跳"一下。 */
   animation: overlayShow var(--transition-overlay-ms, 180ms) ease-out;
 
@@ -65,8 +65,8 @@
       background-clip: padding-box;
       box-shadow:
         inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
-        0 1px 2px color-mix(in oklab, #000 8%, transparent),
-        0 24px 64px -12px color-mix(in oklab, #000 42%, transparent);
+        0 1px 2px color-mix(in oklab, var(--shadow-color) 8%, transparent),
+        0 24px 64px -12px color-mix(in oklab, var(--shadow-color) 42%, transparent);
       font-size: var(--font-size-ui-base);
       /* 内容滚到底/顶时，头部与正文之间有可见的分隔，避免文字"贴"在一起。 */
       isolation: isolate;

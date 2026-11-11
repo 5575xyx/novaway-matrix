@@ -1,0 +1,51 @@
+Lexora Office
+
+GenOffice
+Copyright 2026 Mainfunc, Inc.
+This product includes software developed at Mainfunc, Inc.
+
+This plugin includes portions of GenOffice by Mainfunc, Inc., licensed under
+Apache License 2.0, from revision 8ab58a51433577a1317af4206137cee425b86606.
+https://github.com/genspark-ai/genoffice
+
+The GenOffice document, spreadsheet, presentation and PDF components are adapted
+to Lexora's isolated plugin environment. The file library, version management,
+resource bridges and browser adapters are local modifications.
+
+GenOffice uses Univer for spreadsheet rendering, Tiptap for document editing,
+Konva for presentations, and PDF.js/PDFium/pdf-lib for PDF operations.
+Third-party notices and bundled font licenses are included in
+THIRD-PARTY-NOTICES.txt and the bundled assets.
+
+No source code from the happy-friday-lite application is included.
+
+The DOCX, XLSX, PPTX and PDF icons in src/office-home-icons.tsx are extracted
+from apps/shell/src/renderer/src/assets/file-{docx,xlsx,pptx,pdf}.svg at the
+GenOffice revision above. Their original geometry and colors are unchanged;
+the local modification combines the four SVG files into a React component.
+
+The homepage card, hero, filter and list styling in src/office.css is adapted
+from the same GenOffice revision (apps/shell/src/renderer/src/home.css)
+for Lexora document-library actions, themes and responsive layout.
+
+The presentation engine includes GenOffice's TypeScript port of the libeot
+MicroType Express (MTX) decoder by Brennan T. Vincent, licensed under MPL-2.0.
+Its unmodified source, original license and provenance notes are available at:
+https://github.com/genspark-ai/genoffice/tree/8ab58a51433577a1317af4206137cee425b86606/packages/pptx-engine/src/vendor/mtx
+https://github.com/umanwizard/libeot
+
+The document engine includes emf-converter 2.0.2 and GenOffice's documented
+modifications, licensed under Apache-2.0.
+Copyright 2025-present pptx-viewer contributors
+https://github.com/ChristopherVR/emf-converter
+Its source, original license and modification notes are available at:
+https://github.com/genspark-ai/genoffice/tree/8ab58a51433577a1317af4206137cee425b86606/packages/docx-engine/src/vendor/emf-converter
+
+The PDF radical mapping is derived from Unicode Character Database 17.0.0,
+EquivalentUnifiedIdeograph.txt (2025-08-01), under Unicode License v3.
+Copyright © 1991-2026 Unicode, Inc.
+The original copyright and permission notice is included in
+THIRD-PARTY-NOTICES.txt.
+
+The licenses and provenance notes for these bundled components are also
+included in THIRD-PARTY-NOTICES.txt in the plugin package.

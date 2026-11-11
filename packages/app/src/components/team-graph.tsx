@@ -50,9 +50,9 @@ const flowTone = (edge: GraphEdge) =>
   edge.active ? "stroke-primary" : edge.kind === "deliver" ? "stroke-success" : "stroke-foreground-subtlest"
 
 const ROUND_TONE = [
-  "text-primary border-primary/40 bg-primary/10",
-  "text-warning border-warning/40 bg-warning/10",
-  "text-success border-success/40 bg-success/10",
+  "text-text-interactive-base border-primary/40 bg-primary/10",
+  "text-icon-warning-base border-warning/40 bg-warning/10",
+  "text-icon-success-base border-success/40 bg-success/10",
 ]
 
 const nodeTone = (node: GraphNode) => {
@@ -121,7 +121,9 @@ export function TeamGraph(props: {
                     })}
               </span>
               <Show when={item.lane.unassigned > 0}>
-                <span class="text-warning">{t("team.graph.unassigned", { count: String(item.lane.unassigned) })}</span>
+                <span class="text-icon-warning-base">
+                  {t("team.graph.unassigned", { count: String(item.lane.unassigned) })}
+                </span>
               </Show>
             </div>
             <div class="overflow-x-auto">

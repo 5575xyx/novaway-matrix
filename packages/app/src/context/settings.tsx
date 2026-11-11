@@ -52,6 +52,8 @@ export interface Settings {
   }
   appearance: {
     fontSize: number
+    fontStyle: "sans" | "serif"
+    contentWidth: "small" | "standard" | "wide"
     mono: string
     sans: string
     terminal: string
@@ -59,7 +61,7 @@ export interface Settings {
   /**
    * 办公模式的偏好。
    *
-   * - `occupation`：和 ZCode 的 `getRecommendedPromptPool(isOfficeMode, occupation)` 同一套语义 ——
+   * - `occupation`：决定推荐提示词的排序 ——
    *   只有财务会单独拎出一组提示词先展示，其余一律按「办公文档」优先。
    * - `showSuggestions`：草稿态那排推荐提示词是否展示。用户点「关闭」后要真的记住，
    *   否则每次新建任务又冒出来，等于没关。
@@ -159,6 +161,8 @@ const defaultSettings: Settings = {
   },
   appearance: {
     fontSize: 15,
+    fontStyle: "sans",
+    contentWidth: "standard",
     mono: "",
     sans: "",
     terminal: "",
@@ -227,7 +231,15 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       if (typeof document === "undefined") return
       const root = document.documentElement
       root.style.setProperty("--font-family-mono", monoFontFamily(store.appearance?.mono))
-      root.style.setProperty("--font-family-sans", sansFontFamily(store.appearance?.sans))
+      root.style.setProperty(
+        "--font-family-sans",
+        store.appearance?.fontStyle === "serif"
+          ? "Georgia, 'Times New Roman', serif"
+          : sansFontFamily(store.appearance?.sans),
+      )
+      const widths = { small: "680px", standard: "820px", wide: "1080px" } as const
+      const width = store.appearance?.contentWidth
+      root.style.setProperty("--session-content-max-width", widths[width as keyof typeof widths] ?? widths.standard)
     })
 
     const fontSize = withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize)
@@ -308,10 +320,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setShowSessionProgressBar(value: boolean) {
           setStore("general", "showSessionProgressBar", value)
         },
-        liveFileFollow: withFallback(
-          () => store.general?.liveFileFollow,
-          defaultSettings.general.liveFileFollow,
-        ),
+        liveFileFollow: withFallback(() => store.general?.liveFileFollow, defaultSettings.general.liveFileFollow),
         setLiveFileFollow(value: boolean) {
           setStore("general", "liveFileFollow", value)
         },
@@ -334,6 +343,14 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       },
       appearance: {
         fontSize: withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize),
+        fontStyle: withFallback(() => store.appearance?.fontStyle, defaultSettings.appearance.fontStyle),
+        setFontStyle(value: "sans" | "serif") {
+          setStore("appearance", "fontStyle", value)
+        },
+        contentWidth: withFallback(() => store.appearance?.contentWidth, defaultSettings.appearance.contentWidth),
+        setContentWidth(value: "small" | "standard" | "wide") {
+          setStore("appearance", "contentWidth", value)
+        },
         setFontSize(value: number) {
           setStore("appearance", "fontSize", value)
         },

@@ -371,7 +371,10 @@ function process<Def extends Definition>(
         }
 
         GlobalBus.emit("event", {
-          directory: options.context.instance.directory,
+          directory:
+            options.context.instance.scope === "global" || options.context.instance.project.id === "global-chat"
+              ? "global-chat"
+              : options.context.instance.directory,
           project: options.context.instance.project.id,
           workspace: options.context.workspace,
           payload: {

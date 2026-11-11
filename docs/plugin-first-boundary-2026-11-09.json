@@ -1,0 +1,230 @@
+{
+  "kernelCount": 51,
+  "capabilityCount": 150,
+  "violations": [
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/mailbox",
+      "target": "src/team/mailbox.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/op-log",
+      "target": "src/team/op-log.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/denials",
+      "target": "src/team/denials.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/writer",
+      "target": "src/team/writer.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/run",
+      "target": "src/team/run.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/policy",
+      "target": "src/team/policy.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/team",
+      "target": "src/team/team.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/catalog",
+      "target": "src/team/catalog.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/switch",
+      "target": "src/team/switch.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/task-list",
+      "target": "src/team/task-list.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/team/task-board",
+      "target": "src/team/task-board.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/memory/service",
+      "target": "src/memory/service.ts"
+    },
+    {
+      "file": "src/session/prompt.ts",
+      "spec": "@/memory/context",
+      "target": "src/memory/context.ts"
+    },
+    {
+      "file": "src/session/session.ts",
+      "spec": "@/memory/service",
+      "target": "src/memory/service.ts"
+    },
+    {
+      "file": "src/storage/schema.ts",
+      "spec": "../memory/memory.sql",
+      "target": "src/memory/memory.sql.ts"
+    }
+  ],
+  "exempted": [
+    {
+      "file": "src/plugin/index.ts",
+      "spec": "./codex",
+      "target": "src/plugin/codex.ts"
+    },
+    {
+      "file": "src/plugin/index.ts",
+      "spec": "./github-copilot/copilot",
+      "target": "src/plugin/github-copilot/copilot.ts"
+    },
+    {
+      "file": "src/plugin/index.ts",
+      "spec": "./poe",
+      "target": "src/plugin/poe.ts"
+    },
+    {
+      "file": "src/plugin/index.ts",
+      "spec": "./cloudflare",
+      "target": "src/plugin/cloudflare.ts"
+    },
+    {
+      "file": "src/plugin/index.ts",
+      "spec": "./azure",
+      "target": "src/plugin/azure.ts"
+    },
+    {
+      "file": "src/plugin/index.ts",
+      "spec": "./digitalocean",
+      "target": "src/plugin/digitalocean.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./monitor",
+      "target": "src/tool/monitor.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./subscribe",
+      "target": "src/tool/subscribe.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./knowledge",
+      "target": "src/tool/knowledge.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./database",
+      "target": "src/tool/database.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./knowledge-manage",
+      "target": "src/tool/knowledge-manage.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./knowledge-ocr",
+      "target": "src/tool/knowledge-ocr.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./memory-setup",
+      "target": "src/tool/memory-setup.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./office-setup",
+      "target": "src/tool/office-setup.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./office-pptx",
+      "target": "src/tool/office-pptx.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./office-doc",
+      "target": "src/tool/office-doc.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./computer",
+      "target": "src/tool/computer.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./memory",
+      "target": "src/tool/memory.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./browser",
+      "target": "src/tool/browser.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "@/browser/browser",
+      "target": "src/browser/browser.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./cron",
+      "target": "src/tool/cron.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "@/orchestrator/orchestrator",
+      "target": "src/orchestrator/orchestrator.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "@/team/team",
+      "target": "src/team/team.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "@/team/task-list",
+      "target": "src/team/task-list.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "@/team/mailbox",
+      "target": "src/team/mailbox.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./task-tools",
+      "target": "src/tool/task-tools.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "./team-run",
+      "target": "src/tool/team-run.ts"
+    },
+    {
+      "file": "src/tool/registry.ts",
+      "spec": "@/team/switch",
+      "target": "src/team/switch.ts"
+    }
+  ],
+  "expiredExempts": [],
+  "unusedExempts": [],
+  "deadGlobs": [],
+  "newViolations": [],
+  "staleBaseline": [],
+  "pluginApiViolations": [],
+  "blocked": []
+}

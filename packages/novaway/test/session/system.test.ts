@@ -96,7 +96,7 @@ const gitIt = testEffect(
 )
 
 describe("session.system", () => {
-  it.effect("skills output is sorted by name and stable across calls", () =>
+  it.instance("skills output is sorted by name and stable across calls", () =>
     Effect.gen(function* () {
       const prompt = yield* SystemPrompt.Service
       const first = yield* prompt.skills(build)

@@ -33,7 +33,7 @@ export type TriggerTitle = {
   args?: string[]
   argsClass?: string
   /**
-   * 标题右侧的**富内容**（对齐 ZCode ToolSummaryRow 的 `kindDetail`）。
+   * 标题右侧的**富内容**。
    *
    * `subtitle` 只能是字符串（会被截断成一行），但有些摘要需要真实节点：
    * 例如"动了哪些文件"的 chip 列表（带文件图标）。两者的位置也不同 ——
@@ -48,7 +48,6 @@ const isTriggerTitle = (val: any): val is TriggerTitle => {
     typeof val === "object" && val !== null && "title" in val && (typeof Node === "undefined" || !(val instanceof Node))
   )
 }
-
 
 export interface BasicToolProps {
   icon: IconProps["name"]
@@ -80,20 +79,18 @@ export interface BasicToolProps {
    *
    * 时间线会随消息更新重算分组，`BasicTool` 实例因此可能被重建；没有这个键的话
    * 用户展开一个工具、之后随内容更新就被收回去，读长输出时很烦。
-   * ZCode 的 `ToolLayout` 也是模块级 Map 存 open 状态（`toolLayoutOpenState`）。
    */
   persistKey?: string
 
   /**
    * 工具行的状态词。
    *
-   * ZCode 把状态从标题里拆出来单独放（`ToolLayout` 的 statusLabel / statusIndicator /
-   * showStatusLabel / showFailureStatus）：标题说"做了什么"，状态词说"现在到哪一步了"。
+   * 状态从标题里拆出来单独放：标题说"做了什么"，状态词说"现在到哪一步了"。
    * 我们的标题原本用 `TextShimmer` 自己动，读者分不清"正在跑"和"刚跑完"。
    *
    * 不传则按 `status` 推导（见 resolveStatusLabel）：等待中 / 执行中 / 执行失败，
    * 完成态默认不显示 —— 每个成功调用都挂一个"已完成"会让时间线变成噪音，
-   * 这也是 ZCode 里大多数渲染器只在失败时传 statusLabel 的原因。
+   * 这也是大多数渲染器只在失败时传 statusLabel 的原因。
    */
   statusLabel?: string
   /** 状态词之前的指示物（小圆点/圈/图标），与状态词同显同隐。 */
@@ -114,7 +111,7 @@ export interface BasicToolProps {
   /**
    * 运行结束的**那一刻**自动收起一次。
    *
-   * 对齐 ZCode 的 `autoCollapseOnComplete`：只作用于 running → 完成 的边沿，
+   * 只作用于 running → 完成 的边沿，
    * 不影响用户之后手动再展开。子智能体这类工具在运行中会摊开一大串子调用，
    * 完成后不收回来的话聊天流会被永久撑长，和"运行中展开、完成回到摘要"不一致。
    */
@@ -187,7 +184,7 @@ function defaultStatusIndicator() {
 /**
  * 状态词节点：`● 执行中` / `执行失败`（带虚线下划线 + 悬停详情）。
  *
- * 对齐 ZCode `ToolLayout` 的 statusNode：指示物与状态词包在一个 `inline-flex` 里
+ * 指示物与状态词包在一个 `inline-flex` 里
  * 同显同隐，指示物不参与下划线与 hover 命中 —— 它只是"正在跑"的一个视觉提示，
  * 不该变成第二个悬停目标。
  */
@@ -432,7 +429,9 @@ export function BasicTool(props: BasicToolProps) {
                 data-slot="tool-attachment"
                 title={file.filename}
                 onClick={() =>
-                  dialog.show(() => <ImagePreview src={file.url} alt={file.filename ?? i18n.t("ui.imagePreview.alt")} />)
+                  dialog.show(() => (
+                    <ImagePreview src={file.url} alt={file.filename ?? i18n.t("ui.imagePreview.alt")} />
+                  ))
                 }
               >
                 <img
@@ -486,6 +485,7 @@ export function BasicTool(props: BasicToolProps) {
                       <Show when={title().subtitle}>
                         <span
                           data-slot="basic-tool-tool-subtitle"
+                          title={title().subtitle}
                           classList={{
                             [title().subtitleClass ?? ""]: !!title().subtitleClass,
                             clickable: !!props.onSubtitleClick,
@@ -505,6 +505,7 @@ export function BasicTool(props: BasicToolProps) {
                           {(arg) => (
                             <span
                               data-slot="basic-tool-tool-arg"
+                              title={arg}
                               classList={{
                                 [title().argsClass ?? ""]: !!title().argsClass,
                               }}
@@ -517,8 +518,8 @@ export function BasicTool(props: BasicToolProps) {
                     </Show>
                   </div>
                   {/* `action` 不再按 pending 隐藏：它现在承载「改了哪些文件 / 增删多少」
-                      这类**运行中也需要看**的信息（对齐 ZCode 的 diffCount，
-                      编辑过程中 `+N` 会随着改动长大）。各渲染器若只想在结束时显示，
+                      这类**运行中也需要看**的信息（编辑过程中 `+N` 会随着改动长大）。
+                      各渲染器若只想在结束时显示，
                       自己在 action 里加 `<Show when={!pending()}>`。 */}
                   <Show when={title().action}>
                     <span data-slot="basic-tool-tool-action">{title().action}</span>
@@ -528,7 +529,7 @@ export function BasicTool(props: BasicToolProps) {
             </Match>
             <Match when={true}>{props.trigger as JSX.Element}</Match>
           </Switch>
-          {/* 状态词放在摘要最右侧（ZCode 的 statusNode 位置）：标题说"做了什么"，
+          {/* 状态词放在摘要最右侧：标题说"做了什么"，
               状态说"到哪一步了"。跟在长副标题后面会被挤到看不见。 */}
           <ToolStatusNode
             text={statusLabelText()}

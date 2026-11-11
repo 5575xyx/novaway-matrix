@@ -30,7 +30,7 @@ const FileReadCommand = effectCmd({
       description: "File path to read",
     }),
   handler: Effect.fn("Cli.debug.file.read")(function* (args) {
-    const content = yield* File.Service.use((svc) => svc.read(args.path))
+    const content = yield* Effect.orDie(File.Service.use((svc) => svc.read(args.path)))
     process.stdout.write(JSON.stringify(content, null, 2) + EOL)
   }),
 })

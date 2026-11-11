@@ -1,4 +1,5 @@
 import type { PptxBox, PptxTextStyle } from "@novaway/core/office/pptx-edit"
+import { ribbonToggleClass } from "@/pages/session/office-ribbon"
 import { resizeBox, rotationFromPointer } from "@/utils/pptx-box"
 import { createSignal, For, Show, type Component } from "solid-js"
 
@@ -93,7 +94,7 @@ export const PptxShapeFrame: Component<{
     <div
       ref={frame}
       data-component="pptx-shape-frame"
-      class="absolute z-20 cursor-move border-2 border-emerald-400 select-none"
+      class="absolute z-20 cursor-move border-2 border-icon-blue select-none"
       classList={{ "pointer-events-none": !props.movable }}
       style={{
         left: `${props.box.x * props.scale}px`,
@@ -107,7 +108,7 @@ export const PptxShapeFrame: Component<{
       <Show when={props.movable}>
         <span
           data-handle="rotate"
-          class="absolute left-1/2 -top-6 size-3 -translate-x-1/2 cursor-grab rounded-full border border-emerald-500 bg-white"
+          class="absolute left-1/2 -top-6 size-3 -translate-x-1/2 cursor-grab rounded-full border border-icon-blue bg-background"
           onPointerDown={(event) => {
             event.preventDefault()
             event.stopPropagation()
@@ -121,7 +122,7 @@ export const PptxShapeFrame: Component<{
           {(handle) => (
             <span
               data-handle={handle.id}
-              class="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-[1px] border border-emerald-500 bg-white"
+              class="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-[1px] border border-icon-blue bg-background"
               style={{
                 left: `${handle.left * 100}%`,
                 top: `${handle.top * 100}%`,
@@ -161,7 +162,7 @@ export const PptxTextEditor: Component<{
   return (
     <div
       data-component="pptx-inline-editor"
-      class="absolute z-30 flex flex-col overflow-hidden rounded-[2px] bg-white/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.28)] ring-2 ring-emerald-400"
+      class="absolute z-30 flex flex-col overflow-hidden rounded-[2px] bg-transparent outline outline-1 outline-icon-blue/60"
       style={{
         left: `${props.box.x * props.scale}px`,
         top: `${props.box.y * props.scale}px`,
@@ -191,7 +192,7 @@ export const PptxTextEditor: Component<{
             data-paragraph={index()}
             contentEditable="plaintext-only"
             spellcheck={false}
-            class="min-h-[1.2em] w-full whitespace-pre-wrap break-words rounded-[2px] px-1 outline-none focus:bg-emerald-50"
+            class="min-h-[1.2em] w-full whitespace-pre-wrap break-words outline-none"
             style={paragraphStyle(props.styles[index()], props.scale)}
             onInput={(event) => props.onInput(index(), event.currentTarget.textContent ?? "")}
             onFocus={(event) => {
@@ -252,20 +253,15 @@ export const PptxFormatBar: Component<{
   disabled?: boolean
   onChange: (patch: PptxTextStyle) => void
 }> = (props) => {
-  const button = (active: boolean) =>
-    [
-      "grid size-6 place-items-center rounded border text-11-medium transition-colors",
-      active
-        ? "border-emerald-300/60 bg-emerald-300/15 text-emerald-100"
-        : "border-transparent text-foreground-subtle hover:bg-hover hover:text-foreground",
-    ].join(" ")
-
   return (
-    <div data-component="pptx-format-bar" class="flex flex-wrap items-center gap-1.5">
+    <div
+      data-component="pptx-format-bar"
+      class="flex h-8 min-w-0 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:thin]"
+    >
       <button
         type="button"
         data-action="pptx-format-bold"
-        class={button(props.style.bold === true)}
+        class={ribbonToggleClass(props.style.bold === true)}
         disabled={props.disabled}
         title="加粗"
         onClick={() => props.onChange({ bold: !props.style.bold })}
@@ -275,7 +271,7 @@ export const PptxFormatBar: Component<{
       <button
         type="button"
         data-action="pptx-format-italic"
-        class={button(props.style.italic === true)}
+        class={ribbonToggleClass(props.style.italic === true)}
         disabled={props.disabled}
         title="斜体"
         onClick={() => props.onChange({ italic: !props.style.italic })}
@@ -285,7 +281,7 @@ export const PptxFormatBar: Component<{
       <button
         type="button"
         data-action="pptx-format-underline"
-        class={button(props.style.underline === true)}
+        class={ribbonToggleClass(props.style.underline === true)}
         disabled={props.disabled}
         title="下划线"
         onClick={() => props.onChange({ underline: !props.style.underline })}
@@ -317,7 +313,7 @@ export const PptxFormatBar: Component<{
               data-action="pptx-format-color"
               title={`#${color}`}
               class="size-4 rounded-[2px] border border-border transition-transform hover:scale-110"
-              classList={{ "ring-2 ring-emerald-400": props.style.color === color }}
+              classList={{ "ring-2 ring-icon-blue": props.style.color === color }}
               style={{ "background-color": `#${color}` }}
               disabled={props.disabled}
               onClick={() => props.onChange({ color })}
@@ -340,7 +336,7 @@ export const PptxFormatBar: Component<{
               type="button"
               data-action="pptx-format-align"
               data-align={item.id}
-              class={button(props.style.align === item.id)}
+              class={ribbonToggleClass(props.style.align === item.id)}
               disabled={props.disabled}
               title={`${item.label}对齐`}
               onClick={() => props.onChange({ align: item.id })}

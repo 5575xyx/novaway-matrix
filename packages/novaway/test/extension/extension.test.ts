@@ -13,6 +13,12 @@ async function write(file: string, content: string) {
   await Bun.write(file, content)
 }
 
+function cleanupMarketplaceFixture(name: string) {
+  const config = process.env.XDG_CONFIG_HOME ?? ""
+  const root = path.join(config, "novaway", "marketplace", name)
+  return Effect.addFinalizer(() => Effect.promise(() => fs.rm(root, { recursive: true, force: true })))
+}
+
 function manifest(root: string, body: Record<string, unknown>) {
   return write(path.join(root, ".novaway", "extensions", "demo", "plugin.json"), JSON.stringify(body))
 }
@@ -74,6 +80,7 @@ describe("extension", () => {
       const dir = (yield* TestInstance).directory
       // Desktop writes marketplace packages under <config>/marketplace/<name>@<ref>.
       const config = process.env.XDG_CONFIG_HOME ?? ""
+      yield* cleanupMarketplaceFixture("demo@main")
       yield* Effect.promise(() =>
         write(
           path.join(config, "novaway", "marketplace", "demo@main", ".claude-plugin", "plugin.json"),
@@ -92,6 +99,7 @@ describe("extension", () => {
     Effect.gen(function* () {
       const dir = (yield* TestInstance).directory
       const config = process.env.XDG_CONFIG_HOME ?? ""
+      yield* cleanupMarketplaceFixture("legacy@0.1.0")
       // Desktop installs used to write the package tree with no plugin.json.
       yield* Effect.promise(() =>
         write(path.join(config, "novaway", "marketplace", "legacy@0.1.0", "skills", "demo", "SKILL.md"), "# demo"),

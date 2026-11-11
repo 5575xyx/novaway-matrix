@@ -28,7 +28,11 @@ type RemoteTarget = Extract<Target, { type: "remote" }>
 
 type RequestPlan = Data.TaggedEnum<{
   MissingWorkspace: { readonly workspaceID: WorkspaceID }
-  Local: { readonly directory: string; readonly workspaceID?: WorkspaceID }
+  Local: {
+    readonly directory: string
+    readonly workspaceID?: WorkspaceID
+    readonly scope?: "project" | "global"
+  }
   Remote: {
     readonly request: HttpServerRequest.HttpServerRequest
     readonly workspace: Workspace.Info
@@ -43,6 +47,7 @@ export class WorkspaceRouteContext extends Context.Service<
   {
     readonly directory: string
     readonly workspaceID?: WorkspaceID
+    readonly scope?: "project" | "global"
   }
 >()("@novaway/ExperimentalHttpApiWorkspaceRouteContext") {}
 
@@ -75,11 +80,7 @@ function selectedWorkspaceID(url: URL, sessionWorkspaceID?: WorkspaceID): Worksp
 }
 
 function defaultDirectory(request: HttpServerRequest.HttpServerRequest, url: URL): string {
-  return (
-    queryParam(url, "directory") ||
-    request.headers["x-novaway-directory"] ||
-    process.cwd()
-  )
+  return queryParam(url, "directory") || request.headers["x-novaway-directory"] || process.cwd()
 }
 
 function shouldStayOnControlPlane(request: HttpServerRequest.HttpServerRequest, url: URL): boolean {
@@ -159,6 +160,13 @@ function planRequest(
   return Effect.gen(function* () {
     const url = requestURL(request)
     const envWorkspaceID = configuredWorkspaceID()
+    // 无项目聊天的所有实例级请求（config / agent / path / session …）都必须落在
+    // 隔离的 global-chat 实例里。只按路径特判会让 /agent 之类把 "global-chat"
+    // 当相对目录解析成一个真实项目实例。
+    const directory = defaultDirectory(request, url)
+    if (url.pathname === "/session/global" || directory === "global-chat") {
+      return RequestPlan.Local({ directory: "global-chat", scope: "global" })
+    }
     const workspaceID = selectedWorkspaceID(url, sessionWorkspaceID)
     const workspace = yield* resolveWorkspace(workspaceID, envWorkspaceID)
 
@@ -182,8 +190,10 @@ function routeWorkspace<E>(
   return RequestPlan.$match(plan, {
     MissingWorkspace: ({ workspaceID }) => Effect.succeed(missingWorkspaceResponse(workspaceID)),
     Remote: ({ request, workspace, target, url }) => proxyRemote(client, request, workspace, target, url),
-    Local: ({ directory, workspaceID }) =>
-      effect.pipe(Effect.provideService(WorkspaceRouteContext, WorkspaceRouteContext.of({ directory, workspaceID }))),
+    Local: ({ directory, workspaceID, scope }) =>
+      effect.pipe(
+        Effect.provideService(WorkspaceRouteContext, WorkspaceRouteContext.of({ directory, workspaceID, scope })),
+      ),
   })
 }
 
@@ -197,15 +207,46 @@ function routeHttpApiWorkspace<E>(
 > {
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
-    const sessionID = getWorkspaceRouteSessionID(requestURL(request))
+    const url = requestURL(request)
+    const sessionID = getWorkspaceRouteSessionID(url)
     const session = sessionID
       ? yield* Session.Service.use((svc) => svc.get(sessionID)).pipe(
           Effect.catchIf(NotFoundError.isInstance, () => Effect.succeed(undefined)),
           Effect.catchDefect(() => Effect.succeed(undefined)),
         )
       : undefined
-    const plan = yield* planRequest(request, session?.workspaceID)
-    return yield* routeWorkspace(client, effect, plan)
+    const requestedDirectory = defaultDirectory(request, url)
+    // A conversation started with "work outside project" still comes through the
+    // global-chat route, but its session belongs to its own ordinary project
+    // instance. Once the session ID is known, route all session-scoped APIs to
+    // that private directory rather than falling back to the shared global host.
+    const plan =
+      session?.scope === "project" &&
+      session.projectID === "global-chat" &&
+      requestedDirectory === "global-chat"
+        ? RequestPlan.Local({ directory: session.directory })
+        : yield* planRequest(request, session?.scope === "global" ? undefined : session?.workspaceID)
+    if (session?.scope === "global" && (queryParam(url, "workspace") || request.headers["x-novaway-workspace"])) {
+      return HttpServerResponse.text("Global chat sessions cannot use workspaces", { status: 400 })
+    }
+    if (plan._tag !== "Local") return yield* routeWorkspace(client, effect, plan)
+    if (session?.scope === "global" && plan.workspaceID) {
+      return HttpServerResponse.text("Global chat sessions cannot use workspaces", { status: 400 })
+    }
+    const scope =
+      session?.scope === "global" || plan.scope === "global" || url.pathname === "/session/global"
+        ? ("global" as const)
+        : undefined
+    return yield* effect.pipe(
+      Effect.provideService(
+        WorkspaceRouteContext,
+        WorkspaceRouteContext.of({
+          directory: scope === "global" ? "global-chat" : plan.directory,
+          workspaceID: scope === "global" ? undefined : plan.workspaceID,
+          scope,
+        }),
+      ),
+    )
   })
 }
 

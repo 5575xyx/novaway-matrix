@@ -43,11 +43,11 @@
       width: 100%;
       padding-right: 6px;
 
-      /* 对齐 ZCode `components/ui/input.tsx`：`bg-input` + `border-input-border`，
+      /* `bg-input` + `border-input-border`，
          hover 换 `input-border-hover`，focus 换 `input-border-focused` + `bg-input-focused`，
-         且 **focus 无 ring**（DESIGN.md：输入框保持安静，不做发光）。旧版是 1.5px 边框 +
+         且 **focus 无 ring**（输入框保持安静，不做发光）。旧版是 1.5px 边框 +
          4px 紫色光晕 + 阴影，明显偏离。
-         rounded：常规输入 ZCode 用 `rounded-md`；此处是复合输入壳，按容器层级取 `rounded-lg`。 */
+         rounded：常规输入用 `rounded-md`；此处是复合输入壳，按容器层级取 `rounded-lg`。 */
       border-radius: var(--radius-lg);
       border: 1px solid var(--input-border);
       background: var(--input);
@@ -78,7 +78,7 @@
       color: var(--foreground);
 
       display: flex;
-      /* ZCode 默认输入高 h-9（36px）；此处是带内嵌按钮的复合壳，取默认档 */
+      /* 默认输入高 h-9（36px）；此处是带内嵌按钮的复合壳，取默认档 */
       height: 36px;
       padding: 2px 8px;
       align-items: center;
@@ -122,7 +122,7 @@
     }
 
     [data-slot="input-error"] {
-      color: var(--destructive);
+      color: var(--icon-critical-base);
 
       font-family: var(--font-family-sans);
       font-size: var(--font-size-ui-sm);

@@ -13,13 +13,10 @@ let opening = false
 /**
  * 侧边对话：一条**不打断主线**的并行小对话。
  *
- * 对齐 ZCode 的 `selection-side-chat`：
- *
  * - 它是一条**真实的服务端会话**（`session.create`），所以有完整的多轮能力、
  *   自动继承工作区上下文（同目录、同项目、同文件可见）；
  * - 但它**不写进主对话历史** —— 主线的时间线里不会冒出这些消息，讨论不会串味；
- * - 生命周期跟着主会话：关掉标签即删除该会话（ZCode 的
- *   `closeSelectionSideChatRuntime` 也是 `closeSession`）。
+ * - 生命周期跟着主会话：关掉标签即删除该会话（关标签即 `closeSession`）。
  *
  * 与子代理钻取的区别就在最后一条：子会话是父任务的产物，关面板不该删；
  * 侧边对话是用户临时开的，关掉就该清掉，否则会在会话列表里堆一地。
@@ -30,7 +27,7 @@ export function useSideChat() {
   const sdk = useSDK()
   const local = useLocal()
   // 辅助对话是**当前主任务的子会话**：parentID 指向主线会话，
-  // 这样它会像 ZCode 一样挂在侧栏对应任务的下一级，跟随主线归档/删除。
+  // 这样它会挂在侧栏对应任务的下一级，跟随主线归档/删除。
   const params = useParams()
 
   /**
@@ -122,8 +119,8 @@ export function useSideChat() {
   /**
    * 会话在服务端已经不存在（CLI 重启后临时会话丢失）→ 静默收掉标签。
    *
-   * 对齐 ZCode 的 `onSelectionSideChatUnavailable`：它监听 `sessionNotFound`
-   * 并清 tab，「下一次框选按父会话重建」。这里提供同一个能力给面板调用。
+   * 监听 `sessionNotFound`
+   * 并清 tab，「下一次框选按父会话重建」。这里提供这个能力给面板调用。
    */
   const drop = (tab: SidePaneSessionTab) => {
     layout.sidePane.closeSession(tab.id)

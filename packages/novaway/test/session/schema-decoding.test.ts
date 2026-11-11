@@ -38,6 +38,7 @@ describe("Session.Info", () => {
       id: sessionID,
       slug: "hello",
       projectID,
+      scope: "project" as const,
       directory: "/tmp/proj",
       title: "First session",
       version: "0.1.0",
@@ -52,6 +53,7 @@ describe("Session.Info", () => {
       slug: "fullshape",
       projectID,
       workspaceID,
+      scope: "project" as const,
       directory: "/tmp/proj",
       path: "packages/novaway",
       parentID: sessionIDChild,
@@ -81,6 +83,7 @@ describe("Session.Info", () => {
       id: sessionID,
       slug: "legacy-diff",
       projectID,
+      scope: "project" as const,
       directory: "/tmp/proj",
       title: "Legacy diff",
       version: "0.1.0",
@@ -125,6 +128,7 @@ describe("Session.GlobalInfo", () => {
       id: sessionID,
       slug: "global",
       projectID,
+      scope: "project" as const,
       directory: "/tmp/proj",
       title: "global",
       version: "0",
@@ -139,6 +143,7 @@ describe("Session.GlobalInfo", () => {
       id: sessionID,
       slug: "global",
       projectID,
+      scope: "project" as const,
       directory: "/tmp/proj",
       title: "global",
       version: "0",
@@ -260,9 +265,14 @@ describe("Todo.Info", () => {
 })
 
 describe("SessionPrompt input schemas", () => {
-  test("LoopInput is just sessionID", () => {
-    const decode = decodeUnknown(SessionPrompt.LoopInput)
-    expect(decode({ sessionID })).toEqual({ sessionID })
+  test("PromptInput and LoopInput accept explicit goal execution metadata", () => {
+    const prompt = decodeUnknown(SessionPrompt.PromptInput)
+    const loop = decodeUnknown(SessionPrompt.LoopInput)
+    const goalExecution = { goalId: "goal-1", maxIterations: 20 }
+    expect(prompt({ sessionID, goalExecution, parts: [{ type: "text", text: "work" }] })).toMatchObject({
+      goalExecution,
+    })
+    expect(loop({ sessionID, goalExecution })).toEqual({ sessionID, goalExecution })
   })
 
   test("ShellInput requires agent + command", () => {

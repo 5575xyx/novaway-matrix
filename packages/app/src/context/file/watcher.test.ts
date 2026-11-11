@@ -1,5 +1,71 @@
 import { describe, expect, test } from "bun:test"
-import { invalidateFromWatcher } from "./watcher"
+import {
+  invalidateFromWatcher,
+  isPreviewRefreshPath,
+  nextMediaRevision,
+  nextPreviewRevision,
+  shouldReloadOfficePreview,
+} from "./watcher"
+
+describe("media watcher revision", () => {
+  test("increments only while the media file is open", () => {
+    expect(nextMediaRevision(0, true)).toBe(1)
+    expect(nextMediaRevision(4, true)).toBe(5)
+    expect(nextMediaRevision(4, false)).toBe(4)
+  })
+})
+
+describe("Office preview watcher revision", () => {
+  test("recognizes Office and image files but not regular text files", () => {
+    expect(
+      isPreviewRefreshPath(
+        "report.docx",
+        (path) => path.endsWith(".docx"),
+        (path) => path.endsWith(".png"),
+      ),
+    ).toBe(true)
+    expect(
+      isPreviewRefreshPath(
+        "photo.png",
+        (path) => path.endsWith(".docx"),
+        (path) => path.endsWith(".png"),
+      ),
+    ).toBe(true)
+    expect(
+      isPreviewRefreshPath(
+        "notes.md",
+        (path) => path.endsWith(".docx"),
+        (path) => path.endsWith(".png"),
+      ),
+    ).toBe(false)
+  })
+
+  test("increments only while an Office preview is open", () => {
+    expect(nextPreviewRevision(0, true)).toBe(1)
+    expect(nextPreviewRevision(3, true)).toBe(4)
+    expect(nextPreviewRevision(3, false)).toBe(3)
+  })
+
+  test("reloads on a changed revision but not on first read or inactive files", () => {
+    expect(shouldReloadOfficePreview({ target: "report.docx", watcherRevision: 0 })).toBe(false)
+    expect(
+      shouldReloadOfficePreview({
+        target: "report.docx",
+        watcherRevision: 2,
+        previousWatcherRevision: 2,
+      }),
+    ).toBe(false)
+    expect(
+      shouldReloadOfficePreview({
+        target: "report.docx",
+        watcherRevision: 3,
+        previousWatcherRevision: 2,
+      }),
+    ).toBe(true)
+    expect(shouldReloadOfficePreview({ watcherRevision: 1, previousWatcherRevision: 0 })).toBe(false)
+    expect(shouldReloadOfficePreview({ target: "report.docx", livePath: "report.docx", watcherRevision: 0 })).toBe(true)
+  })
+})
 
 describe("file watcher invalidation", () => {
   test("reloads open files and refreshes loaded parent on add", () => {

@@ -472,11 +472,11 @@
   0%,
   100% {
     transform: scale(1);
-    filter: drop-shadow(0 0 8px rgba(20, 184, 166, 0.2));
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--icon-interactive-base) 20%, transparent));
   }
   50% {
     transform: scale(1.03);
-    filter: drop-shadow(0 0 16px rgba(20, 184, 166, 0.4));
+    filter: drop-shadow(0 0 16px color-mix(in srgb, var(--icon-interactive-base) 40%, transparent));
   }
 }
 
@@ -494,7 +494,7 @@
 /* 面板/页面切换动效。
  *
  * 时长由 `--transition-panel-ms` 统一控制（app/src/index.css 里定义，当前按用户要求设为 1s）。
- * 注意 ZCode 的对应动效是 200ms 量级、DESIGN.md 也要求「transition 快而低调」；
+ * 注意设计要求「transition 快而低调」，同类动效通常是 200ms 量级；
  * 1s 是显式选择的偏离，需要更跟手时改那一个变量即可。
  */
 .page-transition {

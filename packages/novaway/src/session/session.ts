@@ -105,6 +105,7 @@ export function fromRow(row: SessionRow): Info {
     slug: row.slug,
     projectID: row.project_id,
     workspaceID: row.workspace_id ?? undefined,
+    scope: row.scope as Info["scope"],
     directory: row.directory,
     path: row.path ?? undefined,
     parentID: row.parent_id ?? undefined,
@@ -151,6 +152,7 @@ export function toRow(info: Info) {
     id: info.id,
     project_id: info.projectID,
     workspace_id: info.workspaceID,
+    scope: info.scope ?? "project",
     parent_id: info.parentID,
     slug: info.slug,
     directory: info.directory,
@@ -251,6 +253,7 @@ export const Info = Schema.Struct({
   slug: Schema.String,
   projectID: ProjectID,
   workspaceID: optionalOmitUndefined(WorkspaceID),
+  scope: Schema.Literals(["project", "global"]),
   directory: Schema.String,
   path: optionalOmitUndefined(Schema.String),
   parentID: optionalOmitUndefined(SessionID),
@@ -361,7 +364,7 @@ export const MessagesInput = Schema.Struct({
 })
 export type ListInput = {
   directory?: string
-  scope?: "project"
+  scope?: "project" | "global"
   path?: string
   workspaceID?: WorkspaceID
   roots?: boolean
@@ -391,6 +394,7 @@ const UpdatedInfo = Schema.Struct({
   slug: Schema.optional(Schema.NullOr(Schema.String)),
   projectID: Schema.optional(Schema.NullOr(ProjectID)),
   workspaceID: Schema.optional(Schema.NullOr(WorkspaceID)),
+  scope: Schema.optional(Schema.NullOr(Schema.Literals(["project", "global"]))),
   directory: Schema.optional(Schema.NullOr(Schema.String)),
   path: Schema.optional(Schema.NullOr(Schema.String)),
   parentID: Schema.optional(Schema.NullOr(SessionID)),
@@ -552,6 +556,7 @@ export interface Interface {
       teamIDs?: readonly string[]
       workspaceID?: WorkspaceID
       directory?: string
+      scope?: Info["scope"]
     },
     /** 内部派发路径专用的归属；HTTP 建会话接口没有这个参数。 */
     attribution?: Attribution,
@@ -735,6 +740,7 @@ const rawLayer: Layer.Layer<
       model?: Schema.Schema.Type<typeof Model>
       parentID?: SessionID
       workspaceID?: WorkspaceID
+      scope?: Info["scope"]
       directory: string
       path?: string
       permission?: Permission.Ruleset
@@ -747,16 +753,17 @@ const rawLayer: Layer.Layer<
       const ctx = yield* InstanceState.context
       // 团队选择只在 `selected` 下有意义：其它模式一律不留 teamIDs，
       // 免得切回去时带上一批已删除的团队。
-      const teamMode = input.teamMode
+      const teamMode = ctx.scope === "global" ? "off" : input.teamMode
       const teamIDs = teamMode === "selected" ? [...(input.teamIDs ?? [])] : undefined
       const result: Info = {
         id: SessionID.descending(input.id),
         slug: Slug.create(),
         version: InstallationVersion,
         projectID: ctx.project.id,
+        scope: ctx.scope === "global" ? "global" : "project",
         directory: input.directory,
         path: input.path,
-        workspaceID: input.workspaceID,
+        workspaceID: ctx.scope === "global" ? undefined : input.workspaceID,
         parentID: input.parentID,
         title: input.title ?? createDefaultTitle(!!input.parentID),
         agent: input.agent,
@@ -777,7 +784,7 @@ const rawLayer: Layer.Layer<
       log.info("created", result)
 
       yield* sync.run(Event.Created, { sessionID: result.id, info: result })
-      if (hooks._tag === "Some") {
+      if (ctx.scope !== "global" && hooks._tag === "Some") {
         const started = yield* hooks.value
           .trigger({ event: "SessionStart", sessionID: result.id, cwd: result.directory })
           .pipe(Effect.catchCause(() => Effect.succeed({ blocked: false, ran: false, additionalContext: undefined })))
@@ -804,8 +811,26 @@ const rawLayer: Layer.Layer<
 
     const list = Effect.fn("Session.list")(function* (input?: ListInput) {
       const ctx = yield* InstanceState.context
+      const base = {
+        projectID: ctx.project.id,
+        experimentalWorkspaces: flags.experimentalWorkspaces,
+        ...input,
+      }
+      if (ctx.scope === "global" && input?.scope === undefined) {
+        // The global chat inbox contains legacy global-scope sessions and new
+        // isolated conversation workspaces (ordinary project-scope sessions).
+        // ProjectID.chat is the reserved owner for those private directories.
+        const global = [...listByProject({ ...base, scope: "global" })]
+        const isolated = [...listByProject({ ...base, scope: "project" })]
+        return [...global, ...isolated]
+          .sort((a, b) => b.time.updated - a.time.updated)
+          .slice(0, input?.limit ?? 100)
+      }
       return Array.from(
-        listByProject({ projectID: ctx.project.id, experimentalWorkspaces: flags.experimentalWorkspaces, ...input }),
+        listByProject({
+          ...base,
+          scope: input?.scope ?? (ctx.scope === "global" ? "global" : "project"),
+        }),
       )
     })
 
@@ -898,11 +923,12 @@ const rawLayer: Layer.Layer<
         teamIDs?: readonly string[]
         workspaceID?: WorkspaceID
         directory?: string
+        scope?: Info["scope"]
       },
       attribution?: Attribution,
     ) {
       const ctx = yield* InstanceState.context
-      const workspace = yield* InstanceState.workspaceID
+      const workspace = ctx.scope === "global" ? undefined : yield* InstanceState.workspaceID
       return yield* createNext({
         parentID: input?.parentID,
         directory: input?.directory ?? ctx.directory,
@@ -915,6 +941,7 @@ const rawLayer: Layer.Layer<
         teamMode: input?.teamMode,
         teamIDs: input?.teamIDs,
         workspaceID: input?.workspaceID ?? workspace,
+        scope: ctx.scope,
         ...(attribution?.employeeID ? { employeeID: attribution.employeeID } : {}),
         ...(attribution?.runID ? { runID: attribution.runID } : {}),
       })
@@ -937,6 +964,7 @@ const rawLayer: Layer.Layer<
         directory: ctx.directory,
         path: sessionPath(ctx.worktree, ctx.directory),
         workspaceID: original.workspaceID,
+        scope: original.scope,
         title,
         // 分叉沿用原来的归属：这个会话仍然是那个人的那份工作，
         // 只是换了一条对话线，不该在账上变成另一个人。
@@ -1270,10 +1298,12 @@ const cancelBackgroundJobs = Effect.fn("Session.cancelBackgroundJobs")(function*
 function* listByProject(
   input: ListInput & {
     projectID: ProjectID
+    scope?: "project" | "global"
     experimentalWorkspaces: boolean
   },
 ) {
-  const conditions = [eq(SessionTable.project_id, input.projectID)]
+  const conditions = [eq(SessionTable.scope, input.scope ?? "project")]
+  if (input.projectID !== ProjectID.chat) conditions.push(eq(SessionTable.project_id, input.projectID))
 
   if (input.workspaceID) {
     conditions.push(eq(SessionTable.workspace_id, input.workspaceID))
@@ -1288,7 +1318,7 @@ function* listByProject(
           : or(...conds)!,
       )
     }
-  } else if (input.scope !== "project" && !input.experimentalWorkspaces) {
+  } else if (input.scope === "project" && !input.experimentalWorkspaces) {
     if (input.directory) {
       conditions.push(eq(SessionTable.directory, input.directory))
     }
@@ -1320,6 +1350,7 @@ function* listByProject(
 }
 
 export function* listGlobal(input?: {
+  scope?: Info["scope"]
   directory?: string
   roots?: boolean
   start?: number
@@ -1330,6 +1361,9 @@ export function* listGlobal(input?: {
 }) {
   const conditions: SQL[] = []
 
+  if (input?.scope) {
+    conditions.push(eq(SessionTable.scope, input.scope))
+  }
   if (input?.directory) {
     conditions.push(eq(SessionTable.directory, input.directory))
   }

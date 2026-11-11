@@ -17,7 +17,7 @@ import { createEffect, createResource, onCleanup, onMount, Show } from "solid-js
 import { render } from "solid-js/web"
 import pkg from "../../package.json"
 import { initI18n, t } from "./i18n"
-import { createPlatform, listenForDeepLinks } from "./platform"
+import { createPlatform, listenForDeepLinks, listenForOpenFiles } from "./platform"
 import "./styles.css"
 import { useTheme } from "@novaway/ui/theme"
 
@@ -63,6 +63,7 @@ if (window.api) {
   console.error("preload 脚本未正确暴露 window.api，部分桌面功能将不可用")
 }
 listenForDeepLinks()
+listenForOpenFiles()
 
 render(() => {
   const platform = createPlatform()

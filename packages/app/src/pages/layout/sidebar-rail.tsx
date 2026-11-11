@@ -36,7 +36,7 @@ export function SidebarRailButton(props: { item: SidebarRailItem }) {
         data-active={props.item.active ? "true" : undefined}
         aria-label={props.item.label}
         aria-current={props.item.active ? "page" : undefined}
-        class="group relative flex size-10 shrink-0 items-center justify-center rounded-[10px] text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground data-[active]:bg-surface data-[active]:text-foreground"
+        class="group relative flex size-10 shrink-0 items-center justify-center rounded-[10px] text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground data-[active]:text-foreground"
         onClick={() => props.item.onClick()}
       >
         <Icon
@@ -62,7 +62,7 @@ export const SidebarRail: Component<{
   header?: JSX.Element
   /** 品牌区下、导航区上的额外入口（主题切换这类有自定义动效的按钮）。 */
   leading?: JSX.Element
-  /** 底部区上方（设置之上）的额外入口：主题切换现在落在这里，对齐 ZCode 的底部工具区。 */
+  /** 底部区上方（设置之上）的额外入口：主题切换现在落在这里。 */
   footerLeading?: JSX.Element
   /** 额外类名：macOS 桌面端要避开左上角的红绿灯。 */
   class?: string

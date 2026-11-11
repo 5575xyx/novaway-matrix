@@ -38,6 +38,7 @@ import { ConfigParse } from "./parse"
 import { ConfigPaths } from "./paths"
 import { ConfigPermission } from "./permission"
 import { ConfigPlugin } from "./plugin"
+import { ConfigPlugins } from "./plugins"
 import { ConfigProvider } from "./provider"
 import { ConfigReference } from "./reference"
 import { ConfigServer } from "./server"
@@ -247,6 +248,10 @@ export const Info = Schema.Struct({
   }),
   // User-facing plugin config is stored as Specs; provenance gets attached later while configs are merged.
   plugin: Schema.optional(Schema.mutable(Schema.Array(ConfigPlugin.Spec))),
+  // Separate from `plugin`: `plugin` says what to install, `plugins` says how the installed set behaves here.
+  plugins: Schema.optional(ConfigPlugins.Info).annotate({
+    description: "Plugin host runtime namespace (mode, disabled ids, per-plugin declarative settings and priority)",
+  }),
   share: Schema.optional(Schema.Literals(["manual", "auto", "disabled"])).annotate({
     description:
       "Control sharing behavior:'manual' allows manual sharing via commands, 'auto' enables automatic sharing, 'disabled' disables all sharing",
@@ -349,7 +354,9 @@ export const Info = Schema.Struct({
   }),
   layout: Schema.optional(ConfigLayout.Layout).annotate({ description: "@deprecated Always uses stretch layout." }),
   permission: Schema.optional(ConfigPermission.Info),
-  permission_mode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"])).annotate({
+  permission_mode: Schema.optional(
+    Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]),
+  ).annotate({
     description: "Default permission mode for sessions.",
   }),
   tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)),
@@ -910,35 +917,51 @@ export const layer = Layer.effect(
 
           yield* ensureGitignore(dir).pipe(Effect.orDie)
 
-          const dep = yield* npmSvc
-            .install(dir, {
-              add: [
-                {
-                  name: "@novaway/plugin",
-                  version: InstallationLocal ? undefined : InstallationVersion,
-                },
-              ],
-            })
-            .pipe(
-              Effect.exit,
-              Effect.tap((exit) =>
-                Exit.isFailure(exit)
-                  ? Effect.sync(() => {
-                      log.warn("background dependency install failed", { dir, error: String(exit.cause) })
-                    })
-                  : Effect.void,
-              ),
-              Effect.asVoid,
-              Effect.forkDetach,
-            )
-          deps.push(dep)
+          // Discover local plugin files before starting npm installation. The old order started a
+          // detached install for every config directory, including workspaces with no plugins.
+          // A later instance that actually had a plugin could then wait on that unrelated install
+          // while tests or another instance had already prepared the directory. Only directories
+          // that own a plugin origin need the @novaway/plugin dependency.
+          const list = yield* Effect.promise(() => ConfigPlugin.load(dir))
+          // A local plugin file can be loaded directly from the application workspace. Only
+          // provision the per-directory plugin dependency when that directory also declares a
+          // dependency manifest; otherwise a dependency-free fixture/plugin would trigger an
+          // unnecessary registry install and block instance startup behind the network.
+          const hasLocalDependencyManifest =
+            list.length > 0 &&
+            (yield* fs.existsSafe(path.join(dir, "package.json")) ||
+              (yield* fs.existsSafe(path.join(dir, "package-lock.json"))))
+          const hasPlugin =
+            hasLocalDependencyManifest ||
+            (result.plugin_origins ?? []).some((origin) => path.dirname(origin.source) === dir)
+          if (hasPlugin) {
+            const dep = yield* npmSvc
+              .install(dir, {
+                add: [
+                  {
+                    name: "@novaway/plugin",
+                    version: InstallationLocal ? undefined : InstallationVersion,
+                  },
+                ],
+              })
+              .pipe(
+                Effect.exit,
+                Effect.tap((exit) =>
+                  Exit.isFailure(exit)
+                    ? Effect.sync(() => {
+                        log.warn("background dependency install failed", { dir, error: String(exit.cause) })
+                      })
+                    : Effect.void,
+                ),
+                Effect.asVoid,
+                Effect.forkDetach,
+              )
+            deps.push(dep)
+          }
 
           result.command = mergeDeep(result.command ?? {}, yield* Effect.promise(() => ConfigCommand.load(dir)))
           result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.load(dir)))
           result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.loadMode(dir)))
-          // Auto-discovered plugins under `.novaway/plugin(s)` are already local files, so ConfigPlugin.load
-          // returns normalized Specs and we only need to attach origin metadata here.
-          const list = yield* Effect.promise(() => ConfigPlugin.load(dir))
           yield* mergePluginOrigins(dir, list)
         }
 

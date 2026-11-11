@@ -21,8 +21,8 @@ const KIND_TOOLTIP_KEY = {
 } as const
 
 /**
- * composer 左下角的「后台任务运行中」入口，对齐 ZCode 的
- * ConversationBackgroundWorkTrigger：只在有运行中任务时出现，每个类型一个
+ * composer 左下角的「后台任务运行中」入口：
+ * 只在有运行中任务时出现，每个类型一个
  * 「图标 + 数量」按钮（终端=命令、分屏=子代理）；点击展开右上角状态卡片并
  * 定位到后台任务分区。
  */

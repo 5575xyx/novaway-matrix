@@ -30,7 +30,7 @@ export const lineCommentStyles = `
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--icon-blue);
+  background: var(--icon-interactive-base);
   box-shadow: var(--shadow-xs);
   cursor: default;
   border: none;
@@ -40,14 +40,19 @@ export const lineCommentStyles = `
   background: var(--syntax-diff-add);
 }
 
-[data-component="line-comment"] [data-component="icon"] {
-  color: var(--white);
-}
-
 [data-component="line-comment"] [data-slot="line-comment-icon"] {
   width: 12px;
   height: 12px;
-  color: var(--white);
+}
+
+[data-component="line-comment"][data-variant="add"] [data-component="icon"],
+[data-component="line-comment"][data-variant="add"] [data-slot="line-comment-icon"] {
+  color: var(--text-on-diff-add-base);
+}
+
+[data-component="line-comment"] [data-component="icon"],
+[data-component="line-comment"] [data-slot="line-comment-icon"] {
+  color: var(--text-on-interactive-base);
 }
 
 [data-component="line-comment"] [data-slot="line-comment-button"]:focus {

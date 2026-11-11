@@ -118,7 +118,7 @@ function ConnectorHelpTip(props: { id: string }) {
         tabIndex={0}
         role="button"
         aria-label="配置帮助"
-        class="shrink-0 cursor-help text-foreground-subtle outline-none transition-colors hover:text-emerald-200 focus-visible:text-emerald-200"
+        class="shrink-0 cursor-help text-foreground-subtle outline-none transition-colors hover:text-icon-success-base focus-visible:text-icon-success-base"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
@@ -126,7 +126,7 @@ function ConnectorHelpTip(props: { id: string }) {
       </span>
       <Show when={open()}>
         <span aria-hidden="true" class="absolute left-0 top-full h-2 w-72" />
-        <span class="absolute left-0 top-[calc(100%+8px)] z-50 w-72 rounded-[8px] border border-border-hover bg-popover p-3 text-left shadow-[0_18px_44px_rgba(0,0,0,0.20)]">
+        <span class="absolute left-0 top-[calc(100%+8px)] z-50 w-72 rounded-[8px] border border-border-hover bg-popover p-3 text-left shadow-[0_18px_44px_color-mix(in_srgb,var(--text-strong)_20%,transparent)]">
           <span class="block text-11-regular leading-relaxed text-foreground-subtle">
             {officeConnectorHelp(props.id)}
           </span>
@@ -135,7 +135,7 @@ function ConnectorHelpTip(props: { id: string }) {
               <code class="min-w-0 flex-1 truncate text-11-regular text-foreground">{link()}</code>
               <button
                 type="button"
-                class="h-7 shrink-0 rounded-[6px] border border-emerald-300/40 bg-emerald-300/10 px-2 text-10-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_6px_14px_rgba(16,185,129,0.16)] active:translate-y-0 active:scale-95"
+                class="h-7 shrink-0 rounded-[6px] border border-success/40 bg-success/10 px-2 text-10-medium text-icon-success-base transition-all duration-150 hover:-translate-y-px hover:bg-success/20 hover:shadow-[0_6px_14px_color-mix(in srgb, var(--success) 16%, transparent)] active:translate-y-0 active:scale-95"
                 onClick={() => copyLink()}
               >
                 <span class="flex items-center gap-1">
@@ -147,7 +147,7 @@ function ConnectorHelpTip(props: { id: string }) {
           </Show>
           <Show when={copied()}>
             <span
-              class="mt-2 flex items-center gap-1.5 rounded-[7px] border border-emerald-300/40 bg-emerald-300/10 px-2 py-1.5 text-11-medium text-emerald-100"
+              class="mt-2 flex items-center gap-1.5 rounded-[7px] border border-success/40 bg-success/10 px-2 py-1.5 text-11-medium text-icon-success-base"
               aria-live="polite"
             >
               <Icon name="circle-check" size="small" />
@@ -298,7 +298,7 @@ export function OfficePlatformPanel() {
                     <Show when={isWorkflowPathInput(key)}>
                       <button
                         type="button"
-                        class="grid h-9 shrink-0 place-items-center rounded-[7px] border border-border px-3 text-11-medium text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100"
+                        class="grid h-9 shrink-0 place-items-center rounded-[7px] border border-border px-3 text-11-medium text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base"
                         onClick={() => void browseWorkflowInput(key, (value) => setRunDraft(key, value))}
                       >
                         选择
@@ -318,7 +318,7 @@ export function OfficePlatformPanel() {
               </button>
               <button
                 type="button"
-                class="h-9 rounded-[7px] border border-emerald-300/45 bg-emerald-300/10 px-4 text-12-medium text-emerald-100"
+                class="h-9 rounded-[7px] border border-success/45 bg-success/10 px-4 text-12-medium text-icon-success-base"
                 onClick={() => void executeRunDialog()}
               >
                 开始运行
@@ -388,7 +388,7 @@ export function OfficePlatformPanel() {
                     <label
                       class="flex h-8 items-center gap-1.5 rounded-[7px] border px-2.5 text-11-medium transition-all duration-150"
                       classList={{
-                        "border-emerald-300/50 bg-emerald-300/10 text-emerald-100": selected,
+                        "border-success/50 bg-success/10 text-icon-success-base": selected,
                         "border-border bg-background text-foreground-subtle": !selected,
                         "cursor-pointer": connected,
                         "cursor-not-allowed opacity-50": !connected,
@@ -399,7 +399,7 @@ export function OfficePlatformPanel() {
                         checked={selected}
                         disabled={!connected}
                         onChange={() => toggleWorkflowConnector(connector.id)}
-                        class="size-3.5 accent-emerald-400"
+                        class="size-3.5 accent-[var(--icon-success-base)]"
                       />
                       {connector.name}
                       <Show when={!connected}>
@@ -442,7 +442,7 @@ export function OfficePlatformPanel() {
               </button>
               <button
                 type="button"
-                class="h-9 rounded-[7px] border border-emerald-300/45 bg-emerald-300/10 px-4 text-12-medium text-emerald-100"
+                class="h-9 rounded-[7px] border border-success/45 bg-success/10 px-4 text-12-medium text-icon-success-base"
                 onClick={() => void saveWorkflowEditor()}
               >
                 保存
@@ -556,8 +556,7 @@ export function OfficePlatformPanel() {
                     type="button"
                     class="h-8 rounded-[7px] border px-2 text-11-medium transition-all duration-150"
                     classList={{
-                      "border-emerald-300/50 bg-emerald-300/10 text-emerald-100":
-                        scheduleDraft.triggerType === option.id,
+                      "border-success/50 bg-success/10 text-icon-success-base": scheduleDraft.triggerType === option.id,
                       "border-border bg-background text-foreground-subtle": scheduleDraft.triggerType !== option.id,
                     }}
                     onClick={() => setScheduleDraft("triggerType", option.id)}
@@ -653,7 +652,7 @@ export function OfficePlatformPanel() {
                     <Show when={isWorkflowPathInput(key)}>
                       <button
                         type="button"
-                        class="grid h-9 shrink-0 place-items-center rounded-[7px] border border-border px-3 text-11-medium text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100"
+                        class="grid h-9 shrink-0 place-items-center rounded-[7px] border border-border px-3 text-11-medium text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base"
                         onClick={() =>
                           void browseWorkflowInput(key, (value) => setScheduleDraft("inputValues", key, value))
                         }
@@ -675,7 +674,7 @@ export function OfficePlatformPanel() {
               </button>
               <button
                 type="button"
-                class="h-9 rounded-[7px] border border-emerald-300/45 bg-emerald-300/10 px-4 text-12-medium text-emerald-100"
+                class="h-9 rounded-[7px] border border-success/45 bg-success/10 px-4 text-12-medium text-icon-success-base"
                 onClick={() => void saveScheduleDialog()}
               >
                 保存
@@ -862,7 +861,7 @@ export function OfficePlatformPanel() {
                 : "填写腾讯文档 MCP Token，保存后会自动重新连接。"}
             </div>
             <Show when={connectorGuideError()}>
-              <span class="rounded-[7px] border border-rose-300/35 bg-rose-300/10 px-2.5 py-2 text-11-regular leading-relaxed text-rose-100">
+              <span class="rounded-[7px] border border-[color-mix(in_srgb,var(--icon-critical-base)_35%,transparent)] bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-2.5 py-2 text-11-regular leading-relaxed text-[var(--icon-critical-base)]">
                 {connectorGuideError()}
               </span>
             </Show>
@@ -963,7 +962,7 @@ export function OfficePlatformPanel() {
               </button>
               <button
                 type="button"
-                class="h-9 rounded-[7px] border border-emerald-300/45 bg-emerald-300/10 px-4 text-12-medium text-emerald-100"
+                class="h-9 rounded-[7px] border border-success/45 bg-success/10 px-4 text-12-medium text-icon-success-base"
                 onClick={() => void saveConnectorGuide(id)}
               >
                 保存并连接
@@ -1026,13 +1025,13 @@ export function OfficePlatformPanel() {
         </div>
         <div class="flex items-center gap-2 text-11-medium text-foreground-subtle">
           <Show when={status()?.schedulerEnabled}>
-            <span class="flex items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2.5 py-1 text-emerald-200">
-              <span class="size-1.5 rounded-full bg-emerald-400" />
+            <span class="flex items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-2.5 py-1 text-icon-success-base">
+              <span class="size-1.5 rounded-full bg-success" />
               调度运行中
             </span>
           </Show>
           <Show when={status()?.browserConfigured}>
-            <span class="flex items-center gap-1.5 rounded-full border border-sky-300/25 bg-sky-300/10 px-2.5 py-1 text-sky-200">
+            <span class="flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--icon-info-base)_25%,transparent)] bg-[color-mix(in_srgb,var(--icon-info-base)_10%,transparent)] px-2.5 py-1 text-[var(--icon-info-base)]">
               <Icon name="window-cursor" size="small" />
               浏览器可用
             </span>
@@ -1059,9 +1058,9 @@ export function OfficePlatformPanel() {
       <nav class="mb-4 grid grid-cols-2 gap-2 border-b border-border pb-3 sm:grid-cols-3 lg:grid-cols-4">
         <button
           type="button"
-          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98]"
+          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-[0.98]"
           classList={{
-            "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "workflows",
+            "border-success/45 bg-success/10 text-icon-success-base": activeTab() === "workflows",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "workflows",
           }}
           // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
@@ -1073,9 +1072,9 @@ export function OfficePlatformPanel() {
         </button>
         <button
           type="button"
-          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98]"
+          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-[0.98]"
           classList={{
-            "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "schedules",
+            "border-success/45 bg-success/10 text-icon-success-base": activeTab() === "schedules",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "schedules",
           }}
           // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
@@ -1087,9 +1086,9 @@ export function OfficePlatformPanel() {
         </button>
         <button
           type="button"
-          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98]"
+          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-[0.98]"
           classList={{
-            "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "connectors",
+            "border-success/45 bg-success/10 text-icon-success-base": activeTab() === "connectors",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "connectors",
           }}
           // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
@@ -1101,9 +1100,9 @@ export function OfficePlatformPanel() {
         </button>
         <button
           type="button"
-          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98]"
+          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-[7px] border px-3 text-12-medium transition-all duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-[0.98]"
           classList={{
-            "border-emerald-300/45 bg-emerald-300/10 text-emerald-100": activeTab() === "history",
+            "border-success/45 bg-success/10 text-icon-success-base": activeTab() === "history",
             "border-border bg-popover text-foreground-subtle": activeTab() !== "history",
           }}
           // 点开/再点关。原先靠 mouseenter 打开，鼠标停在导航上就会永久盖住下方内容，
@@ -1124,7 +1123,7 @@ export function OfficePlatformPanel() {
           }}
           aria-hidden={activeTab() === undefined}
         >
-          <div class="rounded-[10px] border border-border-hover bg-popover p-4 shadow-[0_28px_70px_rgba(0,0,0,0.28)]">
+          <div class="rounded-[10px] border border-border-hover bg-popover p-4 shadow-[0_28px_70px_color-mix(in_srgb,var(--text-strong)_28%,transparent)]">
             <div class="grid grid-cols-1 gap-4">
               <div
                 class="rounded-[8px] border border-border bg-background p-4"
@@ -1144,7 +1143,7 @@ export function OfficePlatformPanel() {
                   </div>
                   <button
                     type="button"
-                    class="grid h-9 shrink-0 place-items-center rounded-[8px] border border-emerald-300/50 bg-emerald-300/10 px-3 text-12-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_8px_20px_rgba(16,185,129,0.16)]"
+                    class="grid h-9 shrink-0 place-items-center rounded-[8px] border border-success/50 bg-success/10 px-3 text-12-medium text-icon-success-base transition-all duration-150 hover:-translate-y-px hover:bg-success/20 hover:shadow-[0_8px_20px_color-mix(in srgb, var(--success) 16%, transparent)]"
                     title="新建工作流"
                     onClick={() => openCreateWorkflow()}
                   >
@@ -1168,14 +1167,14 @@ export function OfficePlatformPanel() {
                             <div
                               class="mt-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-10-medium"
                               classList={{
-                                "border-emerald-300/30 bg-emerald-300/10 text-emerald-200": workflow.enabled,
+                                "border-success/30 bg-success/10 text-icon-success-base": workflow.enabled,
                                 "border-border bg-background text-foreground-subtle": !workflow.enabled,
                               }}
                             >
                               <span
                                 class="size-1.5 rounded-full"
                                 classList={{
-                                  "bg-emerald-400": workflow.enabled,
+                                  "bg-success": workflow.enabled,
                                   "bg-foreground-subtle": !workflow.enabled,
                                 }}
                               />
@@ -1185,7 +1184,7 @@ export function OfficePlatformPanel() {
                           <div class="flex shrink-0 items-center gap-1">
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 hover:shadow-[0_6px_16px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base hover:shadow-[0_6px_16px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-95"
                               title="立即运行"
                               disabled={!workflow.enabled}
                               classList={{ "opacity-45": !workflow.enabled }}
@@ -1195,7 +1194,7 @@ export function OfficePlatformPanel() {
                             </button>
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 hover:shadow-[0_6px_16px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base hover:shadow-[0_6px_16px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-95"
                               title="转为定时任务"
                               disabled={!workflow.enabled}
                               classList={{ "opacity-45": !workflow.enabled }}
@@ -1205,7 +1204,7 @@ export function OfficePlatformPanel() {
                             </button>
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 hover:shadow-[0_6px_16px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base hover:shadow-[0_6px_16px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-95"
                               title="编辑工作流"
                               onClick={() => openWorkflowEditor(workflow)}
                             >
@@ -1213,7 +1212,7 @@ export function OfficePlatformPanel() {
                             </button>
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 hover:shadow-[0_6px_16px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base hover:shadow-[0_6px_16px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-95"
                               title={workflow.enabled ? "停用工作流" : "启用工作流"}
                               onClick={() => void toggleWorkflow(workflow.id, !workflow.enabled)}
                             >
@@ -1221,7 +1220,7 @@ export function OfficePlatformPanel() {
                             </button>
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle hover:text-rose-300"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle hover:text-[var(--icon-critical-base)]"
                               title="删除"
                               onClick={() => void deleteWorkflow(workflow.id)}
                             >
@@ -1254,7 +1253,7 @@ export function OfficePlatformPanel() {
                   </div>
                   <button
                     type="button"
-                    class="grid h-9 shrink-0 place-items-center rounded-[8px] border border-emerald-300/50 bg-emerald-300/10 px-3 text-12-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_8px_20px_rgba(16,185,129,0.16)]"
+                    class="grid h-9 shrink-0 place-items-center rounded-[8px] border border-success/50 bg-success/10 px-3 text-12-medium text-icon-success-base transition-all duration-150 hover:-translate-y-px hover:bg-success/20 hover:shadow-[0_8px_20px_color-mix(in srgb, var(--success) 16%, transparent)]"
                     title="新建定时任务"
                     onClick={() => openCreateSchedule()}
                   >
@@ -1279,7 +1278,7 @@ export function OfficePlatformPanel() {
                           <div class="flex shrink-0 items-center gap-1">
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 hover:shadow-[0_6px_16px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base hover:shadow-[0_6px_16px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-95"
                               title="立即执行"
                               onClick={() => void runSchedule(schedule.id)}
                             >
@@ -1287,7 +1286,7 @@ export function OfficePlatformPanel() {
                             </button>
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 hover:shadow-[0_6px_16px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base hover:shadow-[0_6px_16px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-95"
                               title={schedule.status === "active" ? "暂停" : "恢复"}
                               onClick={() =>
                                 void toggleSchedule(schedule.id, schedule.status === "active" ? "paused" : "active")
@@ -1300,7 +1299,7 @@ export function OfficePlatformPanel() {
                             </button>
                             <button
                               type="button"
-                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle hover:text-rose-300"
+                              class="grid size-8 place-items-center rounded-[7px] border border-border text-foreground-subtle hover:text-[var(--icon-critical-base)]"
                               title="删除"
                               onClick={() => void deleteSchedule(schedule.id)}
                             >
@@ -1341,7 +1340,7 @@ export function OfficePlatformPanel() {
                             {connector.capabilities.join(" / ")}
                           </div>
                           <Show when={connector.status === "failed"}>
-                            <div class="mt-1 text-11-regular leading-relaxed text-rose-200">
+                            <div class="mt-1 text-11-regular leading-relaxed text-[var(--icon-critical-base)]">
                               {connector.id === "tencent-docs"
                                 ? "Token 无效/失效，或账号未开通 VIP 权限；请重新配置。"
                                 : "连接异常，请重新连接。"}
@@ -1352,9 +1351,10 @@ export function OfficePlatformPanel() {
                           <span
                             class="shrink-0 rounded-full border px-2 py-0.5 text-10-medium"
                             classList={{
-                              "border-emerald-300/30 bg-emerald-300/10 text-emerald-200":
+                              "border-success/30 bg-success/10 text-icon-success-base":
                                 connector.status === "connected",
-                              "border-rose-300/30 bg-rose-300/10 text-rose-200": connector.status === "failed",
+                              "border-[color-mix(in_srgb,var(--icon-critical-base)_30%,transparent)] bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] text-[var(--icon-critical-base)]":
+                                connector.status === "failed",
                               "border-border bg-background text-foreground-subtle": connector.status === "disabled",
                             }}
                           >
@@ -1367,7 +1367,7 @@ export function OfficePlatformPanel() {
                           <Show when={connector.id === "feishu" || connector.id === "tencent-docs"}>
                             <button
                               type="button"
-                              class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100"
+                              class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base"
                               title={connector.id === "feishu" ? "配置飞书" : "配置腾讯文档"}
                               onClick={() => void openConnectorGuide(connector.id)}
                             >
@@ -1400,7 +1400,7 @@ export function OfficePlatformPanel() {
                           <Show when={connector.id === "tencent-docs" && connector.configured}>
                             <button
                               type="button"
-                              class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 active:translate-y-0 active:scale-95"
+                              class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base active:translate-y-0 active:scale-95"
                               title={connector.status === "connected" ? "断开连接" : "重新连接"}
                               onClick={() =>
                                 void (connector.status === "connected"
@@ -1414,7 +1414,7 @@ export function OfficePlatformPanel() {
                           <Show when={connector.id === "browser"}>
                             <button
                               type="button"
-                              class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/50 hover:text-emerald-100 active:translate-y-0 active:scale-95"
+                              class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle transition-all duration-150 hover:-translate-y-px hover:border-success/50 hover:text-icon-success-base active:translate-y-0 active:scale-95"
                               title={connector.status === "connected" ? "断开连接" : "连接"}
                               onClick={() =>
                                 void (connector.status === "connected"
@@ -1441,7 +1441,7 @@ export function OfficePlatformPanel() {
                     />
                     <button
                       type="button"
-                      class="grid size-9 shrink-0 place-items-center rounded-[7px] border border-emerald-300/40 bg-emerald-300/10 text-emerald-100"
+                      class="grid size-9 shrink-0 place-items-center rounded-[7px] border border-success/40 bg-success/10 text-icon-success-base"
                       title="发送飞书消息"
                       onClick={() => void sendFeishuMessage()}
                     >
@@ -1449,7 +1449,7 @@ export function OfficePlatformPanel() {
                     </button>
                     <button
                       type="button"
-                      class="h-9 shrink-0 rounded-[7px] border border-emerald-300/40 bg-emerald-300/10 px-3 text-11-medium text-emerald-100 transition-all duration-150 hover:-translate-y-px hover:bg-emerald-300/20 hover:shadow-[0_8px_20px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-95"
+                      class="h-9 shrink-0 rounded-[7px] border border-success/40 bg-success/10 px-3 text-11-medium text-icon-success-base transition-all duration-150 hover:-translate-y-px hover:bg-success/20 hover:shadow-[0_8px_20px_color-mix(in srgb, var(--success) 12%, transparent)] active:translate-y-0 active:scale-95"
                       title="发送测试消息，验证飞书是否连通"
                       disabled={feishuTestState() === "testing"}
                       classList={{ "opacity-50": feishuTestState() === "testing" }}
@@ -1459,12 +1459,12 @@ export function OfficePlatformPanel() {
                     </button>
                   </div>
                   <Show when={feishuTestState() === "success"}>
-                    <div class="mt-2 rounded-[7px] border border-emerald-300/35 bg-emerald-300/10 px-2.5 py-1.5 text-11-medium text-emerald-100">
+                    <div class="mt-2 rounded-[7px] border border-success/35 bg-success/10 px-2.5 py-1.5 text-11-medium text-icon-success-base">
                       测试消息已发送，请到飞书群里查看是否收到。
                     </div>
                   </Show>
                   <Show when={feishuTestState() === "failed"}>
-                    <div class="mt-2 rounded-[7px] border border-rose-300/35 bg-rose-300/10 px-2.5 py-1.5 text-11-medium text-rose-100">
+                    <div class="mt-2 rounded-[7px] border border-[color-mix(in_srgb,var(--icon-critical-base)_35%,transparent)] bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-2.5 py-1.5 text-11-medium text-[var(--icon-critical-base)]">
                       发送失败，请检查 Webhook、自定义关键词或 IP 白名单设置。
                     </div>
                   </Show>
@@ -1496,7 +1496,7 @@ export function OfficePlatformPanel() {
                   <div class="grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      class="h-8 rounded-[7px] border border-sky-300/35 bg-sky-300/10 text-12-medium text-sky-200"
+                      class="h-8 rounded-[7px] border border-[color-mix(in_srgb,var(--icon-info-base)_35%,transparent)] bg-[color-mix(in_srgb,var(--icon-info-base)_10%,transparent)] text-12-medium text-[var(--icon-info-base)]"
                       onClick={() => void startBrowser()}
                     >
                       开始
@@ -1510,7 +1510,7 @@ export function OfficePlatformPanel() {
                     </button>
                     <button
                       type="button"
-                      class="h-8 rounded-[7px] border border-rose-300/30 bg-rose-300/10 text-12-medium text-rose-200"
+                      class="h-8 rounded-[7px] border border-[color-mix(in_srgb,var(--icon-critical-base)_30%,transparent)] bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] text-12-medium text-[var(--icon-critical-base)]"
                       onClick={() => void stopBrowser()}
                     >
                       关闭
@@ -1546,7 +1546,9 @@ export function OfficePlatformPanel() {
                         </div>
                       </Show>
                       <Show when={run.error}>
-                        <div class="mt-1 line-clamp-2 text-11-regular text-rose-200">{run.error}</div>
+                        <div class="mt-1 line-clamp-2 text-11-regular text-[var(--icon-critical-base)]">
+                          {run.error}
+                        </div>
                       </Show>
                     </div>
                     <Show when={run.status === "completed"}>
@@ -1573,7 +1575,7 @@ export function OfficePlatformPanel() {
                         </div>
                         <button
                           type="button"
-                          class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle hover:text-emerald-200"
+                          class="grid size-8 shrink-0 place-items-center rounded-[7px] border border-border text-foreground-subtle hover:text-icon-success-base"
                           title="恢复此版本"
                           onClick={() => void restoreArtifact(artifact.id)}
                         >

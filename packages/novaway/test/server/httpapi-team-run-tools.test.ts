@@ -22,7 +22,6 @@ import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestLLMServer } from "../lib/llm-server"
 
-
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     yield* Effect.promise(() => resetDatabase())
@@ -112,32 +111,30 @@ describe("team run with real tool calls", () => {
         const dir = yield* tmpdirScoped({ git: true })
         yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)))
 
-        const session = (yield* (
-          yield* post(dir, "/session", {
-            title: "tools run",
-            // 其余测试只让模型回 JSON；这里要真实工具，权限必须先放开。
-            // `bypassPermissions` 是「无人值守运行」的等价配置：子代理会话会继承
-            // 父会话的模式，成员写文件时不会停在没人回答的授权弹窗上。
-            permission: [{ permission: "*", pattern: "*", action: "allow" }],
-            permissionMode: "bypassPermissions",
-          })
-        ).json) as { id: string }
+        const session = (yield* (yield* post(dir, "/session", {
+          title: "tools run",
+          // 其余测试只让模型回 JSON；这里要真实工具，权限必须先放开。
+          // `bypassPermissions` 是「无人值守运行」的等价配置：子代理会话会继承
+          // 父会话的模式，成员写文件时不会停在没人回答的授权弹窗上。
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+          permissionMode: "bypassPermissions",
+        })).json) as { id: string }
 
-        const person = (yield* (
-          yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" })
-        ).json) as { id: string }
-        const profile = (yield* (
-          yield* post(dir, "/team/profile", {
-            directory: dir,
-            name: "写作组",
-            captain: person.id,
-            members: [{ employeeID: person.id }],
-          })
-        ).json) as { profile: { id: string } }
+        const person = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" }))
+          .json) as { id: string }
+        const profile = (yield* (yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "写作组",
+          captain: person.id,
+          members: [{ employeeID: person.id }],
+        })).json) as { profile: { id: string } }
 
-        const created = (yield* (
-          yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "补一份退款说明" })
-        ).json) as { run: { id: string } }
+        const created = (yield* (yield* post(dir, "/run", {
+          sessionID: session.id,
+          directory: dir,
+          mode: "team",
+          goal: "补一份退款说明",
+        })).json) as { run: { id: string } }
         const id = created.run.id
 
         yield* post(dir, `/run/${id}/plan`, {
@@ -147,22 +144,19 @@ describe("team run with real tool calls", () => {
         const planned = (yield* (yield* get(dir, `/run/${id}`)).json) as Detail
         const teamID = planned.teams[0].id
 
-        const acceptance = (yield* (
-          yield* post(dir, `/run/${id}/acceptance`, {
-            directory: dir,
-            specID: "refund-doc",
-            text: "仓库里有 src/refund.md",
-            kind: "test",
-            owner: teamID,
-            // 命令是「人」写的受控配置：退出码就是结论，不经过模型。
-            verifier: { kind: "command", run: "test -f src/refund.md", timeoutMs: 30_000 },
-          })
-        ).json) as { id: string }
+        const acceptance = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+          directory: dir,
+          specID: "refund-doc",
+          text: "仓库里有 src/refund.md",
+          kind: "test",
+          owner: teamID,
+          // 命令是「人」写的受控配置：退出码就是结论，不经过模型。
+          verifier: { kind: "command", run: "test -f src/refund.md", timeoutMs: 30_000 },
+        })).json) as { id: string }
 
         // 默认只读；这次要真的写文件，放宽必须是显式的（模型没有提权通道）。
-        const widened = (yield* (
-          yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false })
-        ).json) as Detail
+        const widened = (yield* (yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false }))
+          .json) as Detail
 
         yield* post(dir, `/run/${id}/approve`, {
           directory: dir,

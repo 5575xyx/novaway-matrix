@@ -36,11 +36,6 @@
 /* 设置 / 数据库整帧覆盖：见 layout.tsx 的 data-frame-overlay。
  * 被盖住的会话帧 Header 里还有一组窗控，覆盖层（自带一组）淡入淡出的这 1s
  * 里两组会重叠成"重影"。开覆盖时把下面这组藏掉，只留覆盖层自己的。 */
-/* 覆盖层打开时，被盖住的会话帧 Header 仍处于「可拖拽」区域。
- * Electron 的 app-region 是**按区域**生效的，与 z-index 无关：覆盖层左上角的
- * 返回按钮正好落在下面那条拖拽带里，真实鼠标点击会被窗口拖拽吃掉
- * （程序化 .click() 却能触发，所以看起来像"按钮不灵敏"）。
- * 覆盖期间把底层 Header 的拖拽能力关掉。 */
 /* 覆盖层可能盖住侧栏顶带（侧栏收起时主区从 0 开始）或会话帧 Header，
  * 两者都是拖拽区。Electron 的 app-region 按区域生效、与 z-index 无关，
  * 覆盖层左上角的返回按钮会落在这条带子里，真实鼠标点击被拖拽吃掉。
@@ -216,6 +211,210 @@
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
+}
+
+/* ===== TurnFold 过程容器：紧凑分组 =====
+ *
+ * 容器只画一条左侧引导线，过程行贴着线一行一条；行本身不再各自成小卡片
+ * （去底色、去边框、去左色条、徽标收成 16px 图标）。几十条工具调用读起来是
+ * "清单"而不是"卡片墙"。明细照旧点击展开，编辑 diff 仍在右侧评审面板打开。
+ */
+[data-component="turn-fold-rows"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+/* 行自带聊天区的左右留白，容器已经提供缩进，去掉才能和引导线对齐。 */
+[data-component="turn-fold-rows"] [data-slot="session-turn-message-container"] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* 虚拟滚动靠行框的 py-1 撑缝隙；分组里的缝隙由 gap 提供，行框留白清零。 */
+[data-component="turn-fold-rows"] [data-timeline-row] {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* A1 那组规则带 !important，压平它们要同级带上 !important。 */
+[data-component="turn-fold-rows"] [data-slot="session-turn-assistant-content"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  gap: 2px !important;
+}
+
+/* 徽标从 24px 色块收成 16px 图标；保留每个工具的色相，扫一眼仍知道在跑什么。 */
+[data-tool-density="compact"] [data-slot="tool-badge-icon"] {
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+}
+
+/* 工具行自己的卡片染底、左侧色条和缩进，在分组里和容器的引导线重复。 */
+[data-tool-density="compact"] [data-component="tool-trigger"][data-badge] {
+  background: transparent;
+  border-radius: 0;
+  padding-left: 0;
+}
+
+[data-tool-density="compact"] [data-component="tool-trigger"][data-badge]::before {
+  display: none;
+}
+
+/* 标题收成 12px 常规字重：一行里只有"动作 + 对象"值得占视觉重量。 */
+[data-tool-density="compact"] [data-slot="basic-tool-tool-title"] {
+  font-size: var(--font-size-ui-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+/* ===== 紧凑过程行：行首让给状态图标（✓ / ✗ / 转圈） =====
+ *
+ * 图标挂在 tool-part-wrapper 上（见 message-part.tsx 的 toolStatus），
+ * 绝对定位在行首留出的 16px 缩进里：自定义 trigger 的渲染器再多也不用逐个改。
+ * 默认不显示，只有紧凑密度换它上场，并把工具类型徽标让位 ——
+ * 一行里"跑到哪一步了"比"哪类工具"更值得看。
+ */
+[data-slot="tool-status-icon"] {
+  display: none;
+}
+
+[data-tool-density="compact"] [data-component="tool-part-wrapper"] {
+  position: relative;
+  padding-left: 16px;
+}
+
+[data-tool-density="compact"] [data-slot="tool-status-icon"] {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 14px;
+  height: 14px;
+  color: var(--diff-added);
+}
+
+[data-tool-density="compact"] [data-slot="tool-badge-icon"] {
+  display: none;
+}
+
+[data-tool-density="compact"] [data-slot="tool-status-icon"][data-tone="error"] {
+  color: var(--icon-critical-base);
+}
+
+[data-tool-density="compact"] [data-slot="tool-status-icon"][data-tone="active"] {
+  color: var(--foreground-subtle);
+}
+
+/* 文件名 / 目录 / 路径 / URL 收成圆角 chip：一眼看出动的是哪个文件，
+ * 超长省略、悬停看全名（title 由 message-part 挂在文件名/副标题上）。
+ * 读取类走 basic-tool 的 subtitle，编辑/写入类自己的 trigger 用 filename 槽位。
+ * 命令行和提问卡不做 chip —— 那两类整行就是内容，加框反而更乱。 */
+[data-tool-density="compact"]
+  [data-component="tool-part-wrapper"]:is(
+    [data-tool="read"],
+    [data-tool="list"],
+    [data-tool="edit"],
+    [data-tool="write"],
+    [data-tool="multiedit"],
+    [data-tool="apply_patch"],
+    [data-tool="glob"],
+    [data-tool="grep"],
+    [data-tool="webfetch"]
+  )
+  :is([data-slot="basic-tool-tool-subtitle"], [data-slot="message-part-title-filename"]),
+[data-tool-density="compact"] [data-slot="basic-tool-tool-arg"] {
+  display: inline-block;
+  max-width: 240px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: -2px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--foreground-subtle) 10%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-ui-xs);
+  color: var(--foreground-subtle);
+}
+
+/* 目录跟在文件名后面，用「·」分隔（如 `✓ 编辑文件 foo.ts · src/app/`）。 */
+[data-tool-density="compact"] [data-slot="message-part-path"]::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--foreground-subtlest);
+}
+
+/* 待办分区展开的过程区：同一套紧凑样式，只是缩进跟着清单项的文字。 */
+[data-component="turn-fold-rows"][data-variant="todo"] {
+  margin-left: 24px;
+}
+
+/* 容器里再套容器（大容器内的小容器）：和内层一样保留引导线与缩进，
+   展开后内容左侧始终有一条线。 */
+[data-component="turn-fold-rows"] [data-component="turn-fold-rows"] {
+  margin-bottom: 6px;
+}
+
+/* 子代理卡与上下文聚合卡在分组里同样只留内容。 */
+[data-tool-density="compact"] [data-component="task-tool-card"],
+[data-tool-density="compact"] [data-component="context-tool-group-trigger"] {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* 上下文聚合卡自己不是 tool-part-wrapper，拿不到上面那条"行首 16px 缩进 +
+   绝对定位状态图标"的规则；这里补齐同一个坑位，图标才和其他过程行对齐。
+   组件自带的那条 3px 青色渐变指示条（::before）在清单里就是"没有图标的绿杠"，让位给状态图标。 */
+[data-tool-density="compact"] [data-component="context-tool-group-trigger"] {
+  position: relative;
+  padding-left: 16px !important;
+}
+
+[data-tool-density="compact"] [data-component="context-tool-group-trigger"]::before {
+  display: none;
+}
+
+/* ===== 紧凑密度覆盖整条聊天流，而不只是折叠容器内部 =====
+ *
+ * data-tool-density 挂在时间线根节点（message-timeline.tsx 的 ScrollView）上。
+ * 之前只有 TurnFold 里面紧凑：中断/报错的轮次、没有最终正文的轮次不进容器，
+ * 于是同一屏里"过程行"一会儿是清单、一会儿是卡片墙，看着像改回去了。
+ * 现在容器内外用同一套行语言；轮尾卡片（变更摘要 / 预览 / 证据 / 报错）
+ * 是结果不是过程，仍保留卡片形态。
+ */
+[data-tool-density="compact"] [data-timeline-row="AssistantPart"] [data-slot="session-turn-assistant-content"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  gap: 2px !important;
+}
+
+/* 提问卡是唯一"在等你回话"的行：压成清单里的一行容易被漏看，
+ * 所以它不进这套扁平语言，留一层浅底把注意力留住。 */
+[data-tool-density="compact"]
+  [data-timeline-row="AssistantPart"]
+  [data-slot="session-turn-assistant-content"]:has([data-tool="question"]) {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
 }
 
 /* ===== 右侧面板（子代理 / 辅助对话）：复用主聊天区的 A1 卡片语言 =====
@@ -427,12 +626,84 @@
   font-style: normal;
 }
 
-/* Side Pane 空态入口。规格对齐 ZCode `packages/ui/src/styles.css` 的 `.side-pane-open-tab-*`：
+/* 侧栏任务行与无工作区入口：保持轻量列表密度，加入很弱的科技感描边，
+ * 不用大面积卡片，选中态只留下蓝色信号线和轻微底色。 */
+[data-component="sidebar-global-task"] {
+  border: 1px solid transparent;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--icon-blue) 7%, transparent), transparent 72%);
+}
+
+[data-component="sidebar-global-task"]:hover {
+  border-color: color-mix(in srgb, var(--icon-blue) 28%, var(--border));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--icon-blue) 12%, transparent), transparent 80%);
+}
+
+[data-component="sidebar-global-task"][data-selected="true"] {
+  border-color: color-mix(in srgb, var(--icon-blue) 42%, var(--border));
+  box-shadow:
+    inset 2px 0 0 var(--icon-blue),
+    0 0 18px color-mix(in srgb, var(--icon-blue) 8%, transparent);
+}
+
+[data-component="task-row"] {
+  border: 1px solid transparent;
+}
+
+[data-component="task-row"]:hover {
+  border-color: color-mix(in srgb, var(--border-hover) 68%, transparent);
+}
+
+[data-component="side-pane-file-tree"][aria-hidden="false"] {
+  animation: side-pane-tree-drawer-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes side-pane-tree-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 右侧面板入口：从平面的灰色大按钮改成细边框、微光和轻微上浮，
+ * 保持简约，不使用厚重渐变或大面积装饰。 */
+[data-component="side-pane-empty"] .side-pane-launcher-button {
+  position: relative;
+  overflow: hidden;
+}
+
+[data-component="side-pane-empty"] .side-pane-launcher-button::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    110deg,
+    transparent 28%,
+    color-mix(in srgb, var(--icon-blue) 8%, transparent),
+    transparent 72%
+  );
+  opacity: 0;
+  transform: translateX(-35%);
+  transition:
+    opacity 180ms ease,
+    transform 420ms ease;
+}
+
+[data-component="side-pane-empty"] .side-pane-launcher-button:hover::after {
+  opacity: 1;
+  transform: translateX(35%);
+}
+
+/* Side Pane 空态入口。规格：
  * 容器够宽时排成卡片网格（图标在上、标签居中、5.5rem 高、max-width 34rem），
  * 不够宽时回落成 h-12 的横排行。
  *
- * 阈值取 340px 而 ZCode 用 480px：那边的右侧面板默认占窗口 45%（通常 > 480），
- * 我们的 side pane 默认固定 360px，用 480 会让默认宽度永远只看到横排行。
+ * 阈值取 340px 而不是 480px：side pane 默认固定 360px，
+ * 用 480 会让默认宽度永远只看到横排行。
  * 判据用容器查询而不是 window.innerWidth，跟随面板实际宽度（拖拽/分屏都能正确切换）。
  */
 .side-pane-launcher {
@@ -503,24 +774,13 @@
     animation: session-progress-whip var(--session-progress-ms, 1800ms) infinite;
     will-change: clip-path;
   }
-  /* 会话进行中：输入框边框亮暗交替，替代顶部进度条 */
-  @keyframes prompt-working-glow {
-    0%,
-    100% {
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--icon-blue) 28%, transparent),
-        0 4px 24px rgba(0, 0, 0, 0.08);
-    }
-    50% {
-      box-shadow:
-        0 0 0 2px color-mix(in srgb, var(--icon-blue) 92%, transparent),
-        0 0 16px color-mix(in srgb, var(--icon-blue) 42%, transparent),
-        0 4px 24px rgba(0, 0, 0, 0.08);
-    }
-  }
-
+  /* 会话进行中：输入框描边提亮一档，静态不动。
+     原来是 1px↔2px 加一层外发光的呼吸动画，一屏里唯一持续闪烁的东西就是它，
+     跟"简约"是反的；运行状态已经由停止按钮和进度条表达，边框没必要再喊一遍。 */
   [data-dock-surface="shell"][data-working="true"] {
-    animation: prompt-working-glow 1.7s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--icon-blue) 55%, transparent),
+      0 4px 24px color-mix(in srgb, var(--text-strong) 8%, transparent);
   }
   /* 提示词优化中：输入内容区波纹扫光 */
   @keyframes prompt-optimize-wave {
@@ -545,7 +805,7 @@
   [data-dock-surface="shell"][data-optimizing="true"] {
     box-shadow:
       0 0 0 1px color-mix(in srgb, var(--icon-blue) 45%, transparent),
-      0 4px 24px rgba(0, 0, 0, 0.08) !important;
+      0 4px 24px color-mix(in srgb, var(--text-strong) 8%, transparent) !important;
   }
 
   [data-optimizing-content="true"] {
@@ -633,7 +893,7 @@
  */
 :root {
   --transition-panel-ms: 320ms;
-  /* 面板动效缓动：与 ZCode 的 ease-out 同类，先快后慢 */
+  /* 面板动效缓动：ease-out，先快后慢 */
   --transition-panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   /* 浮层（弹窗/下拉/气泡/选择器）的开合时长。
    * 这类"随手点开"的浮层不能也放 1s —— 1s 的开菜单会像卡住。
@@ -645,7 +905,7 @@
 
 /* Side Pane 的进入动效。
  *
- * 只做淡入、不做位移：ZCode 的 AnimatedSidePanePanel 过渡的是**面板宽度**，不是 transform，
+ * 只做淡入、不做位移：面板过渡的是**面板宽度**，不是 transform，
  * 宽度是布局量、不会移动元素边界；而 translateX 会让面板的实测位置在动画期间偏移，
  * 直接破坏「面板之间恒为 4px 间隙」这条几何契约（e2e 立即测量会读到 12px）。
  * 终端帧本来就有 transition-[height]（同为布局量），保持不动。
@@ -663,7 +923,7 @@
   animation: side-pane-enter 120ms ease-out;
 }
 
-/* 面板内容随开合淡入淡出（对齐 ZCode AnimatedSidePanePanel 的双过渡：
+/* 面板内容随开合淡入淡出（双过渡：
  * 宽度由 aside 的 transition-[width] 承担，这里补内容透明度 + 轻微右移，
  * 让"内容出现"有方向感，而不是宽度一变就整块闪出来）。
  * 位移只有 8px、并限定在面板内部（aside 有 overflow:hidden），不会影响
@@ -842,7 +1102,12 @@
 .live-follow-sheen {
   width: 38%;
   border-radius: 999px;
-  background: linear-gradient(100deg, transparent 0%, rgb(255 255 255 / 0.55) 50%, transparent 100%);
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    color-mix(in srgb, var(--text-on-success-base) 55%, transparent) 50%,
+    transparent 100%
+  );
   animation: live-follow-sheen 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
@@ -935,7 +1200,7 @@
   }
 }
 
-/* 思考强度滑块：移植自 ZCode 的 `composer-thought-slider`。
+/* 思考强度滑块。
    轨道 24px、白圆点 28px、档位点 4px；填充区里横向飘过白色光点，档位越高光点越多。
    原生 range 只保留交互（拖动/点击/方向键/读屏），视觉全在上面这几层。 */
 .thinking-effort-slider[data-disabled="true"] {
@@ -943,7 +1208,8 @@
 }
 
 .thinking-effort-thumb {
-  background: #ffffff;
+  background: var(--background-base);
+  border: 1px solid color-mix(in srgb, var(--text-strong) 18%, transparent);
   transition: left 120ms ease-out;
 }
 
@@ -952,7 +1218,7 @@
   transition:
     width 120ms ease-out,
     background-color 200ms ease-out;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-on-interactive-base) 22%, transparent);
 }
 
 /* 光点：从右往左横穿填充区，中段淡入、两端淡出。 */
@@ -984,7 +1250,7 @@
 }
 
 .thinking-effort-stop[data-filled="true"] {
-  background: #ffffff;
+  background: var(--text-on-interactive-base);
   opacity: 0.3;
 }
 
@@ -1087,8 +1353,21 @@
 
 .docx-preview-viewport section.docx {
   box-shadow:
-    0 2px 10px rgb(15 23 42 / 0.08),
-    0 1px 2px rgb(15 23 42 / 0.05);
+    0 2px 10px color-mix(in srgb, var(--text-strong) 8%, transparent),
+    0 1px 3px color-mix(in srgb, var(--text-strong) 5%, transparent);
+}
+
+/* 就地编辑不画框：Word 里点段落只有光标和一层极淡的底，
+   描边框会盖住版式，看起来像页面坏了。选中 / 改字各用一层主题色淡底区分。 */
+.docx-preview-viewport [data-docx-selected] {
+  background: color-mix(in srgb, var(--icon-blue) 7%, transparent);
+  border-radius: 2px;
+}
+.docx-preview-viewport [data-docx-editing] {
+  background: color-mix(in srgb, var(--icon-blue) 12%, transparent);
+  border-radius: 2px;
+  caret-color: var(--icon-blue);
+  outline: none !important;
 }
 
 /* ===== 聊天区整体质感(对齐待办分组原型) =====
@@ -1100,15 +1379,15 @@
 /* 用户气泡:蓝底白字(原型是 --tp-accent 实心),右上小圆角收角。 */
 [data-slot="user-message-text"] {
   background: var(--icon-blue) !important;
-  color: var(--background) !important;
+  color: var(--text-on-interactive-base) !important;
   border-radius: 14px 14px 5px 14px !important;
   padding: 9px 14px !important;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.1);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-strong) 10%, transparent);
 }
 
 /* 用户气泡里的文件/代理高亮在蓝底上看不清,统一用近白。 */
 [data-slot="user-message-text"] [data-highlight] {
-  color: color-mix(in srgb, var(--background) 88%, white) !important;
+  color: var(--text-on-interactive-base) !important;
 }
 
 /* 助手小卡片:更温和的底、更明显的圆角与轻阴影(原型 12px 圆角 + 浮起)。 */
@@ -1116,7 +1395,7 @@
 [data-component="session-turn-diffs-group"] {
   border-radius: 12px !important;
   padding: 10px 14px !important;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-strong) 4%, transparent);
 }
 
 /* 工具小卡:8→10px 圆角。 */
@@ -1127,12 +1406,12 @@
 
 /* 待办总览卡:清单本体(原型 tp-overview)——标题行加粗一档、进度条稍粗。 */
 [data-component="todo-grouped-overview"] {
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-strong) 4%, transparent);
 }
 
 /* 待办分区卡:选中态轻浮起(原型 is-open 的边框加深 + 阴影)。 */
 [data-component="todo-grouped-section"] {
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-strong) 4%, transparent);
 }
 
 /* ===== 工具行的信息展示：单行优先，但不截断 =====
@@ -1213,8 +1492,7 @@
 }
 
 /* ===== 工具 badge 图标:穿透 wrapper 的默认色 =====
- * tool-badge-icon span 已设 color:#0d9488,但内部 Icon wrapper 强制
- * foreground-subtle。让 wrapper 继承父级 span 的颜色。 */
+ * tool-badge-icon span 使用工具类型对应的主题语义色；内部 Icon wrapper 继承父级颜色。 */
 [data-slot="tool-badge-icon"] [data-component="icon"] {
   color: inherit;
 }
@@ -1257,47 +1535,49 @@
  * 现在按类型取一个色相 `--preview-tone`,派生图标底色、描边与"打开"按钮,
  * hover 轻浮起;颜色只做点缀,不抢正文。 */
 [data-component="session-turn-preview"] [data-preview-tone] {
-  --preview-tone: var(--icon-blue);
+  --preview-tone: var(--icon-interactive-base);
   border-color: color-mix(in oklab, var(--preview-tone) 18%, var(--border));
   background: linear-gradient(
     135deg,
     color-mix(in oklab, var(--preview-tone) 7%, var(--surface)) 0%,
     var(--surface) 58%
   );
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  box-shadow: var(--shadow-xs);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="web"] {
-  --preview-tone: var(--icon-blue, #2563eb);
+  --preview-tone: var(--icon-interactive-base);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="html"] {
-  --preview-tone: var(--syntax-property, #ea580c);
+  --preview-tone: var(--syntax-property);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="doc"] {
-  --preview-tone: #2563eb;
+  --preview-tone: var(--icon-info-base);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="sheet"] {
-  --preview-tone: var(--syntax-success, #16a34a);
+  --preview-tone: var(--icon-success-base);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="slides"] {
-  --preview-tone: #f97316;
+  --preview-tone: var(--icon-warning-base);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="pdf"] {
-  --preview-tone: var(--syntax-critical, #dc2626);
+  --preview-tone: var(--icon-critical-base);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="image"] {
-  --preview-tone: var(--syntax-type, #8b5cf6);
+  --preview-tone: var(--icon-agent-plan-base);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone]:hover {
+  /* 悬停只把描边加深 + 抬一层中性阴影。原来是 22px 的类型色光晕，
+     一屏四个产物卡时每种颜色都在发光，读起来像贴纸而不是列表。 */
   border-color: color-mix(in oklab, var(--preview-tone) 42%, var(--border));
-  box-shadow: 0 8px 22px color-mix(in oklab, var(--preview-tone) 16%, transparent);
+  box-shadow: var(--shadow-xs);
 }
 
 [data-slot="preview-card-icon"] {
@@ -1351,7 +1631,7 @@
 /* 服务仍在运行：任务结束后它可能还占着端口。用绿色标签明确告诉用户，
    而不是只给一个看起来像普通产物卡的链接。 */
 [data-component="session-turn-preview"] [data-preview-tone="online"] {
-  --preview-tone: var(--syntax-success, #16a34a);
+  --preview-tone: var(--icon-success-base);
 }
 
 [data-slot="preview-card-online"] {
@@ -1398,7 +1678,7 @@
 }
 
 /* ===== 聊天区非正文文本的色阶 =====
- * 对齐 ZCode：正文（markdown）保持 --foreground 最亮，工具标题/参数、思考、
+ * 正文（markdown）保持 --foreground 最亮，工具标题/参数、思考、
  * 状态词与变更摘要这类"过程信息"统一退到 subtle / subtlest，
  * 让读者一眼先看到回答，再按需看过程。
  */
@@ -1429,7 +1709,7 @@
 }
 
 /* ===== 输入框工具条:窄宽度下的收放 =====
- * 模型名与思考强度移到了输入框右下角（ZCode 同款），和发送按钮同一行；
+ * 模型名与思考强度移到了输入框右下角，和发送按钮同一行；
  * 右侧面板一展开,composer 只剩五六百像素,这些入口会互相压住。
  * 这里按**输入框实际宽度**(容器查询)收缩模型/角色名,而不是按窗口宽度。
  */
@@ -1492,7 +1772,7 @@
 }
 
 /* ===== 文档评审卡（PRD / 计划 / 方案）=====
- * 与 ZCode 的「计划」卡同构：标题 + 覆盖内容 + 查看完整文档；
+ * 「计划」卡形态：标题 + 覆盖内容 + 查看完整文档；
  * 通过 / 调整是卡片里的按钮，点了直接回复代理，不用回聊天框。
  */
 [data-component="document-review-card"] {
@@ -1505,12 +1785,12 @@
   border-radius: 12px;
   background: var(--surface);
   padding: 12px;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-strong) 4%, transparent);
   overflow: hidden;
 }
 
 /*
- * 「等待评审」态整体做出 ZCode 那种毛玻璃挡层：正文被压暗、轻微模糊，
+ * 「等待评审」态整体做出毛玻璃挡层：正文被压暗、轻微模糊，
  * 视觉重心落到浮在中层的操作按钮上。已决策（approved/revise）的卡片
  * 保持清晰可读，不糊正文。
  */
@@ -1524,7 +1804,7 @@
   border-color: color-mix(in oklab, var(--mode-accent, var(--primary)) 28%, var(--border));
   box-shadow:
     0 0 0 1px color-mix(in oklab, var(--mode-accent, var(--primary)) 10%, transparent),
-    0 1px 2px rgb(15 23 42 / 0.04);
+    0 1px 2px color-mix(in srgb, var(--text-strong) 4%, transparent);
 }
 
 [data-slot="document-review-body"] {
@@ -1565,7 +1845,7 @@
       color-mix(in oklab, var(--mode-accent, var(--primary)) 8%, transparent),
       transparent 60%
     ),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.03), transparent 40%);
+    linear-gradient(to bottom, color-mix(in oklab, var(--text-strong) 3%, transparent), transparent 40%);
 }
 
 /*
@@ -1635,11 +1915,11 @@
   font-size: var(--font-size-ui-base);
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: #fff;
+  color: var(--text-on-interactive-base);
   /* 三颗按钮一律实色：叠在模糊正文上，浅色底会被糊成一片灰，对比度根本不够。 */
   box-shadow:
-    0 2px 4px rgb(15 23 42 / 0.12),
-    0 10px 24px -12px rgb(15 23 42 / 0.45);
+    0 2px 4px color-mix(in srgb, var(--text-strong) 12%, transparent),
+    0 10px 24px -12px color-mix(in srgb, var(--text-strong) 45%, transparent);
 }
 
 /* 图标跟随按钮文字色：primary/ghost 变体给 svg 钉了自己的颜色，
@@ -1648,46 +1928,38 @@
   color: currentColor;
 }
 
-/* 开始评审：亮蓝 —— "去看文档"的入口。 */
+/* 评审操作采用主题语义色：打开使用交互色，通过使用成功色，调整使用警告色。 */
 [data-slot="document-review-actions"] [data-component="button"][data-action="open"] {
-  border-color: #1d4ed8;
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  color: #fff;
-  box-shadow:
-    0 2px 4px rgb(37 99 235 / 0.25),
-    0 12px 26px -12px rgb(37 99 235 / 0.75);
+  border-color: var(--border-interactive-active);
+  background: var(--interactive-base);
+  color: var(--text-on-interactive-base);
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--interactive-base) 72%, transparent);
 }
 
 [data-slot="document-review-actions"] [data-component="button"][data-action="open"]:hover:not(:disabled) {
-  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  background: var(--surface-interactive-hover);
 }
 
-/* 评审通过：高饱和绿 —— 主操作。 */
 [data-slot="document-review-actions"] [data-component="button"][data-action="approve"] {
-  border-color: #15803d;
-  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
-  color: #fff;
-  box-shadow:
-    0 2px 4px rgb(22 163 74 / 0.3),
-    0 12px 28px -12px rgb(22 163 74 / 0.8);
+  border-color: var(--border-success-selected);
+  background: var(--surface-success-base);
+  color: var(--text-on-success-base);
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--surface-success-base) 72%, transparent);
 }
 
 [data-slot="document-review-actions"] [data-component="button"][data-action="approve"]:hover:not(:disabled) {
-  background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+  background: var(--surface-success-weak);
 }
 
-/* 需要调整：高饱和琥珀 + 深棕字（白字在琥珀上对比度不够）。 */
 [data-slot="document-review-actions"] [data-component="button"][data-action="revise"] {
-  border-color: #d97706;
-  background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
-  color: #422006;
-  box-shadow:
-    0 2px 4px rgb(245 158 11 / 0.3),
-    0 12px 26px -12px rgb(245 158 11 / 0.8);
+  border-color: var(--border-warning-selected);
+  background: var(--surface-warning-base);
+  color: var(--text-on-warning-base);
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--surface-warning-base) 72%, transparent);
 }
 
 [data-slot="document-review-actions"] [data-component="button"][data-action="revise"]:hover:not(:disabled) {
-  background: linear-gradient(180deg, #fcd34d 0%, #fbbf24 100%);
+  background: var(--surface-warning-weak);
 }
 
 /* 提交（"需要调整"展开后的确认键）：与"通过"同色系，保证浮层里的两个动作
@@ -1696,13 +1968,11 @@
   min-height: 40px;
   padding: 0 20px;
   border-radius: 12px;
-  border-color: #15803d;
-  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
-  color: #fff;
+  border-color: var(--border-success-selected);
+  background: var(--surface-success-base);
+  color: var(--text-on-success-base);
   font-weight: 600;
-  box-shadow:
-    0 2px 4px rgb(22 163 74 / 0.25),
-    0 10px 20px -12px rgb(22 163 74 / 0.7);
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--surface-success-base) 64%, transparent);
 }
 
 [data-slot="document-review-revise"] [data-component="button"][data-action="submit"] svg {
@@ -1767,5 +2037,325 @@
 }
 
 [data-component="document-review-card"][data-state="approved"] {
-  border-color: color-mix(in oklab, var(--syntax-diff-add, #16a34a) 30%, var(--border));
+  border-color: color-mix(in oklab, var(--syntax-diff-add) 30%, var(--border));
+}
+
+/*
+ * 纯文本编辑器的语法着色层。
+ * 这一层垫在透明文字的 textarea 下面，所以 padding / 行高 / 字号必须
+ * 和 textarea 完全一致（py-4 + 默认 2px 左内边距、24px 行高、13px 字号），
+ * 否则上下滚动时彩色文字和光标会越走越偏。背景必须透明，让底下的
+ * 编辑区背景（以及选区）透出来。
+ */
+[data-component="code-highlight"] pre.shiki {
+  margin: 0;
+  padding: 16px 16px 16px 2px;
+  background: transparent !important;
+  font: inherit;
+  font-size: 13px;
+  line-height: 24px;
+  white-space: pre;
+  overflow: visible;
+  tab-size: 8;
+}
+
+[data-component="code-highlight"] pre.shiki code {
+  font: inherit;
+}
+
+/*
+ * Markdown 实况预览的行级编辑：同一段的多行各自渲染成一份 Markdown 片段，
+ * 段落类块用 inline 把相邻行接回去，视觉上和 marked 把软换行当空格一致；
+ * 列表/引用/标题的行各自独立，只把首尾外边距归零，避免行与行之间冒出额外空隙。
+ */
+[data-component="markdown-live"] .md-live-line > [data-component="markdown"] > :first-child {
+  margin-top: 0;
+}
+[data-component="markdown-live"] .md-live-line > [data-component="markdown"] > :last-child {
+  margin-bottom: 0;
+}
+[data-component="markdown-live"] .md-live-line.is-inline {
+  display: inline;
+}
+[data-component="markdown-live"] .md-live-line.is-inline > [data-component="markdown"],
+[data-component="markdown-live"] .md-live-line.is-inline > [data-component="markdown"] > p {
+  display: inline;
+  margin: 0;
+}
+[data-component="markdown-live"] .md-live-line.is-inline + .md-live-line.is-inline::before {
+  content: " ";
+}
+
+/*
+ * 新建任务首页的氛围层（用户反馈"这里要一眼更有科技感"）。
+ *
+ * 三层叠起来，每一层强度都压得很低，目标是"界面在待机发光"而不是贴纸：
+ * - 顶部一圈蓝色辉光，落在问候语背后
+ * - 中间一层 32px 网格，四周用径向遮罩淡出，只留中央看得见几格
+ * - 底边一条地平线光带
+ * 全部 pointer-events:none + aria-hidden：纯装饰，不吃点击也不进读屏。
+ * 动画只动 opacity/transform（不开 backdrop-filter，Electron 上合成开销大），
+ * 并且尊重 prefers-reduced-motion。
+ */
+[data-component="session-new-hero"] {
+  position: relative;
+}
+
+[data-component="session-new-aurora"] {
+  position: absolute;
+  inset: -128px -40% auto;
+  height: 460px;
+  z-index: 0;
+  pointer-events: none;
+  /* 整层再用一个椭圆遮罩收边：辉光在碰到面板裁剪边之前就已经淡到 0，
+   * 所以宽面板 / 窄面板都不会在左右边缘出现一条竖直的硬切。 */
+  mask-image: radial-gradient(62% 70% at 50% 34%, #000 0%, rgba(0, 0, 0, 0.45) 58%, transparent 84%);
+  -webkit-mask-image: radial-gradient(62% 70% at 50% 34%, #000 0%, rgba(0, 0, 0, 0.45) 58%, transparent 84%);
+}
+
+[data-component="session-new-aurora"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 74%,
+      color-mix(in oklab, var(--icon-interactive-base) 14%, transparent) 79%,
+      transparent 85%
+    ),
+    radial-gradient(
+      46% 42% at 50% 26%,
+      color-mix(in oklab, var(--icon-interactive-base) 26%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      34% 34% at 22% 40%,
+      color-mix(in oklab, var(--icon-agent-plan-base) 18%, transparent),
+      transparent 74%
+    ),
+    radial-gradient(
+      34% 34% at 78% 40%,
+      color-mix(in oklab, var(--icon-agent-build-base) 18%, transparent),
+      transparent 74%
+    );
+  animation: session-new-aurora 7.5s ease-in-out infinite;
+}
+
+/* 网格单独一层：径向遮罩把它整块"烧"成一个圆，边缘不留硬边。 */
+[data-component="session-new-aurora"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 118px;
+  width: 160%;
+  height: 300px;
+  transform: translateX(-50%);
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--icon-interactive-base) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--icon-interactive-base) 22%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(52% 62% at 50% 42%, #000 0%, transparent 76%);
+  -webkit-mask-image: radial-gradient(52% 62% at 50% 42%, #000 0%, transparent 76%);
+  animation: session-new-grid 9s ease-in-out infinite;
+}
+
+@keyframes session-new-aurora {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.78;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes session-new-grid {
+  0%,
+  100% {
+    opacity: 0.24;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="session-new-aurora"]::before,
+  [data-component="session-new-aurora"]::after {
+    animation: none;
+  }
+}
+
+/* 问候语：中性前景 → 品牌蓝的竖向渐变字，配合上面的辉光，
+ * 第一眼就有"这是个活的界面"的感觉。渐变只走文字本身（background-clip），
+ * 不动字号与测量逻辑。 */
+.draft-greeting-text {
+  background: linear-gradient(
+    180deg,
+    var(--foreground) 8%,
+    color-mix(in oklab, var(--icon-interactive-base) 55%, var(--foreground)) 96%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* 角色卡（规划蓝图 / 锻造工程）：选中态加一层从左上角打下来的同色斜向光，
+ * 悬停给一点外发光。颜色由卡片自己写进 --agent-tint，两种角色共用这套样式。 */
+[data-component="new-session-agent-card"] {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-component="new-session-agent-card"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--agent-tint) 24%, transparent), transparent 58%);
+  transition: opacity 220ms ease-out;
+}
+
+[data-component="new-session-agent-card"]:hover::before {
+  opacity: 0.55;
+}
+
+[data-component="new-session-agent-card"][data-active="true"]::before {
+  opacity: 1;
+}
+
+[data-component="new-session-agent-card"][data-active="true"] {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--agent-tint) 30%, transparent),
+    0 8px 24px -12px var(--agent-tint);
+}
+
+/* 「+」菜单里悬停弹出的子级浮层（工作区文件 / 插件）。
+ * hover-card 默认 max-width 320px、z-index 50，既装不下文件树，也会被
+ * z-index 200 的 popover 盖住，所以这里按子菜单放宽并抬到弹窗之上。 */
+[data-component="hover-card-content"].add-menu-flyout {
+  width: min(380px, calc(100vw - 16px));
+  max-width: min(380px, calc(100vw - 16px));
+  max-height: min(460px, calc(100vh - 24px));
+  z-index: 240;
+  border-radius: var(--radius-lg);
+  padding: 6px;
+}
+
+/* ===== NovaWay 统一视觉层 =====
+ * 以「中性底色 + 细边界 + 单一蓝色信号」统一窗口、侧栏、会话帧和输入区。
+ * 不给每个组件单独堆渐变，避免界面变成装饰性卡片墙；科技感来自层次、留白和微光。
+ */
+[data-app-mode] {
+  background-image:
+    linear-gradient(90deg, color-mix(in srgb, var(--icon-blue) 0.7%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--icon-blue) 0.7%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: 0 0;
+}
+
+[data-component="message-timeline"] [data-timeline-row] {
+  width: calc(100% - 64px) !important;
+  max-width: 1200px !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+@media (max-width: 767px) {
+  [data-component="message-timeline"] [data-timeline-row] {
+    width: calc(100% - 24px) !important;
+  }
+}
+
+[data-component="sidebar-nav-desktop"],
+[data-component="sidebar-nav-mobile"] {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 98%, var(--icon-blue)),
+    var(--surface)
+  ) !important;
+  box-shadow: inset -1px 0 color-mix(in srgb, var(--icon-blue) 6%, var(--border));
+}
+
+[data-component="sidebar-rail"] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, var(--icon-blue)), var(--surface));
+  border-color: color-mix(in srgb, var(--icon-blue) 7%, var(--border)) !important;
+}
+
+[data-component="sidebar-top-band"] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--icon-blue) 5%, var(--border));
+}
+
+[data-component="sidebar-new-task"] {
+  border: 1px solid color-mix(in srgb, var(--icon-blue) 18%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, white 18%, transparent) inset,
+    0 8px 20px -14px color-mix(in srgb, var(--icon-blue) 70%, transparent);
+  letter-spacing: 0.01em;
+  transition:
+    transform 160ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+[data-component="sidebar-new-task"]:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, white 22%, transparent) inset,
+    0 10px 24px -12px color-mix(in srgb, var(--icon-blue) 80%, transparent);
+}
+
+[data-component="sidebar-panel-slot"] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--background) 96%, var(--icon-blue)), var(--background));
+}
+
+[data-component="conv-frame"] {
+  border-color: color-mix(in srgb, var(--icon-blue) 5%, var(--border)) !important;
+  box-shadow: 0 12px 36px -28px color-mix(in srgb, var(--icon-blue) 45%, transparent);
+}
+
+[data-component="workspace-header"] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--icon-blue)), transparent);
+  border-bottom-color: color-mix(in srgb, var(--icon-blue) 5%, var(--border));
+}
+
+[data-component="side-pane-frame"] {
+  border-color: color-mix(in srgb, var(--icon-blue) 7%, var(--border)) !important;
+  box-shadow: -12px 12px 32px -28px color-mix(in srgb, var(--icon-blue) 65%, transparent);
+}
+
+[data-dock-surface="shell"] {
+  border-color: color-mix(in srgb, var(--icon-blue) 18%, var(--border)) !important;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, white 14%, transparent) inset,
+    0 18px 40px -28px color-mix(in srgb, var(--icon-blue) 60%, transparent);
+}
+
+[data-component="status-panel-expanded"],
+[data-component="status-panel-mini"],
+[data-component="status-panel-expand"] {
+  border-color: color-mix(in srgb, var(--icon-blue) 8%, var(--border));
+  box-shadow: 0 12px 28px -24px color-mix(in srgb, var(--icon-blue) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="sidebar-new-task"],
+  [data-component="side-pane-empty"] .side-pane-launcher-button {
+    transition: none;
+  }
+}
+
+[data-component="platform-icon"] svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

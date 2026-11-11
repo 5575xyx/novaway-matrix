@@ -12,7 +12,13 @@ import { Effect, Schema } from "effect"
 import * as path from "path"
 import { readFile, rename, writeFile } from "fs/promises"
 import { assertExternalDirectoryEffect } from "./external-directory"
-import { editPptx, readPptxLayout } from "@novaway/core/office/pptx-edit"
+import {
+  editPptx,
+  editPptxSlides,
+  listPptxLayouts,
+  readPptxLayout,
+  type PptxShapeOp,
+} from "@novaway/core/office/pptx-edit"
 import { InstanceState } from "@/effect/instance-state"
 import { Bus } from "@/bus"
 import { File } from "@/file"
@@ -52,9 +58,9 @@ export const OfficePptxReadTool = Tool.define<typeof ReadParameters, Record<stri
           const instance = yield* InstanceState.context
           const root = permissionRoot(instance)
           const filepath = resolve(root, params.filePath)
-          const layout = yield* Effect.promise(async () =>
-            readPptxLayout(new Uint8Array(await readFile(filepath)), params.slides),
-          )
+          const bytes = new Uint8Array(yield* Effect.promise(() => readFile(filepath)))
+          const layout = yield* Effect.promise(() => readPptxLayout(bytes, params.slides))
+          const layouts = yield* Effect.promise(() => listPptxLayouts(bytes))
           if (layout.length === 0) {
             return {
               title: "No editable objects",
@@ -100,7 +106,11 @@ export const OfficePptxReadTool = Tool.define<typeof ReadParameters, Record<stri
           return {
             title: `${layout.length} object(s)`,
             metadata: {},
-            output: [...slides.entries()].map(([slide, lines]) => `## 第 ${slide} 页\n${lines.join("\n")}`).join("\n\n"),
+            output:
+              (layouts.length > 0
+                ? "## 版式\n" + layouts.map((item) => `- ${item.name} (${item.part})`).join("\n") + "\n\n"
+                : "") +
+              [...slides.entries()].map(([slide, lines]) => `## 第 ${slide} 页\n${lines.join("\n")}`).join("\n\n"),
           }
         }),
     }
@@ -174,6 +184,63 @@ const EditParameters = Schema.Struct({
       }),
     ),
   ),
+  /** 页面结构：新建 / 删除 / 调序 / 复制。 */
+  slides: Schema.optional(
+    Schema.Array(
+      Schema.Union([
+        Schema.Struct({
+          op: Schema.Literal("addSlide"),
+          after: Schema.optional(Schema.Number),
+          layout: Schema.optional(Schema.String).annotate({
+            description: "Layout name (from office_pptx_read layouts), slideLayoutN.xml, or 1-based index.",
+          }),
+        }),
+        Schema.Struct({ op: Schema.Literal("deleteSlide"), slide: Schema.Number }),
+        Schema.Struct({ op: Schema.Literal("moveSlide"), from: Schema.Number, to: Schema.Number }),
+        Schema.Struct({ op: Schema.Literal("duplicateSlide"), slide: Schema.Number }),
+      ]),
+    ),
+  ),
+  /** 形状结构：新建文本框 / 删除形状。 */
+  structure: Schema.optional(
+    Schema.Array(
+      Schema.Union([
+        Schema.Struct({
+          op: Schema.Literal("addTextBox"),
+          slide: Schema.Number,
+          text: Schema.String,
+          box: Schema.optional(Box),
+          style: Schema.optional(Style),
+        }),
+        Schema.Struct({
+          op: Schema.Literal("addShape"),
+          slide: Schema.Number,
+          kind: Schema.Literals(["rect", "roundRect", "ellipse", "triangle", "diamond", "rightArrow", "line", "star5"]),
+          box: Schema.optional(Box),
+          fill: Schema.optional(Schema.String).annotate({
+            description: "Fill colour RRGGBB. Omit for the theme accent.",
+          }),
+          line: Schema.optional(Schema.String).annotate({ description: "Outline colour RRGGBB. Omit for no outline." }),
+          text: Schema.optional(Schema.String),
+          style: Schema.optional(Style),
+        }),
+        Schema.Struct({
+          op: Schema.Literal("addPicture"),
+          slide: Schema.Number,
+          imagePath: Schema.String.annotate({
+            description: "Image on disk (png/jpeg/gif/webp/svg). Relative paths resolve against the workspace root.",
+          }),
+          box: Schema.optional(Box),
+        }),
+        Schema.Struct({
+          op: Schema.Literal("deleteShape"),
+          slide: Schema.Number,
+          shapeId: Schema.optional(Schema.String),
+          shapeName: Schema.optional(Schema.String),
+        }),
+      ]),
+    ),
+  ),
 })
 
 type EditInput = Schema.Schema.Type<typeof EditParameters>
@@ -197,6 +264,8 @@ export const OfficePptxEditTool = Tool.define<typeof EditParameters, Record<stri
         "Only the touched slide XML (plus the new media entry for pictures) is rewritten; images, theme, master, other slides",
         "and animations are copied byte-for-byte, so the deck keeps its layout instead of being regenerated.",
         "Pass shapeId from office_pptx_read. Theme fonts and sizes are inherited from the existing runs unless you override them.",
+        "slides accepts addSlide (after, optional layout), deleteSlide, moveSlide (from/to) and duplicateSlide; structure accepts",
+        "addTextBox (slide, text, optional box/style), addShape (slide + kind rect/roundRect/ellipse/triangle/diamond/rightArrow/line/star5, optional box/fill/line/text/style; box is in EMU like the other structure ops), addPicture (slide + imagePath, optional EMU box) and deleteShape (slide + shapeId or shapeName).",
       ].join(" "),
       parameters: EditParameters,
       execute: (params: EditInput, ctx: Tool.Context) =>
@@ -211,7 +280,10 @@ export const OfficePptxEditTool = Tool.define<typeof EditParameters, Record<stri
           yield* ctx.ask({ permission: "edit", patterns: [relative], always: ["*"], metadata: { filepath } })
 
           const result = yield* Effect.promise(async () => {
-            const bytes = new Uint8Array(await readFile(filepath))
+            const original = new Uint8Array(await readFile(filepath))
+            // 页面操作先做：后面的文字/形状定位用的都是「新页序」。
+            const slid = params.slides?.length ? await editPptxSlides(original, params.slides) : undefined
+            const bytes = slid?.bytes ?? original
             const imageEdits = [] as Array<{
               slide: number
               shapeId?: string
@@ -230,17 +302,36 @@ export const OfficePptxEditTool = Tool.define<typeof EditParameters, Record<stri
                 mime: MIME_BY_EXT[ext] ?? "image/png",
               })
             }
+            const structureOps: PptxShapeOp[] = []
+            for (const item of params.structure ?? []) {
+              if (item.op !== "addPicture") {
+                structureOps.push(item)
+                continue
+              }
+              const source = resolve(root, item.imagePath)
+              const ext = source.slice(source.lastIndexOf(".") + 1).toLowerCase()
+              structureOps.push({
+                op: "addPicture" as const,
+                slide: item.slide,
+                data: new Uint8Array(await readFile(source)),
+                mime: MIME_BY_EXT[ext] ?? "image/png",
+                ...(item.box ? { box: item.box } : {}),
+              })
+            }
             const edited = await editPptx({
               bytes,
               textEdits: params.texts ?? [],
               shapeEdits: params.shapes ?? [],
               imageEdits,
+              shapeOps: structureOps,
             })
+            // 页面操作与形状操作可能落在不同的包条目上：合并「改了哪些」。
+            const changed = [...new Set([...(slid?.changed ?? []), ...edited.changed])]
             // 先写临时文件再 rename：用户可能正用 PowerPoint 打开着这份文件。
             const temp = `${filepath}.novaway-edit-${Date.now()}`
             await writeFile(temp, edited.bytes)
             await rename(temp, filepath)
-            return edited
+            return { ...edited, changed, slideApplied: slid?.applied ?? [] }
           })
 
           // 和 write/edit 工具一样显式广播一次写盘事件：这里落盘走「临时文件 + rename」，
@@ -250,6 +341,9 @@ export const OfficePptxEditTool = Tool.define<typeof EditParameters, Record<stri
           yield* bus.publish(FileWatcher.Event.Updated, { file: filepath, event: "change" })
 
           const lines: string[] = []
+          for (const item of result.slideApplied) {
+            lines.push("- 页面操作：" + item.op)
+          }
           for (const item of result.textApplied) {
             const where = item.cell ? `单元格(${item.cell.row},${item.cell.col})` : `第 ${item.paragraph} 段`
             const changed = item.previous !== item.text ? `"${item.previous}" -> "${item.text}"` : "仅改格式"

@@ -28,7 +28,6 @@ import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestLLMServer } from "../lib/llm-server"
 
-
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     yield* Effect.promise(() => resetDatabase())
@@ -128,29 +127,27 @@ const prepare = (dir: string, llmURL: string) =>
   Effect.gen(function* () {
     yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llmURL), null, 2)))
 
-    const session = (yield* (
-      yield* post(dir, "/session", {
-        title: "restart run",
-        permission: [{ permission: "*", pattern: "*", action: "allow" }],
-        permissionMode: "bypassPermissions",
-      })
-    ).json) as { id: string }
+    const session = (yield* (yield* post(dir, "/session", {
+      title: "restart run",
+      permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      permissionMode: "bypassPermissions",
+    })).json) as { id: string }
 
-    const person = (yield* (
-      yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" })
-    ).json) as { id: string }
-    const profile = (yield* (
-      yield* post(dir, "/team/profile", {
-        directory: dir,
-        name: "写作组",
-        captain: person.id,
-        members: [{ employeeID: person.id }],
-      })
-    ).json) as { profile: { id: string } }
+    const person = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" }))
+      .json) as { id: string }
+    const profile = (yield* (yield* post(dir, "/team/profile", {
+      directory: dir,
+      name: "写作组",
+      captain: person.id,
+      members: [{ employeeID: person.id }],
+    })).json) as { profile: { id: string } }
 
-    const created = (yield* (
-      yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "补一份退款说明" })
-    ).json) as { run: { id: string } }
+    const created = (yield* (yield* post(dir, "/run", {
+      sessionID: session.id,
+      directory: dir,
+      mode: "team",
+      goal: "补一份退款说明",
+    })).json) as { run: { id: string } }
     const id = created.run.id
 
     yield* post(dir, `/run/${id}/plan`, {
@@ -164,16 +161,14 @@ const prepare = (dir: string, llmURL: string) =>
     )
     const teamID = teamRow.id
 
-    const acceptance = (yield* (
-      yield* post(dir, `/run/${id}/acceptance`, {
-        directory: dir,
-        specID: "refund-doc",
-        text: "仓库里有 src/refund.md",
-        kind: "test",
-        owner: teamID,
-        verifier: { kind: "command", run: "test -f src/refund.md", timeoutMs: 30_000 },
-      })
-    ).json) as { id: string }
+    const acceptance = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+      directory: dir,
+      specID: "refund-doc",
+      text: "仓库里有 src/refund.md",
+      kind: "test",
+      owner: teamID,
+      verifier: { kind: "command", run: "test -f src/refund.md", timeoutMs: 30_000 },
+    })).json) as { id: string }
 
     yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false })
 
@@ -215,7 +210,13 @@ const memberMatch = (hit: { body: Record<string, unknown> }) => {
 }
 
 /** 队长「派活 → 报告」、成员「写 → 回一句」：恢复后的续跑只走这一遍。 */
-const scriptRun = (llm: { toolMatch: (match: typeof captainMatch, name: string, input: unknown) => Effect.Effect<void>; textMatch: (match: typeof captainMatch, value: string) => Effect.Effect<void> }, acceptanceID: string) =>
+const scriptRun = (
+  llm: {
+    toolMatch: (match: typeof captainMatch, name: string, input: unknown) => Effect.Effect<void>
+    textMatch: (match: typeof captainMatch, value: string) => Effect.Effect<void>
+  },
+  acceptanceID: string,
+) =>
   Effect.gen(function* () {
     yield* llm.toolMatch(captainMatch, "task", {
       description: "写退款说明",
@@ -280,7 +281,9 @@ describe("team run restart recovery", () => {
         expect(detail?.teams.map((team) => team.phase)).toEqual(["delivered"])
         // 续跑写的是团队 worktree：用户的工作区一个字节都没动。
         expect(detail?.teams[0].worktree).toBeDefined()
-        expect(yield* Effect.promise(() => exists(path.join(detail!.teams[0].worktree!, "src", "refund.md")))).toBe(true)
+        expect(yield* Effect.promise(() => exists(path.join(detail!.teams[0].worktree!, "src", "refund.md")))).toBe(
+          true,
+        )
         expect(yield* Effect.promise(() => exists(path.join(dir, "src", "refund.md")))).toBe(false)
       }),
     240_000,
@@ -330,7 +333,9 @@ describe("team run restart recovery", () => {
         expect(review.run.state).toBe("needs_review")
         expect(review.run.error).toContain("结果不明")
         // 只回结构与时间：参数里常有命令与凭据。
-        expect(review.needsReview).toEqual([{ id: "op_restart_write", tool: "write", outcome: "unknown", startedAt: 1 }])
+        expect(review.needsReview).toEqual([
+          { id: "op_restart_write", tool: "write", outcome: "unknown", startedAt: 1 },
+        ])
 
         // 没复核之前不许续跑：带着未知项开跑，等于用猜测覆盖已经发生的事。
         expect((yield* post(dir, `/run/${id}/execute`, { directory: dir })).status).toBe(400)
@@ -343,9 +348,10 @@ describe("team run restart recovery", () => {
         ).toBe(404)
 
         // 人核对过文件：这次写没有落地 → 同一个键可以重试。
-        const reviewed = (yield* (
-          yield* post(dir, `/run/${id}/ops/op_restart_write/review`, { directory: dir, verdict: "abandoned" })
-        ).json) as Detail
+        const reviewed = (yield* (yield* post(dir, `/run/${id}/ops/op_restart_write/review`, {
+          directory: dir,
+          verdict: "abandoned",
+        })).json) as Detail
         expect(reviewed.needsReview).toEqual([])
         // 复核完最后一项就不再是「待核对」：回到 paused，等用户点继续。
         expect(reviewed.run.state).toBe("paused")
@@ -368,13 +374,15 @@ describe("team run restart recovery", () => {
         // `abandoned` 的语义在这里兑现：那次写**真的重试了**（不是被当成「已经执行过」跳过）。
         // 证据是同一个幂等键的记录被回填成了 succeeded，文件也落在了 worktree 里。
         const row = yield* Effect.sync(() =>
-          Database.use((db) =>
-            db.select().from(TeamRunOpTable).where(eq(TeamRunOpTable.id, "op_restart_write")).all()[0],
+          Database.use(
+            (db) => db.select().from(TeamRunOpTable).where(eq(TeamRunOpTable.id, "op_restart_write")).all()[0],
           ),
         )
         expect(row.outcome).toBe("succeeded")
         expect(row.finished_at ?? 0).toBeGreaterThan(1)
-        expect(yield* Effect.promise(() => exists(path.join(detail!.teams[0].worktree!, "src", "refund.md")))).toBe(true)
+        expect(yield* Effect.promise(() => exists(path.join(detail!.teams[0].worktree!, "src", "refund.md")))).toBe(
+          true,
+        )
         expect(yield* Effect.promise(() => exists(path.join(dir, "src", "refund.md")))).toBe(false)
       }),
     240_000,

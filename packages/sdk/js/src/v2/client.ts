@@ -1,7 +1,13 @@
 export * from "./gen/types.gen.js"
 
 import type { SessionBackgroundResponses, SessionTempFile } from "./gen/types.gen.js"
-import type { Background, Eval, TempFiles } from "./gen/sdk.gen.js"
+import type {
+  Background,
+  Eval,
+  TempFiles,
+  Publish as PublishClient,
+  Account as PublishAccountClient,
+} from "./gen/sdk.gen.js"
 
 /**
  * Stable aliases for response element types. The generator inlines anonymous
@@ -30,6 +36,12 @@ declare module "./gen/sdk.gen.js" {
     evalHistory: Eval["history"]
     evalDiff: Eval["diff"]
     evalReport: Eval["report"]
+  }
+  interface Plugin {
+    publishAccounts: PublishClient["accounts"]
+    addPublishAccount: PublishClient["account"]
+    deletePublishAccount: PublishAccountClient["delete"]
+    publishExecute: PublishClient["execute"]
   }
 }
 
@@ -160,7 +172,6 @@ export function createNovawayClient(config?: Config & { directory?: string; expe
   const tempFiles: any = session.tempFiles
   alias(session, "tempFilesList", bound(tempFiles, "list"))
   alias(session, "tempFilesClean", bound(tempFiles, "clean"))
-
   // Retrieval eval routes live under `knowledge.eval.*` in OpenAPI, which the
   // generator turns into an `Eval` client nested under `knowledge`.
   const knowledge: any = sdk.knowledge
@@ -170,6 +181,15 @@ export function createNovawayClient(config?: Config & { directory?: string; expe
   alias(knowledge, "evalHistory", bound(evalClient, "history"))
   alias(knowledge, "evalDiff", bound(evalClient, "diff"))
   alias(knowledge, "evalReport", bound(evalClient, "report"))
+
+  // Keep the flattened publish methods used by App while the generated API
+  // exposes these operations below `plugin.publish`.
+  const plugin: any = sdk.plugin
+  const publish: any = plugin?.publish
+  alias(plugin, "publishAccounts", bound(publish, "accounts"))
+  alias(plugin, "addPublishAccount", bound(publish, "account"))
+  alias(plugin, "deletePublishAccount", bound(publish?.account2, "delete"))
+  alias(plugin, "publishExecute", bound(publish, "execute"))
 
   return sdk
 }

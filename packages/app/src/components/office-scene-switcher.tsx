@@ -4,10 +4,10 @@ import { useLanguage } from "@/context/language"
 import { zenActions, type HomeActionId } from "@/pages/home/zen-office"
 
 /**
- * 办公场景条 —— 对齐 ZCode 输入卡里的「插件头像 + 加号」那一排。
+ * 办公场景条 —— 输入卡里的「插件头像 + 加号」那一排。
  *
  * 它原来是一个带文字的整宽 tab 列表（外加一圈 emerald 高亮），在首页占掉一整行；
- * ZCode 的同一位置只有一排**图标**，当前项浮起、其余压暗，说明交给 tooltip。
+ * 这一排只有**图标**，当前项浮起、其余压暗，说明交给 tooltip。
  * 场景是"这轮要干什么"的粗选，不值得为每个场景常驻一个文字标签。
  */
 export function OfficeSceneSwitcher(props: {

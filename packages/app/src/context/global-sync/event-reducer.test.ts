@@ -70,6 +70,7 @@ const baseState = (input: Partial<State> = {}) =>
     status: "complete",
     agent: [],
     command: [],
+    plugin_contributions: [],
     project: "",
     projectMeta: undefined,
     icon: undefined,
@@ -143,6 +144,33 @@ describe("applyGlobalEvent", () => {
 })
 
 describe("applyDirectoryEvent", () => {
+  test("refreshes Agent and Command snapshots when a plugin changes", () => {
+    const [store, setStore] = createStore(baseState())
+    let agents = 0
+    let commands = 0
+    let contributions = 0
+    applyDirectoryEvent({
+      event: { type: "plugin.changed", properties: { pluginID: "sample", generation: 2 } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+      loadAgents: () => {
+        agents += 1
+      },
+      loadCommands: () => {
+        commands += 1
+      },
+      loadContributions: () => {
+        contributions += 1
+      },
+    })
+    expect(agents).toBe(1)
+    expect(commands).toBe(1)
+    expect(contributions).toBe(1)
+  })
+
   test("inserts root sessions in sorted order and updates sessionTotal", () => {
     const [store, setStore] = createStore(
       baseState({

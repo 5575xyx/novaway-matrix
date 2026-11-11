@@ -93,7 +93,7 @@ const ConfirmActionDialog: Component<{
       <div class="flex flex-col gap-1 px-5 pb-4 pt-1">
         <span class="text-14-regular text-foreground">{props.description}</span>
         <Show when={error()}>
-          <span class="text-12-regular text-danger-base">{error()}</span>
+          <span class="text-12-regular text-icon-critical-base">{error()}</span>
         </Show>
       </div>
     </Dialog>
@@ -403,7 +403,7 @@ export const DialogManageProviderModels: Component<{
                   </span>
                   <button
                     type="button"
-                    class="shrink-0 text-11-regular text-foreground-subtlest hover:text-destructive"
+                    class="shrink-0 text-11-regular text-foreground-subtlest hover:text-icon-critical-base"
                     onClick={() => removeKey(index())}
                   >
                     {language.t("common.delete")}

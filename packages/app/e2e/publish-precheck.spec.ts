@@ -118,9 +118,7 @@ test("带极限词/微信引流/收益承诺的文案会被预检拦一次，确
   await expect(dialog.getByText("cover.jpg")).toBeVisible()
 
   await dialog.getByPlaceholder("输入标题（可选）").fill("全网最低价，效果最好")
-  await dialog
-    .getByPlaceholder("作品描述…")
-    .fill("加微信 vx123 领券，这个方案稳赚不赔，用过的人都说好。")
+  await dialog.getByPlaceholder("作品描述…").fill("加微信 vx123 领券，这个方案稳赚不赔，用过的人都说好。")
 
   const submit = dialog.getByRole("button", { name: /发布到|确认风险并发布/ })
   await expect(submit).toHaveText("发布到 1 个账号")

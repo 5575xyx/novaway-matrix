@@ -91,7 +91,7 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="h-8 rounded-[7px] border border-emerald-300/40 bg-emerald-300/10 px-3 text-12-medium text-emerald-100"
+            class="h-8 rounded-[7px] border border-icon-blue/40 bg-icon-blue/10 px-3 text-12-medium text-icon-blue"
             onClick={() => void exportPng()}
           >
             导出 PNG
@@ -155,7 +155,7 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
             <button
               type="button"
               class="h-9 rounded-[7px] border border-border text-12-medium text-foreground-subtle"
-              classList={{ "border-emerald-300/50 bg-emerald-300/10 text-emerald-100": layout() === "landscape" }}
+              classList={{ "border-icon-blue/40 bg-icon-blue/10 text-icon-blue": layout() === "landscape" }}
               onClick={() => setLayout("landscape")}
             >
               横版
@@ -163,19 +163,22 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
             <button
               type="button"
               class="h-9 rounded-[7px] border border-border text-12-medium text-foreground-subtle"
-              classList={{ "border-emerald-300/50 bg-emerald-300/10 text-emerald-100": layout() === "portrait" }}
+              classList={{ "border-icon-blue/40 bg-icon-blue/10 text-icon-blue": layout() === "portrait" }}
               onClick={() => setLayout("portrait")}
             >
               竖版
             </button>
           </div>
           <Show when={message()}>
-            <span class="text-11-regular text-emerald-200">{message()}</span>
+            <span class="text-11-regular text-icon-blue">{message()}</span>
           </Show>
         </div>
 
-        <div class="overflow-auto rounded-[8px] border border-border bg-black/20 p-4">
-          <canvas ref={canvasRef} class="mx-auto max-w-full rounded-[8px] shadow-[0_20px_60px_rgba(0,0,0,0.35)]" />
+        <div class="overflow-auto rounded-[8px] border border-border bg-[var(--background-weak)] p-4">
+          <canvas
+            ref={canvasRef}
+            class="mx-auto max-w-full rounded-[8px] shadow-[0_20px_60px_color-mix(in_srgb,var(--shadow-color)_35%,transparent)]"
+          />
         </div>
       </div>
     </div>

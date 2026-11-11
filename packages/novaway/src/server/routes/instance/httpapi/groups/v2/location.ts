@@ -44,13 +44,8 @@ export class V2LocationMiddleware extends HttpApiMiddleware.Service<
 function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
   const query = new URL(request.url, "http://localhost").searchParams
   return {
-    directory:
-      query.get("location[directory]") ||
-      request.headers["x-novaway-directory"] ||
-      process.cwd(),
-    workspaceID:
-      query.get("location[workspace]") ||
-      request.headers["x-novaway-workspace"],
+    directory: query.get("location[directory]") || request.headers["x-novaway-directory"] || process.cwd(),
+    workspaceID: query.get("location[workspace]") || request.headers["x-novaway-workspace"],
   }
 }
 

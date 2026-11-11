@@ -169,9 +169,59 @@ describe("reduceSidePane", () => {
     })
   })
 
-  test("close keeps tabs and only collapses the container", () => {
-    const s: SidePaneState = { opened: true, tabs: ["preview", "terminal"], activeTab: "preview", dynamic: {} }
-    expect(reduceSidePane(s, { type: "close" })).toEqual({ ...s, opened: false })
+  test("close clears file hosts and tree state but keeps other panel tabs", () => {
+    const s: SidePaneState = {
+      opened: true,
+      tabs: ["preview", "terminal", "office"],
+      activeTab: "preview",
+      dynamic: {},
+      tree: true,
+      secondary: { tab: "office", axis: "right", ratio: 0.5 },
+    }
+    expect(reduceSidePane(s, { type: "close" })).toEqual({
+      opened: false,
+      tabs: ["terminal"],
+      activeTab: "terminal",
+      dynamic: {},
+      tree: false,
+      secondary: undefined,
+    })
+  })
+
+  test("close also repairs stale state when the pane is already collapsed", () => {
+    const s: SidePaneState = {
+      opened: false,
+      tabs: ["preview", "terminal"],
+      activeTab: "preview",
+      dynamic: {},
+      tree: true,
+    }
+
+    expect(reduceSidePane(s, { type: "close" })).toEqual({
+      opened: false,
+      tabs: ["terminal"],
+      activeTab: "terminal",
+      dynamic: {},
+      tree: false,
+    })
+  })
+
+  test("removing the workspace host also clears its file tree", () => {
+    const s: SidePaneState = {
+      opened: true,
+      tabs: ["preview", "terminal"],
+      activeTab: "preview",
+      dynamic: {},
+      tree: true,
+    }
+
+    expect(reduceSidePane(s, { type: "remove", tab: "preview" })).toEqual({
+      opened: true,
+      tabs: ["terminal"],
+      activeTab: "terminal",
+      dynamic: {},
+      tree: false,
+    })
   })
 
   test("move reorders tabs without touching the active one", () => {
@@ -182,6 +232,65 @@ describe("reduceSidePane", () => {
       activeTab: "review",
       dynamic: {},
     })
+  })
+})
+
+describe("reduceSidePane split panes", () => {
+  test("opens a file tab on the side without touching the primary tab list", () => {
+    const s: SidePaneState = { opened: true, tabs: ["preview"], activeTab: "preview", dynamic: {} }
+    expect(reduceSidePane(s, { type: "openSecondary", tab: "file:///a.ts", axis: "right" })).toEqual({
+      opened: true,
+      tabs: ["preview"],
+      activeTab: "preview",
+      dynamic: {},
+      secondary: { tab: "file:///a.ts", axis: "right", ratio: 0.5 },
+    })
+  })
+
+  test("adds a builtin panel to the strip and moves the primary off an occupied tab", () => {
+    const s: SidePaneState = { opened: true, tabs: ["preview", "terminal"], activeTab: "terminal", dynamic: {} }
+    const next = reduceSidePane(s, { type: "openSecondary", tab: "terminal", axis: "below" })
+    expect(next.tabs).toEqual(["preview", "terminal"])
+    expect(next.activeTab).toBe("preview")
+    expect(next.secondary).toEqual({ tab: "terminal", axis: "below", ratio: 0.5 })
+  })
+
+  test("keeps the ratio when the split is reopened on another axis", () => {
+    const s: SidePaneState = {
+      opened: true,
+      tabs: ["preview"],
+      activeTab: "preview",
+      dynamic: {},
+      secondary: { tab: "file:///a.ts", axis: "right", ratio: 0.3 },
+    }
+    const next = reduceSidePane(s, { type: "openSecondary", tab: "file:///b.ts", axis: "below" })
+    expect(next.secondary).toEqual({ tab: "file:///b.ts", axis: "below", ratio: 0.3 })
+  })
+
+  test("clamps the ratio to a usable range", () => {
+    const s: SidePaneState = {
+      opened: true,
+      tabs: ["preview"],
+      activeTab: "preview",
+      dynamic: {},
+      secondary: { tab: "file:///a.ts", axis: "right", ratio: 0.5 },
+    }
+    const wide = reduceSidePane(s, { type: "setSecondaryRatio", ratio: 0.95 })
+    expect(wide.secondary?.ratio).toBe(0.85)
+    const narrow = reduceSidePane(s, { type: "setSecondaryRatio", ratio: 0.01 })
+    expect(narrow.secondary?.ratio).toBe(0.15)
+  })
+
+  test("closing a tab rendered in the secondary pane collapses the split", () => {
+    const s: SidePaneState = {
+      opened: true,
+      tabs: ["preview", "terminal"],
+      activeTab: "preview",
+      dynamic: {},
+      secondary: { tab: "terminal", axis: "right", ratio: 0.5 },
+    }
+    expect(reduceSidePane(s, { type: "remove", tab: "terminal" }).secondary).toBeUndefined()
+    expect(reduceSidePane(s, { type: "closeSecondary" }).secondary).toBeUndefined()
   })
 })
 
@@ -200,12 +309,28 @@ describe("migrateLayoutStore sidePane", () => {
     const out = migrateLayoutStore({ sidePane: { opened: false, tab: "terminal", width: 400 } }) as {
       sidePane: MigratedSidePane
     }
-    expect(out.sidePane).toEqual({ opened: false, tabs: ["terminal"], activeTab: "terminal", width: 400, dynamic: {} })
+    expect(out.sidePane).toEqual({
+      opened: false,
+      tabs: ["terminal"],
+      activeTab: "terminal",
+      width: 400,
+      dynamic: {},
+      tree: false,
+      treeWidth: 260,
+    })
   })
 
   test("falls back to an empty pane for illegal legacy values", () => {
     const out = migrateLayoutStore({ sidePane: { tab: "context" } }) as { sidePane: MigratedSidePane }
-    expect(out.sidePane).toEqual({ opened: true, tabs: ["preview"], activeTab: "preview", width: 360, dynamic: {} })
+    expect(out.sidePane).toEqual({
+      opened: true,
+      tabs: ["preview"],
+      activeTab: "preview",
+      width: 360,
+      dynamic: {},
+      tree: false,
+      treeWidth: 260,
+    })
 
     const broken = migrateLayoutStore({ sidePane: { opened: "yes", tab: "nope", width: "wide" } }) as {
       sidePane: MigratedSidePane
@@ -223,6 +348,57 @@ describe("migrateLayoutStore sidePane", () => {
     expect(out.sidePane.activeTab).toBe("preview")
   })
 
+  test("keeps a valid split pane and clamps its ratio", () => {
+    const out = migrateLayoutStore({
+      sidePane: {
+        opened: true,
+        tabs: ["preview"],
+        activeTab: "preview",
+        dynamic: {},
+        secondary: { tab: "file:///a.ts", axis: "below", ratio: 0.95 },
+      },
+    }) as { sidePane: MigratedSidePane }
+    expect(out.sidePane.secondary).toEqual({ tab: "file:///a.ts", axis: "below", ratio: 0.85 })
+  })
+
+  test("drops a split that duplicates the active tab or has no tab", () => {
+    const same = migrateLayoutStore({
+      sidePane: {
+        opened: true,
+        tabs: ["preview"],
+        activeTab: "preview",
+        dynamic: {},
+        secondary: { tab: "preview", axis: "right", ratio: 0.5 },
+      },
+    }) as { sidePane: MigratedSidePane }
+    expect(same.sidePane.secondary).toBeUndefined()
+
+    const empty = migrateLayoutStore({
+      sidePane: {
+        opened: true,
+        tabs: ["preview"],
+        activeTab: "preview",
+        dynamic: {},
+        secondary: { tab: "", axis: "right", ratio: 0.5 },
+      },
+    }) as { sidePane: MigratedSidePane }
+    expect(empty.sidePane.secondary).toBeUndefined()
+  })
+
+  test("clears stale tree state when the stored workspace host is gone", () => {
+    const out = migrateLayoutStore({
+      sidePane: {
+        opened: true,
+        tabs: ["terminal"],
+        activeTab: "terminal",
+        dynamic: {},
+        tree: true,
+      },
+    }) as { sidePane: SidePaneState }
+
+    expect(out.sidePane.tree).toBe(false)
+  })
+
   test("leaves stores without a sidePane key untouched", () => {
     const sidebar = { opened: true, width: 344, defaultCollapsedV1: true }
     const out = migrateLayoutStore({ sidebar }) as Record<string, unknown>
@@ -232,7 +408,7 @@ describe("migrateLayoutStore sidePane", () => {
 })
 
 test("fresh sidePane default is expanded with empty tabs", () => {
-  expect(DEFAULT_SIDE_PANE_STATE).toEqual({ opened: true, tabs: [], activeTab: null, dynamic: {} })
+  expect(DEFAULT_SIDE_PANE_STATE).toEqual({ opened: true, tabs: [], activeTab: null, dynamic: {}, tree: false })
 })
 
 describe("migrateLayoutStore mode", () => {

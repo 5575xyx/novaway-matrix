@@ -11,7 +11,7 @@ describe("task filter drives the project badge", () => {
     expect(tasksSource).toContain("const sessions = useProjectTaskList(props)")
   })
 
-  // 项目行的计数徽章已按 ZCode 去掉（它的项目行只有图标 + 名称，没有「N 个任务」），
+  // 项目行的计数徽章已去掉（项目行只有图标 + 名称，没有「N 个任务」），
   // 筛选状态改由列表本身与 TaskFilterBar 表达。这里改为断言「徽章确实不再渲染」，
   // 并保留「不许用未过滤的 sessions().length 凑数」这条原始意图。
   test("project rows no longer render a task-count badge", () => {
@@ -22,7 +22,9 @@ describe("task filter drives the project badge", () => {
   })
 
   test("asks for help when a non-default filter matches nothing", () => {
-    expect(tasksSource).toContain('props.filter() !== "all" && sessions().length === 0')
+    // 分段（按日期 / 自定义）自己会因"这段没任务"整段不渲染，所以那句
+    // 「没有匹配的任务」只在没有分段时说，否则会看到四五个空标题排队道歉。
+    expect(tasksSource).toContain('props.filter() !== "all" && !props.bucket && sessions().length === 0')
     expect(tasksSource).toContain('language.t("sidebar.filter.empty")')
   })
 })

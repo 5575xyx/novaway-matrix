@@ -21,7 +21,6 @@ import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestLLMServer } from "../lib/llm-server"
 
-
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     yield* Effect.promise(() => resetDatabase())
@@ -90,7 +89,6 @@ const providerConfig = (url: string) => ({
   },
 })
 
-
 type Detail = {
   run: { id: string; state: string; planVersion: number; error?: string }
   teams: Array<{ id: string; phase: string; profileID?: string; worktree?: string }>
@@ -117,40 +115,35 @@ describe("team run merge conflict", () => {
         const dir = yield* tmpdirScoped({ git: true })
         yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)))
 
-        const session = (yield* (
-          yield* post(dir, "/session", {
-            title: "merge conflict run",
-            permission: [{ permission: "*", pattern: "*", action: "allow" }],
-            permissionMode: "bypassPermissions",
-          })
-        ).json) as { id: string }
+        const session = (yield* (yield* post(dir, "/session", {
+          title: "merge conflict run",
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+          permissionMode: "bypassPermissions",
+        })).json) as { id: string }
 
-        const lynn = (yield* (
-          yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" })
-        ).json) as { id: string }
-        const zhou = (yield* (
-          yield* post(dir, "/team/employee", { directory: dir, name: "小周", job: "general" })
-        ).json) as { id: string }
-        const alpha = (yield* (
-          yield* post(dir, "/team/profile", {
-            directory: dir,
-            name: "写作组",
-            captain: lynn.id,
-            members: [{ employeeID: lynn.id }],
-          })
-        ).json) as { profile: { id: string } }
-        const beta = (yield* (
-          yield* post(dir, "/team/profile", {
-            directory: dir,
-            name: "校对组",
-            captain: zhou.id,
-            members: [{ employeeID: zhou.id }],
-          })
-        ).json) as { profile: { id: string } }
+        const lynn = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" }))
+          .json) as { id: string }
+        const zhou = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小周", job: "general" }))
+          .json) as { id: string }
+        const alpha = (yield* (yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "写作组",
+          captain: lynn.id,
+          members: [{ employeeID: lynn.id }],
+        })).json) as { profile: { id: string } }
+        const beta = (yield* (yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "校对组",
+          captain: zhou.id,
+          members: [{ employeeID: zhou.id }],
+        })).json) as { profile: { id: string } }
 
-        const created = (yield* (
-          yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "合写一份共享说明" })
-        ).json) as { run: { id: string } }
+        const created = (yield* (yield* post(dir, "/run", {
+          sessionID: session.id,
+          directory: dir,
+          mode: "team",
+          goal: "合写一份共享说明",
+        })).json) as { run: { id: string } }
         const id = created.run.id
 
         yield* post(dir, `/run/${id}/plan`, {
@@ -165,30 +158,25 @@ describe("team run merge conflict", () => {
         const betaID = planned.teams[1].id
 
         // 两条验收看的是同一个文件：各自都能通过，合起来才知道撞不撞。
-        const acceptAResult = (yield* (
-          yield* post(dir, `/run/${id}/acceptance`, {
-            directory: dir,
-            specID: "shared-a",
-            text: "仓库里有 src/shared.md（写作组交付）",
-            kind: "test",
-            owner: alphaID,
-            verifier: { kind: "command", run: "test -f src/shared.md", timeoutMs: 30_000 },
-          })
-        ).json) as { id: string }
-        const acceptBResult = (yield* (
-          yield* post(dir, `/run/${id}/acceptance`, {
-            directory: dir,
-            specID: "shared-b",
-            text: "仓库里有 src/shared.md（校对组交付）",
-            kind: "test",
-            owner: betaID,
-            verifier: { kind: "command", run: "test -f src/shared.md", timeoutMs: 30_000 },
-          })
-        ).json) as { id: string }
+        const acceptAResult = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+          directory: dir,
+          specID: "shared-a",
+          text: "仓库里有 src/shared.md（写作组交付）",
+          kind: "test",
+          owner: alphaID,
+          verifier: { kind: "command", run: "test -f src/shared.md", timeoutMs: 30_000 },
+        })).json) as { id: string }
+        const acceptBResult = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+          directory: dir,
+          specID: "shared-b",
+          text: "仓库里有 src/shared.md（校对组交付）",
+          kind: "test",
+          owner: betaID,
+          verifier: { kind: "command", run: "test -f src/shared.md", timeoutMs: 30_000 },
+        })).json) as { id: string }
 
-        const widened = (yield* (
-          yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false })
-        ).json) as Detail
+        const widened = (yield* (yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false }))
+          .json) as Detail
 
         yield* post(dir, `/run/${id}/approve`, {
           directory: dir,

@@ -4,7 +4,8 @@ import { existsSync, mkdirSync, rmSync } from "node:fs"
 import * as http from "node:http"
 import { createServer } from "node:net"
 import { homedir, tmpdir } from "node:os"
-import { join } from "node:path"
+import { statSync } from "node:fs"
+import { dirname, extname, isAbsolute, join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
 import { app, BrowserWindow, Menu, Tray } from "electron"
@@ -18,6 +19,7 @@ import { checkQuarantine, DEFENDER_URIS, exclusionCommand } from "./defender-rep
 import {
   registerIpcHandlers,
   sendDeepLinks,
+  sendOpenFiles,
   sendMenuCommand,
   sendSqliteMigrationProgress,
   sendUpdateAvailable,
@@ -89,6 +91,48 @@ const initEmitter = new EventEmitter()
 let initStep: InitStep = { phase: "server_waiting" }
 
 const pendingDeepLinks: string[] = []
+/**
+ * 系统递进来的文档路径（Finder 双击 / 「打开方式」/ 拖到图标上）。
+ *
+ * 启动参数里那一条要在窗口就绪前就记下来，所以和深链一样先入队，
+ * 渲染进程挂载后再用 `consume-initial-open-files` 取走。
+ */
+const pendingOpenFiles: string[] = []
+
+const samePath = (input: string, root: string) => {
+  const normalize = (value: string) => value.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+  const path = normalize(input)
+  const base = normalize(root)
+  return path === base || path.startsWith(`${base}/`)
+}
+
+/**
+ * 参数里像文档的项：不是开关、存在、带扩展名。
+ * 同时排除应用自己的文件 —— dev 下 argv 里有打包出来的 `out/main/index.js`，
+ * 只靠「存在 + 有扩展名」会把启动脚本本身当成用户要打开的文档。
+ */
+function openFileArgs(argv: string[]): string[] {
+  const appRoot = (() => {
+    try {
+      return app.getAppPath()
+    } catch {
+      return undefined
+    }
+  })()
+  const execDir = dirname(process.execPath)
+  return argv.filter((arg) => {
+    if (!arg || arg.startsWith("-")) return false
+    if (!isAbsolute(arg) || arg === process.execPath) return false
+    if (appRoot && samePath(arg, appRoot)) return false
+    if (samePath(arg, execDir)) return false
+    if (!extname(arg)) return false
+    try {
+      return statSync(arg).isFile()
+    } catch {
+      return false
+    }
+  })
+}
 
 function useEnvProxy() {
   try {
@@ -104,6 +148,23 @@ function emitDeepLinks(urls: string[]) {
   pendingDeepLinks.push(...urls)
   if (mainWindow) sendDeepLinks(mainWindow, urls)
 }
+
+/** 把系统递进来的文档转给渲染进程；窗口还没建好就先排队。 */
+function emitOpenFiles(paths: string[]) {
+  if (paths.length === 0) return
+  pendingOpenFiles.push(...paths)
+  if (mainWindow) sendOpenFiles(mainWindow, paths)
+}
+
+// macOS 的 Finder 在 app ready **之前**就会递 open-file 事件，监听必须在模块加载时就挂上。
+app.on("open-file", (event: Event, file: string) => {
+  event.preventDefault()
+  logger?.log("open file received via open-file", { file })
+  emitOpenFiles([file])
+})
+
+// 冷启动时（用户在 Finder 里双击、或命令行带文件路径）argv 里就有文件。
+emitOpenFiles(openFileArgs(process.argv))
 
 function setInitStep(step: InitStep) {
   initStep = step
@@ -351,6 +412,12 @@ const main = Effect.gen(function* () {
       logger.log("deep link received via second-instance", { urls })
       emitDeepLinks(urls)
     }
+    // Windows / Linux 的「打开方式」走第二次启动：文件路径就在 argv 里。
+    const files = openFileArgs(argv)
+    if (files.length) {
+      logger.log("open files received via second-instance", { files })
+      emitOpenFiles(files)
+    }
     showMainWindow()
   })
 
@@ -404,6 +471,7 @@ const main = Effect.gen(function* () {
     ),
     getWindowConfig: () => ({ updaterEnabled: UPDATER_ENABLED }),
     consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
+    consumeInitialOpenFiles: () => pendingOpenFiles.splice(0),
     getDefaultServerUrl: () => getDefaultServerUrl(),
     setDefaultServerUrl: (url) => setDefaultServerUrl(url),
     getWslConfig: () => Promise.resolve(getWslConfig()),
@@ -420,14 +488,13 @@ const main = Effect.gen(function* () {
       checkForUpdates(alertOnFail, killSidecar, notifyRendererUpdateReady, { download: false }),
     // 渲染层发起的检查：手动只查到「有新版本」等用户点下载；
     // 自动（启动/定时）查到就自己下，和启动检查保持一致。
-    checkUpdate: async (options?: { manual?: boolean }) =>
-      options?.manual ? checkUpdate(options) : checkUpdateAuto(),
+    checkUpdate: async (options?: { manual?: boolean }) => (options?.manual ? checkUpdate(options) : checkUpdateAuto()),
     downloadUpdate: async () => downloadUpdate(),
     updateStatus: () => getUpdateStatus(),
     setAutoUpdate: (enabled) => setAutoUpdateEnabled(enabled),
     installUpdate: async () => installUpdate(killSidecar),
     setBackgroundColor: (color) => setBackgroundColor(color),
-    // 窗口控制交给渲染层（Header 内联自绘，对齐 ZCode）；win32 不再使用原生 titleBarOverlay。
+    // 窗口控制交给渲染层（Header 内联自绘）；win32 不再使用原生 titleBarOverlay。
     minimizeWindow: () => mainWindow?.minimize(),
     toggleMaximizeWindow: () => {
       if (!mainWindow) return

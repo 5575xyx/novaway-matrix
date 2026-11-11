@@ -24,7 +24,12 @@ describe("team identity", () => {
   test("the captain's helper inherits the captain instead of becoming another person", () => {
     // 非队长派生的会话（成员自己的助手、队长自己的临时助手）只继承，不按名字重新指认。
     expect(
-      identify({ roster: roster(people, "emp_captain"), captain: false, name: "小林", parentEmployeeID: "emp_captain" }),
+      identify({
+        roster: roster(people, "emp_captain"),
+        captain: false,
+        name: "小林",
+        parentEmployeeID: "emp_captain",
+      }),
     ).toBe("emp_captain")
     expect(identify({ roster: roster(people, "emp_captain"), captain: false })).toBeUndefined()
   })
@@ -36,10 +41,7 @@ describe("team identity", () => {
   })
 
   test("a duplicate name is not guessed", () => {
-    const duplicated = roster(
-      [...people, { id: "emp_other", name: "小林", job: "review" }],
-      "emp_captain",
-    )
+    const duplicated = roster([...people, { id: "emp_other", name: "小林", job: "review" }], "emp_captain")
     // 同名多人时宁可显示「未归属」，也不把工时算到其中一个头上。
     expect(identify({ roster: duplicated, captain: true, name: "小林" })).toBeUndefined()
   })

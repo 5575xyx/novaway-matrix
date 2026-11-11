@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
-import { editPptx, readPptxLayout } from "../../src/office/pptx-edit"
+import { editPptx, editPptxMeta, readPptxLayout, readSlideMeta } from "../../src/office/pptx-edit"
+import { pptxEngine, toPlainSlides } from "../../src/office/engine/pptx"
 
 // 测试用的极简 ZIP 写出器：stored（不压缩），只为造 fixture。
 type Entry = { name: string; data: Uint8Array }
@@ -434,6 +435,62 @@ describe("editPptx 图片", () => {
     expect(result.changed).toContain("[Content_Types].xml")
   })
 
+  test("新增图片：媒体条目、关系和 <p:pic> 一起进包", async () => {
+    const result = await editPptx({
+      bytes: fixture(),
+      shapeOps: [
+        { op: "addPicture", slide: 1, data: NEW_IMAGE, mime: "image/png", box: { x: 9, y: 8, w: 700, h: 500 } },
+      ],
+    })
+    const applied = result.imageApplied[0]!
+    expect(applied.mediaPath.startsWith("ppt/media/novaway-")).toBe(true)
+    expect(Array.from(await rawEntry(result.bytes, applied.mediaPath))).toEqual(Array.from(NEW_IMAGE))
+    const xml = await slideXml(result.bytes)
+    expect(xml).toContain('<a:blip r:embed="' + applied.rId + '"/>')
+    expect(xml).toContain('<a:off x="9" y="8"/><a:ext cx="700" cy="500"/>')
+    const rels = new TextDecoder().decode(await rawEntry(result.bytes, "ppt/slides/_rels/slide1.xml.rels"))
+    expect(rels).toContain('Id="' + applied.rId + '"')
+    expect(result.changed).toContain("ppt/slides/_rels/slide1.xml.rels")
+    // 原有图片和关系都还在
+    expect(Array.from(await rawEntry(result.bytes, "ppt/media/image1.png"))).toEqual(Array.from(IMAGE))
+    expect(rels).toContain('Id="rId2"')
+  })
+
+  test("新增形状：写入 prstGeom、填充色和描边，形状树末尾可见", async () => {
+    const result = await editPptx({
+      bytes: fixture(),
+      shapeOps: [
+        {
+          op: "addShape",
+          slide: 1,
+          kind: "ellipse",
+          box: { x: 100, y: 200, w: 300, h: 150 },
+          fill: "4472C4",
+          line: "1F2937",
+          text: "合计",
+        },
+      ],
+    })
+    const xml = await slideXml(result.bytes)
+    expect(xml).toContain('<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>')
+    expect(xml).toContain('<a:off x="100" y="200"/><a:ext cx="300" cy="150"/>')
+    expect(xml).toContain('<a:srgbClr val="4472C4"/>')
+    expect(xml).toContain('<a:srgbClr val="1F2937"/>')
+    expect(xml).toContain('<a:t xml:space="preserve">合计</a:t>')
+    expect(xml).toContain('name="椭圆')
+  })
+
+  test("新增线条形状不写填充，只写描边", async () => {
+    const result = await editPptx({
+      bytes: fixture(),
+      shapeOps: [{ op: "addShape", slide: 1, kind: "line", box: { x: 10, y: 20, w: 300, h: 0 } }],
+    })
+    const xml = await slideXml(result.bytes)
+    expect(xml).toContain('<a:prstGeom prst="line">')
+    expect(xml).toContain('<a:srgbClr val="404040"/>')
+    expect(xml).not.toContain('<a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:solidFill>')
+  })
+
   test("对没有 blip 的形状替换图片会被忽略", async () => {
     await expect(
       editPptx({ bytes: fixture(), imageEdits: [{ slide: 1, shapeId: "2", data: NEW_IMAGE, mime: "image/png" }] }),
@@ -457,6 +514,77 @@ describe("readPptxLayout", () => {
     const table = layout.find((shape) => shape.shapeId === "5")
     expect(table?.kind).toBe("table")
     expect(table?.cells?.map((cell) => cell.paragraphs[0])).toEqual(["表头A", "表头B", "数值1", "数值2"])
+  })
+})
+
+describe("pptxEngine 导出", () => {
+  // 形状名带「标题」的当页标题；表格摊成一行一条；图片不产出文字。
+  test("大纲：标题 + 正文 + 表格单元格", async () => {
+    const opened = await pptxEngine.open(fixture())
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) return
+    expect(toPlainSlides(opened.data)).toEqual([
+      {
+        index: 1,
+        title: "典型应用场景",
+        lines: [
+          "营销场景：自动生成投放策略",
+          "运营场景：数据看板辅助决策",
+          "表头A",
+          "表头B",
+          "数值1",
+          "数值2",
+          "组内文字",
+          "第二个",
+        ],
+      },
+    ])
+  })
+
+  test("md：一页一个二级标题，正文是项目符号", async () => {
+    const opened = await pptxEngine.open(fixture())
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) return
+    const result = await pptxEngine.export!(opened.data, "md", fixture())
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(new TextDecoder().decode(result.data)).toBe(
+      [
+        "## 典型应用场景",
+        "- 营销场景：自动生成投放策略",
+        "- 运营场景：数据看板辅助决策",
+        "- 表头A",
+        "- 表头B",
+        "- 数值1",
+        "- 数值2",
+        "- 组内文字",
+        "- 第二个",
+      ].join("\n"),
+    )
+  })
+
+  test("txt：每页一行页码标题，其余一行一条", async () => {
+    const opened = await pptxEngine.open(fixture())
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) return
+    const result = await pptxEngine.export!(opened.data, "txt", fixture())
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const text = new TextDecoder().decode(result.data)
+    expect(text.split("\n")[0]).toBe("第 1 页：典型应用场景")
+    expect(text).toContain("运营场景：数据看板辅助决策")
+    expect(text).not.toContain("图片 3")
+  })
+
+  test("不支持的目标格式给出可选清单", async () => {
+    const opened = await pptxEngine.open(fixture())
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) return
+    const result = await pptxEngine.export!(opened.data, "docx", fixture())
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("unsupported_format")
+    expect(result.error.suggestion).toBe("支持 pdf / md / txt / html")
   })
 })
 
@@ -543,3 +671,76 @@ function localRecord(bytes: Uint8Array, name: string) {
   }
   throw new Error("条目不存在：" + name)
 }
+
+describe("页级元数据：隐藏页与备注", () => {
+  const NL = String.fromCharCode(10)
+
+  test('隐藏页：写入 show="0"，读回来是 hidden；取消后属性消失', async () => {
+    const bytes = fixture()
+    expect((await readSlideMeta(bytes))[0]!.hidden).toBe(false)
+
+    const hidden = await editPptxMeta(bytes, [{ op: "setSlideHidden", slide: 1, hidden: true }])
+    expect(hidden.changed).toEqual(["ppt/slides/slide1.xml"])
+    expect(await slideXml(hidden.bytes)).toContain("<p:sld ")
+    expect(await slideXml(hidden.bytes)).toContain('show="0"')
+    expect((await readSlideMeta(hidden.bytes))[0]).toEqual({ index: 1, hidden: true })
+
+    const shown = await editPptxMeta(hidden.bytes, [{ op: "setSlideHidden", slide: 1, hidden: false }])
+    expect(await slideXml(shown.bytes)).not.toContain('show="0"')
+    expect((await readSlideMeta(shown.bytes))[0]!.hidden).toBe(false)
+  })
+
+  test("备注：没有备注页时新建 part / rels / Content_Types，再改复用同一份", async () => {
+    const bytes = fixture()
+    const created = await editPptxMeta(bytes, [{ op: "setSlideNotes", slide: 1, text: "第一行" + NL + "第二行" }])
+    expect(created.changed).toEqual(
+      expect.arrayContaining([
+        "ppt/notesSlides/notesSlide1.xml",
+        "ppt/slides/_rels/slide1.xml.rels",
+        "[Content_Types].xml",
+      ]),
+    )
+    const notes = new TextDecoder().decode(await rawEntry(created.bytes, "ppt/notesSlides/notesSlide1.xml"))
+    expect(notes).toContain("第一行")
+    expect(notes).toContain("第二行")
+    expect(notes).toContain('type="body"')
+    const rels = new TextDecoder().decode(await rawEntry(created.bytes, "ppt/slides/_rels/slide1.xml.rels"))
+    expect(rels).toContain("notesSlide1.xml")
+    const types = new TextDecoder().decode(await rawEntry(created.bytes, "[Content_Types].xml"))
+    expect(types).toContain("/ppt/notesSlides/notesSlide1.xml")
+    expect((await readSlideMeta(created.bytes))[0]!.notes).toBe("第一行" + NL + "第二行")
+
+    // 第二次只改文字：不新建第二份备注页。
+    const updated = await editPptxMeta(created.bytes, [{ op: "setSlideNotes", slide: 1, text: "改过" }])
+    expect(updated.changed).toEqual(["ppt/notesSlides/notesSlide1.xml"])
+    expect((await readSlideMeta(updated.bytes))[0]!.notes).toBe("改过")
+  })
+
+  test("renameShape 只改 cNvPr 的 name，id 和文字不动", async () => {
+    const bytes = fixture()
+    const result = await editPptx({ bytes, shapeOps: [{ op: "renameShape", slide: 1, shapeId: "3", name: "要点" }] })
+    const xml = await slideXml(result.bytes)
+    expect(xml).toContain('<p:cNvPr id="3" name="要点"')
+    expect(xml).not.toContain('name="文本框 5"')
+    expect(xml).toContain("营销场景：自动生成投放策略")
+    const nodes = await readPptxLayout(result.bytes)
+    expect(nodes.find((node) => node.shapeId === "3")!.shapeName).toBe("要点")
+  })
+
+  test("引擎批量：备注 + 隐藏一起提交，state 里能读回", async () => {
+    const bytes = fixture()
+    const opened = await pptxEngine.open(bytes)
+    if (!opened.ok) return
+    const applied = await pptxEngine.apply(
+      opened.data,
+      [
+        { op: "setSlideNotes", slide: 1, text: "讲者提示" },
+        { op: "setSlideHidden", slide: 1, hidden: true },
+      ],
+      bytes,
+    )
+    expect(applied.ok).toBe(true)
+    if (!applied.ok) return
+    expect(applied.data.state.slides[0]).toMatchObject({ index: 1, hidden: true, notes: "讲者提示" })
+  })
+})

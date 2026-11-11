@@ -1,5 +1,6 @@
 import { getFilename } from "@novaway/core/util/path"
 import { type Session } from "@novaway/sdk/v2/client"
+import type { TaskRecency, TaskSortBy } from "@/context/layout"
 import type { TaskStatus } from "@/components/session/task-row"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { pathKey } from "@/utils/path-key"
@@ -45,6 +46,65 @@ function sortSessions(now: number) {
   }
 }
 
+/**
+ * 侧栏「视图 → 排序方式」的三种口径。
+ *
+ * "recent" 是原来写死的那条：刚在活动的一分钟内浮到最前，运行中的任务不会被挤下去。
+ * "created" / "name" 是稳定口径 —— 选了它们就不该再跟着活动跳，否则"按名字排"
+ * 会每隔一分钟抖一次。
+ */
+export const compareSessions = (order: TaskSortBy, now: number) => {
+  if (order === "name") return (a: Session, b: Session) => (a.title ?? "").localeCompare(b.title ?? "")
+  if (order === "created") return (a: Session, b: Session) => b.time.created - a.time.created
+  return sortSessions(now)
+}
+
+/**
+ * 侧栏「视图 → 最近活动」的时间窗。
+ *
+ * 按**最后一次活动**时间算；从未更新过的会话用创建时间兜底，
+ * 否则一个刚建好还没跑过的任务会凭空从"今天"里消失。
+ */
+export const withinRecency = (session: Session, recency: TaskRecency, now: number) => {
+  if (recency === "all") return true
+  const at = session.time.updated ?? session.time.created
+  if (recency === "today") {
+    const start = new Date(now)
+    start.setHours(0, 0, 0, 0)
+    return at >= start.getTime()
+  }
+  const days = recency === "week" ? 7 : 30
+  return now - at <= days * 24 * 60 * 60 * 1000
+}
+
+/** 「视图 → 分组方式 = 按日期」的四档，顺序即列表里的从上到下。 */
+export type TaskDateBucket = "today" | "yesterday" | "week" | "older"
+
+export const TASK_DATE_BUCKETS: readonly TaskDateBucket[] = ["today", "yesterday", "week", "older"]
+
+const startOfDay = (at: number) => {
+  const day = new Date(at)
+  day.setHours(0, 0, 0, 0)
+  return day.getTime()
+}
+
+/**
+ * 按日期分桶。
+ *
+ * 用**本地日界**而不是"过去 24 小时"：否则凌晨两点看昨天下午的任务会被归进"今天"，
+ * 而"最近 7 天"同样按整日算（含今天共 7 天），跟顶部的「最近活动」时间窗口径一致。
+ * 从未活动过的会话用创建时间兜底，跟 `withinRecency` 同一套理由。
+ */
+export const dateBucketOf = (session: Session, now: number): TaskDateBucket => {
+  const at = session.time?.updated ?? session.time?.created ?? now
+  const today = startOfDay(now)
+  const day = 24 * 60 * 60 * 1000
+  if (at >= today) return "today"
+  if (at >= today - day) return "yesterday"
+  if (at >= today - 6 * day) return "week"
+  return "older"
+}
+
 const isRootVisibleSession = (session: Session, directory: string) =>
   pathKey(session.directory) === pathKey(directory) && !session.parentID && !session.time?.archived
 
@@ -59,8 +119,15 @@ export const sortedRootSessions = (store: SessionStore, now: number) => roots(st
  * `pins`（sessionID → 置顶时间）里的会话排在最前、同级按置顶时间倒序；
  * 其余沿用原本的"最近活动优先"。置顶项不参与 `sortSessions` ——
  * 否则一个刚被 AI 更新过的置顶会话会被"最近活动"重新洗牌，置顶就失去意义。
+ *
+ * `order` 给侧栏「视图 → 排序方式」用；默认 "recent" 即历史行为。
  */
-export const sortedRootSessionsFrom = (stores: SessionStore[], now: number, pins?: Record<string, number>) => {
+export const sortedRootSessionsFrom = (
+  stores: SessionStore[],
+  now: number,
+  pins?: Record<string, number>,
+  order: TaskSortBy = "recent",
+) => {
   const seen = new Set<string>()
   const merged: Session[] = []
   for (const session of stores.flatMap(roots)) {
@@ -69,13 +136,14 @@ export const sortedRootSessionsFrom = (stores: SessionStore[], now: number, pins
     merged.push(session)
   }
   const pinned = pins ?? {}
+  const compare = compareSessions(order, now)
   return merged.sort((a, b) => {
     const pa = pinned[a.id]
     const pb = pinned[b.id]
     if (pa !== undefined && pb !== undefined) return pb - pa
     if (pa !== undefined) return -1
     if (pb !== undefined) return 1
-    return sortSessions(now)(a, b)
+    return compare(a, b)
   })
 }
 

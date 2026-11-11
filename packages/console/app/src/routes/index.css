@@ -352,7 +352,6 @@ body {
     @media (max-width: 30rem) {
       padding: var(--vertical-padding) var(--padding);
     }
-
   }
 
   [data-slot="installation-instructions"] {

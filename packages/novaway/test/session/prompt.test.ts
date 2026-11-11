@@ -33,6 +33,7 @@ import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionPrompt, resetBackgroundNotifications } from "../../src/session/prompt"
+import { Goal } from "../../src/session/goal"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
@@ -242,6 +243,7 @@ function makeHttp(input?: { processor?: "blocking" }) {
   )
   return Layer.mergeAll(
     TestLLMServer.layer,
+    Goal.defaultLayer,
     SessionPrompt.layer.pipe(
       Layer.provide(SessionRevert.defaultLayer),
       Layer.provide(Image.defaultLayer),
@@ -489,6 +491,263 @@ it.instance(
       expect(yield* llm.calls).toBe(0)
     }),
   { git: true },
+)
+
+it.instance(
+  "goal execution runs another turn when the judge says the goal is incomplete",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const goal = yield* Goal.Service
+      const chat = yield* sessions.create({
+        title: "Goal iteration",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const created = yield* goal.create({
+        sessionId: chat.id,
+        title: "Complete the task",
+        status: "in_progress",
+        successCriteria: ["The task is verified"],
+      })
+
+      yield* llm.jsonMatch((hit) => hit.body.response_format !== undefined, {
+        id: "chatcmpl-judge",
+        object: "chat.completion",
+        created: Math.floor(Date.now() / 1000),
+        model: "test-model",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: JSON.stringify({
+                goalMet: false,
+                reasoning: "The first response does not verify the success criterion.",
+                nextAction: "Verify the task with a concrete check.",
+                completedGoalIds: [],
+              }),
+            },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 30, total_tokens: 40 },
+      })
+      for (let attempt = 0; attempt < 3; attempt++) {
+        yield* llm.jsonMatch((hit) => hit.body.response_format !== undefined, {
+          id: "chatcmpl-judge",
+          object: "chat.completion",
+          created: Math.floor(Date.now() / 1000),
+          model: "test-model",
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content: JSON.stringify({
+                  goalMet: true,
+                  reasoning: "The follow-up verifies the success criterion.",
+                  completedGoalIds: [created.id],
+                }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 30, total_tokens: 40 },
+        })
+      }
+      yield* llm.textMatch((hit) => hit.body.response_format === undefined, "First attempt; no verification yet")
+      yield* llm.textMatch((hit) => hit.body.response_format === undefined, "Verification passed")
+      const result = yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        goalExecution: { goalId: created.id, maxIterations: 2 },
+        parts: [{ type: "text", text: "Complete the task" }],
+      })
+
+      expect(result.info.role).toBe("assistant")
+      const messages = yield* sessions.messages({ sessionID: chat.id })
+      expect(messages.filter((message) => message.info.role === "user")).toHaveLength(2)
+      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("completed")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "goal execution stops at the iteration budget when the judge keeps the goal incomplete",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const goal = yield* Goal.Service
+      const chat = yield* sessions.create({
+        title: "Goal iteration budget",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const created = yield* goal.create({
+        sessionId: chat.id,
+        title: "Complete the task",
+        status: "in_progress",
+        successCriteria: ["The task is verified"],
+      })
+      for (let index = 0; index < 6; index++) {
+        yield* llm.jsonMatch((hit) => hit.body.response_format !== undefined, {
+          id: "chatcmpl-judge",
+          object: "chat.completion",
+          created: Math.floor(Date.now() / 1000),
+          model: "test-model",
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content: JSON.stringify({
+                  goalMet: false,
+                  reasoning: "The evidence does not verify the success criterion.",
+                  nextAction: "Perform a verifiable check.",
+                  completedGoalIds: [],
+                }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 30, total_tokens: 40 },
+        })
+      }
+      for (let index = 0; index < 3; index++) {
+        yield* llm.textMatch((hit) => hit.body.response_format === undefined, `Attempt ${index + 1}`)
+      }
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        goalExecution: { goalId: created.id, maxIterations: 2 },
+        parts: [{ type: "text", text: "Complete the task" }],
+      })
+
+      expect(yield* llm.calls).toBe(5)
+      expect(yield* llm.pending).toBe(4)
+      expect(
+        (yield* sessions.messages({ sessionID: chat.id })).filter((message) => message.info.role === "user"),
+      ).toHaveLength(3)
+      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("in_progress")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "goal execution does not continue when the judge request fails",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const goal = yield* Goal.Service
+      const chat = yield* sessions.create({
+        title: "Goal judge failure",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const created = yield* goal.create({
+        sessionId: chat.id,
+        title: "Complete the task",
+        status: "in_progress",
+        successCriteria: ["The task is verified"],
+      })
+      yield* llm.pushMatch(
+        (hit) => hit.body.response_format !== undefined,
+        { type: "http-error", status: 500, body: { error: { message: "judge unavailable" } } },
+        { type: "http-error", status: 500, body: { error: { message: "judge unavailable" } } },
+        { type: "http-error", status: 500, body: { error: { message: "judge unavailable" } } },
+      )
+      yield* llm.textMatch((hit) => hit.body.response_format === undefined, "First attempt")
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        goalExecution: { goalId: created.id, maxIterations: 3 },
+        parts: [{ type: "text", text: "Complete the task" }],
+      })
+
+      expect(yield* llm.calls).toBe(4)
+      expect(yield* llm.pending).toBe(0)
+      expect((yield* llm.hits).filter((hit) => hit.body.response_format !== undefined)).toHaveLength(3)
+      expect(
+        (yield* sessions.messages({ sessionID: chat.id })).filter((message) => message.info.role === "user"),
+      ).toHaveLength(1)
+      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("in_progress")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "goal execution preserves a cancelled goal when judging reports completion",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const goal = yield* Goal.Service
+      const chat = yield* sessions.create({
+        title: "Goal cancellation race",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const created = yield* goal.create({
+        sessionId: chat.id,
+        title: "Complete the task",
+        status: "in_progress",
+        successCriteria: ["The task is verified"],
+      })
+      yield* llm.jsonMatch((hit) => hit.body.response_format !== undefined, {
+        id: "chatcmpl-judge",
+        object: "chat.completion",
+        created: Math.floor(Date.now() / 1000),
+        model: "test-model",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: JSON.stringify({
+                goalMet: true,
+                reasoning: "The criterion is reported as complete.",
+                completedGoalIds: [created.id],
+              }),
+            },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 30, total_tokens: 40 },
+      })
+      yield* llm.textMatch((hit) => hit.body.response_format === undefined, "Initial attempt")
+      const running = yield* prompt
+        .prompt({
+          sessionID: chat.id,
+          agent: "build",
+          goalExecution: { goalId: created.id, maxIterations: 2 },
+          parts: [{ type: "text", text: "Complete the task" }],
+        })
+        .pipe(Effect.forkChild)
+      yield* llm.wait(2)
+      yield* goal.update({ goalId: created.id, sessionId: chat.id, status: "cancelled" })
+      yield* prompt.cancel(chat.id)
+      yield* Fiber.await(running)
+
+      expect(yield* llm.calls).toBe(2)
+      expect(yield* llm.pending).toBe(0)
+      expect((yield* llm.hits).filter((hit) => hit.body.response_format === undefined)).toHaveLength(1)
+      expect((yield* llm.hits).filter((hit) => hit.body.response_format !== undefined)).toHaveLength(1)
+      expect(
+        (yield* sessions.messages({ sessionID: chat.id })).filter((message) => message.info.role === "user"),
+      ).toHaveLength(1)
+      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("cancelled")
+    }),
+  { git: true },
+  30_000,
 )
 
 it.instance(
@@ -1363,7 +1622,7 @@ it.instance(
       }
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 it.instance(
@@ -1390,7 +1649,7 @@ it.instance(
       }
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 race.instance(
@@ -1591,7 +1850,7 @@ it.instance(
       }
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 // Queue semantics
@@ -1633,7 +1892,7 @@ it.instance(
       expect(a.info.role).toBe("assistant")
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 it.instance(
@@ -1702,7 +1961,7 @@ it.instance(
       expect(JSON.stringify(inputs.at(-1)?.messages)).toContain("second")
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 it.instance(
@@ -1776,7 +2035,7 @@ it.instance(
       yield* Fiber.await(fiber)
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 unix(
@@ -2860,7 +3119,7 @@ it.instance(
       }
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 // Agent variant

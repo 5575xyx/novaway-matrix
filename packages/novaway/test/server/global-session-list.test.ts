@@ -33,6 +33,9 @@ describe("session.listGlobal", () => {
 
         expect(ids).toContain(firstSession.id)
         expect(ids).toContain(secondSession.id)
+        expect(sessions.every((session) => session.scope === "project")).toBe(true)
+        const globalSessions = yield* Effect.sync(() => [...SessionNs.listGlobal({ scope: "global", limit: 200 })])
+        expect(globalSessions).toHaveLength(0)
 
         const firstProject = yield* Project.Service.use((project) => project.get(firstSession.projectID))
         const secondProject = yield* Project.Service.use((project) => project.get(secondSession.projectID))

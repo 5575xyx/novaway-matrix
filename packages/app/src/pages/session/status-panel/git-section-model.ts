@@ -21,8 +21,8 @@ export type GitSectionModel = {
 }
 
 /**
- * 只在**有变更**时出卡（对齐 ZCode 的 buildGitModel：clean 仓库也挂状态卡是
- * 它修过的 bug，提交入口在卡片 body 里，clean 时本来就没有可提交的东西）。
+ * 只在**有变更**时出卡（clean 仓库也挂状态卡是修过的 bug：
+ * 提交入口在卡片 body 里，clean 时本来就没有可提交的东西）。
  * 有任何变更行（含 0 行变更的二进制/重命名文件）就保留，摘要按行数回落成文件数。
  *
  * 例外：**还没有任何提交的仓库**。这时卡片是用户唯一能看到分支名/完成首次提交的
@@ -45,7 +45,7 @@ export function buildGitSectionModel(snapshot: Snapshot | undefined): GitSection
     ahead: num(snapshot.branch.ahead),
     behind: num(snapshot.branch.behind),
     dirty,
-    // 按 staged / unstaged 位分开，对齐 ZCode 的 Git Tools（已暂存与未暂存各有入口）。
+    // 按 staged / unstaged 位分开，已暂存与未暂存各有入口。
     staged: changes.filter((change) => change.staged).map((change) => change.file),
     unstaged: changes.filter((change) => change.unstaged).map((change) => change.file),
     branches: snapshot.branches.map((item) => item.name),

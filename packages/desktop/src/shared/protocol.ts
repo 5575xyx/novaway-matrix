@@ -10,8 +10,7 @@ export const LOCAL_FILE_HOST = "local"
 // 放在无 electron 依赖的模块里：沙箱 preload 拿不到 app，不能 import main/constants。
 export function toLocalFileUrl(url: string): string {
   if (!url.startsWith("file:")) return url
-  // file:///D:/x 与 file://D:/x 的前导斜杠数量不一致，必须全剥掉再拼，
-  // 否则会得到 oc-file://local//D:/x，pathname 变双斜杠，下游 fileURLToPath 直接抛错
-  const path = url.slice("file:".length).replace(/^\/+/, "")
+  const source = new URL(url)
+  const path = source.host ? `${source.host}${source.pathname}` : source.pathname.replace(/^\/+/, "")
   return `${LOCAL_FILE_PROTOCOL}://${LOCAL_FILE_HOST}/${path}`
 }

@@ -11,7 +11,9 @@ import * as Tool from "@/tool/tool"
 import { MessageID, SessionID } from "@/session/schema"
 import { testEffect } from "../lib/effect"
 
-const it = testEffect(Layer.mergeAll(TeamLayer, TaskListLayer, OpLogLayer, HookLayer, TruncateLayer, AgentLayer) as never)
+const it = testEffect(
+  Layer.mergeAll(TeamLayer, TaskListLayer, OpLogLayer, HookLayer, TruncateLayer, AgentLayer) as never,
+)
 
 const context = (sessionID: SessionID): Tool.Context => ({
   sessionID,
@@ -36,7 +38,10 @@ describe("task board inside a run", () => {
       yield* ops.scope({ sessionID: captain, runID: "run_board", taskID: "rt_team_a", attempt: 1, readOnly: true })
 
       const create = yield* (yield* TaskCreateTool).init()
-      const created = yield* create.execute({ subject: "补 refund 边界用例", description: "覆盖全额与部分退款" }, context(captain))
+      const created = yield* create.execute(
+        { subject: "补 refund 边界用例", description: "覆盖全额与部分退款" },
+        context(captain),
+      )
 
       // 以前这里只会回「先建团队」—— 运行里的子会话不属于任何会话临时团队。
       expect(created.metadata.teamID).toBe("rt_team_a")
@@ -80,7 +85,10 @@ describe("task board inside a run", () => {
       yield* ops.scope({ sessionID: member, ...scope })
 
       const create = yield* (yield* TaskCreateTool).init()
-      const created = yield* create.execute({ subject: "成员自己记一笔", description: "跟在队长同一块板上" }, context(member))
+      const created = yield* create.execute(
+        { subject: "成员自己记一笔", description: "跟在队长同一块板上" },
+        context(member),
+      )
       expect(created.metadata.teamID).toBe("rt_team_a")
       // 和队长同一块板：成员不需要（也不该）有自己的看板。
       expect((yield* tasks.list("rt_team_a")).map((task) => task.subject)).toContain("成员自己记一笔")

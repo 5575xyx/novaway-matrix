@@ -39,6 +39,8 @@
     // Type-aware: catch unhandled promises
     "typescript/no-floating-promises": "warn",
     // Warn when spreading non-plain objects (Headers, class instances, etc.)
+    // The bundled tsgolint bridge does not implement no-generated-empty-object-type
+    // or no-unsafe-enum-assignment, so neither unsupported rule is configured.
     "typescript/no-misused-spread": "warn"
   },
   "options": {

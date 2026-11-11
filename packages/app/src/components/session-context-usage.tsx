@@ -9,7 +9,7 @@ import { CacheUsageBody } from "@/components/cache-usage-panel"
 import { getSessionContextMetrics } from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
-// 输入框工具条上的会话上下文占用入口（对齐 ZCode 的 ChatContextUsage：触发器在
+// 输入框工具条上的会话上下文占用入口（触发器在
 // composer 工具条上，点开是明细面板）。明细曾经塞在右侧状态面板的 context 卡里，
 // 那张卡已随状态面板「按需出现」改造退出；这里就是它的新家 —— 点击圆环看
 // token 占用 / 预算 / 花费与缓存命中统计。
@@ -70,7 +70,7 @@ export function SessionContextUsage() {
                     )}
                   </Show>
                   <Show when={ctx().budget && ctx().budget!.status !== "normal"}>
-                    <span class="text-12-regular text-warning">
+                    <span class="text-12-regular text-icon-warning-base">
                       {language.t(
                         ctx().budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning",
                       )}

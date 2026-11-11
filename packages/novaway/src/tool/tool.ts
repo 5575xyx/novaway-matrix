@@ -204,7 +204,7 @@ function wrap<Parameters extends Schema.Decoder<unknown>, Result extends Metadat
           if (result.metadata.truncated !== undefined) {
             return result
           }
-          const agent = yield* agents.get(ctx.agent)
+          const agent = (yield* agents.get(ctx.agent)) ?? (yield* agents.defaultInfo())
           const truncated = yield* truncate.output(
             result.output,
             toolInfo.capabilities?.maxResultBytes ? { maxBytes: toolInfo.capabilities.maxResultBytes } : {},

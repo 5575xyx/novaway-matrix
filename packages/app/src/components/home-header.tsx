@@ -1,7 +1,7 @@
 import { Show, createMemo } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { IconButton } from "@novaway/ui/icon-button"
-import { Mark } from "@novaway/ui/logo"
+import { Button } from "@novaway/ui/button"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -24,7 +24,7 @@ import { WindowControls } from "@/components/window-controls"
  *  - 折叠态：显示 NovaWay 品牌（点击 `navigate("/")` 保持「品牌即回首页」的语义）
  *    + `chevron-right` 展开按钮 + `WindowControls`
  */
-export function HomeHeader() {
+export function HomeHeader(props: { onGlobalChat: () => void }) {
   const layout = useLayout()
   const language = useLanguage()
   const platform = usePlatform()
@@ -66,6 +66,9 @@ export function HomeHeader() {
         onClick={layout.mobileSidebar.toggle}
       />
       <div class="flex-1" />
+      <Button variant="ghost" size="small" onClick={props.onGlobalChat}>
+        无项目聊天
+      </Button>
       <WindowControls />
     </div>
   )

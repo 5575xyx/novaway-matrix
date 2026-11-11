@@ -163,6 +163,8 @@ export interface MessagePartProps {
   showAssistantCopyPartID?: string | null
   turnDurationMs?: number
   onFileOpen?: (path: string) => void
+  /** Active surface renderer selected by the host from the current plugin snapshot. */
+  pluginRenderer?: PartComponent
 }
 
 export type PartComponent = Component<MessagePartProps>
@@ -312,7 +314,7 @@ const agentPalette = [
   "var(--syntax-constant)",
   "var(--diff-added)",
   "var(--diff-removed)",
-  "var(--warning)",
+  "var(--icon-warning-base)",
 ]
 
 function tone(name: string) {
@@ -1029,6 +1031,13 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
       !!props.busy || props.parts.some((part) => part.state.status === "pending" || part.state.status === "running"),
   )
   const summary = createMemo(() => contextToolSummary(props.parts))
+  // 行首状态与工具行同一套(见 toolStatus)：这张卡不在 tool-part-wrapper 里,
+  // 拿不到那个坑位,紧凑密度下徽标让位后就整行没图标,只能自己补一个。
+  const status = createMemo(() => {
+    if (props.parts.some((part) => part.state.status === "error")) return { tone: "error", icon: "lu-x" } as const
+    if (pending()) return { tone: "active", icon: "lu-loader" } as const
+    return { tone: "done", icon: "lu-check" } as const
+  })
 
   return (
     <Collapsible
@@ -1041,17 +1050,26 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
       <Collapsible.Trigger>
         <div
           data-component="context-tool-group-trigger"
-          class="relative rounded-[10px] px-3 py-2 transition-colors hover:bg-teal-400/[0.05]"
+          class="relative rounded-[10px] px-3 py-2 transition-colors hover:bg-[color-mix(in_srgb,var(--icon-info-base)_5%,transparent)]"
         >
           <span
             data-slot="context-tool-group-title"
             class="min-w-0 flex items-center gap-2 text-14-medium text-foreground"
           >
             <span
+              data-slot="tool-status-icon"
+              data-tone={status().tone}
+              aria-hidden="true"
+              classList={{ "animate-spin": status().tone === "active" }}
+            >
+              <Icon name={status().icon} size="small" />
+            </span>
+            <span
               data-slot="tool-badge-icon"
-              class="grid size-7 place-items-center rounded-[8px] text-teal-600 dark:text-teal-400"
+              class="grid size-7 place-items-center rounded-[8px] text-[var(--icon-info-base)]"
               style={{
-                "background-image": "linear-gradient(135deg, rgba(45,212,191,0.16) 0%, rgba(6,182,212,0.16) 100%)",
+                "background-image":
+                  "linear-gradient(135deg, color-mix(in srgb, var(--icon-info-base) 16%, transparent) 0%, color-mix(in srgb, var(--icon-interactive-base) 16%, transparent) 100%)",
               }}
             >
               <Icon name="magnifying-glass" size="small" />
@@ -1356,7 +1374,7 @@ function HighlightedText(props: { text: string; references: FilePart[]; agents: 
 }
 
 export function Part(props: MessagePartProps) {
-  const component = createMemo(() => PART_MAPPING[props.part.type])
+  const component = createMemo(() => props.pluginRenderer ?? PART_MAPPING[props.part.type])
   return (
     <Show when={component()}>
       <Dynamic
@@ -1508,9 +1526,33 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   // 图片归属见 ./tool-attachments：截图类工具走轮尾「验证结果」，其余留在本行。
   const attachments = createMemo<ToolAttachment[]>(() => toolImageAttachments(part().tool, part().state))
 
+  /**
+   * 行首状态：完成 / 进行中 / 失败。
+   *
+   * 放在 wrapper 而不是各渲染器里 —— 大部分工具（webfetch、bash、提问卡、MCP）
+   * 传的是自定义 JSX trigger，各自实现的状态词没法统一改；挂在行外壳上，
+   * 每一种工具行都能有同一个坑位，样式层再决定显不显示。
+   */
+  const toolStatus = createMemo(() => {
+    const status = part().state.status
+    if (status === "error") return { tone: "error", icon: "lu-x" } as const
+    if (status === "pending" || status === "running") return { tone: "active", icon: "lu-loader" } as const
+    return { tone: "done", icon: "lu-check" } as const
+  })
+
   return (
     <Show when={!hideQuestion()}>
-      <div data-component="tool-part-wrapper" data-timeline-part-id={part().id}>
+      {/* data-tool 让样式层能按工具区分摘要形态(文件名 chip / 命令行 / 提问卡),
+          不用为每个渲染器再传一遍 class。 */}
+      <div data-component="tool-part-wrapper" data-tool={part().tool} data-timeline-part-id={part().id}>
+        <span
+          data-slot="tool-status-icon"
+          data-tone={toolStatus().tone}
+          aria-hidden="true"
+          classList={{ "animate-spin": toolStatus().tone === "active" }}
+        >
+          <Icon name={toolStatus().icon} size="small" />
+        </span>
         <Switch>
           <Match when={part().state.status === "error" && (part().state as any).error}>
             {(error) => {
@@ -1525,8 +1567,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                 )
               }
               // 失败不再换成一张独立错误卡，而是让工具行留在原地、把失败挂到状态词上
-              // （对齐 ZCode 的 fallback / execute 等渲染器：statusLabel=失败 +
-              // statusTooltip=原始报错）。这样时间线在失败时不会突然多出一大块卡片，
+              // （statusLabel=失败 + statusTooltip=原始报错）。这样时间线在失败时不会突然多出一大块卡片，
               // 失败原因也仍然可读（悬停状态词展开，并可一键复制）。
               return (
                 <Dynamic
@@ -1546,7 +1587,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   deferContent={props.deferToolContent}
                   persistKey={part().id}
                   // 子代理在运行中会摊开一大串子调用；跑完不收回来的话
-                  // 聊天流被永久撑长（对齐 ZCode 的 autoCollapseOnComplete）。
+                  // 聊天流被永久撑长（autoCollapseOnComplete 只作用于 running → 完成 的边沿）。
                   autoCollapseOnComplete={part().tool === "task"}
                 />
               )
@@ -1715,7 +1756,7 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   )
   const text = () => (data.store.part_text_accum_delta?.[part().id] ?? part().text).trim()
 
-  // 对齐 ZCode：思考过程**默认折叠**，标题行显示「思考 · 持续了 X 秒」，
+  // 思考过程**默认折叠**，标题行显示「思考 · 持续了 X 秒」，
   // 运行中同一行末尾跟一段浅色的实时内容，想看细节再点开。
   const [open, setOpen] = createSignal(false)
 
@@ -2299,7 +2340,10 @@ ToolRegistry.register({
                     />
                   </span>
                   <Show when={!pending()}>
-                    <span data-slot="message-part-title-filename">{filename()}</span>
+                    {/* 文件名会被省略，悬停看全路径。 */}
+                    <span data-slot="message-part-title-filename" title={props.input.filePath}>
+                      {filename()}
+                    </span>
                   </Show>
                 </div>
                 <Show when={!pending() && props.input.filePath?.includes("/")}>
@@ -2373,7 +2417,10 @@ ToolRegistry.register({
                     />
                   </span>
                   <Show when={!pending()}>
-                    <span data-slot="message-part-title-filename">{filename()}</span>
+                    {/* 文件名会被省略，悬停看全路径。 */}
+                    <span data-slot="message-part-title-filename" title={props.input.filePath}>
+                      {filename()}
+                    </span>
                   </Show>
                 </div>
                 <Show when={!pending() && props.input.filePath?.includes("/")}>
@@ -2458,7 +2505,7 @@ ToolRegistry.register({
               defer={props.deferContent !== false}
               trigger={{
                 title: i18n.t("ui.tool.patch"),
-                // 文件名逐个列出来（对齐 ZCode：`编辑 [icon] a.ts [icon] b.ts +2`），
+                // 文件名逐个列出来（`编辑 [icon] a.ts [icon] b.ts +2`），
                 // 而不是只写"N 个文件"——用户扫一眼就知道动了什么，不用展开。
                 // 右侧再给汇总增删。
                 detail: (
@@ -2916,7 +2963,7 @@ ToolRegistry.register({
         <Show when={!pending() && result()}>
           <div class="px-3 py-2 overflow-auto max-h-64">
             <Show when={result().error}>
-              <div class="text-12-regular text-destructive">{result().error}</div>
+              <div class="text-12-regular text-icon-critical-base">{result().error}</div>
             </Show>
             <Show when={columns().length > 0}>
               <table class="w-full text-12-regular">

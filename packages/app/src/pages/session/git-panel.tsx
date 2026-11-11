@@ -45,7 +45,7 @@ export function useGitSnapshot() {
   const signature = (value: Snapshot | undefined) => (value === undefined ? "" : JSON.stringify(value))
 
   const refresh = () => {
-    if (store.busy) return
+    if (store.busy || sdk.directory === "global-chat") return
     void sdk.client.git
       .snapshot()
       .then((result) => {
@@ -72,7 +72,7 @@ export function useGitSnapshot() {
 
   const commit = (message: string) => act(() => sdk.client.git.commit({ message }).then((r) => r))
   // 以下动作全部复用后端已有的 /git/* 端点（snapshot 里已经带回 branches / ahead / stash），
-  // 对齐 ZCode 的 Git Tools：提交、推送、切换/新建分支都要在面板里直接可用。
+  // 提交、推送、切换/新建分支都要在面板里直接可用。
   const push = () => act(() => sdk.client.git.push().then((r) => r))
   const pull = () => act(() => sdk.client.git.pull().then((r) => r))
   const fetch = () => act(() => sdk.client.git.fetch().then((r) => r))

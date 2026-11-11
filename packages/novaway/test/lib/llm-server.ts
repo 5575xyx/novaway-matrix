@@ -2,6 +2,7 @@ import { NodeHttpServer, NodeHttpServerRequest } from "@effect/platform-node"
 import * as Http from "node:http"
 import { Deferred, Effect, Layer, Context, Stream } from "effect"
 import * as HttpServer from "effect/unstable/http/HttpServer"
+import type { HttpServerResponse as HttpServerResponseType } from "effect/unstable/http/HttpServerResponse"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 
 export type Usage = { input: number; output: number }
@@ -48,7 +49,14 @@ type HttpError = {
   body: unknown
 }
 
-export type Item = Sse | HttpError
+type JsonResponse = {
+  type: "json"
+  body: unknown
+  wait?: PromiseLike<unknown>
+  started?: () => void
+}
+
+export type Item = Sse | HttpError | JsonResponse
 
 const done = Symbol("done")
 
@@ -449,6 +457,12 @@ function fail(item: HttpError) {
   })
 }
 
+function json(item: JsonResponse): Effect.Effect<HttpServerResponseType> {
+  item.started?.()
+  const response = HttpServerResponse.text(JSON.stringify(item.body), { contentType: "application/json" })
+  return item.wait ? Effect.promise(() => item.wait!).pipe(Effect.as(response)) : Effect.succeed(response)
+}
+
 export class Reply {
   #head: unknown[] = [role()]
   #tail: unknown[] = []
@@ -606,6 +620,7 @@ namespace TestLLMServer {
     readonly url: string
     readonly push: (...input: (Item | Reply)[]) => Effect.Effect<void>
     readonly pushMatch: (match: Match, ...input: (Item | Reply)[]) => Effect.Effect<void>
+    readonly jsonMatch: (match: Match, body: unknown) => Effect.Effect<void>
     readonly textMatch: (match: Match, value: string, opts?: { usage?: Usage }) => Effect.Effect<void>
     readonly toolMatch: (match: Match, name: string, input: unknown) => Effect.Effect<void>
     readonly text: (value: string, opts?: { usage?: Usage }) => Effect.Effect<void>
@@ -682,7 +697,8 @@ export class TestLLMServer extends Context.Service<TestLLMServer, TestLLMServer.
         }
         hits = [...hits, current]
         yield* notify()
-        if (next.type !== "sse") return fail(next)
+        if (next.type === "http-error") return fail(next)
+        if (next.type === "json") return yield* json(next)
         if (mode === "responses") return send(responses(next, modelFrom(body)))
         if (next.reset) {
           yield* reset(next)
@@ -706,6 +722,9 @@ export class TestLLMServer extends Context.Service<TestLLMServer, TestLLMServer.
         }),
         pushMatch: Effect.fn("TestLLMServer.pushMatch")(function* (match: Match, ...input: (Item | Reply)[]) {
           queueMatch(match, ...input)
+        }),
+        jsonMatch: Effect.fn("TestLLMServer.jsonMatch")(function* (match: Match, body: unknown) {
+          queueMatch(match, { type: "json", body })
         }),
         textMatch: Effect.fn("TestLLMServer.textMatch")(function* (
           match: Match,

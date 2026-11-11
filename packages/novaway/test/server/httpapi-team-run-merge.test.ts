@@ -23,7 +23,6 @@ import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestLLMServer } from "../lib/llm-server"
 
-
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     yield* Effect.promise(() => resetDatabase())
@@ -130,43 +129,38 @@ describe("team run merge", () => {
         yield* Effect.promise(() => git(dir, ["add", "-A"]))
         yield* Effect.promise(() => git(dir, ["commit", "-m", "test config", "--no-verify"]))
 
-        const session = (yield* (
-          yield* post(dir, "/session", {
-            title: "tools run",
-            // 其余测试只让模型回 JSON；这里要真实工具，权限必须先放开。
-            // `bypassPermissions` 是「无人值守运行」的等价配置：子代理会话会继承
-            // 父会话的模式，成员写文件时不会停在没人回答的授权弹窗上。
-            permission: [{ permission: "*", pattern: "*", action: "allow" }],
-            permissionMode: "bypassPermissions",
-          })
-        ).json) as { id: string }
+        const session = (yield* (yield* post(dir, "/session", {
+          title: "tools run",
+          // 其余测试只让模型回 JSON；这里要真实工具，权限必须先放开。
+          // `bypassPermissions` 是「无人值守运行」的等价配置：子代理会话会继承
+          // 父会话的模式，成员写文件时不会停在没人回答的授权弹窗上。
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+          permissionMode: "bypassPermissions",
+        })).json) as { id: string }
 
-        const lynn = (yield* (
-          yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" })
-        ).json) as { id: string }
-        const zhou = (yield* (
-          yield* post(dir, "/team/employee", { directory: dir, name: "小周", job: "general" })
-        ).json) as { id: string }
-        const alpha = (yield* (
-          yield* post(dir, "/team/profile", {
-            directory: dir,
-            name: "写作组",
-            captain: lynn.id,
-            members: [{ employeeID: lynn.id }],
-          })
-        ).json) as { profile: { id: string } }
-        const beta = (yield* (
-          yield* post(dir, "/team/profile", {
-            directory: dir,
-            name: "校对组",
-            captain: zhou.id,
-            members: [{ employeeID: zhou.id }],
-          })
-        ).json) as { profile: { id: string } }
+        const lynn = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" }))
+          .json) as { id: string }
+        const zhou = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小周", job: "general" }))
+          .json) as { id: string }
+        const alpha = (yield* (yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "写作组",
+          captain: lynn.id,
+          members: [{ employeeID: lynn.id }],
+        })).json) as { profile: { id: string } }
+        const beta = (yield* (yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "校对组",
+          captain: zhou.id,
+          members: [{ employeeID: zhou.id }],
+        })).json) as { profile: { id: string } }
 
-        const created = (yield* (
-          yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "各补一份说明" })
-        ).json) as { run: { id: string } }
+        const created = (yield* (yield* post(dir, "/run", {
+          sessionID: session.id,
+          directory: dir,
+          mode: "team",
+          goal: "各补一份说明",
+        })).json) as { run: { id: string } }
         const id = created.run.id
 
         yield* post(dir, `/run/${id}/plan`, {
@@ -181,31 +175,26 @@ describe("team run merge", () => {
         const betaID = planned.teams[1].id
 
         // 两个团队各一条验收，各自的命令只管自己那份文件。
-        const docA = (yield* (
-          yield* post(dir, `/run/${id}/acceptance`, {
-            directory: dir,
-            specID: "refund-doc",
-            text: "仓库里有 src/refund.md",
-            kind: "test",
-            owner: alphaID,
-            verifier: { kind: "command", run: "test -f src/refund.md", timeoutMs: 30_000 },
-          })
-        ).json) as { id: string }
-        const docB = (yield* (
-          yield* post(dir, `/run/${id}/acceptance`, {
-            directory: dir,
-            specID: "policy-doc",
-            text: "仓库里有 src/policy.md",
-            kind: "test",
-            owner: betaID,
-            verifier: { kind: "command", run: "test -f src/policy.md", timeoutMs: 30_000 },
-          })
-        ).json) as { id: string }
+        const docA = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+          directory: dir,
+          specID: "refund-doc",
+          text: "仓库里有 src/refund.md",
+          kind: "test",
+          owner: alphaID,
+          verifier: { kind: "command", run: "test -f src/refund.md", timeoutMs: 30_000 },
+        })).json) as { id: string }
+        const docB = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+          directory: dir,
+          specID: "policy-doc",
+          text: "仓库里有 src/policy.md",
+          kind: "test",
+          owner: betaID,
+          verifier: { kind: "command", run: "test -f src/policy.md", timeoutMs: 30_000 },
+        })).json) as { id: string }
 
         // 默认只读；这次要真的写文件，放宽必须是显式的（模型没有提权通道）。
-        const widened = (yield* (
-          yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false })
-        ).json) as Detail
+        const widened = (yield* (yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false }))
+          .json) as Detail
 
         yield* post(dir, `/run/${id}/approve`, {
           directory: dir,
@@ -283,7 +272,7 @@ describe("team run merge", () => {
         expect(detail?.teams.map((team) => team.phase)).toEqual(["delivered", "delivered"])
 
         // 集成真的合出了东西：集成 worktree 里两个文件都在。
-        const integration = (yield* Effect.promise(async () => {
+        const integration = yield* Effect.promise(async () => {
           const list = await git(dir, ["worktree", "list", "--porcelain"])
           const paths = list
             .split("\n")
@@ -295,7 +284,7 @@ describe("team run merge", () => {
             if (both) return root
           }
           return undefined
-        }))
+        })
         expect(typeof integration).toBe("string")
         expect(yield* Effect.promise(() => git(dir, ["branch", "--list", "novaway/integrate/*"]))).not.toBe("")
 

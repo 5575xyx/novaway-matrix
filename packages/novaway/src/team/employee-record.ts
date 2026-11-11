@@ -1,7 +1,13 @@
 import { eq, inArray } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { SessionTable } from "@/session/session.sql"
-import { TeamAcceptanceTable, TeamRunEventTable, TeamRunTable, TeamRunTeamTable, TeamVerificationTable } from "./run.sql"
+import {
+  TeamAcceptanceTable,
+  TeamRunEventTable,
+  TeamRunTable,
+  TeamRunTeamTable,
+  TeamVerificationTable,
+} from "./run.sql"
 
 /**
  * 员工的事实记录（§12.1）：参与、驳回、一次通过率、参与的运行墙钟。
@@ -219,8 +225,7 @@ export function of(employeeID: string): Facts {
   }
 
   const runIDs = [...new Set(participations.map((item) => item.runID))]
-  if (runIDs.length === 0)
-    return record({ employeeID, participations: [], reworks: [], acceptances: [], runs: [] })
+  if (runIDs.length === 0) return record({ employeeID, participations: [], reworks: [], acceptances: [], runs: [] })
 
   const runs = Database.use((db) =>
     db
@@ -235,11 +240,7 @@ export function of(employeeID: string): Facts {
   )
 
   const events = Database.use((db) =>
-    db
-      .select()
-      .from(TeamRunEventTable)
-      .where(inArray(TeamRunEventTable.run_id, runIDs))
-      .all(),
+    db.select().from(TeamRunEventTable).where(inArray(TeamRunEventTable.run_id, runIDs)).all(),
   )
   const reworks: Rework[] = events.flatMap((event) => {
     if (event.kind !== "team.rework") return []

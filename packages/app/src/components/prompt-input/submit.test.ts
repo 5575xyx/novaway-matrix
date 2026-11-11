@@ -5,6 +5,7 @@ let createPromptSubmit: typeof import("./submit").createPromptSubmit
 
 const createdClients: string[] = []
 const createdSessions: string[] = []
+const globallyCreated: string[] = []
 const enabledAutoAccept: Array<{ sessionID: string; directory: string }> = []
 const optimistic: Array<{
   directory?: string
@@ -19,9 +20,11 @@ const optimisticSeeded: boolean[] = []
 const storedSessions: Record<string, Array<{ id: string; title?: string }>> = {}
 const promoted: Array<{ directory: string; sessionID: string }> = []
 const sentShell: string[] = []
+const createdWorktrees: string[] = []
 const syncedDirectories: string[] = []
 
 let params: { id?: string } = {}
+let directory = "/repo/main"
 let selected = "/repo/worktree-a"
 let variant: string | undefined
 
@@ -40,6 +43,16 @@ const clientFor = (directory: string) => {
           },
         }
       },
+      globalCreate: async () => {
+        globallyCreated.push(directory)
+        createdSessions.push(directory)
+        return {
+          data: {
+            id: `session-${createdSessions.length}`,
+            title: `New session ${createdSessions.length}`,
+          },
+        }
+      },
       shell: async () => {
         sentShell.push(directory)
         return { data: undefined }
@@ -50,7 +63,10 @@ const clientFor = (directory: string) => {
       abort: async () => ({ data: undefined }),
     },
     worktree: {
-      create: async () => ({ data: { directory: `${directory}/new` } }),
+      create: async () => {
+        createdWorktrees.push(directory)
+        return { data: { directory: `${directory}/new` } }
+      },
     },
   }
 }
@@ -61,6 +77,9 @@ beforeAll(async () => {
   mock.module("@solidjs/router", () => ({
     useNavigate: () => () => undefined,
     useParams: () => params,
+    // mock.module 是全局的：本文件之外、后续加载的模块链上的组件也会用到 useLocation，
+    // 不在这里补一个空壳就会以「导出缺失」直接报错。
+    useLocation: () => ({ path: "/", params: {}, query: "", hash: "" }),
   }))
 
   mock.module("@novaway/sdk/v2/client", () => ({
@@ -141,8 +160,8 @@ beforeAll(async () => {
   mock.module("@/context/sdk", () => ({
     useSDK: () => {
       const sdk = {
-        directory: "/repo/main",
-        client: rootClient,
+        directory,
+        client: clientFor(directory),
         url: "http://localhost:4096",
         createClient(opts: any) {
           return clientFor(opts.directory)
@@ -218,12 +237,15 @@ beforeAll(async () => {
 beforeEach(() => {
   createdClients.length = 0
   createdSessions.length = 0
+  globallyCreated.length = 0
   enabledAutoAccept.length = 0
   optimistic.length = 0
   optimisticSeeded.length = 0
   promoted.length = 0
   params = {}
+  directory = "/repo/main"
   sentShell.length = 0
+  createdWorktrees.length = 0
   syncedDirectories.length = 0
   selected = "/repo/worktree-a"
   variant = undefined
@@ -258,7 +280,7 @@ describe("prompt submit worktree selection", () => {
     selected = "/repo/worktree-b"
     await submit.handleSubmit(event)
 
-    expect(createdClients).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
+    expect(createdClients.slice(1)).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
     expect(createdSessions).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
     expect(sentShell).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
     expect(syncedDirectories).toEqual(["/repo/worktree-a", "/repo/worktree-a", "/repo/worktree-b", "/repo/worktree-b"])
@@ -330,6 +352,38 @@ describe("prompt submit worktree selection", () => {
         model: { providerID: "provider", modelID: "model", variant: "high" },
       },
     })
+  })
+
+  test("creates isolated no-workspace sessions and retains normal permission behavior", async () => {
+    directory = "global-chat"
+    const submit = createPromptSubmit({
+      info: () => undefined,
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => true,
+      permissionMode: () => "default",
+      mode: () => "normal",
+      working: () => false,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      newSessionWorktree: () => "create",
+      onNewSessionWorktreeReset: () => undefined,
+      onSubmit: () => undefined,
+    })
+
+    await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+
+    expect(createdWorktrees).toEqual([])
+    expect(globallyCreated).toEqual(["global-chat"])
+    expect(createdSessions).toEqual(["global-chat"])
+    expect(enabledAutoAccept).toEqual([{ sessionID: "session-1", directory: "global-chat" }])
+    expect(sentShell).toEqual([])
+    expect(promoted).toEqual([{ directory: "global-chat", sessionID: "session-1" }])
   })
 
   test("seeds new sessions before optimistic prompts are added", async () => {

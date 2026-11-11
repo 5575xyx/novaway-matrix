@@ -1,5 +1,6 @@
-import { describe, expect, beforeEach, afterAll } from "bun:test"
-import { provideTmpdirInstance } from "../fixture/fixture"
+import { describe, expect, beforeEach, afterEach, afterAll } from "bun:test"
+import { Global } from "@novaway/core/global"
+import { provideTmpdirInstance, tmpdir } from "../fixture/fixture"
 import { Effect, Layer, Schema } from "effect"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import { Bus } from "../../src/bus"
@@ -21,8 +22,21 @@ const it = testEffect(
   ),
 )
 
-beforeEach(() => {
+let previousDataPath = Global.Path.data
+let isolatedDatabase: Awaited<ReturnType<typeof tmpdir>> | undefined
+
+beforeEach(async () => {
   Database.close()
+  previousDataPath = Global.Path.data
+  isolatedDatabase = await tmpdir()
+  ;(Global.Path as { data: string }).data = isolatedDatabase.path
+})
+
+afterEach(async () => {
+  Database.close()
+  ;(Global.Path as { data: string }).data = previousDataPath
+  await isolatedDatabase?.[Symbol.asyncDispose]()
+  isolatedDatabase = undefined
 })
 
 describe("SyncEvent", () => {

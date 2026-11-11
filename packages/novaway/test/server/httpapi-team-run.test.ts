@@ -107,28 +107,27 @@ const templateRunTest = () =>
     yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)))
 
     const session = (yield* (yield* post(dir, "/session", { title: "template run" })).json) as { id: string }
-    const person = (yield* (
-      yield* post(dir, "/team/employee", {
-        directory: dir,
-        name: "安全审查",
-        job: "general",
-        // 只有这一句能证明岗位说明真的进了请求：改任何一处都会让匹配落空。
-        prompt: "只找安全问题：注入、越权、凭据泄漏。",
-        model: "test/test-model",
-      })
-    ).json) as { id: string }
-    const profile = (yield* (
-      yield* post(dir, "/team/profile", {
-        directory: dir,
-        name: "安全组",
-        captain: person.id,
-        members: [{ employeeID: person.id }],
-      })
-    ).json) as { profile: { id: string } }
+    const person = (yield* (yield* post(dir, "/team/employee", {
+      directory: dir,
+      name: "安全审查",
+      job: "general",
+      // 只有这一句能证明岗位说明真的进了请求：改任何一处都会让匹配落空。
+      prompt: "只找安全问题：注入、越权、凭据泄漏。",
+      model: "test/test-model",
+    })).json) as { id: string }
+    const profile = (yield* (yield* post(dir, "/team/profile", {
+      directory: dir,
+      name: "安全组",
+      captain: person.id,
+      members: [{ employeeID: person.id }],
+    })).json) as { profile: { id: string } }
 
-    const created = (yield* (
-      yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "审查一次变更" })
-    ).json) as { run: { id: string } }
+    const created = (yield* (yield* post(dir, "/run", {
+      sessionID: session.id,
+      directory: dir,
+      mode: "team",
+      goal: "审查一次变更",
+    })).json) as { run: { id: string } }
     const id = created.run.id
     yield* post(dir, `/run/${id}/plan`, {
       directory: dir,
@@ -136,15 +135,13 @@ const templateRunTest = () =>
     })
     const planned = (yield* (yield* get(dir, `/run/${id}`)).json) as Detail
     const teamID = planned.teams[0].id
-    const acceptance = (yield* (
-      yield* post(dir, `/run/${id}/acceptance`, {
-        directory: dir,
-        specID: "security",
-        text: "没有凭据泄漏",
-        kind: "rubric",
-        owner: teamID,
-      })
-    ).json) as { id: string }
+    const acceptance = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+      directory: dir,
+      specID: "security",
+      text: "没有凭据泄漏",
+      kind: "rubric",
+      owner: teamID,
+    })).json) as { id: string }
     yield* post(dir, `/run/${id}/approve`, {
       directory: dir,
       planVersion: planned.run.planVersion,
@@ -159,7 +156,8 @@ const templateRunTest = () =>
     const verdict = JSON.stringify({ outcome: "pass", measured: "无泄漏", evidence: "src/a.ts:1" })
     for (let i = 0; i < 3; i++)
       yield* llm.textMatch((hit) => JSON.stringify(hit.body).includes("只找安全问题：注入、越权、凭据泄漏。"), report)
-    for (let i = 0; i < 6; i++) yield* llm.textMatch((hit) => JSON.stringify(hit.body).includes("你只做一件事"), verdict)
+    for (let i = 0; i < 6; i++)
+      yield* llm.textMatch((hit) => JSON.stringify(hit.body).includes("你只做一件事"), verdict)
 
     expect((yield* post(dir, `/run/${id}/execute`, { directory: dir })).status).toBe(200)
 
@@ -182,9 +180,7 @@ describe("team run end-to-end", () => {
       Effect.gen(function* () {
         const llm = yield* TestLLMServer
         const dir = yield* tmpdirScoped({ git: true })
-        yield* Effect.promise(() =>
-          Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)),
-        )
+        yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)))
 
         const session = (yield* (yield* post(dir, "/session", { title: "e2e run" })).json) as {
           id: string
@@ -205,15 +201,13 @@ describe("team run end-to-end", () => {
         expect(planned.teams).toHaveLength(1)
         const teamID = planned.teams[0].id
 
-        const acceptance = (yield* (
-          yield* post(dir, `/run/${id}/acceptance`, {
-            directory: dir,
-            specID: "refund",
-            text: "退款流程可用",
-            kind: "rubric",
-            owner: teamID,
-          })
-        ).json) as { id: string }
+        const acceptance = (yield* (yield* post(dir, `/run/${id}/acceptance`, {
+          directory: dir,
+          specID: "refund",
+          text: "退款流程可用",
+          kind: "rubric",
+          owner: teamID,
+        })).json) as { id: string }
 
         yield* post(dir, `/run/${id}/approve`, {
           directory: dir,
@@ -262,4 +256,3 @@ describe("team run end-to-end", () => {
 
   it.live("a template roster reaches the model with the captain's own instructions", templateRunTest, 120_000)
 })
-

@@ -1,6 +1,7 @@
 import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { PLATFORM_LIST, usePlatformAccounts } from "@/context/platform-accounts"
+import { PlatformIcon } from "@/components/platform-icon"
 
 export function AddAccountModal() {
   const dialog = useDialog()
@@ -21,11 +22,11 @@ export function AddAccountModal() {
         <div class="flex gap-6 flex-wrap">
           {PLATFORM_LIST.map((plat) => (
             <button
-              class="flex flex-col items-center gap-2 p-3 rounded-[10px] border border-border bg-background transition-all duration-150 hover:-translate-y-0.5 hover:border-primary hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] cursor-pointer min-w-[70px]"
+              class="flex flex-col items-center gap-2 p-3 rounded-[10px] border border-border bg-background transition-all duration-150 hover:-translate-y-0.5 hover:border-primary hover:shadow-[0_8px_24px_color-mix(in_srgb,var(--text-strong)_6%,transparent)] cursor-pointer min-w-[70px]"
               onClick={() => handleAdd(plat.id)}
             >
-              <div class="size-12 rounded-[10px] flex items-center justify-center overflow-hidden bg-white">
-                <img src={plat.icon} alt={plat.name} class="size-full object-contain" />
+              <div class="size-12 rounded-[10px] flex items-center justify-center overflow-hidden bg-background-alt">
+                <PlatformIcon color={plat.iconColor} markColor={plat.iconMarkColor} svg={plat.icon} class="size-full object-contain" />
               </div>
               <span class="text-12-regular text-foreground">{plat.name}</span>
             </button>

@@ -309,7 +309,7 @@ export function useAgentsSection(sessionID: () => string): AgentsSection {
               <div class="flex min-w-0 items-center gap-2 px-2 py-0.5 text-ui-xs text-foreground-subtlest">
                 <span class="flex-1">{language.t("statusPanel.agents.tasks")}</span>
                 <Show when={leadOnly()}>
-                  <span class="shrink-0 text-warning" title={language.t("statusPanel.agents.tasksIdleHint")}>
+                  <span class="shrink-0 text-icon-warning-base" title={language.t("statusPanel.agents.tasksIdleHint")}>
                     {language.t("statusPanel.agents.tasksIdle")}
                   </span>
                 </Show>
@@ -334,7 +334,7 @@ export function useAgentsSection(sessionID: () => string): AgentsSection {
             </div>
           </Show>
           <Show when={store.error}>
-            <div class="px-2 text-ui-xs text-destructive">{store.error}</div>
+            <div class="px-2 text-ui-xs text-icon-critical-base">{store.error}</div>
           </Show>
         </div>
       ),

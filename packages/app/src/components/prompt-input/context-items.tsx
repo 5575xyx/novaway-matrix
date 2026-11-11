@@ -104,7 +104,7 @@ export const PromptContextItems: Component<ContextItemsProps> = (props) => {
 }
 
 /**
- * 引用卡片（对齐 ZCode 的对话引用 pill）：
+ * 引用卡片：
  * 左侧引号图标，右侧来源标签 + 两行内容预览，右上角删除。
  * 用 `title` 展示完整内容，避免长选区把输入框顶得太高。
  */

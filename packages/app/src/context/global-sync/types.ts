@@ -9,6 +9,7 @@ import type {
   Part,
   Path,
   PermissionRequest,
+  PluginContributionsResponse,
   ProviderListResponse,
   QuestionRequest,
   Session,
@@ -42,6 +43,8 @@ export type State = {
   provider: ProviderListResponse
   /** 项目配置自己改过供应商时，目录级列表；没有覆盖就沿用全局目录。 */
   provider_project?: ProviderListResponse
+  /** 当前目录由 Runtime Host 返回的可见插件贡献；UI 插槽只消费这一份快照。 */
+  plugin_contributions: PluginContributionsResponse
   config: Config
   path: Path
   session: Session[]

@@ -35,7 +35,7 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="h-8 rounded-[7px] border border-emerald-300/40 bg-emerald-300/10 px-3 text-12-medium text-emerald-100"
+            class="h-8 rounded-[7px] border border-icon-blue/40 bg-icon-blue/10 px-3 text-12-medium text-icon-blue"
             onClick={() => void save()}
           >
             保存 HTML
@@ -63,7 +63,7 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
           <div class="flex items-center justify-between gap-2">
             <span class="text-12-medium text-foreground">实时预览</span>
             <Show when={message()}>
-              <span class="text-11-regular text-emerald-200">{message()}</span>
+              <span class="text-11-regular text-icon-blue">{message()}</span>
             </Show>
           </div>
           <iframe

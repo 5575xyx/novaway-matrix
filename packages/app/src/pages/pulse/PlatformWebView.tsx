@@ -1,6 +1,7 @@
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { PLATFORM_LIST } from "@/context/platform-accounts"
 import { registerWebview } from "./platform-webview-registry"
+import { PlatformIcon } from "@/components/platform-icon"
 
 const WEBVIEW_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0"
@@ -140,8 +141,8 @@ export function PlatformWebView(props: PlatformWebViewProps) {
     <div class="flex flex-col h-full w-full">
       <Show when={!error()}>
         <div class="flex items-center gap-3 px-4 py-2 bg-background-alt border-b border-border shrink-0">
-          <div class="size-5 rounded overflow-hidden bg-white">
-            <img src={info()?.icon} alt="" class="size-full object-contain" />
+          <div class="size-5 rounded overflow-hidden bg-background-alt">
+            <PlatformIcon color={info()?.iconColor} markColor={info()?.iconMarkColor} svg={info()?.icon ?? ""} class="size-full object-contain" />
           </div>
           <span class="text-13-medium text-foreground">{info()?.name}</span>
           <span class="text-12-regular text-foreground-subtlest">{info()?.viewUrl}</span>
@@ -156,7 +157,7 @@ export function PlatformWebView(props: PlatformWebViewProps) {
           </button>
         </div>
         <Show when={loading()}>
-          <div class="flex items-center justify-center flex-1 bg-white">
+          <div class="flex items-center justify-center flex-1 bg-background">
             <div class="flex flex-col items-center gap-3">
               <div class="size-6 border-2 border-border border-t-border-interactive-base rounded-full animate-spin" />
               <span class="text-13-regular text-foreground-subtle">正在加载平台页面...</span>

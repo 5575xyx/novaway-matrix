@@ -63,11 +63,17 @@ describe("command verifier: interpretation", () => {
 describe("command verifier: execution", () => {
   it("passes on exit 0 and fails on a non-zero exit", async () => {
     const dir = await tmp()
-    const pass = await execute({ directory: dir, spec: { kind: "command", run: bun("process.exit(0)"), timeoutMs: 10_000 } })
+    const pass = await execute({
+      directory: dir,
+      spec: { kind: "command", run: bun("process.exit(0)"), timeoutMs: 10_000 },
+    })
     expect(pass.code).toBe(0)
     expect(interpret(pass).outcome).toBe("pass")
 
-    const fail = await execute({ directory: dir, spec: { kind: "command", run: bun("process.exit(3)"), timeoutMs: 10_000 } })
+    const fail = await execute({
+      directory: dir,
+      spec: { kind: "command", run: bun("process.exit(3)"), timeoutMs: 10_000 },
+    })
     expect(fail.code).toBe(3)
     expect(interpret(fail).outcome).toBe("fail")
   })

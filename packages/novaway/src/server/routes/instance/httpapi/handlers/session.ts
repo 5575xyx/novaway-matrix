@@ -1,4 +1,13 @@
 import { Agent } from "@/agent/agent"
+import { Provider } from "@/provider/provider"
+import { generateObject, type ModelMessage } from "ai"
+import { InstanceStore } from "@/project/instance-store"
+import { Project } from "@/project/project"
+import { InstanceRef } from "@/effect/instance-ref"
+import { AppFileSystem } from "@novaway/core/filesystem"
+import { Global } from "@novaway/core/global"
+import path from "node:path"
+import { randomUUID } from "node:crypto"
 import { BackgroundJob } from "@/background/job"
 import { TempFiles } from "@/session/temp-files"
 import { Bus } from "@/bus"
@@ -56,6 +65,7 @@ const tryParseJson = (text: string) =>
 export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", (handlers) =>
   Effect.gen(function* () {
     const session = yield* Session.Service
+    const provider = yield* Provider.Service
     const shareSvc = yield* SessionShare.Service
     const portability = yield* SessionPortability.Service
     const promptSvc = yield* SessionPrompt.Service
@@ -91,6 +101,12 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return yield* SessionError.mapStorageNotFound(session.get(sessionID))
     })
 
+    const requireProjectSession = Effect.fn("SessionHttpApi.requireProjectSession")(function* (sessionID: SessionID) {
+      const current = yield* requireSession(sessionID)
+      if (current.scope === "global") return yield* new HttpApiError.BadRequest({})
+      return current
+    })
+
     const get = Effect.fn("SessionHttpApi.get")(function* (ctx: { params: { sessionID: SessionID } }) {
       return yield* requireSession(ctx.params.sessionID)
     })
@@ -109,6 +125,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       query: typeof DiffQuery.Type
     }) {
+      const current = yield* requireSession(ctx.params.sessionID)
+      if (current.scope === "global") return yield* new HttpApiError.BadRequest({})
       return yield* summary.diff({ sessionID: ctx.params.sessionID, messageID: ctx.query.messageID })
     })
 
@@ -165,6 +183,32 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return yield* shareSvc.create(ctx.payload)
     })
 
+    const createGlobal = Effect.fn("SessionHttpApi.createGlobal")(function* (ctx: { payload?: Session.CreateParams }) {
+      const current = yield* InstanceState.context
+      if (current.scope !== "global") return yield* new HttpApiError.BadRequest({})
+      if (ctx.payload?.workspaceID) return yield* new HttpApiError.BadRequest({})
+
+      // "Work outside project" flow: create a real, app-owned
+      // directory and start an ordinary project session rooted there. The
+      // directory is private to this conversation; it is not a user project
+      // and is never attached to a selected workspace.
+      const directory = path.join(Global.Path.data, "global-chat", "sessions", randomUUID())
+      const fs = yield* AppFileSystem.Service
+      yield* fs
+        .makeDirectory(directory, { recursive: true })
+        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+      const projects = yield* Project.Service
+      const project = yield* projects.globalChat().pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+      const instances = yield* InstanceStore.Service
+      const instance = yield* instances
+        .load({ directory, worktree: directory, project, scope: "project" })
+        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+      return yield* shareSvc.create(ctx.payload).pipe(
+        Effect.provideService(InstanceRef, instance),
+        Effect.mapError(() => new HttpApiError.BadRequest({})),
+      )
+    })
+
     const createRaw = Effect.fn("SessionHttpApi.createRaw")(function* (ctx: {
       request: HttpServerRequest.HttpServerRequest
     }) {
@@ -178,7 +222,21 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return yield* create({ payload })
     })
 
+    const createGlobalRaw = Effect.fn("SessionHttpApi.createGlobalRaw")(function* (ctx: {
+      request: HttpServerRequest.HttpServerRequest
+    }) {
+      const body = yield* Effect.orDie(ctx.request.text)
+      if (body.trim().length === 0) return yield* createGlobal({})
+
+      const json = yield* tryParseJson(body)
+      const payload = yield* Schema.decodeUnknownEffect(Session.CreateInput)(json).pipe(
+        Effect.mapError(() => new HttpApiError.BadRequest({})),
+      )
+      return yield* createGlobal({ payload })
+    })
+
     const remove = Effect.fn("SessionHttpApi.remove")(function* (ctx: { params: { sessionID: SessionID } }) {
+      yield* requireSession(ctx.params.sessionID)
       yield* SessionError.mapStorageNotFound(session.remove(ctx.params.sessionID))
       return true
     })
@@ -188,6 +246,12 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       payload: typeof UpdatePayload.Type
     }) {
       const current = yield* requireSession(ctx.params.sessionID)
+      if (
+        current.scope === "global" &&
+        (ctx.payload.cwd !== undefined || ctx.payload.teamMode !== undefined || ctx.payload.teamIDs !== undefined)
+      ) {
+        return yield* new HttpApiError.BadRequest({})
+      }
       if (ctx.payload.title !== undefined) {
         yield* session.setTitle({ sessionID: ctx.params.sessionID, title: ctx.payload.title })
       }
@@ -247,6 +311,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload?: typeof ForkPayload.Type
     }) {
+      yield* requireProjectSession(ctx.params.sessionID)
       return yield* SessionError.mapStorageNotFound(
         session.fork({ sessionID: ctx.params.sessionID, messageID: ctx.payload?.messageID }),
       )
@@ -277,7 +342,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       job.metadata?.parentSessionId === sessionID || job.metadata?.sessionId === sessionID
 
     const tempFiles = Effect.fn("SessionHttpApi.tempFiles")(function* (ctx: { params: { sessionID: SessionID } }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       return (yield* Effect.promise(() => TempFiles.list(ctx.params.sessionID))).map((file) => ({
         path: file.path,
         relative: file.relative,
@@ -290,7 +355,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const planApproval = Effect.fn("SessionHttpApi.planApproval")(function* (ctx: {
       params: { sessionID: SessionID }
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       const service = yield* PlanApprovalService
       const list = yield* service.list()
       return list
@@ -311,7 +376,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID; requestID: string }
       payload: typeof PlanApprovalReplyPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       const service = yield* PlanApprovalService
       const ok = yield* service.reply({
         id: ctx.params.requestID as never,
@@ -324,7 +389,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const documentReview = Effect.fn("SessionHttpApi.documentReview")(function* (ctx: {
       params: { sessionID: SessionID }
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       const service = yield* DocumentReviewService
       const list = yield* service.list(ctx.params.sessionID)
       return list.map((item) => ({
@@ -347,7 +412,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID; requestID: string }
       payload: typeof DocumentReviewReplyPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       const service = yield* DocumentReviewService
       const feedback = ctx.payload.feedback?.trim()
       return yield* service.reply({
@@ -361,7 +426,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof TempFileCleanPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       const instance = yield* InstanceState.context
       const worktree = instance.worktree === "/" ? instance.directory : instance.worktree
       return yield* Effect.promise(() =>
@@ -374,7 +439,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     })
 
     const background = Effect.fn("SessionHttpApi.background")(function* (ctx: { params: { sessionID: SessionID } }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       // The panel is per session: show history from earlier runs too, since a
       // restart otherwise makes finished subagents vanish from the list.
       const jobs = yield* backgroundSvc.list({ includePersisted: true })
@@ -384,7 +449,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const backgroundCancel = Effect.fn("SessionHttpApi.backgroundCancel")(function* (ctx: {
       params: { sessionID: SessionID; jobID: string }
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       const job = yield* backgroundSvc.get(ctx.params.jobID)
       if (!job || !ownsBackgroundJob(job, ctx.params.sessionID)) {
         return yield* notFound("Background job not found")
@@ -396,7 +461,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof InitPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       yield* promptSvc
         .command({
           sessionID: ctx.params.sessionID,
@@ -418,6 +483,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       query: { redact?: boolean }
     }) {
+      yield* requireProjectSession(ctx.params.sessionID)
       return yield* portability
         .export({ sessionID: ctx.params.sessionID, redact: ctx.query.redact })
         .pipe(Effect.catchTag("NotFoundError", () => Effect.fail(notFound("Session not found"))))
@@ -426,28 +492,82 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const importSession = Effect.fn("SessionHttpApi.importSession")(function* (ctx: {
       payload: { data: SessionPortability.Bundle }
     }) {
+      const instance = yield* InstanceState.context
+      if (instance.scope === "global") return yield* new HttpApiError.BadRequest({})
       return yield* portability.import(ctx.payload.data)
     })
 
     const share = Effect.fn("SessionHttpApi.share")(function* (ctx: { params: { sessionID: SessionID } }) {
-      yield* requireSession(ctx.params.sessionID)
+      const current = yield* requireSession(ctx.params.sessionID)
+      if (current.scope === "global") return yield* new HttpApiError.BadRequest({})
       yield* shareSvc.share(ctx.params.sessionID).pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))
       return yield* requireSession(ctx.params.sessionID)
     })
 
     const unshare = Effect.fn("SessionHttpApi.unshare")(function* (ctx: { params: { sessionID: SessionID } }) {
-      yield* requireSession(ctx.params.sessionID)
+      const current = yield* requireSession(ctx.params.sessionID)
+      if (current.scope === "global") return yield* new HttpApiError.BadRequest({})
       yield* shareSvc
         .unshare(ctx.params.sessionID)
         .pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))
       return yield* requireSession(ctx.params.sessionID)
     })
 
+    const suggestions = Effect.fn("SessionHttpApi.suggestions")(function* (ctx: { params: { sessionID: SessionID } }) {
+      const messages = yield* SessionError.mapStorageNotFound(session.messages({ sessionID: ctx.params.sessionID }))
+      const assistantIndex = messages.findLastIndex((message) => message.info.role === "assistant")
+      if (assistantIndex < 0) return []
+      const assistant = messages[assistantIndex]!
+      if (assistant.info.role !== "assistant" || assistant.info.time.completed === undefined || assistant.info.error)
+        return []
+      const user = messages.slice(0, assistantIndex).findLast((message) => message.info.role === "user")
+      if (!user || user.info.role !== "user" || user.info.id !== assistant.info.parentID) return []
+      const model = yield* provider
+        .getModel(assistant.info.providerID, assistant.info.modelID)
+        .pipe(Effect.catch(() => Effect.fail(new HttpApiError.BadRequest({}))))
+      const language = yield* provider
+        .getLanguage(model)
+        .pipe(Effect.catch(() => Effect.fail(new HttpApiError.BadRequest({}))))
+      const text = (parts: readonly MessageV2.Part[]) =>
+        parts
+          .filter((part): part is MessageV2.TextPart => part.type === "text")
+          .map((part) => part.text)
+          .join("\n")
+          .trim()
+      const question = text(user.parts)
+      const answer = text(assistant.parts)
+      if (!question || !answer) return []
+      const Output = Schema.Struct({ suggestions: Schema.Array(Schema.String) })
+      const result = yield* Effect.tryPromise(() =>
+        generateObject({
+          model: language,
+          temperature: 0.35,
+          maxOutputTokens: 300,
+          schema: Object.assign(Schema.toStandardSchemaV1(Output), Schema.toStandardJSONSchemaV1(Output)),
+          messages: [
+            {
+              role: "system",
+              content:
+                "根据最近一轮用户问题和 AI 完整答复，提出 2 到 4 个自然、具体、彼此不同的下一步问题。问题必须贴合当前内容，不要重复已回答的问题，不要虚构事实；若没有自然的后续问题则返回空数组。只生成用户能直接点击发送的问题，使用与上下文一致的语言。",
+            },
+            {
+              role: "user",
+              content: `<question>\n${question.slice(-5000)}\n</question>\n<answer>\n${answer.slice(-8000)}\n</answer>`,
+            },
+          ] satisfies ModelMessage[],
+        }).then((value) => value.object as { suggestions: string[] }),
+      ).pipe(Effect.catch(() => Effect.succeed({ suggestions: [] })))
+      return result.suggestions
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 4)
+    })
+
     const summarize = Effect.fn("SessionHttpApi.summarize")(function* (ctx: {
       params: { sessionID: SessionID }
       payload: typeof SummarizePayload.Type
     }) {
-      yield* revertSvc.cleanup(yield* requireSession(ctx.params.sessionID))
+      yield* revertSvc.cleanup(yield* requireProjectSession(ctx.params.sessionID))
       const messages = yield* SessionError.mapStorageNotFound(session.messages({ sessionID: ctx.params.sessionID }))
       const defaultAgent = yield* agentSvc.defaultAgent()
       const currentAgent = messages.findLast((message) => message.info.role === "user")?.info.agent ?? defaultAgent
@@ -470,7 +590,18 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof PromptPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      const current = yield* requireSession(ctx.params.sessionID)
+      if (
+        current.scope === "global" &&
+        (ctx.payload.goalExecution !== undefined ||
+          ctx.payload.parts.some((part) => part.type !== "text") ||
+          ctx.payload.system !== undefined ||
+          ctx.payload.tools !== undefined ||
+          ctx.payload.format !== undefined ||
+          ctx.payload.autoMode !== undefined)
+      ) {
+        return yield* new HttpApiError.BadRequest({})
+      }
       const message = yield* promptSvc
         .prompt({
           ...ctx.payload,
@@ -486,7 +617,18 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof PromptPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      const current = yield* requireSession(ctx.params.sessionID)
+      if (
+        current.scope === "global" &&
+        (ctx.payload.goalExecution !== undefined ||
+          ctx.payload.parts.some((part) => part.type !== "text") ||
+          ctx.payload.system !== undefined ||
+          ctx.payload.tools !== undefined ||
+          ctx.payload.format !== undefined ||
+          ctx.payload.autoMode !== undefined)
+      ) {
+        return yield* new HttpApiError.BadRequest({})
+      }
       yield* promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID }).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
@@ -511,7 +653,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
      * 失败时把错误发到会话事件里，界面才会重新出现"继续"入口。
      */
     const resume = Effect.fn("SessionHttpApi.resume")(function* (ctx: { params: { sessionID: SessionID } }) {
-      yield* requireSession(ctx.params.sessionID)
+      const current = yield* requireSession(ctx.params.sessionID)
+      if (current.scope === "global") return yield* new HttpApiError.BadRequest({})
       yield* promptSvc.resume(ctx.params.sessionID).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
@@ -533,7 +676,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof CommandPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       return yield* promptSvc
         .command({ ...ctx.payload, sessionID: ctx.params.sessionID })
         .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
@@ -543,7 +686,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof ShellPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       return yield* SessionError.mapBusy(promptSvc.shell({ ...ctx.payload, sessionID: ctx.params.sessionID }))
     })
 
@@ -551,7 +694,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof RevertPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       return yield* SessionError.mapBusy(revertSvc.revert({ sessionID: ctx.params.sessionID, ...ctx.payload }))
     })
 
@@ -559,12 +702,12 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload: typeof RevertPreviewPayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       return yield* revertSvc.preview({ sessionID: ctx.params.sessionID, messageID: ctx.payload.messageID })
     })
 
     const unrevert = Effect.fn("SessionHttpApi.unrevert")(function* (ctx: { params: { sessionID: SessionID } }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       return yield* SessionError.mapBusy(revertSvc.unrevert({ sessionID: ctx.params.sessionID }))
     })
 
@@ -572,7 +715,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID; permissionID: PermissionID }
       payload: typeof PermissionResponsePayload.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       yield* permissionSvc.reply({ requestID: ctx.params.permissionID, reply: ctx.payload.response })
       return true
     })
@@ -580,7 +723,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const deleteMessage = Effect.fn("SessionHttpApi.deleteMessage")(function* (ctx: {
       params: { sessionID: SessionID; messageID: MessageID }
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       yield* SessionError.mapBusy(runState.assertNotBusy(ctx.params.sessionID))
       yield* session.removeMessage(ctx.params)
       return true
@@ -589,7 +732,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const deletePart = Effect.fn("SessionHttpApi.deletePart")(function* (ctx: {
       params: { sessionID: SessionID; messageID: MessageID; partID: PartID }
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       yield* session.removePart(ctx.params)
       return true
     })
@@ -598,7 +741,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID; messageID: MessageID; partID: PartID }
       payload: typeof MessageV2.Part.Type
     }) {
-      yield* requireSession(ctx.params.sessionID)
+      yield* requireProjectSession(ctx.params.sessionID)
       const payload = ctx.payload as MessageV2.Part
       if (
         payload.id !== ctx.params.partID ||
@@ -611,6 +754,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     })
 
     return handlers
+      .handleRaw("globalCreate", createGlobalRaw)
       .handle("list", list)
       .handle("status", status)
       .handle("get", get)
@@ -638,6 +782,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("share", share)
       .handle("unshare", unshare)
       .handle("summarize", summarize)
+      .handle("suggestions", suggestions)
       .handle("prompt", prompt)
       .handle("promptAsync", promptAsync)
       .handle("resume", resume)

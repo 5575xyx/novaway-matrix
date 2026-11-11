@@ -24,7 +24,7 @@
 | ADAS / Meta Agent Search            | 新 Agent 的代码                 | 搜索循环里生成、评估、归档             | 无（有评估器） | 用基准分数做适应度       |
 | Darwin Gödel Machine                | 自身代码（可修改自身）          | 自修改 + 基准评测                      | 无             | 评测不过就淘汰           |
 | SICA (Self-Improving Coding Agent)  | 自身工具/提示                   | 自编辑后跑基准                         | 有限           | 版本归档、可回退         |
-| Claude Agent Skills / ZCode Plugins | 技能包（SKILL.md + 脚本 + MCP） | 用户安装；部分平台按需加载             | 市场安装即确认 | 卸载即移除               |
+| Claude Agent Skills / 参照产品 Plugins | 技能包（SKILL.md + 脚本 + MCP） | 用户安装；部分平台按需加载             | 市场安装即确认 | 卸载即移除               |
 | Cursor Rules / AGENTS.md            | 项目约定文件                    | 人工编写或由对话沉淀                   | 人工           | git diff                 |
 
 共同点：**低风险对象（记忆、反思笔记）自动写；高风险对象（代码、Agent 行为、系统提示）保留人工确认或评测门禁。**

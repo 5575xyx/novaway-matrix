@@ -17,6 +17,8 @@ export interface PopoverProps<T extends ValidComponent = "div">
   classList?: ComponentProps<"div">["classList"]
   style?: ComponentProps<"div">["style"]
   portal?: boolean
+  /** 额外算作“内容区”的节点，例如从菜单里弹出的子级浮层（点它不该关掉菜单）。 */
+  outsideIgnore?: () => Array<Element | null | undefined>
 }
 
 export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>) {
@@ -32,6 +34,7 @@ export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>
     "style",
     "children",
     "portal",
+    "outsideIgnore",
     "open",
     "defaultOpen",
     "onOpenChange",
@@ -67,6 +70,9 @@ export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>
       if (content && content.contains(node)) return true
       const trigger = state.triggerRef
       if (trigger && trigger.contains(node)) return true
+      for (const extra of local.outsideIgnore?.() ?? []) {
+        if (extra?.contains(node)) return true
+      }
       return false
     }
 

@@ -142,6 +142,8 @@ export interface FilesInput {
   hidden?: boolean
   follow?: boolean
   maxDepth?: number
+  /** Include files excluded by .gitignore; callers should pair this with narrow globs. */
+  noIgnore?: boolean
   signal?: AbortSignal
 }
 
@@ -229,6 +231,7 @@ function fail(queue: Queue.Queue<string, PlatformError | Error | Cause.Done>, er
 
 function filesArgs(input: FilesInput) {
   const args = ["--no-config", "--files", "--glob=!.git/*"]
+  if (input.noIgnore) args.push("--no-ignore")
   if (input.follow) args.push("--follow")
   if (input.hidden !== false) args.push("--hidden")
   if (input.hidden === false) args.push("--glob=!.*")

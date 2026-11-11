@@ -7,6 +7,7 @@ import { FRAME_WINDOW_CONTROLS_WIDTH } from "@/components/frame-window-controls"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { PlatformAccountsProvider, usePlatformAccounts } from "@/context/platform-accounts"
+import { SDKProvider } from "@/context/sdk"
 import { decode64 } from "@/utils/base64"
 import { PulseChatHost } from "./PulseChatHost"
 import { PulseMain } from "./PulseMain"
@@ -57,10 +58,12 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         <button
           type="button"
           data-slot="pulse-publish-entry"
-          class="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-12-medium text-white transition-all duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
+          class="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-12-medium text-[var(--novaway-mode-foreground,var(--text-on-interactive-base))] transition-all duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
           style={{
-            background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
-            "box-shadow": "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
+            background:
+              "linear-gradient(135deg, var(--novaway-mode-color, var(--interactive-base)), color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 72%, var(--background-base)))",
+            "box-shadow":
+              "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 30%, transparent)",
           }}
           onClick={() => dialog.show(() => <PublishModal />)}
         >
@@ -78,11 +81,7 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         />
         <span class="flex-1" aria-hidden="true" />
         {/* 占住右上角窗控的宽度：封面面板自带的窗控浮在这行上，右侧要留白。 */}
-        <span
-          class="h-px shrink-0"
-          style={{ width: `${FRAME_WINDOW_CONTROLS_WIDTH}px` }}
-          aria-hidden="true"
-        />
+        <span class="h-px shrink-0" style={{ width: `${FRAME_WINDOW_CONTROLS_WIDTH}px` }} aria-hidden="true" />
       </div>
       {/* 三栏：账号列表 / 账号详情（平台网页） / 运营对话。
           对话是**一条普通会话**，区别只在角色固定成 pulse-orchestrator：输入框与
@@ -105,9 +104,7 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
               fallback={
                 <div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
                   <Icon name="speech-bubble" class="size-6 text-foreground-subtlest" />
-                  <p class="text-ui-caption leading-5 text-foreground-subtle">
-                    {language.t("pulse.chat.noDirectory")}
-                  </p>
+                  <p class="text-ui-caption leading-5 text-foreground-subtle">{language.t("pulse.chat.noDirectory")}</p>
                 </div>
               }
             >
@@ -129,9 +126,13 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
  * 消息渲染与输入框（见 PulseChat），不再是另一套气泡样式。
  */
 export default function PulseWorkspace(props: { onBack: () => void }) {
+  const params = useParams()
+  const directory = createMemo(() => decode64(params.dir) ?? "")
   return (
-    <PlatformAccountsProvider>
-      <PulseWorkspaceInner onBack={props.onBack} />
-    </PlatformAccountsProvider>
+    <SDKProvider directory={directory}>
+      <PlatformAccountsProvider>
+        <PulseWorkspaceInner onBack={props.onBack} />
+      </PlatformAccountsProvider>
+    </SDKProvider>
   )
 }

@@ -25,6 +25,8 @@ export const ShellItem = Schema.Struct({
   acceptable: Schema.Boolean,
 })
 
+export const MediaPathQuery = Schema.Struct({ ...WorkspaceRoutingQueryFields, path: Schema.String })
+
 export const PtyPaths = {
   shells: `${root}/shells`,
   list: root,
@@ -34,6 +36,7 @@ export const PtyPaths = {
   remove: `${root}/:ptyID`,
   connectToken: `${root}/:ptyID/connect-token`,
   connect: `${root}/:ptyID/connect`,
+  mediaToken: `${root}/media-token`,
 } as const
 
 export const PtyApi = HttpApi.make("pty")
@@ -119,6 +122,17 @@ export const PtyApi = HttpApi.make("pty")
             identifier: "pty.connectToken",
             summary: "Create PTY WebSocket token",
             description: "Create a short-lived ticket for opening a PTY WebSocket connection.",
+          }),
+        ),
+        HttpApiEndpoint.post("mediaToken", PtyPaths.mediaToken, {
+          query: MediaPathQuery,
+          success: described(PtyTicket.ConnectToken, "Media preview token"),
+          error: [HttpApiError.Forbidden, HttpApiError.BadRequest],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "pty.mediaToken",
+            summary: "Create media preview token",
+            description: "Create a short-lived ticket for range-based media playback.",
           }),
         ),
       )

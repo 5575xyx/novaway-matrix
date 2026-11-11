@@ -101,7 +101,9 @@ export const layer = Layer.effect(
         const workspace = yield* InstanceState.workspaceID
 
         GlobalBus.emit("event", {
-          directory: dir,
+          // 前端以 "global-chat" 作为无项目会话的目录键；实例内部目录是数据目录。
+          directory:
+            context.scope === "global" || context.project.id === "global-chat" ? "global-chat" : dir,
           project: context.project.id,
           workspace,
           payload,

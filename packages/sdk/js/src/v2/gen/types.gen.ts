@@ -9,6 +9,12 @@ export type Event =
   | EventTuiCommandExecute
   | EventTuiToastShow1
   | EventTuiSessionSelect
+  | EventWorkflowRunStarted1
+  | EventWorkflowPhaseEntered
+  | EventWorkflowReport
+  | EventWorkflowNodeChanged1
+  | EventWorkflowRunSettled
+  | EventPluginChanged1
   | EventServerConnected
   | EventGlobalDisposed
   | EventServerInstanceDisposed
@@ -182,6 +188,19 @@ export type EventTuiSessionSelect = {
      */
     sessionID: string
   }
+}
+
+export type DynamicWorkflowSettlement = {
+  status: "completed" | "errored" | "stopped"
+  value?: unknown
+  error?: {
+    name: string
+    message: string
+    code?: string
+    retryable?: boolean
+  }
+  reason?: "user" | "model" | "provider" | "interrupted"
+  spentTokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type PlanRequestId = string
@@ -854,6 +873,7 @@ export type Session = {
   slug: string
   projectID: string
   workspaceID?: string
+  scope: "project" | "global"
   directory: string
   path?: string
   parentID?: string
@@ -921,6 +941,12 @@ export type GlobalEvent = {
     | EventTuiCommandExecute
     | EventTuiToastShow
     | EventTuiSessionSelect
+    | EventWorkflowRunStarted
+    | EventWorkflowPhaseEntered
+    | EventWorkflowReport
+    | EventWorkflowNodeChanged
+    | EventWorkflowRunSettled
+    | EventPluginChanged
     | EventServerConnected
     | EventGlobalDisposed
     | EventServerInstanceDisposed
@@ -1407,6 +1433,19 @@ export type Config = {
         },
       ]
   >
+  plugins?: {
+    disabled?: Array<string>
+    config?: {
+      [key: string]: {
+        [key: string]: unknown
+      }
+    }
+    overrides?: {
+      [key: string]: {
+        priority?: number
+      }
+    }
+  }
   share?: "manual" | "auto" | "disabled"
   autoshare?: boolean
   /**
@@ -1697,12 +1736,6 @@ export type Provider = {
   }
 }
 
-export type ConsoleState = {
-  consoleManagedProviders: Array<string>
-  activeOrgName?: string
-  switchableOrgCount: number
-}
-
 export type ToolListItem = {
   id: string
   description: string
@@ -1767,6 +1800,7 @@ export type GlobalSession = {
   slug: string
   projectID: string
   workspaceID?: string
+  scope: "project" | "global"
   directory: string
   path?: string
   parentID?: string
@@ -2066,6 +2100,15 @@ export type FileContent = {
   }
   encoding?: "base64"
   mimeType?: string
+}
+
+export type FileReadError = {
+  name: "FileReadError"
+  data: {
+    code: "invalid_path" | "path_outside_workspace" | "not_found" | "unsupported_type"
+    path: string
+    message: string
+  }
 }
 
 export type File = {
@@ -2972,6 +3015,13 @@ export type MemoryReviewCandidate = {
   }
 }
 
+export type OfficeError = {
+  name: "OfficeError"
+  data: {
+    message: string
+  }
+}
+
 export type ProjectDirectory = {
   directory: string
   strategy?: string
@@ -3125,6 +3175,8 @@ export type SessionExport = {
 export type SessionImportPayload = {
   data: SessionExport
 }
+
+export type SessionSuggestions = Array<string>
 
 export type TextPartInput = {
   id?: string
@@ -3451,6 +3503,12 @@ export type VideoGenerateResponse = {
   status: string
 }
 
+export type PluginTransitionError = {
+  pluginID: string
+  code: string
+  message: string
+}
+
 export type EventTuiPromptAppend2 = {
   type: "tui.prompt.append"
   properties: {
@@ -3518,6 +3576,86 @@ export type WorkspaceWarpError = {
   data: {
     message: string
   }
+}
+
+export type DynamicWorkflowRunSummary = {
+  runId: string
+  name?: string
+  cwd: string
+  status: "running" | "completed" | "errored" | "stopped"
+  stopReason?: "user" | "model" | "provider" | "interrupted"
+  spentTokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  maxConcurrency: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type DynamicWorkflowProgress = {
+  nodes: {
+    total: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    completed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    failed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    running: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    reports: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  actors: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  events: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type DynamicWorkflowRunDetail = {
+  runId: string
+  name?: string
+  cwd: string
+  status: "running" | "completed" | "errored" | "stopped"
+  stopReason?: "user" | "model" | "provider" | "interrupted"
+  spentTokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  maxConcurrency: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  scriptText: string
+  scriptHash: string
+  parentSessionID?: string
+  resumedFrom?: string
+  args?: {
+    [key: string]: unknown
+  }
+  result?: unknown
+  failure?: unknown
+  resumable: boolean
+  live: boolean
+  progress: DynamicWorkflowProgress
+}
+
+export type DynamicWorkflowNode = {
+  siteId: string
+  ordinal: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  kind: string
+  status: "running" | "completed" | "failed"
+  inputHash: string
+  phase?: string
+  actor?: {
+    siteId: string
+    ordinal: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  actorSeq?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  result?: unknown
+  failure?: unknown
+  timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type DynamicWorkflowActor = {
+  siteId: string
+  ordinal: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  name?: string
+  sessionID?: string
+}
+
+export type DynamicWorkflowEvent = {
+  sequence: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  type: string
+  payload: unknown
+  timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type TeamView = {
@@ -4069,6 +4207,19 @@ export type RunReplayView = {
   }
 }
 
+export type DynamicWorkflowSettlement1 = {
+  status: "completed" | "errored" | "stopped"
+  value?: unknown
+  error?: {
+    name: string
+    message: string
+    code?: string
+    retryable?: boolean
+  }
+  reason?: "user" | "model" | "provider" | "interrupted"
+  spentTokens: number | "NaN" | "Infinity" | "-Infinity"
+}
+
 export type PlanApprovalPending2 = {
   id: PlanRequestId
   sessionID: string
@@ -4206,6 +4357,7 @@ export type SyncEventSessionUpdated = {
       slug?: string | null
       projectID?: string | null
       workspaceID?: string | null
+      scope?: "project" | "global" | null
       directory?: string | null
       path?: string | null
       parentID?: string | null
@@ -4662,6 +4814,71 @@ export type SyncEventSessionNextCompactionEnded = {
     sessionID: string
     text: string
     include?: string
+  }
+}
+
+export type EventWorkflowRunStarted = {
+  id: string
+  type: "workflow.run.started"
+  properties: {
+    runId: string
+    name?: string
+    parentSessionID?: string
+    phases: Array<string>
+    siteCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    maxConcurrency: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    resumedFrom?: string
+  }
+}
+
+export type EventWorkflowPhaseEntered = {
+  id: string
+  type: "workflow.phase.entered"
+  properties: {
+    runId: string
+    name: string
+  }
+}
+
+export type EventWorkflowReport = {
+  id: string
+  type: "workflow.report"
+  properties: {
+    runId: string
+    item: unknown
+  }
+}
+
+export type EventWorkflowNodeChanged = {
+  id: string
+  type: "workflow.node.changed"
+  properties: {
+    runId: string
+    siteId: string
+    ordinal: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    kind: string
+    status: "running" | "completed" | "failed"
+    phase?: string
+    cached?: boolean
+  }
+}
+
+export type EventWorkflowRunSettled = {
+  id: string
+  type: "workflow.run.settled"
+  properties: {
+    runId: string
+    name?: string
+    settlement: DynamicWorkflowSettlement
+  }
+}
+
+export type EventPluginChanged = {
+  id: string
+  type: "plugin.changed"
+  properties: {
+    pluginID?: string
+    generation: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
 
@@ -6047,6 +6264,43 @@ export type EventTuiToastShow1 = {
   }
 }
 
+export type EventWorkflowRunStarted1 = {
+  id: string
+  type: "workflow.run.started"
+  properties: {
+    runId: string
+    name?: string
+    parentSessionID?: string
+    phases: Array<string>
+    siteCount: number | "NaN" | "Infinity" | "-Infinity"
+    maxConcurrency: number | "NaN" | "Infinity" | "-Infinity"
+    resumedFrom?: string
+  }
+}
+
+export type EventWorkflowNodeChanged1 = {
+  id: string
+  type: "workflow.node.changed"
+  properties: {
+    runId: string
+    siteId: string
+    ordinal: number | "NaN" | "Infinity" | "-Infinity"
+    kind: string
+    status: "running" | "completed" | "failed"
+    phase?: string
+    cached?: boolean
+  }
+}
+
+export type EventPluginChanged1 = {
+  id: string
+  type: "plugin.changed"
+  properties: {
+    pluginID?: string
+    generation: number | "NaN" | "Infinity" | "-Infinity"
+  }
+}
+
 export type EventAgentCompleted1 = {
   id: string
   type: "agent.completed"
@@ -6072,8 +6326,8 @@ export type EventPlatformWebviewRequest1 = {
     target?: string
     script?: string
     url?: string
-    x?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
-    y?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    x?: number | "NaN" | "Infinity" | "-Infinity"
+    y?: number | "NaN" | "Infinity" | "-Infinity"
     timeoutMs?: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
@@ -6654,10 +6908,13 @@ export type CheckpointRestoreCheckpointData = {
 
 export type CheckpointRestoreCheckpointErrors = {
   /**
-   * Error
+   * Not found
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type CheckpointRestoreCheckpointError =
+  CheckpointRestoreCheckpointErrors[keyof CheckpointRestoreCheckpointErrors]
 
 export type CheckpointRestoreCheckpointResponses = {
   /**
@@ -6736,96 +6993,6 @@ export type ConfigProvidersResponses = {
 }
 
 export type ConfigProvidersResponse = ConfigProvidersResponses[keyof ConfigProvidersResponses]
-
-export type ExperimentalConsoleGetData = {
-  body?: never
-  path?: never
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/experimental/console"
-}
-
-export type ExperimentalConsoleGetErrors = {
-  /**
-   * InternalServerError
-   */
-  500: EffectHttpApiErrorInternalServerError
-}
-
-export type ExperimentalConsoleGetError = ExperimentalConsoleGetErrors[keyof ExperimentalConsoleGetErrors]
-
-export type ExperimentalConsoleGetResponses = {
-  /**
-   * Active Console provider metadata
-   */
-  200: ConsoleState
-}
-
-export type ExperimentalConsoleGetResponse = ExperimentalConsoleGetResponses[keyof ExperimentalConsoleGetResponses]
-
-export type ExperimentalConsoleListOrgsData = {
-  body?: never
-  path?: never
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/experimental/console/orgs"
-}
-
-export type ExperimentalConsoleListOrgsErrors = {
-  /**
-   * InternalServerError
-   */
-  500: EffectHttpApiErrorInternalServerError
-}
-
-export type ExperimentalConsoleListOrgsError =
-  ExperimentalConsoleListOrgsErrors[keyof ExperimentalConsoleListOrgsErrors]
-
-export type ExperimentalConsoleListOrgsResponses = {
-  /**
-   * Switchable Console orgs
-   */
-  200: {
-    orgs: Array<{
-      accountID: string
-      accountEmail: string
-      accountUrl: string
-      orgID: string
-      orgName: string
-      active: boolean
-    }>
-  }
-}
-
-export type ExperimentalConsoleListOrgsResponse =
-  ExperimentalConsoleListOrgsResponses[keyof ExperimentalConsoleListOrgsResponses]
-
-export type ExperimentalConsoleSwitchOrgData = {
-  body?: {
-    accountID: string
-    orgID: string
-  }
-  path?: never
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/experimental/console/switch"
-}
-
-export type ExperimentalConsoleSwitchOrgResponses = {
-  /**
-   * Switch success
-   */
-  200: boolean
-}
-
-export type ExperimentalConsoleSwitchOrgResponse =
-  ExperimentalConsoleSwitchOrgResponses[keyof ExperimentalConsoleSwitchOrgResponses]
 
 export type ToolListData = {
   body?: never
@@ -7029,6 +7196,7 @@ export type ExperimentalSessionListData = {
   query?: {
     directory?: string
     workspace?: string
+    scope?: "global" | "project"
     roots?: boolean | "true" | "false"
     start?: number
     cursor?: number
@@ -7586,6 +7754,7 @@ export type FindTextData = {
     directory?: string
     workspace?: string
     pattern: string
+    limit?: string
   }
   url: "/find"
 }
@@ -7690,6 +7859,15 @@ export type FileReadData = {
   }
   url: "/file/content"
 }
+
+export type FileReadErrors = {
+  /**
+   * FileReadError
+   */
+  400: FileReadError
+}
+
+export type FileReadError2 = FileReadErrors[keyof FileReadErrors]
 
 export type FileReadResponses = {
   /**
@@ -11741,6 +11919,42 @@ export type OfficePptxTemplateFillResponses = {
 
 export type OfficePptxTemplateFillResponse = OfficePptxTemplateFillResponses[keyof OfficePptxTemplateFillResponses]
 
+export type OfficeDocumentCreateData = {
+  body?: {
+    path: string
+    title?: string
+    body?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/document-create"
+}
+
+export type OfficeDocumentCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeDocumentCreateError = OfficeDocumentCreateErrors[keyof OfficeDocumentCreateErrors]
+
+export type OfficeDocumentCreateResponses = {
+  /**
+   * Created document
+   */
+  200: {
+    path: string
+    kind: string
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficeDocumentCreateResponse = OfficeDocumentCreateResponses[keyof OfficeDocumentCreateResponses]
+
 export type OfficeDocumentEditData = {
   body?: {
     path: string
@@ -11753,12 +11967,23 @@ export type OfficeDocumentEditData = {
         bold?: boolean
         italic?: boolean
         underline?: boolean
+        strike?: boolean
         size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
         color?: string
+        highlight?: string
+        lineSpacing?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        firstLineIndent?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        indent?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        clear?: boolean
         align?: "l" | "ctr" | "r" | "just"
         font?: string
+        paragraphStyle?: string
+        list?: "bullet" | "number" | "none"
+        listLevel?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
       tag?: string
+      kind?: string
+      level?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       align?: string
       value?:
         | number
@@ -11782,11 +12007,33 @@ export type OfficeDocumentEditData = {
         color?: string
         highlight?: string
         size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        link?: string
         clear?: boolean
       }
+      find?: string
+      replace?: string
+      all?: boolean
       html?: string
       after?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      table?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      row?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      col?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      count?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       sheet?: string
+      name?: string
+      slide?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      layout?: string
+      from?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      to?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      shapeId?: string
+      shapeName?: string
+      box?: {
+        x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
       cell?: string
       range?: string
       cellStyle?: {
@@ -11799,12 +12046,65 @@ export type OfficeDocumentEditData = {
         format?: string
         align?: "l" | "ctr" | "r"
         wrap?: boolean
+        border?: string
+        merge?: boolean
       }
       descending?: boolean
+      hidden?: boolean
       keepHardBreaks?: boolean
       marker?: string
       indent?: string
+      mode?: string
+      toTabs?: boolean
+      width?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      key?: string
+      rows?: Array<Array<string>>
+      header?: boolean
+      dataBase64?: string
+      mime?: string
+      index?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      height?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      orientation?: "portrait" | "landscape"
+      pages?: Array<number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN">
+      size?: "A4" | "A3" | "Letter"
+      margins?: {
+        top?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        right?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        bottom?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        left?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+      page?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      degrees?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      rotation?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      top?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      right?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      bottom?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      left?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      x?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      y?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      color?: string
+      fontSize?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      contents?: string
+      annotation?: string
+      id?: string
+      replyTo?: string
+      fields?: Array<{
+        name: string
+        value: string | boolean
+      }>
+      property?:
+        | string
+        | number
+        | "NaN"
+        | "Infinity"
+        | "-Infinity"
+        | "Infinity"
+        | "-Infinity"
+        | "NaN"
+        | boolean
+        | Array<string>
     }>
+    password?: string
   }
   path?: never
   query?: {
@@ -11840,6 +12140,87 @@ export type OfficeDocumentEditResponses = {
 }
 
 export type OfficeDocumentEditResponse = OfficeDocumentEditResponses[keyof OfficeDocumentEditResponses]
+
+export type OfficeDocumentSaveData = {
+  body?: {
+    path: string
+    contentBase64: string
+    password?: string
+    expectedBaselineSha256?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/document-save"
+}
+
+export type OfficeDocumentSaveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeDocumentSaveError = OfficeDocumentSaveErrors[keyof OfficeDocumentSaveErrors]
+
+export type OfficeDocumentSaveResponses = {
+  /**
+   * Saved document bytes
+   */
+  200: {
+    path: string
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    canUndo: boolean
+    canRedo: boolean
+    undoLabel?: string
+    redoLabel?: string
+  }
+}
+
+export type OfficeDocumentSaveResponse = OfficeDocumentSaveResponses[keyof OfficeDocumentSaveResponses]
+
+export type OfficeDocumentExportData = {
+  body?: {
+    path: string
+    target: string
+    password?: string
+    page?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    scale?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/document-export"
+}
+
+export type OfficeDocumentExportErrors = {
+  /**
+   * OfficeError
+   */
+  400: OfficeError
+}
+
+export type OfficeDocumentExportError = OfficeDocumentExportErrors[keyof OfficeDocumentExportErrors]
+
+export type OfficeDocumentExportResponses = {
+  /**
+   * Exported document content
+   */
+  200: {
+    path: string
+    target: string
+    mime: string
+    content: string
+    encoding?: "utf8" | "base64"
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type OfficeDocumentExportResponse = OfficeDocumentExportResponses[keyof OfficeDocumentExportResponses]
 
 export type OfficeDocumentUndoData = {
   body?: {
@@ -11992,6 +12373,69 @@ export type OfficePptxEditData = {
       dataBase64: string
       mime: string
     }>
+    structure?: Array<
+      | {
+          op: "addTextBox"
+          slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          text: string
+          box?: {
+            x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          }
+          style?: {
+            bold?: boolean
+            italic?: boolean
+            underline?: boolean
+            size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            color?: string
+            align?: "l" | "ctr" | "r" | "just"
+            font?: string
+          }
+        }
+      | {
+          op: "addShape"
+          slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          kind: "rect" | "roundRect" | "ellipse" | "triangle" | "diamond" | "rightArrow" | "line" | "star5"
+          box?: {
+            x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          }
+          fill?: string
+          line?: string
+          text?: string
+          style?: {
+            bold?: boolean
+            italic?: boolean
+            underline?: boolean
+            size?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            color?: string
+            align?: "l" | "ctr" | "r" | "just"
+            font?: string
+          }
+        }
+      | {
+          op: "addPicture"
+          slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          dataBase64: string
+          mime: string
+          box?: {
+            x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            w: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            h: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          }
+        }
+      | {
+          op: "deleteShape"
+          slide: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          shapeId?: string
+          shapeName?: string
+        }
+    >
   }
   path?: never
   query?: {
@@ -13669,6 +14113,42 @@ export type PtyConnectTokenResponses = {
 
 export type PtyConnectTokenResponse = PtyConnectTokenResponses[keyof PtyConnectTokenResponses]
 
+export type PtyMediaTokenData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    path: string
+  }
+  url: "/pty/media-token"
+}
+
+export type PtyMediaTokenErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Forbidden
+   */
+  403: EffectHttpApiErrorForbidden
+}
+
+export type PtyMediaTokenError = PtyMediaTokenErrors[keyof PtyMediaTokenErrors]
+
+export type PtyMediaTokenResponses = {
+  /**
+   * Media preview token
+   */
+  200: {
+    ticket: string
+    expires_in: number
+  }
+}
+
+export type PtyMediaTokenResponse = PtyMediaTokenResponses[keyof PtyMediaTokenResponses]
+
 export type QuestionListData = {
   body?: never
   path?: never
@@ -14419,6 +14899,19 @@ export type SessionDiffData = {
   url: "/session/{sessionID}/diff"
 }
 
+export type SessionDiffErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionDiffError = SessionDiffErrors[keyof SessionDiffErrors]
+
 export type SessionDiffResponses = {
   /**
    * Successfully retrieved diff
@@ -14469,6 +14962,10 @@ export type SessionMessagesResponse = SessionMessagesResponses[keyof SessionMess
 
 export type SessionPromptData = {
   body?: {
+    goalExecution?: {
+      goalId: string
+      maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
     messageID?: string
     model?: {
       providerID: string
@@ -14592,6 +15089,48 @@ export type SessionMessageResponses = {
 }
 
 export type SessionMessageResponse = SessionMessageResponses[keyof SessionMessageResponses]
+
+export type SessionGlobalCreateData = {
+  body?: {
+    parentID?: string
+    title?: string
+    agent?: string
+    model?: {
+      id: string
+      providerID: string
+      variant?: string
+    }
+    permission?: PermissionRuleset
+    permissionMode?: PermissionMode
+    teamMode?: "off" | "auto" | "selected"
+    teamIDs?: Array<string>
+    workspaceID?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/global"
+}
+
+export type SessionGlobalCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type SessionGlobalCreateError = SessionGlobalCreateErrors[keyof SessionGlobalCreateErrors]
+
+export type SessionGlobalCreateResponses = {
+  /**
+   * Successfully created global chat session
+   */
+  200: Session
+}
+
+export type SessionGlobalCreateResponse = SessionGlobalCreateResponses[keyof SessionGlobalCreateResponses]
 
 export type SessionForkData = {
   body?: {
@@ -14995,6 +15534,10 @@ export type SessionExportData = {
 
 export type SessionExportErrors = {
   /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
    * NotFoundError
    */
   404: NotFoundError
@@ -15053,6 +15596,10 @@ export type SessionUnshareData = {
 
 export type SessionUnshareErrors = {
   /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
    * NotFoundError
    */
   404: NotFoundError
@@ -15087,6 +15634,10 @@ export type SessionShareData = {
 
 export type SessionShareErrors = {
   /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
    * NotFoundError
    */
   404: NotFoundError
@@ -15106,6 +15657,40 @@ export type SessionShareResponses = {
 }
 
 export type SessionShareResponse = SessionShareResponses[keyof SessionShareResponses]
+
+export type SessionSuggestionsData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/suggestions"
+}
+
+export type SessionSuggestionsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionSuggestionsError = SessionSuggestionsErrors[keyof SessionSuggestionsErrors]
+
+export type SessionSuggestionsResponses = {
+  /**
+   * Contextual next-question suggestions
+   */
+  200: SessionSuggestions
+}
+
+export type SessionSuggestionsResponse = SessionSuggestionsResponses[keyof SessionSuggestionsResponses]
 
 export type SessionSummarizeData = {
   body?: {
@@ -15148,6 +15733,10 @@ export type SessionSummarizeResponse = SessionSummarizeResponses[keyof SessionSu
 
 export type SessionPromptAsyncData = {
   body?: {
+    goalExecution?: {
+      goalId: string
+      maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
     messageID?: string
     model?: {
       providerID: string
@@ -16683,6 +17272,472 @@ export type VideosGenerateResponses = {
 
 export type VideosGenerateResponse = VideosGenerateResponses[keyof VideosGenerateResponses]
 
+export type PluginListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin"
+}
+
+export type PluginListResponses = {
+  /**
+   * Discovered plugins, their states and diagnostics
+   */
+  200: {
+    generation: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    instances: Array<{
+      id: string
+      status:
+        | "discovered"
+        | "invalid"
+        | "blocked"
+        | "installed"
+        | "activating"
+        | "active"
+        | "failed"
+        | "degraded"
+        | "disabled"
+        | "uninstalled"
+        | "overridden"
+      runtimeStatus?: "installed" | "activating" | "active" | "failed" | "disabled"
+      scope: "builtin" | "global" | "project" | "session"
+      origin: "extension" | "config-plugin" | "tui"
+      adapter: "v2" | "legacy-extension" | "legacy-config-plugin" | "legacy-tui"
+      version?: string
+      source: string
+      root?: string
+      installOrder?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      overriddenBy?: string
+      contributions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      issues: Array<{
+        level: "error" | "warning"
+        code: string
+        message: string
+        field?: string
+      }>
+    }>
+    cycles: Array<Array<string>>
+    skipped?: string
+  }
+}
+
+export type PluginListResponse = PluginListResponses[keyof PluginListResponses]
+
+export type PluginContributionsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    kind?:
+      | "tool"
+      | "agent"
+      | "skill"
+      | "command"
+      | "provider"
+      | "office-engine"
+      | "previewer"
+      | "publish-driver"
+      | "surface"
+      | "interceptor"
+      | "mcp"
+      | "output-style"
+      | "scheduler"
+      | "event-source"
+      | "http-route"
+      | "lsp"
+      | "trigger"
+      | "fast-path"
+      | "routing-policy"
+      | "worker-type"
+      | "watchdog-policy"
+      | "channel"
+    slot?: string
+  }
+  url: "/plugin/contributions"
+}
+
+export type PluginContributionsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type PluginContributionsError = PluginContributionsErrors[keyof PluginContributionsErrors]
+
+export type PluginContributionsResponses = {
+  /**
+   * Declared plugin contributions
+   */
+  200: Array<{
+    pluginID: string
+    kind:
+      | "tool"
+      | "agent"
+      | "skill"
+      | "command"
+      | "provider"
+      | "office-engine"
+      | "previewer"
+      | "publish-driver"
+      | "surface"
+      | "interceptor"
+      | "mcp"
+      | "output-style"
+      | "scheduler"
+      | "event-source"
+      | "http-route"
+      | "lsp"
+      | "trigger"
+      | "fast-path"
+      | "routing-policy"
+      | "worker-type"
+      | "watchdog-policy"
+      | "channel"
+    name: string
+    localName: string
+    scope: "builtin" | "global" | "project" | "session"
+    origin: "extension" | "config-plugin" | "tui"
+    adapter: "v2" | "legacy-extension" | "legacy-config-plugin" | "legacy-tui"
+    status:
+      | "discovered"
+      | "invalid"
+      | "blocked"
+      | "installed"
+      | "activating"
+      | "active"
+      | "failed"
+      | "degraded"
+      | "disabled"
+      | "uninstalled"
+      | "overridden"
+    path?: string
+    slot?: string
+    title?: string
+    description?: string
+    icon?: string
+    extensions?: Array<string>
+    hosts?: Array<string>
+    supports?: Array<string>
+    urls?: {
+      [key: string]: string
+    }
+    account?: unknown
+    ui?: unknown
+    action?: unknown
+    view?: unknown
+    match?: {
+      tool?: string
+      partType?: string
+      extension?: string | Array<string>
+      format?: string | Array<string>
+      mime?: string | Array<string>
+    }
+    renderer?:
+      | {
+          type: "builtin"
+          id: string
+        }
+      | {
+          type: "iframe"
+          url: string
+        }
+    viewId?: string
+    priority?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    readOnly?: boolean
+  }>
+}
+
+export type PluginContributionsResponse = PluginContributionsResponses[keyof PluginContributionsResponses]
+
+export type PluginPublishAccountsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/accounts"
+}
+
+export type PluginPublishAccountsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type PluginPublishAccountsError = PluginPublishAccountsErrors[keyof PluginPublishAccountsErrors]
+
+export type PluginPublishAccountsResponses = {
+  /**
+   * Instance-scoped publish accounts
+   */
+  200: Array<{
+    id: string
+    driverID: string
+    label: string
+    profile: {
+      [key: string]: unknown
+    }
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type PluginPublishAccountsResponse = PluginPublishAccountsResponses[keyof PluginPublishAccountsResponses]
+
+export type PluginPublishAccountData = {
+  body?: {
+    driverID: string
+    profile?: {
+      [key: string]: unknown
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/accounts"
+}
+
+export type PluginPublishAccountErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PluginPublishAccountError = PluginPublishAccountErrors[keyof PluginPublishAccountErrors]
+
+export type PluginPublishAccountResponses = {
+  /**
+   * Stored publish account
+   */
+  200: {
+    id: string
+    driverID: string
+    label: string
+    profile: {
+      [key: string]: unknown
+    }
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type PluginPublishAccountResponse = PluginPublishAccountResponses[keyof PluginPublishAccountResponses]
+
+export type PluginPublishAccountDeleteData = {
+  body?: never
+  path: {
+    driverID: string
+    accountID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/accounts/{driverID}/{accountID}"
+}
+
+export type PluginPublishAccountDeleteErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PluginPublishAccountDeleteError = PluginPublishAccountDeleteErrors[keyof PluginPublishAccountDeleteErrors]
+
+export type PluginPublishAccountDeleteResponses = {
+  /**
+   * Account removed
+   */
+  200: boolean
+}
+
+export type PluginPublishAccountDeleteResponse =
+  PluginPublishAccountDeleteResponses[keyof PluginPublishAccountDeleteResponses]
+
+export type PluginPublishExecuteData = {
+  body?: {
+    driverID: string
+    accountID: string
+    kind: "video" | "image_text" | "article"
+    payload: {
+      [key: string]: unknown
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/execute"
+}
+
+export type PluginPublishExecuteErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PluginPublishExecuteError = PluginPublishExecuteErrors[keyof PluginPublishExecuteErrors]
+
+export type PluginPublishExecuteResponses = {
+  /**
+   * Publish driver result
+   */
+  200: {
+    [key: string]: unknown
+  }
+}
+
+export type PluginPublishExecuteResponse = PluginPublishExecuteResponses[keyof PluginPublishExecuteResponses]
+
+export type PluginDiagnosticsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/diagnostics"
+}
+
+export type PluginDiagnosticsResponses = {
+  /**
+   * Plugin diagnostics
+   */
+  200: Array<{
+    pluginID: string
+    scope: "builtin" | "global" | "project" | "session"
+    severity: "error" | "warning" | "info"
+    code: string
+    message: string
+    field?: string
+    capability?: string
+    contribution?: {
+      kind:
+        | "tool"
+        | "agent"
+        | "skill"
+        | "command"
+        | "provider"
+        | "office-engine"
+        | "previewer"
+        | "publish-driver"
+        | "surface"
+        | "interceptor"
+        | "mcp"
+        | "output-style"
+        | "scheduler"
+        | "event-source"
+        | "http-route"
+        | "lsp"
+        | "trigger"
+        | "fast-path"
+        | "routing-policy"
+        | "worker-type"
+        | "watchdog-policy"
+        | "channel"
+      name: string
+      localName: string
+      status:
+        | "discovered"
+        | "invalid"
+        | "blocked"
+        | "installed"
+        | "activating"
+        | "active"
+        | "failed"
+        | "degraded"
+        | "disabled"
+        | "uninstalled"
+        | "overridden"
+    }
+  }>
+}
+
+export type PluginDiagnosticsResponse = PluginDiagnosticsResponses[keyof PluginDiagnosticsResponses]
+
+export type PluginToggleData = {
+  body?: {
+    enabled: boolean
+    scope?: "builtin" | "global" | "project" | "session"
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/{id}"
+}
+
+export type PluginToggleErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * PluginTransitionError
+   */
+  409: PluginTransitionError
+}
+
+export type PluginToggleError = PluginToggleErrors[keyof PluginToggleErrors]
+
+export type PluginToggleResponses = {
+  /**
+   * Plugin enabled state
+   */
+  200: {
+    pluginID: string
+    enabled: boolean
+    generation: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type PluginToggleResponse = PluginToggleResponses[keyof PluginToggleResponses]
+
+export type PluginEventsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/events"
+}
+
+export type PluginEventsResponses = {
+  /**
+   * Success
+   */
+  200: string
+}
+
+export type PluginEventsResponse = PluginEventsResponses[keyof PluginEventsResponses]
+
 export type TuiAppendPromptData = {
   body?: {
     text: string
@@ -17206,6 +18261,7 @@ export type GoalCreateGoalData = {
     parentId?: string
     priority?: "high" | "medium" | "low"
     successCriteria?: Array<string>
+    status?: "pending" | "in_progress"
     deadline?: string
     tags?: Array<string>
   }
@@ -17218,10 +18274,12 @@ export type GoalCreateGoalData = {
 
 export type GoalCreateGoalErrors = {
   /**
-   * Error
+   * NotFoundError
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type GoalCreateGoalError = GoalCreateGoalErrors[keyof GoalCreateGoalErrors]
 
 export type GoalCreateGoalResponses = {
   /**
@@ -17233,18 +18291,21 @@ export type GoalCreateGoalResponses = {
 export type GoalDeleteGoalData = {
   body?: never
   path: {
+    sessionId: string
     goalId: string
   }
   query?: never
-  url: "/goals/{goalId}"
+  url: "/session/{sessionId}/goals/{goalId}"
 }
 
 export type GoalDeleteGoalErrors = {
   /**
-   * Error
+   * NotFoundError
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type GoalDeleteGoalError = GoalDeleteGoalErrors[keyof GoalDeleteGoalErrors]
 
 export type GoalDeleteGoalResponses = {
   /**
@@ -17256,15 +18317,16 @@ export type GoalDeleteGoalResponses = {
 export type GoalGetGoalData = {
   body?: never
   path: {
+    sessionId: string
     goalId: string
   }
   query?: never
-  url: "/goals/{goalId}"
+  url: "/session/{sessionId}/goals/{goalId}"
 }
 
 export type GoalGetGoalErrors = {
   /**
-   * Not found
+   * NotFoundError
    */
   404: NotFoundError
 }
@@ -17282,25 +18344,28 @@ export type GoalUpdateGoalData = {
   body?: {
     title?: string
     description?: string
-    status?: "pending" | "in_progress" | "completed" | "cancelled"
+    status?: "pending" | "in_progress" | "paused" | "completed" | "cancelled"
     priority?: "high" | "medium" | "low"
     successCriteria?: Array<string>
     deadline?: string
     tags?: Array<string>
   }
   path: {
+    sessionId: string
     goalId: string
   }
   query?: never
-  url: "/goals/{goalId}"
+  url: "/session/{sessionId}/goals/{goalId}"
 }
 
 export type GoalUpdateGoalErrors = {
   /**
-   * Error
+   * NotFoundError
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type GoalUpdateGoalError = GoalUpdateGoalErrors[keyof GoalUpdateGoalErrors]
 
 export type GoalUpdateGoalResponses = {
   /**
@@ -17312,18 +18377,21 @@ export type GoalUpdateGoalResponses = {
 export type GoalGetGoalProgressData = {
   body?: never
   path: {
+    sessionId: string
     goalId: string
   }
   query?: never
-  url: "/goals/{goalId}/progress"
+  url: "/session/{sessionId}/goals/{goalId}/progress"
 }
 
 export type GoalGetGoalProgressErrors = {
   /**
-   * Error
+   * NotFoundError
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type GoalGetGoalProgressError = GoalGetGoalProgressErrors[keyof GoalGetGoalProgressErrors]
 
 export type GoalGetGoalProgressResponses = {
   /**
@@ -17459,10 +18527,12 @@ export type WorkflowUpdateWorkflowData = {
 
 export type WorkflowUpdateWorkflowErrors = {
   /**
-   * Error
+   * Not found
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type WorkflowUpdateWorkflowError = WorkflowUpdateWorkflowErrors[keyof WorkflowUpdateWorkflowErrors]
 
 export type WorkflowUpdateWorkflowResponses = {
   /**
@@ -17575,6 +18645,187 @@ export type WorkflowCreateWorkflowFromTemplateResponses = {
    */
   200: unknown
 }
+
+export type DynamicWorkflowListRunsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    all?: "true" | "false"
+    limit?: string
+  }
+  url: "/dynamic-workflow/runs"
+}
+
+export type DynamicWorkflowListRunsResponses = {
+  /**
+   * Recent dynamic workflow runs
+   */
+  200: Array<DynamicWorkflowRunSummary>
+}
+
+export type DynamicWorkflowListRunsResponse = DynamicWorkflowListRunsResponses[keyof DynamicWorkflowListRunsResponses]
+
+export type DynamicWorkflowGetRunData = {
+  body?: never
+  path: {
+    runId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/dynamic-workflow/runs/{runId}"
+}
+
+export type DynamicWorkflowGetRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type DynamicWorkflowGetRunError = DynamicWorkflowGetRunErrors[keyof DynamicWorkflowGetRunErrors]
+
+export type DynamicWorkflowGetRunResponses = {
+  /**
+   * Run header with progress
+   */
+  200: DynamicWorkflowRunDetail
+}
+
+export type DynamicWorkflowGetRunResponse = DynamicWorkflowGetRunResponses[keyof DynamicWorkflowGetRunResponses]
+
+export type DynamicWorkflowListNodesData = {
+  body?: never
+  path: {
+    runId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    kinds?: string
+    limit?: string
+    withResult?: "true" | "false"
+  }
+  url: "/dynamic-workflow/runs/{runId}/nodes"
+}
+
+export type DynamicWorkflowListNodesErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type DynamicWorkflowListNodesError = DynamicWorkflowListNodesErrors[keyof DynamicWorkflowListNodesErrors]
+
+export type DynamicWorkflowListNodesResponses = {
+  /**
+   * Nodes of a run, in arrival order
+   */
+  200: Array<DynamicWorkflowNode>
+}
+
+export type DynamicWorkflowListNodesResponse =
+  DynamicWorkflowListNodesResponses[keyof DynamicWorkflowListNodesResponses]
+
+export type DynamicWorkflowListActorsData = {
+  body?: never
+  path: {
+    runId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/dynamic-workflow/runs/{runId}/actors"
+}
+
+export type DynamicWorkflowListActorsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type DynamicWorkflowListActorsError = DynamicWorkflowListActorsErrors[keyof DynamicWorkflowListActorsErrors]
+
+export type DynamicWorkflowListActorsResponses = {
+  /**
+   * Subagents of a run
+   */
+  200: Array<DynamicWorkflowActor>
+}
+
+export type DynamicWorkflowListActorsResponse =
+  DynamicWorkflowListActorsResponses[keyof DynamicWorkflowListActorsResponses]
+
+export type DynamicWorkflowListEventsData = {
+  body?: never
+  path: {
+    runId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    after?: string
+    limit?: string
+  }
+  url: "/dynamic-workflow/runs/{runId}/events"
+}
+
+export type DynamicWorkflowListEventsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type DynamicWorkflowListEventsError = DynamicWorkflowListEventsErrors[keyof DynamicWorkflowListEventsErrors]
+
+export type DynamicWorkflowListEventsResponses = {
+  /**
+   * Journal events, by sequence
+   */
+  200: Array<DynamicWorkflowEvent>
+}
+
+export type DynamicWorkflowListEventsResponse =
+  DynamicWorkflowListEventsResponses[keyof DynamicWorkflowListEventsResponses]
+
+export type DynamicWorkflowStopRunData = {
+  body?: never
+  path: {
+    runId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/dynamic-workflow/runs/{runId}/stop"
+}
+
+export type DynamicWorkflowStopRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type DynamicWorkflowStopRunError = DynamicWorkflowStopRunErrors[keyof DynamicWorkflowStopRunErrors]
+
+export type DynamicWorkflowStopRunResponses = {
+  /**
+   * Whether a live run was asked to stop; false means it had already settled
+   */
+  200: {
+    requested: boolean
+  }
+}
+
+export type DynamicWorkflowStopRunResponse = DynamicWorkflowStopRunResponses[keyof DynamicWorkflowStopRunResponses]
 
 export type OrchestratorListOrchestratorPlansData = {
   body?: never

@@ -34,7 +34,7 @@ import { color, printHeader, printResults } from "./report"
 import { coverageResult, parseOptions, routeKey, routeKeys, selectedScenarios } from "./routing"
 import { runScenario } from "./runner"
 import { runtime } from "./runtime"
-import { type Scenario } from "./types"
+import { type Method, type Scenario } from "./types"
 
 void (await import("@novaway/core/util/log")).init({ print: false })
 
@@ -64,6 +64,60 @@ const scenarios: Scenario[] = [
       "status",
     ),
   http.protected.get("/global/config", "global.config.get").global().json(),
+  http.protected.get("/plugin", "plugin.list").json(200, (body) => {
+    object(body)
+    check(typeof body.generation === "number", "plugin list should expose a generation")
+    array(body.instances)
+    array(body.cycles)
+  }, "status"),
+  http.protected.get("/plugin/contributions", "plugin.contributions").json(200, array, "status"),
+  http.protected.get("/plugin/diagnostics", "plugin.diagnostics").json(200, array, "status"),
+  http.protected
+    .get("/plugin/events", "plugin.events")
+    .streamHeaders()
+    .status(200, (_ctx, result) =>
+      Effect.sync(() => {
+        check(result.contentType.includes("text/event-stream"), "plugin events should be an SSE stream")
+      }),
+      "status",
+    ),
+  http.protected
+    .patch("/plugin/{id}", "plugin.toggle")
+    .mutating()
+    .seeded((ctx) =>
+      Effect.gen(function* () {
+        if (!ctx.directory) throw new Error("plugin toggle scenario needs a project directory")
+        const root = path.join(ctx.directory, ".novaway", "extensions", "exercise-toggle")
+        yield* Effect.promise(() => import("node:fs/promises").then((fs) => fs.mkdir(root, { recursive: true })))
+        yield* ctx.file(
+          path.join(".novaway", "extensions", "exercise-toggle", "plugin.json"),
+          JSON.stringify({
+            name: "exercise-toggle",
+            apiVersion: 2,
+            kind: "declarative",
+            contributes: {
+              tools: [{ id: "hello", description: "toggle fixture", parameters: { type: "object" }, entry: "hello.mjs" }],
+            },
+          }),
+        )
+        yield* ctx.file(
+          path.join(".novaway", "extensions", "exercise-toggle", "hello.mjs"),
+          `export default (api) => ({ execute: async () => api.id })`,
+        )
+        return { id: "exercise-toggle" }
+      }),
+    )
+    .at((ctx) => ({
+      path: route("/plugin/{id}", { id: ctx.state.id }),
+      headers: ctx.headers(),
+      body: { enabled: true, scope: "project" },
+    }))
+    .json(200, (body, ctx) => {
+      object(body)
+      check(body.pluginID === ctx.state.id, "plugin toggle should return the target plugin")
+      check(body.enabled === true, "plugin toggle should persist the enabled state")
+      check(typeof body.generation === "number" && body.generation > 0, "plugin toggle should advance generation")
+    }, "status"),
   http.protected
     .patch("/global/config", "global.config.update")
     .global()
@@ -82,9 +136,7 @@ const scenarios: Scenario[] = [
         Effect.gen(function* () {
           object(body)
           check(body.username === "httpapi-global", "global config update should return patched config")
-          const text = yield* Effect.promise(() =>
-            Bun.file(path.join(exerciseConfigDirectory, "novaway.jsonc")).text(),
-          )
+          const text = yield* Effect.promise(() => Bun.file(path.join(exerciseConfigDirectory, "novaway.jsonc")).text())
           check(text.includes('"username": "httpapi-global"'), "global config update should write isolated config file")
         }),
       "status",
@@ -160,7 +212,7 @@ const scenarios: Scenario[] = [
       object(body)
       check(body.imported === 1, "agent import should import the source markdown file")
       check(body.skipped === 0, "agent import should not skip a valid source markdown file")
-      array(body.data)
+      array(body.items)
     }),
   http.protected.get("/settings/skills", "settings.skill.list").inProject({ git: false }).json(200, array, "status"),
   http.protected
@@ -194,7 +246,7 @@ const scenarios: Scenario[] = [
       object(body)
       check(body.imported === 1, "skill import should import the source SKILL.md file")
       check(body.skipped === 0, "skill import should not skip a valid source SKILL.md file")
-      array(body.data)
+      array(body.items)
     }),
   http.protected.get("/lsp", "lsp.status").json(200, array),
   http.protected.get("/formatter", "formatter.status").json(200, array),
@@ -351,7 +403,7 @@ const scenarios: Scenario[] = [
     .at((ctx) => ({ path: `/file/content?${new URLSearchParams({ path: "hello.txt" })}`, headers: ctx.headers() }))
     .json(200, (body) => {
       object(body)
-      check(body.content === "hello", `content should match seeded file: ${JSON.stringify(body)}`)
+      check(body.content === "hello\n", `content should match seeded file: ${JSON.stringify(body)}`)
     }),
   http.protected
     .get("/file/content", "file.read.missing")
@@ -359,6 +411,55 @@ const scenarios: Scenario[] = [
     .json(200, (body) => {
       object(body)
       check(body.type === "text" && body.content === "", "missing file content should return an empty text result")
+    }),
+  // base64 预览通道：读不到必须是带 code 的 FileReadError，不能是 200 + 空内容
+  // —— 空内容会让面板把它当成「还在加载」，用户只看到永远转圈的骨架屏。
+  http.protected
+    .get("/file/content", "file.read.preview")
+    .seeded((ctx) => ctx.file("deck.pptx", "zip-bytes"))
+    .at((ctx) => ({
+      path: `/file/content?${new URLSearchParams({ path: "deck.pptx", encoding: "base64" })}`,
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => {
+      object(body)
+      check(body.type === "binary", `preview read should be binary: ${JSON.stringify(body)}`)
+      check(
+        body.content === Buffer.from("zip-bytes").toString("base64"),
+        `preview read should carry the file bytes: ${JSON.stringify(body)}`,
+      )
+    }),
+  http.protected
+    .get("/file/content", "file.read.preview.missing")
+    .at((ctx) => ({
+      path: `/file/content?${new URLSearchParams({ path: "output/missing.pptx", encoding: "base64" })}`,
+      headers: ctx.headers(),
+    }))
+    .json(400, (body) => {
+      object(body)
+      check(body.name === "FileReadError", `missing preview should be a FileReadError: ${JSON.stringify(body)}`)
+      object(body.data)
+      check(body.data.code === "not_found", `missing preview code should be not_found: ${JSON.stringify(body.data)}`)
+      check(
+        typeof body.data.message === "string" && body.data.message.length > 0,
+        `missing preview should explain itself: ${JSON.stringify(body.data)}`,
+      )
+    }),
+  http.protected
+    .get("/file/content", "file.read.preview.unsupported")
+    .seeded((ctx) => ctx.file("hello.txt", "hello\n"))
+    .at((ctx) => ({
+      path: `/file/content?${new URLSearchParams({ path: "hello.txt", encoding: "base64" })}`,
+      headers: ctx.headers(),
+    }))
+    .json(400, (body) => {
+      object(body)
+      check(body.name === "FileReadError", `text over base64 should be a FileReadError: ${JSON.stringify(body)}`)
+      object(body.data)
+      check(
+        body.data.code === "unsupported_type",
+        `text over base64 code should be unsupported_type: ${JSON.stringify(body.data)}`,
+      )
     }),
   http.protected.get("/file/status", "file.status").json(200, array),
   http.protected
@@ -483,7 +584,10 @@ const scenarios: Scenario[] = [
       (body, ctx) => {
         object(body)
         check(body.title === "HTTP API PTY", "PTY create should return requested title")
-        check(body.command === "/bin/sh", "PTY create should use controlled shell command")
+        check(
+          body.command === controlledPtyInput("HTTP API PTY").command,
+          "PTY create should use controlled shell command",
+        )
         check(body.cwd === ctx.directory, "PTY create should default cwd to scenario directory")
       },
       "status",
@@ -645,7 +749,7 @@ const scenarios: Scenario[] = [
         check(body === true, "auth set should return true")
         const auth = yield* Effect.promise(() => Bun.file(path.join(exerciseDataDirectory, "auth.json")).json())
         object(auth)
-        check(isRecord(auth.test) && auth.test.key === "test-key", "auth set should write isolated auth file")
+        check(Array.isArray(auth.test) && isRecord(auth.test[0]) && auth.test[0].key === "test-key", "auth set should write isolated auth file")
       }),
     ),
   http.protected
@@ -758,7 +862,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.data)
+        array(body.items)
         object(body.cursor)
       },
       "none",
@@ -781,7 +885,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.data)
+        array(body.items)
         object(body.cursor)
       },
       "none",
@@ -806,7 +910,7 @@ const scenarios: Scenario[] = [
       200,
       (body) => {
         object(body)
-        array(body.data)
+        array(body.items)
         object(body.cursor)
       },
       "none",
@@ -1028,7 +1132,10 @@ const scenarios: Scenario[] = [
       headers: ctx.headers(),
     }))
     .json(200, (body, ctx) => {
-      check(stable(body) === stable(ctx.state.todos), "todos should match seeded state")
+      check(
+        stable(body) === stable(ctx.state.todos.map((todo) => ({ ...todo, goalId: null }))),
+        "todos should match seeded state",
+      )
     }),
   http.protected
     .get("/session/{sessionID}/diff", "session.diff")
@@ -1386,16 +1493,19 @@ const scenarios: Scenario[] = [
       headers: ctx.headers(),
       body: { messageID: ctx.state.message.info.id },
     }))
-    .json(
+    .jsonEffect(
       200,
-      (body, ctx) => {
-        object(body)
-        check(body.id === ctx.state.session.id, "revert should return the session")
-        check(
-          isRecord(body.revert) && body.revert.messageID === ctx.state.message.info.id,
-          "revert should record reverted message",
-        )
-      },
+      (body, ctx) =>
+        Effect.gen(function* () {
+          object(body)
+          check(body.id === ctx.state.session.id, "revert should return the session")
+          check(body.revert === undefined, "committed revert should clear pending revert metadata")
+          const messages = yield* ctx.messages(ctx.state.session.id)
+          check(
+            !messages.some((message) => message.info.id === ctx.state.message.info.id),
+            "revert should remove the reverted message",
+          )
+        }),
       "status",
     ),
   http.protected
@@ -1476,6 +1586,7 @@ const scenarios: Scenario[] = [
     }),
   http.protected
     .post("/session/import", "session.import")
+    .inProject({ git: false })
     .mutating()
     .seeded((ctx) =>
       Effect.gen(function* () {
@@ -1571,6 +1682,57 @@ const scenarios: Scenario[] = [
     .status(400),
 ]
 
+/**
+ * Keep the route inventory honest even while a feature-specific scenario is still
+ * being expanded. These smoke scenarios exercise the real router, middleware and
+ * request decoder for every OpenAPI operation that does not yet have a richer
+ * fixture below. They deliberately accept a valid HTTP error (for example, a
+ * missing resource) but fail on transport failures and server errors. Feature
+ * behavior still needs a dedicated scenario and cannot use this as its D gate.
+ */
+function inventoryScenario(key: string): Scenario {
+  const separator = key.indexOf(" ")
+  const method = key.slice(0, separator) as Method
+  const template = key.slice(separator + 1)
+  const path = template.replace(/\{([^}]+)\}|:([^/]+)/g, (_match, brace: string | undefined, colon: string | undefined) => {
+    const name = brace ?? colon ?? "id"
+    return /(?:index|limit|count|start|page|offset)/i.test(name) ? "0" : `httpapi_${name}`
+  })
+  const global = template.startsWith("/global/") || template === "/log" || template.startsWith("/auth/")
+  const sessionParam = /\/session\/\{(sessionID|sessionId)\}/.exec(template)?.[1]
+  const hasBody = method !== "GET" && method !== "DELETE"
+
+  return {
+    kind: "active",
+    method,
+    path: template,
+    name: `inventory.${method.toLowerCase()}.${template}`,
+    project: global ? undefined : { git: false },
+    seed: (ctx) => (sessionParam ? ctx.session({ title: "HTTP inventory session" }) : Effect.succeed(undefined)),
+    request: (ctx, state) => {
+      const sessionID =
+        state && typeof state === "object" && "id" in state && typeof state.id === "string" ? state.id : undefined
+      const requestPath = sessionParam && sessionID ? path.replace(`httpapi_${sessionParam}`, sessionID) : path
+      return {
+        path: requestPath,
+        headers: ctx.headers(),
+        ...(hasBody ? { body: {} } : {}),
+      }
+    },
+    authProbe: undefined,
+    expect: (_ctx, _state, result) =>
+      Effect.sync(() => {
+        if (result.timedOut || result.status === 0) throw new Error("route smoke request did not produce an HTTP response")
+        if (result.status >= 500) throw new Error(`route smoke returned server error ${result.status}: ${result.text}`)
+      }),
+    compare: "status",
+    capture: "full",
+    mutates: hasBody,
+    reset: true,
+    auth: "inventory",
+  }
+}
+
 const llmScenarios = new Set([
   "session.init",
   "session.prompt",
@@ -1584,11 +1746,15 @@ const main = Effect.gen(function* () {
   const options = parseOptions(Bun.argv.slice(2))
   const modules = yield* Effect.promise(() => runtime())
   const effectRoutes = routeKeys(OpenApi.fromApi(modules.PublicApi))
-  const selected = selectedScenarios(options, scenarios)
-  const missing = effectRoutes.filter((route) => !scenarios.some((scenario) => route === routeKey(scenario)))
-  const extra = scenarios.filter((scenario) => !effectRoutes.includes(routeKey(scenario)))
+  const inventory = effectRoutes
+    .filter((route) => !scenarios.some((scenario) => route === routeKey(scenario)))
+    .map(inventoryScenario)
+  const allScenarios = [...scenarios, ...inventory]
+  const selected = selectedScenarios(options, allScenarios)
+  const missing = effectRoutes.filter((route) => !allScenarios.some((scenario) => route === routeKey(scenario)))
+  const extra = allScenarios.filter((scenario) => !effectRoutes.includes(routeKey(scenario)))
 
-  for (const scenario of scenarios) {
+  for (const scenario of allScenarios) {
     if (scenario.kind === "active" && llmScenarios.has(scenario.name) && !scenario.project?.llm) {
       return yield* Effect.fail(new Error(`${scenario.name} must use TestLLMServer via .withLlm()`))
     }

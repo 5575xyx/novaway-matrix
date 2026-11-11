@@ -19,7 +19,7 @@
       transition: transform 0.1s ease-in-out;
     }
 
-    /* 对齐 ZCode：Select 触发器沿用输入件语义，展开/聚焦只换底色，不做发光。 */
+    /* Select 触发器沿用输入件语义，展开/聚焦只换底色，不做发光。 */
     &[data-expanded] {
       &[data-variant="ghost"] {
         background-color: var(--hover);
@@ -84,13 +84,13 @@
 }
 
 [data-component="select-content"] {
-  /* 对齐 ZCode：Select 展开面板与菜单同一套浮层语言（rounded-lg 壳 + p-1 + shadow-md）。 */
+  /* Select 展开面板与菜单同一套浮层语言（rounded-lg 壳 + p-1 + shadow-md）。 */
   min-width: 8rem;
   max-width: 23rem;
   overflow: hidden;
   border-radius: var(--radius-lg);
   border: 1px solid var(--popover-border, var(--border));
-  /* --menu 来自 ZCode 语义 token；某些构建/自定义主题里可能缺失，
+  /* --menu 是语义 token；某些构建/自定义主题里可能缺失，
      缺失时回退到不透明的 raised surface，避免下拉面板透出底层文字。 */
   background-color: var(--menu, var(--surface-raised-stronger-non-alpha, var(--background-strong)));
   padding: 4px;

@@ -30,9 +30,7 @@ export async function GET({ params: { platform, channel } }: APIEvent) {
   const assetName = channel === "stable" ? prodAssetNames[platform] : betaAssetNames[platform]
   if (!assetName) return new Response(null, { status: 404 })
 
-  const resp = await fetch(
-    `https://github.com/5575xyx/novaway-matrix/releases/latest/download/${assetName}`,
-  )
+  const resp = await fetch(`https://github.com/5575xyx/novaway-matrix/releases/latest/download/${assetName}`)
 
   const downloadName = downloadNames[platform]
 

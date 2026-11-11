@@ -139,19 +139,21 @@ const MAX_STOP_HOOK_BLOCKS = 3
  */
 const MAX_VERIFICATION_BLOCKS = 2
 
-const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (goalService: any, sessionId: string) {
+const buildGoalContext = Effect.fn("SystemPrompt.buildGoalContext")(function* (goalService: any, sessionId: SessionID) {
   if (!goalService) return ""
 
   const goals = yield* goalService.list(sessionId)
-
-  if (goals.length === 0) return ""
-
-  const activeGoals = goals.filter((g: any) => g.status === "in_progress" || g.status === "pending")
+  const activeGoals = goals.filter((goal: any) => goal.status === "in_progress" || goal.status === "pending")
   if (activeGoals.length === 0) return ""
 
-  const goalText = activeGoals.map((g: any) => `- ${g.title} [${g.status}] ${g.progress}% 完成`).join("\n")
+  const goalText = activeGoals
+    .map((goal: any) => {
+      const criteria = goal.successCriteria?.length ? `\n  验收标准: ${goal.successCriteria.join("; ")}` : ""
+      return `- ${goal.title} [${goal.status}] ${goal.progress}% 完成${criteria}`
+    })
+    .join("\n")
 
-  return `\n\n## 当前目标\n${goalText}\n\n请优先完成上述目标，或根据目标分解任务。`
+  return `\n\n## 当前目标\n${goalText}\n\n持续规划、执行并验证上述目标;未满足验收标准时继续推进。`
 })
 
 const decodeMessageInfo = Schema.decodeUnknownExit(MessageV2.Info)
@@ -505,10 +507,16 @@ const EvolutionReviewResult = Schema.Struct({
 })
 
 // 目标裁判:判断活动目标是否已达成,未达成时给出下一步动作建议。
+const GoalExecutionInput = Schema.Struct({
+  goalId: Schema.String,
+  maxIterations: Schema.Number,
+})
+
 const GoalJudgeResult = Schema.Struct({
   goalMet: Schema.Boolean,
   reasoning: Schema.String,
   nextAction: Schema.optional(Schema.String),
+  completedGoalIds: Schema.Array(Schema.String),
 })
 
 type EvolutionReviewCandidateDraft = Schema.Schema.Type<typeof EvolutionReviewCandidateDraft>
@@ -726,9 +734,8 @@ export const layer = Layer.effect(
         // 档位每次现读：任务跑着的时候用户改了权限（或子代理在跑、根会话被改了），
         // 下一条判定就按新档位走，而不是沿用本轮开跑时的快照。
         const liveMode =
-          (yield* sessions
-            .permissionModeOf(input.sessionID)
-            .pipe(Effect.catch(() => Effect.succeed(undefined)))) ?? input.mode
+          (yield* sessions.permissionModeOf(input.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))) ??
+          input.mode
         const result = yield* Effect.exit(
           permission.ask({
             ...input.request,
@@ -785,11 +792,10 @@ export const layer = Layer.effect(
     const references = yield* Reference.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
-    const { GoalService } = yield* Effect.tryPromise({
-      try: () => import("./goal"),
-      catch: () => ({ GoalService: undefined as any }),
-    }).pipe(Effect.catch(() => Effect.succeed({ GoalService: undefined })))
-    const goalService = GoalService ? Option.getOrUndefined(yield* Effect.serviceOption(GoalService)) : undefined
+    const getGoalService = Effect.fnUntraced(function* () {
+      const { Goal } = yield* Effect.promise(() => import("./goal"))
+      return Option.getOrUndefined(yield* Effect.serviceOption(Goal.Service))
+    })
     const { SessionCheckpoint } = yield* Effect.tryPromise({
       try: () => import("./checkpoint"),
       catch: () => ({ SessionCheckpoint: undefined as any }),
@@ -805,7 +811,7 @@ export const layer = Layer.effect(
         cancel: (sessionID: SessionID) => cancel(sessionID),
         resolvePromptParts: (template: string) => resolvePromptParts(template),
         prompt: (input: PromptInput) => prompt(input).pipe(Effect.catch(Effect.die)),
-        loop: (input: LoopInput) => loop(input),
+        loop: (input: LoopInput) => loop(input).pipe(Effect.catch(Effect.die)),
       } satisfies TaskPromptOps
     })
 
@@ -1391,12 +1397,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           }).pipe(Effect.orDie),
       })
 
-      for (const item of yield* registry.tools({
-        modelID: ModelID.make(input.model.api.id),
-        providerID: input.model.providerID,
-        agent: input.agent,
-        sessionID: input.session.id,
-      })) {
+      const registeredTools =
+        input.session.scope === "global"
+          ? []
+          : yield* registry.tools({
+              modelID: ModelID.make(input.model.api.id),
+              providerID: input.model.providerID,
+              agent: input.agent,
+              sessionID: input.session.id,
+            })
+      for (const item of registeredTools) {
         const schema = ProviderTransform.schema(input.model, ToolJsonSchema.fromTool(item))
         tools[item.id] = tool({
           description: item.description,
@@ -1615,7 +1625,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         })
       }
 
-      const mcpTools = yield* mcp.tools()
+      const mcpTools = input.session.scope === "global" ? {} : yield* mcp.tools()
       type McpEntry = { key: string; item: any; execute: any; schema: JSONSchema7 }
       const mcpEntries: McpEntry[] = []
       for (const [key, item] of Object.entries(mcpTools)) {
@@ -2225,7 +2235,10 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return yield* provider.defaultModel()
     })
 
-    const createUserMessage = Effect.fn("SessionPrompt.createUserMessage")(function* (input: PromptInput) {
+    const createUserMessage = Effect.fn("SessionPrompt.createUserMessage")(function* (
+      input: PromptInput,
+      session: Session.Info,
+    ) {
       const agentName = input.agent
       const ag = agentName ? yield* agents.get(agentName) : yield* agents.defaultInfo()
       if (!ag) {
@@ -2719,17 +2732,19 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         Effect.map((x) => x.flat().map(assign)),
       )
 
-      yield* plugin.trigger(
-        "chat.message",
-        {
-          sessionID: input.sessionID,
-          agent: input.agent,
-          model: input.model,
-          messageID: input.messageID,
-          variant: input.variant,
-        },
-        { message: info, parts: resolvedParts },
-      )
+      if (session.scope !== "global") {
+        yield* plugin.trigger(
+          "chat.message",
+          {
+            sessionID: input.sessionID,
+            agent: input.agent,
+            model: input.model,
+            messageID: input.messageID,
+            variant: input.variant,
+          },
+          { message: info, parts: resolvedParts },
+        )
+      }
 
       const parts = yield* Effect.forEach(resolvedParts, (part) =>
         part.type === "file" && part.mime.startsWith("image/")
@@ -3074,15 +3089,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     const inferGoalJudge = Effect.fn("SessionPrompt.inferGoalJudge")(function* (input: {
       model: Provider.Model
       goalsText: string
-      userContent: string
-      assistantContent: string
+      evidence: string
     }) {
       const system = [
         "你是 NovaWay 的目标裁判(judge)。",
-        "根据给定的活动目标及其成功标准,结合本轮对话,判断这些目标是否已经全部达成。",
-        "goalMet=true 仅当所有活动目标的成功标准都已满足;否则为 false。",
-        "当 goalMet=false 时,nextAction 必须给出一句具体、可执行的下一步指令,推动完成目标。",
-        "reasoning 用一到两句话说明判断依据。不要编造未发生的进展。",
+        "根据每个活动目标的成功标准与执行证据,逐个判断是否达成。",
+        "completedGoalIds 只能包含证据明确证明已满足全部成功标准的目标 ID;不要推断或编造。",
+        "goalMet=true 仅当所有输入目标都在 completedGoalIds 中。",
+        "completedGoalIds 为空时,nextAction 必须给出一句具体、可执行的下一步指令。",
+        "reasoning 用一到两句话引用证据说明判断依据。",
       ].join("\n")
 
       const messages = [
@@ -3094,13 +3109,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             input.goalsText,
             "</goals>",
             "",
-            "<user>",
-            input.userContent,
-            "</user>",
-            "",
-            "<assistant>",
-            input.assistantContent,
-            "</assistant>",
+            "<execution-evidence>",
+            input.evidence,
+            "</execution-evidence>",
           ].join("\n"),
         } satisfies ModelMessage,
       ]
@@ -3116,7 +3127,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         ),
       } satisfies Parameters<typeof generateObject>[0]
 
-      const result = yield* Effect.promise(() => generateObject(params).then((response) => response.object))
+      const result = yield* Effect.tryPromise(() => generateObject(params).then((response) => response.object))
       return result as Schema.Schema.Type<typeof GoalJudgeResult>
     })
 
@@ -3124,33 +3135,67 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       "SessionPrompt.prompt",
     )(function* (input: PromptInput) {
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+      if (
+        session.scope === "global" &&
+        (input.goalExecution !== undefined ||
+          input.parts.some((part) => part.type !== "text") ||
+          input.system !== undefined ||
+          input.tools !== undefined ||
+          input.format !== undefined ||
+          input.autoMode !== undefined)
+      ) {
+        return yield* Effect.die(new Error("Global chat accepts only plain text messages."))
+      }
       yield* revert.cleanup(session)
-      const promptText = input.parts
+      const goalService = session.scope === "global" ? undefined : yield* getGoalService()
+      const goalExecution = input.goalExecution
+        ? {
+            goalId: input.goalExecution.goalId,
+            maxIterations: Math.min(100, Math.max(1, Math.floor(input.goalExecution.maxIterations))),
+          }
+        : undefined
+      if (goalExecution) {
+        if (!goalService) return yield* Effect.die(new Error("Goal execution is unavailable."))
+        const goal = yield* goalService
+          .get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+          .pipe(Effect.orDie)
+        if (!goal || (goal.status !== "pending" && goal.status !== "in_progress" && goal.status !== "paused")) {
+          return yield* Effect.die(new Error("Goal execution is unavailable or already stopped."))
+        }
+        if (goal.status === "pending") {
+          yield* goalService
+            .update({ goalId: goal.id, sessionId: input.sessionID, status: "in_progress" })
+            .pipe(Effect.orDie)
+        }
+      }
+      const promptInput = input
+      const promptText = promptInput.parts
         .filter(
           (part): part is { type: "text"; text: string } =>
             part.type === "text" && typeof (part as any).text === "string",
         )
         .map((part) => part.text)
         .join(String.fromCharCode(10))
-      const submitted = hooks
-        ? yield* hooks
-            .trigger({
-              event: "UserPromptSubmit",
-              sessionID: input.sessionID,
-              cwd: session.directory,
-              prompt: promptText,
-            })
-            .pipe(Effect.catch(() => Effect.succeed(EMPTY_HOOK)))
-        : EMPTY_HOOK
+      const submitted =
+        session.scope !== "global" && hooks
+          ? yield* hooks
+              .trigger({
+                event: "UserPromptSubmit",
+                sessionID: input.sessionID,
+                cwd: session.directory,
+                prompt: promptText,
+              })
+              .pipe(Effect.catch(() => Effect.succeed(EMPTY_HOOK)))
+          : EMPTY_HOOK
       if (submitted.blocked) {
         return yield* Effect.die(new Error("Prompt blocked by a UserPromptSubmit hook."))
       }
-      const message = yield* createUserMessage(input)
+      const message = yield* createUserMessage(promptInput, session)
       // Hook-provided context (SessionStart at the start of the session,
       // UserPromptSubmit per message) is only useful if the model sees it, so
       // attach it to this user message as a synthetic part.
       const startContext = Session.takeStartContext(input.sessionID)
-      for (const text of [startContext, submitted.additionalContext]) {
+      for (const text of [session.scope === "global" ? undefined : startContext, submitted.additionalContext]) {
         if (!text) continue
         const part = yield* sessions.updatePart({
           id: PartID.ascending(),
@@ -3176,7 +3221,7 @@ ${text}
       }
 
       if (input.noReply === true) return message
-      return yield* loop({ sessionID: input.sessionID })
+      return yield* loop({ sessionID: input.sessionID, goalExecution: input.goalExecution })
     })
 
     const lastAssistant = Effect.fnUntraced(function* (sessionID: SessionID) {
@@ -3293,7 +3338,7 @@ ${text}
       model: Provider.Model
       agentName: string
     }) {
-      if (finishedTurns.has(input.assistant.id)) return
+      if (input.session.scope === "global" || finishedTurns.has(input.assistant.id)) return
       finishedTurns.add(input.assistant.id)
       if (input.assistant.error) return
 
@@ -3620,7 +3665,7 @@ ${text}
               agentName: lastUser.agent,
             }).pipe(Effect.ignore)
           }
-          if (hooks) {
+          if (session.scope !== "global" && hooks) {
             const stop = yield* hooks
               .trigger({
                 event: "Stop",
@@ -3687,7 +3732,7 @@ ${text}
           }
           // 非平凡改动必须由独立的只读 verification 子代理给结论。
           // 只认最后一次编辑之后完成的验收；旧的 PASS 不能给新改动背书。
-          if ((yield* config.get()).experimental?.verification_agent !== false) {
+          if (session.scope !== "global" && (yield* config.get()).experimental?.verification_agent !== false) {
             const verifierAgent = yield* agents.get("verification")
             const owner = msgs.findLast(
               (message) =>
@@ -3940,7 +3985,7 @@ ${text}
         }
         const maxSteps = agent.steps ?? Infinity
         const isLastStep = step >= maxSteps
-        msgs = yield* insertReminders({ messages: msgs, agent, session })
+        if (session.scope !== "global") msgs = yield* insertReminders({ messages: msgs, agent, session })
 
         // 主模型不支持图片输入时，把图片识别交给多模态子代理完成，
         // 识别结果以合成文本写入用户消息，主模型继续用文本处理对话。
@@ -4036,7 +4081,7 @@ ${text}
             messages: msgs,
           })
 
-          if (lastUser.format?.type === "json_schema") {
+          if (session.scope !== "global" && lastUser.format?.type === "json_schema") {
             tools["StructuredOutput"] = createStructuredOutputTool({
               schema: lastUser.format.schema,
               onSuccess(output) {
@@ -4045,7 +4090,7 @@ ${text}
             })
           }
 
-          if (step === 1)
+          if (session.scope !== "global" && step === 1)
             yield* summary.summarize({ sessionID, messageID: lastUser.id }).pipe(Effect.ignore, Effect.forkIn(scope))
 
           if (step > 1 && lastFinished) {
@@ -4066,10 +4111,12 @@ ${text}
             }
           }
 
-          yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
+          if (session.scope !== "global") {
+            yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
+          }
 
           const gitStatus =
-            git._tag === "Some"
+            session.scope !== "global" && git._tag === "Some"
               ? yield* git.value.run(["--no-optional-locks", "status", "--short"], { cwd: session.directory }).pipe(
                   Effect.map((result) => {
                     if (result.exitCode !== 0) return ""
@@ -4110,7 +4157,9 @@ ${text}
               })(),
             ),
             sys.environment(model),
-            instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
+            session.scope === "global"
+              ? Effect.succeed({ always: [], triggered: [], paths: [], urls: [] })
+              : instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
             MessageV2.toModelMessagesEffect(
               budgeted.messages,
               model,
@@ -4138,7 +4187,7 @@ ${text}
           const memoryEnabled = memoryCfg.enabled
           const activeMemory = Option.getOrUndefined(yield* Effect.serviceOption(Memory.Service))
           const memoryContext =
-            memoryEnabled && activeMemory
+            session.scope !== "global" && memoryEnabled && activeMemory
               ? yield* activeMemory
                   .prefetch({
                     query: textFromParts(lastUserMsg?.parts ?? []),
@@ -4149,24 +4198,30 @@ ${text}
                   })
                   .pipe(Effect.catch(() => Effect.succeed("")))
               : ""
-          const projectContext = yield* ProjectContext.read({
-            directory: ctx.directory,
-            worktree: ctx.worktree,
-            plan: Session.plan(session, ctx),
-          }).pipe(
-            Effect.provideService(AppFileSystem.Service, fsys),
-            Effect.catch(() => Effect.succeed("")),
-          )
+          const projectContext =
+            session.scope === "global"
+              ? ""
+              : yield* ProjectContext.read({
+                  directory: ctx.directory,
+                  worktree: ctx.worktree,
+                  plan: Session.plan(session, ctx),
+                }).pipe(
+                  Effect.provideService(AppFileSystem.Service, fsys),
+                  Effect.catch(() => Effect.succeed("")),
+                )
           const requestMessages = injectMemoryContext({
             messages: modelMsgs,
             context: [projectContext, memoryContext].filter(Boolean).join("\n\n"),
           })
           // 静态指令/技能放在缓存前缀，环境信息放尾部，避免目录、日期或模型信息变化时整段缓存失效。
-          const style = yield* OutputStyle.resolve({
-            directory: ctx.directory,
-            worktree: ctx.worktree,
-            name: agent.outputStyle,
-          })
+          const style =
+            session.scope === "global"
+              ? undefined
+              : yield* OutputStyle.resolve({
+                  directory: ctx.directory,
+                  worktree: ctx.worktree,
+                  name: agent.outputStyle,
+                })
           const styleSystem = style
             ? [
                 `<output-style name="${style.name}">`,
@@ -4184,9 +4239,10 @@ ${text}
             .join("\n\n")
           const dynamicSystem = [...instructionParts.triggered, ...env].filter(Boolean).join("\n\n")
           const system = [staticSystem, dynamicSystem].filter(Boolean)
-          const goalContext = yield* buildGoalContext(goalService, sessionID).pipe(
-            Effect.catch(() => Effect.succeed("")),
-          )
+          const goalService = session.scope === "global" ? undefined : yield* getGoalService()
+          const goalContext = goalService
+            ? yield* buildGoalContext(goalService, sessionID).pipe(Effect.catch(() => Effect.succeed("")))
+            : ""
           if (goalContext) system.push(goalContext)
           // 继续任务：把"为什么又发了一次请求"告诉模型，并明确要求接着做而不是重来。
           // 这条只走 system，不新增用户消息 —— 对话轮次与界面都保持同一轮。
@@ -4212,6 +4268,7 @@ ${text}
             agent: style && !style.keepCodingInstructions ? { ...agent, prompt: undefined } : agent,
             permission: session.permission,
             sessionID,
+            scope: session.scope,
             parentSessionID: session.parentID,
             system,
             messages: [...requestMessages, ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : [])],
@@ -4278,7 +4335,12 @@ ${text}
       // Dream/Distill 自我改进集成:默认关闭,开启后按 interval 轮用 LLM 反思会话并蒸馏进长期记忆。
       {
         const dreamCfg = ConfigDream.resolve((yield* config.get()).dream)
-        if (dreamCfg.enabled && dreamCfg.interval > 0 && dreamDue(sessionID, dreamCfg.interval)) {
+        if (
+          session.scope !== "global" &&
+          dreamCfg.enabled &&
+          dreamCfg.interval > 0 &&
+          dreamDue(sessionID, dreamCfg.interval)
+        ) {
           const capturedModel = loopModel
           if (capturedModel) {
             yield* Effect.gen(function* () {
@@ -4300,9 +4362,7 @@ ${text}
       return yield* lastAssistant(sessionID)
     } as any) as any
 
-    const loop: (input: LoopInput) => Effect.Effect<MessageV2.WithParts, never, never> = Effect.fn(
-      "SessionPrompt.loop",
-    )(function* (input: LoopInput) {
+    const loop = Effect.fn("SessionPrompt.loop")(function* (input: LoopInput) {
       // Durable cron jobs are only in memory after a restart once something asks
       // the scheduler to load them; the session loop is the one place every
       // session is guaranteed to pass through, so it doubles as the trigger.
@@ -4318,20 +4378,47 @@ ${text}
         lastAssistant(input.sessionID),
         runLoop(input.sessionID, input.resume ? { reason: input.reason } : undefined) as any,
       )
+      if (input.resume) return result
+      const activeSession = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+      if (activeSession.scope === "global") return result
 
       // 目标驱动自主循环:每轮结束后用裁判模型判断活动目标是否达成,未达成则
       // 顺序(不 fork)追加一轮,受硬性 max_iterations 上限约束防跑飞。默认关闭。
       const cfg = yield* config.get().pipe(Effect.catch(() => Effect.succeed({} as any)))
       const goalCfg = ConfigGoal.resolve(cfg.goal)
+      const goalExecution = input.goalExecution
+      if (!goalExecution && (!goalCfg.enabled || goalCfg.max_iterations <= 0)) return result
+      const goalService = yield* getGoalService()
+      if (!goalService) return result
+      if (goalExecution) {
+        const goal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+        if (!goal || goal.status !== "in_progress") return result
+      }
 
-      // 收尾统一出口:目标循环可能追加多轮,最终结果都从这里返回。
-      if (!goalCfg.enabled || !goalService || goalCfg.max_iterations <= 0) return result
-
+      const maxIterations = Math.min(100, Math.max(1, goalExecution?.maxIterations ?? goalCfg.max_iterations))
       let iterations = 0
-      while (iterations < goalCfg.max_iterations) {
+      while (iterations < maxIterations) {
+        if (
+          yield* state.assertNotBusy(input.sessionID).pipe(
+            Effect.as(false),
+            Effect.catch(() => Effect.succeed(true)),
+          )
+        )
+          break
         const goals = yield* goalService.list(input.sessionID).pipe(Effect.catch(() => Effect.succeed([] as any[])))
-        const active = goals.filter((g: any) => g.status === "in_progress" || g.status === "pending")
+        const active = goals.filter((g: any) =>
+          goalExecution
+            ? g.id === goalExecution.goalId && g.status === "in_progress"
+            : g.status === "in_progress" || g.status === "pending" || g.status === "paused",
+        )
         if (active.length === 0) break
+        if (
+          yield* state.assertNotBusy(input.sessionID).pipe(
+            Effect.as(false),
+            Effect.catch(() => Effect.succeed(true)),
+          )
+        )
+          break
 
         const msgs = yield* sessions
           .messages({ sessionID: input.sessionID })
@@ -4362,39 +4449,79 @@ ${text}
             const criteria =
               Array.isArray(g.successCriteria) && g.successCriteria.length
                 ? `\n  成功标准: ${g.successCriteria.join("; ")}`
-                : ""
-            return `- ${g.title} [${g.status}]${criteria}`
+                : "\n  成功标准: 用户原始目标要求可验证地完成"
+            return `- ID: ${g.id}\n  标题: ${g.title}${criteria}`
           })
           .join("\n")
-        const userContent = textFromParts(lastUserMsg?.parts ?? [])
-        const assistantContent = textFromParts(lastAssistantMsg.parts)
+        const evidence = [
+          `用户请求: ${textFromParts(lastUserMsg?.parts ?? [])}`,
+          `助手本轮总结: ${textFromParts(lastAssistantMsg.parts)}`,
+          ...msgs.flatMap((message) =>
+            message.parts.flatMap((part) => {
+              if (part.type !== "tool") return []
+              const state = part.state
+              const output = state.status === "completed" ? state.output : undefined
+              return [`工具 ${part.tool}: 状态 ${state.status}${output ? `; 输出: ${output}` : ""}`]
+            }),
+          ),
+        ].join("\n")
 
-        const verdict = yield* inferGoalJudge({
-          model: judgeModel,
-          goalsText,
-          userContent,
-          assistantContent,
-        }).pipe(Effect.catch(() => Effect.succeed(null)))
+        const verdict = yield* inferGoalJudge({ model: judgeModel, goalsText, evidence }).pipe(
+          Effect.catch(() => Effect.succeed(null)),
+        )
         if (!verdict) break
+        if (goalExecution) {
+          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+          if (!currentGoal || currentGoal.status !== "in_progress") break
+        }
+        if (
+          yield* state.assertNotBusy(input.sessionID).pipe(
+            Effect.as(false),
+            Effect.catch(() => Effect.succeed(true)),
+          )
+        )
+          break
+        if (goalExecution) {
+          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+          if (!currentGoal || currentGoal.status !== "in_progress") break
+        }
 
+        for (const goalId of verdict.completedGoalIds) {
+          if (!active.some((goal: any) => goal.id === goalId)) continue
+          yield* goalService
+            .update({ goalId, sessionId: input.sessionID, status: "completed" })
+            .pipe(Effect.catch(() => Effect.void))
+        }
         if (verdict.goalMet) {
-          for (const g of active) {
-            yield* goalService.update({ goalId: g.id, status: "completed" }).pipe(Effect.ignore)
+          if (goalExecution) {
+            yield* goalService
+              .update({ goalId: goalExecution.goalId, sessionId: input.sessionID, status: "completed" })
+              .pipe(Effect.catch(() => Effect.void))
           }
           break
         }
+        if (verdict.completedGoalIds.length > 0) {
+          iterations++
+          continue
+        }
+        if (goalExecution) {
+          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+          if (!currentGoal || currentGoal.status !== "in_progress") break
+        }
 
         iterations++
-        const nextText = verdict.nextAction?.trim() || "继续完成当前目标。"
+        const nextText = verdict.nextAction?.trim() || "继续完成当前目标,并核验其成功标准。"
+        const user = lastUserMsg?.info.role === "user" ? lastUserMsg.info : undefined
         result = yield* prompt({
           sessionID: input.sessionID,
-          agent: lastUserMsg?.info.role === "user" ? lastUserMsg.info.agent : undefined,
-          model:
-            lastUserMsg?.info.role === "user" && lastUserMsg.info.model
-              ? { providerID: lastUserMsg.info.model.providerID, modelID: lastUserMsg.info.model.modelID }
-              : undefined,
+          agent: user?.agent,
+          model: user?.model ? { providerID: user.model.providerID, modelID: user.model.modelID } : undefined,
           parts: [{ type: "text", text: nextText }],
-        }).pipe(Effect.catch(() => Effect.succeed(result)))
+        })
+        if (goalExecution) {
+          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+          if (!currentGoal || currentGoal.status !== "in_progress") break
+        }
       }
 
       return result
@@ -4403,11 +4530,16 @@ ${text}
     const shell: (input: ShellInput) => Effect.Effect<MessageV2.WithParts, Session.BusyError> = Effect.fn(
       "SessionPrompt.shell",
     )(function* (input: ShellInput) {
+      const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+      if (session.scope === "global") return yield* Effect.die(new Error("Shell is not available in global chat."))
       const ready = yield* Latch.make()
       return yield* state.startShell(input.sessionID, lastAssistant(input.sessionID), shellImpl(input, ready), ready)
     })
 
     const command = Effect.fn("SessionPrompt.command")(function* (input: CommandInput) {
+      const currentSession = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+      if (currentSession.scope === "global")
+        return yield* Effect.die(new Error("Commands are not available in global chat."))
       yield* elog.info("command", { sessionID: input.sessionID, command: input.command, agent: input.agent })
       const cmd = yield* commands.get(input.command)
       if (!cmd) {
@@ -4470,6 +4602,7 @@ ${text}
 
       yield* getModel(taskModel.providerID, taskModel.modelID, input.sessionID)
 
+      const session = yield* sessions.get(input.sessionID).pipe(Effect.orElseSucceed(() => undefined))
       const agent = agentName ? yield* agents.get(agentName) : yield* agents.defaultInfo()
       if (!agent) {
         const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
@@ -4501,11 +4634,13 @@ ${text}
           : yield* currentModel(input.sessionID)
         : taskModel
 
-      yield* plugin.trigger(
-        "command.execute.before",
-        { command: input.command, sessionID: input.sessionID, arguments: input.arguments },
-        { parts },
-      )
+      {
+        yield* plugin.trigger(
+          "command.execute.before",
+          { command: input.command, sessionID: input.sessionID, arguments: input.arguments },
+          { parts },
+        )
+      }
 
       const result = yield* prompt({
         sessionID: input.sessionID,
@@ -4527,8 +4662,8 @@ ${text}
     return Service.of({
       cancel,
       prompt,
-      resume,
-      loop,
+      resume: (sessionID: SessionID) => resume(sessionID).pipe(Effect.catch(Effect.die)),
+      loop: (input: LoopInput) => loop(input).pipe(Effect.catch(Effect.die)),
       shell,
       command,
       resolvePromptParts,
@@ -4589,6 +4724,7 @@ const ModelRef = Schema.Struct({
 
 export const PromptInput = Schema.Struct({
   sessionID: SessionID,
+  goalExecution: Schema.optional(GoalExecutionInput),
   messageID: Schema.optional(MessageID),
   model: Schema.optional(ModelRef),
   agent: Schema.optional(Schema.String),
@@ -4614,6 +4750,7 @@ export type PromptInput = Schema.Schema.Type<typeof PromptInput>
 
 export class LoopInput extends Schema.Class<LoopInput>("SessionPrompt.LoopInput")({
   sessionID: SessionID,
+  goalExecution: Schema.optional(GoalExecutionInput),
   /** 中断后续跑：忽略上一条 assistant 的 finish/error，再发一次请求把这一轮做完。 */
   resume: Schema.optional(Schema.Boolean),
   /** 续跑原因（写进 system 提示，让模型知道为什么会再次请求）。 */

@@ -158,6 +158,7 @@ export const SummarizePayload = Schema.Struct({
   /** `/compact <instructions>`: extra guidance for what the summary should keep. */
   instructions: Schema.optional(Schema.String),
 })
+export const SessionSuggestions = Schema.Array(Schema.String).annotate({ identifier: "SessionSuggestions" })
 export const PromptPayload = Schema.Struct(Struct.omit(SessionPrompt.PromptInput.fields, ["sessionID"]))
 export const CommandPayload = Schema.Struct(Struct.omit(SessionPrompt.CommandInput.fields, ["sessionID"]))
 export const ShellPayload = Schema.Struct(Struct.omit(SessionPrompt.ShellInput.fields, ["sessionID"]))
@@ -179,6 +180,7 @@ export const SessionPaths = {
   messages: `${root}/:sessionID/message`,
   message: `${root}/:sessionID/message/:messageID`,
   create: root,
+  globalCreate: `${root}/global`,
   remove: `${root}/:sessionID`,
   update: `${root}/:sessionID`,
   fork: `${root}/:sessionID/fork`,
@@ -196,6 +198,7 @@ export const SessionPaths = {
   import: `${root}/import`,
   init: `${root}/:sessionID/init`,
   summarize: `${root}/:sessionID/summarize`,
+  suggestions: `${root}/:sessionID/suggestions`,
   prompt: `${root}/:sessionID/message`,
   promptAsync: `${root}/:sessionID/prompt_async`,
   resume: `${root}/:sessionID/resume`,
@@ -275,6 +278,7 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           query: DiffQuery,
           success: described(Schema.Array(Snapshot.FileDiff), "Successfully retrieved diff"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.diff",
@@ -305,6 +309,14 @@ export const SessionApi = HttpApi.make("session")
             summary: "Get message",
             description: "Retrieve a specific message from a session by its message ID.",
           }),
+        ),
+        HttpApiEndpoint.post("globalCreate", SessionPaths.globalCreate, {
+          query: Schema.Struct(WorkspaceRoutingQueryFields),
+          payload: [HttpApiSchema.NoContent, Session.CreateInput],
+          success: described(Session.Info, "Successfully created global chat session"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({ identifier: "session.globalCreate", summary: "Create global chat session" }),
         ),
         HttpApiEndpoint.post("create", SessionPaths.create, {
           query: WorkspaceRoutingQuery,
@@ -488,7 +500,7 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           query: ExportQuery,
           success: described(SessionPortability.Bundle, "Session export"),
-          error: [ApiNotFoundError],
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.export",
@@ -516,7 +528,7 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           query: WorkspaceRoutingQuery,
           success: described(Session.Info, "Successfully shared session"),
-          error: [HttpApiError.InternalServerError, ApiNotFoundError],
+          error: [HttpApiError.BadRequest, HttpApiError.InternalServerError, ApiNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.share",
@@ -528,12 +540,24 @@ export const SessionApi = HttpApi.make("session")
           params: { sessionID: SessionID },
           query: WorkspaceRoutingQuery,
           success: described(Session.Info, "Successfully unshared session"),
-          error: [HttpApiError.InternalServerError, ApiNotFoundError],
+          error: [HttpApiError.BadRequest, HttpApiError.InternalServerError, ApiNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.unshare",
             summary: "Unshare session",
             description: "Remove the shareable link for a session, making it private again.",
+          }),
+        ),
+        HttpApiEndpoint.get("suggestions", SessionPaths.suggestions, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(SessionSuggestions, "Contextual next-question suggestions"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.suggestions",
+            summary: "Generate contextual follow-up questions",
+            description: "Generate next-question suggestions from the most recently completed user and assistant turn.",
           }),
         ),
         HttpApiEndpoint.post("summarize", SessionPaths.summarize, {

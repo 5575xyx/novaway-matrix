@@ -84,6 +84,8 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
       )
       .handle("updateWorkflow", (ctx) =>
         Effect.gen(function* () {
+          const existing = yield* workflow.get(ctx.params.workflowId)
+          if (!existing) return yield* Effect.fail(new HttpApiError.NotFound({}))
           const updated = yield* workflow.update({
             workflowId: ctx.params.workflowId,
             ...ctx.payload,

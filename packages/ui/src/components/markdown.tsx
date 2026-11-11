@@ -10,6 +10,9 @@ import { downloadFile, filenameFromUrl } from "../util/download"
 import { ComponentProps, createEffect, createResource, createSignal, onCleanup, splitProps } from "solid-js"
 import { isServer } from "solid-js/web"
 import { stream } from "./markdown-stream"
+import { dirPath, filePath, urlPattern } from "./markdown-file-path"
+import { chooseIconName } from "./file-icons/choose"
+import sprite from "./file-icons/sprite.svg"
 
 type Entry = {
   hash: string
@@ -74,8 +77,6 @@ type CopyLabels = {
   download: string
 }
 
-const urlPattern = /^https?:\/\/[^\s<>()`"']+$/
-
 function codeUrl(text: string) {
   const href = text.trim().replace(/[),.;!?]+$/, "")
   if (!urlPattern.test(href)) return
@@ -87,26 +88,38 @@ function codeUrl(text: string) {
   }
 }
 
-const filePathPattern =
-  /^(?:[A-Za-z]:[\\/]|~[\\/]|\/|\.{1,2}[\\/])?(?:[\w@.$-]+[\\/])*[\w@.$-]+(?:\.[A-Za-z0-9]{1,12})?$/
-
 /**
- * 只有**文件**才当作可点链接。
+ * 行内文件 / 目录图标。
  *
- * 之前只要「像路径」或「有扩展名」就标记，于是 `/e/AImoney/PowersNexus`（目录）
- * 和 `gitee/main`（远程分支名）都被画成链接 —— 点了要么报错、要么打开空标签。
- * 现在要求**必须有扩展名**：`package.json` / `AGENTS.md` / `a.ts` 通过，
- * 目录与分支名不会被误标。少数没有扩展名的真文件（Makefile、LICENSE）
- * 会失去这个便利，换来的是"看起来是链接的都能打开"。
+ * 和 `FileIcon` 用同一张 sprite、同一套 `chooseIconName` 选图规则 ——
+ * 差别只是这里的节点是 marked 渲染出来的 DOM，挂不进 Solid 组件，
+ * 所以照 createIcon 的办法手搭一个 svg + use。
  */
-function filePath(text: string) {
-  const raw = text.trim().replace(/[),.;!?]+$/, "")
-  if (!raw || raw.length > 300) return
-  if (urlPattern.test(raw) || raw.includes("://") || raw.startsWith("data:")) return
-  const hasExtension = /\.[A-Za-z0-9]{1,12}$/.test(raw)
-  if (!hasExtension) return
-  if (!filePathPattern.test(raw)) return
-  return raw
+function attachFileIcon(code: HTMLElement, path: string, type: "file" | "directory") {
+  if (code.firstElementChild?.getAttribute("data-component") === "file-icon") return
+  const ns = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(ns, "svg")
+  const name = chooseIconName(path, type, false)
+  const id = `markdown-file-icon-${crypto.randomUUID()}`
+  svg.setAttribute("data-component", "file-icon")
+  svg.setAttribute("data-kind", type)
+  svg.setAttribute("aria-hidden", "true")
+  const defs = document.createElementNS(ns, "defs")
+  const mask = document.createElementNS(ns, "mask")
+  mask.setAttribute("id", id)
+  mask.setAttribute("mask-type", "alpha")
+  const shape = document.createElementNS(ns, "use")
+  shape.setAttribute("href", `${sprite}#${name}`)
+  mask.appendChild(shape)
+  defs.appendChild(mask)
+  svg.appendChild(defs)
+  const rect = document.createElementNS(ns, "rect")
+  rect.setAttribute("width", "100%")
+  rect.setAttribute("height", "100%")
+  rect.setAttribute("fill", "currentColor")
+  rect.setAttribute("mask", `url(#${id})`)
+  svg.appendChild(rect)
+  code.insertBefore(svg, code.firstChild)
 }
 
 function markFileLinks(root: HTMLDivElement) {
@@ -123,6 +136,17 @@ function markFileLinks(root: HTMLDivElement) {
     element.setAttribute("data-file-open", "")
     element.setAttribute("data-file-path", path)
     element.style.cursor = "pointer"
+    attachFileIcon(element, path, "file")
+  }
+}
+
+/** 目录 chip：只加图标，不加 data-file-open —— 点开目录会开出空标签。 */
+function markDirIcons(root: HTMLDivElement) {
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>(":not(pre) > code"))) {
+    if (element.hasAttribute("data-file-open")) continue
+    const path = dirPath(element.textContent ?? "")
+    if (!path) continue
+    attachFileIcon(element, path, "directory")
   }
 }
 
@@ -139,6 +163,61 @@ function setupFileOpen(root: HTMLDivElement, onFileOpen: ((path: string) => void
     event.preventDefault()
     event.stopPropagation()
     onFileOpen(path)
+  }
+
+  root.addEventListener("click", handler)
+  return () => {
+    root.removeEventListener("click", handler)
+  }
+}
+
+/**
+ * 任务列表复选框：marked 输出的是 `disabled` 的复选框，阅读时点不动。
+ * 宿主提供 `onTaskToggle` 时去掉 disabled，并给每个框标上序号（按文档顺序），
+ * 点击时把序号交回去 —— 宿主据此改对应那一行的 `[ ]` / `[x]`。
+ */
+function markTaskBoxes(root: HTMLDivElement) {
+  const boxes = root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+  boxes.forEach((box, index) => {
+    box.removeAttribute("disabled")
+    box.setAttribute("data-task-index", String(index))
+    box.style.cursor = "pointer"
+  })
+}
+
+function setupTaskToggle(root: HTMLDivElement, onTaskToggle: ((index: number) => void) | undefined) {
+  if (!onTaskToggle) return
+
+  const handler = (event: MouseEvent) => {
+    const target = event.target
+    if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") return
+    const raw = target.getAttribute("data-task-index")
+    if (raw === null) return
+    event.preventDefault()
+    event.stopPropagation()
+    onTaskToggle(Number(raw))
+  }
+
+  root.addEventListener("click", handler)
+  return () => {
+    root.removeEventListener("click", handler)
+  }
+}
+
+/** `[[wikilink]]`：链接目标交给调用方按当前文件所在目录解析成真实路径。 */
+function setupWikiLinks(root: HTMLDivElement, onWikiLink: ((target: string) => void) | undefined) {
+  if (!onWikiLink) return
+
+  const handler = (event: MouseEvent) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const node = target.closest("[data-wikilink]")
+    if (!(node instanceof HTMLElement)) return
+    const value = node.getAttribute("data-wikilink")
+    if (!value) return
+    event.preventDefault()
+    event.stopPropagation()
+    onWikiLink(value)
   }
 
   root.addEventListener("click", handler)
@@ -256,6 +335,7 @@ function decorate(
   }
   markCodeLinks(root)
   if (onFileOpen) markFileLinks(root)
+  markDirIcons(root)
   setupImagePreview(root, openImagePreview)
   setupMediaActions(root, labels)
 }
@@ -331,8 +411,8 @@ function createMediaButton(iconPath: string, label: string, onClick: () => void)
   button.style.alignItems = "center"
   button.style.justifyContent = "center"
   button.style.padding = "4px"
-  button.style.background = "rgba(0, 0, 0, 0.6)"
-  button.style.color = "white"
+  button.style.background = "color-mix(in srgb, var(--surface-raised-strong) 88%, transparent)"
+  button.style.color = "var(--foreground)"
   button.style.border = "none"
   button.style.borderRadius = "4px"
   button.style.cursor = "pointer"
@@ -429,9 +509,22 @@ export function Markdown(
     class?: string
     classList?: Record<string, boolean>
     onFileOpen?: (path: string) => void
+    /** 点 `[[wikilink]]`：目标原样交回去，由调用方解析成工作区路径。 */
+    onWikiLink?: (target: string) => void
+    /** 点任务列表复选框：序号按渲染结果里的顺序（0 起）。 */
+    onTaskToggle?: (index: number) => void
   },
 ) {
-  const [local, others] = splitProps(props, ["text", "cacheKey", "streaming", "class", "classList", "onFileOpen"])
+  const [local, others] = splitProps(props, [
+    "text",
+    "cacheKey",
+    "streaming",
+    "class",
+    "classList",
+    "onFileOpen",
+    "onWikiLink",
+    "onTaskToggle",
+  ])
   const marked = useMarked()
   const i18n = useI18n()
   const dialog = useDialog()
@@ -479,6 +572,8 @@ export function Markdown(
   let copyCleanup: (() => void) | undefined
   let imagePreviewCleanup: (() => void) | undefined
   let fileOpenCleanup: (() => void) | undefined
+  let wikiOpenCleanup: (() => void) | undefined
+  let taskCleanup: (() => void) | undefined
 
   createEffect(() => {
     const container = root()
@@ -529,12 +624,17 @@ export function Markdown(
       }))
     if (!imagePreviewCleanup) imagePreviewCleanup = setupImagePreview(container, openImagePreview)
     if (!fileOpenCleanup) fileOpenCleanup = setupFileOpen(container, local.onFileOpen)
+    if (!wikiOpenCleanup) wikiOpenCleanup = setupWikiLinks(container, local.onWikiLink)
+    if (local.onTaskToggle) markTaskBoxes(container)
+    if (!taskCleanup) taskCleanup = setupTaskToggle(container, local.onTaskToggle)
   })
 
   onCleanup(() => {
     if (copyCleanup) copyCleanup()
     if (imagePreviewCleanup) imagePreviewCleanup()
     if (fileOpenCleanup) fileOpenCleanup()
+    if (wikiOpenCleanup) wikiOpenCleanup()
+    if (taskCleanup) taskCleanup()
   })
 
   return (

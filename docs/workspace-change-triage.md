@@ -21,17 +21,17 @@
 
 > **状态更新（2026-07-23）**：PowersNexus 第一方独立工作流已下线，改为默认全局插件 PowersNexus@git+https://gitee.com/nova-way/powersnexus.git（启动从 Gitee 安装）。下列历史 triage 条目仅作归档参考。
 
-| 路径                                 | 原因                                                  |
-| ------------------------------------ | ----------------------------------------------------- |
-| `.claude/test-node-download/`        | 下载的 node 二进制与缓存                              |
-| `.dbx-test-data/`                    | 本地测试数据                                          |
-| `packages/desktop/.tmp/`             | 编译缓存                                              |
+| 路径                                | 原因                                                  |
+| ----------------------------------- | ----------------------------------------------------- |
+| `.claude/test-node-download/`       | 下载的 node 二进制与缓存                              |
+| `.dbx-test-data/`                   | 本地测试数据                                          |
+| `packages/desktop/.tmp/`            | 编译缓存                                              |
 | `packages/novaway/.tmp-browser-qa/` | 浏览器验收临时截图                                    |
-| `tmp-cdp-*.mjs` / `test-redirect.*`  | 临时脚本                                              |
-| `harness-tasks.json.corrupt-*`       | 损坏备份                                              |
-| `PowersNexus/`                       | 独立 git 仓库，应通过 remote 管理，勿整仓并入 novaway |
-| `dbx-main/`                          | 大体量外部/并行工程，不宜混入本主题提交               |
-| `pets-images/`                       | 资源素材，需单独确认产品归属                          |
+| `tmp-cdp-*.mjs` / `test-redirect.*` | 临时脚本                                              |
+| `harness-tasks.json.corrupt-*`      | 损坏备份                                              |
+| `PowersNexus/`                      | 独立 git 仓库，应通过 remote 管理，勿整仓并入 novaway |
+| `dbx-main/`                         | 大体量外部/并行工程，不宜混入本主题提交               |
+| `pets-images/`                      | 资源素材，需单独确认产品归属                          |
 
 ## 可另开主题再提交（有价值但与历史 PowersNexus 第一方主题无关）
 

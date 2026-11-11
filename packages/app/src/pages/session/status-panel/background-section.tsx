@@ -55,7 +55,7 @@ export function useBackgroundSection(
   // 初始引导：切换会话时拉一次全量，事件后续增量更新由 global-sync 的 event-reducer 负责。
   const bootstrap = () => {
     const id = sessionID()
-    if (!id) return
+    if (!id || sdk.directory === "global-chat") return
     void sdk.client.session
       .background({ directory: sdk.directory, sessionID: id })
       .then((result) => {
@@ -128,7 +128,7 @@ export function useBackgroundSection(
     })
   }
 
-  /** 非子代理任务（命令/监视/订阅/编排）点开输出侧栏（对齐 ZCode 的 bash-output 标签）。 */
+  /** 非子代理任务（命令/监视/订阅/编排）点开输出侧栏。 */
   const openOutput = (job: BackgroundJob) => {
     const id = sessionID()
     if (!id) return
@@ -193,7 +193,7 @@ export function useBackgroundSection(
                     <div class="mt-0.5 truncate font-mono text-ui-xs text-foreground-subtle">{job.output}</div>
                   </Show>
                   <Show when={job.status === "error" && job.error}>
-                    <div class="mt-0.5 truncate text-ui-xs text-destructive" title={job.error}>
+                    <div class="mt-0.5 truncate text-ui-xs text-icon-critical-base" title={job.error}>
                       {job.error}
                     </div>
                   </Show>
@@ -213,7 +213,7 @@ export function useBackgroundSection(
             )}
           </For>
           <Show when={store.error}>
-            <div class="px-2 text-ui-xs text-destructive">{store.error}</div>
+            <div class="px-2 text-ui-xs text-icon-critical-base">{store.error}</div>
           </Show>
         </div>
       ),

@@ -1,6 +1,8 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import { parse as parseJsonc } from "jsonc-parser"
+import { fileURLToPath } from "node:url"
+import { parse as parseJsonc, printParseErrorCode } from "jsonc-parser"
+import type { ParseError } from "jsonc-parser"
 import { Schema } from "effect"
 import * as ManifestSchema from "./schema"
 import type { Loaded, Manifest } from "./schema"
@@ -34,6 +36,53 @@ async function readManifest(root: string): Promise<{ manifest: Manifest; error?:
   return { manifest: { name: path.basename(root) } }
 }
 
+/**
+ * 原始 manifest JSON，不做任何 Schema 解码。
+ *
+ * `readManifest()` 走的是旧 Schema，未声明的字段会被丢掉；而 §13.1 的归一化要把旧字段
+ * 原样带进 `manifest.legacy.raw` 才能跑 shadow 对比，所以 host 只能读这一条。
+ */
+export async function readRawManifest(
+  root: string,
+): Promise<
+  | { file: string; raw?: unknown; error?: string; fingerprint?: { mtimeMs: number; ctimeMs: number; size: number } }
+  | undefined
+> {
+  for (const relative of MANIFEST_FILES) {
+    const file = path.join(root, relative)
+    if (!(await exists(file))) continue
+    try {
+      // jsonc-parser 语法错误时不抛异常，只往 errors 里塞：坏文件照样返回结果（常常是 {}），
+      // 调用方要能分辨「空清单」和「读坏了」，所以这里把 errors 转成 error。
+      const before = await fs.stat(file)
+      const bytes = await fs.readFile(file)
+      const after = await fs.stat(file)
+      const fingerprint = { mtimeMs: before.mtimeMs, ctimeMs: before.ctimeMs, size: before.size }
+      const stable =
+        before.mtimeMs === after.mtimeMs &&
+        before.ctimeMs === after.ctimeMs &&
+        before.size === after.size &&
+        after.size === bytes.byteLength
+      const text = bytes.toString("utf8")
+      const errors: ParseError[] = []
+      const raw = parseJsonc(text, errors)
+      const first = errors[0]
+      if (first !== undefined) {
+        return {
+          file,
+          raw,
+          ...(stable ? { fingerprint } : {}),
+          error: `JSON 语法错误 ${errors.length} 处，首个在第 ${first.offset} 字符（${printParseErrorCode(first.error)}）`,
+        }
+      }
+      return { file, raw, ...(stable ? { fingerprint } : {}) }
+    } catch (error) {
+      return { file, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+  return undefined
+}
+
 async function implicit(root: string) {
   for (const name of ["commands", "agents", "skills", "hooks", "tools"]) {
     if (await exists(path.join(root, name))) return true
@@ -58,8 +107,11 @@ async function children(root: string) {
  * Walk a root and collect extension directories. Marketplaces add an extra
  * `plugins/<name>` level, so we allow up to three levels and stop at the first
  * directory that looks like an extension.
+ *
+ * Exported for `plugin/host.ts`: it needs the directories plus the raw manifest,
+ * which `scan()` collapses into a decoded `Loaded` and cannot hand back.
  */
-async function discover(root: string, depth = 0): Promise<string[]> {
+export async function discover(root: string, depth = 0): Promise<string[]> {
   if (!(await exists(root))) return []
   if (depth === 0) {
     const nested = await Promise.all((await children(root)).map((child) => discover(child, 1)))
@@ -79,6 +131,16 @@ export type Roots = {
   home: string
   directory: string
   worktree: string
+  /** Test/release override; an empty string intentionally disables the package root. */
+  builtin?: string
+}
+
+export function builtinRoot() {
+  // This directory is shipped with the NovaWay server package. It is deliberately
+  // separate from user/project roots: a discovered package can only become
+  // `scope=builtin` through this trusted release location, never by declaring a
+  // label in its manifest or by living under a project directory.
+  return process.env.NOVAWAY_BUILTIN_PLUGINS ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../builtin-plugins")
 }
 
 export function roots(input: Roots) {
@@ -88,6 +150,7 @@ export function roots(input: Roots) {
     if (result.some((item) => item.root === root)) return
     result.push({ root, source })
   }
+  add(input.builtin ?? builtinRoot(), "builtin")
   add(path.join(input.config, "extensions"), "user")
   add(path.join(input.config, "plugins"), "user")
   // Desktop installs marketplace packages here (zip and git alike). Without

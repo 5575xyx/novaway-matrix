@@ -82,7 +82,7 @@
   --tracking-tightest: var(--letter-spacing-tightest);
 
   --radius-xs: 0.125rem;
-  /* 圆角对齐 ZCode（= Tailwind 默认刻度 4/6/8/12/16）。
+  /* 圆角用 Tailwind 默认刻度 4/6/8/12/16。
      注意 @theme 位于 import 之后、会盖掉 theme.css 的 :root 值，两处必须同步修改，
      否则工具类（rounded-lg 等）与 CSS 变量（--radius-lg）会取到不同刻度。 */
   --radius-sm: 0.25rem;
@@ -110,6 +110,6 @@
 
 @import "./colors.css";
 
-/* NovaWay × ZCode 对齐：补回 ZCode 引用的 Tailwind 默认色板。
+/* 补回语义 token 引用的 Tailwind 默认色板。
    必须在 colors.css 之后 —— 那里的 `--color-*: initial` 会清空整套色板。 */
 @import "../palette.css";

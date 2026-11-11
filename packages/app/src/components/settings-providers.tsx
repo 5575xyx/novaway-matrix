@@ -114,9 +114,7 @@ export const SettingsProviders: Component = () => {
      * 用户点完「断开连接」会看到卡片原地不动 —— 就是"断开无效"的观感。
      */
     const disabled = new Set(globalSync.data.config.disabled_providers ?? [])
-    return providers
-      .connected()
-      .filter((p) => !disabled.has(p.id))
+    return providers.connected().filter((p) => !disabled.has(p.id))
   })
 
   const popular = createMemo(() => {
@@ -393,7 +391,7 @@ export const SettingsProviders: Component = () => {
     <div class="flex h-full flex-col overflow-hidden">
       <div class="flex shrink-0 items-start justify-between gap-4 px-6 pt-6 pb-4 sm:px-10">
         <div class="flex flex-col gap-1">
-          <h2 class="text-20-semibold text-foreground">{language.t("settings.providers.title")}</h2>
+          <h2 class="text-24-semibold tracking-tight text-foreground">{language.t("settings.providers.title")}</h2>
           <p class="text-13-regular text-foreground-subtle">{language.t("settings.providers.description")}</p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
@@ -406,7 +404,7 @@ export const SettingsProviders: Component = () => {
         </div>
       </div>
 
-      <div class="mx-4 mb-6 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border sm:mx-10">
+      <div class="mx-4 mb-6 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border/80 bg-surface shadow-sm sm:mx-10">
         <div class="flex w-64 shrink-0 flex-col border-r border-border">
           {/* 「添加供应商」是该页的主入口，放在左侧列表顶部的动作位，
               和下面的供应商列表形成"新增 → 选择 → 配置"的同一条视觉路径。 */}
@@ -619,7 +617,7 @@ export const SettingsProviders: Component = () => {
                                   </div>
                                 </Show>
                                 <button
-                                  class="shrink-0 text-12-regular text-foreground-subtle hover:text-destructive"
+                                  class="shrink-0 text-12-regular text-foreground-subtle hover:text-icon-critical-base"
                                   onClick={() => void removeEntry(item().id, index(), item().name)}
                                 >
                                   {language.t("common.remove")}

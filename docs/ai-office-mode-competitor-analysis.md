@@ -39,11 +39,11 @@ Trae Work 的核心不是做成一个更大的聊天工具，而是做成“任�
 - 产物可以预览、编辑、添加到对话继续修改，也能导出 HTML、PNG、JPG、ZIP 等格式。
 - 任务支持置顶、重命名、删除、全局搜索，并把多端任务状态同步到移动端。
 
-### 3.2 QoderWork
+### 3.2 竞品 A
 
-来源：QoderWork 官方文档与阿里云帮助中心。
+来源：竞品 A 官方文档与阿里云帮助中心。
 
-QoderWork 是最接近用户描述的“场景切换器 + 办公工作台”形态。它的核心设计是：底部输入框附近放一个工作台切换器，默认是“通用”，可以切换到“写作”“幻灯片”“设计”等工作台。
+竞品 A 是最接近用户描述的“场景切换器 + 办公工作台”形态。它的核心设计是：底部输入框附近放一个工作台切换器，默认是“通用”，可以切换到“写作”“幻灯片”“设计”等工作台。
 
 值得借鉴的亮点：
 
@@ -122,7 +122,7 @@ WPS AI 的核心经验是“任务路由”：不是让用户找一个万能 AI 
 
 来源：中国经营报 / 东方财富、易观报告相关报道。
 
-2026 年第二季度，桌面端 AI 原生办公智能体平台月访问量突破 6000 万次，腾讯 WorkBuddy、字节 TRAE、阿里 QoderWork 已形成第一梯队。市场正在从“多家赛马”收敛为“统一办公入口”，竞争焦点从有没有 Agent 转向：
+2026 年第二季度，桌面端 AI 原生办公智能体平台月访问量突破 6000 万次，腾讯 WorkBuddy、字节 TRAE、阿里竞品 A 已形成第一梯队。市场正在从“多家赛马”收敛为“统一办公入口”，竞争焦点从有没有 Agent 转向：
 
 - 是否占据用户每天打开电脑后第一个进入的桌面入口。
 - 是否把 AI 能力嵌入文档、表格、会议、知识库等真实工作流。
@@ -282,17 +282,54 @@ NovaWay 当前已经具备一套可扩展的办公模式底座：
 - 增加 PPTX / PDF / HTML 导出与保存模板。
 - 完善图表数据核验、演讲备注、页面节奏检查。
 
-## 8. 调研来源
+## 8. 旧格式兼容策略与参考办公产品对齐
 
-- Trae Work 概述：https://docs.trae.cn/work_what-is-trae-solo
+借鉴参考办公产品的处理方式，NovaWay 不把“能识别扩展名”误认为“所有格式都能无损编辑”。宿主先按文件类型选择编辑器，再由编辑器声明能力；不具备安全写回能力的格式不会被伪装成可编辑的 OOXML 文件。
+
+当前策略如下：
+
+| 格式 | NovaWay 行为 | 保存 / 迁移 |
+| --- | --- | --- |
+| `docx/docm/dotx/dotm`、`xlsx/xlsm/xltx/xltm`、`pptx/pptm/potx/potm/ppsx/ppsm` | 接入内置浏览器 Office 编辑器，支持 dirty、保存、撤销基线和外部修改冲突保护 | 原扩展名原地写回；宏包内 `vbaProject.bin` 等未触碰的 part 保留 |
+| `pdf` | 内置 PDF 编辑器；页面级兼容工具作为受控 fallback | 保存完整 PDF 字节，页面操作仍走 NovaWay OfficeOp 与宿主撤销栈 |
+| `odt/ods/odp`、`doc/xls/ppt`、`rtf` | 先由 core 解析/转换为对应的现代 OOXML，再进入同一个 DOCX/XLSX/PPTX 编辑器；编辑能力与现代格式一致，编辑器拿到的是转换后的内存字节 | 首次打开时创建不覆盖源文件的现代格式副本（DOCX/XLSX/PPTX），后续保存只写副本；旧格式原文件永不覆盖，复杂版式、公式、动画和嵌入对象按转换能力可能降级 |
+
+旧格式的解析、预览、AI `office view` 和转换共用 `@novaway/core/office/legacy`，避免前端单独实现一套“看起来能读”的转换逻辑。Office 97–2003 的 OLE 文档使用最小 OLE/BIFF/Word piece-table/PowerPoint record reader 提取文字和表格；转换后的现代 OOXML 再进入同一套内置 Office 编辑器。源文件路径不会交给现代编辑器写回，Host 只对新建的现代副本执行保存、CAS、撤销和原子写入。
+
+编辑器生命周期对齐参考实现的宿主边界：编辑器只拿到内存字节和受限 `ViewContext`，Host 负责 dirty、保存、CAS 冲突检查、原子写回、文件 watcher、撤销栈与 dispose。新格式只在对应 bundle 被打开时动态加载，旧格式不会为了预览加载浏览器 Office 编辑器。
+
+### 8.1 参考办公产品依据与 NovaWay 接入证据
+
+本节不是泛泛的竞品描述，而是本次实现采用的具体参考契约，来源为参考办公产品的官方 README：
+
+- 参考办公产品官方 README（中文）的“为什么做该产品”明确把新建、打开、保存、另存为、关闭、自动保存和弹窗放在同一个宿主中；NovaWay 对应实现为 `office-editor-host.ts`、`office-editor-lifecycle.ts` 和 `office-editor-host-component.tsx`。
+- README 的“文档格式一览”把 `.doc/.xls/.ppt/.rtf/.odt/.ods/.odp` 作为可打开的旧格式，同时把新建/交付格式收敛到 `.docx/.xlsx/.pptx`。NovaWay 进一步按“是否有安全写回引擎”细分：ODF 受限写回，RTF 和 Office 97–2003 二进制只读并转换导出，映射由 `officeDocumentCapability()` 和 `legacyEngine.apply()` 强制执行。
+- README 的命令行章节要求 AI 读写与界面使用同一套引擎、统一 JSON 错误和导出通道；NovaWay 由 `@novaway/core/office/legacy` 同时提供面板预览、`office view`、AI 文档操作和 `exportDocumentAs()`，不会为前端另写一套旧格式解析器。
+- README 的命令行 `batch` 章节要求“全部成功才写盘”，并先写临时文件再改名；NovaWay 的 Office Host 保存链路由 `recordDocumentWrite()`、CAS 摘要和临时文件 + rename 实现，旧格式导出则明确不写回源文件。
+
+对应代码和验收证据：
+
+- 能力路由：`packages/app/src/pages/session/office-preview-utils.ts`（`converted-edit` 映射与现代目标扩展名选择）
+- Host 隔离与生命周期：`packages/app/src/pages/session/office-editor-host.ts`、`office-editor-lifecycle.ts`
+- 旧格式转换、读取与导出：`packages/core/src/office/legacy/read.ts`、`write.ts`、`engine.ts`
+- 参考实现风格的转换编辑桥：`packages/app/src/pages/session/office-file-preview.tsx` 的 `LegacyEditorFrame`，以及 `file-tabs.tsx` 的 `prepareLegacyOfficeEditor()`
+- 旧格式转换验收：`packages/app/e2e/office-legacy-file-panel.spec.ts`
+- 该 E2E 内置了可被 OLE/BIFF/Word piece-table/PowerPoint record reader 解析的 DOC/XLS/PPT 二进制样本；因此没有真实样本目录时也不会跳过三类旧二进制测试，同时仍支持通过 `OFFICE_REAL_SAMPLES` 替换为外部 Word/Excel/PowerPoint 样本。
+
+这形成了 NovaWay 对参考办公产品的实际接入：采用统一宿主、统一引擎、AI/界面共用读写和导出路径，同时针对当前没有安全旧格式写回引擎的格式主动降级为只读预览，避免把“能打开”误报成“能无损编辑”。
+
+## 9. 调研来源
+
+- 参考办公产品官方 README（中文）
+- 参考办公产品项目主页
 - Trae Work 快速开始：https://docs.trae.cn/work_trae-work-web-and-desktop-quickstart
 - Trae Work Design 模式：https://docs.trae.cn/work_use-the-design-mode
 - Trae Work 模板库：https://docs.trae.cn/work_templates
 - Trae Work Spec & Plan：https://docs.trae.cn/work_spec-and-plan
-- QoderWork 任务对话：https://help.aliyun.com/zh/lingma/qoderwork-cn/getting-started/task-dialogue
-- QoderWork 写作：https://docs.qoder.com/zh/qoderwork/writing
-- QoderWork 幻灯片：https://help.aliyun.com/zh/lingma/qoderwork-cn/slide
-- QoderWork 设计：https://docs.qoder.com/zh/qoderwork/design
+- 竞品 A 任务对话（官方文档）
+- 竞品 A 写作（官方文档）
+- 竞品 A 幻灯片（官方文档）
+- 竞品 A 设计（官方文档）
 - ChatGPT Work：https://openai.com/zh-Hans-CN/index/chatgpt-for-your-most-ambitious-work/
 - 商汤小浣熊可编辑 AI PPT：https://www.qbitai.com/2026/03/382971.html
 - 商汤小浣熊 3.0：https://m.leiphone.com/category/industrynews/8VCIwuoBCOkG8amz.html

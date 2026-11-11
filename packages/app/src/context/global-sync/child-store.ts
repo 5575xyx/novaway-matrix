@@ -175,8 +175,17 @@ export function createChildStoreManager(input: {
           const initialMeta = meta[0].value
           const initialIcon = icon[0].value
 
+          const globalChat = key === "global-chat"
           const [pathQuery, mcpQuery, lspQuery] = useQueries(() => ({
-            queries: [input.queryOptions.path(key), input.queryOptions.mcp(key), input.queryOptions.lsp(key)],
+            queries: [
+              input.queryOptions.path(key),
+              globalChat
+                ? { queryKey: [key, "mcp"], queryFn: async () => ({}), enabled: false }
+                : input.queryOptions.mcp(key),
+              globalChat
+                ? { queryKey: [key, "lsp"], queryFn: async () => [], enabled: false }
+                : input.queryOptions.lsp(key),
+            ],
           }))
 
           const child = createStore<State>({
@@ -198,6 +207,7 @@ export function createChildStoreManager(input: {
             status: "loading" as const,
             agent: [],
             command: [],
+            plugin_contributions: [],
             session: [],
             sessionTotal: 0,
             session_status: {},

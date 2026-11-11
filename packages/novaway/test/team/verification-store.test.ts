@@ -48,10 +48,18 @@ describe("verification store: same-snapshot reuse", () => {
 
       // 换快照、换验证器版本都不是同一条结论。
       expect(
-        yield* verification.reusable({ acceptanceID: acceptance.id, snapshotID: "snap_2", verifierVersion: "command:v1" }),
+        yield* verification.reusable({
+          acceptanceID: acceptance.id,
+          snapshotID: "snap_2",
+          verifierVersion: "command:v1",
+        }),
       ).toBeUndefined()
       expect(
-        yield* verification.reusable({ acceptanceID: acceptance.id, snapshotID: "snap_1", verifierVersion: "command:v2" }),
+        yield* verification.reusable({
+          acceptanceID: acceptance.id,
+          snapshotID: "snap_1",
+          verifierVersion: "command:v2",
+        }),
       ).toBeUndefined()
     }),
   )
@@ -73,7 +81,11 @@ describe("verification store: same-snapshot reuse", () => {
         measured: "超时（>2.0s），未能得出结论",
       })
       expect(
-        yield* verification.reusable({ acceptanceID: acceptance.id, snapshotID: "snap_1", verifierVersion: "command:v1" }),
+        yield* verification.reusable({
+          acceptanceID: acceptance.id,
+          snapshotID: "snap_1",
+          verifierVersion: "command:v1",
+        }),
       ).toBeUndefined()
     }),
   )

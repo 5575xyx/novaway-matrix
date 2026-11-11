@@ -3,15 +3,18 @@ import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { InstanceRef } from "@/effect/instance-ref"
 import { disposeInstance as runDisposers } from "@/effect/instance-registry"
 import { AppFileSystem } from "@novaway/core/filesystem"
+import { Global } from "@novaway/core/global"
 import { Context, Deferred, Duration, Effect, Exit, Layer, Scope } from "effect"
-import { type InstanceContext } from "./instance-context"
+import path from "path"
 import { InstanceBootstrap } from "./bootstrap-service"
+import { type InstanceContext } from "./instance-context"
 import * as Project from "./project"
 
 export interface LoadInput {
   directory: string
   worktree?: string
   project?: Project.Info
+  scope?: "project" | "global"
 }
 
 export interface Interface {
@@ -26,6 +29,7 @@ export class Service extends Context.Service<Service, Interface>()("@novaway/Ins
 
 interface Entry {
   readonly deferred: Deferred.Deferred<InstanceContext>
+  readonly scope: "project" | "global"
 }
 
 export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootstrap.Service> = Layer.effect(
@@ -35,23 +39,33 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
     const bootstrap = yield* InstanceBootstrap.Service
     const scope = yield* Scope.Scope
     const cache = new Map<string, Entry>()
+    const globalDirectory = path.join(Global.Path.data, "global-chat")
 
     const boot = (input: LoadInput & { directory: string }) =>
       Effect.gen(function* () {
         const ctx: InstanceContext =
-          input.project && input.worktree
+          input.scope === "global"
             ? {
-                directory: input.directory,
-                worktree: input.worktree,
-                project: input.project,
+                directory: globalDirectory,
+                worktree: globalDirectory,
+                project: yield* project.globalChat(),
+                scope: "global",
               }
-            : yield* project.fromDirectory(input.directory).pipe(
-                Effect.map((result) => ({
+            : input.project && input.worktree
+              ? {
                   directory: input.directory,
-                  worktree: result.sandbox,
-                  project: result.project,
-                })),
-              )
+                  worktree: input.worktree,
+                  project: input.project,
+                  scope: "project",
+                }
+              : yield* project.fromDirectory(input.directory).pipe(
+                  Effect.map((result) => ({
+                    directory: input.directory,
+                    worktree: result.sandbox,
+                    project: result.project,
+                    scope: "project" as const,
+                  })),
+                )
         yield* bootstrap.run.pipe(Effect.provideService(InstanceRef, ctx))
         return ctx
       }).pipe(Effect.withSpan("InstanceStore.boot"))
@@ -100,13 +114,16 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
     })
 
     const load = (input: LoadInput): Effect.Effect<InstanceContext> => {
-      const directory = AppFileSystem.resolve(input.directory)
+      const directory = AppFileSystem.resolve(input.scope === "global" ? globalDirectory : input.directory)
       return Effect.uninterruptibleMask((restore) =>
         Effect.gen(function* () {
           const existing = cache.get(directory)
-          if (existing) return yield* restore(Deferred.await(existing.deferred))
+          if (existing) {
+            if (existing.scope !== (input.scope ?? "project")) throw new Error(`Instance scope mismatch: ${directory}`)
+            return yield* restore(Deferred.await(existing.deferred))
+          }
 
-          const entry: Entry = { deferred: Deferred.makeUnsafe<InstanceContext>() }
+          const entry: Entry = { deferred: Deferred.makeUnsafe<InstanceContext>(), scope: input.scope ?? "project" }
           cache.set(directory, entry)
           yield* Effect.gen(function* () {
             yield* Effect.logInfo("creating instance").pipe(Effect.annotateLogs("directory", directory))
@@ -118,11 +135,11 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
     }
 
     const reload = (input: LoadInput): Effect.Effect<InstanceContext> => {
-      const directory = AppFileSystem.resolve(input.directory)
+      const directory = AppFileSystem.resolve(input.scope === "global" ? globalDirectory : input.directory)
       return Effect.uninterruptibleMask((restore) =>
         Effect.gen(function* () {
           const previous = cache.get(directory)
-          const entry: Entry = { deferred: Deferred.makeUnsafe<InstanceContext>() }
+          const entry: Entry = { deferred: Deferred.makeUnsafe<InstanceContext>(), scope: input.scope ?? "project" }
           cache.set(directory, entry)
           yield* Effect.gen(function* () {
             yield* Effect.logInfo("reloading instance").pipe(Effect.annotateLogs("directory", directory))

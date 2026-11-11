@@ -25,11 +25,11 @@ import { configuredModel } from "@/utils/model"
 import { modelIconId } from "@/utils/provider-icon"
 
 /**
- * 办公模式首页 —— 一比一复刻 ZCode 的办公模式草稿态。
+ * 办公模式首页 —— 办公模式草稿态。
  *
  * 结构只有三样：巨大的品牌水印 → 一句问候 → 一张输入卡。
  * 之前的「场景大标题 + 场景切换器 + PPT 选项表单 + 模板画廊」整块撤掉了：
- * ZCode 的办公模式没有第二套版式，它把首页当作一次普通对话的草稿态，
+ * 办公模式没有第二套版式，首页就是一次普通对话的草稿态，
  * 场景、模板、平台这些能力收进输入卡本身（图标条 / 「+」菜单），
  * 页面不再被装饰挤占，第一眼看到的就是「可以开始干活了」。
  */
@@ -166,13 +166,13 @@ export function OfficeHomeWorkspace(props: {
         <DraftEmptyState class="mb-8" />
 
         <form
-          class="relative z-10 w-full rounded-2xl border border-input-border bg-panel shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition-colors focus-within:border-input-border-focused"
+          class="relative z-10 w-full rounded-2xl border border-input-border bg-panel shadow-[0_8px_30px_color-mix(in_srgb,var(--text-strong)_6%,transparent)] transition-colors focus-within:border-input-border-focused"
           onSubmit={(event) => {
             event.preventDefault()
             void submit()
           }}
         >
-          {/* 顶行：项目 + 办公场景（ZCode 这里是「项目 chip + 插件头像 + 加号」）。 */}
+          {/* 顶行：项目 + 办公场景（「项目 chip + 插件头像 + 加号」）。 */}
           <div class="flex min-w-0 items-center gap-1 px-2.5 pt-2.5">
             <button
               type="button"
@@ -250,9 +250,9 @@ export function OfficeHomeWorkspace(props: {
             class="min-h-[96px] w-full resize-none bg-transparent px-3.5 pb-2 pt-3 text-14-regular leading-6 text-foreground outline-none placeholder:text-foreground-subtlest"
           />
 
-          {/* 底行：权限 · 模型 · 发送，和 ZCode 的输入卡一致。 */}
+          {/* 底行：权限 · 模型 · 发送。 */}
           <div class="flex items-center gap-0.5 px-2 pb-2">
-            {/* ZCode 输入卡左下角的 `+` 是「添加插件」。这里同样打开插件选择器：
+            {/* 输入卡左下角的 `+` 是「添加插件」，打开插件选择器：
                 开关写回配置，和扩展设置页共用一份状态。 */}
             <button
               type="button"
@@ -361,7 +361,7 @@ export function OfficeHomeWorkspace(props: {
           </div>
         </form>
 
-        {/* 推荐提示词挂在输入框正下方，和 ZCode 的草稿态一致：
+        {/* 推荐提示词挂在输入框正下方（草稿态）：
             点一条就等于「选好插件 + 写好开场白」，不用用户自己从零描述。 */}
         <Show when={settings.office.showSuggestions()}>
           <OfficeSuggestedPrompts
@@ -384,7 +384,7 @@ export function OfficeHomeWorkspace(props: {
  * 模板选择弹窗。
  *
  * 模板原本是占据首页整整一段版面的画廊，但模板本质是「预置指令」，属于输入的附属物 ——
- * ZCode 也把这类东西收进 `+` 菜单，而不是常驻首页。
+ * 这类东西收进 `+` 菜单，而不是常驻首页。
  */
 function TemplatePickerDialog(props: {
   activeID: HomeActionId
@@ -415,8 +415,9 @@ function TemplatePickerDialog(props: {
                 <Show when={card.pptTemplate && card.pptTemplate !== "auto"}>
                   <button
                     type="button"
-                    class="grid size-6 shrink-0 place-items-center rounded-md text-foreground-subtle opacity-0 transition-opacity hover:bg-surface hover:text-foreground group-hover:opacity-100"
+                    class="grid size-6 shrink-0 place-items-center rounded-md text-foreground-subtle opacity-100 transition-opacity hover:bg-surface hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
                     title={card.title}
+                    aria-label={`预览 ${card.title}`}
                     onClick={() =>
                       void dialog.show(() => <OfficePptTemplatePreview template={card.pptTemplate as never} />)
                     }

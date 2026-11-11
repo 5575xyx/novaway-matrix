@@ -29,7 +29,7 @@ description: "Use when the user needs social media topic ideas, trend/hot-list r
 - 找**显著高于中位数**的题材，那是这个账号已经被验证过的方向。
 
 ```js
-(() => {
+;(() => {
   const rows = Array.from(document.querySelectorAll("tr, [class*='item'], [class*='card']"))
     .slice(0, 30)
     .map((node) => (node.innerText || "").replace(/\s+/g, " ").trim())
@@ -56,12 +56,12 @@ description: "Use when the user needs social media topic ideas, trend/hot-list r
 
 每个候选选题按 4 项各 0-2 分，总分 ≥ 5 才推荐：
 
-| 维度 | 2 分 | 1 分 | 0 分 |
-| --- | --- | --- | --- |
-| 相关性 | 直接命中目标读者痛点 | 沾边 | 与账号无关 |
-| 依据 | 有具体数据/热榜位次 | 有间接信号 | 纯猜 |
-| 竞争密度 | 同类内容少或有差异化角度 | 一般 | 已经烂大街 |
-| 可执行 | 现有素材/能力就能做 | 需要补一点素材 | 需要拍摄/出镜等做不到 |
+| 维度     | 2 分                     | 1 分           | 0 分                  |
+| -------- | ------------------------ | -------------- | --------------------- |
+| 相关性   | 直接命中目标读者痛点     | 沾边           | 与账号无关            |
+| 依据     | 有具体数据/热榜位次      | 有间接信号     | 纯猜                  |
+| 竞争密度 | 同类内容少或有差异化角度 | 一般           | 已经烂大街            |
+| 可执行   | 现有素材/能力就能做      | 需要补一点素材 | 需要拍摄/出镜等做不到 |
 
 ## 输出格式
 

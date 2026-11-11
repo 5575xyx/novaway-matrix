@@ -604,7 +604,7 @@ export function DialogSelectServer() {
                             <DropdownMenu.Separator />
                             <DropdownMenu.Item
                               onSelect={() => handleRemove(ServerConnection.key(i))}
-                              class="text-destructive-foreground hover:bg-destructive"
+                              class="text-icon-critical-base hover:bg-surface-critical-base hover:text-text-on-critical-base"
                             >
                               <DropdownMenu.ItemLabel>{language.t("dialog.server.menu.delete")}</DropdownMenu.ItemLabel>
                             </DropdownMenu.Item>

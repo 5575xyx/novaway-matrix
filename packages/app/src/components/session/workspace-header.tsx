@@ -10,6 +10,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
+import { useSDK } from "@/context/sdk"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { decode64 } from "@/utils/base64"
 import { displaySessionTitle } from "@/utils/session-title"
@@ -22,21 +23,27 @@ export function WorkspaceHeader() {
   const globalSync = useGlobalSync()
   const sessionLayout = useSessionLayout()
   const settings = useSettings()
+  const sdk = useSDK()
+  const workspaceAvailable = createMemo(() => sdk.directory !== "global-chat")
   // 运行平台（"desktop" = Electron 壳），不是视口宽度。会话页里那个 `isDesktop()` 是
   // createMediaQuery("(min-width: 768px)")，两者含义完全不同，别混用。
   const platform = usePlatform()
   const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   // 侧栏收起时，macOS 的红绿灯 / Windows 的原生窗控会压到会话帧这一行上，需要让出安全区。
   const reserveWindowControls = createMemo(() => !layout.sidebar.expanded())
-  const directory = createMemo(() => decode64(params.dir) ?? "")
-  const sessionStore = createMemo(() => (directory() ? globalSync.child(directory())[0] : undefined))
+  const directory = createMemo(() => (workspaceAvailable() ? (decode64(params.dir) ?? "") : "global-chat"))
+  const sessionStore = createMemo(() => globalSync.child(directory())[0])
   const session = createMemo(() => sessionStore()?.session.find((s) => s.id === params.id))
   const working = createMemo(() => {
     const id = session()?.id
     const store = sessionStore()
     return id && store ? store.session_working(id) : false
   })
-  const dirName = createMemo(() => directory().split(/[\\/]/).filter(Boolean).pop() ?? directory())
+  const dirName = createMemo(() =>
+    workspaceAvailable()
+      ? (directory().split(/[\\/]/).filter(Boolean).pop() ?? directory())
+      : language.t("sidebar.globalChat.title"),
+  )
   const branch = createMemo(() => sessionStore()?.vcs?.branch ?? "")
   // 子会话的父会话（同一个 directory 的会话列表里找），用于顶部面包屑。
   const parentSession = createMemo(() => {
@@ -53,7 +60,7 @@ export function WorkspaceHeader() {
   return (
     <div
       data-component="workspace-header"
-      // 对齐 ZCode WorkspaceHeader：h-12、border-b border-border/50、左侧标题区 + 右侧操作区，
+      // h-12、border-b border-border/50、左侧标题区 + 右侧操作区，
       // 整条 header 自己就是窗口拖拽区（子元素靠 data-window-drag 的 CSS 规则自动排除拖拽）。
       // 桌面端不再有全局标题栏，这个 header 就是窗口顶部的唯一可拖动区域。
       classList={{
@@ -65,7 +72,7 @@ export function WorkspaceHeader() {
       }}
       data-window-drag
     >
-      {/* 侧栏收起时，展开入口归 Header（对齐 ZCode：收起态由 Header 承载展开按钮，
+      {/* 侧栏收起时，展开入口归 Header（收起态由 Header 承载展开按钮，
           展开态收起入口在侧栏顶带）。品牌字标不再重复一份 —— logo 常驻在最左侧图标条
           顶端（rail 不随折叠消失），这里只放展开按钮。 */}
       <Show when={!layout.sidebar.expanded()}>
@@ -89,7 +96,7 @@ export function WorkspaceHeader() {
         onClick={layout.mobileSidebar.toggle}
       />
       <Show when={working()}>
-        <span class="size-2 rounded-full bg-[var(--success)] novaway-breathe-dot shrink-0" />
+        <span class="size-2 rounded-full bg-[var(--icon-success-base)] novaway-breathe-dot shrink-0" />
       </Show>
       {/* 子智能体会话的面包屑：`父会话标题 › 本会话标题`。
           子会话从父会话派生而来，只给标题看不出它是谁的子任务
@@ -112,11 +119,17 @@ export function WorkspaceHeader() {
         )}
       </Show>
       <span class="text-ui-base font-medium text-foreground truncate max-w-[240px]">
-        {displaySessionTitle(session()?.title, language.t("workspace.header.untitled"))}
+        {workspaceAvailable() || params.id
+          ? displaySessionTitle(session()?.title, language.t("workspace.header.untitled"))
+          : language.t("sidebar.globalChat.title")}
       </span>
-      <span class="text-ui-xs text-foreground-subtle truncate max-w-[180px] hidden md:block border border-border rounded-md px-1.5 py-0.5">
-        {branch() ? language.t("workspace.header.projectBranch", { project: dirName(), branch: branch() }) : dirName()}
-      </span>
+      <Show when={workspaceAvailable()}>
+        <span class="text-ui-xs text-foreground-subtle truncate max-w-[180px] hidden md:block border border-border rounded-md px-1.5 py-0.5">
+          {branch()
+            ? language.t("workspace.header.projectBranch", { project: dirName(), branch: branch() })
+            : dirName()}
+        </span>
+      </Show>
       {/* 模型名与思考强度不再显示在这里：输入框底栏已经有同一组控件，
           而且那才是真正能改的地方 —— 顶栏这份是只读的重复信息，还挤占标题宽度。 */}
       <div class="flex-1" />
@@ -125,13 +138,14 @@ export function WorkspaceHeader() {
           icon="terminal"
           title={language.t("workspace.header.terminal")}
           variant="ghost"
+          disabled={!workspaceAvailable()}
           aria-expanded={sessionLayout.view().terminal.opened()}
           onClick={() => sessionLayout.view().terminal.toggle()}
           class={sessionLayout.view().terminal.opened() ? "text-icon-blue" : ""}
         />
       </Show>
       {/* 搜索、连接状态、在编辑器中打开、Side Pane 开关原先被 Portal 塞进全局标题栏，
-          现在就地渲染在这里（同样对齐 ZCode：操作都在会话帧的 Header 里）。 */}
+          现在就地渲染在这里（操作都在会话帧的 Header 里）。 */}
       <SessionHeader />
       <DropdownMenu>
         <DropdownMenu.Trigger

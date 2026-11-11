@@ -17,3 +17,7 @@ packages/web/public/site.webmanifest
 # 生成物，由 packages/ui/script/tailwind.ts 从 colors.txt 产出（文件头已注明「请勿手改」）。
 # 生成器的输出不是 prettier 格式，纳入检查会每次生成后报错。
 packages/ui/src/styles/tailwind/colors.css
+
+# 生成物，由 packages/novaway/script/generate-dwf-libs.ts 从 typescript 的 lib 目录烘出来。
+# 内容是 57 个 .d.ts 的逐字拷贝，纳入格式化只会让每次重生成都产生无关 diff。
+packages/novaway/src/dynamic-workflow/compiler/libs.generated.ts

@@ -294,8 +294,10 @@ describe("HttpApi Server.listen", () => {
       return true
     }) as typeof process.stderr.write
     try {
-      const response = await Server.Default().app.request("/status")
-      expect(response.status).toBe(200)
+      const response = await Server.Default().app.request("/global/health", { headers: { authorization: authorization() } })
+      if (response.status !== 200) {
+        throw new Error(`Expected /global/health 200, received ${response.status}: ${await response.text()}\n${output}`)
+      }
     } finally {
       process.stderr.write = original
     }

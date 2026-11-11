@@ -101,6 +101,9 @@ export function applyDirectoryEvent(input: {
   push: (directory: string) => void
   directory: string
   loadLsp: () => void
+  loadAgents?: () => void
+  loadCommands?: () => void
+  loadContributions?: () => void
   loadProviders?: () => void
   vcsCache?: VcsCache
   setSessionTodo?: (sessionID: string, todos: Todo[] | undefined) => void
@@ -108,6 +111,12 @@ export function applyDirectoryEvent(input: {
 }) {
   const event = input.event
   switch (event.type) {
+    case "plugin.changed": {
+      input.loadAgents?.()
+      input.loadCommands?.()
+      input.loadContributions?.()
+      return
+    }
     case "server.instance.disposed": {
       input.push(input.directory)
       return

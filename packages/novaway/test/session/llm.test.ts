@@ -701,7 +701,7 @@ describe("session.llm.stream", () => {
         expect((body.reasoning as { effort?: string } | undefined)?.effort).toBe("high")
 
         const maxTokens = body.max_output_tokens as number | undefined
-        expect(maxTokens).toBe(undefined) // match codex cli behavior
+        expect(maxTokens).toBe(ProviderTransform.maxOutputTokens(resolved))
       },
     })
   })

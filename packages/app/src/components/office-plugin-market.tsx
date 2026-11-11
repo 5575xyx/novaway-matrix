@@ -26,7 +26,7 @@ type Pending = { name: string; phase: "progress" | "success" | "error"; message?
 const text = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /**
- * 插件选择器里的「市场」段 —— 对齐 ZCode 从市场安装插件的三态。
+ * 插件选择器里的「市场」段 —— 从市场安装插件的三态。
  *
  * 内置插件随包提供（开关只是启用/停用）；真正需要"安装"的是市场上的包。
  * 这里不复制市场的整套目录 UI，只做一件事：把**还没装**的包列出来，
@@ -120,7 +120,9 @@ export const OfficePluginMarket: Component<{ directory?: string }> = (props) => 
         </button>
       </div>
 
-      <Show when={store.error}>{(message) => <div class="text-11-regular text-warning">{message()}</div>}</Show>
+      <Show when={store.error}>
+        {(message) => <div class="text-11-regular text-icon-warning-base">{message()}</div>}
+      </Show>
 
       <Show when={!props.directory}>
         <div class="text-11-regular text-foreground-subtle">{language.t("office.plugin.market.needProject")}</div>
@@ -151,7 +153,7 @@ export const OfficePluginMarket: Component<{ directory?: string }> = (props) => 
                   </div>
                 </Show>
                 <Show when={phaseOf(entry.name) === "error"}>
-                  <div class="truncate text-11-regular text-warning" title={pending()?.message}>
+                  <div class="truncate text-11-regular text-icon-warning-base" title={pending()?.message}>
                     {language.t("office.plugin.market.failed", { message: pending()?.message ?? "" })}
                   </div>
                 </Show>

@@ -1,5 +1,6 @@
 import {
   builtinFastPathRules,
+  contributesKeys,
   defineBuiltinPlugin,
   defineTool,
   isPluginError,
@@ -8,6 +9,7 @@ import {
 } from "../src/index"
 import type {
   ChannelMessage,
+  Contributes,
   Disposable,
   EventSourceContribution,
   KernelApi,
@@ -45,7 +47,10 @@ type _builtin_rules_are_literals = Expect<
   >
 >
 
-/** Manifest v2 全量贡献点：24 个 kind 都要能在 contributes 里声明出来。 */
+/** 宿主判别未知贡献点用的常量与 `Contributes` 的键全集一一对应，加贡献点不用两头改。 */
+type _contributes_keys_exact = Expect<Equal<(typeof contributesKeys)[number], keyof Contributes>>
+
+/** Manifest v2 全量贡献点：`Contributes` 的 22 个键都要能在这个 fixture 里声明出来。 */
 export const manifestFixture = {
   name: "acme_all",
   version: "1.0.0",

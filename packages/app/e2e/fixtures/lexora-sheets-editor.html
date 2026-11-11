@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>lexora sheets editor fixture</title>
+    <style>
+      /* 夹具不引入完整 app 的 Tailwind，这里手动撑起高度链：body→#root→#editor。 */
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      #root {
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./lexora-sheets-editor.ts"></script>
+  </body>
+</html>

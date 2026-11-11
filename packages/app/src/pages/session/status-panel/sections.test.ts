@@ -11,7 +11,7 @@ const layoutSource = read("../../layout.tsx")
 const sessionSource = read("../../session.tsx")
 const promptInputSource = read("../../../components/prompt-input.tsx")
 
-// 全局标题栏已移除（Round 1 对齐 ZCode）：入口不能跟着一起消失，必须各自落到新位置。
+// 全局标题栏已移除（Round 1 改版）：入口不能跟着一起消失，必须各自落到新位置。
 describe("top bar removal keeps every entry reachable", () => {
   test("there is no global titlebar component any more", async () => {
     const appSource = read("../../layout.tsx")
@@ -64,7 +64,7 @@ describe("top bar removal keeps every entry reachable", () => {
 })
 
 describe("context usage lives in the composer, not the status panel", () => {
-  // 对齐 ZCode 的 ChatContextUsage：占用触发器挂在输入框工具条上，状态面板里
+  // 占用触发器挂在输入框工具条上，状态面板里
   // 不再有 context 卡（干净的面板 = 只有活内容，空闲期整块消失）。
   test("the context card left the status panel and its entry moved to the composer toolbar", () => {
     expect(sessionSource).not.toContain("useContextSection")

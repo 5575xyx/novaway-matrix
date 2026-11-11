@@ -40,7 +40,8 @@ const observations: Observation[] = readFileSync(file, "utf8")
     const record = value as Partial<Observation>
     if (typeof record.taskID !== "string" || !record.taskID) throw new Error(where + " 缺少 taskID")
     if (!GROUPS.includes(record.group as Group)) throw new Error(where + " 的 group 必须是 A / B / C")
-    if (!VERDICTS.includes(record.verdict as Verdict)) throw new Error(where + " 的 verdict 必须是 pass / fail / unknown")
+    if (!VERDICTS.includes(record.verdict as Verdict))
+      throw new Error(where + " 的 verdict 必须是 pass / fail / unknown")
     return record as Observation
   })
 
@@ -48,8 +49,14 @@ const result = report(observations)
 
 const number = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(3))
 const delta = (metric: { team: number; baseline: number; delta: number; ratio?: number }) =>
-  metric.team + " vs " + metric.baseline + "（Δ" + (metric.delta > 0 ? "+" : "") + number(metric.delta) +
-  (metric.ratio === undefined ? "" : "，×" + number(metric.ratio)) + "）"
+  metric.team +
+  " vs " +
+  metric.baseline +
+  "（Δ" +
+  (metric.delta > 0 ? "+" : "") +
+  number(metric.delta) +
+  (metric.ratio === undefined ? "" : "，×" + number(metric.ratio)) +
+  "）"
 
 console.log("对照实验（§17）：" + result.tasks.length + " 个任务，可比较 " + result.comparable + " 个")
 console.log("")

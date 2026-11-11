@@ -4,6 +4,7 @@ import { createSimpleContext } from "@novaway/ui/context"
 import { showToast } from "@novaway/ui/toast"
 import { useParams } from "@solidjs/router"
 import { getFilename } from "@novaway/core/util/path"
+import { officeFormatOf } from "@novaway/core/office/engine/registry"
 import { useSDK } from "./sdk"
 import { useSync } from "./sync"
 import { useLanguage } from "@/context/language"
@@ -23,7 +24,10 @@ import {
 } from "./file/content-cache"
 import { createFileViewCache } from "./file/view-cache"
 import { createFileTreeStore } from "./file/tree-store"
-import { invalidateFromWatcher } from "./file/watcher"
+import { getFileMediaPreviewFormat } from "@/pages/session/file-preview-binary-content"
+import { isImagePreviewPath } from "@/pages/session/office-preview-utils"
+import * as RecentFiles from "./file/recent-files"
+import { invalidateFromWatcher, isPreviewRefreshPath, nextMediaRevision, nextPreviewRevision } from "./file/watcher"
 import {
   selectionFromLines,
   type FileState,
@@ -77,7 +81,16 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       return target !== root && !target.startsWith(`${root}/`)
     }
 
+    /**
+     * 最近打开过的文件。
+     *
+     * 按工作区共享到 RecentFiles：会话侧在这里写入，外壳侧的侧栏文件树也读同一份。
+     */
+    const rememberRecent = (file: string) => RecentFiles.rememberRecent(scope() ?? "", file)
+
     const inflight = new Map<string, Promise<void>>()
+    const [revision, setRevision] = createStore<Record<string, number>>({})
+    const [previewRevision, setPreviewRevision] = createStore<Record<string, number>>({})
     const [store, setStore] = createStore<{
       file: Record<string, FileState>
     }>({
@@ -193,6 +206,11 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       ensure(file)
 
       const current = store.file[file]
+      if (getFileMediaPreviewFormat(file)) {
+        setLoaded(file, { type: "binary", content: "", encoding: "base64" })
+        rememberRecent(file)
+        return Promise.resolve()
+      }
       if (!options?.force && current?.loaded) return Promise.resolve()
 
       const pending = inflight.get(key)
@@ -212,6 +230,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
               return
             }
             setLoaded(file, { type: "text", content })
+            rememberRecent(file)
           })
           .finally(() => {
             inflight.delete(key)
@@ -224,8 +243,15 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
         .read({ path: file })
         .then((x) => {
           if (scope() !== directory) return
+          // SDK 不 reject，失败藏在 x.error 里。原来只取 x.data：越界被拒和「空的读成功」
+          // 长成同一个 loaded 状态，聊天区那道 `?.error` 闸门永远等不到东西。
+          if (x.error) {
+            setLoadError(file, x.error.data.message || language.t("error.chain.unknown"))
+            return
+          }
           const content = x.data
           setLoaded(file, content)
+          rememberRecent(file)
 
           if (!content) return
           touchFileContent(file, approxBytes(content))
@@ -269,6 +295,20 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       )
 
     const stop = sdk.event.listen((e) => {
+      const props =
+        typeof e.details.properties === "object" && e.details.properties
+          ? (e.details.properties as Record<string, unknown>)
+          : undefined
+      const changedPath = typeof props?.file === "string" ? path.normalize(props.file) : undefined
+      if (e.details.type === "file.watcher.updated" && changedPath) {
+        const isOpen = tabs.all().some((tab) => path.pathFromTab(tab) === changedPath)
+        if (getFileMediaPreviewFormat(changedPath)) {
+          setRevision(changedPath, nextMediaRevision(revision[changedPath] ?? 0, isOpen))
+        }
+        if (isPreviewRefreshPath(changedPath, officeFormatOf, isImagePreviewPath)) {
+          setPreviewRevision(changedPath, nextPreviewRevision(previewRevision[changedPath] ?? 0, isOpen))
+        }
+      }
       invalidateFromWatcher(e.details, {
         normalize: path.normalize,
         hasFile: (file) => Boolean(store.file[file]),
@@ -335,8 +375,13 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       },
       get,
       load,
+      revision: (input: string) => revision[path.normalize(input)] ?? 0,
+      previewRevision: (input: string) => previewRevision[path.normalize(input)] ?? 0,
       write,
       isExternal: isExternalFile,
+      recent: () => RecentFiles.recent(scope() ?? ""),
+      rememberRecent,
+      forgetRecent: (file: string) => RecentFiles.forgetRecent(scope() ?? "", file),
       pinnedPaths,
       scrollTop,
       scrollLeft,

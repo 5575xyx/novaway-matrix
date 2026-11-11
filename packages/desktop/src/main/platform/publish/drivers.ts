@@ -86,7 +86,12 @@ export const DRIVERS: Record<string, PublishDriver> = {
     descriptionEditor: ["div.tiptap", 'div[contenteditable="true"]'],
     // 新版发布按钮在 <xhs-publish-btn> 的 closed shadow root 里，DOM 点不到：
     // 宿主要等到 submit-disabled="false"，然后在宿主矩形右侧按坐标点。
-    submitClick: { host: "xhs-publish-btn", xRatio: 0.8, yOffset: 26, waitAttr: { name: "submit-disabled", value: "false" } },
+    submitClick: {
+      host: "xhs-publish-btn",
+      xRatio: 0.8,
+      yOffset: 26,
+      waitAttr: { name: "submit-disabled", value: "false" },
+    },
     submitText: ["^发布$", "^发布笔记$"],
     successText: ["发布成功", "已发布"],
     readyText: ["上传成功", "重新上传"],

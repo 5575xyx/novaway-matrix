@@ -56,14 +56,14 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
       }}
     >
       <Show when={inputLabels().length > 0}>
-        <span class="truncate text-sky-700 dark:text-cyan-200">支持：{inputLabels().join("、")}</span>
+        <span class="truncate text-[var(--icon-info-base)]">支持：{inputLabels().join("、")}</span>
       </Show>
       <Show when={outputLabels().length > 0}>
         <span class="inline-flex min-w-0 items-center gap-1">
           <Show when={inputLabels().length > 0}>
             <span class="text-foreground-subtle">·</span>
           </Show>
-          <span class="truncate text-violet-700 dark:text-violet-200">可生成：{outputLabels().join("、")}</span>
+          <span class="truncate text-[var(--icon-agent-plan-base)]">可生成：{outputLabels().join("、")}</span>
         </span>
       </Show>
       <Show when={props.model.capabilities.reasoning}>
@@ -71,7 +71,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
           <Show when={inputLabels().length > 0 || outputLabels().length > 0}>
             <span class="text-foreground-subtle">·</span>
           </Show>
-          <span class="text-emerald-700 dark:text-emerald-200">支持推理</span>
+          <span class="text-icon-success-base">支持推理</span>
         </span>
       </Show>
       <Show when={Number.isFinite(props.model.limit.context)}>
@@ -79,9 +79,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
           <Show when={hasPrevious()}>
             <span class="text-foreground-subtle">·</span>
           </Show>
-          <span class="text-amber-700 dark:text-amber-200">
-            上下文上限 {props.model.limit.context.toLocaleString()}
-          </span>
+          <span class="text-icon-warning-base">上下文上限 {props.model.limit.context.toLocaleString()}</span>
         </span>
       </Show>
       {/* 输出上限和上下文是两件不同的事（长上下文模型经常只给 32K 输出），
@@ -91,7 +89,7 @@ export const ModelCapabilitySummary: Component<{ model: ModelCapabilityInfo; com
           <Show when={hasPrevious() || Number.isFinite(props.model.limit.context)}>
             <span class="text-foreground-subtle">·</span>
           </Show>
-          <span class="text-amber-700 dark:text-amber-200">输出上限 {props.model.limit.output!.toLocaleString()}</span>
+          <span class="text-icon-warning-base">输出上限 {props.model.limit.output!.toLocaleString()}</span>
         </span>
       </Show>
     </div>

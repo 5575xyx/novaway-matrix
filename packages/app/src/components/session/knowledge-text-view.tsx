@@ -42,7 +42,7 @@ export function KnowledgeTextView(props: {
     <div class="flex flex-col gap-1.5">
       <Show when={located()}>
         <div class="flex items-center gap-2 text-11-regular text-foreground-subtlest">
-          <span class="rounded bg-[color-mix(in_srgb,#f59e0b_22%,transparent)] px-1.5 py-0.5 text-[#b45309]">
+          <span class="rounded bg-[color-mix(in_srgb,var(--warning)_22%,transparent)] px-1.5 py-0.5 text-icon-warning-base">
             {language.t("knowledge.locate.found")}
           </span>
           <span>{language.t("knowledge.locate.mode." + located()!.mode)}</span>
@@ -55,7 +55,7 @@ export function KnowledgeTextView(props: {
             <mark
               ref={markRef}
               data-component="knowledge-citation-mark"
-              class="rounded bg-[color-mix(in_srgb,#f59e0b_34%,transparent)] px-0.5 text-foreground"
+              class="rounded bg-[color-mix(in_srgb,var(--warning)_34%,transparent)] px-0.5 text-foreground"
             >
               {match()}
             </mark>

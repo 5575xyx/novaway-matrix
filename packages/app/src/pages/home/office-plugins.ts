@@ -3,9 +3,9 @@ import type { OfficeOccupation } from "@/context/settings"
 import type { HomeActionId } from "./zen-office"
 
 /**
- * 办公模式的「插件」目录 —— 对齐 ZCode 的 officeSuggestedPrompts + Plugin catalog。
+ * 办公模式的「插件」目录。
  *
- * ZCode 办公模式的推荐提示词不是一句孤立的话，每一条都挂在某个插件（Plugin）上：
+ * 办公模式的推荐提示词不是一句孤立的话，每一条都挂在某个插件（Plugin）上：
  * 插件没装/没开，提示词就只能提示你去装。我们这边的「插件」就是**内置扩展**
  * （`builtin-extensions-data.ts`）：技能型写 `config.skills.disabled`，浏览器/电脑控制
  * 写各自的开关。同一个 id 同时被扩展设置页、输入卡的插件行、推荐提示词使用，
@@ -459,7 +459,7 @@ export function localizedText(value: LocalizedText, locale: string) {
 /**
  * 所有可用的推荐提示词。
  *
- * 排序规则照搬 ZCode 的 `getRecommendedPromptPool(isOfficeMode, occupation)`：
+ * 排序规则（按 isOfficeMode 与 occupation）：
  * - 财务职业：财务组排在最前；其他职业：财务组**整个不出现**（提示词本身依赖财务口径，
  *   给所有人看只是噪音）；
  * - 后面的其余条目保持目录顺序 —— 换的是优先级，不是内容集合。

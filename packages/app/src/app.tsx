@@ -34,8 +34,14 @@ import {
 import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/context/command"
 import { CommentsProvider } from "@/context/comments"
+import { LocalProvider } from "@/context/local"
+import { SDKProvider } from "@/context/sdk"
+import { SyncProvider, useSync } from "@/context/sync"
+import { DataProvider } from "@novaway/ui/context"
 import { FileProvider } from "@/context/file"
+import { PreviewProvider } from "@/context/preview"
 import { GlobalSDKProvider } from "@/context/global-sdk"
+import { useGlobalSync } from "@/context/global-sync"
 import { GlobalSyncProvider } from "@/context/global-sync"
 import { HighlightsProvider } from "@/context/highlights"
 import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
@@ -81,6 +87,73 @@ function SessionRoute() {
 
 const SessionIndexRoute = () => <Navigate href="session" />
 
+function PluginSurfaceViewRoute() {
+  const params = useParams()
+  const globalSync = useGlobalSync()
+  const contribution = createMemo(() => {
+    const directory = decode64(params.dir) ?? ""
+    if (!directory) return undefined
+    const [store] = globalSync.child(directory, { bootstrap: false })
+    return store.plugin_contributions.find(
+      (item) =>
+        item.pluginID === params.pluginID &&
+        item.kind === "surface" &&
+        item.slot === "sidebar.item" &&
+        item.status === "active" &&
+        item.action !== undefined &&
+        typeof item.action === "object" &&
+        item.action !== null &&
+        "type" in item.action &&
+        item.action.type === "view" &&
+        "viewId" in item.action &&
+        item.action.viewId === params.viewId,
+    )
+  })
+
+  return (
+    <Show
+      when={contribution()}
+      fallback={<div class="size-full flex items-center justify-center text-14-regular text-foreground-subtle">插件视图不可用</div>}
+    >
+      {(item) => (
+        <main data-component="plugin-surface-view" data-plugin-id={item().pluginID} data-view-id={params.viewId} class="size-full p-6">
+          <h1 class="text-20-medium text-foreground">{item().title}</h1>
+          <p class="mt-2 text-14-regular text-foreground-subtle">插件视图：{params.viewId}</p>
+        </main>
+      )}
+    </Show>
+  )
+}
+
+function GlobalChatSession() {
+  const sync = useSync()
+  // 消息渲染组件依赖 DataProvider（项目路由由 DirectoryLayout 提供）。
+  return (
+    <DataProvider data={sync.data} directory="global-chat" onSessionHref={(id) => `/global-chat/session/${id}`}>
+      <Session />
+    </DataProvider>
+  )
+}
+
+function GlobalChatRoute() {
+  const directory = createMemo(() => "global-chat")
+  const globalSync = useGlobalSync()
+  createEffect(() => globalSync.bootstrapInstance(directory()))
+  return (
+    <SDKProvider directory={directory}>
+      <SyncProvider>
+        <PreviewProvider directory={directory}>
+          <LocalProvider>
+            <SessionProviders directory={directory}>
+              <GlobalChatSession />
+            </SessionProviders>
+          </LocalProvider>
+        </PreviewProvider>
+      </SyncProvider>
+    </SDKProvider>
+  )
+}
+
 function UiI18nBridge(props: ParentProps) {
   const language = useLanguage()
   return <I18nProvider value={{ locale: language.intl, t: language.t }}>{props.children}</I18nProvider>
@@ -91,6 +164,7 @@ declare global {
     __NOVAWAY__?: {
       updaterEnabled?: boolean
       deepLinks?: string[]
+      openFiles?: string[]
       wsl?: boolean
     }
     api?: {
@@ -375,9 +449,11 @@ export function AppInterface(props: {
                   root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
                 >
                   <Route path="/" component={HomeRoute} />
+                  <Route path="/global-chat/session/:id?" component={GlobalChatRoute} />
                   <Route path="/pulse" component={() => <Navigate href="/" />} />
                   <Route path="/:dir" component={DirectoryLayout}>
                     <Route path="/" component={SessionIndexRoute} />
+                    <Route path="/plugin-view/:pluginID/:viewId" component={PluginSurfaceViewRoute} />
                     <Route path="/session/:id?" component={SessionRoute} />
                   </Route>
                 </Dynamic>

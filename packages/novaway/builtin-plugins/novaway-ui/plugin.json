@@ -1,0 +1,73 @@
+{
+  "name": "novaway-ui",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "kind": "declarative",
+  "description": "NovaWay first-party UI and release contribution bundle",
+  "contributes": {
+    "surfaces": [
+      {
+        "slot": "sidebar.item",
+        "id": "home",
+        "title": "NovaWay Home",
+        "icon": "home",
+        "action": {
+          "type": "view",
+          "viewId": "novaway.home"
+        }
+      },
+      {
+        "slot": "settings.section",
+        "id": "runtime",
+        "title": "NovaWay Runtime",
+        "description": "First-party runtime settings",
+        "view": {
+          "type": "declarative",
+          "fields": [
+            {
+              "key": "enabled",
+              "type": "boolean",
+              "label": "Enable runtime",
+              "default": true
+            },
+            {
+              "key": "endpoint",
+              "type": "text",
+              "label": "Endpoint",
+              "placeholder": "https://example.test"
+            }
+          ]
+        }
+      },
+      {
+        "slot": "message.part.renderer",
+        "id": "fixture-tool-result",
+        "match": {
+          "tool": "bash"
+        },
+        "renderer": {
+          "type": "builtin",
+          "id": "novaway.fixture-tool-result"
+        }
+      }
+    ],
+    "officeEngines": [
+      {
+        "format": "foo",
+        "kind": "plaintext",
+        "extensions": ["foo"],
+        "entry": "foo-office.mjs"
+      }
+    ],
+    "previewers": [
+      {
+        "id": "foo-preview",
+        "match": { "extension": [".foo"] },
+        "viewId": "novaway.office.file",
+        "priority": 100,
+        "readOnly": false
+      }
+    ],
+    "publishDrivers": ["fixture-publish.mjs"]
+  }
+}

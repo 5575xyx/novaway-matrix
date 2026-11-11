@@ -2,17 +2,18 @@ import { type Session } from "@novaway/sdk/v2/client"
 import { createMemo, createSignal, For, Show, type Accessor } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
+import { Icon } from "@novaway/ui/icon"
 import { useGlobalSync } from "@/context/global-sync"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
-import { useLayout, type LocalProject, appModeConfig } from "@/context/layout"
+import { useLayout, type LocalProject, type TaskRecency, type TaskSortBy, appModeConfig } from "@/context/layout"
 import { usePermission } from "@/context/permission"
 import { useNotification } from "@/context/notification"
 import { base64Encode } from "@novaway/core/util/encode"
 import { displaySessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { decode64 } from "@/utils/base64"
-import { sessionStatusOf, sortedRootSessionsFrom, requestCloseFramePages } from "./helpers"
+import { sessionStatusOf, sortedRootSessionsFrom, withinRecency, requestCloseFramePages } from "./helpers"
 import { TaskRow } from "@/components/session/task-row"
 
 export type TaskFilter = "all" | "running" | "waiting" | "archived"
@@ -46,6 +47,15 @@ export function useProjectTaskList(props: {
   sortNow: Accessor<number>
   /** sessionID → 置顶时间；置顶任务排在最前。 */
   pinned?: () => Record<string, number>
+  /** 侧栏「视图 → 排序方式」。 */
+  sort?: Accessor<TaskSortBy>
+  /** 侧栏「视图 → 最近活动」时间窗。 */
+  recency?: Accessor<TaskRecency>
+  /**
+   * 「按日期 / 自定义」分组用的小筛子：同一个合并项目要按桶拆成好几段渲染，
+   * 每段只留自己那部分会话。不传就是整段都要。
+   */
+  where?: (session: Session) => boolean
 }) {
   const globalSync = useGlobalSync()
   const permission = usePermission()
@@ -54,8 +64,13 @@ export function useProjectTaskList(props: {
 
   return createMemo(() => {
     const filter = props.filter()
-    if (filter === "archived") return (props.archived() ?? []).filter((s) => !!s.time?.archived)
-    const roots = sortedRootSessionsFrom(stores(), props.sortNow(), props.pinned?.())
+    const where = props.where
+    if (filter === "archived") {
+      return (props.archived() ?? []).filter((s) => !!s.time?.archived && (!where || where(s)))
+    }
+    const roots = sortedRootSessionsFrom(stores(), props.sortNow(), props.pinned?.(), props.sort?.()).filter(
+      (session) => withinRecency(session, props.recency?.() ?? "all", props.sortNow()) && (!where || where(session)),
+    )
     if (filter === "all") return roots
     return roots.filter((session) => sessionStatusOf(globalSync, permission, notification, session) === filter)
   })
@@ -80,6 +95,8 @@ export function useTaskCounts(props: {
   archived: () => Record<string, Session[] | undefined>
   sortNow: Accessor<number>
   pinned?: () => Record<string, number>
+  /** 与下方列表同口径的时间窗；不传就按"全部"数。 */
+  recency?: Accessor<TaskRecency>
 }): Accessor<TaskCounts> {
   const globalSync = useGlobalSync()
   const permission = usePermission()
@@ -87,6 +104,7 @@ export function useTaskCounts(props: {
 
   return createMemo<TaskCounts>(() => {
     const counts: TaskCounts = { all: 0, running: 0, waiting: 0, archived: 0 }
+    const recency = props.recency?.() ?? "all"
     for (const project of props.projects()) {
       const dirs: string[] = []
       const seen = new Set<string>()
@@ -98,6 +116,7 @@ export function useTaskCounts(props: {
       }
       const stores = dirs.map((dir) => globalSync.child(dir)[0])
       for (const session of sortedRootSessionsFrom(stores, props.sortNow(), props.pinned?.())) {
+        if (!withinRecency(session, recency, props.sortNow())) continue
         counts.all += 1
         const status = sessionStatusOf(globalSync, permission, notification, session)
         if (status === "waiting") counts.waiting += 1
@@ -124,6 +143,16 @@ export function ProjectTaskList(props: {
   sortNow: Accessor<number>
   /** sessionID → 置顶时间；置顶任务排在最前。 */
   pinned?: () => Record<string, number>
+  sort?: Accessor<TaskSortBy>
+  recency?: Accessor<TaskRecency>
+  where?: (session: Session) => boolean
+  /**
+   * 「按日期 / 自定义」分组时由调用方给的一段头。
+   *
+   * 计数与"空桶不渲染"都放在组件内部做：这一段的数据本来就是这里算出来的，
+   * 让外面再算一遍等于把同一份筛选跑两次，还会和列表口径对不上。
+   */
+  bucket?: { label: string; expanded: () => boolean; onToggle: () => void }
 }) {
   const globalSync = useGlobalSync()
   const globalSDK = useGlobalSDK()
@@ -233,6 +262,17 @@ export function ProjectTaskList(props: {
         }
         onRename={(title) => renameSession(session, title)}
         onArchive={() => void props.archiveSession(session)}
+        // 「移动到组」只在自定义分组模式下给，且只给根任务：子会话跟着父行走，
+        // 单独给它归类既不会改变渲染结果，只会让人以为归类丢了。
+        group={
+          level === 1 && layout.taskList.groupBy() === "custom"
+            ? {
+                items: layout.taskList.groups(),
+                current: layout.taskList.groupOf(session.id),
+                onMove: (groupId) => layout.taskList.assignGroup(session.id, groupId),
+              }
+            : undefined
+        }
         // 删除走带确认的对话框（在 TaskRow 里弹），这里只负责把本地列表摘掉；
         // 删的是当前会话时还要退回会话空态，否则会停在一个不存在的 id 上。
         onDelete={() => {
@@ -245,10 +285,20 @@ export function ProjectTaskList(props: {
 
   return (
     <>
-      <Show when={props.filter() !== "all" && sessions().length === 0}>
+      <Show when={props.filter() !== "all" && !props.bucket && sessions().length === 0}>
         <div class="px-2 py-1.5 text-ui-caption text-foreground-subtle">{language.t("sidebar.filter.empty")}</div>
       </Show>
       <Show when={sessions().length > 0}>
+        <Show when={props.bucket}>
+          {(bucket) => (
+            <TaskBucketHeader
+              label={bucket().label}
+              count={() => sessions().length}
+              expanded={bucket().expanded}
+              onToggle={bucket().onToggle}
+            />
+          )}
+        </Show>
         {/*
           树形层级：项目行是这一组的根，任务缩进一级挂在它下面；任务自己的子会话
           （子智能体会话）再缩进一级。三者之间用一条竖向导引线绑住 —— 只靠缩进
@@ -257,21 +307,52 @@ export function ProjectTaskList(props: {
           `level` 的语义因此是「相对项目根的深度」：`1` = 直接挂在项目下的任务，
           `2` = 任务的子会话（见 TaskRow 的 padding-left 计算）。
         */}
-        <div class="relative flex flex-col gap-0.5 pt-0.5" data-component="task-tree">
-          <span aria-hidden="true" class="pointer-events-none absolute top-0 bottom-1 left-[15px] w-px bg-border" />
-          <For each={sessions()}>
-            {(session) => (
-              <>
-                {rowFor(session, 1)}
-                <Show when={!collapsed[session.id] && (childrenByParent().get(session.id) ?? []).length > 0}>
-                  <For each={childrenByParent().get(session.id) ?? []}>{(child) => rowFor(child, 2)}</For>
-                </Show>
-              </>
-            )}
-          </For>
-        </div>
+        <Show when={!props.bucket || props.bucket.expanded()}>
+          <div class="relative flex flex-col gap-0.5 pt-0.5" data-component="task-tree">
+            <span aria-hidden="true" class="pointer-events-none absolute top-0 bottom-1 left-[15px] w-px bg-border" />
+            <For each={sessions()}>
+              {(session) => (
+                <>
+                  {rowFor(session, 1)}
+                  <Show when={!collapsed[session.id] && (childrenByParent().get(session.id) ?? []).length > 0}>
+                    <For each={childrenByParent().get(session.id) ?? []}>{(child) => rowFor(child, 2)}</For>
+                  </Show>
+                </>
+              )}
+            </For>
+          </div>
+        </Show>
       </Show>
     </>
+  )
+}
+
+/**
+ * 「按日期 / 自定义」分组的分组头：与项目分组头保持同一套节奏
+ * （箭头控折叠、名字占满、右侧圆角计数），换分组方式时视觉不会跳。
+ */
+export function TaskBucketHeader(props: {
+  label: string
+  count: () => number
+  expanded: () => boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      class="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+      aria-expanded={props.expanded()}
+      aria-label={props.label}
+      onClick={() => props.onToggle()}
+    >
+      <Icon name={props.expanded() ? "chevron-down" : "chevron-right"} size="small" class="shrink-0" />
+      <span class="text-ui-caption text-foreground font-medium truncate min-w-0">{props.label}</span>
+      <Show when={props.count() > 0}>
+        <span class="ml-auto shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-ui-xs font-medium leading-none text-foreground-subtle tabular-nums">
+          {props.count()}
+        </span>
+      </Show>
+    </button>
   )
 }
 
@@ -280,7 +361,7 @@ export function TaskFilterBar(props: {
   onChange: (id: TaskFilterBarId) => void
   variant?: "text" | "underline"
   tabs?: Array<{ id: TaskFilterBarId; labelKey: string }>
-  /** 每段后面的数量（对齐 ZCode 的任务计数：分组头与筛选器都显示条数）。 */
+  /** 每段后面的数量（分组头与筛选器都显示条数）。 */
   counts?: Accessor<TaskCounts>
 }) {
   const language = useLanguage()

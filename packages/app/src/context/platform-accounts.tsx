@@ -1,15 +1,16 @@
 import { createContext, createMemo, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
+import { platformBrandColor, platformBrandForegroundColor } from "@novaway/ui/provider-brand"
 import { precheckPublish } from "@novaway/core/publish-precheck"
 import type { PrecheckResult, PublishBatch, PublishBatchInput, PublishProgressEvent } from "@/pages/pulse/publish-types"
 import { accountDisplayName } from "@/pages/pulse/account-name"
-import xhsIcon from "@/assets/platform-icons/xhs.svg"
-import douyinIcon from "@/assets/platform-icons/douyin.svg"
-import bilibiliIcon from "@/assets/platform-icons/bilibili.svg"
-import ksIcon from "@/assets/platform-icons/ks.svg"
-import wxSphIcon from "@/assets/platform-icons/wx-sph.svg"
-import wxGzhIcon from "@/assets/platform-icons/wx-gzh.svg"
-import xianyuIcon from "@/assets/platform-icons/xianyu.svg"
+import xhsIcon from "@/assets/platform-icons/xhs.svg?raw"
+import douyinIcon from "@/assets/platform-icons/douyin.svg?raw"
+import bilibiliIcon from "@/assets/platform-icons/bilibili.svg?raw"
+import ksIcon from "@/assets/platform-icons/ks.svg?raw"
+import wxSphIcon from "@/assets/platform-icons/wx-sph.svg?raw"
+import wxGzhIcon from "@/assets/platform-icons/wx-gzh.svg?raw"
+import xianyuIcon from "@/assets/platform-icons/xianyu.svg?raw"
 
 export interface PlatformAccount {
   id: string
@@ -47,7 +48,8 @@ export interface PlatformInfo {
   id: string
   name: string
   icon: string
-  color: string
+  iconColor: string
+  iconMarkColor: string
   loginUrl: string
   viewUrl: string
 }
@@ -57,7 +59,8 @@ export const PLATFORM_LIST: PlatformInfo[] = [
     id: "xhs",
     name: "小红书",
     icon: xhsIcon,
-    color: "#FF2442",
+    iconColor: platformBrandColor("xhs"),
+    iconMarkColor: platformBrandForegroundColor("xhs"),
     loginUrl: "https://www.xiaohongshu.com/",
     viewUrl: "https://creator.xiaohongshu.com/login?source=official",
   },
@@ -65,7 +68,8 @@ export const PLATFORM_LIST: PlatformInfo[] = [
     id: "douyin",
     name: "抖音",
     icon: douyinIcon,
-    color: "#000000",
+    iconColor: platformBrandColor("douyin"),
+    iconMarkColor: platformBrandForegroundColor("douyin"),
     loginUrl: "https://creator.douyin.com/",
     viewUrl: "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web",
   },
@@ -73,7 +77,8 @@ export const PLATFORM_LIST: PlatformInfo[] = [
     id: "bilibili",
     name: "B站",
     icon: bilibiliIcon,
-    color: "#00A1D6",
+    iconColor: platformBrandColor("bilibili"),
+    iconMarkColor: platformBrandForegroundColor("bilibili"),
     loginUrl: "https://member.bilibili.com/",
     viewUrl: "https://member.bilibili.com/",
   },
@@ -81,7 +86,8 @@ export const PLATFORM_LIST: PlatformInfo[] = [
     id: "kwai",
     name: "快手",
     icon: ksIcon,
-    color: "#FF4906",
+    iconColor: platformBrandColor("kwai"),
+    iconMarkColor: platformBrandForegroundColor("kwai"),
     loginUrl: "https://cp.kuaishou.com/profile",
     viewUrl: "https://cp.kuaishou.com/profile",
   },
@@ -89,7 +95,8 @@ export const PLATFORM_LIST: PlatformInfo[] = [
     id: "wxSph",
     name: "视频号",
     icon: wxSphIcon,
-    color: "#07C160",
+    iconColor: platformBrandColor("wxSph"),
+    iconMarkColor: platformBrandForegroundColor("wxSph"),
     loginUrl: "https://channels.weixin.qq.com/",
     viewUrl:
       "https://channels.weixin.qq.com/cgi-bin/mmfinderassistant-bin/helper/hepler_merlin_mmdata?_rid=67b30b55-6e3ea588",
@@ -98,7 +105,8 @@ export const PLATFORM_LIST: PlatformInfo[] = [
     id: "wxGzh",
     name: "公众号",
     icon: wxGzhIcon,
-    color: "#07C160",
+    iconColor: platformBrandColor("wxGzh"),
+    iconMarkColor: platformBrandForegroundColor("wxGzh"),
     loginUrl: "https://mp.weixin.qq.com/",
     viewUrl: "https://mp.weixin.qq.com/",
   },
@@ -106,7 +114,8 @@ export const PLATFORM_LIST: PlatformInfo[] = [
     id: "xianyu",
     name: "闲鱼",
     icon: xianyuIcon,
-    color: "#FF6A00",
+    iconColor: platformBrandColor("xianyu"),
+    iconMarkColor: platformBrandForegroundColor("xianyu"),
     loginUrl: "https://www.goofish.com/",
     viewUrl: "https://www.goofish.com/im",
   },

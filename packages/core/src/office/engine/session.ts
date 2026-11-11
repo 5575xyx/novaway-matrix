@@ -1,18 +1,12 @@
 /**
  * 文档编辑会话：宿主侧唯一的状态负责人。
  *
- * 对齐 Weave 的一点很关键：**脏标记不属于编辑器，属于宿主**。
+ * 关键约定：**脏标记不属于编辑器，属于宿主**。
  * 编辑器只报告「我改了」，宿主用 revision 判断「这次保存能不能把文件标成已保存」。
  * 保存开始后用户又敲了字，这次保存完成时不能把新修改一起标干净。
  */
 
-import type {
-  ApplyOutcome,
-  OfficeEngine,
-  OfficeFormat,
-  OfficeOp,
-  OfficeResult,
-} from "./contract"
+import type { ApplyOutcome, OfficeEngine, OfficeEngineOptions, OfficeFormat, OfficeOp, OfficeResult } from "./contract"
 import { fail, ok } from "./contract"
 
 export type SessionSnapshot<TState> = {
@@ -22,6 +16,14 @@ export type SessionSnapshot<TState> = {
 }
 
 const DEFAULT_MAX_UNDO = 50
+
+/** 字节相等：撤销的「冲突判断」依赖它，不能用引用比较。 */
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  if (left === right) return true
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index++) if (left[index] !== right[index]) return false
+  return true
+}
 
 /**
  * 一条文档会话。`state` 是该格式的布局模型，`bytes` 是当前完整文件。
@@ -42,8 +44,15 @@ export class DocumentSession<TState> {
   #redo: SessionSnapshot<TState>[] = []
   /** 已落盘的字节引用；脏标记按「字节还是不是保存时那一份」判断。 */
   #savedBytes: Uint8Array
+  /** 打开 / 编辑选项（加密 PDF 的密码）；撤销回到最早的加密版本时还要用。 */
+  #options: OfficeEngineOptions
 
-  constructor(engine: OfficeEngine<TState>, bytes: Uint8Array, state: TState, options: { path?: string; maxUndo?: number } = {}) {
+  constructor(
+    engine: OfficeEngine<TState>,
+    bytes: Uint8Array,
+    state: TState,
+    options: { path?: string; maxUndo?: number; password?: string } = {},
+  ) {
     this.#engine = engine
     this.format = engine.format
     this.#bytes = bytes
@@ -51,14 +60,15 @@ export class DocumentSession<TState> {
     this.#path = options.path
     this.#maxUndo = options.maxUndo ?? DEFAULT_MAX_UNDO
     this.#savedBytes = bytes
+    this.#options = options.password === undefined ? {} : { password: options.password }
   }
 
   static async open<TState>(
     engine: OfficeEngine<TState>,
     bytes: Uint8Array,
-    options: { path?: string; maxUndo?: number } = {},
+    options: { path?: string; maxUndo?: number; password?: string } = {},
   ): Promise<OfficeResult<DocumentSession<TState>>> {
-    const parsed = await engine.open(bytes)
+    const parsed = await engine.open(bytes, options.password === undefined ? undefined : { password: options.password })
     if (!parsed.ok) return parsed
     return ok(new DocumentSession(engine, bytes, parsed.data, options))
   }
@@ -101,13 +111,17 @@ export class DocumentSession<TState> {
     return this.#undo.at(-1)?.label
   }
 
+  get redoLabel(): string | undefined {
+    return this.#redo.at(-1)?.label
+  }
+
   /**
    * 应用一批操作。全有或全无：引擎返回失败时，会话状态完全不动。
    */
   async apply(ops: readonly OfficeOp[], label = "编辑"): Promise<OfficeResult<ApplyOutcome<TState>>> {
     if (ops.length === 0) return fail("invalid_params", "没有要执行的操作")
 
-    const result = await this.#engine.apply(this.#state, ops, this.#bytes)
+    const result = await this.#engine.apply(this.#state, ops, this.#bytes, this.#options)
     if (!result.ok) return result
 
     const outcome = result.data
@@ -122,6 +136,32 @@ export class DocumentSession<TState> {
     this.#state = outcome.state
     this.#revision += 1
     return ok(outcome)
+  }
+
+  /**
+   * 记录一次「会话之外算出来的修改」。
+   *
+   * PPTX 有一条自己的编辑链路（`editPptx` 直接改 slide XML，位置靠 `cNvPr@id`），
+   * 不走 `apply(ops)`。但撤销栈必须还是宿主这一条，否则画布里的改动切个标签
+   * 就撤不掉了 —— 承诺是「切走再切回，撤销历史还在」。
+   *
+   * `previous` 必须是会话当前的字节：对不上说明期间有别的写入，
+   * 这时返回 conflict 而不是把新内容硬塞进来。
+   */
+  async recordExternal(previous: Uint8Array, next: Uint8Array, label: string): Promise<OfficeResult<void>> {
+    if (!sameBytes(previous, this.#bytes)) {
+      return fail("conflict", "文件在编辑期间被改过", "重新读取一次再改")
+    }
+    const parsed = await this.#engine.open(next, this.#options)
+    if (!parsed.ok) return parsed
+
+    this.#undo.push({ bytes: this.#bytes, state: this.#state, label })
+    if (this.#undo.length > this.#maxUndo) this.#undo.shift()
+    this.#redo = []
+    this.#bytes = next
+    this.#state = parsed.data
+    this.#revision += 1
+    return ok(undefined)
   }
 
   undo(): OfficeResult<{ label: string }> {
@@ -171,7 +211,7 @@ export class DocumentSession<TState> {
   static async reload<TState>(
     engine: OfficeEngine<TState>,
     bytes: Uint8Array,
-    options: { path?: string; maxUndo?: number } = {},
+    options: { path?: string; maxUndo?: number; password?: string } = {},
   ): Promise<OfficeResult<DocumentSession<TState>>> {
     return DocumentSession.open(engine, bytes, options)
   }

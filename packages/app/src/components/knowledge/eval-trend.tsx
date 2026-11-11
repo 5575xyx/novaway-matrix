@@ -160,8 +160,8 @@ const Delta: Component<{ value: number }> = (props) => {
     <span
       class="tabular-nums"
       classList={{
-        "text-[#059669]": positive() && !neutral(),
-        "text-[#b91c1c]": !positive() && !neutral(),
+        "text-icon-success-base": positive() && !neutral(),
+        "text-[var(--icon-critical-base)]": !positive() && !neutral(),
         "text-foreground-subtlest": neutral(),
       }}
     >

@@ -14,6 +14,7 @@ const api: ElectronAPI = {
   },
   getWindowConfig: () => ipcRenderer.invoke("get-window-config"),
   consumeInitialDeepLinks: () => ipcRenderer.invoke("consume-initial-deep-links"),
+  consumeInitialOpenFiles: () => ipcRenderer.invoke("consume-initial-open-files"),
   getDefaultServerUrl: () => ipcRenderer.invoke("get-default-server-url"),
   setDefaultServerUrl: (url) => ipcRenderer.invoke("set-default-server-url", url),
   getWslConfig: () => ipcRenderer.invoke("get-wsl-config"),
@@ -62,6 +63,11 @@ const api: ElectronAPI = {
     ipcRenderer.on("deep-link", handler)
     return () => ipcRenderer.removeListener("deep-link", handler)
   },
+  onOpenFiles: (cb) => {
+    const handler = (_: unknown, paths: string[]) => cb(paths)
+    ipcRenderer.on("open-files", handler)
+    return () => ipcRenderer.removeListener("open-files", handler)
+  },
   onNotificationClick: (cb) => {
     const handler = (_: unknown, href?: string) => cb(href)
     ipcRenderer.on("notification-click", handler)
@@ -74,13 +80,18 @@ const api: ElectronAPI = {
   // 文件阅读器:读写项目目录外的本地文本文件(主进程直读,绕开服务端工作区边界)。
   readLocalFileText: (path) => ipcRenderer.invoke("read-local-file-text", path),
   readLocalFileBase64: (path) => ipcRenderer.invoke("read-local-file-base64", path),
+  printToPdf: (payload) => ipcRenderer.invoke("print-to-pdf", payload),
   writeLocalFileText: (path, content) => ipcRenderer.invoke("write-local-file-text", path, content),
+  writeLocalFileBase64: (path, data, expectedBaselineSha256) =>
+    ipcRenderer.invoke("write-local-file-base64", path, data, expectedBaselineSha256),
   saveFilePicker: (opts) => ipcRenderer.invoke("save-file-picker", opts),
   copyFileToClipboard: (opts) => ipcRenderer.invoke("copy-file-to-clipboard", opts),
   writeTextToClipboard: (opts) => ipcRenderer.invoke("write-text-to-clipboard", opts),
   openLink: (url) => ipcRenderer.send("open-link", url),
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
   showItemInFolder: (path) => ipcRenderer.invoke("show-item-in-folder", path),
+  getInstalledEditors: () => ipcRenderer.invoke("get-installed-editors"),
+  openInEditor: (editorId, path, kind) => ipcRenderer.invoke("open-in-editor", editorId, path, kind),
   readClipboardImage: () => ipcRenderer.invoke("read-clipboard-image"),
   showNotification: (title, body, href, showSystem) =>
     ipcRenderer.send("show-notification", title, body, href, showSystem),
@@ -91,7 +102,7 @@ const api: ElectronAPI = {
   getZoomFactor: () => ipcRenderer.invoke("get-zoom-factor"),
   setZoomFactor: (factor) => ipcRenderer.invoke("set-zoom-factor", factor),
   setTitlebar: (theme) => ipcRenderer.invoke("set-titlebar", theme),
-  // 窗口控制（对齐 ZCode：Header 内联自绘，win32 不用原生 titleBarOverlay）
+  // 窗口控制（Header 内联自绘，win32 不用原生 titleBarOverlay）
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),

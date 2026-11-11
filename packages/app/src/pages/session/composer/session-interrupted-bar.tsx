@@ -14,7 +14,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 /**
  * 输入框上方的「任务中断」提示条。
  *
- * 对齐 ZCode：这一条**始终挂在输入框正上方**（不是跟着会话底部走），只有一行卡片高度，
+ * 这一条**始终挂在输入框正上方**（不是跟着会话底部走），只有一行卡片高度，
  * 一眼能看到"这轮没跑完 + 为什么断的 + 可以继续"。
  *
  * 只有**意外中断**才出现：
@@ -81,12 +81,8 @@ export function SessionInterruptedBar() {
         data-component="session-interrupted-bar"
         class="relative mb-1.5 flex w-full items-center gap-2 overflow-hidden rounded-xl px-2.5 py-1.5 backdrop-blur-xl"
         style={{
-          // 鲜艳琥珀 + 半透明 + 毛玻璃。
-          // 这里不能用 `--syntax-warning`：它是主题里「语法高亮」的暖色，novaway 主题把它
-          // 压成了发暗的 #934a13，叠在浅底上就是用户说的"棕色"。
-          // 改用调色板里的 amber-9(#ffb224)：色相干净、明度高；
-          // 半透明靠"纯色层 + opacity"实现，避免 color-mix 再把它调暗。
-          "--interrupted-amber": "var(--amber-light-9, #ffb224)",
+          // 中断状态统一使用主题警告色；半透明通过覆盖层 opacity 实现，避免改变主题色相。
+          "--interrupted-amber": "var(--surface-warning-base)",
           "backdrop-filter": "blur(16px) saturate(1.8)",
           "-webkit-backdrop-filter": "blur(16px) saturate(1.8)",
           "box-shadow": "0 10px 26px -18px var(--interrupted-amber)",
@@ -106,7 +102,7 @@ export function SessionInterruptedBar() {
           class="relative z-10 grid size-6 shrink-0 place-items-center rounded-full"
           style={{ background: "var(--interrupted-amber)" }}
         >
-          <Icon name="warning" size="small" style={{ color: "#1f1300" }} />
+          <Icon name="warning" size="small" style={{ color: "var(--text-on-warning-base)" }} />
         </span>
         <span class="relative z-10 shrink-0 text-13-medium text-foreground">
           {language.t("session.error.resume.title")}
@@ -124,7 +120,7 @@ export function SessionInterruptedBar() {
         <Show when={reason().trim()}>
           <button
             type="button"
-            class="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+            class="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
             title={language.t("session.error.resume.copy")}
             aria-label={language.t("session.error.resume.copy")}
             onClick={copy}
@@ -146,7 +142,7 @@ export function SessionInterruptedBar() {
             style={{
               background: "var(--interrupted-amber)",
               "border-color": "var(--interrupted-amber)",
-              color: "#1f1300",
+              color: "var(--text-on-warning-base)",
             }}
             onClick={resume}
           >

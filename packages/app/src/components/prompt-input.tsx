@@ -1,6 +1,18 @@
+import { useNavigate, useParams } from "@solidjs/router"
 import { useFilteredList } from "@novaway/ui/hooks"
 import { useSpring } from "@novaway/ui/motion-spring"
-import { createEffect, on, Component, For, Show, onCleanup, createMemo, createSignal, createResource } from "solid-js"
+import {
+  createEffect,
+  on,
+  Component,
+  For,
+  Show,
+  onCleanup,
+  createMemo,
+  createSignal,
+  createResource,
+  type JSX,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
@@ -24,11 +36,14 @@ import { showToast } from "@novaway/ui/toast"
 import { Button } from "@novaway/ui/button"
 import { DockShellForm, DockTray } from "@novaway/ui/dock-surface"
 import { AppIcon } from "@/components/app-icon"
-import { Icon } from "@novaway/ui/icon"
+import { Icon, type IconProps } from "@novaway/ui/icon"
+import { FileIcon } from "@novaway/ui/file-icon"
+import FileTree from "@/components/file-tree"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { modelColor, modelIconId } from "@/utils/provider-icon"
 import { Tooltip, TooltipKeybind } from "@novaway/ui/tooltip"
 import { Popover } from "@novaway/ui/popover"
+import { HoverCard } from "@novaway/ui/hover-card"
 import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
@@ -36,7 +51,7 @@ import { PermissionModeSelect } from "@/components/permission-mode-select"
 import { TeamModeSelect } from "@/components/team-mode-select"
 import { SessionBackgroundTrigger } from "@/components/session-background-trigger"
 import { agentForPermission, permissionForAgent } from "@/context/agent-permission"
-import type { AssistantMessage, Session } from "@novaway/sdk/v2"
+import type { Session } from "@novaway/sdk/v2"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { ThinkingEffortPopover } from "@/components/thinking-effort-popover"
@@ -80,9 +95,12 @@ import { openCustomPptTemplateDialog } from "@/pages/session/office-custom-templ
 import { ProjectSwitcherChip } from "@/components/project-switcher"
 import { officeAgentScenario } from "@/pages/session/office-agent-scenarios"
 import { transformOfficePrompt } from "@/pages/session/office-agent-prompt"
+import { Dialog as KobalteDialog } from "@kobalte/core/dialog"
+import { Dialog } from "@novaway/ui/dialog"
 
 interface PromptInputProps {
   class?: string
+  globalChat?: boolean
   ref?: (el: HTMLDivElement) => void
   autoSubmitKey?: string
   newSessionWorktree?: string
@@ -130,6 +148,61 @@ const EXAMPLES = [
   "prompt.example.25",
 ] as const
 
+/**
+ * 「+」菜单里的一行（图标 + 名称 + 一句说明 + 右侧键位/选中态）。
+ * 菜单现在有 8 条，不抽出来就是把同一段标记复制八遍。
+ */
+function AddMenuItem(props: {
+  action?: string
+  icon?: IconProps["name"]
+  glyph?: string
+  title: string
+  description?: string
+  hint?: string
+  active?: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      data-action={props.action}
+      class="flex w-full items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+      onClick={() => props.onSelect()}
+    >
+      <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-icon-blue">
+        <Show when={props.glyph} fallback={<Icon name={props.icon ?? "plus-small"} size="small" />}>
+          {props.glyph}
+        </Show>
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-13-medium text-foreground">{props.title}</span>
+        <Show when={props.description}>
+          <span class="mt-0.5 block text-11-regular text-foreground-subtle">{props.description}</span>
+        </Show>
+      </span>
+      <Show
+        when={props.active}
+        fallback={
+          <Show when={props.hint}>
+            <span class="mt-0.5 shrink-0 text-11-regular text-foreground-subtlest">{props.hint}</span>
+          </Show>
+        }
+      >
+        <Icon name="check" size="small" class="mt-0.5 shrink-0 text-icon-blue" />
+      </Show>
+    </button>
+  )
+}
+
+function AddMenuGroup(props: { label: string; children?: JSX.Element }) {
+  return (
+    <div class="flex flex-col gap-0.5">
+      <span class="px-2 pt-1 pb-0.5 text-11-regular text-foreground-subtlest">{props.label}</span>
+      {props.children}
+    </div>
+  )
+}
+
 const hiddenSlashCommandIDs = new Set([
   "agent.cycle",
   "file.open",
@@ -142,8 +215,16 @@ const hiddenSlashCommandIDs = new Set([
 
 export const PromptInput: Component<PromptInputProps> = (props) => {
   const sdk = useSDK()
-
+  const routeParams = useParams()
   const sync = useSync()
+  // 只有空白的新会话仍处于全局创建态。创建后会话使用独立 cwd 和普通
+  // project scope，必须恢复标准工具、附件和工作区能力。
+  const globalChat = () =>
+    props.globalChat ??
+    (sdk.directory === "global-chat" &&
+      !!routeParams.id &&
+      sync.data.session.find((item) => item.id === routeParams.id)?.scope === "global")
+
   const globalSync = useGlobalSync()
   const local = useLocal()
   const files = useFile()
@@ -308,61 +389,67 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return id ? sync.session.get(id) : undefined
   })
   const working = createMemo(() => sync.data.session_working(sessionID() ?? ""))
-  // 输入框左上角的「工作中 · X」：与聊天区的轮首指示同一套文案，
-  // 让用户在盯着输入框等待/准备插话时也知道任务还在跑、已经跑了多久。
-  //
-  // 起点必须取当前轮用户消息的 time.created（与聊天区轮首/思考行同源），
-  // 不能用 session_working 的上升沿：代理停下来等 question/permission 时
-  // 状态会短暂落回 idle，用户回答后重新 busy，沿触发会把计时清零，
-  // 表现为「每答一次问题就从 0 秒重新计时」，和聊天区对不上。
-  const workStart = createMemo(() => {
-    const id = sessionID()
+  const [goalSessionID, setGoalSessionID] = createSignal<string>()
+  const goalPersistence = createMemo(() => {
+    const id = goalSessionID()
     if (!id) return undefined
-    const messages = sync.data.message[id]
-    if (!messages || messages.length === 0) return undefined
-    // 当前轮 = 最后一条还没 completed 的助手消息的父用户消息；助手消息还没
-    // 落库时（刚发出、响应未到）退回最后一条用户消息。
-    const pending = messages.findLast(
-      (message): message is AssistantMessage =>
-        message.role === "assistant" && typeof message.time.completed !== "number",
+    return persisted(
+      Persist.session(sdk.directory, id, "goal-execution"),
+      createStore<{ goalId: string; title: string }>({ goalId: "", title: "" }),
     )
-    let parentID = pending?.parentID
-    if (!parentID) {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].role === "user") {
-          parentID = messages[i].id
-          break
-        }
-      }
-    }
-    if (!parentID) return undefined
-    let start: number | undefined
-    for (const message of messages) {
-      // 这一轮的消息：轮首的用户消息本身，或以它为父的助手消息。
-      const belongs =
-        message.id === parentID || (message.role === "assistant" && (message as AssistantMessage).parentID === parentID)
-      if (!belongs) continue
-      const created = message.time?.created
-      if (typeof created !== "number") continue
-      start = start === undefined ? created : Math.min(start, created)
-    }
-    return start
   })
+  const persistedGoal = createMemo(() => goalPersistence()?.[0])
+  const setPersistedGoal = (value: { goalId: string; title: string }) => {
+    goalPersistence()?.[1](value)
+  }
+  // 目标模式计时使用这一枚时钟；普通工作状态统一由聊天区域底部显示。
   const [workNow, setWorkNow] = createSignal(Date.now())
+  const [store, setStore] = createStore<{
+    popover: "at" | "slash" | null
+    historyIndex: number
+    savedPrompt: PromptHistoryEntry | null
+    placeholder: number
+    draggingType: "image" | "@mention" | null
+    mode: "normal" | "shell"
+    applyingHistory: boolean
+    optimizing: boolean
+    /** 优化前原文，用于撤销 */
+    optimizeSnapshot: string | null
+    goalSaving: boolean
+    goalRunning: boolean
+    goalMode: boolean
+    goalStartedAt?: number
+    goalPaused: boolean
+    goalText?: string
+    goalMaxIterations: number
+    goalExecution?: { sessionID: string; goalId: string; title: string }
+    goalState?: { status: string; progress: number }
+  }>({
+    popover: null,
+    historyIndex: -1,
+    savedPrompt: null as PromptHistoryEntry | null,
+    placeholder: Math.floor(Math.random() * EXAMPLES.length),
+    draggingType: null,
+    mode: "normal",
+    applyingHistory: false,
+    optimizing: false,
+    optimizeSnapshot: null,
+    goalSaving: false,
+    goalRunning: false,
+    goalMode: false,
+    goalPaused: false,
+    goalMaxIterations: 20,
+    goalExecution: undefined,
+  })
+  const goalElapsed = createMemo(() => {
+    if (!store.goalStartedAt) return ""
+    const seconds = Math.floor(Math.max(0, workNow() - store.goalStartedAt) / 1000)
+    return seconds < 60 ? `${seconds} 秒` : `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+  })
   createEffect(() => {
-    if (!working()) return
+    if (!store.goalStartedAt && !working()) return
     const timer = setInterval(() => setWorkNow(Date.now()), 1000)
     onCleanup(() => clearInterval(timer))
-  })
-  const workLabel = createMemo(() => {
-    const start = working() ? workStart() : undefined
-    if (start === undefined) return language.t("session.turn.fold.working")
-    const seconds = Math.max(0, Math.floor((workNow() - start) / 1000))
-    if (seconds < 60) return language.t("session.turn.fold.workingSec", { seconds })
-    return language.t("session.turn.fold.workingMinSec", {
-      minutes: Math.floor(seconds / 60),
-      seconds: seconds % 60,
-    })
   })
   /*
    * 打开旧会话时对齐「角色 ↔ 档位」。
@@ -436,27 +523,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     },
   ]
 
-  const [store, setStore] = createStore<{
-    popover: "at" | "slash" | null
-    historyIndex: number
-    savedPrompt: PromptHistoryEntry | null
-    placeholder: number
-    draggingType: "image" | "@mention" | null
-    mode: "normal" | "shell"
-    applyingHistory: boolean
-    optimizing: boolean
-    /** 优化前原文，用于撤销 */
-    optimizeSnapshot: string | null
-  }>({
-    popover: null,
-    historyIndex: -1,
-    savedPrompt: null as PromptHistoryEntry | null,
-    placeholder: Math.floor(Math.random() * EXAMPLES.length),
-    draggingType: null,
-    mode: "normal",
-    applyingHistory: false,
-    optimizing: false,
-    optimizeSnapshot: null,
+  const activeGoal = createMemo(() => {
+    const id = sessionID()
+    if (!id || goalSessionID() !== id) return undefined
+    const persisted = persistedGoal()
+    const execution =
+      store.goalExecution?.sessionID === id
+        ? store.goalExecution
+        : persisted?.goalId
+          ? { ...persisted, sessionID: id }
+          : undefined
+    return execution
+  })
+
+  createEffect(() => {
+    setGoalSessionID(sessionID())
   })
 
   const buttonsSpring = useSpring(() => (store.mode === "normal" ? 1 : 0), { visualDuration: 0.2, bounce: 0 })
@@ -470,8 +551,171 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const shell = createMemo(() => motion(1 - buttonsSpring()))
   const control = createMemo(() => ({ height: "28px", ...buttons() }))
   const [atScope, setAtScope] = createSignal<"rule" | "agent" | undefined>()
-  // 输入框左下角的“+”菜单:附件 / 提及 / 斜杠命令收在一个入口里(对齐 ZCode)。
+  // 输入框左下角的“+”菜单:附件 / 提及 / 斜杠命令收在一个入口里。
   const [addMenuOpen, setAddMenuOpen] = createSignal(false)
+  const navigate = useNavigate()
+  // 「+」里的计划模式和底部档位选择器读写同一个会话 permissionMode,不是第二个假开关。
+  const planModeOn = createMemo(() => permission.mode(sessionID() ?? "", sdk.directory) === "plan")
+  const choosePlanMode = () => {
+    permission.setMode(sessionID() ?? "", sdk.directory, "plan")
+    if (props.agent) return
+    const next = agentForPermission("plan", local.agent.current()?.name)
+    if (next) local.agent.set(next)
+  }
+  createEffect(() => {
+    const execution = activeGoal()
+    const directory = sdk.directory
+    if (!execution) return
+    const client = globalSync.sdkForDirectory(directory)
+    let disposed = false
+    const refresh = async () => {
+      const response = await client.goal.listGoals({ sessionId: execution.sessionID }).catch(() => undefined)
+      if (disposed || !response) return
+      const goals = response.data as Array<{ id: string; status: string; progress: number }> | undefined
+      const goal = goals?.find((item) => item.id === execution.goalId)
+      if (!goal) return
+      setStore("goalState", { status: goal.status, progress: goal.progress })
+      if (goal.status === "paused") setStore("goalPaused", true)
+      if (goal.status === "completed" || goal.status === "cancelled") {
+        setStore("goalExecution", undefined)
+        setPersistedGoal({ goalId: "", title: "" })
+        setStore({ goalRunning: false, goalPaused: false, goalStartedAt: undefined })
+        return
+      }
+    }
+    void refresh()
+    const interval = setInterval(() => void refresh(), 1500)
+    onCleanup(() => {
+      disposed = true
+      clearInterval(interval)
+    })
+  })
+  const stopGoalMode = async () => {
+    const execution = activeGoal()
+    if (!execution) return
+    setStore("goalRunning", false)
+    setStore("goalExecution", undefined)
+    setStore("goalState", { status: "cancelled", progress: store.goalState?.progress ?? 0 })
+    setStore({ goalStartedAt: undefined, goalPaused: false })
+    await abort(execution.sessionID)
+    await globalSync
+      .sdkForDirectory(sdk.directory)
+      .goal.updateGoal({
+        sessionId: execution.sessionID,
+        goalId: execution.goalId,
+        status: "cancelled",
+      })
+      .catch(() => {})
+    setPersistedGoal({ goalId: "", title: "" })
+  }
+  const openGoalMode = () => {
+    if (globalChat()) {
+      showToast({ title: "目标模式不可用", description: "请在项目会话中创建目标。" })
+      return
+    }
+    setStore("goalMode", !store.goalMode)
+    requestAnimationFrame(() => editorRef?.focus())
+  }
+  const createGoal = async (text: string) => {
+    const id = sessionID()
+    const title = text.trim().split("\n")[0]?.slice(0, 120) ?? ""
+    if (globalChat()) {
+      showToast({ title: "目标模式不可用", description: "请在项目会话中创建目标。" })
+      return undefined
+    }
+    if (!id || !title || store.goalSaving) return undefined
+    setStore("goalSaving", true)
+    try {
+      const created = await sdk.client.goal.createGoal({
+        sessionId: id,
+        title,
+        description: text.trim(),
+        status: "in_progress",
+        successCriteria: ["按用户请求完成目标，并提供可复核的完成证据"],
+      })
+      const createdGoal = created.data as { id?: string } | undefined
+      if (!createdGoal?.id) throw new Error("创建目标后未返回目标 ID")
+      setStore("goalExecution", { sessionID: id, goalId: createdGoal.id, title })
+      setPersistedGoal({ goalId: createdGoal.id, title })
+      setStore("goalState", { status: "in_progress", progress: 0 })
+      setStore({
+        goalRunning: true,
+        goalStartedAt: Date.now(),
+        goalPaused: false,
+        goalMode: false,
+        goalText: text.trim(),
+      })
+      return { goalId: createdGoal.id, title }
+    } catch (error) {
+      const description = error instanceof Error ? error.message : language.t("common.requestFailed")
+      showToast({ title: language.t("common.requestFailed"), description })
+      return undefined
+    } finally {
+      setStore("goalSaving", false)
+    }
+  }
+
+  /**
+   * 「+」里带子级的行（工作区文件 / 插件）在鼠标悬停时向右弹出浮层，
+   * 而不是把菜单内容整个换掉。浮层是 Kobalte HoverCard 的 portal，因此不受
+   * popover-content 的 overflow:hidden 裁剪；父级 Popover 需要把这些节点当作内容区，
+   * 否则点浮层里的搜索框/文件时会先被 outside 判定关掉。
+   */
+  const [addSubmenu, setAddSubmenu] = createSignal<"workspace" | "plugins" | null>(null)
+  const flyouts: { workspace?: HTMLElement; plugins?: HTMLElement } = {}
+  const openSubmenu = (name: "workspace" | "plugins") => {
+    if (name === "plugins") loadPlugins()
+    setAddSubmenu(name)
+  }
+  const closeSubmenu = (name: "workspace" | "plugins") => {
+    setAddSubmenu((current) => (current === name ? null : current))
+  }
+
+  const [workspaceQuery, setWorkspaceQuery] = createSignal("")
+  const [workspaceHits] = createResource(workspaceQuery, async (query) => {
+    const value = query.trim()
+    if (!value) return [] as string[]
+    return (await files.searchFiles(value)).slice(0, 50)
+  })
+  const pickWorkspaceFile = (path: string) => {
+    closeAddMenu()
+    addPart({ type: "file", path, content: "@" + path, start: 0, end: 0 })
+  }
+
+  type InstalledPlugin = { name: string; version?: string; description?: string; enabled?: boolean }
+  const [pluginQuery, setPluginQuery] = createSignal("")
+  const [pluginItems, setPluginItems] = createSignal<InstalledPlugin[]>([])
+  const [pluginsLoaded, setPluginsLoaded] = createSignal(false)
+  const [pluginsLoading, setPluginsLoading] = createSignal(false)
+  const loadPlugins = () => {
+    if (pluginsLoaded()) return
+    setPluginsLoaded(true)
+    setPluginsLoading(true)
+    void sdk.client.extension
+      .list({ directory: sdk.directory })
+      .then((result) => setPluginItems((result.data ?? []) as InstalledPlugin[]))
+      .catch(() => setPluginItems([]))
+      .finally(() => setPluginsLoading(false))
+  }
+  const pluginHits = createMemo(() => {
+    const query = pluginQuery().trim().toLowerCase()
+    const all = pluginItems()
+    if (!query) return all
+    return all.filter(
+      (item) => item.name.toLowerCase().includes(query) || (item.description ?? "").toLowerCase().includes(query),
+    )
+  })
+  const openPluginSettings = () => {
+    closeAddMenu()
+    command.trigger("settings.open", "palette", "plugins")
+  }
+
+  const closeAddMenu = () => {
+    setAddMenuOpen(false)
+    setAddSubmenu(null)
+    setWorkspaceQuery("")
+    setPluginQuery("")
+  }
 
   const commentCount = createMemo(() => {
     if (store.mode === "shell") return 0
@@ -646,6 +890,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const pick = () => fileInputRef?.click()
 
   const setMode = (mode: "normal" | "shell") => {
+    if (globalChat() && mode === "shell") return
     setStore("mode", mode)
     setStore("popover", null)
     requestAnimationFrame(() => editorRef?.focus())
@@ -668,7 +913,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       title: language.t("command.prompt.mode.shell"),
       category: language.t("command.category.session"),
       keybind: shellModeKey,
-      disabled: store.mode === "shell",
+      disabled: globalChat() || store.mode === "shell",
       onSelect: () => setMode("shell"),
     },
     {
@@ -940,7 +1185,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const slashCommands = createMemo<SlashCommand[]>(() => {
     const builtin = command.options
       .filter(
-        (opt) => !opt.disabled && !opt.id.startsWith("suggested.") && opt.slash && !hiddenSlashCommandIDs.has(opt.id),
+        (opt) =>
+          !opt.disabled &&
+          !opt.id.startsWith("suggested.") &&
+          opt.slash &&
+          !hiddenSlashCommandIDs.has(opt.id) &&
+          (!globalChat() || ["model.choose", "session.new"].includes(opt.id)),
       )
       .map((opt) => ({
         id: opt.id,
@@ -951,7 +1201,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         type: "builtin" as const,
       }))
 
-    const custom = sync.data.command.map((cmd) => ({
+    const custom = (globalChat() ? [] : sync.data.command).map((cmd) => ({
       id: `custom.${cmd.name}`,
       trigger: cmd.name,
       title: cmd.name,
@@ -1514,6 +1764,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onSubmit: props.onSubmit,
     transformPrompt,
     agentOverride: () => props.agent,
+    goalExecution: () => store.goalExecution,
+    createGoal,
+    goalMode: () => store.goalMode,
+    goalMaxIterations: () => store.goalMaxIterations,
   })
   let submittedAutoKey: string | undefined
 
@@ -1554,7 +1808,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       }
     }
 
-    if (event.key === "!" && store.mode === "normal") {
+    if (!globalChat() && event.key === "!" && store.mode === "normal") {
       const cursorPosition = getCursorPosition(editorRef)
       if (cursorPosition === 0) {
         setStore("mode", "shell")
@@ -1849,12 +2103,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         onSubmit={handleSubmit}
         data-working={working() ? "true" : "false"}
         data-optimizing={store.optimizing ? "true" : "false"}
-        // 对齐 ZCode `prompt-editor/ChatPromptEditor.tsx` 的输入壳几何：
+        // 输入壳几何：
         // `rounded-2xl border ... p-3 transition-colors`。
-        // 背景刻意用透明，不照抄 ZCode 的 `bg-input`（浅色主题 `--input` 是纯白 #fff）：
+        // 背景刻意用透明，不用 `bg-input`（浅色主题 `--input` 是纯白 #fff）：
         // 外层 dock 是 `bg-background/80 backdrop-blur-sm`（与聊天区同一个灰底），
         // 壳子再填一层纯色，就会在浅灰页面上顶出一个明显的色块。聚焦仍靠边框色区分。
-        // DESIGN.md 把主聊天输入壳列为**唯一允许 rounded-2xl 的例外**，但**不用阴影/光晕**——
+        // 主聊天输入壳是**唯一允许 rounded-2xl 的例外**，但**不用阴影/光晕**——
         // 旧版是内联 16px 圆角 + 自算 box-shadow（含 24px 投影），既非语义 token 也过重。
         classList={{
           "group/prompt-input": true,
@@ -1895,17 +2149,75 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           removeLabel={language.t("prompt.attachment.remove")}
         />
         <Show when={store.mode === "normal" || store.mode === "shell"}>
-          <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 overflow-hidden whitespace-nowrap border-b border-border">
-            <Show when={working()}>
-              <span
-                data-component="prompt-working"
-                class="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap px-1.5 text-13-regular text-foreground-subtle"
+          <Show when={activeGoal()}>
+            {(goal) => (
+              <div
+                data-component="prompt-goal-running"
+                class="flex items-center gap-2 border-b border-border px-3 py-2"
               >
-                <Icon name="lu-loader" size="small" class="shrink-0 animate-spin" />
-                <span class="tabular-nums">{workLabel()}</span>
+                <Icon name="brain" size="small" class="shrink-0 text-text-interactive-base" />
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-12-medium text-foreground">目标：{goal().title}</div>
+                  <div class="text-11-regular text-foreground-subtle">
+                    {store.goalPaused ? "已暂停" : "持续执行中"}
+                    {goalElapsed() ? ` · ${goalElapsed()}` : ""}
+                    <Show when={store.goalState}>{(state) => ` · ${state().progress}%`}</Show>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="small"
+                  aria-label={store.goalPaused ? "继续目标" : "暂停目标"}
+                  onClick={() => {
+                    if (!store.goalPaused) {
+                      setStore("goalPaused", true)
+                      void globalSync
+                        .sdkForDirectory(sdk.directory)
+                        .goal.updateGoal({ sessionId: goal().sessionID, goalId: goal().goalId, status: "paused" })
+                        .then(() => abort(goal().sessionID))
+                      return
+                    }
+                    setStore("goalPaused", false)
+                    void globalSync
+                      .sdkForDirectory(sdk.directory)
+                      .goal.updateGoal({ sessionId: goal().sessionID, goalId: goal().goalId, status: "in_progress" })
+                    const text = `继续推进目标“${goal().title}”，从上次中断处继续，不要重复已完成的工作；验证目标成功标准并汇报证据。`
+                    prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
+                    queueMicrotask(() => void handleSubmit(new Event("submit", { cancelable: true })))
+                  }}
+                >
+                  {store.goalPaused ? "继续" : "暂停"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="small"
+                  onClick={async () => {
+                    const text = store.goalText || goal().title
+                    prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
+                    await stopGoalMode()
+                    requestAnimationFrame(() => editorRef?.focus())
+                  }}
+                >
+                  编辑目标
+                </Button>
+                <Button type="button" variant="ghost" size="small" onClick={() => void stopGoalMode()}>
+                  取消
+                </Button>
+              </div>
+            )}
+          </Show>
+          <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 overflow-hidden whitespace-nowrap border-b border-border">
+            <Show when={store.goalMode && !activeGoal()}>
+              <span class="flex h-7 items-center gap-1.5 rounded-md bg-surface-raised-base px-2 text-12-medium text-foreground">
+                <Icon name="brain" size="small" class="shrink-0" />
+                目标模式
               </span>
             </Show>
-            <ProjectSwitcherChip />
+            <Show when={!globalChat()}>
+              <ProjectSwitcherChip />
+            </Show>
             <Show when={store.mode === "shell"}>
               <div class="flex items-center gap-1.5 min-w-0">
                 <Icon name="console" />
@@ -1972,7 +2284,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               <Show when={zenOfficeMode()}>
                 {/* 办公模式下这里原来是「当前场景」的只读标签 —— 信息量为零：
                     场景是你在首页选的，输入框里再显示一遍，什么也点不了。
-                    ZCode 的同一位置是插件行，所以改成插件入口：一眼看到启用了几种能力、
+                    这里改成插件入口：一眼看到启用了几种能力、
                     点一下就能像扩展设置页那样开关。 */}
                 <button
                   type="button"
@@ -2034,7 +2346,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             </Show>
             {/* 电脑控制快捷插入：与 agent 选择器并列。
                 放在模式分支之外，锻造 / 办公模式下也能用。 */}
-            <Show when={computerControlVisible()}>
+            <Show when={!globalChat() && computerControlVisible()}>
               <Popover
                 gutter={6}
                 triggerAs="button"
@@ -2087,7 +2399,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             </Show>
             {/* 团队派发入口：紧贴「电脑控制」右侧 —— 两者都是"这一轮交给谁/用什么能力"的开关，
                 放同一行比塞进底栏（模式和用量之间）更好找。没有可选团队时它自己不渲染。 */}
-            <TeamModeSelect sessionID={sessionID()} />
+            <Show when={!globalChat()}>
+              <TeamModeSelect sessionID={sessionID()} />
+            </Show>
             <div class="flex-1 min-w-0" />
           </div>
         </Show>
@@ -2415,7 +2729,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                                     ),
                                   }
                                 : {
-                                    background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
+                                    background:
+                                      "linear-gradient(135deg, var(--icon-interactive-base), var(--icon-agent-plan-base))",
                                     "-webkit-background-clip": "text",
                                     "-webkit-text-fill-color": "transparent",
                                     "background-clip": "text",
@@ -2480,94 +2795,309 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 "pointer-events": buttonsSpring() > 0.5 ? "auto" : "none",
               }}
             >
-              <Popover
-                open={addMenuOpen()}
-                onOpenChange={setAddMenuOpen}
-                gutter={6}
-                triggerAs="button"
-                placement="top-start"
-                triggerProps={
-                  {
-                    type: "button",
-                    "data-action": "prompt-add",
-                    disabled: store.mode !== "normal",
-                    tabIndex: store.mode === "normal" ? undefined : -1,
-                    style: buttons(),
-                    "aria-label": "添加",
-                    title: "添加",
-                    class:
-                      "flex size-8 items-center justify-center rounded-md text-icon-blue transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-50",
-                  } as Record<string, unknown>
-                }
-                trigger={<Icon name="plus" class="size-4.5" />}
-                class="w-64"
-              >
-                <div class="flex flex-col gap-1">
-                  <span class="px-1 pb-1 text-11-regular text-foreground-subtle">添加</span>
-                  <button
-                    type="button"
-                    data-action="prompt-attach"
-                    class="flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
-                    onClick={() => {
-                      setAddMenuOpen(false)
-                      void pick()
-                    }}
-                  >
-                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-icon-blue">
-                      <Icon name="link" size="small" />
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="block text-13-medium text-foreground">附件</span>
-                      <span class="mt-0.5 block text-11-regular text-foreground-subtle">图片、文档或任意文件</span>
-                    </span>
-                    <span class="mt-0.5 shrink-0 text-11-regular text-foreground-subtlest">
-                      {command.keybind("file.attach")}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    data-action="prompt-at"
-                    class="flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
-                    onClick={() => insertTriggerChar("@")}
-                  >
-                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-icon-blue">
-                      @
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="block text-13-medium text-foreground">提及</span>
-                      <span class="mt-0.5 block text-11-regular text-foreground-subtle">引用文件、规则或 AI 员工</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    data-action="prompt-slash"
-                    class="flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
-                    onClick={() => insertTriggerChar("/")}
-                  >
-                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-icon-blue">
-                      /
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="block text-13-medium text-foreground">命令</span>
-                      <span class="mt-0.5 block text-11-regular text-foreground-subtle">运行命令、技能或 MCP 工具</span>
-                    </span>
-                  </button>
-                </div>
-              </Popover>
+              <Show when={!globalChat()}>
+                <Popover
+                  open={addMenuOpen()}
+                  onOpenChange={(open) => {
+                    // 关闭时连同文件面板一起收起，下次打开回到菜单首层。
+                    if (!open) closeAddMenu()
+                    else setAddMenuOpen(true)
+                  }}
+                  gutter={6}
+                  // 子级浮层被 portal 到 body，不在 popover-content 里，得显式让父级认作“内部”。
+                  outsideIgnore={() => [flyouts.workspace, flyouts.plugins]}
+                  triggerAs="button"
+                  placement="top-start"
+                  triggerProps={
+                    {
+                      type: "button",
+                      "data-action": "prompt-add",
+                      disabled: store.mode !== "normal",
+                      tabIndex: store.mode === "normal" ? undefined : -1,
+                      style: buttons(),
+                      "aria-label": "添加",
+                      title: "添加",
+                      class:
+                        "flex size-8 items-center justify-center rounded-md text-icon-blue transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-50",
+                    } as Record<string, unknown>
+                  }
+                  trigger={<Icon name="plus" class="size-4.5" />}
+                  class="w-64"
+                >
+                  <div class="relative flex flex-col gap-1.5">
+                    <span class="px-1 pb-1 text-11-regular text-foreground-subtle">添加到本轮</span>
+                    <AddMenuGroup label="加内容">
+                      <AddMenuItem
+                        action="prompt-attach"
+                        icon="link"
+                        title="附件"
+                        description="图片、文档或任意文件"
+                        hint={command.keybind("file.attach")}
+                        onSelect={() => {
+                          closeAddMenu()
+                          void pick()
+                        }}
+                      />
+                      <HoverCard
+                        placement="right-start"
+                        gutter={8}
+                        openDelay={120}
+                        closeDelay={180}
+                        open={addSubmenu() === "workspace"}
+                        onOpenChange={(open) => (open ? openSubmenu("workspace") : closeSubmenu("workspace"))}
+                        contentRef={(el) => (flyouts.workspace = el)}
+                        class="add-menu-flyout"
+                        trigger={
+                          <AddMenuItem
+                            action="prompt-open-file"
+                            icon="tree-structure"
+                            title="工作区文件"
+                            description="在项目里挑一个文件带进这一轮"
+                            hint="▸"
+                            onSelect={() => openSubmenu("workspace")}
+                          />
+                        }
+                      >
+                        <div class="flex flex-col">
+                          <div class="flex items-center gap-2 px-2 pb-2">
+                            <span class="text-12-medium text-foreground">工作区文件</span>
+                            <div class="flex-1" />
+                            <span class="text-11-regular text-foreground-subtlest">
+                              {workspaceQuery().trim() ? `${(workspaceHits() ?? []).length} 个匹配` : "点文件夹展开"}
+                            </span>
+                          </div>
+                          <div class="flex items-center gap-1.5 border-y border-border px-2 py-1.5">
+                            <Icon name="magnifying-glass" size="small" class="shrink-0 text-foreground-subtlest" />
+                            <input
+                              data-action="prompt-workspace-search"
+                              value={workspaceQuery()}
+                              onInput={(event) => setWorkspaceQuery(event.currentTarget.value)}
+                              placeholder="搜索当前项目文件"
+                              class="min-w-0 flex-1 bg-transparent text-12-regular text-foreground outline-none placeholder:text-foreground-subtlest"
+                            />
+                          </div>
+                          <div class="max-h-[320px] min-h-[120px] overflow-y-auto p-1">
+                            <Show
+                              when={workspaceQuery().trim()}
+                              fallback={
+                                <FileTree
+                                  path=""
+                                  onFileClick={(node) => pickWorkspaceFile(node.path)}
+                                  draggable={false}
+                                />
+                              }
+                            >
+                              <Show
+                                when={!workspaceHits.loading}
+                                fallback={<div class="px-2 py-3 text-12-regular text-foreground-subtlest">搜索中…</div>}
+                              >
+                                <For each={workspaceHits() ?? []}>
+                                  {(path) => (
+                                    <button
+                                      type="button"
+                                      data-action="prompt-workspace-file"
+                                      onClick={() => pickWorkspaceFile(path)}
+                                      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                                    >
+                                      <FileIcon node={{ path, type: "file" }} class="size-4 shrink-0" mono />
+                                      <span class="min-w-0 flex-1 truncate text-12-regular text-foreground">
+                                        {path.split(/[\\/]/).pop()}
+                                      </span>
+                                      <span class="max-w-[160px] shrink-0 truncate text-11-regular text-foreground-subtlest">
+                                        {path.split(/[\\/]/).slice(0, -1).join("/")}
+                                      </span>
+                                    </button>
+                                  )}
+                                </For>
+                                <Show when={(workspaceHits() ?? []).length === 0}>
+                                  <div class="px-2 py-3 text-12-regular text-foreground-subtlest">没有匹配的文件</div>
+                                </Show>
+                              </Show>
+                            </Show>
+                          </div>
+                          <div class="border-t border-border px-2.5 py-1.5 text-11-regular text-foreground-subtlest">
+                            点文件加入本轮上下文
+                          </div>
+                        </div>
+                      </HoverCard>
+                      <AddMenuItem
+                        action="prompt-at"
+                        glyph="@"
+                        title="提及"
+                        description="引用文件、规则或 AI 员工"
+                        onSelect={() => insertTriggerChar("@")}
+                      />
+                      <AddMenuItem
+                        action="prompt-slash"
+                        glyph="/"
+                        title="命令与技能"
+                        description="运行命令、技能或 MCP 工具"
+                        onSelect={() => insertTriggerChar("/")}
+                      />
+                    </AddMenuGroup>
+                    <AddMenuGroup label="这一轮怎么跑">
+                      <AddMenuItem
+                        action="prompt-plan-mode"
+                        icon="lu-lock"
+                        title="计划模式（只读）"
+                        description="只读分析，写操作会被拒绝"
+                        active={planModeOn()}
+                        onSelect={() => {
+                          closeAddMenu()
+                          choosePlanMode()
+                        }}
+                      />
+                      <HoverCard
+                        placement="right-start"
+                        gutter={8}
+                        openDelay={120}
+                        closeDelay={180}
+                        trigger={
+                          <AddMenuItem
+                            action="prompt-goal-mode"
+                            icon="brain"
+                            title="目标模式"
+                            description="围绕本轮输入的目标持续推进"
+                            active={store.goalMode}
+                            onSelect={() => {
+                              closeAddMenu()
+                              openGoalMode()
+                            }}
+                          />
+                        }
+                      >
+                        <div class="w-64 p-3">
+                          <div class="text-12-medium text-foreground">最大追加轮数</div>
+                          <select
+                            aria-label="最大追加轮数"
+                            class="mt-2 h-8 w-full rounded-md border border-border bg-surface px-2 text-12-regular text-foreground"
+                            value={store.goalMaxIterations}
+                            onChange={(event) => setStore("goalMaxIterations", Number(event.currentTarget.value))}
+                          >
+                            <For each={[5, 10, 15, 20, 50]}>{(value) => <option value={value}>{value} 轮</option>}</For>
+                          </select>
+                        </div>
+                      </HoverCard>
+                    </AddMenuGroup>
+                    <AddMenuGroup label="去管理">
+                      <AddMenuItem
+                        action="prompt-skills"
+                        icon="lu-brain"
+                        title="技能"
+                        description="查看、安装与开关技能"
+                        onSelect={() => {
+                          closeAddMenu()
+                          command.trigger("settings.open", "palette", "skills")
+                        }}
+                      />
+                      <HoverCard
+                        placement="right-start"
+                        gutter={8}
+                        openDelay={120}
+                        closeDelay={180}
+                        open={addSubmenu() === "plugins"}
+                        onOpenChange={(open) => (open ? openSubmenu("plugins") : closeSubmenu("plugins"))}
+                        contentRef={(el) => (flyouts.plugins = el)}
+                        class="add-menu-flyout"
+                        trigger={
+                          <AddMenuItem
+                            action="prompt-plugins"
+                            icon="lu-wrench"
+                            title="插件"
+                            description="管理插件与 MCP 服务"
+                            hint="▸"
+                            onSelect={() => openSubmenu("plugins")}
+                          />
+                        }
+                      >
+                        <div class="flex flex-col">
+                          <div class="flex items-center gap-2 px-2 pb-2">
+                            <span class="text-12-medium text-foreground">插件</span>
+                            <div class="flex-1" />
+                            <span class="text-11-regular text-foreground-subtlest">
+                              {`${pluginItems().length} 个已安装`}
+                            </span>
+                          </div>
+                          <div class="flex items-center gap-1.5 border-y border-border px-2 py-1.5">
+                            <Icon name="magnifying-glass" size="small" class="shrink-0 text-foreground-subtlest" />
+                            <input
+                              data-action="prompt-plugin-search"
+                              value={pluginQuery()}
+                              onInput={(event) => setPluginQuery(event.currentTarget.value)}
+                              placeholder="搜索插件"
+                              class="min-w-0 flex-1 bg-transparent text-12-regular text-foreground outline-none placeholder:text-foreground-subtlest"
+                            />
+                          </div>
+                          <div class="max-h-[320px] min-h-[120px] overflow-y-auto p-1">
+                            <Show
+                              when={!pluginsLoading()}
+                              fallback={<div class="px-2 py-3 text-12-regular text-foreground-subtlest">加载中…</div>}
+                            >
+                              <For each={pluginHits()}>
+                                {(item) => (
+                                  <button
+                                    type="button"
+                                    data-action="prompt-plugin-item"
+                                    onClick={openPluginSettings}
+                                    class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                                  >
+                                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-icon-blue">
+                                      <Icon name="lu-wrench" size="small" />
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                      <span class="block truncate text-12-medium text-foreground">{item.name}</span>
+                                      <Show when={item.description}>
+                                        <span class="mt-0.5 block truncate text-11-regular text-foreground-subtle">
+                                          {item.description}
+                                        </span>
+                                      </Show>
+                                    </span>
+                                    <Show when={item.enabled === false}>
+                                      <span class="mt-0.5 shrink-0 text-11-regular text-foreground-subtlest">
+                                        已停用
+                                      </span>
+                                    </Show>
+                                  </button>
+                                )}
+                              </For>
+                              <Show when={pluginHits().length === 0}>
+                                <div class="px-2 py-3 text-12-regular text-foreground-subtlest">没有匹配的插件</div>
+                              </Show>
+                            </Show>
+                          </div>
+                          <div class="border-t border-border px-1.5 py-1.5">
+                            <button
+                              type="button"
+                              data-action="prompt-plugin-manage"
+                              onClick={openPluginSettings}
+                              class="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                            >
+                              管理插件与 MCP 服务
+                              <Icon name="arrow-right" size="small" />
+                            </button>
+                          </div>
+                        </div>
+                      </HoverCard>
+                    </AddMenuGroup>
+                  </div>
+                </Popover>
+              </Show>
               {/* 权限模式与上下文占用放到输入框底部：顶部工具条在右侧面板展开后
                   会被模型名/思考强度挤满，这几个入口挪到底部反而更稳、更顺手
-                  （也是 ZCode 的摆放：+ 之后跟模式与用量）。 */}
-              <div data-component="prompt-auto-accept" class="flex items-center">
-                <PermissionModeSelect
-                  sessionID={sessionID()}
-                  onChange={(mode) => {
-                    // 角色与档位保持一致：选计划模式就切到规划蓝图，离开时回到锻造工程。
-                    if (props.agent) return
-                    const next = agentForPermission(mode, local.agent.current()?.name)
-                    if (next) local.agent.set(next)
-                  }}
-                />
-              </div>
+                  （+ 之后跟模式与用量）。 */}
+              <Show when={!globalChat()}>
+                <div data-component="prompt-auto-accept" class="flex items-center">
+                  <PermissionModeSelect
+                    sessionID={sessionID()}
+                    onChange={(mode) => {
+                      // 角色与档位保持一致：选计划模式就切到规划蓝图，离开时回到锻造工程。
+                      if (props.agent) return
+                      const next = agentForPermission(mode, local.agent.current()?.name)
+                      if (next) local.agent.set(next)
+                    }}
+                  />
+                </div>
+              </Show>
               <SessionContextUsage />
               <SessionBackgroundTrigger style={buttons()} />
             </div>

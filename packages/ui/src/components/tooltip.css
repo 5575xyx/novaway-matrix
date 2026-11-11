@@ -15,7 +15,7 @@
   line-height: var(--line-height-large);
 }
 
-/* 对齐 ZCode `components/ui/tooltip.tsx`：`rounded-lg` + `border-border` + `bg-tooltip` +
+/* `rounded-lg` + `border-border` + `bg-tooltip` +
    `text-tooltip-foreground` + `px-3 py-1.5` + `text-ui-sm`（快捷键标签用 text-ui-xs）。
    旧版是 rounded-sm + surface-float-base + 2px 8px 内边距。 */
 [data-component="tooltip"] {

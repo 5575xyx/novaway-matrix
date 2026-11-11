@@ -1,4 +1,3 @@
-
 import { describe, expect, test } from "bun:test"
 import { decodeText, encodeText } from "../../src/office/text/format"
 import {
@@ -6,9 +5,11 @@ import {
   caret,
   changeCase,
   commentPrefix,
+  commentTokens,
   convertIndent,
   duplicateLines,
   formatJson,
+  formatSource,
   indentLines,
   joinLines,
   lineOfOffset,
@@ -90,12 +91,28 @@ describe("行命令", () => {
     expect(applyTextEdit(source, edit)).toBe("a b")
   })
 
+  test("合并中间几行时不会把下一行粘上来", () => {
+    const source = "x\nb\na\ny\n"
+    const edit = joinLines(source, { anchor: 2, head: 5 })!
+    expect(applyTextEdit(source, edit)).toBe("x\nb a\ny\n")
+  })
+
   test("多行选区只改选中的行", () => {
     const source = "x\nb\na\ny\n"
     const selected = selectedLines(source, { anchor: 2, head: 5 })
     expect(selected.lines).toEqual(["b", "a"])
     const edit = sortLines(source, { anchor: 2, head: 5 })!
     expect(applyTextEdit(source, edit)).toBe("x\na\nb\ny\n")
+  })
+
+  test("排序是自然序：第 2 项排在第 10 项前面，大小写不敏感", () => {
+    const source = "item 10\nItem 2\nitem 1\n"
+    const edit = sortLines(source, { anchor: 0, head: 0 })!
+    expect(applyTextEdit(source, edit)).toBe("item 1\nItem 2\nitem 10\n")
+
+    // 折叠后相同则按原文定序，结果稳定。
+    const mixed = "b\nB\na\n"
+    expect(applyTextEdit(mixed, sortLines(mixed, caret(0))!)).toBe("a\nB\nb\n")
   })
 
   test("没有变化时返回 undefined，不产生空的撤销步骤", () => {
@@ -151,6 +168,24 @@ describe("行命令", () => {
     expect(applyTextEdit("// a\n// b\n", uncommented)).toBe("a\nb\n")
   })
 
+  test("成对注释：HTML / Markdown 用 <!-- -->，CSS 用 /* */", () => {
+    const html = "a\nb\n"
+    const tokens = commentTokens("html")!
+    expect(tokens).toEqual({ open: "<!--", close: "-->" })
+    const commented = toggleComment(html, caret(0), tokens)!
+    expect(applyTextEdit(html, commented)).toBe("<!-- a -->\n<!-- b -->\n")
+    const restored = toggleComment("<!-- a -->\n<!-- b -->\n", caret(0), tokens)!
+    expect(applyTextEdit("<!-- a -->\n<!-- b -->\n", restored)).toBe(html)
+
+    const css = toggleComment("a\n", caret(0), commentTokens("css")!)!
+    expect(applyTextEdit("a\n", css)).toBe("/* a */\n")
+
+    // Markdown 的 # 是标题，不能当成行注释。
+    expect(commentTokens("md")).toEqual({ open: "<!--", close: "-->" })
+    expect(commentTokens("ts")).toEqual({ open: "//" })
+    expect(commentTokens("bin")).toBeUndefined()
+  })
+
   test("JSON 格式化与压缩", () => {
     const compact = formatJson('{"a":1,"b":[1,2]}', caret(0), "  ")!
     expect(compact.text).toBe('{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ]\n}')
@@ -170,5 +205,49 @@ describe("偏移与行号", () => {
     expect(offsetOfLine(text, 2)).toBe(3)
     expect(offsetOfLine(text, 9)).toBe(text.length)
     expect(lineOfOffset(text, 4)).toBe(2)
+  })
+})
+
+describe("taskLineOffsets", () => {
+  test("按文档顺序给出任务行偏移，跳过代码围栏", async () => {
+    const { taskLineOffsets } = await import("../../src/office/text/markdown")
+    const text = ["- [ ] 一", "- [x] 二", "```", "- [ ] 不是任务", "```", "  - [ ] 三"].join("\n")
+    const offsets = taskLineOffsets(text)
+    expect(offsets.length).toBe(3)
+    expect(text.slice(offsets[0]!)).toStartWith("- [ ] 一")
+    expect(text.slice(offsets[1]!)).toStartWith("- [x] 二")
+    expect(text.slice(offsets[2]!)).toStartWith("  - [ ] 三")
+  })
+})
+
+describe("formatSource 通用代码格式化", () => {
+  test("JSON 走 formatJson：合法 JSON 被缩进重排", () => {
+    const edit = formatSource('{"a":1,"b":[2,3]}', caret(0), "json")
+    expect(edit.text).toContain('"a": 1')
+    expect(edit.text).toContain('"b": [')
+  })
+
+  test("JSONC 同样走 JSON 格式化", () => {
+    const edit = formatSource('{"a":1}', caret(0), "jsonc")
+    expect(edit.text).toBe('{\n  "a": 1\n}')
+  })
+
+  test("HTML：按标签缩进，文本节点保持原样", () => {
+    const edit = formatSource("<div><span>hi</span><p>x</p></div>", caret(0), "html")
+    expect(edit.text).toBe("<div>\n  <span>hi</span>\n  <p>x</p>\n</div>")
+  })
+
+  test("XML：自闭合标签不额外缩进", () => {
+    const edit = formatSource("<a><b/><c/></a>", caret(0), "xml")
+    expect(edit.text).toBe("<a>\n  <b/>\n  <c/>\n</a>")
+  })
+
+  test("CSS：按花括号缩进", () => {
+    const edit = formatSource("body {color: red}", caret(0), "css")
+    expect(edit.text).toBe("body {\n  color: red\n}")
+  })
+
+  test("不支持的扩展名抛出可读错误", () => {
+    expect(() => formatSource("x", caret(0), "py")).toThrow(/暂不支持格式化/)
   })
 })

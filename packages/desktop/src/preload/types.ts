@@ -10,6 +10,8 @@ export type SqliteMigrationProgress = { type: "InProgress"; value: number } | { 
 
 export type WslConfig = { enabled: boolean }
 
+export type InstalledEditor = { id: string; name: string }
+
 /**
  * 自动更新的状态机（主进程是唯一事实来源）。
  *
@@ -163,10 +165,7 @@ export interface PlatformAPI {
   /** 一站式发布：多账号（可跨平台）一次提交，进度走 onPublishProgress。 */
   publishBatch: (input: { accountIds: string[]; input: PublishBatchInput }) => Promise<{ ok: boolean; error?: string }>
   /** 发布前预检：长度、素材形态、极限词/引流词，先给人看一遍再发。 */
-  publishPrecheck: (input: {
-    platforms: string[]
-    input: PublishBatchInput
-  }) => Promise<PublishPrecheckResult>
+  publishPrecheck: (input: { platforms: string[]; input: PublishBatchInput }) => Promise<PublishPrecheckResult>
   cancelPublish: () => Promise<{ ok: boolean }>
   getPublishBatches: () => Promise<PublishBatch[]>
   onPublishProgress: (cb: (event: PublishProgressEvent) => void) => () => void
@@ -186,6 +185,8 @@ export type ElectronAPI = {
   awaitInitialization: (onStep: (step: InitStep) => void) => Promise<ServerReadyData>
   getWindowConfig: () => Promise<WindowConfig>
   consumeInitialDeepLinks: () => Promise<string[]>
+  /** 启动时系统递进来的文档路径（Finder 双击 / 「打开方式」）；取走即清空。 */
+  consumeInitialOpenFiles: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
   setDefaultServerUrl: (url: string | null) => Promise<void>
   getWslConfig: () => Promise<WslConfig>
@@ -229,6 +230,8 @@ export type ElectronAPI = {
   /** 更新状态流：检查中 → 有新版本 → 下载中(percent) → 已下载。主进程是唯一事实来源。 */
   onUpdateStatus: (cb: (status: UpdateStatus) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
+  /** 运行中从系统打开的文档（再次双击 / 拖到图标上）。 */
+  onOpenFiles: (cb: (paths: string[]) => void) => () => void
   onNotificationClick: (cb: (href?: string) => void) => () => void
 
   createDirectory: (parentPath: string, dirName: string) => Promise<string>
@@ -248,14 +251,19 @@ export type ElectronAPI = {
   readLocalFileText: (path: string) => Promise<string | null>
   /** 读项目目录外的本地二进制文件为 base64(Office/PDF/图片预览);失败返回 null。 */
   readLocalFileBase64: (path: string) => Promise<string | null>
+  /** 把一份自包含 HTML 打印成 PDF 并写到 filePath；仅桌面端。 */
+  printToPdf: (payload: { html: string; filePath: string; landscape?: boolean }) => Promise<boolean>
   /** 写回本地文本文件(utf-8);成功返回 true。 */
   writeLocalFileText: (path: string, content: string) => Promise<boolean>
+  writeLocalFileBase64: (path: string, data: string, expectedBaselineSha256?: string) => Promise<boolean>
   saveFilePicker: (opts?: { title?: string; defaultPath?: string; data?: Uint8Array }) => Promise<string | null>
   copyFileToClipboard: (opts?: { url?: string; filename?: string }) => Promise<boolean>
   writeTextToClipboard: (opts?: { text?: string }) => Promise<boolean>
   openLink: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
   showItemInFolder: (path: string) => Promise<boolean>
+  getInstalledEditors: () => Promise<InstalledEditor[]>
+  openInEditor: (editorId: string, path: string, kind: "file" | "directory") => Promise<boolean>
   readClipboardImage: () => Promise<{ buffer: ArrayBuffer; width: number; height: number } | null>
   showNotification: (title: string, body?: string, href?: string, showSystem?: boolean) => void
   getWindowFocused: () => Promise<boolean>

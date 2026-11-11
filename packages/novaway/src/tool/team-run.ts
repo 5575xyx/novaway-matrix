@@ -305,11 +305,14 @@ export const TeamRunStatusTool = Tool.define<typeof TeamRunStatusParameters, { r
         const runs = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
         const verification = Option.getOrUndefined(yield* Effect.serviceOption(TeamVerificationService))
         const opLog = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
-        if (!runs) return { title: "Team runs unavailable", output: "Team orchestration is not enabled in this runtime.", metadata: {} }
+        if (!runs)
+          return {
+            title: "Team runs unavailable",
+            output: "Team orchestration is not enabled in this runtime.",
+            metadata: {},
+          }
 
-        const run = params.runID
-          ? yield* runs.get(params.runID)
-          : (yield* runs.list({ sessionID: ctx.sessionID }))[0]
+        const run = params.runID ? yield* runs.get(params.runID) : (yield* runs.list({ sessionID: ctx.sessionID }))[0]
         if (!run)
           return {
             title: "No team run",
@@ -333,13 +336,18 @@ export const TeamRunStatusTool = Tool.define<typeof TeamRunStatusParameters, { r
         ])
 
         const next = (() => {
-          if (run.state === "awaiting_approval") return "The user must approve this run in the Runs page before it starts."
-          if (run.state === "planning") return "The plan is incomplete: add acceptance criteria before it can be approved."
+          if (run.state === "awaiting_approval")
+            return "The user must approve this run in the Runs page before it starts."
+          if (run.state === "planning")
+            return "The plan is incomplete: add acceptance criteria before it can be approved."
           if (run.state === "running") return "Still running. Check again later."
-          if (run.state === "blocked") return "Stopped on a dependency that will not arrive. Re-running it re-queues failed teams."
-          if (run.state === "needs_review") return "A tool operation has an unknown outcome; verify its side effects before retrying."
+          if (run.state === "blocked")
+            return "Stopped on a dependency that will not arrive. Re-running it re-queues failed teams."
+          if (run.state === "needs_review")
+            return "A tool operation has an unknown outcome; verify its side effects before retrying."
           if (run.state === "done") return "Delivered and verified. Merging is a separate step the user decides."
-          if (run.state === "partial") return "Some acceptance criteria are not verified. Pass never includes unverified items."
+          if (run.state === "partial")
+            return "Some acceptance criteria are not verified. Pass never includes unverified items."
           if (run.state === "failed") return "No deliverable result. Read the reason above; do not report success."
           if (run.state === "exceeded") return "Stopped on attempts or budget. A new run needs a new approval."
           if (run.state === "cancelled") return "Cancelled. Nothing is still running."

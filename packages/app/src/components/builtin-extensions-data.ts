@@ -157,7 +157,8 @@ export const BUILTIN_EXTENSIONS: BuiltinExtension[] = [
   {
     id: "media-ops",
     name: "自媒体运营",
-    description: "选题、平台原生写法、发布前预检、一键发布与数据复盘的内置技能，覆盖抖音/小红书/视频号/快手/B站/公众号。",
+    description:
+      "选题、平台原生写法、发布前预检、一键发布与数据复盘的内置技能，覆盖抖音/小红书/视频号/快手/B站/公众号。",
     icon: "lu-megaphone",
     components: ["skill"],
     toggle: "skills",

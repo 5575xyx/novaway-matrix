@@ -156,7 +156,7 @@ ${url()}
             autocomplete="off"
           />
           <Show when={store.invalid}>
-            <span class="shrink-0 text-11-regular text-rose-600 dark:text-rose-400">
+            <span class="shrink-0 text-11-regular text-[var(--icon-critical-base)]">
               {language.t("preview.invalid")}
             </span>
           </Show>
@@ -336,7 +336,7 @@ function PickCommentCard(props: { element: PickedElement; onAdd: (comment: strin
         <button
           type="button"
           data-action="preview-pick-add"
-          class="rounded-lg border border-emerald-300/45 bg-emerald-300/12 px-3 py-1.5 text-12-medium text-emerald-100 transition-colors hover:bg-emerald-300/20"
+          class="rounded-lg border border-icon-blue/40 bg-icon-blue/10 px-3 py-1.5 text-12-medium text-icon-blue transition-colors hover:bg-icon-blue/20"
           onClick={() => props.onAdd(draft())}
         >
           {language.t("preview.pick.add")}

@@ -42,7 +42,7 @@ export interface Interface {
     content?: string
   }) => Effect.Effect<Info>
   readonly remove: (input: { sessionID: SessionID; position: number }) => Effect.Effect<void>
-  readonly getByGoal: (goalId: string) => Effect.Effect<Info[]>
+  readonly getByGoal: (input: { goalId: string; sessionID: SessionID }) => Effect.Effect<Info[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/SessionTodo") {}
@@ -194,9 +194,15 @@ export const layer = Layer.effect(
       yield* publishUpdated(input.sessionID)
     })
 
-    const getByGoal = Effect.fn("Todo.getByGoal")(function* (goalId: string) {
+    const getByGoal = Effect.fn("Todo.getByGoal")(function* (input: { goalId: string; sessionID: SessionID }) {
       const rows = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId)).all()),
+        Database.use((db) =>
+          db
+            .select()
+            .from(TodoTable)
+            .where(and(eq(TodoTable.goal_id, input.goalId), eq(TodoTable.session_id, input.sessionID)))
+            .all(),
+        ),
       )
       return rows.map((row) => ({
         content: row.content,

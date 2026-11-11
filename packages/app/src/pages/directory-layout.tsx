@@ -26,7 +26,7 @@ function DirectoryDataProvider(props: ParentProps<{ directory: string }>) {
   /**
    * 子代理摘要行点击 → 在**右侧面板**打开子会话，而不是整页跳走。
    *
-   * 对齐 ZCode 的 `openSubagentSessionFromSummary`：整页跳会把主线从眼前挪走，
+   * 整页跳会把主线从眼前挪走，
    * 用户看完子会话还得再找回来。面板里看则"主线继续跑、支线随时看"。
    *
    * 面板顶部留了「在主线打开」，需要完整能力（fork / retry / 编辑）时再跳过去。

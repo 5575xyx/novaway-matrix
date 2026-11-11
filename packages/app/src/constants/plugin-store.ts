@@ -1,8 +1,7 @@
 /**
  * 插件商店的数据契约。
  *
- * 对齐 ZCode 的插件商店架构：它的目录**不内置**，而是来自可配置的 *marketplace 源*
- * （`settings/PluginStoreSourcesDialog.tsx` + `AddMarketplaceSourceDialog.tsx`）——
+ * 目录**不内置**，而是来自可配置的 *marketplace 源* ——
  * 每个源是一个返回 JSON 目录的 URL。这样商店内容可以独立发布，不用改客户端。
  *
  * 这里刻意**不内置任何插件清单**：凭空写一堆 npm 包名只会在用户点「安装」时失败，

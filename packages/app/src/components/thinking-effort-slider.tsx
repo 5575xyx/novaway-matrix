@@ -2,11 +2,11 @@ import { For, Show, createSignal, type Component } from "solid-js"
 import { useVariantLabel } from "@/hooks/use-variant-label"
 import { effortFill, effortRatio, effortText } from "./thinking-effort-color"
 
-/** 白圆点直径。填充宽度、档位点间距都按它对齐（与 ZCode 的 28px 一致）。 */
+/** 白圆点直径。填充宽度、档位点间距都按它对齐。 */
 const THUMB = 28
 
 /**
- * 气泡参数直接取自 ZCode（`composer-thought` 的 IJ 表）：
+ * 气泡参数与布局保持固定；它们是装饰性的轨迹参数，不影响主题配色：
  * `top` 是气泡在 24px 轨道里的纵向位置，duration/delay 让它们彼此错开，
  * 看起来是「轨道里有细小的光点持续往左飘」。
  */
@@ -26,7 +26,7 @@ const BUBBLES = [
 ]
 
 /**
- * 思考强度滑块（移植自 ZCode 的 `composer-thought-slider`）。
+ * 思考强度滑块。
  *
  * 结构：32px 高的容器里放三层——24px 轨道、4px 档位点、28px 白圆点，
  * 最后盖一个透明的原生 `input[type=range]` 负责交互。
@@ -68,7 +68,7 @@ export const ThinkingEffortSlider: Component<{
 
   const pick = (value: string) => props.onChange(value === "default" ? undefined : value)
 
-  /** 指针靠近某个档位点时高亮它（距中心 10px 内），和 ZCode 的反馈一致。 */
+  /** 指针靠近某个档位点时高亮它（距中心 10px 内）。 */
   const trackHover = (event: PointerEvent & { currentTarget: HTMLInputElement }) => {
     const count = stops().length
     if (count < 2 || event.pointerType === "touch") {
@@ -115,7 +115,7 @@ export const ThinkingEffortSlider: Component<{
                         }}
                       >
                         <span
-                          class="block rounded-full bg-white"
+                          class="block rounded-full bg-[var(--text-on-interactive-base)]"
                           style={{ width: `${bubble.size}px`, height: `${bubble.size}px` }}
                         />
                       </span>

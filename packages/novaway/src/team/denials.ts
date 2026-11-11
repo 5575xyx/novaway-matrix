@@ -34,12 +34,7 @@ const toDenial = (row: typeof TeamRunDenialTable.$inferSelect): Denial => ({
 })
 
 /** 记一次拒绝。同一动作重复记录时保留第一次的时间：它才是「什么时候被判死的」。 */
-export function remember(input: {
-  runID: string
-  tool: string
-  patterns: readonly string[]
-  reason?: string
-}): void {
+export function remember(input: { runID: string; tool: string; patterns: readonly string[]; reason?: string }): void {
   const action = actionKey(input.tool, input.patterns)
   Database.transaction(
     (tx) => {
@@ -97,7 +92,11 @@ export function clear(runID: string): number {
 /** 本次运行里被拒过的动作（界面用；不带原文）。 */
 export function list(runID: string): Denial[] {
   return Database.use((db) =>
-    db.select().from(TeamRunDenialTable).where(eq(TeamRunDenialTable.run_id, runID)).orderBy(TeamRunDenialTable.at).all(),
+    db
+      .select()
+      .from(TeamRunDenialTable)
+      .where(eq(TeamRunDenialTable.run_id, runID))
+      .orderBy(TeamRunDenialTable.at)
+      .all(),
   ).map(toDenial)
 }
-

@@ -20,6 +20,7 @@ import {
   loadAgentsQuery,
   loadGlobalConfigQuery,
   loadPathQuery,
+  loadPluginContributionsQuery,
   loadProjectsQuery,
   loadProvidersQuery,
   projectProviderOverride,
@@ -71,6 +72,7 @@ function makeQueryOptionsApi(globalSDK: () => NovawayClient, sdkFor: (dir: PathK
       loadProvidersQuery(directory, directory === null ? globalSDK() : sdkFor(directory)),
     path: (directory: PathKey | null) => loadPathQuery(directory, directory === null ? globalSDK() : sdkFor(directory)),
     agents: (directory: PathKey) => loadAgentsQuery(directory, sdkFor(directory)),
+    contributions: (directory: PathKey) => loadPluginContributionsQuery(directory, sdkFor(directory)),
     mcp: (directory: PathKey) => loadMcpQuery(directory, sdkFor(directory)),
     lsp: (directory: PathKey) => loadLspQuery(directory, sdkFor(directory)),
     sessions: (directory: PathKey) => ({ queryKey: [directory, "loadSessions"] as const }),
@@ -324,6 +326,16 @@ function createGlobalSync() {
       const cache = children.vcsCache.get(key)
       if (!cache) return
       const sdk = sdkFor(directory)
+      if (directory === "global-chat") {
+        await loadSessions(directory)
+        // 无项目聊天也要能选 agent：只取列表用于模型/参数选择，工具在服务端仍被禁用。
+        await queryClient
+          .ensureQueryData(loadAgentsQuery(directory, sdk))
+          .then((data) => child[1]("agent", data))
+          .catch(() => {})
+        child[1]("status", "complete")
+        return
+      }
       await bootstrapDirectory({
         directory,
         global: {
@@ -409,6 +421,15 @@ function createGlobalSync() {
       loadLsp: () => {
         void queryClient.fetchQuery(queryOptionsApi.lsp(key))
       },
+      loadAgents: () => {
+        void queryClient.fetchQuery(queryOptionsApi.agents(key)).then((data) => setStore("agent", data))
+      },
+      loadCommands: () => {
+        void sdkFor(directory).command.list().then((response) => setStore("command", response.data ?? []))
+      },
+      loadContributions: () => {
+        void queryClient.fetchQuery(queryOptionsApi.contributions(key)).then((data) => setStore("plugin_contributions", data))
+      },
       loadProviders: () => {
         // 目录级事件里说的"目录变了"其实来自全局模型目录（免费模型 live 发现），
         // 全局那份查询失效即可让所有目录跟着更新；项目有覆盖时再单独重拉。
@@ -493,6 +514,7 @@ function createGlobalSync() {
     },
     child: children.child,
     peek: children.peek,
+    bootstrapInstance,
     queryOptions: queryOptionsApi,
     sdkForDirectory: sdkFor,
     // bootstrap,

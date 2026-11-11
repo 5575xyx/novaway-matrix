@@ -2,6 +2,7 @@ import { batch, createMemo, createRoot, onCleanup } from "solid-js"
 import { createStore, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import { createSimpleContext } from "@novaway/ui/context"
 import { useParams } from "@solidjs/router"
+import { useSDK } from "@/context/sdk"
 import { Persist, persisted } from "@/utils/persist"
 import { createScopedCache } from "@/utils/scoped-cache"
 import { uuid } from "@/utils/uuid"
@@ -200,6 +201,7 @@ export const { use: useComments, provider: CommentsProvider } = createSimpleCont
   gate: false,
   init: () => {
     const params = useParams()
+    const sdk = useSDK()
     const cache = createScopedCache(
       (key) => {
         const decoded = decodeSessionKey(key)
@@ -221,7 +223,7 @@ export const { use: useComments, provider: CommentsProvider } = createSimpleCont
       return cache.get(key).value
     }
 
-    const session = createMemo(() => load(params.dir!, params.id))
+    const session = createMemo(() => load(params.dir ?? sdk.directory, params.id))
 
     return {
       ready: () => session().ready(),

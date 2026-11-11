@@ -263,6 +263,7 @@ it.instance("all built-in agents allow every built-in skill", () =>
       "office-knowledge",
       "office-task",
       "office-communication",
+      "dynamic-workflows",
     ]
 
     for (const agent of agents) {

@@ -311,7 +311,7 @@ export function DialogCustomProvider(props: Props) {
               <span
                 class="grid size-4 place-items-center rounded-full text-10-semibold tabular-nums"
                 classList={{
-                  "bg-[var(--icon-blue)] text-white": step() === item.id,
+                  "bg-[var(--surface-interactive-base)] text-[var(--text-on-interactive-base)]": step() === item.id,
                   "bg-surface text-foreground-subtle": step() !== item.id,
                 }}
               >
@@ -441,7 +441,10 @@ export function DialogCustomProvider(props: Props) {
                           >
                             <span
                               class="grid size-4 shrink-0 place-items-center rounded-[4px] border border-border"
-                              classList={{ "border-[var(--icon-blue)] bg-[var(--icon-blue)] text-white": on() }}
+                              classList={{
+                                "border-[var(--surface-interactive-base)] bg-[var(--surface-interactive-base)] text-[var(--text-on-interactive-base)]":
+                                  on(),
+                              }}
                             >
                               <Show when={on()}>
                                 <Icon name="check-small" size="small" />
@@ -523,7 +526,7 @@ export function DialogCustomProvider(props: Props) {
                   )}
                 </For>
                 <Show when={form.err.models}>
-                  <span class="text-12-regular text-danger-base">{form.err.models}</span>
+                  <span class="text-12-regular text-icon-critical-base">{form.err.models}</span>
                 </Show>
               </div>
             </div>

@@ -20,12 +20,12 @@ test("侧栏规格：264px + 整宽入口 + 文件树 slide-over", async ({ page
   const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
   await expect(sidebar).toBeVisible({ timeout: 15_000 })
 
-  // A7：宽度规格 default = min = 264（对齐 ZCode）
+  // A7：宽度规格 default = min = 264
   const box = await sidebar.boundingBox()
   expect(box, "sidebar no bbox").not.toBeNull()
   expect(Math.round(box.width)).toBe(264)
 
-  // A8：两个整宽入口 + 视图分段（对齐 ZCode 侧栏那排胶囊分段，用户反馈缺「文件树切换」）
+  // A8：两个整宽入口 + 视图分段（侧栏那排胶囊分段，用户反馈缺「文件树切换」）
   await expect(sidebar.getByRole("button", { name: /New task|新建任务/ }).first()).toBeVisible()
   await expect(sidebar.getByRole("button", { name: /Search|搜索/ }).first()).toBeVisible()
   await expect(sidebar.getByRole("button", { name: /^(Tasks|任务)$/ }).first()).toBeVisible()
@@ -138,7 +138,7 @@ test("四 frame：4px 间隙 + 平台圆角 + 窗口根分层", async ({ page })
   })
   expect(vertical).toBeCloseTo(4, 1)
   // A2/A3：三个「帧」按平台圆角（e2e 跑在 Web → 12px = xl）+ 1px solid 边框。
-  // 侧栏不在其中：它对齐 ZCode 是 flush 的（左侧/上下贴窗口边，无边框无圆角），
+  // 侧栏不在其中：它是 flush 的（左侧/上下贴窗口边，无边框无圆角），
   // 只有右侧主工作区的那三块才是独立帧。
   for (const sel of [
     '[data-component="conv-frame"]',
@@ -209,14 +209,17 @@ test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async 
   const tabRow = frame.locator("> div.border-b").first()
   await expect(tabRow).toBeVisible()
 
-  // 空态：标题 + 三个面板入口（Preview / Terminal / Review）+ 一个「侧边对话」。
+  // 空态：标题 + 工作区树 + 三个面板入口（Preview / Terminal / Review）+ 一个「侧边对话」。
   // Round 3 已废除六个常驻 tab，Files / Git / Context 不再作为入口出现；
-  // 侧边对话是后来加的第 4 个入口（独立小会话，见 use-side-chat）。
   const empty = frame.locator('[data-component="side-pane-empty"]')
   await expect(empty).toBeVisible()
   await expect(empty).toContainText(/Open tab|打开标签页/)
   const options = empty.locator("button")
-  const panelOptions = empty.locator("button:not([data-component='side-pane-launcher-side-chat'])")
+  const workspaceTree = empty.locator('[data-component="side-pane-launcher-workspace-tree"]')
+  await expect(workspaceTree).toBeVisible()
+  const panelOptions = empty.locator(
+    "button:not([data-component='side-pane-launcher-side-chat']):not([data-component='side-pane-launcher-workspace-tree'])",
+  )
   expect(await panelOptions.count(), "expected exactly 3 on-demand panel options").toBe(3)
   for (const label of ["Preview", "Terminal", "Review"]) {
     await expect(panelOptions.filter({ hasText: label }).first(), `on-demand option "${label}" missing`).toBeVisible()
@@ -225,7 +228,7 @@ test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async 
     empty.locator("[data-component='side-pane-launcher-side-chat']"),
     "side chat entry missing",
   ).toBeVisible()
-  expect(await options.count(), "no unexpected extra entries").toBe(4)
+  expect(await options.count(), "no unexpected extra entries").toBe(5)
   for (const legacy of ["Files", "Git", "Context"]) {
     expect(await options.filter({ hasText: legacy }).count(), `legacy tab "${legacy}" present`).toBe(0)
   }
@@ -237,6 +240,13 @@ test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async 
       .count(),
     "tabs created implicitly",
   ).toBe(0)
+
+  await workspaceTree.click()
+  await expect(frame.locator('[data-component="side-pane-file-tree"]')).toBeVisible()
+  await expect(workspaceTree).not.toBeVisible()
+  await page.locator('[data-component="side-pane-file-tree"] [data-action="side-pane-file-tree-close"]').click()
+  await expect(frame.locator('[data-component="side-pane-file-tree"]')).not.toBeVisible()
+  await expect(workspaceTree).toBeVisible()
 
   // 点击按需入口创建 tab：空态消失，tab 标签出现在 tab 条内
   await options.filter({ hasText: "Preview" }).first().click()
@@ -293,7 +303,7 @@ test("Side Pane 空态按需创建 + tab 标签不折行 + 折叠按钮", async 
   }
   await expect(tabRow).toBeVisible()
 
-  // 收起后：面板改为「常驻 + 宽度过渡」（对齐 ZCode 的 AnimatedSidePanePanel），
+  // 收起后：面板改为「常驻 + 宽度过渡」，
   // 所以不能再断言 tab 行「不可见」——它仍在 DOM 里，只是面板宽度归 0 被裁掉。
   // 这里断言真正改变的东西：data-open 翻转 + 宽度过完后为 0。
   await collapse.click()
@@ -328,7 +338,7 @@ test("WorkspaceHeader 单行且不溢出", async ({ page }) => {
   await expect(header).toBeVisible({ timeout: 15_000 })
   const headerBox = await header.boundingBox()
   expect(headerBox, "header no bbox").not.toBeNull()
-  // A10：对齐 ZCode 的 h-12（h-12 = 48px 内容盒 + 1px 下边框；设备像素比下会有小数抖动，
+  // A10：h-12（h-12 = 48px 内容盒 + 1px 下边框；设备像素比下会有小数抖动，
   // 因此用「约等于 48~49」而不是精确相等）
   expect(headerBox!.height, `header height ${headerBox!.height}`).toBeGreaterThanOrEqual(47.5)
   expect(headerBox!.height, `header height ${headerBox!.height}`).toBeLessThanOrEqual(49.5)
@@ -587,7 +597,7 @@ test("辅助对话：从空态入口创建并落在 Side Pane 标签里", async 
   await expect(frame).toBeVisible()
 
   // 空态入口 → 创建侧边对话。它是一条真实会话，但以标签形式留在面板里，
-  // **不**跳走主页面（对齐 ZCode 的 selection-side-chat）。
+  // **不**跳走主页面。
   const entry = frame.locator("[data-component='side-pane-launcher-side-chat']")
   if ((await entry.count()) === 0) return
   const before = page.url()
@@ -657,12 +667,12 @@ test("Git 卡片对齐 Git tools：更改 / 分支 / 提交或推送三行", asy
   const section = page.locator('[data-component="status-section"][data-section="git"]')
   if ((await section.count()) === 0) return // 干净仓库不出这张卡，符合预期
 
-  // 三行的存在性与顺序：更改 → 分支 → 提交或推送（对齐 ZCode 的 GitStatusSection）。
+  // 三行的存在性与顺序：更改 → 分支 → 提交或推送。
   await expect(section.locator('[data-action="status-panel-git-changes"]')).toBeVisible()
   await expect(section.locator('[data-action="status-panel-git-branch"]')).toBeVisible()
   await expect(section.locator('[data-action="status-panel-git-commit-or-push"]')).toBeVisible()
 
-  // 「提交或推送」点开才是提交输入框（对齐 ZCode 的 status-row 触发 + 弹窗）。
+  // 「提交或推送」点开才是提交输入框（status-row 触发 + 弹窗）。
   await expect(page.locator('[data-component="status-panel-git-message"]')).toHaveCount(0)
   await section.locator('[data-action="status-panel-git-commit-or-push"]').click()
   await expect(page.locator('[data-component="status-panel-git-message"]')).toBeVisible()

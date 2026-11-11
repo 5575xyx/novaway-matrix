@@ -43,6 +43,11 @@ function runActive(options: Options, scenario: ActiveScenario) {
 function runAuth(scenario: ActiveScenario) {
   return Effect.gen(function* () {
     const result = yield* callAuthProbe(scenario, "missing")
+    if (scenario.auth === "inventory") {
+      if (result.timedOut || result.status === 0) throw new Error("auth inventory probe timed out")
+      return
+    }
+
     if (scenario.auth === "protected") {
       if (result.status !== 401) throw new Error(`auth expected 401, got ${result.status}`)
       const authed = yield* callAuthProbe(scenario, "valid")

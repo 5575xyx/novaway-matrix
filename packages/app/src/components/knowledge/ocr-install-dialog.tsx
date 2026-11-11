@@ -108,7 +108,10 @@ export const OcrInstallDialog: Component<{
         <div class="flex items-start gap-3 rounded-lg border border-border bg-surface/40 p-3">
           <span
             class="grid size-9 shrink-0 place-items-center rounded-lg"
-            style={{ color: "#10b981", background: "color-mix(in srgb, #10b981 16%, transparent)" }}
+            style={{
+              color: "var(--icon-success-base)",
+              background: "color-mix(in srgb, var(--icon-success-base) 16%, transparent)",
+            }}
           >
             <Icon name="eye" size="normal" />
           </span>
@@ -152,7 +155,7 @@ export const OcrInstallDialog: Component<{
                         </span>
                       }
                     >
-                      <Icon name="circle-check" size="small" class="shrink-0 text-success" />
+                      <Icon name="circle-check" size="small" class="shrink-0 text-icon-success-base" />
                     </Show>
                     <span
                       classList={{
@@ -175,7 +178,7 @@ export const OcrInstallDialog: Component<{
               {(value) => <span class="text-12-regular text-foreground">{value()}</span>}
             </Show>
             <Show when={job()?.error}>
-              {(value) => <span class="text-12-regular text-destructive">{value()}</span>}
+              {(value) => <span class="text-12-regular text-icon-critical-base">{value()}</span>}
             </Show>
             <Show when={job()?.hint}>
               {(value) => <span class="text-11-regular leading-5 text-foreground-subtle">{value()}</span>}

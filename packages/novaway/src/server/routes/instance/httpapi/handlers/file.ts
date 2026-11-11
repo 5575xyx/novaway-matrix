@@ -4,15 +4,20 @@ import { Ripgrep } from "@/file/ripgrep"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
+import { fileReadError } from "../groups/file"
 
 export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handlers) =>
   Effect.gen(function* () {
     const svc = yield* File.Service
     const ripgrep = yield* Ripgrep.Service
 
-    const findText = Effect.fn("FileHttpApi.findText")(function* (ctx: { query: { pattern: string } }) {
+    const findText = Effect.fn("FileHttpApi.findText")(function* (ctx: { query: { pattern: string; limit?: number } }) {
       return (yield* ripgrep
-        .search({ cwd: (yield* InstanceState.context).directory, pattern: ctx.query.pattern, limit: 10 })
+        .search({
+          cwd: (yield* InstanceState.context).directory,
+          pattern: ctx.query.pattern,
+          limit: ctx.query.limit ?? 10,
+        })
         .pipe(Effect.orDie)).items
     })
 
@@ -36,7 +41,7 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
     })
 
     const content = Effect.fn("FileHttpApi.content")(function* (ctx: { query: { path: string; encoding?: "base64" } }) {
-      return yield* svc.read(ctx.query.path, { encoding: ctx.query.encoding })
+      return yield* svc.read(ctx.query.path, { encoding: ctx.query.encoding }).pipe(Effect.mapError(fileReadError))
     })
 
     const write = Effect.fn("FileHttpApi.write")(function* (ctx: { payload: { path: string; content: string } }) {

@@ -62,7 +62,7 @@ export type TuiPluginHost = {
   start(input: {
     api: TuiPluginApi
     config: TuiConfig.Resolved
-    runtime: PluginRuntime
+    runtime?: PluginRuntime
     dispose?: () => void
   }): Promise<void>
   dispose(): Promise<void>

@@ -8,7 +8,7 @@ export type { ToolFileChip }
 /**
  * 工具摘要行里的文件列表：`[icon] index.html [icon] app.js +2`。
  *
- * 对齐 ZCode 的 file chip 行 —— 用户扫一眼就知道这次动了哪些文件，
+ * 用户扫一眼就知道这次动了哪些文件，
  * 不用逐个展开工具行。裁剪规则在 tool-file-chips.ts（纯函数、有单测）。
  *
  * `onOpen` 存在时 chip 可点（打开该文件的预览）；不传则是纯展示。

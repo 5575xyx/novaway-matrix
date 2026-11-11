@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Accessor } from "solid-js"
 import { HoverCard } from "@novaway/ui/hover-card"
+import { Button } from "@novaway/ui/button"
 import type { AssistantMessage, Part as PartType, UserMessage } from "@novaway/sdk/v2"
 import { useSync } from "@/context/sync"
 
@@ -23,7 +24,7 @@ function previewText(texts: string[], fallback: string) {
   return text.length <= PREVIEW_CHARS ? text : `${text.slice(0, PREVIEW_CHARS - 3).trimEnd()}...`
 }
 
-// 对齐 ZCode Turn Navigator 的视觉:悬停条区时按与聚焦条的距离衰减宽度/透明度;
+// Turn Navigator 的视觉:悬停条区时按与聚焦条的距离衰减宽度/透明度;
 // 未悬停时全部保持短条,只有当前激活条稍深,方便定位。
 // 伸长封顶 2 倍(24px):条区落在聊天列与状态卡片的空隙里,伸长后不压聊天正文。
 function barVisual(distance: number, extended: boolean, isActive: boolean) {
@@ -37,10 +38,12 @@ export function TurnNavigator(props: {
   sessionID: Accessor<string | undefined>
   userMessages: UserMessage[]
   scrollRoot: Accessor<HTMLDivElement | undefined>
-  // 条区贴会话区左缘(ZCode 原版位置),与右侧悬浮状态卡片互不干扰。
+  // 条区贴会话区左缘,与右侧悬浮状态卡片互不干扰。
   // 注意:组件必须挂在 session.tsx 的 conv 内容行那一层 —— 时间线内部有 overflow-hidden
   // 祖先(边界在聊天列内容边缘),挂在里面会被裁剪。
   onJumpToMessage: (message: UserMessage, behavior: ScrollBehavior) => void
+  /** 统一回滚入口：条区已经按顺序列出本会话全部提问，选中一条即回滚到它发出之前。 */
+  onRevert: (message: UserMessage) => void
 }) {
   const sync = useSync()
   const getMsgParts = (messageID: string) => sync.data.part[messageID] ?? emptyParts
@@ -185,6 +188,7 @@ export function TurnNavigator(props: {
                       window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
                     )
                   }
+                  onRevert={() => props.onRevert(message)}
                 />
               )}
             </For>
@@ -206,6 +210,7 @@ function TurnNavigatorBar(props: {
   focusIndex: Accessor<number>
   onHover: (index: number | undefined) => void
   onJump: () => void
+  onRevert: () => void
 }) {
   const sync = useSync()
   const getMsgParts = (messageID: string) => sync.data.part[messageID] ?? emptyParts
@@ -286,6 +291,16 @@ function TurnNavigatorBar(props: {
           >
             {assistantPreview().text}
           </p>
+          {/* 统一回滚入口：条区按顺序列出全部轮次，这里选一条即回到它发出之前
+              （那条提问之后的回复与文件改动一并撤销，提问本身回到输入框可编辑重发）。 */}
+          <div class="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+            <span class="min-w-0 truncate text-12-regular text-foreground-subtlest">
+              {`第 ${props.index + 1} 条 · 撤销这条之后的回复与改动`}
+            </span>
+            <Button variant="ghost" size="small" onClick={props.onRevert}>
+              回滚到这里
+            </Button>
+          </div>
         </div>
       </HoverCard>
     </div>

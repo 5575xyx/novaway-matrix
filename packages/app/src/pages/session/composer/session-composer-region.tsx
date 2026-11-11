@@ -18,7 +18,6 @@ import { isSessionFresh } from "@/pages/session/fresh-session"
 import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
-import { SessionLiveFollowChip } from "@/pages/session/composer/session-live-follow-chip"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionInterruptedBar } from "@/pages/session/composer/session-interrupted-bar"
 import { SessionContextWarning } from "@/components/session-context-warning"
@@ -38,10 +37,8 @@ export function SessionComposerRegion(props: {
   onSubmit: () => void
   onResponseSubmit: () => void
   followup?: {
-    /** true = 运行中的提交会排队；false = 立即引导（见 pages/session.tsx 的 queueEnabled）。 */
+    /** 会话正在跑且可接收输入（用于排队/引导逻辑）。 */
     queue: () => boolean
-    /** 会话正在跑且可接收输入（用于提示当前是排队还是引导）。 */
-    live: () => boolean
     items: { id: string; text: string }[]
     sending?: string
     edit?: { id: string; prompt: FollowupDraft["prompt"]; context: FollowupDraft["context"] }
@@ -196,11 +193,11 @@ export function SessionComposerRegion(props: {
         classList={{
           "w-full pointer-events-auto": true,
           "px-4": !props.embedded,
-          // 与消息列同宽(TimelineRowFrame 的 md:max-w-200 / 2xl:max-w-[1000px]),
-          // 之前 md:w-[75%] 在宽容器下比内容窄、窄容器下又比内容宽,两边对不齐。
-          "md:max-w-200 2xl:max-w-[1000px] mx-auto": props.centered && !props.embedded,
-          "w-full": !props.centered,
+          // 补偿输入框两侧各 16px 的内边距，使输入框外框与消息内容宽度一致。
+          "mx-auto": !props.embedded,
+          "w-full": props.embedded,
         }}
+        style={!props.embedded ? { "max-width": "calc(var(--session-content-max-width, 820px) + 2rem)" } : undefined}
       >
         <Show when={props.state.questionRequest()} keyed>
           {(request) => (
@@ -229,7 +226,7 @@ export function SessionComposerRegion(props: {
           )}
         </Show>
 
-        {/* 任务被意外中断时，在输入框正上方固定挂一条琥珀色提示（对齐 ZCode），
+        {/* 任务被意外中断时，在输入框正上方固定挂一条琥珀色提示，
             不再把大块报错塞在会话底部；用户主动停止不会出现这条。 */}
         <SessionInterruptedBar />
 
@@ -274,26 +271,6 @@ export function SessionComposerRegion(props: {
                   onSend={props.followup!.onSend}
                   onEdit={props.followup!.onEdit}
                 />
-              </Show>
-              {/*
-                运行中时告诉用户"现在发出去会怎样"（对齐 Qoder：Queue / Steer 差别很大，
-                一个立刻影响这轮、一个等这轮结束，不提示的话用户只能靠猜），
-                同时在最右侧摆一个「实时跟随」开关（见 session-live-follow-chip）：
-                跟随是自动行为，不给可见的状态入口，用户只会觉得右栏自己在乱弹。
-                只在运行中出现，空闲时不占位置；跟输入框同一行右对齐。
-              */}
-              <Show when={props.followup?.live()}>
-                <div data-slot="composer-status-row" class="flex items-center justify-end gap-2 px-1 pb-1.5">
-                  <Show when={props.followup!.items.length === 0}>
-                    <p
-                      data-slot="composer-followup-hint"
-                      class="min-w-0 truncate text-ui-xs text-foreground-subtlest"
-                    >
-                      {language.t(props.followup!.queue() ? "session.composer.queueHint" : "session.composer.steerHint")}
-                    </p>
-                  </Show>
-                  <SessionLiveFollowChip sessionID={route.params.id ?? ""} />
-                </div>
               </Show>
               <Show
                 when={child()}

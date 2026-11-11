@@ -17,7 +17,7 @@ const palette = [
   "var(--syntax-constant)",
   "var(--diff-added)",
   "var(--diff-removed)",
-  "var(--warning)",
+  "var(--icon-warning-base)",
 ]
 
 function tone(name: string) {

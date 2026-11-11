@@ -9,7 +9,9 @@ import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 
 const mode = process.argv[2] ?? "build"
-const heap = mode === "dev" ? 3072 : 4096
+// dev 每次启动都要把 sidecar 打成单文件块（out/main/chunks/node-*.js 已 ~50 MB），
+// 3 GB 堆在 rendering chunks 阶段直接 OOM，症状是「卡住没反应」后才退出码 134。
+const heap = mode === "dev" ? 8192 : 4096
 
 const require = createRequire(pathToFileURL(join(process.cwd(), "package.json")))
 const pkgPath = require.resolve("electron-vite/package.json")

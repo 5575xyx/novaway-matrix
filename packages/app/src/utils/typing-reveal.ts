@@ -23,43 +23,80 @@ export function createTypingReveal(input: {
 }): Accessor<string> {
   const pace = input.pace ?? PACE_MS
   const [shown, setShown] = createSignal(input.source())
-  /** 上一版已经完整显示过的内容：用它和最新内容比出"这一笔新写了什么"。 */
+  /** 最近一次完整磁盘内容，用于识别文件级增量。 */
   let rendered: string | undefined = untrack(input.source)
   let scope: string | undefined = input.scope?.()
+  let animation: { target: string; added: Set<number>; revealed: number } | undefined
+  let timer: ReturnType<typeof setInterval> | undefined
+
+  const stop = () => {
+    if (timer !== undefined) clearInterval(timer)
+    timer = undefined
+  }
+  onCleanup(stop)
+
+  const tick = () => {
+    const current = animation
+    if (!current) return
+    const total = addedCharCount(current.target, [...current.added])
+    current.revealed = Math.min(total, current.revealed + revealChunk(total - current.revealed))
+    setShown(revealAdded(current.target, [...current.added], current.revealed))
+    if (current.revealed < total) return
+    stop()
+    rendered = current.target
+    animation = undefined
+  }
 
   createEffect(() => {
     const text = input.source()
-    // live / scope 用 untrack 读：跟写标记会自己过期、文件切换也会触发重跑，
-    // 但它们不该在动画中途把这一轮重开（重开 = 内容缩回去再长出来，看着就是闪）。
+    // live / scope 用 untrack 读：它们不应在动画中途触发重置。
     const live = untrack(input.live)
     const nextScope = untrack(() => input.scope?.())
     if (nextScope !== scope) {
+      stop()
+      animation = undefined
       scope = nextScope
       rendered = undefined
     }
-    // 不在跟写窗口里 / 第一次看到这个文件 / 内容没变：直接显示全文。
     if (!live || rendered === undefined || rendered === text) {
+      stop()
+      animation = undefined
       rendered = text
       setShown(text)
       return
     }
-    const added = newLineIndexes(rendered, text)
-    const total = addedCharCount(text, added)
-    if (total === 0) {
+
+    const previous = animation?.target ?? rendered
+    const oldLines = previous.split("\n")
+    const nextLines = text.split("\n")
+    const added = newLineIndexes(previous, text)
+    const stablePrefixLines = Math.min(oldLines.length, nextLines.length)
+    const merged = new Set(animation?.added ?? [])
+    for (const index of added) merged.add(index)
+
+    if (added.length === 0 && !animation) {
       rendered = text
       setShown(text)
       return
     }
+    if (!animation) animation = { target: text, added: new Set(), revealed: 0 }
+    animation.target = text
+    animation.added = merged
+
+    // 累计已显示字符数只沿用旧行中尚未变化的前缀；变更中的行保留其可见前缀，
+    // 后续字节版本只延长目标，不会让已显示字符倒退。
+    const visibleLines = shown().split("\n")
     let revealed = 0
-    setShown(revealAdded(text, added, revealed))
-    const timer = setInterval(() => {
-      revealed = Math.min(total, revealed + revealChunk(total - revealed))
-      setShown(revealAdded(text, added, revealed))
-      if (revealed < total) return
-      clearInterval(timer)
-      rendered = text
-    }, pace)
-    onCleanup(() => clearInterval(timer))
+    for (const index of animation.added) {
+      if (index >= stablePrefixLines) continue
+      const oldText = oldLines[index] ?? ""
+      const nextText = nextLines[index] ?? ""
+      const visibleText = visibleLines[index] ?? ""
+      if (oldText === nextText || nextText.startsWith(visibleText)) revealed += visibleText.length
+    }
+    animation.revealed = revealed
+    setShown(revealAdded(animation.target, [...animation.added], animation.revealed))
+    if (timer === undefined) timer = setInterval(tick, pace)
   })
 
   return shown

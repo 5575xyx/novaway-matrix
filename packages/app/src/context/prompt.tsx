@@ -4,6 +4,7 @@ import { useParams } from "@solidjs/router"
 import { batch, createMemo, createRoot, getOwner, onCleanup } from "solid-js"
 import { createStore, type SetStoreFunction } from "solid-js/store"
 import type { FileSelection } from "@/context/file"
+import { useSDK } from "@/context/sdk"
 import { Persist, persisted } from "@/utils/persist"
 
 interface PartBase {
@@ -50,7 +51,7 @@ export type FileContextItem = {
 
 /**
  * 对话/代码引用：用户在聊天区或文件预览里选中一段内容后「添加到当前任务」，
- * 它作为一张引用卡片挂在输入框上方（对齐 ZCode 的 userselect），
+ * 它作为一张引用卡片挂在输入框上方，
  * 而不是把原文直接塞进输入框。发送时以 synthetic 文本块带给模型，
  * 不污染用户自己写的那句话。
  */
@@ -244,6 +245,7 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
   gate: false,
   init: () => {
     const params = useParams()
+    const sdk = useSDK()
     const cache = new Map<string, PromptCacheEntry>()
 
     const disposeAll = () => {
@@ -288,7 +290,8 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
       return entry.value
     }
 
-    const session = createMemo(() => load(params.dir!, params.id))
+    // 无项目聊天没有 :dir 路由参数，草稿按 SDK 目录（global-chat）存取。
+    const session = createMemo(() => load(params.dir ?? sdk.directory, params.id))
     const pick = (scope?: Scope) => (scope ? load(scope.dir, scope.id) : session())
 
     return {

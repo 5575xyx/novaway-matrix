@@ -193,7 +193,6 @@ export async function setFileInput(win: PublishTarget, selectors: string[], file
   }
 }
 
-
 /**
  * 页面里共用的一组小工具（内联进每段脚本）。
  *
@@ -302,11 +301,7 @@ const PAGE_HELPERS = `
 `
 
 /** 填普通输入框（input/textarea），走原生 setter 以便受控组件收到变更。 */
-export async function fillInput(
-  win: PublishTarget,
-  selectors: string[] | undefined,
-  value: string,
-): Promise<boolean> {
+export async function fillInput(win: PublishTarget, selectors: string[] | undefined, value: string): Promise<boolean> {
   if (!selectors?.length || !value) return false
   const script = `(() => {
     ${PAGE_HELPERS}
@@ -323,11 +318,7 @@ export async function fillInput(
 }
 
 /** 填富文本编辑器（contenteditable / 同源 iframe 里的 body / 影子树里的编辑器）。 */
-export async function fillEditor(
-  win: PublishTarget,
-  selectors: string[] | undefined,
-  value: string,
-): Promise<boolean> {
+export async function fillEditor(win: PublishTarget, selectors: string[] | undefined, value: string): Promise<boolean> {
   if (!selectors?.length || !value) return false
   const script = `(() => {
     ${PAGE_HELPERS}
@@ -516,7 +507,9 @@ export async function pageText(win: PublishTarget, limit = 400): Promise<string>
     ${PAGE_HELPERS}
     return deepBodyText();
   })()`
-  const text = String((await run(win, script)) ?? "").replace(/\s+/g, " ").trim()
+  const text = String((await run(win, script)) ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
   return text.slice(0, limit)
 }
 
@@ -612,9 +605,7 @@ export async function createWechatDraft(
   body.set("token", token)
   body.set("lang", "zh_CN")
   const endpoint =
-    "https://mp.weixin.qq.com/cgi-bin/operate_appmsg?t=ajax-response&sub=create&type=77&token=" +
-    token +
-    "&lang=zh_CN"
+    "https://mp.weixin.qq.com/cgi-bin/operate_appmsg?t=ajax-response&sub=create&type=77&token=" + token + "&lang=zh_CN"
   const script = `(async () => {
     const response = await fetch(${JSON.stringify(endpoint)}, {
       method: "POST",

@@ -1,7 +1,7 @@
 /**
  * 文本文件的编码 / BOM / 换行符保留。
  *
- * 对齐 Weave 的 text-editor：**没改动的文件保存后一个字节都不变**，
+ * **没改动的文件保存后一个字节都不变**，
  * 改动过的文件按原来的编码、BOM 和换行符写回。纯文本编辑器如果总是写成
  * UTF-8 + LF，会让 GBK 的中文文件变成乱码、让 Windows 的 CRLF 文件每次都显示
  * 「整个文件都改了」。
@@ -114,8 +114,7 @@ export function encodeText(text: string, format: TextFormat): Uint8Array {
   }
 
   if (!format.bom) return encoded
-  const prefix =
-    format.encoding === "utf-16le" ? BOM_UTF16LE : format.encoding === "utf-16be" ? BOM_UTF16BE : BOM_UTF8
+  const prefix = format.encoding === "utf-16le" ? BOM_UTF16LE : format.encoding === "utf-16be" ? BOM_UTF16BE : BOM_UTF8
   const out = new Uint8Array(prefix.length + encoded.length)
   out.set(prefix, 0)
   out.set(encoded, prefix.length)

@@ -1,9 +1,10 @@
-import { Config as EffectConfig, Context, Effect, Layer } from "effect"
+import { Config as EffectConfig, Context, Effect, Layer, Schema } from "effect"
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi"
 import {
   FetchHttpClient,
   HttpClient,
   HttpMiddleware,
+  HttpServerRequest,
   HttpRouter,
   HttpServer,
   HttpServerResponse,
@@ -32,6 +33,7 @@ import { Permission } from "@/permission"
 import { Installation } from "@/installation"
 import { InstanceLayer } from "@/project/instance-layer"
 import { Plugin } from "@/plugin"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { Project } from "@/project/project"
 import { ProviderAuth } from "@/provider/auth"
 import { ModelsDev } from "@novaway/core/models-dev"
@@ -84,6 +86,7 @@ import { controlHandlers } from "./handlers/control"
 import { experimentalHandlers } from "./handlers/experimental"
 import { evolutionHandlers } from "./handlers/evolution"
 import { extensionHandlers } from "./handlers/extension"
+import { pluginHandlers } from "./handlers/plugin"
 import { fileHandlers } from "./handlers/file"
 import { gitHandlers } from "./handlers/git"
 import { hookHandlers } from "./handlers/hook"
@@ -116,6 +119,7 @@ import { imagesHandlers } from "./handlers/images"
 import { videosHandlers } from "./handlers/videos"
 import { goalHandlers } from "./handlers/goal"
 import { workflowHandlers } from "./handlers/workflow"
+import { dynamicWorkflowHandlers } from "./handlers/dynamic-workflow"
 import { orchestratorHandlers } from "./handlers/orchestrator"
 import { runHandlers } from "./handlers/run"
 import { teamHandlers } from "./handlers/team"
@@ -192,6 +196,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     experimentalHandlers,
     evolutionHandlers,
     extensionHandlers,
+    pluginHandlers,
     fileHandlers,
     gitHandlers,
     hookHandlers,
@@ -223,13 +228,92 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     workspaceHandlers,
     goalHandlers,
     workflowHandlers,
+    dynamicWorkflowHandlers,
     orchestratorHandlers,
     runHandlers,
     teamHandlers,
   ]),
 )
 
-const rawInstanceRoutes = Layer.mergeAll(ptyConnectRoute).pipe(Layer.provide(instanceRouterLayer))
+const mediaPreviewRoute = HttpRouter.use((router) =>
+  Effect.gen(function* () {
+    const file = yield* File.Service
+    const tickets = yield* PtyTicket.Service
+    yield* router.add("GET", File.MEDIA_PREVIEW_PATH, (request) =>
+      Effect.gen(function* () {
+        const range = request.headers.range
+        const requestURL = new URL(request.url, "http://localhost")
+        const match = range && /^bytes=(\d*)-(\d*)$/.exec(range)
+        const start = match?.[1] ? Number(match[1]) : undefined
+        const end = match?.[2] ? Number(match[2]) : undefined
+        const query = yield* HttpServerRequest.schemaSearchParams(Schema.Struct({ path: Schema.String }))
+        const ticket = requestURL.searchParams.get("ticket")
+        const scope = yield* PtyTicket.scope
+        if (ticket) {
+          const authorized = yield* tickets.consumeMedia({ ticket, path: query.path, ...scope })
+          if (!authorized) return HttpServerResponse.empty({ status: 403 })
+        } else {
+          const authConfig = yield* ServerAuth.Config
+          if (ServerAuth.required(authConfig)) return HttpServerResponse.empty({ status: 401 })
+        }
+
+        const validRange = !!match && (!!match[1] || !!match[2])
+        if (
+          !validRange ||
+          (start !== undefined && !Number.isSafeInteger(start)) ||
+          (end !== undefined && !Number.isSafeInteger(end))
+        )
+          return HttpServerResponse.empty({
+            status: range ? 416 : 400,
+            headers: range ? { "Content-Range": "bytes */*" } : {},
+          })
+
+        const infoResult = yield* file
+          .readMediaRange(query.path, 0, 1)
+          .pipe(Effect.match({ onFailure: (error) => ({ error }), onSuccess: ({ size }) => ({ size }) }))
+        if ("error" in infoResult)
+          return HttpServerResponse.empty({ status: infoResult.error.code === "not_found" ? 404 : 416 })
+        const info = infoResult
+        if (info.size === 0) return HttpServerResponse.empty({ status: 416, headers: { "Content-Range": "bytes */0" } })
+
+        if (start === undefined && end === 0)
+          return HttpServerResponse.empty({ status: 416, headers: { "Content-Range": `bytes */${info.size}` } })
+
+        const offset = start ?? Math.max(0, info.size - Math.min(end ?? 0, File.MEDIA_PREVIEW_RANGE_MAX_BYTES))
+        if (offset >= info.size)
+          return HttpServerResponse.empty({ status: 416, headers: { "Content-Range": `bytes */${info.size}` } })
+        const requestedEnd = start === undefined ? info.size - 1 : (end ?? info.size - 1)
+        if (requestedEnd < offset)
+          return HttpServerResponse.empty({ status: 416, headers: { "Content-Range": `bytes */${info.size}` } })
+        const length = Math.min(File.MEDIA_PREVIEW_RANGE_MAX_BYTES, requestedEnd - offset + 1, info.size - offset)
+
+        const result = yield* file.readMediaRange(query.path, offset, length).pipe(
+          Effect.match({
+            onFailure: (error) =>
+              HttpServerResponse.empty({
+                status: error.code === "not_found" ? 404 : 416,
+                headers: error.code === "not_found" ? {} : { "Content-Range": `bytes */${info.size}` },
+              }),
+            onSuccess: (data) =>
+              HttpServerResponse.uint8Array(data.content, {
+                status: 206,
+                contentType: data.mimeType,
+                headers: {
+                  "Accept-Ranges": "bytes",
+                  "Content-Range": `bytes ${data.offset}-${data.offset + data.content.byteLength - 1}/${data.size}`,
+                  "Content-Length": String(data.content.byteLength),
+                  "Cache-Control": "private, no-store",
+                  "X-Content-Type-Options": "nosniff",
+                },
+              }),
+          }),
+        )
+        return result
+      }),
+    )
+  }),
+)
+const rawInstanceRoutes = Layer.mergeAll(ptyConnectRoute, mediaPreviewRoute).pipe(Layer.provide(instanceRouterLayer))
 const instanceRoutes = Layer.mergeAll(rawInstanceRoutes, instanceApiRoutes).pipe(
   Layer.provide([
     httpApiAuthLayer,
@@ -303,6 +387,7 @@ export function createRoutes(
       ModelsDev.defaultLayer,
       Permission.defaultLayer,
       Plugin.defaultLayer,
+      PluginRuntimeService.defaultLayer,
       Project.defaultLayer,
       ProviderAuth.defaultLayer,
       Provider.defaultLayer,

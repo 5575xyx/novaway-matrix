@@ -18,7 +18,6 @@ import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestLLMServer } from "../lib/llm-server"
 
-
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     yield* Effect.promise(() => resetDatabase())
@@ -87,7 +86,6 @@ const providerConfig = (url: string) => ({
   },
 })
 
-
 type Detail = {
   run: { id: string; state: string; planVersion: number; error?: string }
   teams: Array<{ id: string; phase: string; worktree?: string }>
@@ -99,12 +97,13 @@ type Event = { seq: number; kind: string; payload?: Record<string, unknown> }
 /** 建一个已批准、带一个验收项的运行；预算由调用方决定。 */
 const prepare = (dir: string, budget: Record<string, unknown>, llmURL: string) =>
   Effect.gen(function* () {
-    const session = (yield* (
-      yield* post(dir, "/session", { title: "budget run" })
-    ).json) as { id: string }
-    const created = (yield* (
-      yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "补一份说明" })
-    ).json) as { run: { id: string } }
+    const session = (yield* (yield* post(dir, "/session", { title: "budget run" })).json) as { id: string }
+    const created = (yield* (yield* post(dir, "/run", {
+      sessionID: session.id,
+      directory: dir,
+      mode: "team",
+      goal: "补一份说明",
+    })).json) as { run: { id: string } }
     const id = created.run.id
     yield* post(dir, `/run/${id}/plan`, { directory: dir, teams: [{ name: "写作组" }] })
     const planned = (yield* (yield* get(dir, `/run/${id}`)).json) as Detail
@@ -117,9 +116,7 @@ const prepare = (dir: string, budget: Record<string, unknown>, llmURL: string) =
       owner: teamID,
       verifier: { kind: "command", run: "test -f src/doc.md", timeoutMs: 30_000 },
     })
-    const widened = (yield* (
-      yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false })
-    ).json) as Detail
+    const widened = (yield* (yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false })).json) as Detail
     yield* post(dir, `/run/${id}/approve`, {
       directory: dir,
       planVersion: widened.run.planVersion,
@@ -168,7 +165,9 @@ describe("team run budget", () => {
         expect(String(exceeded[0].payload?.reason)).toContain("墙钟")
         expect(kinds).not.toContain("team.dispatched")
         // 一次都没有派发：超限后的「继续跑」等于把硬上限变成建议。
-        expect((yield* llm.hits).filter((hit) => JSON.stringify(hit.body).includes("你是一个团队的队长")).length).toBe(0)
+        expect((yield* llm.hits).filter((hit) => JSON.stringify(hit.body).includes("你是一个团队的队长")).length).toBe(
+          0,
+        )
       }),
     120_000,
   )
@@ -194,7 +193,9 @@ describe("team run budget", () => {
         // 按团队给出的那条事件带 teamID：用户要知道是哪一队没拿到额度。
         expect(typeof exceeded[0].payload?.teamID).toBe("string")
         expect(events.map((event) => event.kind)).not.toContain("team.dispatched")
-        expect((yield* llm.hits).filter((hit) => JSON.stringify(hit.body).includes("你是一个团队的队长")).length).toBe(0)
+        expect((yield* llm.hits).filter((hit) => JSON.stringify(hit.body).includes("你是一个团队的队长")).length).toBe(
+          0,
+        )
       }),
     120_000,
   )

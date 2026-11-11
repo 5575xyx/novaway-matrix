@@ -5,11 +5,11 @@ import { usePlatform } from "@/context/platform"
 /**
  * 窗口控制（最小化 / 最大化-还原 / 关闭）。
  *
- * 对齐 ZCode：Windows / Linux 桌面端把这三个按钮**内联画在 Header 最右侧**，
+ * Windows / Linux 桌面端把这三个按钮**内联画在 Header 最右侧**，
  * 主窗口不启用原生 `titleBarOverlay`（两者并存时原生按钮会盖住自绘按钮，
  * 点击被原生按钮吃掉、视觉也重叠）。
  *
- * 按钮尺寸沿用 ZCode 的内联窗控规格：28px 按钮、16px 图标、2px 间距，
+ * 内联窗控规格：28px 按钮、16px 图标、2px 间距，
  * 关闭按钮 hover 用 destructive 色。整体 `no-drag`，否则点击会被窗口拖拽吞掉。
  */
 export function WindowControls() {

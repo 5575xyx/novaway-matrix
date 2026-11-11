@@ -52,4 +52,3 @@ export function PulseChatHost(props: { directory: string }) {
     </SDKProvider>
   )
 }
-

@@ -6,6 +6,8 @@ function createDocument(execCommandResult: boolean) {
     tagName: string
     value: string
     select: () => void
+    focus: () => void
+    setSelectionRange: (start: number, end: number) => void
     setAttribute: () => void
     style: Record<string, string>
   }> = []
@@ -21,6 +23,8 @@ function createDocument(execCommandResult: boolean) {
         tagName,
         value: "",
         select: jest.fn(),
+        focus: jest.fn(),
+        setSelectionRange: jest.fn(),
         setAttribute: jest.fn(),
         style: {} as Record<string, string>,
       }

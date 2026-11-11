@@ -51,7 +51,7 @@ export const WorkflowApi = HttpApiGroup.make("workflow")
         status: Schema.optional(Schema.Literals(["draft", "running", "paused", "completed", "failed"])),
       }),
       success: Schema.Any,
-      error: Schema.Never,
+      error: HttpApiError.NotFound,
     }),
   )
   .add(

@@ -1,11 +1,34 @@
 import { expect } from "bun:test"
 import { Provider } from "../../src/provider/provider"
 import { ProviderID } from "../../src/provider/schema"
-import { Effect } from "effect"
+import { Effect, Layer } from "effect"
 import { testEffect } from "../lib/effect"
+import { Config } from "../../src/config/config"
+import { Auth } from "../../src/auth"
+import { Env } from "../../src/env"
+import { Plugin } from "../../src/plugin"
+import { RuntimeFlags } from "../../src/effect/runtime-flags"
+import { Bus } from "../../src/bus"
+import * as ModelsDev from "@novaway/core/models-dev"
+import { AppFileSystem } from "@novaway/core/filesystem"
 
 const DIGITALOCEAN = ProviderID.make("digitalocean")
-const it = testEffect(Provider.defaultLayer)
+const digitalOceanPluginLayer = Plugin.layer.pipe(
+  Layer.provide(Bus.layer),
+  Layer.provide(Config.defaultLayer),
+)
+const digitalOceanProviderLayer = Layer.suspend(() =>
+  Provider.layer.pipe(
+    Layer.provide(AppFileSystem.defaultLayer),
+    Layer.provide(Env.defaultLayer),
+    Layer.provide(Config.defaultLayer),
+    Layer.provide(Auth.defaultLayer),
+    Layer.provide(digitalOceanPluginLayer),
+    Layer.provide(ModelsDev.defaultLayer),
+    Layer.provide(RuntimeFlags.layer({ disableDefaultPlugins: false })),
+  ),
+)
+const it = testEffect(digitalOceanProviderLayer)
 
 const withEnv = <A, E, R>(values: Record<string, string>, effect: Effect.Effect<A, E, R>) =>
   Effect.acquireUseRelease(
@@ -28,11 +51,13 @@ const withAuth = <A, E, R>(metadata: Record<string, string> | undefined, effect:
   withEnv(
     {
       NOVAWAY_AUTH_CONTENT: JSON.stringify({
-        digitalocean: {
-          type: "api",
-          key: "sk_do_test",
-          ...(metadata ? { metadata } : {}),
-        },
+        digitalocean: [
+          {
+            type: "api",
+            key: "sk_do_test",
+            ...(metadata ? { metadata } : {}),
+          },
+        ],
       }),
     },
     effect,

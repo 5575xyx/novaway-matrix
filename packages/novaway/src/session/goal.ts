@@ -1,8 +1,10 @@
 import { Context, Effect, Layer } from "effect"
-import { eq, and } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { GoalTable, type GoalProgress } from "./goal.sql"
-import { TodoTable } from "./session.sql"
+import { TodoTable as GoalTodoTable } from "./session.sql"
+import { NotFoundError } from "@/storage/storage"
+import { SessionID } from "./schema"
 
 export interface Goal {
   readonly id: string
@@ -10,7 +12,7 @@ export interface Goal {
   readonly parentId: string | null
   readonly title: string
   readonly description: string | null
-  readonly status: "pending" | "in_progress" | "completed" | "cancelled"
+  readonly status: "pending" | "in_progress" | "paused" | "completed" | "cancelled"
   readonly priority: "high" | "medium" | "low"
   readonly successCriteria: string[] | null
   readonly deadline: Date | null
@@ -22,22 +24,24 @@ export interface Goal {
 
 export interface Interface {
   readonly create: (input: {
-    sessionId: string
+    sessionId: SessionID
     parentId?: string
     title: string
     description?: string
+    status?: "pending" | "in_progress"
     priority?: Goal["priority"]
     successCriteria?: string[]
     deadline?: Date
     tags?: string[]
-  }) => Effect.Effect<Goal>
+  }) => Effect.Effect<Goal, NotFoundError>
 
-  readonly list: (sessionId: string) => Effect.Effect<readonly Goal[]>
+  readonly list: (sessionId: SessionID) => Effect.Effect<readonly Goal[]>
 
-  readonly get: (goalId: string) => Effect.Effect<Goal | null>
+  readonly get: (input: { goalId: string; sessionId: SessionID }) => Effect.Effect<Goal | null>
 
   readonly update: (input: {
     goalId: string
+    sessionId: SessionID
     title?: string
     description?: string
     status?: Goal["status"]
@@ -45,13 +49,13 @@ export interface Interface {
     successCriteria?: string[]
     deadline?: Date
     tags?: string[]
-  }) => Effect.Effect<Goal>
+  }) => Effect.Effect<Goal, NotFoundError>
 
-  readonly delete: (goalId: string) => Effect.Effect<void>
+  readonly delete: (input: { goalId: string; sessionId: SessionID }) => Effect.Effect<void, NotFoundError>
 
-  readonly getProgress: (goalId: string) => Effect.Effect<GoalProgress>
+  readonly getProgress: (input: { goalId: string; sessionId: SessionID }) => Effect.Effect<GoalProgress, NotFoundError>
 
-  readonly updateProgress: (goalId: string) => Effect.Effect<void>
+  readonly updateProgress: (input: { goalId: string; sessionId: SessionID }) => Effect.Effect<void, NotFoundError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/GoalService") {}
@@ -79,15 +83,31 @@ export const layer = Layer.effect(
     })
 
     const create = Effect.fn("GoalService.create")(function* (input: {
-      sessionId: string
+      sessionId: SessionID
       parentId?: string
       title: string
       description?: string
+      status?: "pending" | "in_progress"
       priority?: Goal["priority"]
       successCriteria?: string[]
       deadline?: Date
       tags?: string[]
     }) {
+      if (input.parentId) {
+        const parent = yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .select({ id: GoalTable.id })
+              .from(GoalTable)
+              .where(and(eq(GoalTable.id, input.parentId!), eq(GoalTable.session_id, input.sessionId)))
+              .limit(1)
+              .all(),
+          ),
+        )
+        if (parent.length === 0)
+          return yield* new NotFoundError({ message: `Parent goal not found: ${input.parentId}` })
+      }
+
       const now = new Date()
       const goal: Goal = {
         id: generateId(),
@@ -95,7 +115,7 @@ export const layer = Layer.effect(
         parentId: input.parentId ?? null,
         title: input.title,
         description: input.description ?? null,
-        status: "pending",
+        status: input.status ?? "pending",
         priority: input.priority ?? "medium",
         successCriteria: input.successCriteria ?? null,
         deadline: input.deadline ?? null,
@@ -131,25 +151,60 @@ export const layer = Layer.effect(
       return goal
     })
 
-    const list = Effect.fn("GoalService.list")(function* (sessionId: string) {
+    const list = Effect.fn("GoalService.list")(function* (sessionId: SessionID) {
       const rows = yield* Effect.sync(() =>
         Database.use((db) =>
-          db.select().from(GoalTable).where(eq(GoalTable.session_id, sessionId)).orderBy(GoalTable.created_at).all(),
+          db
+            .select({
+              id: GoalTable.id,
+              session_id: GoalTable.session_id,
+              parent_id: GoalTable.parent_id,
+              title: GoalTable.title,
+              description: GoalTable.description,
+              status: GoalTable.status,
+              priority: GoalTable.priority,
+              success_criteria: GoalTable.success_criteria,
+              deadline: GoalTable.deadline,
+              progress: GoalTable.progress,
+              tags: GoalTable.tags,
+              created_at: GoalTable.created_at,
+              updated_at: GoalTable.updated_at,
+              todo_total: sql<number>`count(${GoalTodoTable.session_id})`,
+              todo_completed: sql<number>`sum(case when ${GoalTodoTable.status} = 'completed' then 1 else 0 end)`,
+            })
+            .from(GoalTable)
+            .leftJoin(
+              GoalTodoTable,
+              and(eq(GoalTodoTable.goal_id, GoalTable.id), eq(GoalTodoTable.session_id, sessionId)),
+            )
+            .where(eq(GoalTable.session_id, sessionId))
+            .groupBy(GoalTable.id)
+            .orderBy(GoalTable.created_at)
+            .all(),
         ),
       )
-      return rows.map(toGoal)
+      return rows.map((row) =>
+        toGoal({ ...row, progress: row.todo_total > 0 ? (row.todo_completed / row.todo_total) * 100 : 0 }),
+      )
     })
 
-    const get = Effect.fn("GoalService.get")(function* (goalId: string) {
+    const get = Effect.fn("GoalService.get")(function* (input: { goalId: string; sessionId: SessionID }) {
       const rows = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(GoalTable).where(eq(GoalTable.id, goalId)).limit(1).all()),
+        Database.use((db) =>
+          db
+            .select()
+            .from(GoalTable)
+            .where(and(eq(GoalTable.id, input.goalId), eq(GoalTable.session_id, input.sessionId)))
+            .limit(1)
+            .all(),
+        ),
       )
-      if (rows.length === 0) return null
-      return toGoal(rows[0])
+      return rows.length === 0 ? null : toGoal(rows[0])
     })
 
     const update = Effect.fn("GoalService.update")(function* (input: {
       goalId: string
+      sessionId: SessionID
       title?: string
       description?: string
       status?: Goal["status"]
@@ -159,7 +214,7 @@ export const layer = Layer.effect(
       tags?: string[]
     }) {
       const now = new Date()
-      yield* Effect.sync(() =>
+      const rowsUpdated = yield* Effect.sync(() =>
         Database.use((db) =>
           db
             .update(GoalTable)
@@ -177,25 +232,79 @@ export const layer = Layer.effect(
               ...(input.tags !== undefined && { tags: input.tags }),
               updated_at: now,
             })
-            .where(eq(GoalTable.id, input.goalId))
-            .run(),
+            .where(
+              and(
+                eq(GoalTable.id, input.goalId),
+                eq(GoalTable.session_id, input.sessionId),
+                ...(input.status === "completed" || input.status === "cancelled"
+                  ? [
+                      input.status === "completed"
+                        ? eq(GoalTable.status, "in_progress")
+                        : sql`${GoalTable.status} in ('in_progress', 'paused')`,
+                    ]
+                  : []),
+              ),
+            )
+            .returning({ id: GoalTable.id })
+            .all(),
         ),
       )
 
-      const rows = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(GoalTable).where(eq(GoalTable.id, input.goalId)).limit(1).all()),
-      )
+      if (rowsUpdated.length === 0) {
+        const current = yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .select()
+              .from(GoalTable)
+              .where(and(eq(GoalTable.id, input.goalId), eq(GoalTable.session_id, input.sessionId)))
+              .limit(1)
+              .all(),
+          ),
+        )
+        if (current.length === 0) return yield* new NotFoundError({ message: `Goal not found: ${input.goalId}` })
+        return toGoal(current[0])
+      }
 
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .select()
+            .from(GoalTable)
+            .where(and(eq(GoalTable.id, input.goalId), eq(GoalTable.session_id, input.sessionId)))
+            .limit(1)
+            .all(),
+        ),
+      )
+      if (rows.length === 0) return yield* new NotFoundError({ message: `Goal not found: ${input.goalId}` })
       return toGoal(rows[0])
     })
 
-    const deleteGoal = Effect.fn("GoalService.delete")(function* (goalId: string) {
-      yield* Effect.sync(() => Database.use((db) => db.delete(GoalTable).where(eq(GoalTable.id, goalId)).run()))
+    const deleteGoal = Effect.fn("GoalService.delete")(function* (input: { goalId: string; sessionId: SessionID }) {
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .delete(GoalTable)
+            .where(and(eq(GoalTable.id, input.goalId), eq(GoalTable.session_id, input.sessionId)))
+            .returning({ id: GoalTable.id })
+            .all(),
+        ),
+      )
+      if (rows.length === 0) return yield* new NotFoundError({ message: `Goal not found: ${input.goalId}` })
     })
 
-    const getProgress = Effect.fn("GoalService.getProgress")(function* (goalId: string) {
+    const getProgress = Effect.fn("GoalService.getProgress")(function* (input: {
+      goalId: string
+      sessionId: SessionID
+    }) {
+      if (!(yield* get(input))) return yield* new NotFoundError({ message: `Goal not found: ${input.goalId}` })
       const todos = yield* Effect.sync(() =>
-        Database.use((db) => db.select().from(TodoTable).where(eq(TodoTable.goal_id, goalId)).all()),
+        Database.use((db) =>
+          db
+            .select()
+            .from(GoalTodoTable)
+            .where(and(eq(GoalTodoTable.goal_id, input.goalId), eq(GoalTodoTable.session_id, input.sessionId)))
+            .all(),
+        ),
       )
 
       const total = todos.length
@@ -205,14 +314,17 @@ export const layer = Layer.effect(
       return { total, completed, percentage }
     })
 
-    const updateProgress = Effect.fn("GoalService.updateProgress")(function* (goalId: string) {
-      const progress = yield* getProgress(goalId)
+    const updateProgress = Effect.fn("GoalService.updateProgress")(function* (input: {
+      goalId: string
+      sessionId: SessionID
+    }) {
+      const progress = yield* getProgress(input)
       yield* Effect.sync(() =>
         Database.use((db) =>
           db
             .update(GoalTable)
             .set({ progress: progress.percentage, updated_at: new Date() })
-            .where(eq(GoalTable.id, goalId))
+            .where(and(eq(GoalTable.id, input.goalId), eq(GoalTable.session_id, input.sessionId)))
             .run(),
         ),
       )

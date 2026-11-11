@@ -71,7 +71,11 @@ const statusIcon = (status: TeamMemberView["status"]) =>
   status === "active" ? "lu-activity" : status === "archived" ? "circle-ban-sign" : "lu-circle"
 
 const statusTone = (status: TeamMemberView["status"]) =>
-  status === "active" ? "text-success" : status === "archived" ? "text-foreground-subtlest" : "text-foreground-subtle"
+  status === "active"
+    ? "text-icon-success-base"
+    : status === "archived"
+      ? "text-foreground-subtlest"
+      : "text-foreground-subtle"
 
 /**
  * 运行状态在列表里只用一个图标 + 属性色表达。
@@ -90,9 +94,9 @@ const runDot = (run: { state: string }) => ({
 
 const runStateTone = (state: string) =>
   state === "done"
-    ? "text-success"
+    ? "text-icon-success-base"
     : state === "partial" || state === "needs_review" || state === "awaiting_approval"
-      ? "text-warning"
+      ? "text-icon-warning-base"
       : state === "failed" || state === "exceeded" || state === "cancelled"
         ? "text-foreground-subtlest"
         : "text-foreground-subtle"
@@ -609,7 +613,7 @@ export const TeamPage: Component<{
       <PageHeader onBack={() => props.onBack()} title={t("team.title")} />
 
       <Show when={error()}>
-        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-destructive">{error()}</div>
+        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-icon-critical-base">{error()}</div>
       </Show>
 
       <div class="flex min-h-0 flex-1">
@@ -736,7 +740,7 @@ export const TeamPage: Component<{
                             name={teamDefaultIDs().includes(team.id) ? "circle-check" : "lu-circle"}
                             classList={{
                               "shrink-0 text-12": true,
-                              "text-primary": teamDefaultIDs().includes(team.id),
+                              "text-text-interactive-base": teamDefaultIDs().includes(team.id),
                               "text-foreground-subtlest": !teamDefaultIDs().includes(team.id),
                             }}
                           />
@@ -1323,7 +1327,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
         <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.employees.hint")}</div>
         <Show when={error()}>
-          <div class="text-12-regular text-destructive">{error()}</div>
+          <div class="text-12-regular text-icon-critical-base">{error()}</div>
         </Show>
 
         <div class="flex flex-col gap-2">
@@ -1661,7 +1665,7 @@ function DialogProfiles(props: {
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
         <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.profiles.hint")}</div>
         <Show when={error()}>
-          <div class="text-12-regular text-destructive">{error()}</div>
+          <div class="text-12-regular text-icon-critical-base">{error()}</div>
         </Show>
 
         <Show when={!form()}>
@@ -1716,7 +1720,7 @@ function DialogProfiles(props: {
                         <Button
                           variant="ghost"
                           size="small"
-                          class="text-destructive"
+                          class="text-icon-critical-base"
                           disabled={busy()}
                           onClick={() => void remove(profile.id)}
                         >
@@ -2021,7 +2025,7 @@ function DialogCreateTeam(props: {
           </div>
         </div>
         <Show when={error()}>
-          <div class="text-12-regular text-destructive">{error()}</div>
+          <div class="text-12-regular text-icon-critical-base">{error()}</div>
         </Show>
         <div class="flex items-center justify-end gap-3 pt-1">
           <Button variant="secondary" onClick={() => dialog.close()}>

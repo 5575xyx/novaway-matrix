@@ -1,17 +1,19 @@
 # NovaWay Super-Agent 运行时改造设计
 
-> 版本：v2.1（2026-11-07）
-> 状态：待评审
+> 版本：v2.2（2026-11-08）
+> 状态：待评审；依赖 NovaWay Plugin Manifest 唯一运行时
 > 参考：DSH《Super-agent 设计探索》原文解读（linux.do #3109398）与社区讨论
-> 取代：v2.0（修订 G1 阈值口径：门禁按占空比而非绝对秒数，§1.2 与 §15.2 此前相差 10 倍）
+> 取代：v2.1（统一 NovaWay Plugin Manifest 与 Super-Agent 的插件运行时边界；不改变线程语义与 G1 阈值）
 > 取代：v1.0（补齐 Router/Planner 分工、来源键、全双工、Watchdog Session、BYOM、链式召回）
 > 姊妹篇：`docs/plugin-system-unification-design.md`（「万物皆插件」，定义能力如何装进来）
 > 定位：本文定义**能力装进来之后，如何在时间里被自主调度**。
-> 目标版本：NovaWay 1.17 → 1.21
+> 项目阶段：尚未对外发布；阶段顺序服从可验证的插件运行时依赖，不绑定产品版本灰度计划。
 
 ---
 
 ## 0. 先把「super-agent」定义清楚
+
+> 本文所有触发器、快速路径、路由策略、Worker、监督规则与通知通道都是 NovaWay Plugin Manifest 的扩展贡献，复用同一 PluginHost、权限模型、注册表、生命周期与诊断；不得另建 Super-Agent 插件格式或旁路加载器。Claude 兼容仅作用于插件输入适配，不改变此运行时边界。
 
 ### 0.1 它不是什么
 
@@ -1334,49 +1336,47 @@ superagent（内核）──► plugin-api / shared
 
 ---
 
-## 13. 兼容与迁移
+## 13. 现有能力接入与启用策略
+
+本项目尚未对外发布，不设置面向既有用户的影子迁移阶段。兼容适配只用于保持当前 `main` 的可验证行为并分批接入统一运行时；Super-Agent 不引入第二套 Manifest、Host 或贡献注册表。
 
 ### 13.1 现有机制的映射
 
-| 现有                   | 映射为                          | 迁移方式                                                                       |
-| ---------------------- | ------------------------------- | ------------------------------------------------------------------------------ |
-| `cron` 服务            | `timer` 触发器                  | 保留表与调度器，外面包一层 Trigger 适配器                                      |
-| `monitor` 工具         | `fs`/命令触发器的**临时实例**   | 工具实现改为「创建临时 Trigger + 返回 jobID」，行为不变                        |
-| `subscribe` 工具       | `http` 轮询触发器的**临时实例** | 同上；`src/background/watchers.ts` 的 resume 逻辑保留（临时 Trigger 也可恢复） |
-| `background job`       | Worker 类型 `background`        | 加 `WorkerHandle` 适配层                                                       |
-| `task` / `task_status` | Worker 类型 `task`              | 适配层；`agent_message` 升级为 `send()`                                        |
-| `team run`             | Worker 类型 `team`              | 适配层；mailbox 保留，另加 channel                                             |
-| `dynamic-workflow run` | Worker 类型 `workflow`          | 适配层（已有 `journal`，恢复语义天然对齐）                                     |
-| `coordinator` agent    | 线程模板 `builtin.orchestrator` | 保留为普通 Agent；另提供「用 coordinator 推进线程」的模板                      |
-| 会话内对话             | 线程 `mode: "chat"`             | 默认每会话隐式一个 chat 线程，迁移期不改变现有行为                             |
+| 现有                   | 映射为                          | 迁移方式                                                                           |
+| ---------------------- | ------------------------------- | ---------------------------------------------------------------------------------- |
+| `cron` 服务            | `timer` 触发器                  | 在统一运行时中通过 Trigger adapter 读取现有调度状态；完成切换后退役旧入口          |
+| `monitor` 工具         | `fs`/命令触发器的**临时实例**   | 经统一 TriggerRegistry 创建实例；迁移后工具只保留创建/查询契约，不旁路触发器运行时 |
+| `subscribe` 工具       | `http` 轮询触发器的**临时实例** | 由统一 TriggerRegistry 管理并恢复；旧 watcher 恢复路径在行为等价测试通过后删除     |
+| `background job`       | Worker 类型 `background`        | 加 `WorkerHandle` 适配层                                                           |
+| `task` / `task_status` | Worker 类型 `task`              | 适配层；`agent_message` 升级为 `send()`                                            |
+| `team run`             | Worker 类型 `team`              | 适配层；mailbox 保留，另加 channel                                                 |
+| `dynamic-workflow run` | Worker 类型 `workflow`          | 适配层（已有 `journal`，恢复语义天然对齐）                                         |
+| `coordinator` agent    | 线程模板 `builtin.orchestrator` | 保留为普通 Agent；另提供「用 coordinator 推进线程」的模板                          |
+| 会话内对话             | 线程 `mode: "chat"`             | 由当前 main 的基线测试约束行为；启用能力后逐步切换统一线程运行时                   |
 
-**关键：迁移期默认关闭 super-agent。** 配置项：
+**开发阶段默认关闭尚未完成的自动调度能力**，但关闭状态不能要求保留第二套旧插件运行时。配置项：
 
 ```jsonc
 {
   "superagent": {
-    "enabled": false, // 1.17 默认 false
+    "enabled": false, // 在对应 Super-Agent 里程碑验收前默认 false
     "autoThreadPerSession": true, // 开启后，每个会话自动获得一个 chat 线程
-    "maxActiveThreads": 10,
+    "maxActiveThreads": 5,
   },
 }
 ```
 
-### 13.2 三阶段
+### 13.2 分阶段交付与启用
 
-| 阶段 | 版本      | 内容                                                    | 回滚                 |
-| ---- | --------- | ------------------------------------------------------- | -------------------- |
-| 影子 | 1.17      | Thread 表与事件表写入，但不用来驱动；只做数据积累与对比 | 关开关               |
-| 接管 | 1.18      | 新会话默认获得 chat 线程；cron → timer 触发器切换       | 关开关               |
-| 默认 | 1.19–1.21 | 线程视图成为主入口；`coordinator` 模板可用              | 单线程降级为普通会话 |
-
-影子阶段的价值：等真正启用时，已经有历史线程数据可以验证「装配的上下文是否合理」，而不是上线当天才开始踩。
+**本节只定义 Super-Agent 后续独立路线的内部依赖，不构成当前排期或插件阶段的并行任务。** 只有 [`plugin-first-implementation-plan.md`](./plugin-first-implementation-plan.md) 的“万物皆插件”阶段完成并通过验收后，才启动本路线的实现计划；此前仅允许不与运行时实现冲突的设计/纯算法工作。启动后按 S-M0–S-M5 的依赖顺序逐步实现并验收；每阶段建立当时 `main` 的可复现行为基线，再验证行为、成本、安全和恢复路径。未完成验收的自动调度功能保持关闭；完成验收后按产品决策启用，不要求并行写入影子数据，也不保留旧运行时回退。
 
 ---
 
 ## 14. 里程碑
 
-依赖关系：**S-M0 依赖插件文档的 M0**（需要 PluginHost 与 KernelApi）。其余可并行。
+依赖关系：Super-Agent 的 Trigger、Router、Worker、Watchdog 与 Channel 必须作为 NovaWay Plugin Manifest 的贡献接入同一个 PluginHost、权限模型和生命周期，不得另建加载路径。**实现启动门槛以 `plugin-first-implementation-plan.md` 为准：本轮插件计划的 D1–D9、B1–B3 及适用的全仓回归全部通过并结项后，才开始 Super-Agent 实施。**届时 S-M0 开始前还须复核可激活/停用的 PluginHost、KernelApi 能力与资源边界、生命周期释放、持久化基础、插件 API/诊断契约，以及 B1 边界测试是否仍满足要求。若门禁因环境原因无法运行，记录阻塞与重试条件，不视为通过。插件计划未结项时，Super-Agent 只允许做不与运行时实现冲突的独立设计/纯算法工作，不得接入调用点。D1–D9 未通过项仍是未完成能力，不得标成通过。首次切换调用点前建立当时 `main` 的可复现行为基线；基线变更需记录预期行为与评审原因。共享文件按实际冲突顺序串行推进。
+
+当前实施状态（2026-11-08）：插件 Host 尚未接通激活/停用执行链，S-M0 前置门禁未完成；本文的 S1–S10/G1–G3 与 `verify:superagent` 均为待交付目标，不是已通过的测试结果。
 
 ### S-M0｜数据与租约（2 周）
 
@@ -1427,21 +1427,13 @@ superagent（内核）──► plugin-api / shared
 - 默认开启；`builtin.orchestrator` 线程模板
 - 通过：**S8、G1–G3 全量**
 
-### 14.1 与插件里程碑的交错
+### 14.1 与插件计划的先后关系
 
-| 周    | 插件文档    | 本文 |
-| ----- | ----------- | ---- |
-| 1–2   | M0 地基     | —    |
-| 3–5   | M1（D1/D2） | S-M0 |
-| 6–8   | M2（D3/D4） | S-M1 |
-| 9–11  | M3          | S-M2 |
-| 12–14 | M4（D5/D6） | S-M3 |
-| 15–16 | M5          | S-M4 |
-| 17–19 | 收尾        | S-M5 |
+本节取代此前“与插件里程碑交错”的排期建议。项目当前决策是：**先完成并验收 `plugin-first-implementation-plan.md`，结束插件计划后，再独立启动 Super-Agent 实施**。不得依据本文旧版交错时间表提前排期、接入调用点或并行改造核心运行路径。
 
-> 周期从 2 周延长到 3 周的是 S-M2：`begin()` 是全双工的地基，改动落在最热的 `prompt.ts` 上，必须留足回归时间。
+S-M0–S-M5 是 Super-Agent 后续路线的内部里程碑编号；S1–S10 是本设计中的验收演练编号，两者不可混称或互相替代。后续实施计划应使用 `SA-T1…SA-Tn` 等单独阶段编号，并清楚映射每阶段负责的 S 演练与 G 门禁。本文保留的里程碑描述仅表示设计依赖顺序和候选交付内容，不表示已排期、已实现或已验收。
 
-**不要并行开工两条线的「改调用点」阶段**：M1 与 S-M1 都会动 `session/prompt.ts`，冲突代价极高。上表的错位就是为了让同一时期只有一个线程在改核心文件。
+`S-M2` 涉及 `SessionPrompt.begin()` 和 `prompt.ts`，属于高冲突、高回归风险阶段；后续独立计划应为其安排专门的行为基线、并发/取消测试和回归窗口。插件计划未结项前不得开始该调用点改造。
 
 ### 14.2 DoD
 
@@ -1450,7 +1442,7 @@ superagent（内核）──► plugin-api / shared
 1. 对应 S 演练在 CI 通过；
 2. 空闲成本（G1）不退化；
 3. `thread` 表无泄漏（线程结束后不留租约、不留活跃事件）；
-4. 关闭 `superagent.enabled` 后行为与上一版本一致；
+4. 未启用 `superagent.enabled` 时行为符合该阶段声明的基线；基线以改造前当前 `main` 的可复现测试固定，任何更新须记录预期变更、差异与评审依据；
 5. `docs/super-agent.md`（用户向）与本文同步。
 
 ---
@@ -1589,7 +1581,7 @@ test("G1: idle threads cost no tokens", async () => {
 | R5  | 恢复时重复执行副作用                    | 中   | 高   | 工具调用状态三态标记；写操作要求幂等或人工确认                                            |
 | R6  | 与插件改造抢同一批文件                  | 高   | 中   | 里程碑错位（§14.1）；同一时期只有一个线改核心文件                                         |
 | R7  | Watchdog 误判（把正常长任务当中断）     | 中   | 中   | 判据用事实而非时间；nudge 优先于 abort；可配置阈值                                        |
-| R8  | 用户不接受「系统自己动」                | 中   | 高   | 默认关闭 → 影子 → 接管三阶段；所有主动动作可见、可撤销                                    |
+| R8  | 用户不接受「系统自己动」                | 中   | 高   | 未验收时关闭，验收后按用户授权启用；所有主动动作可见、可撤销                              |
 | R9  | 多进程/多设备租约失效                   | 低   | 高   | 租约短过期 + 心跳；单机优先，跨设备本期不做                                               |
 | R10 | 批处理把多个线程的错误混在一起          | 低   | 中   | 只批决策不批执行；失败降级为逐个处理                                                      |
 | R11 | Slow path 判定器太贵，每条消息都过模型  | 中   | 高   | 轻量模型 + 短输入（原文+一句话摘要）+ Fast 层先挡掉 70%+；指标 `router.fastpath.hit_rate` |

@@ -152,7 +152,7 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
   const used = new Set(files.map((part) => part.url))
   const context = input.context.flatMap((item): PromptRequestPart[] => {
     // 对话/代码引用：作为 synthetic 文本块随消息发送，模型能看到出处，
-    // 用户自己的输入框内容保持干净（对齐 ZCode 的 userselect 块）。
+    // 用户自己的输入框内容保持干净。
     if (item.type === "quote") {
       const header = item.label ? `引用片段（${item.label}）：` : "引用片段："
       const body = item.text

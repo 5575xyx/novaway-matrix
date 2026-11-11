@@ -1,7 +1,7 @@
 # NovaWay Matrix 用 Rust 重写：完整评估
 
 > 评估日期：2026-10-27  
-> 评估对象：NovaWay Matrix 当前 monorepo、ZCode（zai-org/ZCode）、cc（E:\AImoney\cc）  
+> 评估对象：NovaWay Matrix 当前 monorepo、参照产品（上游仓库，Apache-2.0）、cc（E:\AImoney\cc）  
 > 结论先行：**不建议一次性全量重写。建议采用“Rust 内核 + 保留现有 TS UI + 绞杀式迁移”的路线；先做 6–8 周技术验证，再决定是否全面转 Rust。**
 
 ---
@@ -10,9 +10,9 @@
 
 ### 0.1 三个必须先说清楚的事实
 
-1. **ZCode 和 cc 都不是 Rust 项目。**  
-   ZCode 主仓库约 18,266 个文件，其中 `.ts` 8,234 个、`.tsx` 1,023 个、`.rs` 0 个，技术栈是 TypeScript + React/Ink + Electron。cc 同样是 TypeScript/Ink。  
-   所以“结合 ZCode/cc 的优势用 Rust 重写”并不是把现成 Rust 代码搬过来，而是：**借鉴它们的架构、协议和 Agent 行为语义，用 Rust 重新实现。**
+1. **参照产品和 cc 都不是 Rust 项目。**  
+   参照产品主仓库约 18,266 个文件，其中 `.ts` 8,234 个、`.tsx` 1,023 个、`.rs` 0 个，技术栈是 TypeScript + React/Ink + Electron。cc 同样是 TypeScript/Ink。  
+   所以“结合参照产品/cc 的优势用 Rust 重写”并不是把现成 Rust 代码搬过来，而是：**借鉴它们的架构、协议和 Agent 行为语义，用 Rust 重新实现。**
 
 2. **真正值得 Rust 化的核心约 14–15 万行，而不是全部 46 万行。**  
    当前生产代码约 463,636 行 TS/TSX（不含测试）。其中后端/内核约 13 万行、LLM 约 0.9 万行；Web UI 约 10.9 万行、共享 UI 约 3.2 万行、TUI 约 4.6 万行、桌面端约 1.2 万行、生成 SDK 约 3 万行。  
@@ -99,11 +99,11 @@
 
 ---
 
-## 2. ZCode 与 cc 的优势拆解
+## 2. 参照产品与 cc 的优势拆解
 
-### 2.1 ZCode 的优势：工程分层 + 多端统一 + 产品化
+### 2.1 参照产品的优势：工程分层 + 多端统一 + 产品化
 
-ZCode 最值得借鉴的不是某个功能，而是它的**边界设计**。其 `apps/zcode-cli/docs/design/v2/architecture.md` 明确把 CLI 分成四层：
+参照产品最值得借鉴的不是某个功能，而是它的**边界设计**。其 CLI 架构文档明确把 CLI 分成四层：
 
 - `contracts/`：稳定的 port、event、error、capability、schema，不放业务实现。
 - `core/`：session、turn、agent loop、tool lifecycle、permission、compact、rewind、subagent、mailbox、memory、hooks、mode，**不直接做外部 I/O**。
@@ -119,14 +119,14 @@ adapters  -> novaway-adapters
 bootstrap -> novaway-runtime
 ```
 
-ZCode 的其他可借鉴点：
+参照产品的其他可借鉴点：
 
 1. **Event-first Agent Loop**  
    `Turn Input -> Event Creation -> State Transition (Reducer) -> Projection -> UI`。  
    好处：UI 只消费 projection，不直接改 core 状态；支持恢复、重放、审计、多端同步。
 
 2. **App Server 协议统一多端**  
-   `zcode app-server --stdio` 用 NDJSON frame；Web/SSH/Docker/Desktop 都作为 client 连同一个 server。  
+   参照产品的 app-server --stdio 用 NDJSON frame；Web/SSH/Docker/Desktop 都作为 client 连同一个 server。  
    server 统一维护 session、模型、思考强度、模式、消息、动态、eventSeq/stateRevision。  
    这正好解决我们当前“TUI/Web/Desktop 各自一套状态”的问题。
 
@@ -185,7 +185,7 @@ cc 是恢复版 Claude Code 源码，代码规模约 50 万行 TS/TSX（仅 `src
 
 ### 2.3 能力对照
 
-| 能力       | ZCode                            | cc                                | NovaWay 当前                    | Rust 目标                |
+| 能力       | 参照产品                         | cc                                | NovaWay 当前                    | Rust 目标                |
 | ---------- | -------------------------------- | --------------------------------- | ------------------------------- | ------------------------ |
 | Agent Loop | Event-first + reducer/projection | QueryEngine + streaming tool loop | `session/prompt.ts` + processor | Rust actor + event store |
 | 多端统一   | app-server NDJSON + WS/API       | TUI/headless/SDK                  | HTTP + SSE + SDK，多端各自状态  | 统一协议 + 多客户端      |
@@ -199,7 +199,7 @@ cc 是恢复版 Claude Code 源码，代码规模约 50 万行 TS/TSX（仅 `src
 
 ### 2.4 法律与代码复用边界
 
-- **ZCode 是 Apache-2.0**，但仓库有 `NOTICE.md` 和 `third-party/`，如果复制代码必须保留版权/许可/第三方声明。
+- **参照产品是 Apache-2.0**，但仓库有 `NOTICE.md` 和 `third-party/`，如果复制代码必须保留版权/许可/第三方声明。
 - **cc 是“恢复版 Claude Code 源码”**，来源和授权并不清晰，且包含大量 Anthropic 品牌、远程服务、遥测代码。  
   **建议只把它当作行为参考，不复制任何代码、文案、提示词或常量。**
 - “架构思想、协议模式、产品交互”可以借鉴；具体实现应 clean-room 重写。
@@ -209,7 +209,7 @@ cc 是恢复版 Claude Code 源码，代码规模约 50 万行 TS/TSX（仅 `src
 
 ## 3. 我们当前的核心资产（重写时必须保住）
 
-这些是 NovaWay 相对 ZCode/cc 的差异化，不能为了 Rust 而丢：
+这些是 NovaWay 相对参照产品/cc 的差异化，不能为了 Rust 而丢：
 
 1. **中文场景与国产模型**：DeepSeek、通义千问、智谱 GLM、Kimi、OpenAI-compatible 生态，89 个模型标识。
 2. **办公自动化**：PPT/Word/Excel 生成与预览、文档/表格/PDF、图片/视频/旁白生成。
@@ -411,7 +411,7 @@ pub trait Provider: Send + Sync {
 | A. 全量 Rust           | Core + Server + TUI + Web + Desktop 全重写         | 60–90 PM | 18–30 个月 | 极高  | 高       | 不建议           |
 | B. Rust 内核 + 现有 UI | Rust daemon + 保留 SolidJS/Electron/TUI            | 30–45 PM |  9–15 个月 | 中    | 高       | **推荐目标**     |
 | C. 绞杀式              | 先 Rust 化 PTY/索引/Provider/Server 热点，逐步扩大 | 10–25 PM |   4–9 个月 | 低–中 | 中       | **推荐落地方式** |
-| D. 只重构 TS           | 借 ZCode 分层，不换语言                            |  6–12 PM |   3–6 个月 | 低    | 低       | 备选             |
+| D. 只重构 TS           | 借参照产品分层，不换语言                         |  6–12 PM |   3–6 个月 | 低    | 低       | 备选             |
 
 ### 6.1 方向性评分（5 分制）
 
@@ -450,7 +450,7 @@ pub trait Provider: Send + Sync {
    - 5 个工具：read/write/edit/bash/glob
    - axum HTTP + SSE
    - 现有 Web UI 连接一个只读/聊天子集
-4. 法律意见：ZCode Apache-2.0/NOTICE；cc 不复制代码。
+4. 法律意见：参照产品 Apache-2.0/NOTICE；cc 不复制代码。
 5. 团队评估：Rust 生产力、招聘/培训计划。
 
 **Exit criteria：**
@@ -606,7 +606,7 @@ pub trait Provider: Send + Sync {
 | 编译/CI 变慢                          | 中   | 中   | sccache、增量、分层 workspace、nightly 门禁         |
 | Provider 协议变化                     | 高   | 中   | 薄适配器 + cassette + 快速回归                      |
 | 安全（命令注入/沙箱）                 | 中   | 高   | AST 权限、路径边界、sandbox、审计                   |
-| 法务（cc 源码/ZCode NOTICE）          | 中   | 高   | clean-room、法务评审、保留 NOTICE                   |
+| 法务（cc 源码/参照产品 NOTICE）       | 中   | 高   | clean-room、法务评审、保留 NOTICE                   |
 | 性能未达预期                          | 中   | 中   | Phase 0 基线、压测、火焰图                          |
 | 团队流失/关键人依赖                   | 中   | 高   | 文档、pair、模块轮换                                |
 
@@ -639,7 +639,7 @@ pub trait Provider: Send + Sync {
    - `novaway` 冷启动、空闲 RSS、首 token 延迟、工具延迟；
    - 安装包大小、`node_modules` 大小、CI 时间；
    - 10 个典型任务的端到端耗时。
-4. 法务评审 ZCode NOTICE 与 cc 授权。
+4. 法务评审参照产品 NOTICE 与 cc 授权。
 5. 确定 2 名 Rust owner。
 
 ### 第 3–8 周：技术 spike
@@ -755,7 +755,7 @@ Web UI -> Rust HTTP/SSE -> Session Actor -> Provider Stream -> Tool(read/edit/ba
 ## 13. 最终建议
 
 1. **不要把“Rust 重写”当成目标本身。** 先明确它要解决的是分发、启动、内存、企业化，还是代码质量。不同目标对应不同方案。
-2. **ZCode 值得学的是分层、协议、事件驱动、权限 broker、多端统一；cc 值得学的是 Agent loop、工具契约、hooks、上下文管理、子 Agent。** 两者都不是 Rust，不能直接搬代码。
+2. **参照产品值得学的是分层、协议、事件驱动、权限 broker、多端统一；cc 值得学的是 Agent loop、工具契约、hooks、上下文管理、子 Agent。** 两者都不是 Rust，不能直接搬代码。
 3. **最优解是 B + C：Rust 内核 + 保留 TS UI + 绞杀式迁移。**
    - 先 Rust 化核心 14 万行，不碰 10 万行 Web UI 和 4.6 万行 TUI。
    - 用现有 HTTP API/OpenAPI 让 Web UI 无感切换。
@@ -763,4 +763,4 @@ Web UI -> Rust HTTP/SSE -> Session Actor -> Provider Stream -> Tool(read/edit/ba
 4. **先做 6–8 周 spike，再决定是否全面转 Rust。** 如果 spike 的启动、RSS、二进制大小、开发速度不达预期，停在 C 方案，仍然能获得大部分性能/分发收益。
 5. **如果团队只有 1–2 人，或未来 12 个月以功能迭代为主，建议只做 C，不做全量 Rust。**
 
-> 一句话：**Rust 化内核是合理的，重写整个产品是不合理的；先借 ZCode 的骨架和 cc 的行为语义，把“内核”做成一个可独立演进、可 sidecar 扩展、可被现有 UI 复用的 Rust 服务。**
+> 一句话：**Rust 化内核是合理的，重写整个产品是不合理的；先借参照产品的骨架和 cc 的行为语义，把“内核”做成一个可独立演进、可 sidecar 扩展、可被现有 UI 复用的 Rust 服务。**

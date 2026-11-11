@@ -13,6 +13,10 @@ import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
+import { usePermission } from "@/context/permission"
+import { workingActivity } from "@/pages/session/working-status"
+import { useWorkingPhrase } from "@/pages/session/use-working-phrase"
+import { sessionPermissionRequest, sessionQuestionRequest } from "@/pages/session/composer/session-request-tree"
 
 /** 面板里最多渲染多少条消息（与 side-pane-session 的取舍一致）。 */
 const MAX_ROWS = 40
@@ -57,6 +61,7 @@ export function PulseSessionPane(props: { directory: string }) {
   const sdk = useSDK()
   const sync = useSync()
   const settings = useSettings()
+  const permission = usePermission()
   const navigate = useNavigate()
 
   const [session, setSession] = createSignal<Session | undefined>()
@@ -194,6 +199,34 @@ export function PulseSessionPane(props: { directory: string }) {
     )
   })
 
+  // 提示行的文案与输入框状态条共用 workingActivity 一份推导，随本轮真正在动的东西变。
+  const workWaiting = createMemo((): "permission" | "question" | undefined => {
+    const id = sessionID()
+    if (!id) return undefined
+    if (
+      sessionPermissionRequest(
+        sync.data.session,
+        sync.data.permission,
+        id,
+        (item) => !permission.autoResponds(item, sdk.directory),
+      )
+    )
+      return "permission"
+    if (sessionQuestionRequest(sync.data.session, sync.data.question, id)) return "question"
+    return undefined
+  })
+  const workActivity = createMemo(() =>
+    workingActivity({
+      status: sync.data.session_status[sessionID() ?? ""],
+      waiting: workWaiting(),
+      parts:
+        turns()
+          .at(-1)
+          ?.assistants.flatMap((message) => partsOf(message.id)) ?? [],
+    }),
+  )
+  const workPhrase = useWorkingPhrase(workActivity)
+
   // 流式输出时跟着底部走。
   let scrollRef: HTMLDivElement | undefined
   const scrollToBottom = () => scrollRef?.scrollTo({ top: scrollRef.scrollHeight })
@@ -282,7 +315,9 @@ export function PulseSessionPane(props: { directory: string }) {
                   const turn = () => turnAccessor()
                   return (
                     <div data-component="pulse-chat-turn" class="flex flex-col gap-2">
-                      <Show when={turn().user}>{(user) => <Message message={user()} parts={partsOf(user().id)} />}</Show>
+                      <Show when={turn().user}>
+                        {(user) => <Message message={user()} parts={partsOf(user().id)} />}
+                      </Show>
                       <div data-slot="pulse-chat-assistant" class="flex flex-col items-start gap-2">
                         <AssistantParts
                           messages={turn().assistants}
@@ -296,7 +331,7 @@ export function PulseSessionPane(props: { directory: string }) {
               <Show when={showThinking()}>
                 <div class="flex items-center gap-2 pl-1 text-ui-caption text-foreground-subtle">
                   <Spinner class="size-3" />
-                  <TextShimmer text={language.t("session.turn.fold.working")} />
+                  <TextShimmer text={workPhrase()} />
                 </div>
               </Show>
             </div>

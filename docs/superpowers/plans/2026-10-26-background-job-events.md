@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Convert BackgroundJob from pull-only (frontend polls every 2s) to event-driven push, so status-panel updates happen in real time and mirror ZCode's BackgroundTaskTracker pattern.
+**Goal:** Convert BackgroundJob from pull-only (frontend polls every 2s) to event-driven push, so status-panel updates happen in real time and mirror the reference product's BackgroundTaskTracker pattern.
 
 **Architecture:** Emit Bus events (`background.started` / `background.updated` / `background.completed`) from `packages/novaway/src/background/job.ts` at every lifecycle transition. The existing Bus → GlobalBus → SSE → `/global/event` pipeline automatically carries them to the frontend because `BusEvent.effectPayloads()` is already wired into `EventSchema`. The status panel keeps its initial GET (for snapshot + history) but re-fetches on each event instead of a fixed 2s tick.
 
 **Tech Stack:** Effect v4 (`Effect.fn`, `Layer.effect`, `BusEvent.define`, `Schema`), SolidJS (`createStore`, `createEffect`), SDK regeneration via `./script/generate.ts`.
 
-**Spec:** ZCode's BackgroundTaskTracker pattern described by the user: publish Started / Updated / Completed events; each shell command gets a backgroundTaskId; status panel subscribes to those events for real-time refresh.
+**Spec:** The reference product's BackgroundTaskTracker pattern described by the user: publish Started / Updated / Completed events; each shell command gets a backgroundTaskId; status panel subscribes to those events for real-time refresh.
 
 ## Global Constraints
 
@@ -724,6 +724,6 @@ Then in another terminal, drive a session that runs a shell command. Observe `ba
 
 ## Post-plan notes
 
-- **ZCode fidelity:** This plan achieves the event-driven push (the core ZCode trait). It does NOT replicate ZCode's dedicated `BackgroundTaskTracker` class or its 1s polling for terminal states, because NovaWay already has `BackgroundJob.wait()` for internal callers and SSE for external ones. If the user asks for the tracker class later, that's a separate refactor.
+- **Reference-product fidelity:** This plan achieves the event-driven push (the core reference-product trait). It does NOT replicate the reference product's dedicated `BackgroundTaskTracker` class or its 1s polling for terminal states, because NovaWay already has `BackgroundJob.wait()` for internal callers and SSE for external ones. If the user asks for the tracker class later, that's a separate refactor.
 - **Backwards compatibility:** All existing callers of `BackgroundJob.start/update/cancel/wait/list/get` continue to work — the events are additive. Existing 2s polling path is replaced but the HTTP API remains unchanged.
 - **Testing gaps not covered:** (a) restart-during-job path (existing behavior; no event is emitted by design because there's no active client); (b) multi-directory fanout (only the owning directory gets the event — that's what Bus.Service does today); (c) permission/UI state interaction (out of scope).

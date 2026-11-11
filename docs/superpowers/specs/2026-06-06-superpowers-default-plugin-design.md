@@ -26,9 +26,9 @@
 
 ### 文件改动
 
-| 文件                                           | 改动                                                                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `packages/core/src/flag/flag.ts`               | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy(...)` 字段                                                          |
+| 文件                                          | 改动                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `packages/core/src/flag/flag.ts`              | 新增 `NOVAWAY_DISABLE_DEFAULT_PLUGINS: truthy(...)` 字段                                                           |
 | `packages/novaway/src/config/config.ts`       | ① 顶部新增 `export const DEFAULT_GLOBAL_PLUGINS: string[]`；② `loadGlobal` 首次写入处按 flag 决定是否注入 `plugin` |
 | `packages/novaway/test/config/config.test.ts` | 追加 1 个核心测试                                                                                                  |
 

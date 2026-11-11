@@ -20,6 +20,7 @@ import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@novaway/core/global"
 import path from "path"
 import { Plugin } from "@/plugin"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { Skill } from "../skill"
 import { Effect, Context, Layer, Schema } from "effect"
 import { InstanceState } from "@/effect/instance-state"
@@ -56,7 +57,9 @@ export const Info = Schema.Struct({
     Schema.mutable(Schema.Array(Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Unknown)]))),
   ),
   hooks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
-  permissionMode: Schema.optional(Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"])),
+  permissionMode: Schema.optional(
+    Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]),
+  ),
   maxTurns: Schema.optional(Schema.Finite),
   background: Schema.optional(Schema.Boolean),
   isolation: Schema.optional(Schema.Literals(["worktree"])),
@@ -75,7 +78,7 @@ const GeneratedAgent = Schema.Struct({
 })
 
 export interface Interface {
-  readonly get: (agent: string) => Effect.Effect<Info>
+  readonly get: (agent: string) => Effect.Effect<Info | undefined>
   readonly list: () => Effect.Effect<Info[]>
   readonly defaultInfo: () => Effect.Effect<Info>
   readonly defaultAgent: () => Effect.Effect<string>
@@ -836,13 +839,14 @@ export const layer = Layer.effect(
         const defaultInfo = Effect.fnUntraced(function* () {
           const c = yield* config.get()
           if (c.default_agent) {
-            const agent = agents[c.default_agent]
+            const agent = agents[c.default_agent] ?? (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === c.default_agent)))
             if (!agent) throw new Error(`default agent "${c.default_agent}" not found`)
             if (agent.mode === "subagent") throw new Error(`default agent "${c.default_agent}" is a subagent`)
             if (agent.hidden === true) throw new Error(`default agent "${c.default_agent}" is hidden`)
             return agent
           }
           const visible = Object.values(agents).find((a) => a.mode !== "subagent" && a.hidden !== true)
+            ?? (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.mode !== "subagent" && item.hidden !== true)))
           if (!visible) throw new Error("no primary visible agent found")
           return visible
         })
@@ -863,21 +867,72 @@ export const layer = Layer.effect(
     const reload = Effect.fn("Agent.reload")(function* () {
       yield* config.invalidate()
       yield* InstanceState.invalidate(state)
-      return yield* InstanceState.useEffect(state, (s) => s.list())
+      return yield* runtimeList(yield* InstanceState.useEffect(state, (s) => s.list()))
+    })
+
+    const pluginAgents = Effect.gen(function* () {
+      const serviceOption = yield* Effect.serviceOption(PluginRuntimeService.Service)
+      if (Option.isNone(serviceOption)) return [] as Info[]
+      const host = yield* serviceOption.value.get
+      return host.registries.agents.list().map((entry) => {
+        const contribution = entry.item
+        return {
+          name: entry.name,
+          description: contribution.description,
+          mode: contribution.mode,
+          hidden: false,
+          prompt: typeof contribution.prompt === "string" ? contribution.prompt : "",
+          permission: Permission.fromConfig(contribution.permission ?? {}),
+          options: contribution.options ?? {},
+          ...(contribution.model === undefined ? {} : {
+            model: { providerID: ProviderID.make(contribution.model.providerID), modelID: ModelID.make(contribution.model.modelID) },
+          }),
+          ...(contribution.tools === undefined ? {} : { tools: [...contribution.tools] }),
+          ...(contribution.disallowedTools === undefined ? {} : { disallowedTools: [...contribution.disallowedTools] }),
+        } satisfies Info
+      })
+    })
+
+    const runtimeList = (base: Info[]) =>
+      Effect.gen(function* () {
+        const configValue = yield* config.get()
+        const plugins = yield* pluginAgents
+        const combined = new Map(plugins.map((item) => [item.name, item]))
+        for (const item of base) combined.set(item.name, item)
+        return sortBy(
+          [...combined.values()],
+          [(x) => (configValue.default_agent ? x.name === configValue.default_agent : x.name === "build"), "desc"],
+          [(x) => x.name, "asc"],
+        )
+      })
+
+    const defaultInfo = Effect.fn("Agent.defaultInfo")(function* () {
+      const cfg = yield* config.get()
+      if (!cfg.default_agent) return yield* InstanceState.useEffect(state, (s) => s.defaultInfo())
+      const base = yield* InstanceState.useEffect(state, (s) => s.list())
+      const selected = base.find((item) => item.name === cfg.default_agent)
+        ?? (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === cfg.default_agent)))
+      if (!selected) throw new Error(`default agent "${cfg.default_agent}" not found`)
+      if (selected.mode === "subagent") throw new Error(`default agent "${cfg.default_agent}" is a subagent`)
+      if (selected.hidden === true) throw new Error(`default agent "${cfg.default_agent}" is hidden`)
+      return selected
     })
 
     return Service.of({
       get: Effect.fn("Agent.get")(function* (agent: string) {
-        return yield* InstanceState.useEffect(state, (s) => s.get(agent))
+        const fromBase = yield* InstanceState.useEffect(state, (s) => s.get(agent))
+        if (fromBase) return fromBase
+        const pluginAgent = yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === agent))
+        if (!pluginAgent) return undefined
+        return pluginAgent
       }),
       list: Effect.fn("Agent.list")(function* () {
-        return yield* InstanceState.useEffect(state, (s) => s.list())
+        const base = yield* InstanceState.useEffect(state, (s) => s.list())
+        return yield* runtimeList(base)
       }),
-      defaultInfo: Effect.fn("Agent.defaultInfo")(function* () {
-        return yield* InstanceState.useEffect(state, (s) => s.defaultInfo())
-      }),
+      defaultInfo,
       defaultAgent: Effect.fn("Agent.defaultAgent")(function* () {
-        return yield* InstanceState.useEffect(state, (s) => s.defaultAgent())
+        return (yield* defaultInfo()).name
       }),
       reload,
       generate: Effect.fn("Agent.generate")(function* (input: {

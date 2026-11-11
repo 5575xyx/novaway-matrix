@@ -8,8 +8,12 @@ import { Effect, Fiber, Layer } from "effect"
 import { Snapshot } from "../../src/snapshot"
 import { disposeAllInstances, provideInstance, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
+import { canCreateSymlinks } from "../lib/symlink-support"
+
 
 const it = testEffect(Layer.mergeAll(Snapshot.defaultLayer, AppFileSystem.defaultLayer))
+const symlinksAvailable = await canCreateSymlinks()
+const itSymlink = symlinksAvailable ? it.instance : it.instance.skip
 
 // Git always outputs /-separated paths internally. Snapshot.patch() joins them
 // with path.join (which produces \ on Windows) then normalizes back to /.
@@ -175,7 +179,7 @@ it.instance(
   { git: true },
 )
 
-it.instance(
+itSymlink(
   "symlink handling",
   withTrackedSnapshot(({ tmp, snapshot, before }) =>
     Effect.gen(function* () {
@@ -368,7 +372,7 @@ it.instance(
   { git: true },
 )
 
-it.instance(
+itSymlink(
   "nested symlinks",
   withTrackedSnapshot(({ tmp, snapshot, before }) =>
     Effect.gen(function* () {

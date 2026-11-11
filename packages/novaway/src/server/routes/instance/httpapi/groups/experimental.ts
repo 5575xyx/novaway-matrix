@@ -53,6 +53,7 @@ export class WorktreeApiError extends Schema.ErrorClass<WorktreeApiError>("Workt
 ) {}
 export const SessionListQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
+  scope: Schema.optional(Schema.Literals(["global", "project"])),
   roots: Schema.optional(QueryBoolean),
   start: Schema.optional(Schema.NumberFromString),
   cursor: Schema.optional(Schema.NumberFromString),

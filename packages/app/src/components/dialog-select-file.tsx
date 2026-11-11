@@ -156,7 +156,15 @@ function createFileEntries(props: {
       items.push(createFileEntry(path, category))
     }
 
-    return items.slice(0, ENTRY_LIMIT)
+    // 已经关掉、但最近打开过的文件：File › Open Recent 的那一份。
+    for (const path of props.file.recent()) {
+      if (items.length >= ENTRY_LIMIT * 2) break
+      if (seen.has(path)) continue
+      seen.add(path)
+      items.push(createFileEntry(path, category))
+    }
+
+    return items.slice(0, ENTRY_LIMIT * 2)
   })
 
   const root = createMemo(() => {
@@ -354,6 +362,9 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
     if (!view().reviewPanel.opened()) view().reviewPanel.open()
     props.onOpenFile?.(path)
     tabs().setActive(value)
+    // 与 openPaths（拖拽/系统/原生选择器）对齐：选完文件直接把右栏切到 preview 宿主并展开，
+    // 否则文件标签虽在标签条里，内容区仍是空态，要再点一次标签才看得到。
+    layout.sidePane.add("preview")
   }
 
   const handleSelect = (item: Entry | undefined) => {

@@ -96,10 +96,7 @@ export const { use: useWebviewAutomation, provider: WebviewAutomationProvider } 
         }
         if (request.action === "screenshot") {
           const dataURL = await handle.capture()
-          await report(
-            request.id,
-            dataURL ? { ok: true, data: { dataURL } } : { ok: false, error: "页面截图失败" },
-          )
+          await report(request.id, dataURL ? { ok: true, data: { dataURL } } : { ok: false, error: "页面截图失败" })
           return
         }
         await report(request.id, { ok: false, error: `不支持的页面操作：${request.action}` })

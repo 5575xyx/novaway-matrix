@@ -10,13 +10,19 @@ const dir = path.resolve(__dirname, "..")
 
 process.chdir(dir)
 
-// 模型目录取自 models.dev 的公开接口（与 packages/core/src/models-dev.ts 保持一致）。
-const modelsUrl = process.env.NOVAWAY_MODELS_URL || "https://models.dev"
+// 模型目录取自自建镜像（与 packages/core/src/models-dev.ts 保持一致）。
+const modelsUrl = process.env.NOVAWAY_MODELS_URL || "https://5575xyx.github.io/models.dev"
 const cacheDir = path.join(xdgCache ?? path.join(os.homedir(), ".cache"), "novaway")
 const cachePath = path.join(cacheDir, "models.json")
 
+// 和 packages/core/src/models-dev.ts 一样给请求设上限：拿不到就走本地缓存。
+// 不设超时时无奈网/被墙的环境会一直卡在 fetch 上，症状是 bun dev:desktop 启动毫无输出。
+const FETCH_TIMEOUT = 8_000
+
 async function fetchModels(): Promise<string> {
-  const text = await fetch(`${modelsUrl}/api.json`).then((x) => x.text())
+  const text = await fetch(`${modelsUrl}/api.json`, { signal: AbortSignal.timeout(FETCH_TIMEOUT) }).then((x) =>
+    x.text(),
+  )
   fs.mkdirSync(cacheDir, { recursive: true })
   fs.writeFileSync(cachePath, text)
   return text

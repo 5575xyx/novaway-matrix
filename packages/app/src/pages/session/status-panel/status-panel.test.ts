@@ -13,8 +13,8 @@ describe("shouldMountStatusPanel", () => {
 
 // 任务停下来了就不该继续挂 todo / agents 区块（上一轮的残留会一直盖住消息区），
 // git 跟着内容走：有行级变更时空闲期也留着（提交入口在卡 body 里），clean 仓库
-// 连卡带提交入口一起消失（对齐 ZCode 的 buildGitModel）。
-// context 已退出面板 —— 占用显示在输入框工具条上（对齐 ZCode 的 ChatContextUsage）。
+// 连卡带提交入口一起消失。
+// context 已退出面板 —— 占用显示在输入框工具条上。
 describe("visibleStatusSections", () => {
   const sections = [{ id: "git" }, { id: "todo" }, { id: "background" }]
 
@@ -46,7 +46,7 @@ describe("SessionStatusPanel mount wiring", () => {
     expect(source).not.toMatch(/if\s*\(\s*!shouldMountStatusPanel\(props\.sections\)\s*\)\s*return null/)
   })
 
-  // 胶囊按需出现（对齐 ZCode 的 !summaryMetric → return null）：收起态与窄容器 mini
+  // 胶囊按需出现（!summaryMetric → return null）：收起态与窄容器 mini
   // 都必须挂 summaries 闸门，没有可显示的摘要时不渲染壳。
   test("collapses the capsule away entirely when no section has a summary", async () => {
     const source = await Bun.file(new URL("./status-panel.tsx", import.meta.url)).text()

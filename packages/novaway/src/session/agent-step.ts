@@ -170,9 +170,7 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
           parentID: parentSessionID,
           // 父会话换了工作目录（团队 worktree / 用户改过 cwd）时，派生会话必须跟着：
           // 不跟，子代理就回到实例目录里干活，产物和证据都不在同一个副本上。
-          ...((input.directory ?? parent?.directory)
-            ? { directory: (input.directory ?? parent?.directory)! }
-            : {}),
+          ...((input.directory ?? parent?.directory) ? { directory: (input.directory ?? parent?.directory)! } : {}),
           title: input.title ?? `${resolvedName} (workflow step)`,
           ...(parent?.permissionMode ? { permissionMode: parent.permissionMode } : {}),
           permission: [

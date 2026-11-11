@@ -24,7 +24,7 @@ const VISIBLE_COUNT = 6
 /**
  * 插件动作的四态：确认 → 进行中 → 成功 / 失败。
  *
- * 对齐 ZCode 的 `useDraftSuggestedPluginActionPopover`：点一条推荐提示词时，
+ * 点一条推荐提示词时，
  * 如果插件没启用，不是弹个对话框了事，而是在**这颗 chip 下面**就地展开，
  * 做完自动收起并把提示词填进输入框。状态机由真实的动作结果驱动（写配置 / 装市场包），
  * 失败时给出可读原因，而不是静默什么都没发生。
@@ -40,10 +40,10 @@ type PluginActionState = {
 }
 
 /**
- * 草稿态的推荐提示词 —— 对齐 ZCode `ConversationDraftSuggestedPrompts`。
+ * 草稿态的推荐提示词。
  *
  * 每一条都绑着一个插件；插件没启用时点一下就地启用（四态弹出），
- * 启用成功后自动填入提示词。顶部的「换一批 / 关闭」也和 ZCode 一致：
+ * 启用成功后自动填入提示词。顶部的「换一批 / 关闭」：
  * 关闭要二次确认并**记住**（settings.office.showSuggestions），否则下次新建又冒出来。
  */
 export const OfficeSuggestedPrompts: Component<{
@@ -283,7 +283,7 @@ function PluginActionBody(props: { state?: PluginActionState }) {
           <Icon name="check" size="small" class="size-4 shrink-0 text-foreground" />
         </Show>
         <Show when={props.state?.phase === "error"}>
-          <Icon name="warning" size="small" class="size-4 shrink-0 text-warning" />
+          <Icon name="warning" size="small" class="size-4 shrink-0 text-icon-warning-base" />
         </Show>
         <Show when={props.state?.phase === "confirmation"}>
           <Icon name="help" size="small" class="size-4 shrink-0 text-foreground-subtle" />
@@ -313,7 +313,7 @@ function PluginActionBody(props: { state?: PluginActionState }) {
 }
 
 /**
- * 插件选择器 —— 对齐 ZCode 输入卡顶部的「插件头像 + 加号」。
+ * 插件选择器 —— 输入卡顶部的「插件头像 + 加号」。
  *
  * 开关直接写回配置（和扩展设置页是同一份），所以在这里关掉某个插件，
  * 会话里那条技能就真的不参与；首页的推荐提示词也会同步置灰。

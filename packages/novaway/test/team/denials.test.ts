@@ -51,4 +51,3 @@ describe("permission denials", () => {
     expect(clear(id)).toBe(0)
   })
 })
-

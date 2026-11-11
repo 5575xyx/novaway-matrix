@@ -108,3 +108,14 @@ it.live("InstanceStore.reload runs InstanceBootstrap", () =>
     expect(existsSync(tmp.marker)).toBe(true)
   }),
 )
+
+it.live("global instances skip project plugin bootstrap", () =>
+  Effect.gen(function* () {
+    const tmp = yield* bootstrapFixture
+    const store = yield* InstanceStore.Service
+
+    yield* store.load({ directory: tmp.directory, scope: "global" })
+
+    expect(existsSync(tmp.marker)).toBe(false)
+  }),
+)

@@ -24,17 +24,49 @@ export function knowledgeFileKind(name: string): KnowledgeFileKind {
   return "text"
 }
 
-/** 文件类型对应的图标底色（浅色底 + 同色前景），避免一片灰。 */
+/** 文件类型图标使用主题色区分，但不绑定固定色值。 */
 export const FILE_TONE: Record<
   KnowledgeFileKind,
   { icon: "code-lines" | "table" | "review" | "chart" | "terminal"; color: string; background: string }
 > = {
-  markdown: { icon: "code-lines", color: "#2563eb", background: "color-mix(in srgb, #3b82f6 14%, transparent)" },
-  text: { icon: "code-lines", color: "#64748b", background: "color-mix(in srgb, #64748b 12%, transparent)" },
-  data: { icon: "table", color: "#0d9488", background: "color-mix(in srgb, #0d9488 14%, transparent)" },
-  pdf: { icon: "review", color: "#dc2626", background: "color-mix(in srgb, #ef4444 14%, transparent)" },
-  word: { icon: "review", color: "#2563eb", background: "color-mix(in srgb, #3b82f6 14%, transparent)" },
-  slide: { icon: "chart", color: "#ea580c", background: "color-mix(in srgb, #f97316 14%, transparent)" },
-  sheet: { icon: "table", color: "#16a34a", background: "color-mix(in srgb, #22c55e 14%, transparent)" },
-  code: { icon: "terminal", color: "#7c3aed", background: "color-mix(in srgb, #8b5cf6 14%, transparent)" },
+  markdown: {
+    icon: "code-lines",
+    color: "var(--icon-interactive-base)",
+    background: "color-mix(in srgb, var(--icon-interactive-base) 14%, transparent)",
+  },
+  text: {
+    icon: "code-lines",
+    color: "var(--text-subtle)",
+    background: "color-mix(in srgb, var(--text-subtle) 12%, transparent)",
+  },
+  data: {
+    icon: "table",
+    color: "var(--icon-info-base)",
+    background: "color-mix(in srgb, var(--icon-info-base) 14%, transparent)",
+  },
+  pdf: {
+    icon: "review",
+    color: "var(--icon-critical-base)",
+    background: "color-mix(in srgb, var(--icon-critical-base) 14%, transparent)",
+  },
+  word: {
+    icon: "review",
+    color: "var(--icon-interactive-base)",
+    background: "color-mix(in srgb, var(--icon-interactive-base) 14%, transparent)",
+  },
+  slide: {
+    icon: "chart",
+    color: "var(--icon-warning-base)",
+    background: "color-mix(in srgb, var(--icon-warning-base) 14%, transparent)",
+  },
+  sheet: {
+    icon: "table",
+    color: "var(--icon-success-base)",
+    background: "color-mix(in srgb, var(--icon-success-base) 14%, transparent)",
+  },
+  code: {
+    icon: "terminal",
+    color: "var(--icon-agent-plan-base)",
+    background: "color-mix(in srgb, var(--icon-agent-plan-base) 14%, transparent)",
+  },
 }

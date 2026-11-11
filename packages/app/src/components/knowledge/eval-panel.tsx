@@ -227,8 +227,8 @@ export const KnowledgeEvalPanel: Component<{
         {(value) => (
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-surface/40 px-3 py-2 text-11-regular">
             <span class="text-foreground-subtle">{language.t("knowledge.eval.diffTitle")}</span>
-            <span class="text-[#059669]">+{num(value().summary.improved)}</span>
-            <span class="text-[#b91c1c]">-{num(value().summary.regressed)}</span>
+            <span class="text-icon-success-base">+{num(value().summary.improved)}</span>
+            <span class="text-[var(--icon-critical-base)]">-{num(value().summary.regressed)}</span>
             <Show when={num(value().summary.new) > 0}>
               <span class="text-foreground-subtle">
                 {language.t("knowledge.eval.diffNew", { count: num(value().summary.new) })}
@@ -291,7 +291,7 @@ export const KnowledgeEvalPanel: Component<{
                   type="button"
                   class="max-w-56 truncate rounded-md border px-2 py-1 text-11-regular transition-colors"
                   classList={{
-                    "border-[color-mix(in_srgb,#10b981_45%,var(--border))] bg-[color-mix(in_srgb,#10b981_12%,transparent)] text-foreground":
+                    "border-[color-mix(in_srgb,var(--success)_45%,var(--border))] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-foreground":
                       picked().includes(document.id),
                     "border-border bg-surface text-foreground-subtle hover:bg-hover": !picked().includes(document.id),
                   }}
@@ -332,8 +332,10 @@ export const KnowledgeEvalPanel: Component<{
                           <span
                             class="shrink-0 rounded px-1.5 py-0.5 text-11-medium"
                             classList={{
-                              "bg-[color-mix(in_srgb,#10b981_16%,transparent)] text-[#059669]": num(value().rank) > 0,
-                              "bg-[color-mix(in_srgb,#ef4444_14%,transparent)] text-[#b91c1c]": value().rank === 0,
+                              "bg-[color-mix(in_srgb,var(--success)_16%,transparent)] text-icon-success-base":
+                                num(value().rank) > 0,
+                              "bg-[color-mix(in_srgb,var(--icon-critical-base)_14%,transparent)] text-[var(--icon-critical-base)]":
+                                value().rank === 0,
                             }}
                           >
                             {num(value().rank) > 0
@@ -389,7 +391,7 @@ export const KnowledgeEvalPanel: Component<{
                   <Icon
                     name={num(item.rank) > 0 ? "circle-check" : "circle-ban-sign"}
                     size="small"
-                    class={num(item.rank) > 0 ? "text-success" : "text-destructive"}
+                    class={num(item.rank) > 0 ? "text-icon-success-base" : "text-icon-critical-base"}
                   />
                   <span class="min-w-0 flex-1 truncate text-12-regular text-foreground">{item.query}</span>
                   <span class="shrink-0 text-11-regular text-foreground-subtle">
@@ -417,17 +419,17 @@ const DiffBadge: Component<{ status: KnowledgeEvalDiff["cases"][number]["status"
     if (props.status === "improved")
       return {
         label: language.t("knowledge.eval.diffImproved"),
-        cls: "bg-[color-mix(in_srgb,#10b981_16%,transparent)] text-[#059669]",
+        cls: "bg-[color-mix(in_srgb,var(--success)_16%,transparent)] text-icon-success-base",
       }
     if (props.status === "regressed")
       return {
         label: language.t("knowledge.eval.diffRegressed"),
-        cls: "bg-[color-mix(in_srgb,#ef4444_14%,transparent)] text-[#b91c1c]",
+        cls: "bg-[color-mix(in_srgb,var(--icon-critical-base)_14%,transparent)] text-[var(--icon-critical-base)]",
       }
     if (props.status === "new")
       return {
         label: language.t("knowledge.eval.diffNewCase"),
-        cls: "bg-[color-mix(in_srgb,#3b82f6_14%,transparent)] text-[#2563eb]",
+        cls: "bg-[color-mix(in_srgb,var(--icon-info-base)_14%,transparent)] text-[var(--icon-info-base)]",
       }
     if (props.status === "removed")
       return { label: language.t("knowledge.eval.diffRemovedCase"), cls: "bg-surface text-foreground-subtle" }

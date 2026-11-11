@@ -1,15 +1,8 @@
-/**
- * 厂商品牌色。
- *
- * 供应商图标都是 `fill="currentColor"`，之前统一用界面前景色，
- * 一眼看过去分不清是哪家。这里按图标 id 给出品牌主色：
- *
- * - 只给**有明确品牌色**的厂商，其余（通用占位 `synthetic`、不确定的）不设，
- *   继续用界面前景色，避免"为了好看而猜错颜色"。
- * - 色值取各家 Logo 的主色，深色主题下也够亮（都按浅色主题可读性调过）。
- */
-export const PROVIDER_BRAND_COLORS: Record<string, string> = {
-  // 国内
+import type { HexColor } from "../../theme/types"
+
+/** Official provider hues used as seeds; resolveThemeVariant adapts them for mode contrast. */
+export const PROVIDER_BRAND_COLORS: Record<string, HexColor> = {
+  // China
   deepseek: "#4D6BFE",
   moonshotai: "#1F2937",
   "moonshotai-cn": "#1F2937",
@@ -34,7 +27,7 @@ export const PROVIDER_BRAND_COLORS: Record<string, string> = {
   sensenova: "#00A3FF",
   moark: "#3B82F6",
 
-  // 海外
+  // Global
   openai: "#10A37F",
   anthropic: "#D97757",
   google: "#4285F4",
@@ -79,22 +72,48 @@ export const PROVIDER_BRAND_COLORS: Record<string, string> = {
   morgh: "#6366F1",
 }
 
-/** 忽略大小写的查表。 */
-function lookup(id: string) {
-  if (PROVIDER_BRAND_COLORS[id]) return PROVIDER_BRAND_COLORS[id]
-  const lower = id.toLowerCase()
-  for (const [key, value] of Object.entries(PROVIDER_BRAND_COLORS)) {
-    if (key.toLowerCase() === lower) return value
-  }
-  return undefined
+export const MODEL_BRAND_COLORS: Record<string, HexColor> = {
+  sensenova: "#0EA5A4",
+  agnes: "#F59E0B",
 }
 
-/** 取厂商品牌色；没有明确品牌色时返回 undefined（由调用方决定兜底）。 */
+export const PLATFORM_BRAND_COLORS: Record<string, HexColor> = {
+  xhs: "#FF2442",
+  douyin: "#000000",
+  bilibili: "#00A1D6",
+  kwai: "#FF4906",
+  wxSph: "#07C160",
+  wxGzh: "#07C160",
+  xianyu: "#FF6A00",
+}
+
+/** Resolve a model family id to its theme-adaptive color token. */
+export function modelBrandColor(id: string): string {
+  return `var(--model-brand-${id}, var(--icon-interactive-base))`
+}
+
+/** Resolve a platform id to its mode-adaptive CSS color variable. */
+export function platformBrandColor(id: string): string {
+  return `var(--platform-brand-${id}, var(--icon-interactive-base))`
+}
+
+/** Resolve a foreground color with sufficient contrast against a platform brand surface. */
+export function platformBrandForegroundColor(id: string): string {
+  return `var(--platform-brand-${id}-foreground, var(--text-on-interactive-base))`
+}
+
+/** Resolve a provider id to its mode-adaptive CSS variable. */
 export function providerBrandColor(id: string | undefined): string | undefined {
   if (!id) return undefined
+  const lookup = (value: string) => {
+    if (PROVIDER_BRAND_COLORS[value]) return value
+    const lower = value.toLowerCase()
+    return Object.keys(PROVIDER_BRAND_COLORS).find((key) => key.toLowerCase() === lower)
+  }
+
   const direct = lookup(id)
-  if (direct) return direct
-  // coding-plan / -cn 之类的变体：去掉后缀再试一次。
-  const base = id.replace(/-(coding-plan|cn|go|agent)$/g, "")
-  return base === id ? undefined : lookup(base)
+  if (direct) return `var(--provider-brand-${direct}, var(--icon-interactive-base))`
+  const base = id.replace(/-(coding-plan|cn|go|agent)$/gi, "")
+  const resolved = base === id ? undefined : lookup(base)
+  return resolved ? `var(--provider-brand-${resolved}, var(--icon-interactive-base))` : undefined
 }

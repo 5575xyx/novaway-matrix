@@ -5,6 +5,35 @@ type WatcherEvent = {
   properties: unknown
 }
 
+export function nextMediaRevision(current: number, isOpenMedia: boolean) {
+  return isOpenMedia ? current + 1 : current
+}
+
+export function isPreviewRefreshPath(
+  path: string,
+  isOffice: (path: string) => unknown,
+  isImage: (path: string) => boolean,
+) {
+  return isOffice(path) || isImage(path)
+}
+
+export function nextPreviewRevision(current: number, isOpenPreview: boolean) {
+  return isOpenPreview ? current + 1 : current
+}
+
+export function shouldReloadOfficePreview(input: {
+  target?: string
+  livePath?: string
+  watcherRevision: number
+  previousWatcherRevision?: number
+}) {
+  if (!input.target) return false
+  return (
+    input.livePath === input.target ||
+    (input.previousWatcherRevision !== undefined && input.watcherRevision !== input.previousWatcherRevision)
+  )
+}
+
 type WatcherOps = {
   normalize: (input: string) => string
   hasFile: (path: string) => boolean

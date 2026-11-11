@@ -2,10 +2,10 @@ import type { Component } from "solid-js"
 import type { AppModeConfig } from "@/context/layout"
 
 export const modeGradient = (mode: AppModeConfig) =>
-  `linear-gradient(135deg, ${mode.color}, color-mix(in srgb, ${mode.color} 28%, #06111f) 58%, color-mix(in srgb, ${mode.color} 16%, #ffffff))`
+  `linear-gradient(135deg, ${mode.color}, color-mix(in srgb, ${mode.color} 72%, var(--background-base)) 58%, color-mix(in srgb, ${mode.color} 84%, var(--surface)))`
 
 export const modeGlow = (mode: AppModeConfig) =>
-  `0 10px 32px color-mix(in srgb, ${mode.color} 32%, transparent), inset 0 0 0 1px color-mix(in srgb, #ffffff 32%, transparent)`
+  `0 10px 32px color-mix(in srgb, ${mode.color} 32%, transparent), inset 0 0 0 1px color-mix(in srgb, ${mode.foreground} 32%, transparent)`
 
 export const ModeGlyph: Component<{ mode: AppModeConfig; class?: string }> = (props) => {
   const common = {
@@ -99,15 +99,23 @@ export const ModeGlyph: Component<{ mode: AppModeConfig; class?: string }> = (pr
 
 export const ModeBadge: Component<{ mode: AppModeConfig; compact?: boolean; soft?: boolean }> = (props) => (
   <span
-    class="relative grid place-items-center overflow-hidden text-white"
+    class="relative grid place-items-center overflow-hidden"
     classList={{
       "size-10 rounded-[14px]": !props.compact,
       "size-8 rounded-[11px]": props.compact,
-      "shadow-[0_10px_32px_rgba(0,0,0,0.22)]": !props.soft,
     }}
-    style={{ background: modeGradient(props.mode), "box-shadow": props.soft ? undefined : modeGlow(props.mode) }}
+    style={{
+      background: modeGradient(props.mode),
+      color: props.mode.foreground,
+      "box-shadow": props.soft ? undefined : modeGlow(props.mode),
+    }}
   >
-    <span class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.45),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.18),transparent)]" />
+    <span
+      class="absolute inset-0"
+      style={{
+        background: `radial-gradient(circle at 30% 20%, color-mix(in srgb, ${props.mode.foreground} 45%, transparent), transparent 28%), linear-gradient(180deg, color-mix(in srgb, ${props.mode.foreground} 18%, transparent), transparent)`,
+      }}
+    />
     <ModeGlyph mode={props.mode} class={props.compact ? "relative size-4.5" : "relative size-5.5"} />
   </span>
 )

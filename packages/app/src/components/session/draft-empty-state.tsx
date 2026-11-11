@@ -1,7 +1,6 @@
 /**
  * 草稿态空位：巨大的品牌水印 + 一句居中的问候。
  *
- * 一比一复刻 ZCode 的 `v4/ConversationDraftEmptyState.tsx`：
  * - 水印只做氛围，`aria-hidden` + `pointer-events-none`，不参与布局，也不吃点击；
  * - 字号不是写死的：先按 30px 量一次自然宽度，再和容器可用宽度比较，
  *   只在两者真的相撞时往下缩（20px 兜底），避免大窗口里文字两侧留白却仍被强行缩小；
@@ -110,7 +109,7 @@ export function DraftEmptyState(props: { class?: string }) {
         >
           {greeting()}
         </span>
-        <span>{greeting()}</span>
+        <span class="draft-greeting-text">{greeting()}</span>
       </p>
     </div>
   )

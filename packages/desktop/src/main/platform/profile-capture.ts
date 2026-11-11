@@ -43,7 +43,17 @@ const NICK_KEYS = [
   "authorName",
   "name",
 ]
-const AVATAR_KEYS = ["avatar", "avatarUrl", "headimg", "head_img", "headImgUrl", "headImg", "face", "imageb", "avatar_url"]
+const AVATAR_KEYS = [
+  "avatar",
+  "avatarUrl",
+  "headimg",
+  "head_img",
+  "headImgUrl",
+  "headImg",
+  "face",
+  "imageb",
+  "avatar_url",
+]
 const UID_KEYS = ["uid", "user_id", "userId", "sec_uid", "secUid", "mid", "uniqId", "fakeid", "authorId"]
 
 /**
@@ -146,7 +156,10 @@ export function buildCaptureScript(hints: CaptureHints) {
 export async function capturePageProfile(win: BrowserWindow, hints: CaptureHints = {}): Promise<PageProfile> {
   if (win.isDestroyed()) return EMPTY
   try {
-    const result = (await win.webContents.executeJavaScript(buildCaptureScript(hints), true)) as Partial<PageProfile> | null
+    const result = (await win.webContents.executeJavaScript(
+      buildCaptureScript(hints),
+      true,
+    )) as Partial<PageProfile> | null
     return {
       uid: (result?.uid ?? "").trim(),
       nickname: (result?.nickname ?? "").trim(),

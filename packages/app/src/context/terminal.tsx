@@ -442,7 +442,8 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
       return entry.value
     }
 
-    const workspace = createMemo(() => loadWorkspace(params.dir!, params.id, scope()))
+    // 无项目聊天没有 :dir 路由参数，终端按 SDK 目录（global-chat）分桶。
+    const workspace = createMemo(() => loadWorkspace(params.dir ?? sdk.directory, params.id, scope()))
 
     createEffect(
       on(

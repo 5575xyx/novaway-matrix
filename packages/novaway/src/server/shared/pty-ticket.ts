@@ -14,6 +14,7 @@ export function hasPtyConnectToken(headers: Readonly<Record<string, string | und
 }
 
 const PTY_CONNECT_PATH = /^\/pty\/[^/]+\/connect$/
+const MEDIA_PREVIEW_PATH = "/file/media"
 
 // Auth middleware skips Basic Auth when this matches; the PTY connect handler
 // is then responsible for validating the ticket.
@@ -23,4 +24,8 @@ export function isPtyConnectPath(pathname: string) {
 
 export function hasPtyConnectTicketURL(url: URL) {
   return isPtyConnectPath(url.pathname) && !!url.searchParams.get(PTY_CONNECT_TICKET_QUERY)
+}
+
+export function hasMediaPreviewTicketURL(url: URL) {
+  return url.pathname === MEDIA_PREVIEW_PATH && !!url.searchParams.get(PTY_CONNECT_TICKET_QUERY)
 }

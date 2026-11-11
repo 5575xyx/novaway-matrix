@@ -160,7 +160,9 @@ await Bun.build({
   outdir: "./dist/node",
   format: "esm",
   sourcemap: "linked",
-  external: ["jsonc-parser", "@lydell/node-pty"],
+  // 位图渲染（PNG 导出）走 pdf.js + 原生 canvas：两者都很大/带原生扩展，
+  // 交给运行时的 node_modules（desktop 的 dependencies 里也登记了同样的版本）。
+  external: ["jsonc-parser", "@lydell/node-pty", "pdfjs-dist", "@napi-rs/canvas"],
   plugins: [chromiumBidiCjsStubPlugin as any],
   define: {
     NOVAWAY_MODELS_DEV: generated.modelsData,

@@ -1,10 +1,10 @@
-# 生产级对齐方案：内核对齐 cc，桌面端对齐 ZCode
+# 生产级对齐方案：内核对齐 cc，桌面端对齐参照产品
 
 > 目标：把 NovaWay 打造成**生产级可用的 AI 编程 / 办公 Agent**。
-> 方法：内核参考 cc（Claude Code 恢复版）的**行为语义与工程约束**；桌面端参考 ZCode 的**信息架构、交互模式与视觉系统**。
+> 方法：内核参考 cc（Claude Code 恢复版）的**行为语义与工程约束**；桌面端借鉴参照产品的**信息架构、交互模式与视觉系统**。
 > 边界：只吸收模式与契约，不复制源码、提示词、常量或品牌资产。cc 的授权状态不明确，按 clean-room 处理。
 >
-> 评估快照：2026-10-27。上游证据来自 ZCode `main` 源码压缩包与 cc 本地源码；NovaWay 证据来自本仓库当前工作树。
+> 评估快照：2026-10-27。上游证据来自参照产品 `main` 源码压缩包与 cc 本地源码；NovaWay 证据来自本仓库当前工作树。
 
 ---
 
@@ -16,7 +16,7 @@
    - 权限只有“规则求值 + 模式”，缺规则来源分层、拒绝追踪、shadowed rule 提示、审计与异步审批；
    - 压缩有实现，但缺统一 compact boundary、microcompact、reactive compact 与 UI 投影；
    - 任务 / 子 Agent 有工具，但没有统一 Task Registry 与状态机来驱动 UI、恢复和取消。
-3. **桌面端和 ZCode 的差距主要在“最后一公里”。** 我们已经吸收了 `text-ui-*` 字号体系、A1 卡片语言、TurnFold、Turn Navigator、状态面板、Side Pane 多标签、queue/guide、工作区圆角等模式。还缺：
+3. **桌面端和参照产品的差距主要在“最后一公里”。** 我们已经吸收了 `text-ui-*` 字号体系、A1 卡片语言、TurnFold、Turn Navigator、状态面板、Side Pane 多标签、queue/guide、工作区圆角等模式。还缺：
    - Command Center（`Cmd+K`）的范围页签、最近变更、最近任务与稳定行身份；
    - Side Pane 完整视图（`⇧⌘F`）与浮动输入；
    - 严格快捷键内核（IME / repeat / `event.code` / 冲突检测 / 录制）；
@@ -34,7 +34,7 @@
    8. 建**生产级门禁**：golden transcript、权限矩阵、崩溃恢复、性能预算、三平台 e2e。
 5. **投入估算**：内核 12–18 人周，桌面端 10–16 人周，生产级门禁 4–6 人周；A/B 类合计 **26–40 人周**。2–3 人并行约 **10–14 周**。只做 P0/P1 的话，**5–7 周**可以形成可发布版本。
 6. **但这只到 L1（内部日用），不等于“生产级可用”。** 本文的 A/B 解决“主路径闭环 + 交互完成度”；生产事故主要来自另外六类：模型在真实任务上的表现、外部输入与执行边界、分发链路、诊断能力、差异化管道可靠性、数据耐久。这六类见配套文档 `docs/production-readiness-gates.md`（C1–C7），另需 **16–26 人周**，达到 L2 约需 8–10 周（3 人），达到 L3 约需 14–19 周。
-7. **不要做的事**：不要引入 cc 的遥测 / GrowthBook / OAuth / remote session / teleport / bridge / marketplace / 自动更新后端；不要引入 ZCode 的云端套餐、手机远控、bot、官方市场等产品面；不要为了“架构漂亮”把 3k 行组件拆成 30 层抽象。
+7. **不要做的事**：不要引入 cc 的遥测 / GrowthBook / OAuth / remote session / teleport / bridge / marketplace / 自动更新后端；不要引入参照产品的云端套餐、手机远控、bot、官方市场等产品面；不要为了“架构漂亮”把 3k 行组件拆成 30 层抽象。
 
 ---
 
@@ -55,7 +55,7 @@
 
 ### 1.2 法务与 clean-room
 
-- **ZCode**：Apache-2.0。可以借鉴架构与交互，复制代码时需保留 NOTICE / 第三方声明。本文建议只吸收模式，不直接搬运组件。
+- **参照产品**：Apache-2.0。可以借鉴架构与交互，复制代码时需保留 NOTICE / 第三方声明。本文建议只吸收模式，不直接搬运组件。
 - **cc**：恢复版源码，授权状态不明确。**只参考行为、状态机、错误语义和测试思路；不复制源码、提示词、常量、品牌文案。** 需要时由未接触 cc 源码的人按行为规格重写。
 - **本文档本身**：只记录“要做什么、验收什么”，不嵌入上游大段实现。
 
@@ -82,7 +82,7 @@
 | 子 Agent | task / task_status / task_stop / team / mailbox；后台任务与 worktree 隔离                                                                                            | `packages/novaway/src/tool/agent_task.ts`、`team/*`                                       |
 | 对外接口 | HttpApi 300+ 端点 / 42 组；ACP；headless server；JS SDK                                                                                                              | `server/routes/instance/httpapi/groups/*`、`acp/*`、`cli/cmd/serve.ts`、`packages/sdk/js` |
 | 桌面端   | SolidJS + Vite；会话时间线、Side Pane、状态面板、Composer、Git、终端、Office 预览                                                                                    | `packages/app/src/pages/session/*`                                                        |
-| 设计系统 | `text-ui-*` 字号、语义色、A1 卡片、ZCode 风格圆角与面板                                                                                                              | `packages/app/src/index.css`、`utils/workspace-chrome.ts`、`packages/ui`                  |
+| 设计系统 | `text-ui-*` 字号、语义色、A1 卡片、参照产品风格圆角与面板                                                                                                              | `packages/app/src/index.css`、`utils/workspace-chrome.ts`、`packages/ui`                  |
 | 测试     | 后端 366 文件；前端 124 文件；Playwright e2e                                                                                                                         | `packages/novaway/test`、`packages/app`                                                   |
 
 ### 2.2 cc 内核的强项
@@ -100,7 +100,7 @@
 | 错误与重试      | 错误分类、Retry-After、fallback model、thinking block 清理                                                                               | 已有骨架，补 fallback 与分类     |
 | 测试            | cassette、golden、权限矩阵、跨平台                                                                                                       | 学方法，不抄实现                 |
 
-### 2.3 ZCode 桌面端的强项
+### 2.3 参照桌面端的强项
 
 | 强项           | 具体表现                                                                                                  | 决策                      |
 | -------------- | --------------------------------------------------------------------------------------------------------- | ------------------------- |
@@ -126,7 +126,7 @@
 - 桌面桌宠、通知、TUI、本地优先 / 隐私。
 - 多入口一致：TUI / Web / Desktop / SDK / ACP。
 
-> 对齐策略：**内核语义向 cc 收敛，桌面交互向 ZCode 收敛，产品能力保持 NovaWay 自己的路线。** 不把 NovaWay 变成 Claude Code 或 ZCode 的皮肤。
+> 对齐策略：**内核语义向 cc 收敛，桌面交互向参照产品收敛，产品能力保持 NovaWay 自己的路线。** 不把 NovaWay 变成 Claude Code 或参照产品的皮肤。
 
 ---
 
@@ -154,7 +154,7 @@
 
 ### 3.2 桌面端对比
 
-| 能力           | ZCode                                  | NovaWay                                    | 差距 | 决策       |
+| 能力           | 参照产品                               | NovaWay                                    | 差距 | 决策       |
 | -------------- | -------------------------------------- | ------------------------------------------ | ---- | ---------- |
 | 壳层           | ● 三段式 + 可拖拽 + 自动收起           | ◐ 三段式 + ResizeHandle，自动收起不全      | 小   | 补         |
 | 侧栏           | ● 三视图 + running-layer + 未读 + 分页 | ◐ tasks/tree 两视图 + 置顶/归档/重命名     | 中   | P1         |
@@ -182,7 +182,7 @@
 - 品牌与文案：Claude / Anthropic 品牌、系统提示词、帮助文案。
 - 恢复版源码本身：授权不明，禁止复制。
 
-**ZCode 不要照搬**
+**参照产品不要照搬**
 
 - 云端 coding plan、手机远控、bot、官方市场、账号体系（除非产品明确要做）。
 - 为每个功能建 CONTRACT.md 的重流程；我们只对“跨进程 / 跨入口 / 单一写入口”建契约。
@@ -597,13 +597,13 @@
 
 ---
 
-## 5. 汲取清单 B：桌面端（from ZCode）
+## 5. 汲取清单 B：桌面端（来自参照产品）
 
 > 原则：**token 优先、单一状态源、契约只给跨入口能力。** 不照搬 React 组件，按 SolidJS 重画。
 
 ### B1. 设计系统治理：token、字号、圆角、间距、动效
 
-**ZCode 的强项**：`text-ui-*` 动态字号只改 `--ui-font-size`；语义色分层；圆角按嵌套层级递减；4px 间距；克制动效；a11y / i18n 写进规范。
+**参照产品的强项**：`text-ui-*` 动态字号只改 `--ui-font-size`；语义色分层；圆角按嵌套层级递减；4px 间距；克制动效；a11y / i18n 写进规范。
 
 **我们的现状**：`packages/app/src/index.css` 已有 `--font-size-ui-*`，组件已大量使用 `text-ui-*`；`workspace-chrome.ts` 已按平台给面板圆角；但仍存在任意 px、任意色、任意圆角。
 
@@ -639,7 +639,7 @@
 
 ### B2. 工作区壳层：三段式、可拖拽、自动收起
 
-**ZCode 的强项**：侧栏固定 264px；Header 只属于右侧；上层会话 + Browser；底部终端横跨；4px 间隙；侧栏显隐入口挂在外层 shell；macOS 红绿灯安全区；拖拽 / 键盘 / `aria-valuemin` 共享最小宽度。
+**参照产品的强项**：侧栏固定 264px；Header 只属于右侧；上层会话 + Browser；底部终端横跨；4px 间隙；侧栏显隐入口挂在外层 shell；macOS 红绿灯安全区；拖拽 / 键盘 / `aria-valuemin` 共享最小宽度。
 
 **我们的现状**：`pages/layout.tsx` + `ResizeHandle` + `sidePane` 已有多面板；`workspace-chrome.ts` 已按平台给圆角；但侧栏收起入口、自动收起阈值、键盘拖拽需要统一。
 
@@ -674,7 +674,7 @@
 
 ### B3. 侧栏信息架构：项目 / 任务、三视图、running-layer
 
-**ZCode 的强项**：workspace → task 两级；projects / grouped / timeline 三视图；running-layer 排序（预热 / 运行 / 后台优先，再按 createdAt）；未读；置顶 / 归档 / 移动；每项目 5 条分页；右键菜单；项目文件树入口；新根目录信任确认。
+**参照产品的强项**：workspace → task 两级；projects / grouped / timeline 三视图；running-layer 排序（预热 / 运行 / 后台优先，再按 createdAt）；未读；置顶 / 归档 / 移动；每项目 5 条分页；右键菜单；项目文件树入口；新根目录信任确认。
 
 **我们的现状**：`sidebar-tasks.tsx` 有任务列表、过滤、置顶、归档、重命名、子会话；`sidebar-items.tsx` 有会话项；`sidebar-files.tsx` 有文件树；但只有 tasks / tree 两视图，没有 grouped / timeline / running-layer / 分页。
 
@@ -716,7 +716,7 @@
 
 ### B4. Composer：分区工具条、渐进折叠、模式菜单
 
-**ZCode 的强项**：左侧模型 / 思考 / 用量；右侧停止 / 发送；底部模式切换 + CUA + 后台任务；`data-composer-collapse-priority` 按优先级渐进折叠；`@container/composer`；模式菜单 = Plan 复选框 + 权限单选 + 描述；占位符区分新任务 / 追问 / 排队 / “工作中 N 秒”。
+**参照产品的强项**：左侧模型 / 思考 / 用量；右侧停止 / 发送；底部模式切换 + CUA + 后台任务；`data-composer-collapse-priority` 按优先级渐进折叠；`@container/composer`；模式菜单 = Plan 复选框 + 权限单选 + 描述；占位符区分新任务 / 追问 / 排队 / “工作中 N 秒”。
 
 **我们的现状**：`prompt-input.tsx` 已有模型、权限、思考、停止、发送、`data-action`、shell 模式、附件、@ 文件、slash；`session-composer-region.tsx` 有 followup dock / permission dock / question dock / revert dock；但折叠策略、模式菜单描述、占位符状态还不完整。
 
@@ -763,7 +763,7 @@
 
 ### B5. 时间线：轮次渲染单元、work segment、虚拟滚动
 
-**ZCode 的强项**：flat rows → 视觉轮次单元；work segment；运行中显示“工作中 N 秒”，结束后折叠“已工作 N 秒”；运行 / 中断 / 失败强制展开；`/compact` 只显示模型侧；每行动作独立；虚拟滚动带行高缓存、底部钉住、prepend 锚点、会话滚动记忆。
+**参照产品的强项**：flat rows → 视觉轮次单元；work segment；运行中显示“工作中 N 秒”，结束后折叠“已工作 N 秒”；运行 / 中断 / 失败强制展开；`/compact` 只显示模型侧；每行动作独立；虚拟滚动带行高缓存、底部钉住、prepend 锚点、会话滚动记忆。
 
 **我们的现状**：`message-timeline.data.ts` 已有 `TimelineRow`、`TurnFold`、`TodoSection`、`TodoOverview`；`message-timeline.tsx` 用 `virtua`、`TurnNavigator`、`TurnFold`；但轮次模型、work segment、强制展开、compact 展示还可以统一。
 
@@ -804,7 +804,7 @@
 
 ### B6. 工具渲染器注册表与分组
 
-**ZCode 的强项**：按工具家族注册渲染器；未知工具有 fallback；内联 diff；execute 输出分组；changes 分组；子 Agent 下钻；todo 分组；CUA 分组；只读工具可合并。
+**参照产品的强项**：按工具家族注册渲染器；未知工具有 fallback；内联 diff；execute 输出分组；changes 分组；子 Agent 下钻；todo 分组；CUA 分组；只读工具可合并。
 
 **我们的现状**：`packages/ui/src/components/message-part.tsx` 约 2971 行，`switch (tool)` 覆盖 read / list / glob / grep / webfetch / websearch / task / bash / edit / write / apply_patch / todowrite / question / skill；有 `ContextToolGroup`；但缺注册表、display 投影、未知工具 fallback 的统一策略。
 
@@ -841,7 +841,7 @@
 
 ### B7. 状态面板：section 契约与运行态
 
-**ZCode 的强项**：section 有 `hasContent`；运行中才显示进度；首次出现自动展开一次；todo 聚焦窗口（3 条）；超过 6 条折叠；运行中子 Agent 可取消；结束态不残留。
+**参照产品的强项**：section 有 `hasContent`；运行中才显示进度；首次出现自动展开一次；todo 聚焦窗口（3 条）；超过 6 条折叠；运行中子 Agent 可取消；结束态不残留。
 
 **我们的现状**：`status-panel/status-panel.tsx` 已有 `visibleStatusSections`、`ALWAYS_VISIBLE_SECTIONS`、`AUTO_EXPAND_SECTIONS`、宽度容器查询、摘要胶囊；sections 包括 git / todo / background / agents / plan-approval / hooks / temp-files；已有模型单测。差距是 section 契约、todo 聚焦、结束态清理。
 
@@ -883,7 +883,7 @@
 
 ### B8. Side Pane：多标签、完整视图、浮动输入
 
-**ZCode 的强项**：`tabs + activeTabId`；Diff 单例；Browser 多实例；Code Viewer 按 `sourceKey` 复用；按 `workspaceKey + ownerTaskId` 归属；最近关闭；拖拽排序；中键关闭；完整视图 `⇧⌘F`；浮动单行输入 + 吸附位置 + 最小化圆球；单 SessionPane 实例。
+**参照产品的强项**：`tabs + activeTabId`；Diff 单例；Browser 多实例；Code Viewer 按 `sourceKey` 复用；按 `workspaceKey + ownerTaskId` 归属；最近关闭；拖拽排序；中键关闭；完整视图 `⇧⌘F`；浮动单行输入 + 吸附位置 + 最小化圆球；单 SessionPane 实例。
 
 **我们的现状**：`session-side-panel.tsx` 已有 `Tabs`、`SortableProvider`、动态 tab（subagent / sideChat / background）、内置 preview / browser / terminal / review、拖拽、关闭、`+` 菜单；`layout.tsx` 已持久化 `tabs / activeTab / dynamic`；但缺完整视图、最近关闭、tab 总览、owner 归属契约。
 
@@ -929,7 +929,7 @@
 
 ### B9. Command Center：`Cmd+K`、范围、最近变更
 
-**ZCode 的强项**：`Cmd/Ctrl+K`；默认展示最近变更 / 最近任务 / 命令分组；All / Actions / Tasks / Files 范围 tabs；`>` / `#` / `@` 前缀；命令分组 Suggested / Chat / Navigation / Panels / Configure / App；稳定行身份；搜索历史。
+**参照产品的强项**：`Cmd/Ctrl+K`；默认展示最近变更 / 最近任务 / 命令分组；All / Actions / Tasks / Files 范围 tabs；`>` / `#` / `@` 前缀；命令分组 Suggested / Chat / Navigation / Panels / Configure / App；稳定行身份；搜索历史。
 
 **我们的现状**：`dialog-select-file.tsx` 已把 command / file / session 混合在一个列表；空搜索显示常用命令 + 最近文件；输入后搜命令 + 会话 + 文件；默认快捷键 `mod+shift+p`；缺范围 tabs、最近变更、分组稳定身份、`Cmd+K` 默认。
 
@@ -971,7 +971,7 @@
 
 ### B10. 快捷键内核：事件码、IME、冲突检测、录制
 
-**ZCode 的强项**：快捷键匹配用 `event.code` 而非 `event.key`；过滤 IME 组字与 repeat；精确修饰键；`CmdOrCtrl` 平台语义；可编辑区域守卫；录制器；冲突检测；可自定义绑定。
+**参照产品的强项**：快捷键匹配用 `event.code` 而非 `event.key`；过滤 IME 组字与 repeat；精确修饰键；`CmdOrCtrl` 平台语义；可编辑区域守卫；录制器；冲突检测；可自定义绑定。
 
 **我们的现状**：`context/command.tsx` 用 `event.key` + 修饰键签名；有 `parseKeybind` / `matchKeybind` / 冲突告警较弱；没有 IME / repeat 过滤；没有录制器与冲突面板。
 
@@ -1015,7 +1015,7 @@
 
 ### B11. 设置 IA：侧栏导航、搜索、两栏 provider
 
-**ZCode 的强项**：设置侧栏导航 + 搜索；模型 provider 两栏；自动化 / hooks / MCP / plugins / skills / subagents 分区；稳定标题；长文案可扩展。
+**参照产品的强项**：设置侧栏导航 + 搜索；模型 provider 两栏；自动化 / hooks / MCP / plugins / skills / subagents 分区；稳定标题；长文案可扩展。
 
 **我们的现状**：`dialog-settings.tsx` 用 Tabs，包含通用 / 桌宠 / 通知 / 供应商 / 浏览器 / 电脑 / 快捷键 / Agent / 插件 / MCP / 技能 / 命令 / 规则 / 用量；`settings-*` 组件较多；没有设置搜索。
 
@@ -1044,7 +1044,7 @@
 
 ### B12. 文件树、终端、Git：工作区工具补齐
 
-**ZCode 的强项**：文件树带 Git 状态、粘性文件夹、搜索 worker；终端 tab 按 workspace 保活；Git graph / 分支切换 / 操作菜单 / 自动刷新。
+**参照产品的强项**：文件树带 Git 状态、粘性文件夹、搜索 worker；终端 tab 按 workspace 保活；Git graph / 分支切换 / 操作菜单 / 自动刷新。
 
 **我们的现状**：`sidebar-files.tsx` 有文件树；`terminal-panel.tsx` 有终端；`git-panel.tsx` / `git-graph.tsx` 有 Git；`file-tabs.tsx` 有文件标签；但文件搜索、终端保活、Git 自动刷新策略需要统一。
 
@@ -1087,7 +1087,7 @@
 
 ### B13. 运行时边界：身份、路径、交付模式、单一写入口
 
-**ZCode 的强项**：`workspaceIdentity` vs `workspacePath`；`workspaceKey = identity?.trim() || path`；Desktop ↔ Agent 用 stdio；一个 BrowserWindow 一个 Local Host；remote 走连接注册表；continuous vs replayable；CommandInbox 串行准入；owner / lease / stale-run 守卫；单一写入口。
+**参照产品的强项**：`workspaceIdentity` vs `workspacePath`；`workspaceKey = identity?.trim() || path`；Desktop ↔ Agent 用 stdio；一个 BrowserWindow 一个 Local Host；remote 走连接注册表；continuous vs replayable；CommandInbox 串行准入；owner / lease / stale-run 守卫；单一写入口。
 
 **我们的现状**：`context/layout.tsx` 有 `pathKey` / `sessionKey`；Side Pane 按 workspace 持久化；`session.tsx` 有 queue/guide；但缺统一文档、类型与 owner/lease 契约；桌面端 sidecar 与 Web 端的边界需要明确。
 
@@ -1131,7 +1131,7 @@
 
 ### B14. i18n 与可访问性
 
-**ZCode 的强项**：键盘导航一等公民；焦点样式统一；对比度安全；为长翻译留空间；状态不只靠颜色；图标有文本标签。
+**参照产品的强项**：键盘导航一等公民；焦点样式统一；对比度安全；为长翻译留空间；状态不只靠颜色；图标有文本标签。
 
 **我们的现状**：18 个 locale；大量 `text-ui-*`；已有 `aria-label`；但中文 / 阿拉伯语长文案、键盘导航、对比度、focus ring 需要系统审计。
 
@@ -1169,7 +1169,7 @@
 
 ### B15. 新任务、空态与引导
 
-**ZCode 的强项**：欢迎页 / 新任务 / 项目选择 / 信任确认 / 插件推荐 / 空态说明；新任务与已有任务共用 Header 骨架，用 `variant="draft"` 隐藏任务专属菜单。
+**参照产品的强项**：欢迎页 / 新任务 / 项目选择 / 信任确认 / 插件推荐 / 空态说明；新任务与已有任务共用 Header 骨架，用 `variant="draft"` 隐藏任务专属菜单。
 
 **我们的现状**：`session-new-view.tsx`、`home.tsx`、`office-home` 已有丰富空态；但新任务 / 草稿 / 项目选择的骨架与信任确认需要统一。
 
@@ -1211,7 +1211,7 @@
 | native installer 下载后端                                     | 走 npm / 桌面安装包                                       |
 | cc 的品牌、提示词、帮助文案                                   | 授权不明 + 品牌冲突                                       |
 
-### 6.2 不引入 ZCode 的产品面
+### 6.2 参照产品中不引入的产品面
 
 | 模块                                               | 为什么不做                              |
 | -------------------------------------------------- | --------------------------------------- |
@@ -1518,7 +1518,7 @@ P4 e2e / 性能 ─────> P5 发布
 - 测试：`packages/novaway/test`、`packages/app/**/*.test.*`
 - 既有评估：`docs/rust-rewrite-assessment.md`
 
-### 12.2 ZCode（评估快照，外部）
+### 12.2 参照产品（评估快照，外部）
 
 - `DESIGN.md`
 - `docs/ui/workspace-layout.md`
@@ -1535,9 +1535,9 @@ P4 e2e / 性能 ─────> P5 发布
 - `packages/ui/src/side-pane-full-view/CONTRACT.md`
 - `packages/ui/src/shortcuts/bindings.ts`
 - `packages/ui/src/v4/{ConversationComposer,ConversationStatusPanel,SessionPane,ConversationTimeline}.tsx`
-- `packages/shared/src/zcode-protocol-v4/*`
+- 参照产品的 protocol-v4 目录
 
-> 说明：以上 ZCode 文件来自评估时下载的上游源码，未纳入本仓库；实施时按 Apache-2.0 处理 NOTICE 与第三方声明。
+> 说明：以上参照产品文件来自评估时下载的上游源码，未纳入本仓库；实施时按 Apache-2.0 处理 NOTICE 与第三方声明。
 
 ### 12.3 cc（评估快照，外部）
 
@@ -1561,7 +1561,7 @@ NovaWay 已经具备“生产级 Agent”的大部分骨架，缺的不是大件
 - 桌面端：把已有的时间线 / Composer / Side Pane / 状态面板 / 设计 token 变成**完整交互**；
 - 工程：把“能跑”变成“可回归、可观测、可恢复、可发布”。
 
-建议按 P0 → P1 → P2 → P3 推进，先把 **Capabilities、权限矩阵、golden、Command Center、快捷键、compact 边界、Task Registry、Side Pane Full View** 八件事做完。这八件事完成后，NovaWay 在“内核可靠性”上接近 cc 的行为水准，在“桌面交互”上接近 ZCode 的完成度，同时保留国产模型、Office、内容发布、本地优先等差异化。
+建议按 P0 → P1 → P2 → P3 推进，先把 **Capabilities、权限矩阵、golden、Command Center、快捷键、compact 边界、Task Registry、Side Pane Full View** 八件事做完。这八件事完成后，NovaWay 在“内核可靠性”上接近 cc 的行为水准，在“桌面交互”上接近参照产品的完成度，同时保留国产模型、Office、内容发布、本地优先等差异化。
 
 这比“用 Rust 重写一遍”更快、更稳，也更符合当前产品阶段。
 

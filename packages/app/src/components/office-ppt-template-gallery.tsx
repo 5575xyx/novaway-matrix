@@ -170,7 +170,7 @@ function TemplateCard(props: {
             />
           </Show>
           <Show when={props.selected}>
-            <span class="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-emerald-500 text-white shadow">
+            <span class="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-success text-text-on-success-base shadow">
               <Icon name="check-small" size="small" />
             </span>
           </Show>
@@ -185,7 +185,7 @@ function TemplateCard(props: {
       {/* 想看完整版式再点开大图：卡片本体留给「选中」，两个动作不抢点击。 */}
       <button
         type="button"
-        class="absolute right-1.5 bottom-1.5 hidden rounded-md bg-black/70 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm group-hover:block"
+        class="absolute right-1.5 bottom-1.5 hidden rounded-md bg-[color-mix(in_srgb,var(--shadow-color)_70%,transparent)] px-2 py-1 text-[10px] font-medium text-[var(--text-invert-strong)] backdrop-blur-sm group-hover:block"
         onClick={props.onPreview}
       >
         看版式

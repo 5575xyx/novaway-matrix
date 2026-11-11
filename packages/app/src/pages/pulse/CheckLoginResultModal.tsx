@@ -3,6 +3,7 @@ import { Dialog } from "@novaway/ui/dialog"
 import { Icon } from "@novaway/ui/icon"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { PLATFORM_LIST } from "@/context/platform-accounts"
+import { PlatformIcon } from "@/components/platform-icon"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 
 export interface CheckResult {
@@ -26,11 +27,11 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
     <Dialog title="账号登录状态检测" size="large">
       <div class="p-4">
         <div class="flex items-center gap-4 mb-4">
-          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-13-medium text-emerald-600 dark:text-emerald-400">
+          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-13-medium text-icon-success-base">
             <Icon name="circle-check" size="small" />
             在线 {onlineCount()}
           </div>
-          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-13-medium text-rose-600 dark:text-rose-400">
+          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--icon-critical-base)_12%,transparent)] text-13-medium text-[var(--icon-critical-base)]">
             <Icon name="circle-x" size="small" />
             离线 {offlineCount()}
           </div>
@@ -49,9 +50,9 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
                   <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-hover transition-colors">
                     <Show
                       when={result.valid}
-                      fallback={<Icon name="circle-x" size="small" class="text-rose-500 shrink-0" />}
+                      fallback={<Icon name="circle-x" size="small" class="text-[var(--icon-critical-base)] shrink-0" />}
                     >
-                      <Icon name="circle-check" size="small" class="text-emerald-500 shrink-0" />
+                      <Icon name="circle-check" size="small" class="text-icon-success-base shrink-0" />
                     </Show>
                     <div class="size-8 rounded-full bg-background-alt flex items-center justify-center overflow-hidden shrink-0">
                       <Show
@@ -67,14 +68,19 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
                       <div class="text-13-medium text-foreground truncate">{result.nickname}</div>
                       <div class="flex items-center gap-1 mt-0.5">
                         <Show when={info()?.icon}>
-                          <img src={info()?.icon} alt="" class="size-3" />
+                          <PlatformIcon
+                            color={info()?.iconColor}
+                            markColor={info()?.iconMarkColor}
+                            svg={info()?.icon ?? ""}
+                            class="size-3"
+                          />
                         </Show>
                         <span class="text-11-regular text-foreground-subtlest">{info()?.name}</span>
                       </div>
                     </div>
                     <Show when={!result.valid}>
                       <button
-                        class="shrink-0 text-12-regular text-rose-600 dark:text-rose-400 hover:underline px-2 py-1"
+                        class="shrink-0 text-12-regular text-[var(--icon-critical-base)] hover:underline px-2 py-1"
                         onClick={() => setConfirmRemoveId(result.id)}
                       >
                         移除

@@ -40,6 +40,7 @@ export type FollowupDraft = {
   agent: string
   model: { providerID: string; modelID: string }
   variant?: string
+  goalExecution?: { goalId: string; maxIterations: number; title: string }
 }
 
 type FollowupSendInput = {
@@ -59,6 +60,16 @@ const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttac
 export async function sendFollowupDraft(input: FollowupSendInput) {
   const text = draftText(input.draft.prompt)
   const images = draftImages(input.draft.prompt)
+  const goalExecution = input.draft.goalExecution
+  if (
+    input.draft.sessionDirectory === "global-chat" &&
+    (images.length > 0 ||
+      input.draft.context.length > 0 ||
+      input.draft.syntheticText !== undefined ||
+      input.draft.prompt.some((part) => part.type !== "text"))
+  ) {
+    throw new Error("Global chat accepts only plain text messages.")
+  }
   const [, setStore] = input.globalSync.child(input.draft.sessionDirectory)
 
   const setBusy = () => {
@@ -79,7 +90,11 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
 
   const [head, ...tail] = text.split(" ")
   const cmd = head?.startsWith("/") ? head.slice(1) : undefined
-  if (cmd && input.sync.data.command.find((item) => item.name === cmd)) {
+  if (
+    input.draft.sessionDirectory !== "global-chat" &&
+    cmd &&
+    input.sync.data.command.find((item) => item.name === cmd)
+  ) {
     setBusy()
     try {
       if (!(await wait())) {
@@ -166,6 +181,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       messageID,
       parts: requestParts,
       variant: input.draft.variant,
+      ...(goalExecution ? { goalExecution } : {}),
     })
     return true
   } catch (err) {
@@ -205,6 +221,10 @@ type PromptSubmitInput = {
    * 也不用去动 local 里的角色选择 —— 那个选择属于整个工作区，不该被面板改掉。
    */
   agentOverride?: () => string | undefined
+  goalExecution?: Accessor<{ sessionID: string; goalId: string; title: string } | undefined>
+  createGoal?: (text: string) => Promise<{ goalId: string; title: string } | undefined>
+  goalMode?: Accessor<boolean>
+  goalMaxIterations?: Accessor<number>
 }
 
 type CommentItem = {
@@ -238,8 +258,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     return language.t("common.requestFailed")
   }
 
-  const abort = async () => {
-    const sessionID = params.id
+  const abort = async (targetSessionID = params.id) => {
+    const sessionID = targetSessionID
     if (!sessionID) return Promise.resolve()
 
     globalSync.todo.set(sessionID, [])
@@ -336,8 +356,11 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     const projectDirectory = sdk.directory
     const isNewSession = !params.id
+    // A new message from the workspace-free entry uses the global-create API;
+    // after creation it is an ordinary project-scoped session in its private cwd.
+    const globalChat = projectDirectory === "global-chat" && isNewSession
     const shouldAutoAccept = isNewSession && input.autoAccept()
-    const worktreeSelection = input.newSessionWorktree?.() || "main"
+    const worktreeSelection = globalChat ? "main" : input.newSessionWorktree?.() || "main"
 
     let sessionDirectory = projectDirectory
     let client = sdk.client
@@ -386,12 +409,13 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       // 新会话的团队选择先记在待定槽位，建会话时一起写进 teamMode/teamIDs ——
       // 第一条消息到达前内核就要知道该不该注入团队目录。
       const team = TeamSelection.pending(projectDirectory)
-      const created = await client.session
-        .create({
-          permissionMode: input.permissionMode(),
-          ...(team ? { teamMode: team.mode } : {}),
-          ...(team?.mode === "selected" ? { teamIDs: team.teamIDs } : {}),
-        })
+      const createInput = {
+        permissionMode: input.permissionMode(),
+        ...(team ? { teamMode: team.mode } : {}),
+        ...(team?.mode === "selected" ? { teamIDs: team.teamIDs } : {}),
+      }
+      // 不能把 SDK 方法先取出来再调用：方法体依赖 this.client，脱离接收者会直接抛错。
+      const created = await (globalChat ? client.session.globalCreate(createInput) : client.session.create(createInput))
         .then((x) => x.data ?? undefined)
         .catch((err) => {
           showToast({
@@ -413,7 +437,11 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         if (shouldAutoAccept) permission.enableAutoAccept(session.id, sessionDirectory)
         local.session.promote(sessionDirectory, session.id)
         layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
-        navigate(`/${base64Encode(sessionDirectory)}/session/${session.id}`)
+        navigate(
+          projectDirectory === "global-chat"
+            ? `/global-chat/session/${session.id}`
+            : `/${base64Encode(sessionDirectory)}/session/${session.id}`,
+        )
       }
     }
     if (!session) {
@@ -451,11 +479,25 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
     const context = prompt.context.items().slice()
+    let goalExecution = input.goalExecution?.()
+    if (input.goalMode?.() && !goalExecution) {
+      const created = await input.createGoal?.(text)
+      if (!created) return
+      goalExecution = { sessionID: session.id, ...created }
+    }
     const draft: FollowupDraft = {
       sessionID: session.id,
       sessionDirectory,
       prompt: currentPrompt,
       syntheticText,
+      goalExecution:
+        goalExecution?.sessionID === session.id
+          ? {
+              goalId: goalExecution.goalId,
+              maxIterations: input.goalMaxIterations?.() ?? 20,
+              title: goalExecution.title,
+            }
+          : undefined,
       context,
       agent,
       model,

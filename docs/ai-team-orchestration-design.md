@@ -317,15 +317,15 @@ TaskSession（任务级子会话）
 - **「跑完」「已验证交付」「已合并」分开显示**：`done` 的文案是「已验证交付」，合并状态单独一行（`未合并 / 已合并 / 合并失败`）+ 独立的合并动作；不要用一个绿色勾把三件事混成一件（§3.2）。
 - **成本分两列**：`已结算` 只统计提供方权威回报的用量；`用量不明` 按预占额保守计入额度上界，**不冒充实际花费**。超支判断看「已结算 + 用量不明 + 在途预占」之和。
 - **截断要可见**：本轮上下文有省略项时（brief 被截、验收项超条数），头部显示「上下文有 1 处截断」并可展开（§6.4）。
-> 实现注记（2026-11-01）：头部现在也会显示 `run.error`（「停下来的原因」）。接口从第一天就有这个字段，
-> 页面却从未渲染 —— 失败 / 阻塞 / 部分交付时用户只看得到状态标签。文案只有内核写下的那句总结
-> （团队 id 与原因），不含事件原文、命令或 URL。`blocked` 时主按钮是「重试」，语义见 §8.1 与 §23.4「全局阻塞」。
->
-> 更新（2026-11-03）：批准前，计划会摊开在看板上方 —— 团队（名称 / 人数 / 写入范围 / 依赖）、
-> 验收清单（命令类只显示超时，不显示命令原文）、只读与预算。没有验收标准时显式警告：
-> 这样只能「部分交付」。可就地补一条 `rubric` 验收并选择归属团队；不归属的验收只会在合并后
-> 重验，等于没验。执行中同一位置显示第几轮、任务完成数、进行中的任务与已交付团队数
-> （沿用 3 秒轮询），不展开命令或输出。
+  > 实现注记（2026-11-01）：头部现在也会显示 `run.error`（「停下来的原因」）。接口从第一天就有这个字段，
+  > 页面却从未渲染 —— 失败 / 阻塞 / 部分交付时用户只看得到状态标签。文案只有内核写下的那句总结
+  > （团队 id 与原因），不含事件原文、命令或 URL。`blocked` 时主按钮是「重试」，语义见 §8.1 与 §23.4「全局阻塞」。
+  >
+  > 更新（2026-11-03）：批准前，计划会摊开在看板上方 —— 团队（名称 / 人数 / 写入范围 / 依赖）、
+  > 验收清单（命令类只显示超时，不显示命令原文）、只读与预算。没有验收标准时显式警告：
+  > 这样只能「部分交付」。可就地补一条 `rubric` 验收并选择归属团队；不归属的验收只会在合并后
+  > 重验，等于没验。执行中同一位置显示第几轮、任务完成数、进行中的任务与已交付团队数
+  > （沿用 3 秒轮询），不展开命令或输出。
 
 ### 4.4 阻塞与权限
 
@@ -541,7 +541,6 @@ metadata: {
 - 排序必须稳定（按 `order`），不能按更新时间抖动；否则同样的输入两次运行会看到不同的上下文，行为无法复现。
 
 > 验收与证据**不放在任务 metadata 里长期保存**：它们要绑定版本、快照和验证器，字段会长得很快。任务只存引用（`acceptance_ids` / `verification_ids`），实体放独立的验证表（§5.7）。
-
 
 > 实现注记（2026-11-01）：运行里的任务板已接上。运行内创建的任务落在**这次运行的那个团队**
 > （`team_run_team.id`）上，`metadata.runID` 记下运行坐标；运行详情按团队回 `tasks`
@@ -903,11 +902,12 @@ main:  收团队 Report → 验证结果核对 → 裁决
   > **没有执行者代数校验**。单进程 + 重启恢复已经覆盖了它要防的那件事（被杀的进程不会再写）；
   > 真正需要它的是「多个实例共用一个库」，那是另一种部署形态。同进程内的并发执行由
   > `executeRun` 的在跑登记挡住（两个编排器驱动同一次运行会双倍派发、双倍记账）。
+
 - **幂等键**：`run_id + task_id + attempt + tool + 参数哈希`。
 
 > 实现注记（2026-11-01）：**团队内单写者按工作区加锁**（`src/tool/lock.ts` 的钥匙由 `op-log.lockKey()` 给出）。
 > 成员是两个会话、共用一个 worktree，按会话加锁等于没锁；现在运行内按 `runID + teamID` 加锁，运行外才退回会话。
-**「回放」与「重跑」在产品文案上必须区分**：回放只还原当时的决策链与证据，不保证重新执行会得到相同结果（模型、网络、依赖版本都可能变）。
+> **「回放」与「重跑」在产品文案上必须区分**：回放只还原当时的决策链与证据，不保证重新执行会得到相同结果（模型、网络、依赖版本都可能变）。
 
 > 实现注记（2026-11-01）：重启恢复已落地（`src/team/recovery.ts`）—— 在途操作标 `unknown`、
 > 运行置 `paused` / `needs_review`、未完成团队退回排队；账本**不**在恢复时结算。
@@ -935,33 +935,34 @@ DAG 依赖关系不够用：上游返工改了接口，下游基于旧接口的�
 
 放在内核 `src/team/orchestrator.ts`（新增），职责只有「不变量」，不生成内容：
 
-| 责任     | 说明                                                                                                |
-| -------- | --------------------------------------------------------------------------------------------------- |
-| 循环     | 团队内轮次、主→队长轮次、DAG 依赖推进                                                               |
-| 预算     | 调用前原子预占、调用后结算；超预占即拒绝发起调用                                                    |
-| 尝试     | 维护共享的 `attempts.business` / `formatRetry`；换人与新一轮都不重置                                |
-| 超时     | 每个任务带 `deadline`，超时归为 `failed(blocker=timeout)`                                           |
+| 责任 | 说明                                                                 |
+| ---- | -------------------------------------------------------------------- |
+| 循环 | 团队内轮次、主→队长轮次、DAG 依赖推进                                |
+| 预算 | 调用前原子预占、调用后结算；超预占即拒绝发起调用                     |
+| 尝试 | 维护共享的 `attempts.business` / `formatRetry`；换人与新一轮都不重置 |
+| 超时 | 每个任务带 `deadline`，超时归为 `failed(blocker=timeout)`            |
 
 > 实现注记（2026-11-01）：超时与「原因不被吞」一起落地（`src/team/failure.ts` + 调度器的 `settleVerify`）。
 > 派发与验证都套了零进展上限（默认 30 分钟 / 10 分钟，可用 `experimental.team_call_timeout_ms` 调整）：
 > 超时的团队记 `failed` 且裁决是 `timeout`，超时的验证记 `unverified`（验证器版本 `verifier-timeout`），**都不是 `fail`**。
 > 失败原因现在带结构化 `kind`（`format / timeout / permission / provider / commit / verifier / unknown`），
 > 但 `message` 仍是当时那句原文 —— 分类不是改写。
-| 取消     | 三段式（停止派发 → 中断回收 → 记录影响）                                                            |
-| 幂等     | 幂等键 + 检查点 + 租约 epoch                                                                        |
-| 持久化   | 状态与事件同事务写；不可变事件日志                                                                  |
-| 验证     | 只执行受控验证配置；绑定代码快照；记录验证器版本                                                    |
-| 并发     | worktree 分配、团队内单写者、集成串行队列                                                           |
-| 路由校验 | `assignee` 必须在 `roster_snapshot` 内；Auto 模式还需 `can_auto_dispatch`；同岗位多人必须显式指定人 |
-| 寻址失败 | 快照里的成员已被归档 / 删除时，**整轮派发失败并列出问题成员**；不跳过、不静默改派给别人             |
-| 失效传播 | 上游产物版本变化 → 标记下游结果 `stale`                                                             |
+> | 取消 | 三段式（停止派发 → 中断回收 → 记录影响） |
+> | 幂等 | 幂等键 + 检查点 + 租约 epoch |
+> | 持久化 | 状态与事件同事务写；不可变事件日志 |
+> | 验证 | 只执行受控验证配置；绑定代码快照；记录验证器版本 |
+> | 并发 | worktree 分配、团队内单写者、集成串行队列 |
+> | 路由校验 | `assignee` 必须在 `roster_snapshot` 内；Auto 模式还需 `can_auto_dispatch`；同岗位多人必须显式指定人 |
+> | 寻址失败 | 快照里的成员已被归档 / 删除时，**整轮派发失败并列出问题成员**；不跳过、不静默改派给别人 |
+> | 失效传播 | 上游产物版本变化 → 标记下游结果 `stale` |
 
 LLM 参与点仅四处：主智能体出 Plan、队长拆解 / 裁决、成员执行、verifier 裁决。其余全是确定性代码。
 
 > 实现注记（2026-11-01）：路由校验的「寻址失败」一行已落地（`src/team/roster.ts` 的 `problems()`
-> + 调度器的 `addressing` 钩子）。两处需要记住的口径：**员工只归档、不物理删除**，所以「库里查不到」
-> 只可能是临时团队的会话成员，不判定为缺失；**「整轮」按该团队的这一轮派发理解**，健康的团队照常交付
-> （与 §4.4 一致）。细节见 §23.4「派发前对账」。
+>
+> - 调度器的 `addressing` 钩子）。两处需要记住的口径：**员工只归档、不物理删除**，所以「库里查不到」
+>   只可能是临时团队的会话成员，不判定为缺失；**「整轮」按该团队的这一轮派发理解**，健康的团队照常交付
+>   （与 §4.4 一致）。细节见 §23.4「派发前对账」。
 
 **一条硬规则（来自 §24.2 ① 的反面教训）：内核里不允许出现「屏障」类对象。**
 
@@ -1034,6 +1035,7 @@ LLM 参与点仅四处：主智能体出 Plan、队长拆解 / 裁决、成员�
 > 派发时随坐标登记给队长与成员，工具入口按「写到哪里」判定：`write` / `edit` / `notebook_edit` 看 `filePath`，
 > `apply_patch` / `patch` 解析补丁头里的文件。**只拦写**：审查要读遍全仓，读不在「范围」要防的范围内。
 > 边界与只读策略是同一处：`bash` / `powershell` 看不到文件目标，范围对它们无效，写风险由权限系统与操作日志兜底。
+
 - **放宽只能由人做，而且要重新批准。** 缺省 `readOnly: true`；`POST /run/:runID/policy`
   是唯一的切换入口，且只在批准前或批准后还没开工（`running` 且没有 `phase`）时可用。
   切换本身递增 `planVersion`、把运行放回 `awaiting_approval` —— 旧批准随之作废，用户要按
@@ -1122,8 +1124,8 @@ LLM 参与点仅四处：主智能体出 Plan、队长拆解 / 裁决、成员�
 | POST        | `/team/mission/:id/runs`   | 在该目标下再发起一次运行（复用同一 worktree 与 `baseSHA`）                                          |
 | GET         | `/team/employee`           | 员工库（人）：名字、岗位、覆盖项、归档状态；归档的也在列表里（`archived: true`）                    |
 | POST        | `/team/employee`           | 新建员工（人）：`name + job` 必填，`model/skills/prompt/tier` 可选                                  |
-| PATCH       | `/team/employee/:id`       | 改名 / 换岗位 / 改覆盖项 / 归档；空串或空数组是清空，省略是不改（生成 SDK 里没有 `null`）            |
-| GET         | `/team/employee/:id/usage` | 这个人在各 run 的用量与未归属部分（事实数据，不做排名；口径见 §23.4「按人计量」）                  |
+| PATCH       | `/team/employee/:id`       | 改名 / 换岗位 / 改覆盖项 / 归档；空串或空数组是清空，省略是不改（生成 SDK 里没有 `null`）           |
+| GET         | `/team/employee/:id/usage` | 这个人在各 run 的用量与未归属部分（事实数据，不做排名；口径见 §23.4「按人计量」）                   |
 | GET / PATCH | `/config`                  | 总控开关、默认模式与默认名单、并发上限（`experimental.team_*`，项目级配置）                         |
 
 **实现注记（2026-10-31）：这张表是早期草案，以生成 SDK / OpenAPI 为准。**
@@ -1725,21 +1727,21 @@ P1 的第一批代码已落地并通过类型检查与测试。为免文档与�
 
 **已实现**
 
-| 文件                                     | 内容                                                                             | 与设计对应   |
-| ---------------------------------------- | -------------------------------------------------------------------------------- | ------------ |
-| `src/team/run.sql.ts` + 迁移 `20261029…` | 员工、编制、运行、运行团队、事件、验收、验证、操作日志、账本共 9 张表            | §5           |
-| `src/team/run.ts`                        | 运行状态机（`TRANSITIONS`）、事件只追加、`planVersion` 递增、批准绑定版本与预算  | §5.3 / §13   |
-| `src/team/verification.ts`               | 纯函数 `summarize`：缺失→`unverified`、快照不符→`stale`，两者都计入 `unresolved` | §6.2 / §19.2 |
-| `src/team/ledger.ts`                     | 预占 → 结算 → 释放；承诺量 = `reserved + settled + unknown`；超发记 `overrun`    | §7.1 / §5.9  |
-| `src/team/op-log.ts`                     | 幂等键唯一索引、replay 语义、`started → unknown → needs_review`                  | §8.5         |
-| `src/team/task-board.ts`                 | 任务板注入的纯函数：视角过滤、稳定顺序、双上限截断、内容签名（§23.4 有口径）     | §5.5         |
+| 文件                                     | 内容                                                                                     | 与设计对应   |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- | ------------ |
+| `src/team/run.sql.ts` + 迁移 `20261029…` | 员工、编制、运行、运行团队、事件、验收、验证、操作日志、账本共 9 张表                    | §5           |
+| `src/team/run.ts`                        | 运行状态机（`TRANSITIONS`）、事件只追加、`planVersion` 递增、批准绑定版本与预算          | §5.3 / §13   |
+| `src/team/verification.ts`               | 纯函数 `summarize`：缺失→`unverified`、快照不符→`stale`，两者都计入 `unresolved`         | §6.2 / §19.2 |
+| `src/team/ledger.ts`                     | 预占 → 结算 → 释放；承诺量 = `reserved + settled + unknown`；超发记 `overrun`            | §7.1 / §5.9  |
+| `src/team/op-log.ts`                     | 幂等键唯一索引、replay 语义、`started → unknown → needs_review`                          | §8.5         |
+| `src/team/task-board.ts`                 | 任务板注入的纯函数：视角过滤、稳定顺序、双上限截断、内容签名（§23.4 有口径）             | §5.5         |
 | `src/team/checkpoint.ts`                 | 复用 `session_checkpoint`，用 `team-run:<runID>` 标签记任务/步骤指针（**未接线**，见下） | §8.5         |
-| `src/team/economy.ts`                    | 分档规则与违规自检；已接线：调度器按改动事实分档并落库（见 §23.4「验证分档」） | §19.1        |
-| `src/team/orchestrator.ts`               | 派发→验证→判定→打回循环、共享尝试计数、合并快照重验、三段式取消、预算超限        | §8.2 / §8.4  |
-| `groups/run.ts` + `handlers/run.ts`      | `/run` 创建、计划、批准、执行、取消、事件；队长与验证器各用**独立子会话**        | §13          |
-| `src/team/op-log.ts` 的坐标登记          | 子会话 → `{runID, taskID, attempt}`，工具漏斗据此算幂等键                        | §8.5         |
-| `test/team/*.test.ts`                    | 覆盖「不折叠」「不超支」「不重跑」「不假完成」「可取消」「可重放」「不隔目录」   | §17 / §21.3  |
-| `test/server/httpapi-team.test.ts`       | 生产路由树上的接口契约：目标、目录作用域、合并拒绝原因                           | §21.3        |
+| `src/team/economy.ts`                    | 分档规则与违规自检；已接线：调度器按改动事实分档并落库（见 §23.4「验证分档」）           | §19.1        |
+| `src/team/orchestrator.ts`               | 派发→验证→判定→打回循环、共享尝试计数、合并快照重验、三段式取消、预算超限                | §8.2 / §8.4  |
+| `groups/run.ts` + `handlers/run.ts`      | `/run` 创建、计划、批准、执行、取消、事件；队长与验证器各用**独立子会话**                | §13          |
+| `src/team/op-log.ts` 的坐标登记          | 子会话 → `{runID, taskID, attempt}`，工具漏斗据此算幂等键                                | §8.5         |
+| `test/team/*.test.ts`                    | 覆盖「不折叠」「不超支」「不重跑」「不假完成」「可取消」「可重放」「不隔目录」           | §17 / §21.3  |
+| `test/server/httpapi-team.test.ts`       | 生产路由树上的接口契约：目标、目录作用域、合并拒绝原因                                   | §21.3        |
 
 **与设计不一致（以代码为准，并说明取舍）**
 
@@ -1815,13 +1817,13 @@ P1 的第一批代码已落地并通过类型检查与测试。为免文档与�
 
 **内置代码审查模板（2026-10-30 追加，§4.5 / §5.2）**
 
-| 文件                             | 内容                                                                                                                 |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `src/team/profile.ts`            | 模板的种子 / 列表 / 名册 / 快照 / 新建 / 删除；内置「代码审查团队」= 1 名队长 + 4 名不同角度成员                     |
+| 文件                             | 内容                                                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/team/profile.ts`            | 模板的种子 / 列表 / 名册 / 快照 / 新建 / 删除；内置「代码审查团队」= 1 名队长 + 4 名不同角度成员                                                |
 | `groups/profile.ts`              | `GET /team/profile`、`GET /team/profile/:id`、`POST /team/profile`、`PATCH /team/profile/:id`、`DELETE /team/profile/:id`、`GET /team/employee` |
-| `handlers/profile.ts`            | 组初始化时执行一次幂等种子（已有就跳过，不覆盖用户编辑）；新建模板校验队长必须在名册里                               |
-| `handlers/run.ts` 的 `profileID` | 建运行时把名册复制进 `roster_snapshot` 并写 `plan.created`；队长与验收归属都从快照解析                               |
-| `test/team/profile.test.ts`      | 种子只落一份、快照是深拷贝、未知模板返回 `undefined`、新建时队长被正确标记                                           |
+| `handlers/profile.ts`            | 组初始化时执行一次幂等种子（已有就跳过，不覆盖用户编辑）；新建模板校验队长必须在名册里                                                          |
+| `handlers/run.ts` 的 `profileID` | 建运行时把名册复制进 `roster_snapshot` 并写 `plan.created`；队长与验收归属都从快照解析                                                          |
+| `test/team/profile.test.ts`      | 种子只落一份、快照是深拷贝、未知模板返回 `undefined`、新建时队长被正确标记                                                                      |
 
 「复制而不是绑定」是这段代码唯一重要的语义：运行一旦创建，就不再读模板表。之后改名、换人、
 调岗位都只影响**下一次**运行；历史运行仍能按快照解释自己当时用了谁。内置模板的
@@ -2013,17 +2015,17 @@ P1 一直写着「只读审查」，但此前只读只是一句提示词：子�
 上一节的第三条边界有两种修法：把账本按人拆，或者另开一条只回答「谁做的」的数据源。
 选了后者 —— 账本按团队结算（预算需要它），归属写在会话行上。
 
-| 位置                              | 改动                                                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `session` 表 + 迁移               | 新增 `employee_id`、`run_id`（都可空）与两个索引                                                       |
-| `Session.Info`                    | 两个可选字段；建会话的第二个参数（`Attribution`）只在内部传，HTTP 建会话接口没有这个参数               |
-| `agent-step.ts` 的 `makeRunAgent` | 显式员工优先，否则继承父会话；`runID` 取自派发坐标                                                    |
-| `handlers/run.ts` 的队长派发      | 名册队长与实际派发的队长一致时才写入 `employeeID` —— 临时换人不能把账挂回原队长                        |
-| `tool/task.ts`                    | 队长派给成员时按 `name` 唯一匹配名册姓名；成员自己派生的子代理只继承、不重新指认                       |
-| `team/identity.ts`                | `identify()` 纯函数：继承 / 唯一指认 / 指认不出来就是空                                                |
-| `team/employee-usage.ts`          | `summarize()` 纯函数 + `of()`：按人、按运行汇总，未归属单列                                             |
-| `GET /team/employee/:id/usage`    | `totals` / `runs` / `unattributed` / `outsideRuns`；员工库每行显示「累计 tokens · N 次运行」            |
-| `test/tool/task-attribution.test.ts` | 具名派发记到那个人；未具名派发保持未归属；成员的助手继承成员                                            |
+| 位置                                 | 改动                                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `session` 表 + 迁移                  | 新增 `employee_id`、`run_id`（都可空）与两个索引                                             |
+| `Session.Info`                       | 两个可选字段；建会话的第二个参数（`Attribution`）只在内部传，HTTP 建会话接口没有这个参数     |
+| `agent-step.ts` 的 `makeRunAgent`    | 显式员工优先，否则继承父会话；`runID` 取自派发坐标                                           |
+| `handlers/run.ts` 的队长派发         | 名册队长与实际派发的队长一致时才写入 `employeeID` —— 临时换人不能把账挂回原队长              |
+| `tool/task.ts`                       | 队长派给成员时按 `name` 唯一匹配名册姓名；成员自己派生的子代理只继承、不重新指认             |
+| `team/identity.ts`                   | `identify()` 纯函数：继承 / 唯一指认 / 指认不出来就是空                                      |
+| `team/employee-usage.ts`             | `summarize()` 纯函数 + `of()`：按人、按运行汇总，未归属单列                                  |
+| `GET /team/employee/:id/usage`       | `totals` / `runs` / `unattributed` / `outsideRuns`；员工库每行显示「累计 tokens · N 次运行」 |
+| `test/tool/task-attribution.test.ts` | 具名派发记到那个人；未具名派发保持未归属；成员的助手继承成员                                 |
 
 四条边界：
 
@@ -2477,13 +2479,13 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
 模板此前只能建和删：想换个人、改个名都得重建一份，历史运行因此对不上「同一个模板的第几版」。
 这一刀补上 `PATCH /team/profile/:profileID`：
 
-| 文件                              | 内容                                                                       |
-| --------------------------------- | -------------------------------------------------------------------------- |
-| `src/team/profile.ts` 的 `update` | 改名 / 描述 / 换队长 / 整表替换名册 / 自动可调度；事务里改模板行与编制行   |
-| `groups/profile.ts`               | `ProfileUpdatePayload` 与 `PATCH /team/profile/:profileID`                 |
-| `handlers/profile.ts`             | 队长必须在生效名册里、名册不许重复、名字与队长不许变空（400 / 404）        |
-| `test/team/profile.test.ts`       | 版本语义、整表替换、只换队长、空补丁、快照不受影响                         |
-| `test/server/httpapi-team.test.ts`| 三个连续修改、版本递增、四类拒绝（空名 / 未知队长 / 重复成员 / 不存在）    |
+| 文件                               | 内容                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `src/team/profile.ts` 的 `update`  | 改名 / 描述 / 换队长 / 整表替换名册 / 自动可调度；事务里改模板行与编制行 |
+| `groups/profile.ts`                | `ProfileUpdatePayload` 与 `PATCH /team/profile/:profileID`               |
+| `handlers/profile.ts`              | 队长必须在生效名册里、名册不许重复、名字与队长不许变空（400 / 404）      |
+| `test/team/profile.test.ts`        | 版本语义、整表替换、只换队长、空补丁、快照不受影响                       |
+| `test/server/httpapi-team.test.ts` | 三个连续修改、版本递增、四类拒绝（空名 / 未知队长 / 重复成员 / 不存在）  |
 
 五条边界：
 
@@ -2506,11 +2508,11 @@ DAG 的依赖只说「谁在谁之后」，不够：上游返工改了产物，�
 接口有了，界面上也得能用。团队页左栏在「AI 员工」下面单独一行放「团队模板（n）」，
 对话框里做完整的三件事：建、改、删。
 
-| 位置                              | 内容                                                                         |
-| --------------------------------- | ---------------------------------------------------------------------------- |
-| `pages/team.tsx` 的 `DialogProfiles` | 列表（名称 / 版本 / 人数 / 可 Auto 标签）、行内编辑、删除二次确认             |
-| 同一对话框的表单                   | 名称、描述、员工勾选 + 每人职责、队长下拉（只列已勾选的人）                   |
-| `pages/run.tsx`                    | 「用模板发起」加模板下拉：多份模板时不再静默取第一份                          |
+| 位置                                        | 内容                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| `pages/team.tsx` 的 `DialogProfiles`        | 列表（名称 / 版本 / 人数 / 可 Auto 标签）、行内编辑、删除二次确认 |
+| 同一对话框的表单                            | 名称、描述、员工勾选 + 每人职责、队长下拉（只列已勾选的人）       |
+| `pages/run.tsx`                             | 「用模板发起」加模板下拉：多份模板时不再静默取第一份              |
 | i18n `team.profiles.*` / `run.new.template` | 中英文案                                                          |
 
 四个刻意的选择：
@@ -2530,12 +2532,12 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 在那之前先得保证**数字不能被讲歪**：同一批任务里，「团队更快地失败」不能被算成效率，
 没有提供方回报的用量不能被估算成 0，部分覆盖不能被展示成完整账单。这一刀只做工具：
 
-| 文件                                  | 内容                                                                 |
-| ------------------------------------- | -------------------------------------------------------------------- |
+| 文件                                  | 内容                                                                   |
+| ------------------------------------- | ---------------------------------------------------------------------- |
 | `src/team/experiment.ts`              | 纯函数：把每个任务判进五档分层；只在 `both_pass` 里算团队相对 B 的差值 |
 | `script/experiment.ts`                | JSONL → 报表：分层、逐任务差值、覆盖率；记录错误直接非 0 退出          |
 | `test/team/experiment.test.ts`        | 五档分层、未知不折算、只在可比层比成本、覆盖率、拒绝脏记录             |
-| `package.json` 的 `experiment:report` | `bun run experiment:report <records.jsonl>`                          |
+| `package.json` 的 `experiment:report` | `bun run experiment:report <records.jsonl>`                            |
 
 四条边界：
 
@@ -2555,19 +2557,19 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 
 > 现实状态：目前没有任何真实对照实验数据。这份工具让「跑完实验后怎么记账」有了唯一答案，
 > 但它不构成 §17 的证据；P4 仍然等真实任务、真实模型与人工盲评。
-**运行指标（2026-10-31 追加，§12）**
+> **运行指标（2026-10-31 追加，§12）**
 
 §12 把指标列成「本地统计，不做遥测上报」，但此前只有逐次运行的数字，没有汇总。
 现在补上 `GET /run/metrics` 与运行页左栏的「指标」面板：
 
-| 文件                       | 内容                                                                       |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `src/team/metrics.ts`      | 纯函数：状态分布、用量、轮次、驳回 TopN、派发失败率、阻塞率、算不出来的项   |
-| `groups/run.ts`            | `RunMetricsQuery`（目录 / 团队 / `limit`）与 `RunMetricsView`               |
-| `handlers/run.ts`          | 取样最近 N 次运行（默认 30、最多 100），逐次读事件流与账本交给纯函数汇总    |
-| `orchestrator.ts`          | `team.rework` 事件新增结构化 `failed: [{ text, outcome }]`                  |
-| `pages/run.tsx`            | 左栏底部「指标」折叠面板：展开才拉，15 秒慢轮询（不跟看板的 3 秒走）        |
-| `test/team/metrics.test.ts`| 未知不折算、结构化原因回退、分母为零不给率、覆盖率、拒绝畸形用量、成本只算有回报的 |
+| 文件                        | 内容                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| `src/team/metrics.ts`       | 纯函数：状态分布、用量、轮次、驳回 TopN、派发失败率、阻塞率、算不出来的项          |
+| `groups/run.ts`             | `RunMetricsQuery`（目录 / 团队 / `limit`）与 `RunMetricsView`                      |
+| `handlers/run.ts`           | 取样最近 N 次运行（默认 30、最多 100），逐次读事件流与账本交给纯函数汇总           |
+| `orchestrator.ts`           | `team.rework` 事件新增结构化 `failed: [{ text, outcome }]`                         |
+| `pages/run.tsx`             | 左栏底部「指标」折叠面板：展开才拉，15 秒慢轮询（不跟看板的 3 秒走）               |
+| `test/team/metrics.test.ts` | 未知不折算、结构化原因回退、分母为零不给率、覆盖率、拒绝畸形用量、成本只算有回报的 |
 
 七条口径（每条都能在代码里指到）：
 
@@ -2602,10 +2604,10 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 在请求里被收下、存进 `run.budget`、随详情返回，**从来没有被检查过** —— 设了墙钟的用户
 以为自己有时间上限，其实没有。
 
-| 文件                  | 内容                                                                 |
-| --------------------- | -------------------------------------------------------------------- |
+| 文件                       | 内容                                                             |
+| -------------------------- | ---------------------------------------------------------------- |
 | `src/team/orchestrator.ts` | 每次执行记 `wallStart`；轮次开始前、每批派发前检查 `overWall()`  |
-| `pages/run.tsx`       | 「新建运行」增加墙钟输入（分钟，0 = 不限），换算成 `wallMs` 下发     |
+| `pages/run.tsx`            | 「新建运行」增加墙钟输入（分钟，0 = 不限），换算成 `wallMs` 下发 |
 
 五条口径：
 
@@ -2628,13 +2630,13 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 `budget.cost` 之前和墙钟一样是「收下就存」：请求里能写、详情里能看，但没有任何代码读它。
 用户设了成本上限，以为能兜底，其实一分钱都兜不住 —— 账本的 `settled_cost` 列也从来没有写过值。
 
-| 文件                       | 内容                                                                 |
-| -------------------------- | -------------------------------------------------------------------- |
-| `src/team/ledger.ts`       | `settle/record` 收 `cost`；`Entry.settledCost`、`Usage.settledCost`  |
+| 文件                       | 内容                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `src/team/ledger.ts`       | `settle/record` 收 `cost`；`Entry.settledCost`、`Usage.settledCost`              |
 | `src/team/orchestrator.ts` | `limitHit()`：墙钟与成本共用「只停新派发」的检查；`budget.exceeded` 写明是哪一条 |
-| `handlers/run.ts`          | 派发 / 验证 / 合并验收把 `RunAgentUsage.cost` 一路带到结算           |
-| `groups/run.ts`            | `RunUsageView.cost`（可选：老运行没有这项，不编造 0）                 |
-| `pages/run.tsx`            | 新建运行加「成本上限」，用量行显示「已结算成本」                     |
+| `handlers/run.ts`          | 派发 / 验证 / 合并验收把 `RunAgentUsage.cost` 一路带到结算                       |
+| `groups/run.ts`            | `RunUsageView.cost`（可选：老运行没有这项，不编造 0）                            |
+| `pages/run.tsx`            | 新建运行加「成本上限」，用量行显示「已结算成本」                                 |
 
 五条口径：
 
@@ -2656,10 +2658,10 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 成员把它花完，验证那几笔就只能越过上限 —— 账面上「预算 100k」实际花到 110k。
 验证不在派发的预占里，但它确实花钱，所以这份预留必须从**派发额度**里扣。
 
-| 文件                       | 内容                                                       |
-| -------------------------- | ---------------------------------------------------------- |
-| `src/team/orchestrator.ts` | `DISPATCH_SHARE = 0.85`；只有 `reserve()` 用收紧后的额度  |
-| `test/team/orchestrator.test.ts` | 批准 100、每批 50：第二个团队放不下，终态 `exceeded` |
+| 文件                             | 内容                                                     |
+| -------------------------------- | -------------------------------------------------------- |
+| `src/team/orchestrator.ts`       | `DISPATCH_SHARE = 0.85`；只有 `reserve()` 用收紧后的额度 |
+| `test/team/orchestrator.test.ts` | 批准 100、每批 50：第二个团队放不下，终态 `exceeded`     |
 
 四条口径：
 
@@ -2678,14 +2680,14 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 也要起一个子会话去读输出、再回答 pass/fail。既慢又贵，而且「模型觉得过了」与「真的过了」是两件事。
 现在命令类验收直接跑命令，退出码就是结论。
 
-| 文件                                        | 内容                                                          |
-| ------------------------------------------- | ------------------------------------------------------------- |
-| `src/team/command-verifier.ts`              | `normalize()` / `interpret()` / `execute()`：退出码、超时、行数 |
-| `migration/20261101000000_team_verification_reused` | `team_verification.reused`                            |
-| `src/team/verification.ts`                  | `reusable()`（同快照同版本的确定结论）与 `record({ reused })`  |
-| `handlers/run.ts`                           | `commandVerify()`：团队验收与合并验收都先看有没有命令          |
-| `groups/run.ts`                             | `RunAcceptancePayload.verifier`、`RunAcceptanceView.verifier`（不含原文）、`RunVerificationView.reused` |
-| `pages/run.tsx`                             | 「加一条命令类验收」表单；验收行标「命令验收 · 超时 Ns」，证据行标「复用同快照结果」 |
+| 文件                                                | 内容                                                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `src/team/command-verifier.ts`                      | `normalize()` / `interpret()` / `execute()`：退出码、超时、行数                                         |
+| `migration/20261101000000_team_verification_reused` | `team_verification.reused`                                                                              |
+| `src/team/verification.ts`                          | `reusable()`（同快照同版本的确定结论）与 `record({ reused })`                                           |
+| `handlers/run.ts`                                   | `commandVerify()`：团队验收与合并验收都先看有没有命令                                                   |
+| `groups/run.ts`                                     | `RunAcceptancePayload.verifier`、`RunAcceptanceView.verifier`（不含原文）、`RunVerificationView.reused` |
+| `pages/run.tsx`                                     | 「加一条命令类验收」表单；验收行标「命令验收 · 超时 Ns」，证据行标「复用同快照结果」                    |
 
 七条口径：
 
@@ -2712,14 +2714,14 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 此前 `economy.ts` 里有规则、有单测，但没有任何调用方：看板上每条验收都是同一套验证开销，
 用户看不出「这一条为什么值得跑全量」。现在档位由调度器在验证前判定，并随结论一起落库。
 
-| 文件                                                     | 内容                                                              |
-| -------------------------------------------------------- | ----------------------------------------------------------------- |
-| `src/team/economy.ts`                                    | `classify()` 增加「没有命令的 test 不能是轻档」；新增 `moduleRoots()` / `crossModule()` / `irreversibleChange()` |
-| `src/team/worktree.ts`                                   | `changedFiles()`（不截断的改动清单，未跟踪目录按文件展开）、`affectedTests()`（同目录 / `test/` 镜像；单包与 `<pkg>/src/ → <pkg>/test/` 都认） |
-| `src/team/structure.ts`                                  | 轻档结构校验：`path:line` 提取、文件存在性、`diff` 证据必须落在本轮改动里 |
-| `migration/20261102000002_team_verification_tier`        | `team_verification.tier / tier_reason`                             |
-| `handlers/run.ts`                                        | `tierOf()`：从 worktree 起点提交与改动清单算事实；`verify` 在轻档改走结构校验；合并验收固定重档 |
-| `groups/run.ts` / `pages/run.tsx`                        | `RunVerificationView.tier / tierReason`、`RunSummaryLine.tier`，验收行显示「轻档 / 中档 / 重档」 |
+| 文件                                              | 内容                                                                                                                                           |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/team/economy.ts`                             | `classify()` 增加「没有命令的 test 不能是轻档」；新增 `moduleRoots()` / `crossModule()` / `irreversibleChange()`                               |
+| `src/team/worktree.ts`                            | `changedFiles()`（不截断的改动清单，未跟踪目录按文件展开）、`affectedTests()`（同目录 / `test/` 镜像；单包与 `<pkg>/src/ → <pkg>/test/` 都认） |
+| `src/team/structure.ts`                           | 轻档结构校验：`path:line` 提取、文件存在性、`diff` 证据必须落在本轮改动里                                                                      |
+| `migration/20261102000002_team_verification_tier` | `team_verification.tier / tier_reason`                                                                                                         |
+| `handlers/run.ts`                                 | `tierOf()`：从 worktree 起点提交与改动清单算事实；`verify` 在轻档改走结构校验；合并验收固定重档                                                |
+| `groups/run.ts` / `pages/run.tsx`                 | `RunVerificationView.tier / tierReason`、`RunSummaryLine.tier`，验收行显示「轻档 / 中档 / 重档」                                               |
 
 五条口径：
 
@@ -2739,12 +2741,12 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 于是看板上它永远「正在跑」，点「执行」又被拒绝（`canStart` 看到过期的 `phase`），谁也续不上；
 工具操作停在 `started`，`needs_review` 永远是空的 —— G3 要的答案「这个工具到底执行了没有」，没人给。
 
-| 文件                       | 内容                                                                 |
-| -------------------------- | -------------------------------------------------------------------- |
-| `src/team/recovery.ts`     | `recover({ since, directory })`：标 unknown → 恢复状态 → 退回排队 → 记事件 |
-| `handlers/run.ts`          | 列表 / 详情 / 执行三处入口各恢复一次（每个工作区一次）；详情回 `needsReview` |
-| `groups/run.ts`            | `RunUnknownOpView`（只含工具名、结果、任务、会话、开始时间）           |
-| `pages/run.tsx`            | 「N 项工具操作结果不明」面板；`paused` 的按钮文案改成「继续」         |
+| 文件                   | 内容                                                                         |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `src/team/recovery.ts` | `recover({ since, directory })`：标 unknown → 恢复状态 → 退回排队 → 记事件   |
+| `handlers/run.ts`      | 列表 / 详情 / 执行三处入口各恢复一次（每个工作区一次）；详情回 `needsReview` |
+| `groups/run.ts`        | `RunUnknownOpView`（只含工具名、结果、任务、会话、开始时间）                 |
+| `pages/run.tsx`        | 「N 项工具操作结果不明」面板；`paused` 的按钮文案改成「继续」                |
 
 五条口径：
 
@@ -2767,13 +2769,13 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 于是「这个工具到底执行了没有」在系统里永远没有答案 —— 运行既不能续跑（未知项挡着），
 也不能完成，最后只剩取消一条路。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `src/team/op-log.ts` | `review()`：只能复核 `started` / `unknown`；`abandoned` 让 `begin()` 重置为 `started` 后重试 |
-| `src/session/tool-op.ts` | 重放判定认 `abandoned`：人的结论才允许同一个键再跑一次 |
-| `handlers/run.ts` | `POST /run/:id/ops/:opID/review`；执行入口对未知项一律拒绝；最后一项复核完回到 `paused` |
-| `pages/run.tsx` | 每一行两个结论按钮（执行了 / 没执行）；未知项没清空前不显示「继续」 |
-| `test/server/httpapi-team-run-restart.test.ts` | `paused` 续跑真能跑完；复核前 400、复核后 `paused`、`abandoned` 的那次写真的重试了 |
+| 文件                                           | 内容                                                                                         |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `src/team/op-log.ts`                           | `review()`：只能复核 `started` / `unknown`；`abandoned` 让 `begin()` 重置为 `started` 后重试 |
+| `src/session/tool-op.ts`                       | 重放判定认 `abandoned`：人的结论才允许同一个键再跑一次                                       |
+| `handlers/run.ts`                              | `POST /run/:id/ops/:opID/review`；执行入口对未知项一律拒绝；最后一项复核完回到 `paused`      |
+| `pages/run.tsx`                                | 每一行两个结论按钮（执行了 / 没执行）；未知项没清空前不显示「继续」                          |
+| `test/server/httpapi-team-run-restart.test.ts` | `paused` 续跑真能跑完；复核前 400、复核后 `paused`、`abandoned` 的那次写真的重试了           |
 
 三条口径：
 
@@ -2790,13 +2792,13 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 看板刷新之后就答不上「这次运行合没合」。重复点「合并」时 `git merge` 在「已经包含」的情况下返回 0，
 界面于是把上一次的动作再说一遍，还配一个不对应任何新动作的 sha。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `src/team/run.sql.ts` + 迁移 `20261102000000_team_run_merge_state` | `merge_state`（默认 `unmerged`）与 `merged_at` |
-| `src/team/run.ts` | `MergeState` 类型；`update()` 接受 `mergeState` / `mergedAt` |
-| `groups/run.ts` / `handlers/run.ts` | `RunView` 暴露两个字段；合并成功置 `merged`，冲突 / 脏工作区 / 失败置 `merge_failed`；已合并时直接回 `alreadyMerged` |
-| `pages/run.tsx` | 头部单独一颗合并状态标签；合过之后「合并」按钮消失，下一步提示改成「已合进你的分支」 |
-| `test/server/httpapi-team-run-merge.test.ts` | 跑完仍 `unmerged` → 合并后 `merged` + `mergedAt` → 再点返回 `alreadyMerged` 且 HEAD 不变 |
+| 文件                                                               | 内容                                                                                                                 |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `src/team/run.sql.ts` + 迁移 `20261102000000_team_run_merge_state` | `merge_state`（默认 `unmerged`）与 `merged_at`                                                                       |
+| `src/team/run.ts`                                                  | `MergeState` 类型；`update()` 接受 `mergeState` / `mergedAt`                                                         |
+| `groups/run.ts` / `handlers/run.ts`                                | `RunView` 暴露两个字段；合并成功置 `merged`，冲突 / 脏工作区 / 失败置 `merge_failed`；已合并时直接回 `alreadyMerged` |
+| `pages/run.tsx`                                                    | 头部单独一颗合并状态标签；合过之后「合并」按钮消失，下一步提示改成「已合进你的分支」                                 |
+| `test/server/httpapi-team-run-merge.test.ts`                       | 跑完仍 `unmerged` → 合并后 `merged` + `mergedAt` → 再点返回 `alreadyMerged` 且 HEAD 不变                             |
 
 三条口径：
 
@@ -2813,11 +2815,11 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 `appendEvent`。中间崩溃就会留下「状态变了、事件没写」的运行：恢复逻辑读的是状态与团队阶段，
 没有事件就只能猜它为什么停在那里。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `src/team/run.ts` | `appendEventTx()`：在调用方事务里读 seq、写事件；`update()` / `updateTeam()` 接受可选 `event`，与状态 / 阶段一次提交 |
-| `src/team/orchestrator.ts` | 派发、失败、超时、交付、返工、失效、冲突退回等「阶段 + 事件」成对写入合并为一次调用 |
-| `test/team/run-state.test.ts` | 状态与事由序号连续；阶段事件落在正确的 run 上；事件写失败（JSON 列写不进 BigInt）时状态回滚 |
+| 文件                          | 内容                                                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `src/team/run.ts`             | `appendEventTx()`：在调用方事务里读 seq、写事件；`update()` / `updateTeam()` 接受可选 `event`，与状态 / 阶段一次提交 |
+| `src/team/orchestrator.ts`    | 派发、失败、超时、交付、返工、失效、冲突退回等「阶段 + 事件」成对写入合并为一次调用                                  |
+| `test/team/run-state.test.ts` | 状态与事由序号连续；阶段事件落在正确的 run 上；事件写失败（JSON 列写不进 BigInt）时状态回滚                          |
 
 四条口径：
 
@@ -2833,10 +2835,10 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 `RunTeamView.dependsOn` 后端一直返回，界面从未显示。于是看板上看不出「还剩多少额度」，
 也看不出「这个团队在等谁」。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `groups/run.ts` / `handlers/run.ts` | `RunView` 补 `startedAt` / `endedAt` |
-| `pages/run.tsx` | 头部预算标签（已结算 + 用量不明 + 在途预占 / 上限）、墙钟标签；团队标签追加「依赖 #n」 |
+| 文件                                | 内容                                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------------------- |
+| `groups/run.ts` / `handlers/run.ts` | `RunView` 补 `startedAt` / `endedAt`                                                   |
+| `pages/run.tsx`                     | 头部预算标签（已结算 + 用量不明 + 在途预占 / 上限）、墙钟标签；团队标签追加「依赖 #n」 |
 
 三条口径：
 
@@ -2850,14 +2852,14 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 「这条为什么没过、该怎么改」。实现里只有实测值：验证器回答 `fail` 后，打回意见只写着
 「未达标：<验收>（fail：实测）」，队长与用户都得自己猜下一步。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `src/team/verifier.ts` | 验证提示要求 `fail` 时给出 `suggestion`；`interpret()` 读回并去掉空白项 |
-| `src/team/verification.ts` + 迁移 `20261102000001_team_verification_suggestion` | 验证记录多一列 `suggestion`，入库与读取都脱敏 |
-| `src/team/orchestrator.ts` | `VerificationResult` 透传建议；打回意见追加「建议：…」；事件只记 `hasSuggestion` |
-| `groups/run.ts` / `handlers/run.ts` | `RunVerificationView` / `RunSummaryLine` 暴露 `suggestion` |
-| `pages/run.tsx` | 验收行与证据行显示「建议：…」 |
-| `test/team/verifier.test.ts` / `verification-store.test.ts` | 空白建议不冒充建议；`pass` 不产出建议；建议能随汇总行读回 |
+| 文件                                                                            | 内容                                                                             |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `src/team/verifier.ts`                                                          | 验证提示要求 `fail` 时给出 `suggestion`；`interpret()` 读回并去掉空白项          |
+| `src/team/verification.ts` + 迁移 `20261102000001_team_verification_suggestion` | 验证记录多一列 `suggestion`，入库与读取都脱敏                                    |
+| `src/team/orchestrator.ts`                                                      | `VerificationResult` 透传建议；打回意见追加「建议：…」；事件只记 `hasSuggestion` |
+| `groups/run.ts` / `handlers/run.ts`                                             | `RunVerificationView` / `RunSummaryLine` 暴露 `suggestion`                       |
+| `pages/run.tsx`                                                                 | 验收行与证据行显示「建议：…」                                                    |
+| `test/team/verifier.test.ts` / `verification-store.test.ts`                     | 空白建议不冒充建议；`pass` 不产出建议；建议能随汇总行读回                        |
 
 三条口径：
 
@@ -2871,13 +2873,13 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 此前的看板只有一句「现在该做什么」：它解决了「卡住了」，但没解决「这件事一共几步、我走到哪了」。
 新用户最常误解的两件事恰好都在流程上：**创建 ≠ 开始跑**，**跑完 ≠ 已合并**。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `components/run-guide.tsx` | 步骤条：做完打勾、当前高亮、点开看这一步在做什么 |
-| `components/run-guide.steps.ts` | `guideStates()`：五步状态由运行状态、验收项、是否有可合并分支推导 |
-| `pages/run.tsx` | 看板顶部把「步骤条 + 现在该做什么 + 主按钮」放在同一张卡；空状态与新建表单各有一份三步清单 |
-| `i18n/zh.ts` / `en.ts` | `run.guide.*`、`run.empty.step1..3`、`run.new.step1..3` |
-| `components/run-guide.steps.test.ts` | 各状态的步骤序列、失败/取消标「需要你处理」、无分支不出现合并步 |
+| 文件                                 | 内容                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `components/run-guide.tsx`           | 步骤条：做完打勾、当前高亮、点开看这一步在做什么                                           |
+| `components/run-guide.steps.ts`      | `guideStates()`：五步状态由运行状态、验收项、是否有可合并分支推导                          |
+| `pages/run.tsx`                      | 看板顶部把「步骤条 + 现在该做什么 + 主按钮」放在同一张卡；空状态与新建表单各有一份三步清单 |
+| `i18n/zh.ts` / `en.ts`               | `run.guide.*`、`run.empty.step1..3`、`run.new.step1..3`                                    |
+| `components/run-guide.steps.test.ts` | 各状态的步骤序列、失败/取消标「需要你处理」、无分支不出现合并步                            |
 
 五条口径：
 
@@ -2896,14 +2898,14 @@ P4（Auto 与组织管理）的放行条件是「对照实验显示收益足以�
 LangGraph Studio 都把「此刻在做什么」放在主视图：用户不该先读日志才知道系统还在动。
 看板此前只有一个批准按钮和一堆事后证据，正好缺这两块。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `components/run-plan-review.tsx` | 批准前摊开团队、验收、授权与预算；可就地补一条验收并选归属 |
-| `components/run-live.tsx` | 执行中：轮次、阶段、任务完成数、进行中的任务、已交付团队数 |
-| `components/run-live.logic.ts` | `summarizeLive()`：任务状态计数与当前任务筛选，纯函数 |
-| `pages/run.tsx` | 顶部「下一步」卡内渲染计划预览 / 实时进度；团队标签改用模板名与中文阶段 |
-| `i18n/zh.ts` / `en.ts` | `run.plan.*`、`run.live.*`、`run.team.phase.*` |
-| `components/run-live.logic.test.ts` | 失败不并进完成、空任务不画满进度条、最多显示三条当前任务 |
+| 文件                                | 内容                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------- |
+| `components/run-plan-review.tsx`    | 批准前摊开团队、验收、授权与预算；可就地补一条验收并选归属              |
+| `components/run-live.tsx`           | 执行中：轮次、阶段、任务完成数、进行中的任务、已交付团队数              |
+| `components/run-live.logic.ts`      | `summarizeLive()`：任务状态计数与当前任务筛选，纯函数                   |
+| `pages/run.tsx`                     | 顶部「下一步」卡内渲染计划预览 / 实时进度；团队标签改用模板名与中文阶段 |
+| `i18n/zh.ts` / `en.ts`              | `run.plan.*`、`run.live.*`、`run.team.phase.*`                          |
+| `components/run-live.logic.test.ts` | 失败不并进完成、空任务不画满进度条、最多显示三条当前任务                |
 
 四条口径：
 
@@ -2921,13 +2923,13 @@ LangGraph Studio 都把「此刻在做什么」放在主视图：用户不该先
 团队页原来的主视图是一条群聊 + 成员列表 + 任务清单 + 运行历史，回答的是「它平时长什么样」；
 用户真正要问的是「这支队干成过什么、谁干的、现在走到哪」。这一轮把主视图换成工作线图。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `components/team-graph.layout.ts` | 纯布局：队长 → 任务 → 认领人 → 交付回边，轮次随节点与边一起带出 |
-| `components/team-graph.tsx` | SVG 渲染：状态配色、进行中的节点套呼吸光、交付用虚线回边、轮次徽标 |
-| `components/team-graph.css` | 流向动效：虚线沿路径前进，三种速度对应三种状态；`prefers-reduced-motion` 下停用 |
-| `pages/team.tsx` | 左栏改成群聊式团队列表；主区默认「工作线」页签，群聊退到第二页签 |
-| `groups/run.ts` / `handlers/run.ts` | `RunTeamView.members`（名册快照）与 `RunTaskView.ownerName/ownerJob/ownerRole` |
+| 文件                                | 内容                                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `components/team-graph.layout.ts`   | 纯布局：队长 → 任务 → 认领人 → 交付回边，轮次随节点与边一起带出                 |
+| `components/team-graph.tsx`         | SVG 渲染：状态配色、进行中的节点套呼吸光、交付用虚线回边、轮次徽标              |
+| `components/team-graph.css`         | 流向动效：虚线沿路径前进，三种速度对应三种状态；`prefers-reduced-motion` 下停用 |
+| `pages/team.tsx`                    | 左栏改成群聊式团队列表；主区默认「工作线」页签，群聊退到第二页签                |
+| `groups/run.ts` / `handlers/run.ts` | `RunTeamView.members`（名册快照）与 `RunTaskView.ownerName/ownerJob/ownerRole`  |
 
 参考的竞品：LangGraph Studio 的 graph 模式（节点/边 + 逐节点中间状态 + 时间旅行）、
 AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 OpenTelemetry 追踪
@@ -2953,13 +2955,13 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 点任务看认领人与挂在这一步的验收，点成员看这个人全部任务，点队长看整条泳道派出去的活。
 参考的是 LangGraph Studio 的节点检查与 AgentScope trace 的逐调用下钻 —— 先看结构，再点到具体一步。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `components/team-drilldown.logic.ts` | 纯函数：节点 id → 面板内容（人、任务、挂在任务上的验收及结论排序） |
-| `components/team-drilldown.tsx` | 面板渲染：任务状态点、验收结论点、完成 / 通过计数、打开执行会话 |
-| `components/team-graph.tsx` | 节点可点（鼠标与键盘）、选中描边、图例旁提示；点同一节点可收起 |
-| `pages/team.tsx` | 选中节点状态与详情 memo；换一条工作线立即清空，不让上一条的详情跟着走 |
-| `groups/run.ts` / `handlers/run.ts` | `RunTaskView.createdAt / updatedAt`（最后动过的时间，不冒充完成时间） |
+| 文件                                 | 内容                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| `components/team-drilldown.logic.ts` | 纯函数：节点 id → 面板内容（人、任务、挂在任务上的验收及结论排序）    |
+| `components/team-drilldown.tsx`      | 面板渲染：任务状态点、验收结论点、完成 / 通过计数、打开执行会话       |
+| `components/team-graph.tsx`          | 节点可点（鼠标与键盘）、选中描边、图例旁提示；点同一节点可收起        |
+| `pages/team.tsx`                     | 选中节点状态与详情 memo；换一条工作线立即清空，不让上一条的详情跟着走 |
+| `groups/run.ts` / `handlers/run.ts`  | `RunTaskView.createdAt / updatedAt`（最后动过的时间，不冒充完成时间） |
 
 四条口径：
 
@@ -2978,11 +2980,11 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 同一个问题被拆成两个入口，用户看到的是「运行页说还没有运行，团队页却有工作线」。
 这一轮把运行页并回团队页，只留一个入口。
 
-| 文件 | 变化 |
-| ---- | ---- |
-| `components/run-console.tsx` | 由 `pages/run.tsx` 改名而来：去掉页头、左栏运行列表与两种排版，只保留「操作条 + 内容」 |
-| `pages/team.tsx` | 工作线视图改成两列：左列是这条团队跑过的运行，右列是「图 + 运行控制台」；左栏顶部加「新建运行」 |
-| `pages/layout.tsx` | 去掉「运行」导航项与整帧页面；`onOpenRun` 一并移除 |
+| 文件                         | 变化                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `components/run-console.tsx` | 由 `pages/run.tsx` 改名而来：去掉页头、左栏运行列表与两种排版，只保留「操作条 + 内容」          |
+| `pages/team.tsx`             | 工作线视图改成两列：左列是这条团队跑过的运行，右列是「图 + 运行控制台」；左栏顶部加「新建运行」 |
+| `pages/layout.tsx`           | 去掉「运行」导航项与整帧页面；`onOpenRun` 一并移除                                              |
 
 四条口径：
 
@@ -3007,14 +3009,14 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 用户在建完团队后没有地方改——想给整队换一个便宜模型，或者让某个成员用更强的模型，
 只能删队重建。这一轮把模型选择放到团队页上，和对话框里的模型选择器是同一个目录、同一套可见性。
 
-| 文件 | 变化 |
-| ---- | ---- |
-| `team/team.sql.ts` | `team.model`、`team_member.model` 两列（`provider/model`） |
-| `team/team.ts` | 团队/成员模型读写；成员只存自己的覆盖，跟随的部分留空 |
+| 文件                                  | 变化                                                                                |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `team/team.sql.ts`                    | `team.model`、`team_member.model` 两列（`provider/model`）                          |
+| `team/team.ts`                        | 团队/成员模型读写；成员只存自己的覆盖，跟随的部分留空                               |
 | `groups/team.ts` / `handlers/team.ts` | `team.update` 增 `model`（空串清空）；新增 `team.member.update`；建队与加人可带模型 |
-| `team/model-fallback.ts` | 派发顺序：成员覆盖 → 团队默认 → 会话记住的 → 系统默认 |
-| `components/team-model-picker.tsx` | 团队页与新建对话框共用的模型选择器，「跟随」是一行显式选项 |
-| `session/session.ts` | `setModel`：团队/成员换模型时同步成员会话，点进会话看到的是同一个 |
+| `team/model-fallback.ts`              | 派发顺序：成员覆盖 → 团队默认 → 会话记住的 → 系统默认                               |
+| `components/team-model-picker.tsx`    | 团队页与新建对话框共用的模型选择器，「跟随」是一行显式选项                          |
+| `session/session.ts`                  | `setModel`：团队/成员换模型时同步成员会话，点进会话看到的是同一个                   |
 
 四条口径：
 
@@ -3039,12 +3041,12 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 功能越加越全，页面却越来越难用：进入一次运行要滚过标签、四块数字、目标卡、用量、团队标签、
 任务板、事件、回放，才看到「到底过没过」。这一轮只做减法，不加新能力。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `pages/run.tsx` | 目标 + 步骤条 + 下一步 + 计划 / 进度合并成顶部一张卡；结论四宫格改成一行；验收台账上移并按「失败 → 过期 → 未验证 → 通过」排序；其余信息折进「详情」 |
-| `pages/run.tsx` | 左栏只留主操作，授权 / 合并 / 清理 / 取消收进「更多操作」；运行列表加状态点，去掉重复的模式字样 |
-| `pages/run.tsx` | 新建表单把范围 / 约束 / 持久目标收进「更多选项」 |
-| `i18n/zh.ts` / `en.ts` | `run.verdict.*`、`run.details.*`、`run.acceptance.count / allPassed / showPassed`、`run.action.more`、`run.new.advanced` |
+| 文件                   | 内容                                                                                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pages/run.tsx`        | 目标 + 步骤条 + 下一步 + 计划 / 进度合并成顶部一张卡；结论四宫格改成一行；验收台账上移并按「失败 → 过期 → 未验证 → 通过」排序；其余信息折进「详情」 |
+| `pages/run.tsx`        | 左栏只留主操作，授权 / 合并 / 清理 / 取消收进「更多操作」；运行列表加状态点，去掉重复的模式字样                                                     |
+| `pages/run.tsx`        | 新建表单把范围 / 约束 / 持久目标收进「更多选项」                                                                                                    |
+| `i18n/zh.ts` / `en.ts` | `run.verdict.*`、`run.details.*`、`run.acceptance.count / allPassed / showPassed`、`run.action.more`、`run.new.advanced`                            |
 
 五条口径：
 
@@ -3063,10 +3065,10 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 `InstanceRef` 不在作用域里，抛的是「InstanceRef not provided」。其余团队接口只读数据库，
 所以这个洞从上线起就一直没被触发。
 
-| 文件                          | 内容                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------ |
-| `groups/run.ts`               | 补 `.middleware(InstanceContextMiddleware)` 与 `.middleware(WorkspaceRoutingMiddleware)` |
-| `test/server/httpapi-team-run.test.ts` | 端到端：会话 → 运行 → 计划 → 批准 → 执行 → 队长 → 验证器 → 结算    |
+| 文件                                   | 内容                                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `groups/run.ts`                        | 补 `.middleware(InstanceContextMiddleware)` 与 `.middleware(WorkspaceRoutingMiddleware)` |
+| `test/server/httpapi-team-run.test.ts` | 端到端：会话 → 运行 → 计划 → 批准 → 执行 → 队长 → 验证器 → 结算                          |
 
 三条口径：
 
@@ -3079,16 +3081,15 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
    断言的是「跑完 → 已验证交付 → 通过项带证据」，不碰调度器内部，所以中间件、序列化、
    事件顺序上的问题都会在这里暴露。
 
-
 **全局阻塞（2026-11-01 追加，§8.1 / §4.4）**
 
 `blocked` 一直写在状态机与看板里，却没有任何路径会写它。最接近的情形是「下游在等一个已经失败的
 上游」：内层派发循环找不到可派发的团队，外层继续转轮次，一轮也派不出去，直到轮次用尽，
 最后报成「没有团队产出可交付结果」—— 用户看到的是「跑完了但没结果」，真正的原因（上游失败）反而丢了。
 
-| 文件                       | 内容                                                                       |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `src/team/orchestrator.ts` | 无在跑、无可派发、仍有 `queued` 团队时判 `blocked`；事件 `blocked` 只记坐标 |
+| 文件                       | 内容                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `src/team/orchestrator.ts` | 无在跑、无可派发、仍有 `queued` 团队时判 `blocked`；事件 `blocked` 只记坐标        |
 | `test/team/orchestrator`   | 「等失败的依赖」→ `blocked`，团队停在 `failed` + `queued`；全队有结论仍是 `failed` |
 
 四条口径：
@@ -3104,18 +3105,17 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
    比「等依赖」更要紧。
 4. **事件与原因只留结构。** 记「哪个团队在等哪几个下标」，不把目标、brief、提示词搬进日志。
 
-
 **任务板进上下文（只注入自己的，截断要记账）（2026-11-01 追加，§5.5 / §8.3.1）**
 
 任务板已经在库里、也在界面上了，但**模型看不到**：队长与成员在自己的上下文里不知道这一轮还开着哪些口，
 只能等用户开口或自己再查一遍。现在把「自己该关心的」写成一段提示词，跟着 `insertReminders` 走。
 
-| 文件                 | 内容                                                                      |
-| -------------------- | ------------------------------------------------------------------------- |
-| `src/team/task-board.ts` | 纯函数：按视角过滤 → 排序 → 截断 → 渲染，返回文本与内容签名            |
-| `session/prompt.ts`  | 有编排坐标才注入；队长看全队、成员只看自己；签名不变就不重发               |
-| `test/team/task-board` | 视角、两种空、条数 / 字符截断、顺序稳定、签名去重                        |
-| `test/session/prompt` | 成员看不到别人的任务；队长看得到未认领；普通会话完全不注入               |
+| 文件                     | 内容                                                         |
+| ------------------------ | ------------------------------------------------------------ |
+| `src/team/task-board.ts` | 纯函数：按视角过滤 → 排序 → 截断 → 渲染，返回文本与内容签名  |
+| `session/prompt.ts`      | 有编排坐标才注入；队长看全队、成员只看自己；签名不变就不重发 |
+| `test/team/task-board`   | 视角、两种空、条数 / 字符截断、顺序稳定、签名去重            |
+| `test/session/prompt`    | 成员看不到别人的任务；队长看得到未认领；普通会话完全不注入   |
 
 六条口径：
 
@@ -3130,17 +3130,16 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 6. **签名只覆盖注入出去的内容。** 改描述、改依赖不重发；改标题、改状态、增减条数才重发。
    任务板每轮都会算，但不该每轮都塞进上下文。
 
-
 **总控关闭时目录一起消失（2026-11-01 追加，§4.2 / §13.1 / §14.1）**
 
 `team_run` 已经从工具表里按总控开关摘掉了，但团队目录仍会照常注入：目录只看 `teamService` 是否存在，
 不看开关。会话字段是**建会话时**写下的，用户关掉总控后，旧会话仍带着 `teamMode`，于是模型每轮都会被告知
 「这些团队可以派发」，而它手里根本没有那个工具 —— 只剩一次必然失败的尝试。
 
-| 文件                    | 内容                                                                     |
-| ----------------------- | ------------------------------------------------------------------------ |
-| `session/prompt.ts`     | 注入前先过 `TeamSwitch.enabled(config.experimental)`，与工具表同一个判据  |
-| `test/session/prompt`   | 「开着时注入（含去重）」「关掉后一个目录都不注入」两条；后者在去掉闸门时会失败 |
+| 文件                  | 内容                                                                           |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `session/prompt.ts`   | 注入前先过 `TeamSwitch.enabled(config.experimental)`，与工具表同一个判据       |
+| `test/session/prompt` | 「开着时注入（含去重）」「关掉后一个目录都不注入」两条；后者在去掉闸门时会失败 |
 
 三条口径：
 
@@ -3155,7 +3154,6 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 `ClientCapabilities` 等层，整个文件在每个用例上都报 `Service not found`），现在补齐 `ClientCapabilities` /
 `Database` / `Instruction` / `Truncate` / `Cron` 并给运行策略作用域补上 `readOnly: false`。
 
-
 **批准只覆盖它批的那一版（2026-11-01 追加，§13.1 / §5.3）**
 
 批准在库里是 `approval.planVersion`，而 `/execute` 从来不看它：只要运行是 `running`、
@@ -3164,9 +3162,9 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 
 | 文件              | 内容                                                                     |
 | ----------------- | ------------------------------------------------------------------------ |
-| `handlers/run.ts` | `/execute` 要求 `approval.planVersion === planVersion`，否则 400          |
-| `setRunPlan`      | 还没开工的已批准运行（`running` 且没有 `phase`）退回 `awaiting_approval`  |
-| `httpapi-team`    | 「没批准不能执行」「改计划后旧批准失效」两条都断言状态码                   |
+| `handlers/run.ts` | `/execute` 要求 `approval.planVersion === planVersion`，否则 400         |
+| `setRunPlan`      | 还没开工的已批准运行（`running` 且没有 `phase`）退回 `awaiting_approval` |
+| `httpapi-team`    | 「没批准不能执行」「改计划后旧批准失效」两条都断言状态码                 |
 
 三条口径：
 
@@ -3207,13 +3205,13 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 不属于任何**会话临时团队**，`teams.ofSession` 永远解析不到；可运行本来就有团队，只是工具不知道。
 于是看板上除了「做到哪一步」的验收，没有任何「谁在做什么」——§4.3 承诺的任务那一栏是空的。
 
-| 文件                 | 内容                                                                          |
-| -------------------- | ----------------------------------------------------------------------------- |
+| 文件                 | 内容                                                                           |
+| -------------------- | ------------------------------------------------------------------------------ |
 | `tool/agent_task.ts` | `boardFor()`：优先用编排坐标（`scopeOf` 的 `taskID` 就是 `team_run_team.id`）  |
 | `task_create`        | 任务落在这支队上，`metadata.runID` 记下运行坐标；钩子与返回值同样带 teamID     |
 | `handlers/run.ts`    | 运行详情按团队读板（`AgentTaskList.list`），只回 id / subject / status / owner |
 | `groups/run.ts`      | `RunTaskView`；`RunTeamView.tasks`                                             |
-| `pages/run.tsx`      | 「任务板（n）」一块：状态 + 做法 + 谁在做，并与「任务不等于在执行」并列说明   |
+| `pages/run.tsx`      | 「任务板（n）」一块：状态 + 做法 + 谁在做，并与「任务不等于在执行」并列说明    |
 
 五条口径：
 
@@ -3234,13 +3232,13 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 快照冻结的是「当初这份名册长什么样」，不是「这些人现在还在不在」。两者在派发时必须都成立：
 把一个已经归档的人派出去，界面上只会显示「运行中」，事后谁也说不清这活到底该由谁做。
 
-| 文件                    | 内容                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------ |
-| `src/team/roster.ts`    | `problems()`：归档（快照冻结的或库里现在的）与「队长不在名册里」；`describe()` 点名到人   |
+| 文件                       | 内容                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `src/team/roster.ts`       | `problems()`：归档（快照冻结的或库里现在的）与「队长不在名册里」；`describe()` 点名到人           |
 | `src/team/orchestrator.ts` | `addressing` 钩子在**预占之前**跑；非空即这一轮不派、团队 `failed`、事件 `team.addressing_failed` |
-| `handlers/run.ts`       | 名册与 worktree 按**团队**取（不再用第一队的派所有队）；计划点模板时复制快照；校验用员工库 |
-| `src/team/blockers.ts`  | 新增阻塞种类 `team.addressing_failed`：它必须出现在看板上，而不是只躺在事件日志里          |
-| `groups/run.ts`         | `RunTeamView.profileVersion`（这次运行复制的是哪一版）；`run.plan` 增加 400                |
+| `handlers/run.ts`          | 名册与 worktree 按**团队**取（不再用第一队的派所有队）；计划点模板时复制快照；校验用员工库        |
+| `src/team/blockers.ts`     | 新增阻塞种类 `team.addressing_failed`：它必须出现在看板上，而不是只躺在事件日志里                 |
+| `groups/run.ts`            | `RunTeamView.profileVersion`（这次运行复制的是哪一版）；`run.plan` 增加 400                       |
 
 七条口径：
 
@@ -3267,13 +3265,13 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 库里也存了，但队长的提示词里从来没有它们 —— 用户写「只改 src/team、不要动测试」，
 等于什么都没写，而且在界面上看不出来。
 
-| 文件                          | 内容                                                                  |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `src/team/context.ts`         | `Brief` 类型、`normalizeBrief()`、按段渲染与截断记账（`kind: "brief"`）|
-| `groups/run.ts`               | `RunBrief`：把 `Schema.Any` 换成有类型的结构；`RunView.brief` 可回看  |
-| `handlers/run.ts`             | 派发时读 `run.brief` 喂进提示词；`toRun` 只回传认得的字段             |
-| `tool/team-run.ts`            | `brief` 参数：会话里的主智能体可以把用户给的范围原样递下去            |
-| `pages/run.tsx`               | 「新建运行」增加范围与约束两个可选输入；运行详情显示声明过的范围      |
+| 文件                  | 内容                                                                    |
+| --------------------- | ----------------------------------------------------------------------- |
+| `src/team/context.ts` | `Brief` 类型、`normalizeBrief()`、按段渲染与截断记账（`kind: "brief"`） |
+| `groups/run.ts`       | `RunBrief`：把 `Schema.Any` 换成有类型的结构；`RunView.brief` 可回看    |
+| `handlers/run.ts`     | 派发时读 `run.brief` 喂进提示词；`toRun` 只回传认得的字段               |
+| `tool/team-run.ts`    | `brief` 参数：会话里的主智能体可以把用户给的范围原样递下去              |
+| `pages/run.tsx`       | 「新建运行」增加范围与约束两个可选输入；运行详情显示声明过的范围        |
 
 五条口径：
 
@@ -3298,14 +3296,14 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 此前这一项被列成「算不出来」：账本按团队汇总，派发与验证记在同一个 `actor` 上。
 补法不是估一个比例，而是让账本自己说清用途 —— 花在哪里本来就该是事实：
 
-| 文件                                   | 内容                                                              |
-| -------------------------------------- | ----------------------------------------------------------------- |
-| `migration/20261031000001_team_ledger_kind` | `team_run_ledger.kind`（可空）                              |
-| `src/team/ledger.ts`                   | `EntryKind = dispatch \| verification`；预占记 `dispatch`，`record` 必须传 `kind` |
-| `src/team/orchestrator.ts`             | 验证消耗记 `kind: "verification"`（归属仍是团队）                  |
-| `src/team/metrics.ts`                  | `spend`：`dispatch` / `verification` / `unspecified` / `verificationShare` |
-| `handlers/run.ts`                      | 取样时带上账本条目（只含用途、状态、金额，不带 `actor`）           |
-| `pages/run.tsx`                        | 指标面板新增一行「验证开销 x%（派发 a / 验证 b tokens）」          |
+| 文件                                        | 内容                                                                              |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| `migration/20261031000001_team_ledger_kind` | `team_run_ledger.kind`（可空）                                                    |
+| `src/team/ledger.ts`                        | `EntryKind = dispatch \| verification`；预占记 `dispatch`，`record` 必须传 `kind` |
+| `src/team/orchestrator.ts`                  | 验证消耗记 `kind: "verification"`（归属仍是团队）                                 |
+| `src/team/metrics.ts`                       | `spend`：`dispatch` / `verification` / `unspecified` / `verificationShare`        |
+| `handlers/run.ts`                           | 取样时带上账本条目（只含用途、状态、金额，不带 `actor`）                          |
+| `pages/run.tsx`                             | 指标面板新增一行「验证开销 x%（派发 a / 验证 b tokens）」                         |
 
 四条口径：
 
@@ -3326,10 +3324,10 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 和带签名的 URL 一起写进「证据」。按既有约束（命令与 URL 不得原样展示），
 脱敏必须发生在**入库前**，而不是指望界面自己小心。
 
-| 文件                       | 内容                                                             |
-| -------------------------- | ---------------------------------------------------------------- |
-| `src/team/evidence.ts`     | `sanitizeEvidence()` / `sanitizeOptional()`：URL 模板 + 秘密模式 |
-| `src/team/verification.ts` | `record()` 写入前脱敏；读取时再脱敏一遍（覆盖旧行）              |
+| 文件                         | 内容                                                             |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `src/team/evidence.ts`       | `sanitizeEvidence()` / `sanitizeOptional()`：URL 模板 + 秘密模式 |
+| `src/team/verification.ts`   | `record()` 写入前脱敏；读取时再脱敏一遍（覆盖旧行）              |
 | `test/team/evidence.test.ts` | URL 查询串全打码、头部/赋值打码、普通路径不动、落库前已脱敏      |
 
 四条口径：
@@ -3349,14 +3347,14 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 §12 要求「从事件日志重建决策链（为什么它认为完成了）」，§8.5 要求把「回放」与
 「重跑得到同样结果」在产品文案上分开。此前只有原始事件列表，用户得自己串。
 
-| 文件                     | 内容                                                                       |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `src/team/replay.ts`     | 纯函数：事件 + 验证表 + 验收项 → 有序步骤与最终依据                        |
-| `orchestrator.ts`        | 每次验证落库后补写 `verification.recorded`（acceptedID / attempt / outcome / snapshot / verifierVersion / owner） |
-| `groups/run.ts`          | `GET /run/:runID/replay`：`RunReplayView`（steps + conclusion）            |
-| `handlers/run.ts`        | 读事件、验收、验证三个来源，交给纯函数，不做任何补全                       |
-| `pages/run.tsx`          | 运行页「决策链回放」折叠面板：结论档位、四类计数、事件背书状态、边界说明   |
-| `test/team/replay.test.ts` | 顺序、白名单字段、未知事件不丢、未验证/过期不折叠、事件背书三态            |
+| 文件                       | 内容                                                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `src/team/replay.ts`       | 纯函数：事件 + 验证表 + 验收项 → 有序步骤与最终依据                                                               |
+| `orchestrator.ts`          | 每次验证落库后补写 `verification.recorded`（acceptedID / attempt / outcome / snapshot / verifierVersion / owner） |
+| `groups/run.ts`            | `GET /run/:runID/replay`：`RunReplayView`（steps + conclusion）                                                   |
+| `handlers/run.ts`          | 读事件、验收、验证三个来源，交给纯函数，不做任何补全                                                              |
+| `pages/run.tsx`            | 运行页「决策链回放」折叠面板：结论档位、四类计数、事件背书状态、边界说明                                          |
+| `test/team/replay.test.ts` | 顺序、白名单字段、未知事件不丢、未验证/过期不折叠、事件背书三态                                                   |
 
 五条边界：
 
@@ -3382,12 +3380,12 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 §12.1 要求记录「参与次数、返工次数、驳回原因分类、平均耗时、验证一次通过率」，
 且**不做排名**。此前员工库只有用量（花了多少 tokens / 几次运行），没有任何「做得怎么样」的事实。
 
-| 文件                            | 内容                                                                    |
-| ------------------------------- | ----------------------------------------------------------------------- |
-| `src/team/employee-record.ts`   | 纯函数 `record()` + 读库的 `of()`；参与、驳回 TopN、一次通过率、运行墙钟 |
-| `groups/profile.ts`             | `GET /team/employee/:employeeID/record`：`EmployeeRecordView`            |
-| `pages/team.tsx`                | 员工库每行一行小字：参与 / 团队驳回 / 一次通过；tooltip 带口径原文        |
-| `test/team/employee-record.test.ts` | 去重计数、只在所在团队聚合、墙钟只算已结束运行、无分母不给比率        |
+| 文件                                | 内容                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| `src/team/employee-record.ts`       | 纯函数 `record()` + 读库的 `of()`；参与、驳回 TopN、一次通过率、运行墙钟 |
+| `groups/profile.ts`                 | `GET /team/employee/:employeeID/record`：`EmployeeRecordView`            |
+| `pages/team.tsx`                    | 员工库每行一行小字：参与 / 团队驳回 / 一次通过；tooltip 带口径原文       |
+| `test/team/employee-record.test.ts` | 去重计数、只在所在团队聚合、墙钟只算已结束运行、无分母不给比率           |
 
 五条口径（每一条都写进了返回的 `caveats`，界面照抄，不自己再组织成「业绩」）：
 
@@ -3408,14 +3406,14 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 §4.4 要求「同一动作被拒绝后，在本次运行内保持拒绝，不重复弹窗；要改判定必须由用户显式放行」。
 此前每次派发都会重新弹同一个窗：模型换个措辞重试 `bun test`，用户就得再点一次「拒绝」。
 
-| 文件                                   | 内容                                                              |
-| -------------------------------------- | ----------------------------------------------------------------- |
-| `src/team/run.sql.ts`                  | `team_run_denial`（`run_id` + `action` 唯一，`tool` / `reason` / `at`） |
-| `migration/20261031000002_team_run_denial` | 建表 + `(run_id, action)` 唯一索引 + run 索引                 |
-| `src/team/denials.ts`                  | `actionKey()` = sha256(tool + 排序后的 patterns)；`remember` / `lookup` / `clear` / `list` |
-| `src/session/prompt.ts`                | 两处 `permission.ask` 前先查、拒绝后记；同时补一条 `tool.denied` 事件 |
-| `groups/run.ts` / `handlers/run.ts`    | `RunDetail.denials`；`DELETE /run/:runID/denials` 返回放行了几个 |
-| `pages/run.tsx`                        | 运行页「本运行内的拒绝」面板，一个「放行并重新询问」按钮          |
+| 文件                                       | 内容                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `src/team/run.sql.ts`                      | `team_run_denial`（`run_id` + `action` 唯一，`tool` / `reason` / `at`）                    |
+| `migration/20261031000002_team_run_denial` | 建表 + `(run_id, action)` 唯一索引 + run 索引                                              |
+| `src/team/denials.ts`                      | `actionKey()` = sha256(tool + 排序后的 patterns)；`remember` / `lookup` / `clear` / `list` |
+| `src/session/prompt.ts`                    | 两处 `permission.ask` 前先查、拒绝后记；同时补一条 `tool.denied` 事件                      |
+| `groups/run.ts` / `handlers/run.ts`        | `RunDetail.denials`；`DELETE /run/:runID/denials` 返回放行了几个                           |
+| `pages/run.tsx`                            | 运行页「本运行内的拒绝」面板，一个「放行并重新询问」按钮                                   |
 
 六条口径：
 
@@ -3441,13 +3439,13 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 **合法报告**，于是走业务判定 —— 明明是一次没按格式回话，却消耗了一轮业务额度，
 最后用户看到的是「交付失败」，真正的原因是格式。
 
-| 文件                                   | 内容                                                                  |
-| -------------------------------------- | --------------------------------------------------------------------- |
-| `src/team/report.ts`                   | 纯函数 `parse()`：JSON 里取报告，读不出给出结构性原因（不复制原文）    |
-| `src/team/orchestrator.ts`             | 派发循环 `while (!report)`：`malformed` 就重问，`formatRetry` 累计    |
-| `handlers/run.ts`                      | 派发结果改为 `TeamReport.parse(text)`，不再手动猜字段                  |
-| `test/team/report.test.ts`             | 散文包裹、裸确认、全缺字段、空 claims、非对象条目                        |
-| `test/team/orchestrator.test.ts`       | 重问不花业务额度；到上限判 `verdict: "format"`                         |
+| 文件                             | 内容                                                                |
+| -------------------------------- | ------------------------------------------------------------------- |
+| `src/team/report.ts`             | 纯函数 `parse()`：JSON 里取报告，读不出给出结构性原因（不复制原文） |
+| `src/team/orchestrator.ts`       | 派发循环 `while (!report)`：`malformed` 就重问，`formatRetry` 累计  |
+| `handlers/run.ts`                | 派发结果改为 `TeamReport.parse(text)`，不再手动猜字段               |
+| `test/team/report.test.ts`       | 散文包裹、裸确认、全缺字段、空 claims、非对象条目                   |
+| `test/team/orchestrator.test.ts` | 重问不花业务额度；到上限判 `verdict: "format"`                      |
 
 四条口径：
 
@@ -3467,14 +3465,14 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 内置「代码审查团队」的五个员工各写了一句「只找安全问题」「只评估测试」，实际发给模型的却是同一段通用提示词。
 声明了不生效，比没声明更糟 —— 用户以为自己配了一个安全审查员，实际上只是换了个名字。
 
-| 文件                       | 内容                                                                     |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `src/team/effective.ts`    | 纯函数：`parseModel` / `of`（冻结 `effective`）/ `compose`（岗位说明前置） |
-| `src/team/identity.ts`     | `resolve()` 抽出匹配规则：归属与取配置必须指到同一个人                    |
-| `handlers/run.ts`          | 队长派发套用名册队长的模型与岗位说明（仅当实际派发的就是那个人）          |
-| `src/tool/task.ts`         | 成员派发按 `resolve()` 取那个人自己的说明与模型                          |
-| `src/team/profile.ts`      | 快照冻结 `effective`；`snapshotFrom()` 读得回来（旧快照没有也不影响）     |
-| `src/team/roster.ts`       | 会话成员能冻结的只有 agent：写进去，报告才解释得清是谁产出的              |
+| 文件                    | 内容                                                                       |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `src/team/effective.ts` | 纯函数：`parseModel` / `of`（冻结 `effective`）/ `compose`（岗位说明前置） |
+| `src/team/identity.ts`  | `resolve()` 抽出匹配规则：归属与取配置必须指到同一个人                     |
+| `handlers/run.ts`       | 队长派发套用名册队长的模型与岗位说明（仅当实际派发的就是那个人）           |
+| `src/tool/task.ts`      | 成员派发按 `resolve()` 取那个人自己的说明与模型                            |
+| `src/team/profile.ts`   | 快照冻结 `effective`；`snapshotFrom()` 读得回来（旧快照没有也不影响）      |
+| `src/team/roster.ts`    | 会话成员能冻结的只有 agent：写进去，报告才解释得清是谁产出的               |
 
 五条口径：
 
@@ -3493,14 +3491,14 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 「这个团队只改 `src/team`」写与不写，工具拦的是同一批调用。只读是运行级的，范围是团队级的，
 两者本来就不是一回事 —— 把范围当成「反正只读」的一部分，越界的写就没人拦。
 
-| 文件                     | 内容                                                                   |
-| ------------------------ | ---------------------------------------------------------------------- |
-| `src/team/run.sql.ts`    | `team_run_team.scope`（JSON 路径前缀）+ 迁移 `20261101000001_…`          |
-| `src/team/run.ts`        | 团队行读写 `scope`；计划落库时从计划带过来                              |
-| `src/team/op-log.ts`     | 坐标增加 `paths` / `root`，随子会话登记（成员自动继承）                 |
-| `src/team/policy.ts`     | `decide()` 新增越界判定：按目标路径比对，报错点名越了哪个文件           |
-| `src/session/prompt.ts`  | 工具入口把范围传给策略判定                                             |
-| `group/run.ts` + handler | 运行详情回传 `scope`：界面能回答「它为什么被拦」                        |
+| 文件                     | 内容                                                            |
+| ------------------------ | --------------------------------------------------------------- |
+| `src/team/run.sql.ts`    | `team_run_team.scope`（JSON 路径前缀）+ 迁移 `20261101000001_…` |
+| `src/team/run.ts`        | 团队行读写 `scope`；计划落库时从计划带过来                      |
+| `src/team/op-log.ts`     | 坐标增加 `paths` / `root`，随子会话登记（成员自动继承）         |
+| `src/team/policy.ts`     | `decide()` 新增越界判定：按目标路径比对，报错点名越了哪个文件   |
+| `src/session/prompt.ts`  | 工具入口把范围传给策略判定                                      |
+| `group/run.ts` + handler | 运行详情回传 `scope`：界面能回答「它为什么被拦」                |
 
 五条口径：
 
@@ -3518,11 +3516,11 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 之后的批准、执行、返工、合并全发生在别处，而模型**没有任何入口**能问「那次跑成什么样了」。
 它只能凭记忆下结论 —— 而汇报里的「已经修好了」正是这样编出来的。
 
-| 文件                    | 内容                                                                  |
-| ----------------------- | --------------------------------------------------------------------- |
-| `src/tool/team-run.ts`  | 新增 `team_run_status`（只读）；`team_run` 的输出点名下一步该查它      |
-| `src/tool/registry.ts`  | 能力位：只读 / 可并发 / 幂等；随总控开关一起注入                       |
-| `test/tool/team-run.test.ts` | 最新运行、下一句话跟着状态走、未验证不并入通过、跨会话拒绝         |
+| 文件                         | 内容                                                              |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `src/tool/team-run.ts`       | 新增 `team_run_status`（只读）；`team_run` 的输出点名下一步该查它 |
+| `src/tool/registry.ts`       | 能力位：只读 / 可并发 / 幂等；随总控开关一起注入                  |
+| `test/tool/team-run.test.ts` | 最新运行、下一句话跟着状态走、未验证不并入通过、跨会话拒绝        |
 
 四条口径：
 
@@ -3540,12 +3538,12 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 事件流不再增长，用户除了取消没有出路），失败也只有一个文本 `message` ——
 「格式错」「超时」「用户拒绝」「提供方挂了」在状态机里是四种下一步，折成一句话之后就都一样了。
 
-| 文件                       | 内容                                                                    |
-| -------------------------- | ----------------------------------------------------------------------- |
-| `src/team/failure.ts`      | 纯函数 `classify()` / `retriable()`：按 tag 与传输层原文分类，不按泛词猜 |
-| `src/team/orchestrator.ts` | 派发与验证套 `timeoutOption`；两种超时各自落到预定义终态                 |
-| `groups/run.ts` + handler  | `callTimeoutMs` 请求字段；缺省读 `experimental.team_call_timeout_ms`      |
-| `test/team/failure.test.ts`| tag 识别、传输层原文、兜底不越界、原文不改写                             |
+| 文件                             | 内容                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| `src/team/failure.ts`            | 纯函数 `classify()` / `retriable()`：按 tag 与传输层原文分类，不按泛词猜   |
+| `src/team/orchestrator.ts`       | 派发与验证套 `timeoutOption`；两种超时各自落到预定义终态                   |
+| `groups/run.ts` + handler        | `callTimeoutMs` 请求字段；缺省读 `experimental.team_call_timeout_ms`       |
+| `test/team/failure.test.ts`      | tag 识别、传输层原文、兜底不越界、原文不改写                               |
 | `test/team/orchestrator.test.ts` | 挂住的派发 → `timeout`；挂住的验证 → `unverified`；提供方故障 → `provider` |
 
 五条口径：
@@ -3566,13 +3564,13 @@ AutoGen Studio 的实时消息流与控制转移图、AgentScope Studio 的 Open
 共用一个 worktree。按会话加锁等于没锁 —— 两个人各持一把「独占」锁，同时改同一个文件，
 最后谁的改动留下取决于时序。
 
-| 文件                     | 内容                                                                 |
-| ------------------------ | -------------------------------------------------------------------- |
-| `src/tool/lock.ts`       | 钥匙从 `SessionID` 换成 `string`：锁的粒度是工作区，不是会话          |
-| `src/team/op-log.ts`     | `lockKey(scope, sessionID)`：运行内 `run:…:task:…`，运行外 `session:…` |
-| `src/session/prompt.ts`  | 工具执行前用 `lockKey()` 取钥匙（与幂等键同一个坐标，不会各算一套）   |
-| `test/tool/lock.test.ts` | 同队写者互相等待、不同队不排队、读共享写独占                          |
-| `test/team/op-log.test.ts` | 同一个团队的不同会话落同一把钥匙；没有团队坐标时按运行隔离          |
+| 文件                       | 内容                                                                   |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `src/tool/lock.ts`         | 钥匙从 `SessionID` 换成 `string`：锁的粒度是工作区，不是会话           |
+| `src/team/op-log.ts`       | `lockKey(scope, sessionID)`：运行内 `run:…:task:…`，运行外 `session:…` |
+| `src/session/prompt.ts`    | 工具执行前用 `lockKey()` 取钥匙（与幂等键同一个坐标，不会各算一套）    |
+| `test/tool/lock.test.ts`   | 同队写者互相等待、不同队不排队、读共享写独占                           |
+| `test/team/op-log.test.ts` | 同一个团队的不同会话落同一把钥匙；没有团队坐标时按运行隔离             |
 
 三条口径：
 

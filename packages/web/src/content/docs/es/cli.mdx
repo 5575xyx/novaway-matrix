@@ -78,13 +78,13 @@ novaway attach http://10.20.30.40:4096
 
 #### Opciones
 
-| Opción                                   | Corta | Descripción                                                                               |
-| ---------------------------------------- | ----- | ----------------------------------------------------------------------------------------- |
-| <nobr><code>{"--dir"}</code></nobr>      |       | Directorio de trabajo para iniciar TUI en                                                 |
-| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continuar la última sesión                                                                |
-| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID de sesión para continuar                                                               |
-| <nobr><code>{"--fork"}</code></nobr>     |       | Bifurcar la sesión al continuar (usar con `--continue` o `--session`)                     |
-| <nobr><code>{"--password"}</code></nobr> | `-p`  | Contraseña de autenticación básica (predeterminada: `NOVAWAY_SERVER_PASSWORD`)           |
+| Opción                                   | Corta | Descripción                                                                             |
+| ---------------------------------------- | ----- | --------------------------------------------------------------------------------------- |
+| <nobr><code>{"--dir"}</code></nobr>      |       | Directorio de trabajo para iniciar TUI en                                               |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continuar la última sesión                                                              |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID de sesión para continuar                                                             |
+| <nobr><code>{"--fork"}</code></nobr>     |       | Bifurcar la sesión al continuar (usar con `--continue` o `--session`)                   |
+| <nobr><code>{"--password"}</code></nobr> | `-p`  | Contraseña de autenticación básica (predeterminada: `NOVAWAY_SERVER_PASSWORD`)          |
 | <nobr><code>{"--username"}</code></nobr> | `-u`  | Usuario de autenticación básica (predeterminado: `NOVAWAY_SERVER_USERNAME` u `novaway`) |
 
 ---
@@ -339,25 +339,25 @@ novaway run --attach http://localhost:4096 "Explain async/await in JavaScript"
 
 #### Opciones
 
-| Opción                                   | Corta | Descripción                                                                               |
-| ---------------------------------------- | ----- | ----------------------------------------------------------------------------------------- |
-| <nobr><code>{"--command"}</code></nobr>  |       | El comando a ejecutar, use mensaje para args                                              |
-| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continuar la última sesión                                                                |
-| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID de sesión para continuar                                                               |
-| <nobr><code>{"--fork"}</code></nobr>     |       | Bifurcar la sesión al continuar (usar con `--continue` o `--session`)                     |
-| <nobr><code>{"--share"}</code></nobr>    |       | Comparte la sesión                                                                        |
-| <nobr><code>{"--model"}</code></nobr>    | `-m`  | Modelo a utilizar en forma de proveedor/modelo                                            |
-| <nobr><code>{"--agent"}</code></nobr>    |       | Agente a utilizar                                                                         |
-| <nobr><code>{"--file"}</code></nobr>     | `-f`  | Archivo(s) para adjuntar al mensaje                                                       |
-| <nobr><code>{"--format"}</code></nobr>   |       | Formato: predeterminado (formateado) o json (eventos JSON sin formato)                    |
-| <nobr><code>{"--title"}</code></nobr>    |       | Título de la sesión (utiliza un mensaje truncado si no se proporciona ningún valor)       |
-| <nobr><code>{"--attach"}</code></nobr>   |       | Adjuntar a un servidor novaway en ejecución (por ejemplo, http://localhost:4096)         |
-| <nobr><code>{"--password"}</code></nobr> | `-p`  | Contraseña de autenticación básica (predeterminada: `NOVAWAY_SERVER_PASSWORD`)           |
+| Opción                                   | Corta | Descripción                                                                             |
+| ---------------------------------------- | ----- | --------------------------------------------------------------------------------------- |
+| <nobr><code>{"--command"}</code></nobr>  |       | El comando a ejecutar, use mensaje para args                                            |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continuar la última sesión                                                              |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID de sesión para continuar                                                             |
+| <nobr><code>{"--fork"}</code></nobr>     |       | Bifurcar la sesión al continuar (usar con `--continue` o `--session`)                   |
+| <nobr><code>{"--share"}</code></nobr>    |       | Comparte la sesión                                                                      |
+| <nobr><code>{"--model"}</code></nobr>    | `-m`  | Modelo a utilizar en forma de proveedor/modelo                                          |
+| <nobr><code>{"--agent"}</code></nobr>    |       | Agente a utilizar                                                                       |
+| <nobr><code>{"--file"}</code></nobr>     | `-f`  | Archivo(s) para adjuntar al mensaje                                                     |
+| <nobr><code>{"--format"}</code></nobr>   |       | Formato: predeterminado (formateado) o json (eventos JSON sin formato)                  |
+| <nobr><code>{"--title"}</code></nobr>    |       | Título de la sesión (utiliza un mensaje truncado si no se proporciona ningún valor)     |
+| <nobr><code>{"--attach"}</code></nobr>   |       | Adjuntar a un servidor novaway en ejecución (por ejemplo, http://localhost:4096)        |
+| <nobr><code>{"--password"}</code></nobr> | `-p`  | Contraseña de autenticación básica (predeterminada: `NOVAWAY_SERVER_PASSWORD`)          |
 | <nobr><code>{"--username"}</code></nobr> | `-u`  | Usuario de autenticación básica (predeterminado: `NOVAWAY_SERVER_USERNAME` u `novaway`) |
-| <nobr><code>{"--dir"}</code></nobr>      |       | Directorio de ejecución, o ruta en el servidor remoto al adjuntar                         |
-| <nobr><code>{"--variant"}</code></nobr>  |       | Variante del modelo (esfuerzo de razonamiento específico del proveedor)                   |
-| <nobr><code>{"--thinking"}</code></nobr> |       | Mostrar bloques de pensamiento                                                            |
-| <nobr><code>{"--port"}</code></nobr>     |       | Puerto para el servidor local (el puerto predeterminado es aleatorio)                     |
+| <nobr><code>{"--dir"}</code></nobr>      |       | Directorio de ejecución, o ruta en el servidor remoto al adjuntar                       |
+| <nobr><code>{"--variant"}</code></nobr>  |       | Variante del modelo (esfuerzo de razonamiento específico del proveedor)                 |
+| <nobr><code>{"--thinking"}</code></nobr> |       | Mostrar bloques de pensamiento                                                          |
+| <nobr><code>{"--port"}</code></nobr>     |       | Puerto para el servidor local (el puerto predeterminado es aleatorio)                   |
 
 ---
 
@@ -562,31 +562,31 @@ La CLI de NovaWay toma las siguientes banderas globales.
 
 NovaWay se puede configurar mediante variables de entorno.
 
-| Variable                              | Type     | Description                                                                     |
-| ------------------------------------- | -------- | ------------------------------------------------------------------------------- |
-| `NOVAWAY_AUTO_SHARE`                 | booleano | Compartir sesiones automáticamente                                              |
-| `NOVAWAY_GIT_BASH_PATH`              | cadena   | Ruta al ejecutable de Git Bash en Windows                                       |
-| `NOVAWAY_CONFIG`                     | cadena   | Ruta al archivo de configuración                                                |
-| `NOVAWAY_CONFIG_DIR`                 | cadena   | Ruta al directorio de configuración                                             |
-| `NOVAWAY_CONFIG_CONTENT`             | cadena   | Contenido de configuración json en línea                                        |
-| `NOVAWAY_DISABLE_AUTOUPDATE`         | booleano | Deshabilitar las comprobaciones automáticas de actualizaciones                  |
-| `NOVAWAY_DISABLE_PRUNE`              | booleano | Deshabilitar la poda de datos antiguos                                          |
-| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | booleano | Deshabilitar las actualizaciones automáticas de títulos de terminal             |
-| `NOVAWAY_PERMISSION`                 | cadena   | Configuración de permisos json incorporados                                     |
-| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | booleano | Deshabilitar complementos predeterminados                                       |
-| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | booleano | Deshabilitar las descargas automáticas del servidor LSP                         |
-| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | booleano | Habilitar modelos experimentales                                                |
-| `NOVAWAY_DISABLE_AUTOCOMPACT`        | booleano | Deshabilitar la compactación automática de contexto                             |
-| `NOVAWAY_DISABLE_CLAUDE_CODE`        | booleano | Deshabilitar la lectura desde `.claude` (mensaje + habilidades)                 |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | booleano | Desactivar lectura `~/.claude/CLAUDE.md`                                        |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | booleano | Deshabilitar la carga `.claude/skills`                                          |
-| `NOVAWAY_DISABLE_MODELS_FETCH`       | booleano | Deshabilitar la recuperación de modelos desde fuentes remotas                   |
-| `NOVAWAY_FAKE_VCS`                   | cadena   | Proveedor de VCS falso para fines de prueba                                     |
-| `NOVAWAY_CLIENT`                     | cadena   | Identificador de cliente (por defecto `cli`)                                    |
-| `NOVAWAY_ENABLE_EXA`                 | booleano | Habilitar las herramientas de búsqueda web de Exa                               |
-| `NOVAWAY_SERVER_PASSWORD`            | cadena   | Habilite la autenticación básica para `serve`/`web`                             |
+| Variable                             | Type     | Description                                                                    |
+| ------------------------------------ | -------- | ------------------------------------------------------------------------------ |
+| `NOVAWAY_AUTO_SHARE`                 | booleano | Compartir sesiones automáticamente                                             |
+| `NOVAWAY_GIT_BASH_PATH`              | cadena   | Ruta al ejecutable de Git Bash en Windows                                      |
+| `NOVAWAY_CONFIG`                     | cadena   | Ruta al archivo de configuración                                               |
+| `NOVAWAY_CONFIG_DIR`                 | cadena   | Ruta al directorio de configuración                                            |
+| `NOVAWAY_CONFIG_CONTENT`             | cadena   | Contenido de configuración json en línea                                       |
+| `NOVAWAY_DISABLE_AUTOUPDATE`         | booleano | Deshabilitar las comprobaciones automáticas de actualizaciones                 |
+| `NOVAWAY_DISABLE_PRUNE`              | booleano | Deshabilitar la poda de datos antiguos                                         |
+| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | booleano | Deshabilitar las actualizaciones automáticas de títulos de terminal            |
+| `NOVAWAY_PERMISSION`                 | cadena   | Configuración de permisos json incorporados                                    |
+| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | booleano | Deshabilitar complementos predeterminados                                      |
+| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | booleano | Deshabilitar las descargas automáticas del servidor LSP                        |
+| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | booleano | Habilitar modelos experimentales                                               |
+| `NOVAWAY_DISABLE_AUTOCOMPACT`        | booleano | Deshabilitar la compactación automática de contexto                            |
+| `NOVAWAY_DISABLE_CLAUDE_CODE`        | booleano | Deshabilitar la lectura desde `.claude` (mensaje + habilidades)                |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | booleano | Desactivar lectura `~/.claude/CLAUDE.md`                                       |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | booleano | Deshabilitar la carga `.claude/skills`                                         |
+| `NOVAWAY_DISABLE_MODELS_FETCH`       | booleano | Deshabilitar la recuperación de modelos desde fuentes remotas                  |
+| `NOVAWAY_FAKE_VCS`                   | cadena   | Proveedor de VCS falso para fines de prueba                                    |
+| `NOVAWAY_CLIENT`                     | cadena   | Identificador de cliente (por defecto `cli`)                                   |
+| `NOVAWAY_ENABLE_EXA`                 | booleano | Habilitar las herramientas de búsqueda web de Exa                              |
+| `NOVAWAY_SERVER_PASSWORD`            | cadena   | Habilite la autenticación básica para `serve`/`web`                            |
 | `NOVAWAY_SERVER_USERNAME`            | cadena   | Anular el nombre de usuario de autenticación básica (predeterminado `novaway`) |
-| `NOVAWAY_MODELS_URL`                 | cadena   | URL personalizada para buscar la configuración de modelos                       |
+| `NOVAWAY_MODELS_URL`                 | cadena   | URL personalizada para buscar la configuración de modelos                      |
 
 ---
 
@@ -594,8 +594,8 @@ NovaWay se puede configurar mediante variables de entorno.
 
 Estas variables de entorno habilitan funciones experimentales que pueden cambiar o eliminarse.
 
-| Variable                                        | Type     | Description                                                |
-| ----------------------------------------------- | -------- | ---------------------------------------------------------- |
+| Variable                                       | Type     | Description                                                |
+| ---------------------------------------------- | -------- | ---------------------------------------------------------- |
 | `NOVAWAY_EXPERIMENTAL`                         | booleano | Habilitar todas las funciones experimentales               |
 | `NOVAWAY_EXPERIMENTAL_ICON_DISCOVERY`          | booleano | Habilitar descubrimiento de íconos                         |
 | `NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | booleano | Deshabilitar copia al seleccionar en TUI                   |

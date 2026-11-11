@@ -1,4 +1,4 @@
-import { Component, Show, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
+import { Component, For, Show, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { AiFixButton } from "./ai-fix-button"
 import { Icon } from "@novaway/ui/icon"
@@ -26,7 +26,7 @@ import {
   useSettings,
 } from "@/context/settings"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
-import { SettingsGroup } from "./settings-parts"
+import { SettingsGroup, SettingsPage } from "./settings-parts"
 import { usePermission } from "@/context/permission"
 import { PERMISSION_MODES } from "@/context/permission-risk"
 import type { Config } from "@novaway/sdk/v2/client"
@@ -53,6 +53,18 @@ type ShellSelectOption = {
   value: string
   label: string
 }
+
+const fontStyleLabelKey = (value: string) =>
+  value === "serif"
+    ? ("settings.general.appearance.fontStyle.serif" as const)
+    : ("settings.general.appearance.fontStyle.sans" as const)
+
+const contentWidthLabelKey = (value: string) =>
+  value === "small"
+    ? ("settings.general.appearance.contentWidth.small" as const)
+    : value === "wide"
+      ? ("settings.general.appearance.contentWidth.wide" as const)
+      : ("settings.general.appearance.contentWidth.standard" as const)
 
 // To prevent audio from overlapping/playing very quickly when navigating the settings menus,
 // delay the playback by 100ms during quick selection changes and pause existing sounds.
@@ -196,6 +208,21 @@ export const SettingsGeneral: Component = () => {
     { value: "light", label: language.t("theme.scheme.light") },
     { value: "dark", label: language.t("theme.scheme.dark") },
   ])
+
+  const colorThemeOptions = createMemo(() =>
+    (
+      [
+        { value: "novaway", swatch: "#3b82f6" },
+        { value: "everforest", swatch: "#8da101" },
+        { value: "osaka-jade", swatch: "#1faa90" },
+        { value: "gruvbox", swatch: "#d79921" },
+        { value: "lucent-orng", swatch: "#ec5b2b" },
+      ] as const
+    ).map((option) => ({
+      ...option,
+      label: language.t(`settings.general.appearance.theme.${option.value}` as never),
+    })),
+  )
 
   const languageOptions = createMemo(() =>
     language.locales.map((locale) => ({
@@ -341,7 +368,21 @@ export const SettingsGeneral: Component = () => {
 
         {/* 运行中的提交行为。两种模式的实际差别很大：
             引导会立刻影响当前这轮（在下一个安全边界生效），排队要等这轮跑完。
-            对齐 Qoder 的 Settings → General → "Send while running"。 */}
+            即 "Send while running" 设置。 */}
+        {/* 编辑器自动保存：关掉之后草稿留在标签里（状态条显示「未保存」），⌘/Ctrl+S 才落盘。
+            autosave 开关（这里直接写原文件，不写恢复目录）。 */}
+        <SettingsRow
+          title={language.t("settings.general.row.autoSave.title")}
+          description={language.t("settings.general.row.autoSave.description")}
+        >
+          <div data-action="settings-auto-save">
+            <Switch
+              checked={settings.general.autoSave()}
+              onChange={(checked) => settings.general.setAutoSave(checked)}
+            />
+          </div>
+        </SettingsRow>
+
         <SettingsRow
           title={language.t("settings.general.row.liveFileFollow.title")}
           description={language.t("settings.general.row.liveFileFollow.description")}
@@ -463,22 +504,117 @@ export const SettingsGeneral: Component = () => {
       <h3 class="text-14-medium text-foreground pb-2">{language.t("settings.general.section.appearance")}</h3>
 
       <SettingsGroup>
+        <div class="border-t border-border/80 px-4 py-4 first:border-t-0">
+          <div class="grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <span class="text-13-medium text-foreground">{language.t("settings.general.row.colorScheme.title")}</span>
+              <span class="text-12-regular text-foreground-subtle">
+                {language.t("settings.general.row.colorScheme.description")}
+              </span>
+            </div>
+            <Select
+              data-action="settings-color-scheme"
+              options={colorSchemeOptions()}
+              current={colorSchemeOptions().find((o) => o.value === theme.colorScheme())}
+              value={(o) => o.value}
+              label={(o) => o.label}
+              onSelect={(option) => option && theme.setColorScheme(option.value)}
+              onHighlight={(option) => {
+                if (!option) return
+                theme.previewColorScheme(option.value)
+                return () => theme.cancelPreview()
+              }}
+              variant="secondary"
+              size="small"
+              triggerVariant="settings"
+              triggerStyle={{ "min-width": "180px" }}
+            />
+          </div>
+          <div
+            data-action="settings-color-theme"
+            class="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+          >
+            <For each={colorThemeOptions()}>
+              {(option) => (
+                <button
+                  type="button"
+                  aria-pressed={theme.themeId() === option.value}
+                  class="rounded-lg border border-border bg-background p-1.5 text-left transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-icon-blue/40"
+                  classList={{
+                    "border-icon-blue/60 bg-icon-blue/5": theme.themeId() === option.value,
+                  }}
+                  style={{ "--theme-swatch": option.swatch }}
+                  onMouseEnter={() => theme.previewTheme(option.value)}
+                  onMouseLeave={() => theme.cancelPreview()}
+                  onFocus={() => theme.previewTheme(option.value)}
+                  onBlur={() => theme.cancelPreview()}
+                  onClick={() => theme.setTheme(option.value)}
+                >
+                  <div class="h-[96px] rounded-md border border-border/70 bg-surface p-2.5">
+                    <div class="flex items-center gap-2">
+                      <span class="h-1.5 w-14 rounded-full bg-[var(--theme-swatch)]" />
+                      <span class="h-1.5 w-8 rounded-full bg-border" />
+                      <span class="ml-auto size-4 shrink-0 rounded-full border-2 border-[var(--theme-swatch)]" />
+                    </div>
+                    <div class="mt-2.5 h-[54px] rounded-md border border-border/70 bg-background p-2.5">
+                      <span
+                        class="block h-1.5 w-14 rounded-full"
+                        style={{ background: "color-mix(in srgb, var(--theme-swatch) 70%, transparent)" }}
+                      />
+                      <span class="mt-2 block h-1.5 w-9 rounded-full bg-border" />
+                    </div>
+                  </div>
+                  <span class="mt-1 block truncate text-center text-10-medium text-foreground-subtle">
+                    {option.label}
+                  </span>
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+
         <SettingsRow
-          title={language.t("settings.general.row.colorScheme.title")}
-          description={language.t("settings.general.row.colorScheme.description")}
+          title={language.t("settings.general.appearance.fontStyle.title")}
+          description={language.t("settings.general.appearance.fontStyle.description")}
         >
           <Select
-            data-action="settings-color-scheme"
-            options={colorSchemeOptions()}
-            current={colorSchemeOptions().find((o) => o.value === theme.colorScheme())}
-            value={(o) => o.value}
-            label={(o) => o.label}
-            onSelect={(option) => option && theme.setColorScheme(option.value)}
-            onHighlight={(option) => {
-              if (!option) return
-              theme.previewColorScheme(option.value)
-              return () => theme.cancelPreview()
+            options={[
+              { value: "sans", label: language.t("settings.general.appearance.fontStyle.sans") },
+              { value: "serif", label: language.t("settings.general.appearance.fontStyle.serif") },
+            ]}
+            current={{
+              value: settings.appearance.fontStyle(),
+              label: language.t(fontStyleLabelKey(settings.appearance.fontStyle())),
             }}
+            value={(option) => option.value}
+            label={(option) => option.label}
+            onSelect={(option) => option && settings.appearance.setFontStyle(option.value as "sans" | "serif")}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+            triggerStyle={{ "min-width": "220px" }}
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.appearance.contentWidth.title")}
+          description={language.t("settings.general.appearance.contentWidth.description")}
+        >
+          <Select
+            options={[
+              { value: "small", label: language.t("settings.general.appearance.contentWidth.small") },
+              { value: "standard", label: language.t("settings.general.appearance.contentWidth.standard") },
+              { value: "wide", label: language.t("settings.general.appearance.contentWidth.wide") },
+            ]}
+            current={{
+              value: settings.appearance.contentWidth(),
+              label: language.t(contentWidthLabelKey(settings.appearance.contentWidth())),
+            }}
+            value={(option) => option.value}
+            label={(option) => option.label}
+            onSelect={(option) =>
+              option && settings.appearance.setContentWidth(option.value as "small" | "standard" | "wide")
+            }
             variant="secondary"
             size="small"
             triggerVariant="settings"
@@ -596,12 +732,7 @@ export const SettingsGeneral: Component = () => {
           title={language.t("settings.updates.row.check.title")}
           description={language.t("settings.updates.row.check.description")}
         >
-          <Button
-            size="small"
-            variant="secondary"
-            disabled={updateState.checking || !canCheckUpdate()}
-            onClick={check}
-          >
+          <Button size="small" variant="secondary" disabled={updateState.checking || !canCheckUpdate()} onClick={check}>
             {updateState.checking
               ? language.t("settings.updates.action.checking")
               : language.t("settings.updates.action.checkNow")}
@@ -630,31 +761,23 @@ export const SettingsGeneral: Component = () => {
   )
 
   return (
-    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
-      <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-1 pt-6 pb-8">
-          <h2 class="text-16-medium text-foreground">{language.t("settings.tab.general")}</h2>
-        </div>
-      </div>
+    <SettingsPage title={language.t("settings.tab.general")}>
+      <GeneralSection />
 
-      <div class="flex flex-col gap-8 w-full">
-        <GeneralSection />
+      <ContextSection />
 
-        <ContextSection />
+      <AdvancedSection />
 
-        <AdvancedSection />
+      <AppearanceSection />
 
-        <AppearanceSection />
-
-        {/* 音效：当前产品没有接入任何提示音资源，这一节只会在设置里制造
+      {/* 音效：当前产品没有接入任何提示音资源，这一节只会在设置里制造
             「选了但没反应」的困惑，先整节隐藏；需要时把 SoundsSection 放回来即可。 */}
-        <Show when={SHOW_SOUND_SETTINGS}>
-          <SoundsSection />
-        </Show>
+      <Show when={SHOW_SOUND_SETTINGS}>
+        <SoundsSection />
+      </Show>
 
-        <UpdatesSection />
-      </div>
-    </div>
+      <UpdatesSection />
+    </SettingsPage>
   )
 }
 
@@ -664,10 +787,13 @@ interface SettingsRowProps {
   children: JSX.Element
 }
 
-// 对齐 ZCode 设置行：左侧标题 + 说明，右侧控件；多行之间由 SettingsGroup 的分隔线切分。
+// 设置行：左侧标题 + 说明，右侧控件；多行之间由 SettingsGroup 的分隔线切分。
 const SettingsRow: Component<SettingsRowProps> = (props) => {
   return (
-    <div class="border-t border-border px-4 py-3 first:border-t-0">
+    <div
+      data-row-hover
+      class="group border-t border-border/80 px-4 py-4 transition-colors first:border-t-0 hover:bg-hover/40"
+    >
       <div class="grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div class="flex min-w-0 flex-col gap-0.5">
           <span class="text-13-medium text-foreground">{props.title}</span>

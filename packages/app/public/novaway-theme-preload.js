@@ -3,7 +3,8 @@
 
   var themeId = localStorage.getItem(key) || "novaway"
 
-  var scheme = localStorage.getItem("novaway-color-scheme") || "system"
+  // 与 ThemeProvider 保持一致：默认浅色，只有用户明确选择 system 才读取系统偏好。
+  var scheme = localStorage.getItem("novaway-color-scheme") || "light"
   var isDark = scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches)
   var mode = isDark ? "dark" : "light"
 

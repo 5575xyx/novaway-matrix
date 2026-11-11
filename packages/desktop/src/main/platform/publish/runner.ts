@@ -184,7 +184,12 @@ export async function publishToAccount(
   const driver = getDriver(account.platform)
   // 预检结论要跟着这条账号的每个进度事件走：界面上"哪句踩线"比"失败了"有用得多。
   const warnings: string[] = []
-  const step = (status: PublishStatus, progress: number, message: string, extra: { url?: string; error?: string } = {}) => {
+  const step = (
+    status: PublishStatus,
+    progress: number,
+    message: string,
+    extra: { url?: string; error?: string } = {},
+  ) => {
     const next = result(account, status, progress, message, { ...extra, warnings })
     report(next)
     return next

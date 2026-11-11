@@ -13,6 +13,7 @@ import {
   mapArray,
   untrack,
   type Accessor,
+  type Component,
   type JSX,
 } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
@@ -33,6 +34,7 @@ import {
   mergeReasoningParts,
   Part as MessagePart,
   partDefaultOpen,
+  type MessagePartProps,
   type UserActions,
 } from "@novaway/ui/message-part"
 import { DiffChanges } from "@novaway/ui/diff-changes"
@@ -73,12 +75,15 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useGlobalSync } from "@/context/global-sync"
 import { useFile } from "@/context/file"
+import { requestPreviewOpenMode } from "@/pages/session/editor-memory"
+import { isOfficePreviewPath } from "@/pages/session/office-preview-utils"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { LOCAL_URL, normalizeLocalUrl, stripAnsi } from "@/utils/dev-server-detect"
 import { isExcludedPath, relativeToWorkspace, resolveWorkspacePath } from "@/utils/preview-sources"
 import { uniqueSummaryDiffs } from "@/pages/session/message-timeline.summary-diffs"
 import { collectTurnWrittenPaths } from "./written-files"
+import { isBareFileName, matchUniqueFileName } from "./output-file-path"
 import {
   buildPreviewCardCandidates,
   normalizePathForCompare,
@@ -99,6 +104,8 @@ import {
   TimelineRowMap,
 } from "./message-timeline.data"
 import { collectEvidenceImages } from "./message-timeline.evidence"
+import type { WorkingActivity } from "./working-status"
+import { useWorkingPhrase } from "./use-working-phrase"
 import type { EvidenceImage, PreviewTarget } from "./message-timeline.data"
 import { useOfficeAgent } from "./office-agent-context"
 import { MessageCommentCard } from "./message-comment-card"
@@ -137,7 +144,92 @@ const emptyTools: ToolPart[] = []
 const emptyAssistantMessages: AssistantMessage[] = []
 const idle = { type: "idle" as const }
 
-// ===== 轮尾操作行的时间标签(ZCode messageTimeLabel 同款规则)=====
+type PluginSurfaceContribution = {
+  kind: string
+  slot?: string
+  status: string
+  match?: { tool?: string; partType?: string }
+  renderer?: { type: "builtin"; id: string } | { type: "iframe"; url: string }
+}
+
+const pluginBuiltinPartRenderers: Record<string, Component<MessagePartProps>> = {
+  "novaway.fixture-tool-result": (props) => {
+    const tool = () => (props.part.type === "tool" ? props.part.tool : props.part.type)
+    const output = () => {
+      if (props.part.type !== "tool") return ""
+      const value = (props.part.state as { output?: unknown }).output
+      if (typeof value === "string") return value
+      if (value === undefined) return ""
+      try {
+        return JSON.stringify(value, null, 2)
+      } catch {
+        return String(value)
+      }
+    }
+
+    return (
+      <div
+        data-slot="plugin-message-part-renderer"
+        data-renderer-id="novaway.fixture-tool-result"
+        data-tool={tool()}
+        class="rounded-md border border-border bg-surface px-3 py-2"
+      >
+        <div class="text-12-medium text-foreground-subtle">Plugin tool result · {tool()}</div>
+        <pre data-slot="plugin-message-part-output" class="mt-2 whitespace-pre-wrap text-13-regular text-foreground">
+          {output()}
+        </pre>
+      </div>
+    )
+  },
+}
+
+const pluginIframeRendererCache = new Map<string, Component<MessagePartProps> | undefined>()
+
+function iframeRenderer(url: string) {
+  const cached = pluginIframeRendererCache.get(url)
+  if (cached !== undefined || pluginIframeRendererCache.has(url)) return cached
+  let parsed: URL
+  try {
+    parsed = new URL(url, window.location.origin)
+  } catch {
+    pluginIframeRendererCache.set(url, undefined)
+    return undefined
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    pluginIframeRendererCache.set(url, undefined)
+    return undefined
+  }
+
+  // Third-party renderers stay in a browser sandbox and never receive host tokens or DOM access.
+  const component: Component<MessagePartProps> = () => (
+    <iframe
+      data-slot="plugin-message-part-iframe"
+      src={parsed.href}
+      title="Plugin message part renderer"
+      sandbox="allow-scripts"
+      referrerPolicy="no-referrer"
+      class="min-h-16 w-full rounded-md border border-border"
+    />
+  )
+  pluginIframeRendererCache.set(url, component)
+  return component
+}
+
+function pluginPartRenderer(part: PartType, contributions: readonly PluginSurfaceContribution[]) {
+  const contribution = contributions.find((item) => {
+    if (item.kind !== "surface" || item.slot !== "message.part.renderer" || item.status !== "active") return false
+    const match = item.match
+    if (!match || (!match.tool && !match.partType)) return false
+    if (match.partType && match.partType !== part.type) return false
+    if (match.tool && (part.type !== "tool" || match.tool !== part.tool)) return false
+    return item.renderer !== undefined
+  })
+  if (!contribution?.renderer) return undefined
+  if (contribution.renderer.type === "builtin") return pluginBuiltinPartRenderers[contribution.renderer.id]
+  return iframeRenderer(contribution.renderer.url)
+}
+
+// ===== 轮尾操作行的时间标签 =====
 type MessageTimeKind = "time" | "monthDayTime" | "yearMonthDayTime"
 const messageTimeFormatterCache = new Map<string, Intl.DateTimeFormat>()
 
@@ -279,13 +371,17 @@ const markBoundaryGesture = (input: {
   }
 }
 
-/** 轮首工作指示:流式期间一直显示,头部同步走实时耗时("工作中 · X 秒")。
+/** 轮首工作指示:流式期间一直显示,头部同步走实时耗时("正在执行中 · X 秒")。
  * 计时用 1s 间隔的定时器,只在本行挂载期间运行;轮次结束后由 TurnFold
- * 折叠成"已工作 X",所以这里不做"到点停止"的截断。 */
+ * 折叠成"已执行 X",所以这里不做"到点停止"的截断。 */
 function TimelineThinkingRow(props: {
   reasoningHeading?: string
   showReasoningSummaries: boolean
   startedAt?: number
+  /** 本轮此刻正在做的事;缺省时退回"工作中…"。 */
+  activity?: WorkingActivity
+  /** 折叠容器头部已经在计时,容器底部这行只留 spinner + 当前思考标题,不再重复显示耗时。 */
+  hideElapsed?: boolean
 }) {
   const language = useLanguage()
   const mountedAt = Date.now()
@@ -300,12 +396,18 @@ function TimelineThinkingRow(props: {
     const start = typeof props.startedAt === "number" ? props.startedAt : mountedAt
     return Math.max(0, Math.floor((now() - start) / 1000))
   })
+  const activityPhrase = useWorkingPhrase(() => props.activity)
   const label = createMemo(() => {
-    if (elapsed() < 60) return language.t("session.turn.fold.workingSec", { seconds: elapsed() })
-    return language.t("session.turn.fold.workingMinSec", {
-      minutes: Math.floor(elapsed() / 60),
-      seconds: elapsed() % 60,
-    })
+    const phrase = activityPhrase() || language.t("session.turn.fold.working")
+    const seconds = elapsed()
+    const duration =
+      seconds < 60
+        ? language.t("session.turn.fold.durationSec", { seconds })
+        : language.t("session.turn.fold.durationMinSec", {
+            minutes: Math.floor(seconds / 60),
+            seconds: seconds % 60,
+          })
+    return `${phrase} · ${duration}`
   })
 
   return (
@@ -313,7 +415,9 @@ function TimelineThinkingRow(props: {
       <span class="shrink-0 text-foreground-subtle">
         <Icon name="lu-loader" size="small" class="animate-spin" />
       </span>
-      <TextShimmer text={label()} class="text-foreground-subtle" />
+      <Show when={!props.hideElapsed}>
+        <TextShimmer text={label()} class="text-foreground-subtle" />
+      </Show>
       <Show when={!props.showReasoningSummaries}>
         <TextReveal text={props.reasoningHeading} class="session-turn-thinking-heading" travel={25} duration={700} />
       </Show>
@@ -428,7 +532,7 @@ function TimelineDiffSummaryRow(props: {
 }
 
 /**
- * 回答回执后的产物预览卡(对齐 ZCode AssistantPreviewCards + OpenSplitButton):
+ * 回答回执后的产物预览卡:
  * 左侧类型图标 + 标题 + 「类型 · 扩展名」副标题,右侧「打开 ▾」分裂按钮收次级操作;
  * 列表占满消息列宽、左对齐,不再居中限宽。路径不直接外显,收进菜单里复制。
  * 打开分流:本地服务与 HTML 原型 → 右侧「浏览器」标签的内置预览;
@@ -451,7 +555,7 @@ function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
         const tab = file.tab(normalized)
         void tabs().open(tab)
         tabs().setActive(tab)
-        layout.sidePane.add("preview")
+        layout.sidePane.add(isOfficePreviewPath(normalized) ? "office" : "preview")
       })
       return
     }
@@ -474,7 +578,7 @@ function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
   // bind 拿到稳定引用:能力存在才渲染「在资源管理器中显示」,也避开 unbound-method 告警。
   const revealInExplorer = platform.showItemInFolder?.bind(platform)
 
-  // 副标题用 ZCode 同款「类型 · 扩展名」标签;server 预览的 title 是 host:port(无扩展名)。
+  // 副标题用「类型 · 扩展名」标签;server 预览的 title 是 host:port(无扩展名)。
   const subtitle = (target: PreviewTarget) => {
     if (target.kind === "server") return language.t("session.previewCard.website")
     if (target.kind === "html") return language.t("session.previewCard.htmlWebsite")
@@ -632,7 +736,7 @@ function TimelinePreviewCardRow(props: { targets: PreviewTarget[] }) {
  * 验证结果行:工具产出的图片证据(浏览器截图)贴在轮尾。
  *
  * 过程行会被折进「已工作 X」的折叠卡里,截图若只挂在工具行内部,用户看到的
- * 永远只有一句"已验证"。这里把截图直接铺在回复最下面(对齐 ZCode),点开可放大。
+ * 永远只有一句"已验证"。这里把截图直接铺在回复最下面,点开可放大。
  *
  * 展示上只占一张:一次修改往往会产生好几张(改前/改后/交互后),平铺会变成图墙。
  * 默认第一张,左右箭头切换,切换时有短暂淡入过渡;数量与序号写在标题行里。
@@ -780,12 +884,52 @@ export function MessageTimeline(props: {
     if (!id) return idle
     return sync.data.session_status[id] ?? idle
   })
+  const [turnSuggestions, setTurnSuggestions] = createSignal<string[]>([])
+  const [suggestionsLoading, setSuggestionsLoading] = createSignal(false)
+  let suggestionsRequestedFor = ""
+  createEffect(() => {
+    const id = sessionID()
+    const messages = sessionMessages()
+    const status = sessionStatus().type
+    const latestAssistant = messages.findLast((message) => message.role === "assistant")
+    if (!id || !latestAssistant || latestAssistant.role !== "assistant") {
+      setTurnSuggestions([])
+      setSuggestionsLoading(false)
+      return
+    }
+    const parent = messages.find((message) => message.id === latestAssistant.parentID)
+    const key = `${id}:${latestAssistant.id}`
+    if (
+      status !== "idle" ||
+      latestAssistant.time.completed === undefined ||
+      latestAssistant.error ||
+      parent?.role !== "user" ||
+      suggestionsRequestedFor === key
+    ) {
+      if (status !== "idle") setTurnSuggestions([])
+      return
+    }
+    suggestionsRequestedFor = key
+    setTurnSuggestions([])
+    setSuggestionsLoading(true)
+    void globalSDK.client.session
+      .suggestions({ sessionID: id, directory: sdk.directory })
+      .then((result) => {
+        if (sessionID() === id && suggestionsRequestedFor === key) setTurnSuggestions(result.data ?? [])
+      })
+      .catch(() => {
+        if (sessionID() === id && suggestionsRequestedFor === key) setTurnSuggestions([])
+      })
+      .finally(() => {
+        if (sessionID() === id && suggestionsRequestedFor === key) setSuggestionsLoading(false)
+      })
+  })
   const working = createMemo(() => sessionStatus().type !== "idle")
   const tint = createMemo(() => messageAgentColor(sessionMessages(), sync.data.agent))
 
   createEffect(() => {
     const id = sessionID()
-    if (!id || sync.data.session_diff[id] !== undefined) return
+    if (!id || sdk.directory === "global-chat" || sync.data.session_diff[id] !== undefined) return
     void sync.session.diff(id)
   })
 
@@ -913,7 +1057,7 @@ export function MessageTimeline(props: {
     ),
   )
 
-  // 产物卡素材:对齐 ZCode 的「正文为主、写盘为证」——素材来自 AI 回答正文的分层提取
+  // 产物卡素材:「正文为主、写盘为证」——素材来自 AI 回答正文的分层提取
   // (引用指令 > markdown 链接 > file:// > 定界/裸路径),md/html 引用必须命中本轮写盘证明,
   // office/pdf/图片不需要;bash 输出里的本地服务地址作兜底来源。
   // 写盘证明 = 本轮 diff ∪ 工具调用自报的写入目标(见 written-files.ts):只信 diff 的话,
@@ -978,7 +1122,7 @@ export function MessageTimeline(props: {
     return result
   })
 
-  // 存在性校验:文件卡必须确认文件真的存在才出(对齐 ZCode 的 stat 校验,防止死卡),
+  // 存在性校验:文件卡必须确认文件真的存在才出(stat 校验,防止死卡),
   // server 卡无需落盘校验。按候选签名缓存;按父目录分组 list,全部算完后一次性发布,
   // 避免历史会话切换时卡片先闪一批再被替换。
   const previewStatCache = new Map<string, Set<string>>()
@@ -1077,7 +1221,7 @@ export function MessageTimeline(props: {
   })
 
   // 会话级文件变更兜底:最后一轮自己的 summary.diffs 缺失(比如文件是经 bash 间接写入的)
-  // 时,用会话维度的 diff 在最底下补一张"文件更改"卡,对齐 ZCode 的底部 Changed files。
+  // 时,用会话维度的 diff 在最底下补一张"文件更改"卡。
   const sessionDiffFallback = createMemo(() => {
     const id = sessionID()
     const last = props.userMessages.at(-1)
@@ -1123,8 +1267,8 @@ export function MessageTimeline(props: {
    * 每轮的工具图片证据(浏览器截图):挂在轮尾当作"验证结果"。
    *
    * 之前这类附件只写进 part.state.attachments,界面上完全不渲染 —— 模型说"已验证",
-   * 用户却看不到任何画面。这里按轮收集,轮尾单独成行(不折进过程卡),对齐 ZCode
-   * 的"验证完把截图贴在回复最下面"。只留最近几张,避免长会话底部堆成图墙。
+   * 用户却看不到任何画面。这里按轮收集,轮尾单独成行(不折进过程卡),
+   * "验证完把截图贴在回复最下面"。只留最近几张,避免长会话底部堆成图墙。
    */
   const toolEvidenceByUserMessage = createMemo(() => {
     // 单轮上限放宽到 12：一组验证可能是「改前 / 改后 / 交互后」几张，
@@ -1160,7 +1304,7 @@ export function MessageTimeline(props: {
       return [
         ...turnRows,
         ...(targets ? [new TimelineRow.PreviewCard({ userMessageID: id, targets })] : []),
-        // 验证截图放在最后:用户看到的是"回复 → 产物 → 验证结果",与 ZCode 一致。
+        // 验证截图放在最后:用户看到的是"回复 → 产物 → 验证结果"。
         ...(images ? [new TimelineRow.ToolEvidence({ userMessageID: id, images })] : []),
       ]
     })
@@ -1972,6 +2116,19 @@ export function MessageTimeline(props: {
   }
 
   /**
+   * 裸文件名先换成带目录的真实路径（见 output-file-path.ts）。
+   *
+   * 模型在正文里通常只打文件名，而 `/file/content` 接的是项目根相对路径：
+   * 不纠正的话，`product_promo_xxx.pptx` 会被当成根目录下的文件，读不到。
+   * 没有唯一命中就原样交给面板 —— 预览现在会把失败原因说清楚，不再拿骨架屏冒充加载。
+   */
+  const resolveOutputFilePath = async (normalized: string) => {
+    if (!isBareFileName(normalized)) return normalized
+    const found = await sdk.client.find.files({ query: normalized, type: "file", dirs: "false", limit: 50 })
+    return matchUniqueFileName(normalized, found.data ?? []) ?? normalized
+  }
+
+  /**
    * 点开消息里的文件链接。
    *
    * 除了开标签，还必须**把右侧面板切到预览并展开** —— 只 `tabs().open()` 的话，
@@ -1979,18 +2136,20 @@ export function MessageTimeline(props: {
    * （这正是"点了文件名没反应"的原因）。
    */
   const openOutputFile = (path: string) => {
-    const normalized = file.normalize(path)
-    if (!normalized) return
-    void file.load(normalized).then(() => {
+    void (async () => {
+      const normalized = file.normalize(path)
+      if (!normalized) return
+      const target = await resolveOutputFilePath(normalized)
+      await file.load(target)
       // 链接识别只能靠"看起来像路径"，目录也会被标成可点（`/e/AImoney/PowersNexus`
       // 这种没有扩展名的绝对路径）。读失败就当它不是一个文件：不开标签、不报错，
       // 否则会打开一个内容为空的假标签（而且会把真正的预览挤掉）。
-      if (file.get(normalized)?.error) return
-      const tab = file.tab(normalized)
+      if (file.get(target)?.error) return
+      const tab = file.tab(target)
       void tabs().open(tab)
       tabs().setActive(tab)
-      layout.sidePane.add("preview")
-    })
+      layout.sidePane.add(isOfficePreviewPath(target) ? "office" : "preview")
+    })()
   }
 
   /**
@@ -2002,11 +2161,12 @@ export function MessageTimeline(props: {
   const openDiffFile = (path: string) => {
     const normalized = file.normalize(path)
     if (!normalized) return
+    requestPreviewOpenMode(sdk.directory, normalized, "diff")
     void file.load(normalized)
     const tab = file.tab(normalized)
     void tabs().open(tab)
     tabs().setActive(tab)
-    layout.sidePane.add("preview")
+    layout.sidePane.add(isOfficePreviewPath(normalized) ? "office" : "preview")
   }
 
   const renderAssistantPartGroup = (row: Accessor<TimelineRowMap["AssistantPart"]>) => {
@@ -2050,6 +2210,7 @@ export function MessageTimeline(props: {
                   turnDurationMs={turnDurationMs(row().userMessageID)}
                   deferToolContent={false}
                   onFileOpen={openOutputFile}
+                  pluginRenderer={pluginPartRenderer(part(), sync.data.plugin_contributions)}
                 />
               )}
             </Show>
@@ -2087,6 +2248,7 @@ export function MessageTimeline(props: {
                   )}
                   deferToolContent={false}
                   onFileOpen={openOutputFile}
+                  pluginRenderer={pluginPartRenderer(part(), sync.data.plugin_contributions)}
                 />
                 <Show when={officeArtifact(part())}>
                   {(artifact) => <OfficeArtifactActions artifact={artifact()} agent={message().agent} />}
@@ -2126,9 +2288,9 @@ export function MessageTimeline(props: {
     const fillSummary = createMemo(() => officePptxFillPlanSummary(fillPlan()))
     const [savedPath, setSavedPath] = createSignal("")
     const actionButton =
-      "group inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground-subtle shadow-[0_0_0_0_rgba(16,185,129,0)] outline-none transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] hover:text-emerald-100 hover:shadow-[0_8px_22px_rgba(16,185,129,0.12)] active:translate-y-0 active:scale-[0.98] active:border-emerald-300/70 active:bg-emerald-300/[0.14] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
+      "group inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground-subtle shadow-none outline-none transition-all duration-150 hover:-translate-y-px hover:border-icon-blue/45 hover:bg-icon-blue/10 hover:text-icon-blue hover:shadow-[0_8px_22px_color-mix(in_srgb,var(--icon-interactive-base)_12%,transparent)] active:translate-y-0 active:scale-[0.98] active:border-icon-blue/60 active:bg-icon-blue/15 focus-visible:border-icon-blue/60 focus-visible:ring-2 focus-visible:ring-icon-blue/20"
     const primaryActionButton =
-      "group inline-flex items-center gap-1.5 rounded-[8px] border border-emerald-300/40 bg-emerald-300/10 px-2.5 py-1.5 text-12-medium text-emerald-100 shadow-[0_0_0_0_rgba(16,185,129,0)] outline-none transition-all duration-150 hover:-translate-y-px hover:border-emerald-300/70 hover:bg-emerald-300/18 hover:shadow-[0_8px_24px_rgba(16,185,129,0.16)] active:translate-y-0 active:scale-[0.98] active:bg-emerald-300/22 focus-visible:border-emerald-300/80 focus-visible:ring-2 focus-visible:ring-emerald-300/30 disabled:cursor-not-allowed disabled:translate-y-0 disabled:scale-100 disabled:opacity-60 disabled:shadow-none"
+      "group inline-flex items-center gap-1.5 rounded-[8px] border border-icon-blue/40 bg-icon-blue/10 px-2.5 py-1.5 text-12-medium text-icon-blue shadow-none outline-none transition-all duration-150 hover:-translate-y-px hover:border-icon-blue/60 hover:bg-icon-blue/20 hover:shadow-[0_8px_24px_color-mix(in_srgb,var(--icon-interactive-base)_16%,transparent)] active:translate-y-0 active:scale-[0.98] active:bg-icon-blue/25 focus-visible:border-icon-blue/70 focus-visible:ring-2 focus-visible:ring-icon-blue/25 disabled:cursor-not-allowed disabled:translate-y-0 disabled:scale-100 disabled:opacity-60 disabled:shadow-none"
     const save = useMutation(() => ({
       mutationFn: async () => {
         const file =
@@ -2319,7 +2481,7 @@ export function MessageTimeline(props: {
                         </div>
                         <button
                           type="button"
-                          class="h-8 shrink-0 rounded-[7px] border border-border px-2.5 text-11-medium text-foreground-subtle hover:text-emerald-200"
+                          class="h-8 shrink-0 rounded-[7px] border border-border px-2.5 text-11-medium text-foreground-subtle hover:text-icon-blue"
                           onClick={() => void restoreArtifactVersion(artifact.id)}
                         >
                           恢复
@@ -2356,7 +2518,7 @@ export function MessageTimeline(props: {
             <div class="truncate text-12-medium text-foreground">{input.artifact.title}</div>
             <div class="truncate text-11-regular text-foreground-subtle">{deliverableSummary()}</div>
             <Show when={quality().status === "review"}>
-              <div class="mt-0.5 truncate text-10-regular text-amber-600" title={quality().summary}>
+              <div class="mt-0.5 truncate text-10-regular text-icon-warning-base" title={quality().summary}>
                 质量提醒：{quality().summary}
               </div>
             </Show>
@@ -2366,7 +2528,7 @@ export function MessageTimeline(props: {
           <Show when={input.artifact.slides.length > 0}>
             <button
               type="button"
-              class="group inline-flex min-w-[168px] items-center justify-between gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground outline-none transition-colors hover:border-emerald-300/55 hover:bg-emerald-300/[0.08] focus-visible:border-emerald-300/70 focus-visible:ring-2 focus-visible:ring-emerald-300/25"
+              class="group inline-flex min-w-[168px] items-center justify-between gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground outline-none transition-colors hover:border-icon-blue/45 hover:bg-icon-blue/10 focus-visible:border-icon-blue/60 focus-visible:ring-2 focus-visible:ring-icon-blue/20"
               title={officePptTemplateDescription(pptTemplate())}
               onClick={openTemplateGallery}
             >
@@ -2594,7 +2756,7 @@ export function MessageTimeline(props: {
                 <div class="rounded-[8px] border border-border bg-surface/70 p-4">
                   <div class="flex items-start justify-between gap-3 border-b border-border pb-3">
                     <div class="min-w-0">
-                      <div class="text-11-medium text-emerald-200">第 {slide.index} 页</div>
+                      <div class="text-11-medium text-icon-blue">第 {slide.index} 页</div>
                       <div class="mt-1 truncate text-15-medium text-foreground">{slide.title}</div>
                     </div>
                     <Icon name="layout-bottom" size="small" class="shrink-0 text-foreground-subtlest" />
@@ -2725,10 +2887,9 @@ export function MessageTimeline(props: {
         data-message-id={messageID()}
         data-timeline-row={input.row()._tag}
         class="group/turn"
+        style={{ "max-width": "var(--session-content-max-width, 820px)" }}
         classList={{
-          "min-w-0 w-full max-w-full": true,
-          "md:max-w-200 2xl:max-w-[1000px]": props.centered,
-          "md:mx-auto": props.centered,
+          "min-w-0 w-full max-w-full mx-auto": true,
           // 卡片块之间靠行的 py-1 留缝：虚拟滚动按行高(offsetHeight)测量，padding 算进高度，
           // margin 会溢出到行框之外不被计入。
           "py-1": replyBlock(),
@@ -2741,6 +2902,18 @@ export function MessageTimeline(props: {
       </div>
     )
   }
+
+  /**
+   * 分支只在创建时跑一次 switch,但列表按位置复用组件实例(virtua 的 Index、
+   * Show 的非 keyed 回调都是如此):折叠/展开切换后,同一位置上会从 AssistantPart
+   * 变成 TurnFold,旧分支接着读 row().group 就崩在 "reading 'type'"。
+   * keyed Show 盯住 _tag —— 类型一变就丢掉旧分支重建。
+   */
+  const TimelineRowDispatch = (props: { row: Accessor<TimelineRow.TimelineRow> }) => (
+    <Show when={props.row()._tag} keyed>
+      {(_tag) => renderTimelineRow(props.row)}
+    </Show>
+  )
 
   const renderTimelineRow = (row: Accessor<TimelineRow.TimelineRow>) => {
     switch (row()._tag) {
@@ -2828,6 +3001,7 @@ export function MessageTimeline(props: {
                 reasoningHeading={thinkingRow().reasoningHeading}
                 showReasoningSummaries={settings.general.showReasoningSummaries()}
                 startedAt={thinkingRow().startedAt}
+                activity={thinkingRow().activity}
               />
             </div>
           </TimelineRowFrame>
@@ -2935,7 +3109,7 @@ export function MessageTimeline(props: {
   }
 
   function TimelineRowView(props: { rowKey: string }) {
-    return <Show when={timelineRowByKey().get(props.rowKey)}>{(item) => renderTimelineRow(item)}</Show>
+    return <Show when={timelineRowByKey().get(props.rowKey)}>{(item) => <TimelineRowDispatch row={item} />}</Show>
   }
 
   // 清单项的展开状态:按 todoID 记录用户的手动选择;未动过的默认折叠
@@ -3122,16 +3296,21 @@ export function MessageTimeline(props: {
       if (ends.length === 0) return undefined
       return Math.max(0, Math.max(...ends) - start)
     })
+    const todoActivityPhrase = useWorkingPhrase(() => props.row().activity)
     const totalLabel = createMemo(() => {
       const ms = totalDuration()
       if (ms === undefined) return undefined
       if (live()) {
+        const phrase = todoActivityPhrase() || language.t("session.turn.fold.working")
         const seconds = Math.floor(ms / 1000)
-        if (seconds < 60) return language.t("session.turn.fold.workingSec", { seconds })
-        return language.t("session.turn.fold.workingMinSec", {
-          minutes: Math.floor(seconds / 60),
-          seconds: seconds % 60,
-        })
+        const duration =
+          seconds < 60
+            ? language.t("session.turn.fold.durationSec", { seconds })
+            : language.t("session.turn.fold.durationMinSec", {
+                minutes: Math.floor(seconds / 60),
+                seconds: seconds % 60,
+              })
+        return `${phrase} · ${duration}`
       }
       return language.t("session.turn.fold.summary", { duration: formatTodoDuration(ms) ?? "" })
     })
@@ -3212,8 +3391,9 @@ export function MessageTimeline(props: {
     )
   }
 
-  // 轮次过程折叠的展开状态:按 userMessageID 记录手动选择;默认收起(完成态的轮次
-  // 折叠成"已完成 · 用时"一行)。运行中的轮次不会出现折叠卡,天然保持展开。
+  // 轮次过程折叠的展开状态:按 userMessageID 记录手动选择。
+  // 跑完的轮次默认收起成一行"已执行 X";运行中的容器默认展开(过程在动,收起等于看不见进度),
+  // 轮次结束后自动收起 —— 但用户手动点过之后以用户的选择为准。
   const [turnFoldOpen, setTurnFoldOpen] = createStore<Record<string, boolean>>({})
   const [turnFoldTouched, setTurnFoldTouched] = createStore<Record<string, boolean>>({})
 
@@ -3224,17 +3404,22 @@ export function MessageTimeline(props: {
     return language.t("session.turn.fold.durationMinSec", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 })
   }
 
-  /** 轮次过程折叠卡:运行中显示"工作中 · X",完成后折叠成"已工作 X"(对齐 ZCode)。
-   * 点击展开/收起全部过程行。 */
+  /** 轮次过程容器:运行中的末段显示"正在执行中 · X",模型开始讲正文后收成"已执行 X";
+   * 一轮里的多段各自独立开合(键锚在段首,段与段不共用展开状态)。 */
   function TimelineTurnFold(props: { row: Accessor<TimelineRowByTag<"TurnFold">> }) {
-    const foldKey = createMemo(() => props.row().userMessageID)
-    const open = createMemo(() => (turnFoldTouched[foldKey()] ? (turnFoldOpen[foldKey()] ?? false) : false))
+    const foldKey = createMemo(() => TimelineRow.key(props.row()))
+    const open = createMemo(() => {
+      if (turnFoldTouched[foldKey()]) return turnFoldOpen[foldKey()] ?? false
+      return props.row().active === true
+    })
     const toggle = () => {
       setTurnFoldTouched(foldKey(), true)
       setTurnFoldOpen(foldKey(), !open())
     }
-    // 这轮还在跑(结果文本正在流式输出)时显示实时"工作中 · X";跑完后是"已工作 X"。
-    const stillWorking = createMemo(() => working() && activeMessageID() === foldKey())
+    // 这段还在跑(会话忙 + 本轮的末段)才走实时计时;前面的段早已收尾,用段自己的耗时。
+    const stillWorking = createMemo(
+      () => props.row().active === true && working() && activeMessageID() === props.row().userMessageID,
+    )
     const [now, setNow] = createSignal(Date.now())
     createEffect(
       on(stillWorking, (running) => {
@@ -3252,22 +3437,58 @@ export function MessageTimeline(props: {
     const duration = createMemo(() =>
       stillWorking() ? formatTurnDuration(liveDuration()) : formatTurnDuration(props.row().durationMs),
     )
+    const foldActivityPhrase = useWorkingPhrase(() => props.row().activity)
     const label = createMemo(() => {
       if (stillWorking()) {
+        const phrase = foldActivityPhrase() || language.t("session.turn.fold.working")
         const ms = liveDuration()
-        if (ms === undefined) return language.t("session.turn.fold.working")
+        if (ms === undefined) return phrase
         const seconds = Math.floor(ms / 1000)
-        if (seconds < 60) return language.t("session.turn.fold.workingSec", { seconds })
-        return language.t("session.turn.fold.workingMinSec", {
-          minutes: Math.floor(seconds / 60),
-          seconds: seconds % 60,
-        })
+        const elapsed =
+          seconds < 60
+            ? language.t("session.turn.fold.durationSec", { seconds })
+            : language.t("session.turn.fold.durationMinSec", {
+                minutes: Math.floor(seconds / 60),
+                seconds: seconds % 60,
+              })
+        return `${phrase} · ${elapsed}`
       }
+      // 跑完的大容器:头部报"执行 N 步 · 用时 X",展开才看过程明细。
+      // 容器里再按旁白切成段之后,子项数量不等于步数,步数由数据层带过来。
+      const steps = language.t("session.turn.fold.steps", {
+        count: props.row().stepCount ?? props.row().rows.length,
+      })
       const completed = duration()
-      return completed
-        ? language.t("session.turn.fold.summary", { duration: completed })
-        : language.t("session.turn.fold.done")
+      return completed ? `${steps} · ${completed}` : steps
     })
+    // 紧凑过程容器:一条左侧引导线 + 一行一条过程记录,不再框套框。
+    const rail = () => (
+      <div data-component="turn-fold-rows" data-tool-density="compact">
+        <Index each={props.row().rows}>
+          {(row) => (
+            <div class="min-w-0 w-full">
+              <TimelineRowDispatch row={row} />
+            </div>
+          )}
+        </Index>
+        {/* 运行中:容器底部一行实时思考(标题来自本轮最新的 reasoning),计时只在头部出现一次。 */}
+        <Show when={props.row().active && !settings.general.showReasoningSummaries()}>
+          <TimelineThinkingRow
+            reasoningHeading={props.row().reasoningHeading}
+            showReasoningSummaries={false}
+            startedAt={props.row().startedAt}
+            hideElapsed
+          />
+        </Show>
+      </div>
+    )
+    // 只有一行的收尾段:直接把这一行摆在引导线上,不给折叠头 —— 点一下才能看见一步,比不折叠还累。
+    if (props.row().bare)
+      return (
+        <div data-component="turn-fold" data-open="true" class="w-full">
+          {rail()}
+        </div>
+      )
     return (
       <div data-component="turn-fold" data-open={open()} class="w-full">
         <button
@@ -3297,20 +3518,14 @@ export function MessageTimeline(props: {
           style={{ "grid-template-rows": open() ? "1fr" : "0fr" }}
           aria-hidden={!open()}
         >
-          <div class="overflow-hidden">
-            <div class="mb-1.5 flex flex-col gap-1 rounded-lg border border-border bg-background px-3 py-3">
-              <Index each={props.row().rows}>
-                {(row) => <div class="min-w-0 w-full">{renderTimelineRow(row)}</div>}
-              </Index>
-            </div>
-          </div>
+          <div class="overflow-hidden">{rail()}</div>
         </div>
       </div>
     )
   }
 
   /** 轮尾操作行:复制整轮正文 / 赞 / 踩 / 分叉 / 消息创建时间。
-   * 整轮 hover 或焦点停留时淡入(对齐 ZCode 的 assistant 行操作区)。
+   * 整轮 hover 或焦点停留时淡入。
    * 赞踩是纯本地反馈,组件重挂/刷新即清空,不落库、不进 prompt。 */
   function TimelineTurnActions(props: { row: Accessor<TimelineRowByTag<"TurnActions">> }) {
     const userMessageID = createMemo(() => props.row().userMessageID)
@@ -3547,9 +3762,14 @@ export function MessageTimeline(props: {
             aria-hidden={!open()}
           >
             <div class="overflow-hidden">
-              <div class="mb-1.5 ml-6 flex flex-col gap-1 rounded-lg border border-border bg-background px-3 py-3">
+              {/* 分区展开的过程区和轮次容器共用同一套紧凑样式:引导线 + 一行一条,不再框套框。 */}
+              <div data-component="turn-fold-rows" data-variant="todo" data-tool-density="compact">
                 <Index each={props.detail!.rows}>
-                  {(row) => <div class="min-w-0 w-full">{renderTimelineRow(row)}</div>}
+                  {(row) => (
+                    <div class="min-w-0 w-full">
+                      <TimelineRowDispatch row={row} />
+                    </div>
+                  )}
                 </Index>
               </div>
             </div>
@@ -3560,7 +3780,7 @@ export function MessageTimeline(props: {
   }
 
   return (
-    <div class="relative w-full h-full min-w-0">
+    <div data-component="message-timeline" class="relative w-full h-full min-w-0">
       <div
         class="absolute left-1/2 -translate-x-1/2 bottom-6 z-[60] pointer-events-none transition-all duration-200 ease-out"
         classList={{
@@ -3576,7 +3796,7 @@ export function MessageTimeline(props: {
             class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border bg-[color-mix(in_srgb,var(--popover)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border)] group-hover:[--icon-base:var(--foreground)]"
             style={{
               "box-shadow":
-                "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
+                "0 51px 60px 0 color-mix(in srgb, var(--text-strong) 10%, transparent), 0 15px 18px 0 color-mix(in srgb, var(--text-strong) 12%, transparent), 0 6.386px 7.513px 0 color-mix(in srgb, var(--text-strong) 12%, transparent), 0 2.31px 2.717px 0 color-mix(in srgb, var(--text-strong) 20%, transparent)",
             }}
           >
             <Icon name="arrow-down-to-line" size="small" />
@@ -3585,6 +3805,7 @@ export function MessageTimeline(props: {
       </div>
       <ScrollView
         viewportRef={bindListRoot}
+        data-tool-density="compact"
         onWheel={handleListWheel}
         onTouchStart={handleListTouchStart}
         onTouchMove={handleListTouchMove}
@@ -3699,7 +3920,7 @@ export function MessageTimeline(props: {
                   <div class="shrink-0 flex items-center gap-3">
                     <button
                       type="button"
-                      class="hidden h-8 items-center gap-1.5 rounded-[7px] border border-border bg-background px-2.5 text-11-medium text-foreground-subtle outline-none transition-colors hover:border-emerald-300/50 hover:text-emerald-100 md:inline-flex"
+                      class="hidden h-8 items-center gap-1.5 rounded-[7px] border border-border bg-background px-2.5 text-11-medium text-foreground-subtle outline-none transition-colors hover:border-icon-blue/40 hover:text-icon-blue md:inline-flex"
                       title="把当前对话需求保存为可复用工作流"
                       disabled={saveConversationWorkflow.isPending || !latestUserPrompt()}
                       onClick={() => saveConversationWorkflow.mutate()}
@@ -3756,8 +3977,37 @@ export function MessageTimeline(props: {
             }}
           </Show>
         </Show>
+        <Show when={suggestionsLoading() || turnSuggestions().length > 0}>
+          <div class="mx-auto w-full px-4 pb-5 pt-3" style={{ "max-width": "var(--session-content-max-width, 820px)" }}>
+            <div class="mb-2 text-11-medium text-foreground-subtle">
+              {language.t("session.followupSuggestions.title")}
+            </div>
+            <Show when={suggestionsLoading()}>
+              <div class="text-12-regular text-foreground-subtle">
+                {language.t("session.followupSuggestions.loading")}
+              </div>
+            </Show>
+            <div class="flex flex-wrap gap-2">
+              <For each={turnSuggestions()}>
+                {(suggestion) => (
+                  <button
+                    type="button"
+                    class="rounded-lg border border-border bg-surface px-3 py-2 text-left text-12-regular text-foreground-subtle transition-colors hover:border-icon-blue/50 hover:bg-hover hover:text-foreground"
+                    onClick={() => {
+                      const id = sessionID()
+                      if (!id) return
+                      navigate(`/${params.dir}/session/${id}?prompt=${encodeURIComponent(suggestion)}&submit=1`)
+                    }}
+                  >
+                    {suggestion}
+                  </button>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
       </ScrollView>
-      {/* 选中聊天内容后的浮动动作菜单（对齐 ZCode 的 SelectionActionMenu）：
+      {/* 选中聊天内容后的浮动动作菜单（SelectionActionMenu）：
           「添加到当前任务」接着主线问；「在辅助对话中提问」开一条不打断主线的小会话。 */}
       <SelectionActionMenu
         container={scrollRoot}

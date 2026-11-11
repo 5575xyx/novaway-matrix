@@ -2,10 +2,10 @@ import { Icon, type IconProps } from "@novaway/ui/icon"
 import { Show, type Component } from "solid-js"
 
 /**
- * 「应用图标」：彩色圆角方块 + 白色字形，对齐 ZCode 市场页那一排插件图标。
+ * 「应用图标」：彩色圆角方块 + 白色字形，与市场页那一排插件图标同风格。
  *
  * 之前技能 / MCP / 扩展行统一是「14% 淡色底 + 单色线性图标」，一屏看下去全是灰的，
- * 分不出谁是谁。这里改成饱和渐变底 + 白字，每个条目按名字取一个稳定色，
+ * 分不出谁是谁。这里按名字稳定选择主题语义色，每个条目保持颜色一致，
  * 常见的类型（PPT / 表格 / 文档 / 浏览器 / 记忆 …）再用各自的字形。
  */
 export type AppIconStyle = {
@@ -13,77 +13,61 @@ export type AppIconStyle = {
   from: string
   /** 渐变终点（右下）。 */
   to: string
-  /** 方块里的白色字形。 */
+  /** 适配当前强调色的字形前景色。 */
+  foreground: string
   glyph: IconProps["name"]
 }
 
-/** 类型专用配色：一眼能认出这是 PPT 还是表格。 */
-const PRESETS: Record<string, AppIconStyle> = {
-  // 内置扩展（builtin-extensions-data 的 id）
-  pdf: { from: "#ff8d7a", to: "#d92d20", glyph: "lu-file-text" },
-  presentations: { from: "#ffb74d", to: "#e8590c", glyph: "lu-presentation" },
-  spreadsheets: { from: "#5fd68c", to: "#0f8a45", glyph: "lu-table" },
-  documents: { from: "#74a9ff", to: "#1f5ac8", glyph: "lu-file-text" },
-  visualize: { from: "#b388ff", to: "#6d28d9", glyph: "chart" },
-  design: { from: "#ff8fc4", to: "#c0266e", glyph: "lu-image" },
-  knowledge: { from: "#43d4d4", to: "#0e8c8c", glyph: "database" },
-  meetings: { from: "#58c7f3", to: "#0369a1", glyph: "lu-users" },
-  tasks: { from: "#f5b83d", to: "#b45309", glyph: "lu-list-checks" },
-  communication: { from: "#7dd3fc", to: "#0284c7", glyph: "bubble-5" },
-  "browser-use": { from: "#5b9dff", to: "#1d4ed8", glyph: "lu-chrome" },
-  "computer-use": { from: "#a3b1c6", to: "#475569", glyph: "autopilot" },
-  "skill-tools": { from: "#c084fc", to: "#7c3aed", glyph: "lu-wrench" },
-  "media-ops": { from: "#ffd166", to: "#e8590c", glyph: "lu-megaphone" },
-  "topic-radar": { from: "#63e6be", to: "#0b7285", glyph: "lu-globe" },
-  "humanize-writing": { from: "#ffc9de", to: "#a61e4d", glyph: "lu-square-pen" },
-  "account-review": { from: "#9ad0ff", to: "#1c4e80", glyph: "lu-activity" },
-  "wxgzh-ops": { from: "#5ad87a", to: "#15803d", glyph: "bubble-5" },
-  "xiaohongshu-ops": { from: "#ff7a90", to: "#d81e42", glyph: "lu-square-pen" },
-  "memory-service": { from: "#8fa8ff", to: "#4338ca", glyph: "lu-brain" },
-
-  // 市场里最常见的几个条目
-  "ppt-master": { from: "#ffb74d", to: "#e8590c", glyph: "lu-presentation" },
-  "office-ppt": { from: "#ffb74d", to: "#e8590c", glyph: "lu-presentation" },
-  "office-data": { from: "#5fd68c", to: "#0f8a45", glyph: "lu-table" },
-  "office-document": { from: "#74a9ff", to: "#1f5ac8", glyph: "lu-file-text" },
-  "office-web": { from: "#b388ff", to: "#6d28d9", glyph: "chart" },
-  "office-design": { from: "#ff8fc4", to: "#c0266e", glyph: "lu-image" },
-  "office-knowledge": { from: "#43d4d4", to: "#0e8c8c", glyph: "database" },
-  "office-meeting": { from: "#58c7f3", to: "#0369a1", glyph: "lu-users" },
-  "office-task": { from: "#f5b83d", to: "#b45309", glyph: "lu-list-checks" },
-  "office-communication": { from: "#7dd3fc", to: "#0284c7", glyph: "bubble-5" },
-  github: { from: "#5a5a66", to: "#17171f", glyph: "github" },
-  context7: { from: "#43d4d4", to: "#0e8c8c", glyph: "lu-globe" },
-  memory: { from: "#8fa8ff", to: "#4338ca", glyph: "lu-brain" },
-  "sequential-thinking": { from: "#c084fc", to: "#7c3aed", glyph: "lu-list-checks" },
-  playwright: { from: "#5b9dff", to: "#1d4ed8", glyph: "lu-chrome" },
-  "playwright-mcp": { from: "#5b9dff", to: "#1d4ed8", glyph: "lu-chrome" },
-  chrome: { from: "#5b9dff", to: "#1d4ed8", glyph: "lu-chrome" },
-  "chrome-devtools": { from: "#5b9dff", to: "#1d4ed8", glyph: "lu-chrome" },
-  puppeteer: { from: "#5b9dff", to: "#1d4ed8", glyph: "lu-chrome" },
-  filesystem: { from: "#f5b83d", to: "#b45309", glyph: "folder" },
-  fetch: { from: "#43d4d4", to: "#0e8c8c", glyph: "lu-globe" },
-  figma: { from: "#ff8fc4", to: "#c0266e", glyph: "lu-image" },
-  notion: { from: "#8d95a3", to: "#2f343d", glyph: "lu-file-text" },
-  postgres: { from: "#6fa8ff", to: "#1f5ac8", glyph: "database" },
-  postgresql: { from: "#6fa8ff", to: "#1f5ac8", glyph: "database" },
-  mysql: { from: "#58c7f3", to: "#0369a1", glyph: "database" },
-  sqlite: { from: "#58c7f3", to: "#0369a1", glyph: "database" },
+/** 内置类型的字形映射；颜色由主题语义色生成。 */
+const PRESET_GLYPHS: Record<string, IconProps["name"]> = {
+  pdf: "lu-file-text",
+  presentations: "lu-presentation",
+  spreadsheets: "lu-table",
+  documents: "lu-file-text",
+  visualize: "chart",
+  design: "lu-image",
+  knowledge: "database",
+  meetings: "lu-users",
+  tasks: "lu-list-checks",
+  communication: "bubble-5",
+  "browser-use": "lu-chrome",
+  "computer-use": "autopilot",
+  "skill-tools": "lu-wrench",
+  "media-ops": "lu-megaphone",
+  "topic-radar": "lu-globe",
+  "humanize-writing": "lu-square-pen",
+  "account-review": "lu-activity",
+  "wxgzh-ops": "bubble-5",
+  "xiaohongshu-ops": "lu-square-pen",
+  "memory-service": "lu-brain",
+  "ppt-master": "lu-presentation",
+  "office-ppt": "lu-presentation",
+  "office-data": "lu-table",
+  "office-document": "lu-file-text",
+  "office-web": "chart",
+  "office-design": "lu-image",
+  "office-knowledge": "database",
+  "office-meeting": "lu-users",
+  "office-task": "lu-list-checks",
+  "office-communication": "bubble-5",
+  github: "github",
+  context7: "lu-globe",
+  memory: "lu-brain",
+  "sequential-thinking": "lu-list-checks",
+  playwright: "lu-chrome",
+  "playwright-mcp": "lu-chrome",
+  chrome: "lu-chrome",
+  "chrome-devtools": "lu-chrome",
+  puppeteer: "lu-chrome",
+  filesystem: "folder",
+  fetch: "lu-globe",
+  figma: "lu-image",
+  notion: "lu-file-text",
+  postgres: "database",
+  postgresql: "database",
+  mysql: "database",
+  sqlite: "database",
 }
-
-/** 没有专用配色的条目从这里按名字哈希取一个稳定渐变，同一名字永远同色。 */
-const TONES: Array<{ from: string; to: string }> = [
-  { from: "#7cb4ff", to: "#2563eb" },
-  { from: "#b59cff", to: "#7c3aed" },
-  { from: "#5fd68c", to: "#059669" },
-  { from: "#f8c74e", to: "#d97706" },
-  { from: "#ff9cc8", to: "#db2777" },
-  { from: "#4cd8ef", to: "#0891b2" },
-  { from: "#ffa76b", to: "#ea580c" },
-  { from: "#9aa8ff", to: "#4f46e5" },
-  { from: "#52dcc8", to: "#0f766e" },
-  { from: "#ff8f8f", to: "#dc2626" },
-]
 
 /**
  * 名字里带这些词就用对应字形：技能 / MCP 是动态加载的，没有清单可查，
@@ -125,23 +109,40 @@ function inferGlyph(seed: string) {
   return undefined
 }
 
+const THEME_TONES = [
+  ["--icon-interactive-base", "--text-on-interactive-base"],
+  ["--icon-agent-plan-base", "--text-on-brand-base"],
+  ["--icon-success-base", "--text-on-success-base"],
+  ["--icon-warning-base", "--text-on-warning-base"],
+  ["--icon-info-base", "--text-on-info-base"],
+  ["--icon-critical-base", "--text-on-critical-base"],
+  ["--icon-brand-base", "--text-on-brand-base"],
+] as const
+
+function themedTone(seed: string) {
+  const [token, foreground] = THEME_TONES[hash(seed) % THEME_TONES.length]!
+  return {
+    from: `color-mix(in oklab, var(${token}) 78%, var(--surface))`,
+    to: `var(${token})`,
+    foreground: `var(${foreground})`,
+  }
+}
+
 /**
  * 取一个条目应显示的图标样式。
  *
  * 优先显式字形（内置扩展自己声明了最合适的那个），其次是名字关键字，
  * 最后用调用方给的兜底字形（MCP 列表用 `mcp`、通用资源行用 `dot-grid`）。
- * 颜色始终由名字决定，所以同一个插件在「市场 / 已安装 / 办公模式」里颜色一致。
+ * 配色由条目名稳定选择主题语义色，因此同一条目始终一致并跟随当前主题。
  */
 export function appIcon(
   seed: string,
   options: { glyph?: IconProps["name"]; fallback?: IconProps["name"] } = {},
 ): AppIconStyle {
   const key = seed.trim().toLowerCase()
-  const preset = PRESETS[key]
-  const glyph = options.glyph ?? preset?.glyph ?? inferGlyph(key) ?? options.fallback ?? "mcp"
-  if (preset) return { ...preset, glyph }
-  const tone = TONES[hash(key) % TONES.length]!
-  return { ...tone, glyph }
+  const preset = PRESET_GLYPHS[key]
+  const glyph = options.glyph ?? preset ?? inferGlyph(key) ?? options.fallback ?? "mcp"
+  return { ...themedTone(key), glyph }
 }
 
 const SIZES = {
@@ -153,7 +154,7 @@ const SIZES = {
 }
 
 /**
- * ZCode 风格的应用图标方块。
+ * 应用图标方块。
  *
  * 用 CSS 渐变而不是 SVG 渐变：暗色主题下不需要第二套定义，也不会出现
  * `<symbol>` 里 gradient id 冲突的问题。字形颜色必须写成 svg 的 inline style ——
@@ -179,7 +180,7 @@ export const AppIcon: Component<{
       class={`relative grid shrink-0 place-items-center overflow-hidden ${box().box} ${props.class ?? ""}`}
       style={{
         background: `linear-gradient(135deg, ${style().from} 0%, ${style().to} 100%)`,
-        "box-shadow": "inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.16)",
+        "box-shadow": "inset 0 1px 0 color-mix(in srgb, var(--text-invert-strong) 30%, transparent), var(--shadow-xs)",
       }}
       aria-hidden={props.label ? undefined : "true"}
       aria-label={props.label}
@@ -189,7 +190,7 @@ export const AppIcon: Component<{
       <span
         class="pointer-events-none absolute inset-0"
         style={{
-          background: "radial-gradient(120% 90% at 22% 6%, rgba(255,255,255,0.34), rgba(255,255,255,0) 60%)",
+          background: `radial-gradient(120% 90% at 22% 6%, color-mix(in srgb, ${style().foreground} 34%, transparent), transparent 60%)`,
         }}
       />
       <Show when={props.label}>
@@ -199,7 +200,10 @@ export const AppIcon: Component<{
         name={style().glyph}
         size={box().glyph}
         class="relative"
-        style={{ color: "#fff", filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.18))" }}
+        style={{
+          color: style().foreground,
+          filter: "drop-shadow(0 1px 1px color-mix(in srgb, var(--text-strong) 18%, transparent))",
+        }}
       />
     </span>
   )

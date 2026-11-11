@@ -11,8 +11,8 @@
     "dev:web": "bun --cwd packages/app dev",
     "dev:console": "ulimit -n 10240 2>/dev/null; bun run --cwd packages/console/app dev",
     "dev:storybook": "bun --cwd packages/storybook storybook",
-    "lint": "oxlint",
-    "typecheck": "bun turbo typecheck",
+    "lint": "bun script/lint.ts",
+    "typecheck": "bunx turbo typecheck",
     "upgrade-opentui": "bun run script/upgrade-opentui.ts",
     "sync:pnpm": "node script/sync-pnpm-workspace.mjs",
     "check:pnpm": "node script/sync-pnpm-workspace.mjs --check",
@@ -26,6 +26,7 @@
   "workspaces": {
     "packages": [
       "packages/*",
+      "!packages/novaway.tmp-*",
       "packages/console/*",
       "packages/sdk/js",
       "packages/slack",

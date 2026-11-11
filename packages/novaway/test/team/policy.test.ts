@@ -92,7 +92,10 @@ describe("team policy", () => {
     const scoped = (paths: string[]) => ({ readOnly: false, paths, root: "/repo" })
 
     test("a declared scope only narrows writes, and says which path fell outside", () => {
-      const inside = decide(scoped(["src/team"]), call("write", CAPABILITIES.write, { filePath: "/repo/src/team/a.ts" }))
+      const inside = decide(
+        scoped(["src/team"]),
+        call("write", CAPABILITIES.write, { filePath: "/repo/src/team/a.ts" }),
+      )
       expect(inside.kind).toBe("allow")
       // 相对路径按团队目录解析：模型写的常常是相对路径。
       expect(decide(scoped(["src/team"]), call("edit", CAPABILITIES.edit, { filePath: "src/team/a.ts" })).kind).toBe(
@@ -115,27 +118,46 @@ describe("team policy", () => {
 
     test("patches are checked by the files they touch", () => {
       const patch = (file: string) =>
-        ["*** Begin Patch", "*** Update File: " + file, "@@ -1 +1 @@", "-a", "+b", "*** End Patch"].join(String.fromCharCode(10))
-      expect(decide(scoped(["src/team"]), call("apply_patch", CAPABILITIES.apply_patch, { patchText: patch("src/team/a.ts") })).kind).toBe("allow")
-      expect(decide(scoped(["src/team"]), call("apply_patch", CAPABILITIES.apply_patch, { patchText: patch("src/app/a.ts") })).kind).toBe("deny")
+        ["*** Begin Patch", "*** Update File: " + file, "@@ -1 +1 @@", "-a", "+b", "*** End Patch"].join(
+          String.fromCharCode(10),
+        )
+      expect(
+        decide(
+          scoped(["src/team"]),
+          call("apply_patch", CAPABILITIES.apply_patch, { patchText: patch("src/team/a.ts") }),
+        ).kind,
+      ).toBe("allow")
+      expect(
+        decide(
+          scoped(["src/team"]),
+          call("apply_patch", CAPABILITIES.apply_patch, { patchText: patch("src/app/a.ts") }),
+        ).kind,
+      ).toBe("deny")
       // 解析不出来的补丁由工具自己拒绝；这里不额外拦一道。
-      expect(decide(scoped(["src/team"]), call("apply_patch", CAPABILITIES.apply_patch, { patchText: "garbage" })).kind).toBe("allow")
+      expect(
+        decide(scoped(["src/team"]), call("apply_patch", CAPABILITIES.apply_patch, { patchText: "garbage" })).kind,
+      ).toBe("allow")
     })
 
     test("reads are not narrowed: a reviewer must see the whole repository", () => {
-      expect(decide(scoped(["src/team"]), call("read", CAPABILITIES.read, { filePath: "/repo/src/app/a.ts" })).kind).toBe(
-        "allow",
-      )
+      expect(
+        decide(scoped(["src/team"]), call("read", CAPABILITIES.read, { filePath: "/repo/src/app/a.ts" })).kind,
+      ).toBe("allow")
       // 看不到文件目标的工具（shell）不假装拦得住（边界见 policy.ts 文件头）。
       expect(decide(scoped(["src/team"]), call("bash", CAPABILITIES.bash, { command: "rm -rf x" })).kind).toBe("allow")
     })
 
     test("no declared scope means no narrowing, and a review run keeps its own rules", () => {
-      expect(decide({ readOnly: false }, call("write", CAPABILITIES.write, { filePath: "/anywhere" })).kind).toBe("allow")
-      // 只读在先：即使范围包含这个文件，只读运行也不许写。
-      expect(decide({ readOnly: true, paths: ["src"], root: "/repo" }, call("write", CAPABILITIES.write, { filePath: "src/a.ts" })).kind).toBe(
-        "deny",
+      expect(decide({ readOnly: false }, call("write", CAPABILITIES.write, { filePath: "/anywhere" })).kind).toBe(
+        "allow",
       )
+      // 只读在先：即使范围包含这个文件，只读运行也不许写。
+      expect(
+        decide(
+          { readOnly: true, paths: ["src"], root: "/repo" },
+          call("write", CAPABILITIES.write, { filePath: "src/a.ts" }),
+        ).kind,
+      ).toBe("deny")
     })
 
     test("fromPlan carries the team's scope and the base directory", () => {

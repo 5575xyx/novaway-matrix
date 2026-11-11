@@ -1,7 +1,6 @@
 /**
  * 工具行的动作词：**随运行状态换时态**。
  *
- * 对齐 ZCode 的 kindLabel 机制（`chat.toolCall.edit.editing` / `chat.toolCall.edit.edited`）：
  * 运行中说是"正在做什么"，结束后说"已经做了什么"。只用一个词（"编辑"）的话，
  * 标题栏那条 `TextShimmer` 就承担了全部状态表达 —— 扫一眼列表分不出哪些还在跑。
  *

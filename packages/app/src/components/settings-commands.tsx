@@ -12,7 +12,7 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { AppIcon } from "./app-icon"
-import { rowAccent, SettingsGroup } from "./settings-parts"
+import { rowAccent, SettingsGroup, SettingsPage } from "./settings-parts"
 
 type CommandSource = "config" | "markdown" | "builtin"
 
@@ -33,7 +33,7 @@ const sourceLabel = (language: ReturnType<typeof useLanguage>, source: CommandSo
 /**
  * 命令（斜杠命令）设置页。
  *
- * 对齐 ZCode 的 Commands 区：列出当前可用的 /命令，并能新增/编辑/删除
+ * 列出当前可用的 /命令，并能新增/编辑/删除
  * 写在配置里的命令。磁盘上的 .novaway/command/*.md 命令也一并列出，
  * 但只读 —— 它们由文件本身管理，在 UI 里改会被下一次扫描覆盖。
  */
@@ -106,73 +106,67 @@ export const SettingsCommands: Component<{ directory?: string }> = (props) => {
   }
 
   return (
-    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
-      <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-1 pt-6 pb-8 w-full">
-          <h2 class="text-16-medium text-foreground">{language.t("settings.commands.title" as never)}</h2>
-          <p class="text-13-regular text-foreground-subtle">{language.t("settings.commands.description" as never)}</p>
+    <SettingsPage
+      title={language.t("settings.commands.title" as never)}
+      description={language.t("settings.commands.description" as never)}
+    >
+      <div>
+        <div class="flex flex-wrap items-center gap-2 pb-3">
+          <Button variant="secondary" icon="plus-small" onClick={addCommand}>
+            {language.t("settings.commands.action.add" as never)}
+          </Button>
         </div>
-      </div>
-
-      <div class="flex flex-col gap-8 w-full">
-        <div>
-          <div class="flex flex-wrap items-center gap-2 pb-3">
-            <Button variant="secondary" icon="plus-small" onClick={addCommand}>
-              {language.t("settings.commands.action.add" as never)}
-            </Button>
-          </div>
-          <SettingsGroup>
-            <Show
-              when={list().length > 0}
-              fallback={
-                <div class="px-4 py-6 text-center text-13-regular text-foreground-subtle">
-                  {language.t("settings.commands.empty" as never)}
-                </div>
-              }
-            >
-              <For each={list()}>
-                {(item) => {
-                  // 每条命令一个稳定色：图标块、标题前的色点都读它，
-                  // 一屏几十个 /命令 时靠颜色分组更快。
-                  const accent = rowAccent(item.command.name)
-                  return (
-                    <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
-                      <AppIcon seed={item.command.name} glyph="console" />
-                      <div class="flex min-w-0 flex-1 flex-col">
-                        <div class="flex min-w-0 flex-wrap items-center gap-2">
-                          <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent }} />
-                          <span class="truncate text-13-medium text-foreground">{"/" + item.command.name}</span>
-                          <Tag>{sourceLabel(language, item.source)}</Tag>
-                        </div>
-                        <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">
-                          {item.command.description || item.command.template}
-                        </span>
+        <SettingsGroup>
+          <Show
+            when={list().length > 0}
+            fallback={
+              <div class="px-4 py-6 text-center text-13-regular text-foreground-subtle">
+                {language.t("settings.commands.empty" as never)}
+              </div>
+            }
+          >
+            <For each={list()}>
+              {(item) => {
+                // 每条命令一个稳定色：图标块、标题前的色点都读它，
+                // 一屏几十个 /命令 时靠颜色分组更快。
+                const accent = rowAccent(item.command.name)
+                return (
+                  <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
+                    <AppIcon seed={item.command.name} glyph="console" />
+                    <div class="flex min-w-0 flex-1 flex-col">
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent }} />
+                        <span class="truncate text-13-medium text-foreground">{"/" + item.command.name}</span>
+                        <Tag>{sourceLabel(language, item.source)}</Tag>
                       </div>
-                      <Show when={item.source === "config"}>
-                        <div class="flex shrink-0 items-center gap-1">
-                          <IconButton
-                            icon="edit"
-                            variant="ghost"
-                            onClick={() => editCommand(item.command.name)}
-                            aria-label={language.t("settings.management.action.edit" as never)}
-                          />
-                          <IconButton
-                            icon="trash"
-                            variant="ghost"
-                            onClick={() => void remove(item.command.name)}
-                            aria-label={language.t("settings.management.action.delete" as never)}
-                          />
-                        </div>
-                      </Show>
+                      <span class="mt-0.5 truncate text-12-regular text-foreground-subtle">
+                        {item.command.description || item.command.template}
+                      </span>
                     </div>
-                  )
-                }}
-              </For>
-            </Show>
-          </SettingsGroup>
-        </div>
+                    <Show when={item.source === "config"}>
+                      <div class="flex shrink-0 items-center gap-1">
+                        <IconButton
+                          icon="edit"
+                          variant="ghost"
+                          onClick={() => editCommand(item.command.name)}
+                          aria-label={language.t("settings.management.action.edit" as never)}
+                        />
+                        <IconButton
+                          icon="trash"
+                          variant="ghost"
+                          onClick={() => void remove(item.command.name)}
+                          aria-label={language.t("settings.management.action.delete" as never)}
+                        />
+                      </div>
+                    </Show>
+                  </div>
+                )
+              }}
+            </For>
+          </Show>
+        </SettingsGroup>
       </div>
-    </div>
+    </SettingsPage>
   )
 }
 

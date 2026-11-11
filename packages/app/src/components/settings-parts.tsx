@@ -6,7 +6,12 @@ import { type Component, type JSX } from "solid-js"
  * 之前所有这些行统一是「浅底 + 灰图标」，一屏十几行看起来像表格、几乎没法扫读。
  * 现在按名字哈希取一个稳定色：同一个条目永远同色，不同条目一眼能分开。
  */
-const rowAccentPalette = ["#60a5fa", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#22d3ee", "#fb923c", "#818cf8"]
+const rowAccentPalette = [
+  "var(--icon-interactive-base)",
+  "var(--icon-agent-plan-base)",
+  "var(--icon-info-base)",
+  "var(--icon-brand-base)",
+]
 
 export function rowAccent(seed: string) {
   let hash = 0
@@ -21,12 +26,31 @@ export function rowAccentTint(color: string, percent = 14) {
   return `color-mix(in srgb, ${color} ${percent}%, var(--background))`
 }
 
-// 对齐 ZCode 设置页的行式布局（`SettingsPageParts`）：
+// 设置页的行式布局：
 // 一个圆角分组卡片里排若干行，行与行之间用 1px 分隔线，左侧是标题 + 说明，
 // 右侧是控件（开关 / 输入框 / 按钮）。旧实现是「每项一张竖排小卡片」，
 // 开关被放到说明下方，视觉上更像表单而不像设置项，这里统一掉。
+export const SettingsPage: Component<{
+  title: string | JSX.Element
+  description?: string | JSX.Element
+  children: JSX.Element
+  class?: string
+}> = (props) => (
+  <div class={`flex h-full flex-col overflow-y-auto no-scrollbar px-4 pb-10 sm:px-8 lg:px-10 ${props.class ?? ""}`}>
+    <header class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)]">
+      <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-1 pt-8 pb-7">
+        <h2 class="text-24-semibold tracking-tight text-foreground">{props.title}</h2>
+        {props.description ? <p class="text-13-regular text-foreground-subtle">{props.description}</p> : null}
+      </div>
+    </header>
+    <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-8">{props.children}</div>
+  </div>
+)
+
 export const SettingsGroup: Component<{ children: JSX.Element; class?: string }> = (props) => (
-  <div class={`overflow-hidden rounded-xl border border-border bg-surface ${props.class ?? ""}`}>{props.children}</div>
+  <div class={`overflow-hidden rounded-xl border border-border/80 bg-surface shadow-sm ${props.class ?? ""}`}>
+    {props.children}
+  </div>
 )
 
 export const SettingsRow: Component<{
@@ -41,7 +65,7 @@ export const SettingsRow: Component<{
 }> = (props) => (
   <div
     data-row-hover
-    class={`group border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover/50 ${
+    class={`group border-t border-border/80 px-4 py-4 transition-colors first:border-t-0 hover:bg-hover/40 ${
       props.layout === "wide" ? "flex flex-col gap-3" : ""
     } ${props.class ?? ""}`}
   >

@@ -6,10 +6,12 @@ import { ChatApi } from "./groups/chat"
 import { CheckpointApi } from "./groups/checkpoint"
 import { ConfigApi } from "./groups/config"
 import { ControlApi } from "./groups/control"
+import "@/plugin/event"
 import { EventApi } from "./groups/event"
 import { ExperimentalApi } from "./groups/experimental"
 import { EvolutionApi } from "./groups/evolution"
 import { ExtensionApi } from "./groups/extension"
+import { PluginApi } from "./groups/plugin"
 import { FileApi } from "./groups/file"
 import { GitApi } from "./groups/git"
 import { GlobalApi } from "./groups/global"
@@ -39,6 +41,7 @@ import { WorkspaceApi } from "./groups/workspace"
 import { V2Api } from "./groups/v2"
 import { GoalApi } from "./groups/goal"
 import { WorkflowApi } from "./groups/workflow"
+import { DynamicWorkflowApi } from "./groups/dynamic-workflow"
 import { OrchestratorApi } from "./groups/orchestrator"
 import { TeamApi } from "./groups/team"
 import { MissionApi } from "./groups/mission"
@@ -91,11 +94,13 @@ const InstanceGroups = HttpApi.make("NovaWay-instance")
   .addHttpApi(SyncApi)
   .addHttpApi(V2Api)
   .addHttpApi(VideosApi)
+  .addHttpApi(PluginApi)
 
 export const InstanceHttpApi = InstanceGroups.addHttpApi(TuiApi)
   .addHttpApi(WorkspaceApi)
   .add(GoalApi)
   .add(WorkflowApi)
+  .addHttpApi(DynamicWorkflowApi)
   .add(OrchestratorApi)
   .addHttpApi(TeamApi)
   .add(ProfileApi)

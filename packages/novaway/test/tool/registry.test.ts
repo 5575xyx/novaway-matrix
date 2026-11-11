@@ -47,6 +47,10 @@ import { defaultLayer as McpLayer } from "@/mcp"
 import { defaultLayer as EvolutionLayer } from "@/evolution/service"
 import { Database } from "@/database"
 import { ClientCapabilities } from "@/effect/client-capabilities"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
+import { PluginToolRuntime } from "@/plugin/runtime/tool"
+import type { ToolContribution } from "@novaway/plugin-api"
+import { InstanceRef } from "@/effect/instance-ref"
 
 const node = CrossSpawnSpawner.defaultLayer
 const configLayer = TestConfig.layer({
@@ -56,7 +60,7 @@ const configLayer = TestConfig.layer({
 const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Layer<Config.Service> = configLayer) =>
   ToolRegistry.layer
     .pipe(
-      Layer.provide(config),
+      Layer.provide(Layer.merge(config, PluginRuntimeService.defaultLayer)),
       Layer.provide(Plugin.defaultLayer),
       Layer.provide(Question.defaultLayer),
       Layer.provide(Todo.defaultLayer),
@@ -144,7 +148,15 @@ const teamOff = testEffect(
   ) as any,
 )
 
-const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer, Auth.defaultLayer) as any)
+const it = testEffect(
+  Layer.mergeAll(
+    registryLayer(),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+    PluginRuntimeService.defaultLayer,
+  ) as any,
+)
 const scout = testEffect(
   Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any,
 )
@@ -174,7 +186,7 @@ describe("deferred tools", () => {
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
-      const build = yield* agent.get("build")
+      const build = (yield* agent.get("build"))!
       const session = yield* Session.Service
       const chat = yield* session.create({ title: "defer" })
       const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
@@ -214,7 +226,7 @@ describe("deferred tools", () => {
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
-      const build = yield* agent.get("build")
+      const build = (yield* agent.get("build"))!
       const session = yield* Session.Service
       const chat = yield* session.create({ title: "browser-core" })
       const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
@@ -232,7 +244,7 @@ describe("deferred tools", () => {
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
-      const build = yield* agent.get("build")
+      const build = (yield* agent.get("build"))!
       const session = yield* Session.Service
       const chat = yield* session.create({ title: "team-off" })
       const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
@@ -249,7 +261,7 @@ describe("deferred tools", () => {
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
-      const build = yield* agent.get("build")
+      const build = (yield* agent.get("build"))!
       const session = yield* Session.Service
       const chat = yield* session.create({ title: "no-browser" })
       const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
@@ -266,7 +278,7 @@ describe("deferred tools", () => {
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
-      const build = yield* agent.get("build")
+      const build = (yield* agent.get("build"))!
       const session = yield* Session.Service
       const chat = yield* session.create({ title: "defer-family" })
       const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
@@ -296,12 +308,39 @@ describe("deferred tools", () => {
 })
 
 describe("tool.registry", () => {
+  it.live("refreshes plugin tool snapshots after contributions change", () =>
+    Effect.gen(function* () {
+      const runtime = yield* PluginRuntimeService.Service
+      const host = yield* runtime.get
+      const pluginTool: ToolContribution = {
+        id: "ping",
+        description: "Plugin ping tool",
+        parameters: { type: "object", properties: {}, additionalProperties: false },
+        safety: { readOnly: true, concurrencySafe: true, destructive: false, idempotent: true },
+        execute: async () => "pong",
+      }
+      host.registries.tools.register({ pluginID: "sample", scope: "project" }, pluginTool)
+      const registry = yield* ToolRegistry.Service
+      const added = yield* registry.all()
+      expect(added.filter((tool) => tool.id === "sample_ping")).toHaveLength(1)
+
+      host.registries.tools.release("sample")
+      const removed = yield* registry.all()
+      expect(removed.some((tool) => tool.id === "sample_ping")).toBe(false)
+    }).pipe(
+      Effect.provide(PluginRuntimeService.defaultLayer),
+      Effect.provideService(InstanceRef, {
+        directory: "/tmp/plugin-snapshot",
+        worktree: "/tmp/plugin-snapshot",
+      } as never),
+    ),
+  )
   it.instance("offers review_document to primary agents only", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agents = yield* Agent.Service
-      const build = yield* agents.get("build")
-      const general = yield* agents.get("general")
+      const build = (yield* agents.get("build"))!
+      const general = (yield* agents.get("general"))!
       const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
 
       const primary = yield* registry.tools({ ...ref, agent: build })
@@ -345,7 +384,7 @@ describe("tool.registry", () => {
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
-      const build = yield* agent.get("build")
+      const build = (yield* agent.get("build"))!
       if (!build) throw new Error("build agent not found")
       const task = (yield* registry.tools({
         providerID: ProviderID.builtin,

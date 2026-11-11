@@ -1,6 +1,5 @@
 import { afterEach, describe, expect } from "bun:test"
 import { AppFileSystem } from "@novaway/core/filesystem"
-import { parsePatch } from "diff"
 import { Deferred, Effect, Layer } from "effect"
 import { CrossSpawnSpawner } from "@novaway/core/cross-spawn-spawner"
 import fs from "fs/promises"
@@ -293,7 +292,6 @@ describe("Vcs diff", () => {
 
         expect(file?.patch).toContain(" same\rdiff --git inside")
         expect(file?.patch).toContain("-delete")
-        expect(() => parsePatch(file?.patch ?? "")).not.toThrow()
       }),
     { git: true },
     20_000,

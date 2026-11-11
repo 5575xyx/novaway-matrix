@@ -14,7 +14,8 @@ const fallbackClass = "size-16 rounded-md bg-surface flex items-center justify-c
 const imageClass = "size-16 rounded-md object-cover border border-border hover:border-border-hover transition-colors"
 const removeClass =
   "absolute -top-1.5 -right-1.5 size-5 rounded-full bg-popover border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-hover"
-const nameClass = "absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/50 rounded-b-md"
+const nameClass =
+  "absolute bottom-0 left-0 right-0 rounded-b-md bg-[color-mix(in_srgb,var(--surface-raised-strong)_88%,transparent)] px-1 py-0.5"
 
 export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (props) => {
   return (
@@ -48,7 +49,7 @@ export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (p
                   <Icon name="close" class="size-3 text-foreground-subtle" />
                 </button>
                 <div class={nameClass}>
-                  <span class="text-10-regular text-white truncate block">{attachment.filename}</span>
+                  <span class="text-10-regular text-foreground truncate block">{attachment.filename}</span>
                 </div>
               </div>
             </Tooltip>

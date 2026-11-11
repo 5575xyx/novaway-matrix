@@ -880,7 +880,7 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               <Match when={store.state === "error"}>
                 <div class="text-14-regular text-foreground">
                   <div class="flex items-center gap-x-2">
-                    <Icon name="circle-ban-sign" class="text-destructive" />
+                    <Icon name="circle-ban-sign" class="text-icon-critical-base" />
                     <span>{language.t("provider.connect.status.failed", { error: store.error ?? "" })}</span>
                   </div>
                 </div>

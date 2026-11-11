@@ -56,7 +56,12 @@ describe("defender-repair", () => {
     const orig = process.platform
     Object.defineProperty(process, "platform", { value: "win32" })
     try {
-      const present = new Set(["E:/novaway/NovaWay.exe", "E:/novaway/ffmpeg.dll", "E:/novaway/libGLESv2.dll", "E:/novaway/libEGL.dll"])
+      const present = new Set([
+        "E:/novaway/NovaWay.exe",
+        "E:/novaway/ffmpeg.dll",
+        "E:/novaway/libGLESv2.dll",
+        "E:/novaway/libEGL.dll",
+      ])
       const r = checkQuarantine("E:/novaway/NovaWay.exe", (p) => present.has(p))
       expect(r.quarantined).toBe(false)
     } finally {

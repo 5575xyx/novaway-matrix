@@ -34,7 +34,7 @@ describe("buildGitSectionModel", () => {
     expect(buildGitSectionModel(undefined)).toBeNull()
   })
 
-  // 对齐 ZCode 的 buildGitModel：clean 仓库也挂状态卡是它修过的 bug，
+  // clean 仓库也挂状态卡是修过的 bug，
   // 没有可提交的东西时卡片连提交入口一起消失才是预期。
   test("no card on a clean tree", () => {
     expect(buildGitSectionModel(makeSnapshot("main", [], [commit]))).toBeNull()

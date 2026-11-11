@@ -29,6 +29,16 @@ const read = Effect.fn("FileTest.read")(function* (input: string) {
   return yield* file.read(input)
 })
 
+const readBase64 = Effect.fn("FileTest.readBase64")(function* (input: string) {
+  const file = yield* File.Service
+  return yield* file.read(input, { encoding: "base64" })
+})
+
+const readMediaRange = Effect.fn("FileTest.readMediaRange")(function* (input: string, offset: number, length: number) {
+  const file = yield* File.Service
+  return yield* file.readMediaRange(input, offset, length)
+})
+
 const list = Effect.fn("FileTest.list")(function* (dir?: string) {
   const file = yield* File.Service
   return yield* file.list(dir)
@@ -56,6 +66,16 @@ const failureMessage = <A, E, R>(self: Effect.Effect<A, E, R>) =>
       return error instanceof Error ? error.message : String(error)
     }
     throw new Error("expected effect to fail")
+  })
+
+/** base64 通道的失败必须是带 code 的 `File.ReadError`，不是空内容 —— 这是预览面板能报错的唯一依据。 */
+const readFailure = <R>(self: Effect.Effect<unknown, File.ReadError, R>) =>
+  Effect.gen(function* () {
+    const exit = yield* self.pipe(Effect.exit)
+    if (Exit.isSuccess(exit)) throw new Error("expected base64 read to fail")
+    const error = Cause.squash(exit.cause)
+    if (!(error instanceof File.ReadError)) throw new Error("expected File.ReadError, got " + String(error))
+    return error
   })
 
 const setupSearchableRepo = Effect.fn("FileTest.setupSearchableRepo")(function* (directory: string) {
@@ -88,15 +108,16 @@ describe("file/index Filesystem patterns", () => {
       }),
     )
 
-    it.instance("trims whitespace from text content", () =>
+    it.instance("keeps leading/trailing whitespace byte-exact", () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
         yield* Effect.promise(() =>
           fs.writeFile(path.join(test.directory, "test.txt"), "  content with spaces  \n\n", "utf-8"),
         )
 
+        // 编辑器里改一个字就会整篇写回，读的时候先 trim 等于悄悄改文件。
         const result = yield* read("test.txt")
-        expect(result.content).toBe("content with spaces")
+        expect(result.content).toBe("  content with spaces  \n\n")
       }),
     )
 
@@ -136,6 +157,41 @@ describe("file/index Filesystem patterns", () => {
         expect(result.encoding).toBe("base64")
         expect(result.mimeType).toBe("image/png")
         expect(result.content).toBe(binaryContent.toString("base64"))
+      }),
+    )
+
+    it.instance("unknown extension with text content opens as text", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        // 扩展名不在白名单里：按内容判断，不能因为不认识就当成二进制。
+        yield* Effect.promise(() =>
+          fs.writeFile(
+            path.join(test.directory, "notes.custom"),
+            "第一行" + String.fromCharCode(10) + "second line" + String.fromCharCode(10),
+            "utf-8",
+          ),
+        )
+
+        const result = yield* read("notes.custom")
+        expect(result.type).toBe("text")
+        expect(result.content).toContain("second line")
+      }),
+    )
+
+    it.instance("unknown extension with binary content stays binary", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        // NUL 字节会让解码出现 U+FFFD：这种「不认识扩展名的二进制」不能塞进编辑器。
+        yield* Effect.promise(() =>
+          fs.writeFile(
+            path.join(test.directory, "blob.custom"),
+            Buffer.from([0x00, 0xff, 0xfe, 0x00, 0x13, 0x37, 0x00, 0x00]),
+          ),
+        )
+
+        const result = yield* read("blob.custom")
+        expect(result.type).toBe("binary")
+        expect(result.content).toBe("")
       }),
     )
 
@@ -370,6 +426,96 @@ describe("file/index Filesystem patterns", () => {
     it.instance("throws for paths outside project directory", () =>
       Effect.gen(function* () {
         expect(yield* failureMessage(read("../outside.txt"))).toContain("Access denied")
+      }),
+    )
+  })
+
+  describe("readMediaRange()", () => {
+    it.instance("returns bounded media bytes and rejects non-media formats", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const bytes = Buffer.from("0123456789")
+        yield* Effect.promise(() => fs.writeFile(path.join(test.directory, "clip.mp4"), bytes))
+
+        const result = yield* readMediaRange("clip.mp4", 3, 4)
+        expect(Buffer.from(result.content).toString()).toBe("3456")
+        expect(result.offset).toBe(3)
+        expect(result.length).toBe(4)
+        expect(result.size).toBe(bytes.length)
+        expect(result.mimeType).toBe("video/mp4")
+
+        const error = yield* readFailure(readMediaRange("clip.txt", 0, 2))
+        expect(error.code).toBe("unsupported_type")
+      }),
+    )
+
+    it.instance("rejects ranges outside bounds and paths outside the workspace", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        yield* Effect.promise(() => fs.writeFile(path.join(test.directory, "clip.webm"), "bytes"))
+
+        expect((yield* readFailure(readMediaRange("clip.webm", 8, 1))).code).toBe("invalid_path")
+        expect((yield* readFailure(readMediaRange("../outside.mp4", 0, 1))).code).toBe("path_outside_workspace")
+        expect((yield* readFailure(readMediaRange("clip.webm", 0, 1024 * 1024 + 1))).code).toBe("unsupported_type")
+      }),
+    )
+  })
+
+  describe("read() - base64 preview channel", () => {
+    it.instance("returns real bytes for an office package", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01])
+        yield* Effect.promise(() => fs.writeFile(path.join(test.directory, "deck.pptx"), zip))
+
+        const result = yield* readBase64("deck.pptx")
+        expect(result.type).toBe("binary")
+        expect(result.encoding).toBe("base64")
+        expect(result.content).toBe(zip.toString("base64"))
+      }),
+    )
+
+    it.instance("accepts macro and template OOXML variants", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+        // 白名单交给 core 的引擎表：这些变体和正式格式走同一条引擎，
+        // 少一个就变成前端能点开、服务端却说「不能预览」的文件。
+        for (const name of ["a.pptm", "b.dotx", "c.xlsm", "d.odt", "e.rtf"]) {
+          yield* Effect.promise(() => fs.writeFile(path.join(test.directory, name), zip))
+          expect((yield* readBase64(name)).content).toBe(zip.toString("base64"))
+        }
+      }),
+    )
+
+    it.instance("fails with not_found instead of empty content", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        yield* Effect.promise(() => fs.mkdir(path.join(test.directory, "output")))
+
+        const error = yield* readFailure(readBase64("output/missing.pptx"))
+        expect(error.code).toBe("not_found")
+      }),
+    )
+
+    it.instance("fails with unsupported_type for text formats", () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        yield* Effect.promise(() => fs.writeFile(path.join(test.directory, "notes.txt"), "hello", "utf-8"))
+
+        expect((yield* readFailure(readBase64("notes.txt"))).code).toBe("unsupported_type")
+      }),
+    )
+
+    it.instance("fails with path_outside_workspace for traversal", () =>
+      Effect.gen(function* () {
+        expect((yield* readFailure(readBase64("../../../etc/passwd"))).code).toBe("path_outside_workspace")
+      }),
+    )
+
+    it.instance("fails with invalid_path for a blank path", () =>
+      Effect.gen(function* () {
+        expect((yield* readFailure(readBase64("   "))).code).toBe("invalid_path")
       }),
     )
   })
@@ -777,7 +923,8 @@ describe("file/index Filesystem patterns", () => {
 
           const result = yield* read("file.txt")
           expect(result.type).toBe("text")
-          expect(result.content).toBe("modified content")
+          // 内容按原样返回（含行尾换行）；diff 也基于这份原文。
+          expect(result.content).toBe("modified content" + String.fromCharCode(10))
           expect(result.diff).toBeDefined()
           expect(result.diff).toContain("original content")
           expect(result.diff).toContain("modified content")
@@ -818,7 +965,7 @@ describe("file/index Filesystem patterns", () => {
 
           const result = yield* read("clean.txt")
           expect(result.type).toBe("text")
-          expect(result.content).toBe("unchanged")
+          expect(result.content).toBe("unchanged" + String.fromCharCode(10))
           expect(result.diff).toBeUndefined()
           expect(result.patch).toBeUndefined()
         }),

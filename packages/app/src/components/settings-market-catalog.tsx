@@ -189,7 +189,9 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       </div>
 
       <Show when={store.errors.length > 0}>
-        <div class="border-b border-border px-4 py-1.5 text-ui-xs text-warning">{store.errors.join(" · ")}</div>
+        <div class="border-b border-border px-4 py-1.5 text-ui-xs text-icon-warning-base">
+          {store.errors.join(" · ")}
+        </div>
       </Show>
 
       <div class="flex max-h-[calc(100vh-280px)] flex-col gap-2 overflow-y-auto p-2">

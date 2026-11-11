@@ -1,5 +1,6 @@
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiError, HttpApiGroup } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi"
+import { ApiNotFoundError } from "../errors"
 
 const root = "/session/:sessionId/goals"
 
@@ -20,47 +21,48 @@ export const GoalApi = HttpApiGroup.make("goal")
         parentId: Schema.optional(Schema.String),
         priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
         successCriteria: Schema.optional(Schema.Array(Schema.String)),
+        status: Schema.optional(Schema.Literals(["pending", "in_progress"])),
         deadline: Schema.optional(Schema.String),
         tags: Schema.optional(Schema.Array(Schema.String)),
       }),
       success: Schema.Any,
-      error: Schema.Never,
+      error: [ApiNotFoundError],
     }),
   )
   .add(
-    HttpApiEndpoint.get("getGoal", "/goals/:goalId", {
-      params: { goalId: Schema.String },
+    HttpApiEndpoint.get("getGoal", `${root}/:goalId`, {
+      params: { sessionId: Schema.String, goalId: Schema.String },
       success: Schema.Any,
-      error: HttpApiError.NotFound,
+      error: [ApiNotFoundError],
     }),
   )
   .add(
-    HttpApiEndpoint.patch("updateGoal", "/goals/:goalId", {
-      params: { goalId: Schema.String },
+    HttpApiEndpoint.patch("updateGoal", `${root}/:goalId`, {
+      params: { sessionId: Schema.String, goalId: Schema.String },
       payload: Schema.Struct({
         title: Schema.optional(Schema.String),
         description: Schema.optional(Schema.String),
-        status: Schema.optional(Schema.Literals(["pending", "in_progress", "completed", "cancelled"])),
+        status: Schema.optional(Schema.Literals(["pending", "in_progress", "paused", "completed", "cancelled"])),
         priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
         successCriteria: Schema.optional(Schema.Array(Schema.String)),
         deadline: Schema.optional(Schema.String),
         tags: Schema.optional(Schema.Array(Schema.String)),
       }),
       success: Schema.Any,
-      error: Schema.Never,
+      error: [ApiNotFoundError],
     }),
   )
   .add(
-    HttpApiEndpoint.delete("deleteGoal", "/goals/:goalId", {
-      params: { goalId: Schema.String },
+    HttpApiEndpoint.delete("deleteGoal", `${root}/:goalId`, {
+      params: { sessionId: Schema.String, goalId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: [ApiNotFoundError],
     }),
   )
   .add(
-    HttpApiEndpoint.get("getGoalProgress", "/goals/:goalId/progress", {
-      params: { goalId: Schema.String },
+    HttpApiEndpoint.get("getGoalProgress", `${root}/:goalId/progress`, {
+      params: { sessionId: Schema.String, goalId: Schema.String },
       success: Schema.Any,
-      error: Schema.Never,
+      error: [ApiNotFoundError],
     }),
   )

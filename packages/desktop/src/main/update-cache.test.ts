@@ -34,7 +34,7 @@ describe("updater cache dir", () => {
   test("从 app-update.yml 里取 updaterCacheDirName", () => {
     const root = tempCache()
     const file = join(root, "app-update.yml")
-    writeFileSync(file, 'provider: generic\nurl: https://example.com\nupdaterCacheDirName: novaway-desktop\n')
+    writeFileSync(file, "provider: generic\nurl: https://example.com\nupdaterCacheDirName: novaway-desktop\n")
     expect(readUpdaterCacheDirName(file)).toBe("novaway-desktop")
     expect(readUpdaterCacheDirName(join(root, "missing.yml"))).toBeUndefined()
   })

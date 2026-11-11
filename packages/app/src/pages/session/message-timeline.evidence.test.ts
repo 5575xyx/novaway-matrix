@@ -38,7 +38,10 @@ describe("验证结果只收截图工具的产物", () => {
 
   test("非图片附件与坏数据被忽略", () => {
     const parts = [
-      { tool: "browser_screenshot", state: { attachments: [{ mime: "application/pdf", url: "data:application/pdf;base64,X" }] } },
+      {
+        tool: "browser_screenshot",
+        state: { attachments: [{ mime: "application/pdf", url: "data:application/pdf;base64,X" }] },
+      },
       { tool: "browser_screenshot", state: { attachments: [{ mime: "image/png" }] } },
       { tool: "browser_screenshot", state: { attachments: "nope" } },
       { tool: "browser_screenshot", state: null },

@@ -1,3 +1,4 @@
+import { streamText } from "ai"
 import { afterEach, test, expect } from "bun:test"
 import { mkdir } from "fs/promises"
 import path from "path"
@@ -19,6 +20,7 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { Config } from "@/config/config"
 import { Auth } from "@/auth"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { PluginRuntimeService } from "@/plugin/runtime/service"
 
 const env = makeRuntime(Env.Service, Env.defaultLayer)
 
@@ -110,6 +112,9 @@ async function markPluginDependenciesReady(dir: string) {
 
 const it = testEffect(Provider.defaultLayer)
 const experimentalModels = testEffect(providerLayer({ enableExperimentalModels: true }))
+const pluginProvider = testEffect(
+  Layer.merge(providerLayer(), PluginRuntimeService.defaultLayer),
+)
 
 const alphaProviderConfig = {
   provider: {
@@ -132,6 +137,126 @@ const alphaProviderConfig = {
     },
   },
 }
+
+pluginProvider.instance(
+  "runtime provider adapter is visible through the production Provider service",
+  Effect.gen(function* () {
+    const runtime = yield* PluginRuntimeService.Service
+    const host = yield* runtime.get
+    yield* Effect.promise(() => host.load({
+      id: "acme.provider",
+      scope: "project",
+      root: "/plugins/acme.provider",
+      manifest: { name: "acme.provider", apiVersion: 2, contributes: { providers: [] } },
+      async activate({ registries }) {
+        registries.providers?.register({
+          id: "acme",
+          name: "Acme",
+          sdk: "@ai-sdk/openai-compatible",
+          options: { baseURL: "https://acme.example/v1" },
+          models: {
+            "acme-chat": {
+              name: "Acme Chat",
+              tool_call: true,
+              limit: { context: 32_000, output: 4_096 },
+            },
+          },
+        })
+      },
+    }))
+    const provider = yield* Provider.Service
+    const providers = yield* provider.list()
+    const info = providers[ProviderID.make("acme")]
+    expect(info.name).toBe("Acme")
+    expect(info.options.baseURL).toBe("https://acme.example/v1")
+    expect(info.models[ModelID.make("acme-chat")].api.npm).toBe("@ai-sdk/openai-compatible")
+    expect((yield* provider.getModel(ProviderID.make("acme"), ModelID.make("acme-chat"))).limit.output).toBe(4_096)
+    yield* Effect.sync(() => host.deactivate("acme.provider", "project"))
+    yield* provider.reload()
+    expect((yield* provider.list())[ProviderID.make("acme")]).toBeUndefined()
+    yield* Effect.promise(() => host.load({
+      id: "acme.provider",
+      scope: "project",
+      root: "/plugins/acme.provider",
+      manifest: { name: "acme.provider", apiVersion: 2, contributes: { providers: [] } },
+      async activate({ registries }) {
+        registries.providers?.register({
+          id: "acme",
+          name: "Acme",
+          sdk: "@ai-sdk/openai-compatible",
+          options: { baseURL: "https://acme.example/v1" },
+          models: { "acme-chat": { name: "Acme Chat" } },
+        })
+      },
+    }))
+    yield* provider.reload()
+    expect((yield* provider.list())[ProviderID.make("acme")]).toBeDefined()
+  }),
+)
+
+pluginProvider.instance(
+  "runtime provider adapter reaches the real AI SDK streaming request",
+  Effect.gen(function* () {
+    const previousKey = process.env.ACME_PLUGIN_API_KEY
+    const requests: Request[] = []
+    const encoder = new TextEncoder()
+    const server = Bun.serve({
+    port: 0,
+    fetch(request) {
+      requests.push(request)
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const send = (value: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`))
+          send({ id: "chatcmpl-plugin", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", content: "hello" } }] })
+          await Bun.sleep(1)
+          send({ id: "chatcmpl-plugin", object: "chat.completion.chunk", choices: [{ index: 0, delta: { content: " from plugin" } }] })
+          send({ id: "chatcmpl-plugin", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+          controller.close()
+        },
+      })
+      return new Response(body, { headers: { "content-type": "text/event-stream" } })
+    },
+  })
+    process.env.ACME_PLUGIN_API_KEY = "plugin-test-key"
+    try {
+      const runtime = yield* PluginRuntimeService.Service
+      const host = yield* runtime.get
+      yield* Effect.promise(() => host.load({
+          id: "acme.streaming",
+          scope: "project",
+          root: "/plugins/acme.streaming",
+          manifest: { name: "acme.streaming", apiVersion: 2, contributes: { providers: [] } },
+          async activate({ registries }) {
+            registries.providers?.register({
+              id: "acme-stream",
+              name: "Acme Streaming",
+              sdk: "@ai-sdk/openai-compatible",
+              auth: { type: "env", key: ["ACME_PLUGIN_API_KEY"] },
+              options: { baseURL: `http://127.0.0.1:${server.port}/v1` },
+              models: { "acme-chat": { name: "Acme Chat" } },
+            })
+          },
+        }))
+        const provider = yield* Provider.Service
+        const model = yield* provider.getModel(ProviderID.make("acme-stream"), ModelID.make("acme-chat"))
+        const language = yield* provider.getLanguage(model)
+        const chunks = yield* Effect.promise(() => (async () => {
+          const result = streamText({ model: language, prompt: "Say hello" })
+          return Array.fromAsync(result.textStream)
+        })())
+        expect(requests).toHaveLength(1)
+        expect(requests[0]?.url).toBe(`http://127.0.0.1:${server.port}/v1/chat/completions`)
+        expect(requests[0]?.headers.get("authorization")).toBe("Bearer plugin-test-key")
+        expect(chunks.join("")).toBe("hello from plugin")
+    } finally {
+      server.stop(true)
+      if (previousKey === undefined) delete process.env.ACME_PLUGIN_API_KEY
+      else process.env.ACME_PLUGIN_API_KEY = previousKey
+    }
+  }),
+  120_000,
+)
 
 test("provider loaded from env variable", async () => {
   await using tmp = await tmpdir({
@@ -569,8 +694,8 @@ test("defaultModel returns first available model when no config set", async () =
     fn: async (ctx) => {
       set(ctx, "ANTHROPIC_API_KEY", "test-api-key")
       const model = await defaultModel(ctx)
-      expect(String(model.providerID)).toBe("builtin")
-      expect(String(model.modelID)).toBe("auto")
+      expect(String(model.providerID)).toBe("anthropic")
+      expect(String(model.modelID)).not.toBe("auto")
     },
   })
 })
@@ -2713,4 +2838,3 @@ test("plugin config enabled and disabled providers are honored", async () => {
     },
   })
 })
-

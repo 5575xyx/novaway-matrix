@@ -8,6 +8,8 @@ beforeAll(async () => {
   mock.module("@solidjs/router", () => ({
     useNavigate: () => () => undefined,
     useParams: () => ({}),
+    // mock.module 全局生效：后面的文件里还有模块链需要 useLocation，缺导出会直接报错。
+    useLocation: () => ({ path: "/", params: {}, query: "", hash: "" }),
   }))
   mock.module("@novaway/ui/context", () => ({
     createSimpleContext: () => ({

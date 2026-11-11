@@ -11,7 +11,11 @@ const LANE_WIDTH = 16
 const ROW_HEIGHT = 36
 
 const laneX = (lane: number) => lane * LANE_WIDTH + LANE_WIDTH / 2
-const laneColor = (color: number) => "hsl(" + ((color * 57 + 12) % 360) + " 68% 55%)"
+// Git 分支泳道使用 resolver 根据当前调色板生成的颜色组，保留泳道区分并随主题换色。
+const laneColor = (color: number) => {
+  const index = ((color % 12) + 12) % 12
+  return `var(--graph-lane-${index}, var(--icon-interactive-base))`
+}
 
 const lanePath = (from: number, to: number) =>
   "M " +
@@ -32,8 +36,8 @@ const lanePath = (from: number, to: number) =>
   ROW_HEIGHT
 
 function refStyle(kind: ReturnType<typeof classifyRef>["kind"]) {
-  if (kind === "head") return "border-primary/40 bg-primary/10 text-primary"
-  if (kind === "tag") return "border-warning/40 bg-warning/10 text-warning"
+  if (kind === "head") return "border-primary/40 bg-primary/10 text-text-interactive-base"
+  if (kind === "tag") return "border-warning/40 bg-warning/10 text-icon-warning-base"
   return "border-border bg-surface text-foreground-subtle"
 }
 

@@ -76,8 +76,10 @@ export function KnowledgeToolComponent(props: {
               </div>
               <Show when={citation.snippet}>
                 {(snippet) => (
-                  <div class="rounded-lg border border-[color-mix(in_srgb,#10b981_35%,var(--border))] bg-[color-mix(in_srgb,#10b981_8%,transparent)] p-3">
-                    <div class="mb-1 text-11-medium text-[#059669]">{language.t("knowledge.citation.snippet")}</div>
+                  <div class="rounded-lg border border-[color-mix(in_srgb,var(--success)_35%,var(--border))] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] p-3">
+                    <div class="mb-1 text-11-medium text-icon-success-base">
+                      {language.t("knowledge.citation.snippet")}
+                    </div>
                     <div class="text-12-regular leading-5 text-foreground">{snippet()}</div>
                   </div>
                 )}
@@ -159,11 +161,11 @@ export function KnowledgeToolComponent(props: {
                 <button
                   type="button"
                   data-component="knowledge-citation"
-                  class="group inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-12-regular text-foreground transition-colors hover:border-[color-mix(in_srgb,#10b981_45%,var(--border))] hover:bg-[color-mix(in_srgb,#10b981_10%,transparent)]"
+                  class="group inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-12-regular text-foreground transition-colors hover:border-[color-mix(in_srgb,var(--success)_45%,var(--border))] hover:bg-[color-mix(in_srgb,var(--success)_10%,transparent)]"
                   title={citation.title}
                   onClick={() => open(citation)}
                 >
-                  <span class="shrink-0 rounded bg-[color-mix(in_srgb,#10b981_16%,transparent)] px-1 text-11-medium text-[#059669]">
+                  <span class="shrink-0 rounded bg-[color-mix(in_srgb,var(--success)_16%,transparent)] px-1 text-11-medium text-icon-success-base">
                     [{citation.index}]
                   </span>
                   <span class="min-w-0 truncate">{citation.title}</span>

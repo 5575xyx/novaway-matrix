@@ -21,7 +21,7 @@ type Attachment = { id: string; filename: string; mime: string; dataUrl: string 
 /**
  * 辅助对话的输入框。
  *
- * **与主输入框完全一致**（对齐 ZCode：辅助对话的 composer 和主对话是同一个形态）：
+ * **与主输入框完全一致**（辅助对话的 composer 和主对话是同一个形态）：
  * 顶部是模型 / 思考强度 / 项目权限那排（组件与主输入框是同一套），中间是引用卡片与输入区，
  * 底部是 + @ / 与发送。用户在不同窗口之间切换时，不该重新认一遍输入框长什么样，
  * 也不该少掉主对话里能做的事（选模型、调思考强度、挂附件、调权限）。
@@ -191,7 +191,7 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
                 nameColor()
                   ? { color: nameColor() }
                   : {
-                      background: "linear-gradient(135deg, var(--icon-blue), #8b5cf6)",
+                      background: "linear-gradient(135deg, var(--icon-interactive-base), var(--icon-agent-plan-base))",
                       "-webkit-background-clip": "text",
                       "-webkit-text-fill-color": "transparent",
                       "background-clip": "text",

@@ -199,6 +199,15 @@ describe("ShareNext", () => {
         })
 
         return Effect.gen(function* () {
+          const previousDisableShare = process.env.NOVAWAY_DISABLE_SHARE
+          delete process.env.NOVAWAY_DISABLE_SHARE
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              if (previousDisableShare === undefined) delete process.env.NOVAWAY_DISABLE_SHARE
+              else process.env.NOVAWAY_DISABLE_SHARE = previousDisableShare
+            }),
+          )
+
           const bus = yield* Bus.Service
           const share = yield* ShareNext.Service
           const session = yield* Session.Service
@@ -246,7 +255,9 @@ describe("ShareNext", () => {
               },
             ],
           })
-          yield* Effect.sleep(1_250)
+          for (let attempt = 0; attempt < 100 && seen.length === 0; attempt++) {
+            yield* Effect.sleep(100)
+          }
 
           expect(seen).toHaveLength(1)
           expect(seen[0].url).toBe("https://legacy-share.example.com/api/share/shr_abc/sync")

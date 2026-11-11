@@ -57,6 +57,14 @@ harness-tasks.json.corrupt-*
 .superpowers/
 
 # 本地参考源码与临时产物（勿提交）
+/Lexora/
+/.ghref/
+/.awesome-skills.md
+/.novaway/office/
+/packages/novaway.tmp-*-golden/
+/NUL
+/msg*.json
+/sse*.txt
 .zcode/
 .zcode-refs/
 packages/app/.artifacts/
@@ -80,6 +88,8 @@ zz-live-verify-*
 /kpi.err
 /lint*.txt
 /push-gitee.log
+/office-*.log
+packages/app/office-*.log
 
 __pycache__/
 *.pyc

@@ -2,7 +2,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* ZCode：icon-xs → rounded-sm，icon-sm/md/lg → rounded-lg */
+  /* icon-xs → rounded-sm，icon-sm/md/lg → rounded-lg */
   border-radius: var(--radius-sm);
   text-decoration: none;
   user-select: none;

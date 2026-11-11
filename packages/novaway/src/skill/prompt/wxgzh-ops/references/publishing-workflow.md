@@ -45,8 +45,8 @@ https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew
 
 ```js
 document.querySelector("#activity-name") ||
-document.querySelector('textarea[placeholder*="标题"]') ||
-document.querySelector('input[placeholder*="标题"]')
+  document.querySelector('textarea[placeholder*="标题"]') ||
+  document.querySelector('input[placeholder*="标题"]')
 ```
 
 用 `webview_fill`（自动处理 input/textarea/contenteditable 三种情况）。
@@ -54,8 +54,7 @@ document.querySelector('input[placeholder*="标题"]')
 ### 摘要
 
 ```js
-document.querySelector("#js_description") ||
-document.querySelector('textarea[placeholder*="摘要"]')
+document.querySelector("#js_description") || document.querySelector('textarea[placeholder*="摘要"]')
 ```
 
 同样用 `webview_fill`；摘要可以为空，但填了能让分享卡片更好看。
@@ -65,7 +64,7 @@ document.querySelector('textarea[placeholder*="摘要"]')
 公众号正文在 `iframe#ueditor_0` 里，`webview_fill` 够不到，用 `webview_script`：
 
 ```js
-(() => {
+;(() => {
   const frame =
     document.querySelector("iframe#ueditor_0") ||
     document.querySelector('iframe[id^="ueditor_"]') ||
@@ -96,10 +95,10 @@ document.querySelector('textarea[placeholder*="摘要"]')
 
 ## 错误恢复
 
-| 现象 | 处理 |
-| --- | --- |
-| `webview_status` 报没有页面 | 让用户在「运营工作台」选中该公众号账号 |
-| 地址里没有 token | 用户还没登录完，停下来请他扫码 |
-| 编辑器一直不就绪 | 直连编辑页 URL；仍失败就截图 `webview_screenshot` 给用户看 |
-| 填完标题/正文没变化 | 重新 `webview_snapshot` 取 ref —— 页面可能已经重渲染 |
-| 保存后没有成功提示 | 用 `webview_screenshot` 确认页面状态，不要盲目重试 |
+| 现象                        | 处理                                                       |
+| --------------------------- | ---------------------------------------------------------- |
+| `webview_status` 报没有页面 | 让用户在「运营工作台」选中该公众号账号                     |
+| 地址里没有 token            | 用户还没登录完，停下来请他扫码                             |
+| 编辑器一直不就绪            | 直连编辑页 URL；仍失败就截图 `webview_screenshot` 给用户看 |
+| 填完标题/正文没变化         | 重新 `webview_snapshot` 取 ref —— 页面可能已经重渲染       |
+| 保存后没有成功提示          | 用 `webview_screenshot` 确认页面状态，不要盲目重试         |

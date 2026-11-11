@@ -19,7 +19,7 @@ export interface DialogProps extends ParentProps {
   class?: ComponentProps<"div">["class"]
   classList?: ComponentProps<"div">["classList"]
   fit?: boolean
-  /** 默认开启开合动效（对齐 ZCode：弹窗始终带 fade + zoom-95）。 */
+  /** 默认开启开合动效（弹窗始终带 fade + zoom-95）。 */
   transition?: boolean
 }
 

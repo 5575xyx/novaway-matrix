@@ -1,11 +1,11 @@
 /**
  * 工具摘要行里的「动了哪些文件」列表。
  *
- * 对齐 ZCode 的 file chip：`编辑 [icon] index.html [icon] app.js [icon] styles.css +N`。
+ * 形如：`编辑 [icon] index.html [icon] app.js [icon] styles.css +N`。
  * 一行里直接看出这次动了什么，不用逐个展开工具行。
  *
  * 这里只放**纯逻辑**（挑哪几枚、溢出多少），组件在 tool-file-chips.tsx。
- * 之所以不做基于 DOM 测量的响应式裁剪（ZCode 那套 ResizeObserver + 逐枚测量）：
+ * 之所以不做基于 DOM 测量的响应式裁剪（ResizeObserver + 逐枚测量那套）：
  * 那需要在布局阶段反复 setState，且测量时机和虚拟滚动容易打架。固定上限 +
  * 溢出计数既确定、又可直接单测，窄屏下也只是多出几像素的截断。
  */

@@ -35,12 +35,12 @@ export default {
 
 ## 插件放在哪里
 
-| 位置                            | 作用范围     | 加载方式   |
-| ------------------------------- | ------------ | ---------- |
-| `.novaway/plugin/*.ts`          | 项目         | 自动       |
-| `.novaway/plugins/*.ts`         | 项目         | 自动       |
-| `~/.config/novaway/plugin/*.ts` | 全局         | 自动       |
-| `novaway.json` 的 `plugin` 数组 | 全局或项目   | 按 spec    |
+| 位置                            | 作用范围   | 加载方式 |
+| ------------------------------- | ---------- | -------- |
+| `.novaway/plugin/*.ts`          | 项目       | 自动     |
+| `.novaway/plugins/*.ts`         | 项目       | 自动     |
+| `~/.config/novaway/plugin/*.ts` | 全局       | 自动     |
+| `novaway.json` 的 `plugin` 数组 | 全局或项目 | 按 spec  |
 
 `plugin` 数组支持 npm 包名、git 地址和本地路径：
 
@@ -129,13 +129,13 @@ export default {
 
 你导出的函数会收到一个对象：
 
-| 字段                     | 用途                                                   |
-| ------------------------ | ------------------------------------------------------ |
+| 字段                     | 用途                                                    |
+| ------------------------ | ------------------------------------------------------- |
 | `client`                 | `@novaway/sdk` 客户端，用来调用正在运行的服务           |
-| `project`                | 项目 id 和版本控制信息                                 |
+| `project`                | 项目 id 和版本控制信息                                  |
 | `directory`              | 会话工作目录，优先用它而不是 `process.cwd()`            |
-| `worktree`               | 仓库根目录，适合拼稳定的相对路径                       |
-| `serverUrl`              | 当前插件所服务的本地服务地址                           |
+| `worktree`               | 仓库根目录，适合拼稳定的相对路径                        |
+| `serverUrl`              | 当前插件所服务的本地服务地址                            |
 | `$`                      | Bun shell（[文档](https://bun.com/docs/runtime/shell)） |
 | `experimental_workspace` | `register(type, adapter)`，注册远程工作区适配器         |
 
@@ -194,54 +194,54 @@ export const SafeShell = async () => {
 
 ### 对话
 
-| 钩子 | 输入 | 输出 |
-| ---- | ---- | ---- |
-| `chat.message` | `sessionID`、`agent`、`model`、`messageID`、`variant` | `message`、`parts` |
-| `chat.params` | `sessionID`、`agent`、`model`、`provider`、`message` | `temperature`、`topP`、`topK`、`maxOutputTokens`、`options` |
-| `chat.headers` | 同 `chat.params` | `headers` |
-| `experimental.chat.system.transform` | `sessionID`、`model` | `system: string[]` |
-| `experimental.chat.messages.transform` | — | `messages` |
+| 钩子                                   | 输入                                                  | 输出                                                        |
+| -------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------- |
+| `chat.message`                         | `sessionID`、`agent`、`model`、`messageID`、`variant` | `message`、`parts`                                          |
+| `chat.params`                          | `sessionID`、`agent`、`model`、`provider`、`message`  | `temperature`、`topP`、`topK`、`maxOutputTokens`、`options` |
+| `chat.headers`                         | 同 `chat.params`                                      | `headers`                                                   |
+| `experimental.chat.system.transform`   | `sessionID`、`model`                                  | `system: string[]`                                          |
+| `experimental.chat.messages.transform` | —                                                     | `messages`                                                  |
 
 ### 工具
 
-| 钩子 | 输入 | 输出 |
-| ---- | ---- | ---- |
-| `tool` | — | 工具 id 到 `tool()` 定义的映射 |
-| `tool.definition` | `toolID` | `description`、`parameters` |
-| `tool.execute.before` | `tool`、`sessionID`、`callID` | `args` |
-| `tool.execute.after` | `tool`、`sessionID`、`callID`、`args` | `title`、`output`、`metadata` |
+| 钩子                  | 输入                                  | 输出                           |
+| --------------------- | ------------------------------------- | ------------------------------ |
+| `tool`                | —                                     | 工具 id 到 `tool()` 定义的映射 |
+| `tool.definition`     | `toolID`                              | `description`、`parameters`    |
+| `tool.execute.before` | `tool`、`sessionID`、`callID`         | `args`                         |
+| `tool.execute.after`  | `tool`、`sessionID`、`callID`、`args` | `title`、`output`、`metadata`  |
 
 ### 命令与 Shell
 
-| 钩子 | 输入 | 输出 |
-| ---- | ---- | ---- |
+| 钩子                     | 输入                                | 输出    |
+| ------------------------ | ----------------------------------- | ------- |
 | `command.execute.before` | `command`、`sessionID`、`arguments` | `parts` |
-| `shell.env` | `cwd`、`sessionID`、`callID` | `env` |
+| `shell.env`              | `cwd`、`sessionID`、`callID`        | `env`   |
 
 `shell.env` 同时作用于 shell 工具调用和 NovaWay 打开的终端，是注入凭据或项目变量的正确位置。
 
 ### 会话与压缩
 
-| 钩子 | 输入 | 输出 |
-| ---- | ---- | ---- |
-| `experimental.session.compacting` | `sessionID` | `context: string[]`、`prompt?: string` |
-| `experimental.compaction.autocontinue` | `sessionID`、`agent`、`model`、`provider`、`message`、`overflow` | `enabled: boolean` |
-| `experimental.text.complete` | `sessionID`、`messageID`、`partID` | `text` |
+| 钩子                                   | 输入                                                             | 输出                                   |
+| -------------------------------------- | ---------------------------------------------------------------- | -------------------------------------- |
+| `experimental.session.compacting`      | `sessionID`                                                      | `context: string[]`、`prompt?: string` |
+| `experimental.compaction.autocontinue` | `sessionID`、`agent`、`model`、`provider`、`message`、`overflow` | `enabled: boolean`                     |
+| `experimental.text.complete`           | `sessionID`、`messageID`、`partID`                               | `text`                                 |
 
 ### 供应商与鉴权
 
-| 钩子 | 用途 |
-| ---- | ---- |
-| `auth` | 为某个供应商增加 `/connect` 流程（API key 或 OAuth） |
-| `provider` | 提供或覆盖某个供应商的模型列表 |
+| 钩子       | 用途                                                 |
+| ---------- | ---------------------------------------------------- |
+| `auth`     | 为某个供应商增加 `/connect` 流程（API key 或 OAuth） |
+| `provider` | 提供或覆盖某个供应商的模型列表                       |
 
 ### 生命周期
 
-| 钩子 | 输入 | 用途 |
-| ---- | ---- | ---- |
-| `event` | `event` | 所有总线事件：`session.idle`、`message.updated`、`file.edited`、`session.error`、`todo.updated` 等 |
-| `config` | `Config` | 合并后的配置，在启动完成前触发 |
-| `hook` | `event`、`payload` | 内核生命周期事件，如 `SessionStart`、`PreToolUse`、`Stop`、`SubagentStart`。把 `output.result.decision` 设为 `"deny"` 即可拦截 |
+| 钩子     | 输入               | 用途                                                                                                                           |
+| -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `event`  | `event`            | 所有总线事件：`session.idle`、`message.updated`、`file.edited`、`session.error`、`todo.updated` 等                             |
+| `config` | `Config`           | 合并后的配置，在启动完成前触发                                                                                                 |
+| `hook`   | `event`、`payload` | 内核生命周期事件，如 `SessionStart`、`PreToolUse`、`Stop`、`SubagentStart`。把 `output.result.decision` 设为 `"deny"` 即可拦截 |
 
 ---
 

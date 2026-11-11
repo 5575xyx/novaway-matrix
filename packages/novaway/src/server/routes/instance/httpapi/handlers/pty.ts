@@ -1,4 +1,5 @@
 import { Pty } from "@/pty"
+import { File } from "@/file"
 import { PtyID } from "@/pty/schema"
 import { PtyTicket } from "@/pty/ticket"
 import { handlePtyInput } from "@/pty/input"
@@ -72,6 +73,19 @@ export const ptyHandlers = HttpApiBuilder.group(InstanceHttpApi, "pty", (handler
       return yield* tickets.issue({ ptyID: ctx.params.ptyID, ...(yield* PtyTicket.scope) })
     })
 
+    const mediaToken = Effect.fn("PtyHttpApi.mediaToken")(function* (ctx: {
+      query: { path: string; directory?: string; workspace?: string }
+    }) {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      if (!validOrigin(request, cors)) return yield* new HttpApiError.Forbidden({})
+      const scope = yield* PtyTicket.scope
+      const target = yield* (yield* File.Service).readMediaRange(ctx.query.path, 0, 1).pipe(
+        Effect.as(ctx.query.path),
+        Effect.catch(() => Effect.fail(new HttpApiError.BadRequest({}))),
+      )
+      return yield* tickets.issueMedia({ path: target, ...scope })
+    })
+
     return handlers
       .handle("shells", shells)
       .handle("list", list)
@@ -80,6 +94,7 @@ export const ptyHandlers = HttpApiBuilder.group(InstanceHttpApi, "pty", (handler
       .handle("update", update)
       .handle("remove", remove)
       .handle("connectToken", connectToken)
+      .handle("mediaToken", mediaToken)
   }),
 )
 

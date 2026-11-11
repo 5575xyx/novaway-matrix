@@ -77,8 +77,7 @@ export function interpret(result: Result): Interpretation {
       measured: "超时（>" + seconds(result.durationMs) + "），未能得出结论",
       verifierVersion: VERSION,
     }
-  if (result.code === undefined)
-    return { outcome: "unverified", measured: "命令未能执行", verifierVersion: VERSION }
+  if (result.code === undefined) return { outcome: "unverified", measured: "命令未能执行", verifierVersion: VERSION }
   const outcome = result.code === 0 ? "pass" : "fail"
   return {
     outcome,

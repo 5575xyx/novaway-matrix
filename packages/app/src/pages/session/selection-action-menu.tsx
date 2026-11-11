@@ -8,13 +8,12 @@ type Anchor = { x: number; y: number; bottom: number }
 /**
  * 聊天区选中文字后的浮动动作菜单。
  *
- * 对齐 ZCode 的 `SelectionActionMenu`（`v4/SelectionActionMenu.tsx`）：
  * 在任意一条消息里选中一段文字后，浮出两个动作 ——
  *
  * - **添加到当前任务**：把选中内容追加到主输入框（继续问同一个任务）
  * - **在辅助对话中提问**：把选中内容作为草稿带进一条独立小会话
  *
- * 两者的区别正是 ZCode 那套设计的核心：一个是"接着主线聊"，
+ * 两者的区别正是这套设计的核心：一个是"接着主线聊"，
  * 一个是"开个分会场聊、不污染主对话历史"。
  *
  * 定位：菜单浮在选区上方（放不下时翻到下方），并夹在视口内。
@@ -103,7 +102,7 @@ export function SelectionActionMenu(props: {
     const value = text()
     setAnchor(undefined)
     if (!value) return
-    // 对齐 ZCode：选中内容变成输入框上方的一张「引用」卡片，而不是把原文
+    // 选中内容变成输入框上方的一张「引用」卡片，而不是把原文
     // 直接灌进输入框。用户接着写自己的问题，发送时引用会作为 synthetic
     // 文本块一并带给模型。
     prompt.context.add({ type: "quote", text: value, label: language.t("session.selection.quoteLabel") })

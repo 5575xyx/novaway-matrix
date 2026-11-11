@@ -13,12 +13,12 @@ const settingsGeneralSource = read("components/settings-general.tsx")
 const workspaceHeaderSource = read("components/session/workspace-header.tsx")
 const messageTimelineSource = read("pages/session/message-timeline.tsx")
 
-// 圆角刻度对齐 ZCode（= Tailwind 默认 4/6/8/12/16）。
-// 旧版是 Aurora 的 6/8/12/16/20，整体偏大一级；ZCode 的 styles.css 不覆盖 --radius-*，
-// DESIGN.md 的容器层级规则全部基于 Tailwind 默认刻度。
+// 圆角刻度用 Tailwind 默认 4/6/8/12/16。
+// 旧版是 Aurora 的 6/8/12/16/20，整体偏大一级；主题样式不覆盖 --radius-*，
+// 容器层级规则全部基于 Tailwind 默认刻度。
 // 注意 @theme 位于 import 之后会盖掉 theme.css 的 :root 值，两处必须同步。
-describe("radius scale matches ZCode (Tailwind defaults)", () => {
-  test("the tailwind theme block carries the ZCode scale", () => {
+describe("radius scale matches Tailwind defaults", () => {
+  test("the tailwind theme block carries the Tailwind scale", () => {
     expect(tailwindThemeSource).toContain("--radius-sm: 0.25rem")
     expect(tailwindThemeSource).toContain("--radius-md: 0.375rem")
     expect(tailwindThemeSource).toContain("--radius-lg: 0.5rem")
@@ -92,17 +92,19 @@ describe("sidebar header becomes a labelled vertical menu", () => {
   })
 })
 
-// 对齐 ZCode 的设置项：单卡片分组 + 行分隔线，左侧标题/说明，右侧控件。
-// 旧实现是「每项一张竖排卡片」的响应式网格，和 ZCode 的列表观感不一致。
-describe("settings pages lay out as ZCode list rows", () => {
+// 设置项：单卡片分组 + 行分隔线，左侧标题/说明，右侧控件。
+// 旧实现是「每项一张竖排卡片」的响应式网格，和列表观感不一致。
+describe("settings pages lay out as list rows", () => {
   test("the shared group card renders rows with dividers instead of standalone cards", () => {
-    expect(read("components/settings-parts.tsx")).toContain("border-t border-border px-4 py-3")
-    expect(read("components/settings-parts.tsx")).toContain("first:border-t-0")
-    expect(read("components/settings-parts.tsx")).toContain("grid-cols-1 sm:grid-cols-[minmax(0,1fr)_192px]")
+    const settingsPartsSource = read("components/settings-parts.tsx")
+    expect(settingsPartsSource).toContain("border-t border-border/80 px-4 py-4")
+    expect(settingsPartsSource).toContain("first:border-t-0")
+    expect(settingsPartsSource).toContain("grid-cols-1 sm:grid-cols-[minmax(0,1fr)_192px]")
   })
 
-  test("general settings rows are list items, not bordered cards", () => {
-    expect(settingsGeneralSource).toContain("border-t border-border px-4 py-3 first:border-t-0")
+  test("general settings pages compose the shared row template", () => {
+    expect(settingsGeneralSource).toContain("<SettingsGroup>")
+    expect(settingsGeneralSource).toContain("<SettingsRow")
     expect(settingsGeneralSource).not.toContain("rounded-lg border border-border bg-surface p-3")
   })
 
@@ -121,7 +123,7 @@ describe("settings pages lay out as ZCode list rows", () => {
 // 桌面端会话区顶部压着两行:conv-frame 的顶行(workspace-header:标题/分支/模型选择/终端与侧栏开关)
 // 和消息区里的 sticky 标题栏(改名/父会话跳转/存为工作流)。两行都去掉,聊天内容顶到最上。
 // 门控用运行平台而非视口宽度:e2e 跑在浏览器(platform="web"),WorkspaceHeader 那条断言不受影响。
-// Round 1 对齐 ZCode 后口径反转：全局标题栏没了，会话帧内的 WorkspaceHeader 成为唯一顶行，
+// Round 1 改版后口径反转：全局标题栏没了，会话帧内的 WorkspaceHeader 成为唯一顶行，
 // 桌面端也必须渲染（原来那句「桌面端 return null」正是靠全局标题栏顶着的）。
 describe("the desktop session pane owns its own top bar", () => {
   test("workspace header renders on every platform now", () => {

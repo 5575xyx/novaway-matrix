@@ -22,7 +22,6 @@ import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestLLMServer, reply } from "../lib/llm-server"
 
-
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     yield* Effect.promise(() => resetDatabase())
@@ -110,30 +109,28 @@ describe("team run cancel", () => {
         const dir = yield* tmpdirScoped({ git: true })
         yield* Effect.promise(() => Bun.write(dir + "/novaway.json", JSON.stringify(providerConfig(llm.url), null, 2)))
 
-        const session = (yield* (
-          yield* post(dir, "/session", {
-            title: "cancel run",
-            // 无人值守运行：子会话继承模式，成员不会停在没人回答的授权弹窗上。
-            permission: [{ permission: "*", pattern: "*", action: "allow" }],
-            permissionMode: "bypassPermissions",
-          })
-        ).json) as { id: string }
+        const session = (yield* (yield* post(dir, "/session", {
+          title: "cancel run",
+          // 无人值守运行：子会话继承模式，成员不会停在没人回答的授权弹窗上。
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+          permissionMode: "bypassPermissions",
+        })).json) as { id: string }
 
-        const person = (yield* (
-          yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" })
-        ).json) as { id: string }
-        const profile = (yield* (
-          yield* post(dir, "/team/profile", {
-            directory: dir,
-            name: "写作组",
-            captain: person.id,
-            members: [{ employeeID: person.id }],
-          })
-        ).json) as { profile: { id: string } }
+        const person = (yield* (yield* post(dir, "/team/employee", { directory: dir, name: "小林", job: "general" }))
+          .json) as { id: string }
+        const profile = (yield* (yield* post(dir, "/team/profile", {
+          directory: dir,
+          name: "写作组",
+          captain: person.id,
+          members: [{ employeeID: person.id }],
+        })).json) as { profile: { id: string } }
 
-        const created = (yield* (
-          yield* post(dir, "/run", { sessionID: session.id, directory: dir, mode: "team", goal: "补一份退款说明" })
-        ).json) as { run: { id: string } }
+        const created = (yield* (yield* post(dir, "/run", {
+          sessionID: session.id,
+          directory: dir,
+          mode: "team",
+          goal: "补一份退款说明",
+        })).json) as { run: { id: string } }
         const id = created.run.id
 
         yield* post(dir, `/run/${id}/plan`, {
@@ -152,9 +149,8 @@ describe("team run cancel", () => {
           verifier: { kind: "command", run: "test -f src/refund.md", timeoutMs: 30_000 },
         })
 
-        const widened = (yield* (
-          yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false })
-        ).json) as Detail
+        const widened = (yield* (yield* post(dir, `/run/${id}/policy`, { directory: dir, readOnly: false }))
+          .json) as Detail
 
         yield* post(dir, `/run/${id}/approve`, {
           directory: dir,
@@ -174,12 +170,14 @@ describe("team run cancel", () => {
 
         expect((yield* post(dir, `/run/${id}/execute`, { directory: dir })).status).toBe(200)
 
-        const events = () => Effect.gen(function* () {
-          return (yield* (yield* get(dir, `/run/${id}/events`)).json) as Event[]
-        })
-        const statuses = () => Effect.gen(function* () {
-          return (yield* (yield* get(dir, "/session/status")).json) as Status
-        })
+        const events = () =>
+          Effect.gen(function* () {
+            return (yield* (yield* get(dir, `/run/${id}/events`)).json) as Event[]
+          })
+        const statuses = () =>
+          Effect.gen(function* () {
+            return (yield* (yield* get(dir, "/session/status")).json) as Status
+          })
         const busy = (status: Status) => Object.values(status).filter((item) => item.type === "busy").length
 
         // 等到派发真的发生、队长的模型调用也已经在飞：没有这一步，

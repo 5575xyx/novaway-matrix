@@ -41,9 +41,9 @@
       /* 图片贴纸之外（标题栏与留白）自己接走点击，避免"点到卡片上却把弹窗关了"。 */
       pointer-events: auto;
       box-shadow:
-        0 15px 45px 0 rgba(19, 16, 16, 0.35),
-        0 3.35px 10.051px 0 rgba(19, 16, 16, 0.25),
-        0 0.998px 2.993px 0 rgba(19, 16, 16, 0.2);
+        0 15px 45px 0 color-mix(in oklab, var(--shadow-color) 35%, transparent),
+        0 3.35px 10.051px 0 color-mix(in oklab, var(--shadow-color) 25%, transparent),
+        0 0.998px 2.993px 0 color-mix(in oklab, var(--shadow-color) 20%, transparent);
       overflow: hidden;
 
       &:focus-visible {

@@ -1,4 +1,4 @@
-/* 对齐 ZCode `components/ui/dropdown-menu.tsx`（DESIGN.md「Menus, Popovers, Dialogs」一节）：
+/* 下拉菜单规格（Menus / Popovers / Dialogs 同一套浮层语言）：
  * - 外壳 `rounded-lg` + `border-popover-border` + `bg-menu` + `p-1`，选项之间固定 `gap-0.5`（2px）
  * - 选项 `rounded-md` + `min-h-7` + `px-2` + `gap-2` + `text-ui-base`
  * - hover 只有 `bg-menu-hover`，不用强填充；选中用尾部指示器而不是整行重色
@@ -91,11 +91,15 @@
     }
 
     &[data-variant="destructive"] {
-      color: var(--destructive);
+      color: var(--icon-critical-base);
+
+      & svg {
+        color: inherit;
+      }
 
       &[data-highlighted] {
-        background: var(--destructive);
-        color: var(--destructive-foreground);
+        background: var(--surface-critical-base);
+        color: var(--text-on-critical-base);
       }
     }
   }

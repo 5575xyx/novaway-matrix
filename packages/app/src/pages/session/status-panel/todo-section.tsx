@@ -11,7 +11,7 @@ export { todoSectionModel, isTodoDone, type TodoSectionModel } from "./todo-sect
 /**
  * 待办状态 → 圆圈样式。
  *
- * 对齐 ZCode 的待办行：每条前面是一个圆圈，用颜色区分状态 ——
+ * 待办行：每条前面是一个圆圈，用颜色区分状态 ——
  * - 未开始：空心灰圈；
  * - 进行中：蓝色圆环 + 呼吸动画（一眼看出"现在在做这条"）；
  * - 已完成：实心蓝圈 + 对勾；
@@ -99,7 +99,7 @@ export function useTodoSection(): () => StatusPanelSection | null {
       // 收起态实时播报当前正在执行的那一条待办。
       ticker: () => {
         const running = todos().find((todo) => todo.status === "in_progress")
-        return running ? language.t("statusPanel.ticker.todo", { title: running.content }) : undefined
+        return running ? language.t("statusPanel.ticker.todo") : undefined
       },
       defaultOpen: false,
       bodyHeight: "max-h-64",

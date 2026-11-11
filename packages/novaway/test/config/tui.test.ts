@@ -1,9 +1,10 @@
 import { expect } from "bun:test"
 import path from "path"
 import { pathToFileURL } from "url"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Semaphore } from "effect"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Global } from "@novaway/core/global"
+import { Flag } from "@novaway/core/flag/flag"
 import { Config, DEFAULT_GLOBAL_PLUGINS } from "@/config/config"
 import { ConfigPlugin } from "@/config/plugin"
 import { CurrentWorkingDirectory } from "@/config/tui-cwd"
@@ -17,6 +18,12 @@ const winIt = process.platform === "win32" ? it.instance : it.instance.skip
 const globalConfigFiles = ["novaway.json", "novaway.jsonc", "tui.json", "tui.jsonc"].map((file) =>
   path.join(Global.Path.config, file),
 )
+const seededDefaultPluginSpecs = Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS ? [] : DEFAULT_GLOBAL_PLUGINS
+const seededDefaultPluginOrigins = seededDefaultPluginSpecs.map((spec) => ({
+  spec,
+  scope: "global" as const,
+  source: path.join(Global.Path.config, "novaway.json"),
+}))
 
 const cleanState = Effect.gen(function* () {
   const fs = yield* AppFileSystem.Service
@@ -27,11 +34,15 @@ const cleanState = Effect.gen(function* () {
   })
 })
 
+const globalConfigLock = Semaphore.makeUnsafe(1)
+
 const withCleanState = <A, E, R>(self: Effect.Effect<A, E, R>) =>
-  Effect.acquireUseRelease(
-    cleanState,
-    () => self,
-    () => cleanState,
+  globalConfigLock.withPermits(1)(
+    Effect.acquireUseRelease(
+      cleanState,
+      () => self,
+      () => cleanState,
+    ),
   )
 
 const withEnv = <A, E, R>(name: string, value: string | undefined, self: Effect.Effect<A, E, R>) =>
@@ -554,15 +565,11 @@ it.instance("supports tuple plugin specs with options in tui.json", () =>
       const config = yield* getTuiConfig(test.directory)
       const origins = yield* getTuiPluginOrigins(test.directory)
       expect(config.plugin).toEqual([
-        DEFAULT_GLOBAL_PLUGINS[0],
+        ...seededDefaultPluginSpecs,
         ["acme-plugin@1.2.3", { enabled: true, label: "demo" }],
       ])
       expect(origins).toEqual([
-        {
-          spec: DEFAULT_GLOBAL_PLUGINS[0],
-          scope: "global",
-          source: path.join(Global.Path.config, "novaway.json"),
-        },
+        ...seededDefaultPluginOrigins,
         {
           spec: ["acme-plugin@1.2.3", { enabled: true, label: "demo" }],
           scope: "local",
@@ -591,16 +598,12 @@ it.instance("deduplicates tuple plugin specs by name with higher precedence winn
       const config = yield* getTuiConfig(test.directory)
       const origins = yield* getTuiPluginOrigins(test.directory)
       expect(config.plugin).toEqual([
-        DEFAULT_GLOBAL_PLUGINS[0],
+        ...seededDefaultPluginSpecs,
         ["acme-plugin@2.0.0", { source: "project" }],
         ["second-plugin@3.0.0", { source: "project" }],
       ])
       expect(origins).toEqual([
-        {
-          spec: DEFAULT_GLOBAL_PLUGINS[0],
-          scope: "global",
-          source: path.join(Global.Path.config, "novaway.json"),
-        },
+        ...seededDefaultPluginOrigins,
         {
           spec: ["acme-plugin@2.0.0", { source: "project" }],
           scope: "local",
@@ -626,18 +629,18 @@ it.instance("tracks global and local plugin metadata in merged tui config", () =
 
       const config = yield* getTuiConfig(test.directory)
       const origins = yield* getTuiPluginOrigins(test.directory)
-      expect(config.plugin).toEqual(["global-plugin@1.0.0", DEFAULT_GLOBAL_PLUGINS[0], "local-plugin@2.0.0"])
+      expect(config.plugin).toEqual([
+        "global-plugin@1.0.0",
+        ...seededDefaultPluginSpecs,
+        "local-plugin@2.0.0",
+      ])
       expect(origins).toEqual([
         {
           spec: "global-plugin@1.0.0",
           scope: "global",
           source: path.join(Global.Path.config, "tui.json"),
         },
-        {
-          spec: DEFAULT_GLOBAL_PLUGINS[0],
-          scope: "global",
-          source: path.join(Global.Path.config, "novaway.json"),
-        },
+        ...seededDefaultPluginOrigins,
         {
           spec: "local-plugin@2.0.0",
           scope: "local",

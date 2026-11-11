@@ -83,6 +83,37 @@ export type Contributes = {
   channels?: ChannelDeclaration[]
 }
 
+/**
+ * `contributes` 键全集（§3 的 22 个扩展点）。宿主拿它判别未知贡献点，
+ * 不再自己抄一份清单——抄一份就会漂移。
+ */
+export const contributesKeys = [
+  "tools",
+  "agents",
+  "skills",
+  "commands",
+  "interceptors",
+  "lifecycleHooks",
+  "mcpServers",
+  "outputStyles",
+  "lspServers",
+  "httpRoutes",
+  "providers",
+  "officeEngines",
+  "publishDrivers",
+  "previewers",
+  "surfaces",
+  "storage",
+  "triggers",
+  "fastPath",
+  "routingPolicies",
+  "workerTypes",
+  "watchdogPolicies",
+  "channels",
+] as const satisfies readonly (keyof Contributes)[]
+
+export type ContributesKey = (typeof contributesKeys)[number]
+
 /** Manifest v2（§7）。文件名顺序：`.claude-plugin/plugin.json` → `plugin.json` → `extension.json` → `manifest.json`。 */
 export type Manifest = {
   /** 插件 id：小写字母/数字/`-`/`_`。 */
@@ -124,8 +155,8 @@ export type PluginStatus =
   | "uninstalled"
   | "overridden"
 
-/** 三套运行模式（§13.2）。 */
-export type PluginsMode = "legacy" | "shadow" | "v2"
+/** PluginHost 始终是唯一发现与执行模型；不提供平行 legacy/shadow 模式。 */
+export type PluginsMode = "unified"
 
 /** 信任级别（§11.2）：本期只实现 L0。 */
 export type TrustLevel = "L0" | "L1" | "L2"

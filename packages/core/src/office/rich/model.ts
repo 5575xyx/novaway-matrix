@@ -1,7 +1,7 @@
 /**
  * 富文本（HTML）文档模型。
  *
- * 对齐 Weave 的 `crates/rich-editor`：
+ * 行为约定：
  *   - HTML 文本本身就是文档，设计视图和源码视图共享同一份文本；
  *   - 没改过的文件保存后一个字节都不变（用会话的字节身份判断保证）；
  *   - 命令只改写「自己认识」的标签。遇到表格、脚本、未知内联标签时明确拒绝，
@@ -22,10 +22,23 @@ export type RunStyle = {
   highlight?: string
   /** px */
   size?: number
+  /** 链接地址（已过白名单校验），例如 `https://example.com`。 */
+  href?: string
 }
 
 /** 一段连续文字及其来源区间（区间是 HTML 原文里的字符偏移）。 */
-export type RichRun = RunStyle & { text: string; start: number; end: number }
+export type RichRun = RunStyle & {
+  text: string
+  start: number
+  end: number
+  /**
+   * 行内图片（`<img …>`）的原始标记。
+   *
+   * 图片不产生文字、也不能被格式化拆开，所以单独记一份原始标签：
+   * 写回时原样输出，用户改同一段的文字/颜色不会把图片弄丢。
+   */
+  image?: string
+}
 
 export type RichBlock = {
   /** 1 起，和 /body/p[N] 一致。 */
@@ -51,6 +64,8 @@ export type RichBlock = {
   lineHeight?: number
   /** px */
   indent?: number
+  /** 首行缩进，px（对应 text-indent）。 */
+  firstLineIndent?: number
   editable: boolean
   /** 不可编辑的原因，直接展示给用户 / 模型。 */
   reason?: string
@@ -58,7 +73,17 @@ export type RichBlock = {
 
 const BLOCK_TAGS = new Set<string>(["p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li", "pre", "div"])
 const LIST_TAGS = new Set<string>(["ul", "ol"])
-const UNSUPPORTED_CONTAINERS = new Set<string>(["table", "script", "style", "svg", "canvas", "iframe", "object", "video", "audio"])
+const UNSUPPORTED_CONTAINERS = new Set<string>([
+  "table",
+  "script",
+  "style",
+  "svg",
+  "canvas",
+  "iframe",
+  "object",
+  "video",
+  "audio",
+])
 const INLINE_STYLE_TAGS = new Map<string, RunStyle>()
 INLINE_STYLE_TAGS.set("strong", { bold: true })
 INLINE_STYLE_TAGS.set("b", { bold: true })
@@ -71,10 +96,51 @@ INLINE_STYLE_TAGS.set("strike", { strikethrough: true })
 INLINE_STYLE_TAGS.set("del", { strikethrough: true })
 INLINE_STYLE_TAGS.set("mark", { highlight: "#fef08a" })
 
-/** 只认识这些内联标签；`a`、`font`、`sub`、`sup` 一律算「不认识」。 */
+/**
+ * 只认识这些内联标签；`sub`、`sup`、自定义元素等一律算「不认识」。
+ * `<a>` 只在 href 通过协议白名单时才算已知 —— 见 `safeHref`。
+ */
 const KNOWN_INLINE = new Set<string>([
-  "strong", "b", "em", "i", "u", "ins", "s", "strike", "del", "mark", "span", "br",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "ins",
+  "s",
+  "strike",
+  "del",
+  "mark",
+  "span",
+  "font",
+  "a",
+  "br",
 ])
+
+/**
+ * 链接协议白名单。
+ *
+ * `javascript:` / `data:` / `vbscript:` 会在浏览器里执行或被当成资源载入，
+ * 遇到它们返回 undefined —— 调用方据此把这一段标成「不可编辑」，
+ * 而不是把危险地址原样留在文件里再让设计视图去渲染。
+ * 没有协议头的一律当相对路径 / `#锚点`，这是正文里最常见的写法。
+ */
+export function safeHref(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return undefined
+  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(trimmed)
+  if (!scheme) return trimmed
+  const name = scheme[1]!.toLowerCase()
+  return name === "http" || name === "https" || name === "mailto" || name === "tel" ? trimmed : undefined
+}
+
+/**
+ * `<font size="1..7">` 对应的像素值（浏览器默认字号 16px 下的实际大小）。
+ * 老 HTML 和浏览器的 `execCommand("foreColor")` 都会产出 `<font>`，
+ * 不认它会把整段判成只读 —— 认下来并归一成 `<span style>` 更稳。
+ */
+const LEGACY_FONT_SIZE: Record<string, number> = { "1": 10, "2": 13, "3": 16, "4": 18, "5": 24, "6": 32, "7": 48 }
 
 type ParsedTag = {
   name: string
@@ -92,9 +158,27 @@ function parseTagText(tag: string): ParsedTag | undefined {
   if (closing) return { name, closing, selfClosing: false }
 
   if (name === "br") return { name, closing, selfClosing: true }
+  // 图片是空元素：没有内容、不参与文字偏移，也不该让整段变成只读。
+  if (name === "img") return { name, closing, selfClosing: true }
   if (name === "span") {
     const style = attribute(tag, "style")
     return { name, closing, selfClosing, patch: style ? parseInlineStyle(style) : {} }
+  }
+  if (name === "a") {
+    // 只认带安全 href 的链接；不认识的协议交给上层判成不可编辑，
+    // 免得保存时把 href 悄悄丢掉。
+    const href = safeHref(attribute(tag, "href") === undefined ? undefined : decodeXmlText(attribute(tag, "href")!))
+    if (!href) return undefined
+    const style = attribute(tag, "style")
+    return { name, closing, selfClosing, patch: { href, ...(style ? parseInlineStyle(style) : {}) } }
+  }
+  if (name === "font") {
+    const patch: RunStyle = {}
+    const color = parseColor(attribute(tag, "color"))
+    if (color) patch.color = color
+    const size = LEGACY_FONT_SIZE[(attribute(tag, "size") ?? "").trim()]
+    if (size !== undefined) patch.size = size
+    return { name, closing, selfClosing, patch }
   }
   const patch = INLINE_STYLE_TAGS.get(name)
   if (patch) {
@@ -108,12 +192,31 @@ function parseTagText(tag: string): ParsedTag | undefined {
 export function parseColor(value: string | undefined): string | undefined {
   if (!value) return undefined
   const trimmed = value.trim()
+  // 浏览器序列化有时写成 rgb(255, 0, 0)：和 #FF0000 是同一个颜色，一起认。
+  const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i.exec(trimmed)
+  if (rgb) {
+    const channels = [rgb[1], rgb[2], rgb[3]].map((part) => Number(part))
+    if (channels.every((channel) => channel <= 255)) {
+      return (
+        "#" +
+        channels
+          .map((channel) => channel.toString(16).padStart(2, "0"))
+          .join("")
+          .toUpperCase()
+      )
+    }
+    return undefined
+  }
   const hex = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed)
   if (!hex) return undefined
   const digits = hex[1]!
-  const full = digits.length === 3
-    ? digits.split("").map((char) => char + char).join("")
-    : digits
+  const full =
+    digits.length === 3
+      ? digits
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : digits
   return "#" + full.toUpperCase()
 }
 
@@ -212,6 +315,9 @@ export function parseInline(inner: string, base: number): { runs: RichRun[]; edi
       }
     } else if (parsed.name === "br") {
       runs.push({ ...current, text: "\n", start: base + lt, end: base + gt + 1 })
+    } else if (parsed.name === "img") {
+      // 原样记住标签本身：src / alt / 宽高 / style 都不动，写回时逐字节保留。
+      runs.push({ ...current, text: "", start: base + lt, end: base + gt + 1, image: tagText })
     } else if (parsed.selfClosing) {
       fail("不支持自闭合标签：<" + parsed.name + ">")
     } else if (KNOWN_INLINE.has(parsed.name)) {
@@ -240,16 +346,18 @@ function sameRunStyle(a: RunStyle, b: RunStyle): boolean {
     Boolean(a.strikethrough) === Boolean(b.strikethrough) &&
     (a.color ?? "") === (b.color ?? "") &&
     (a.highlight ?? "") === (b.highlight ?? "") &&
-    (a.size ?? 0) === (b.size ?? 0)
+    (a.size ?? 0) === (b.size ?? 0) &&
+    (a.href ?? "") === (b.href ?? "")
   )
 }
 
 function mergeRuns(runs: RichRun[]): RichRun[] {
   const out: RichRun[] = []
   for (const run of runs) {
-    if (run.text.length === 0) continue
+    // 图片没有文字，但有标记，不能当空 run 丢掉。
+    if (run.text.length === 0 && !run.image) continue
     const last = out.at(-1)
-    if (last && sameRunStyle(last, run) && last.end === run.start) {
+    if (last && !last.image && !run.image && sameRunStyle(last, run) && last.end === run.start) {
       last.text += run.text
       last.end = run.end
       continue
@@ -263,11 +371,30 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
+function escapeAttribute(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
+}
+
+/**
+ * 设计视图渲染前的清洗：去掉标签上的内联事件属性（`onclick` / `onerror` …）。
+ *
+ * 模型的白名单决定「这段能不能编辑」，这里决定「这段能不能安全渲染」：
+ * 文件可能来自网络或模型，`<img onerror="…">` 会在渲染进程里执行。
+ * 只处理标签内部，正文里恰好写着 `onerror=` 的文字不受影响。
+ */
+export function sanitizeInlineHtml(html: string): string {
+  return html.replace(/<[a-zA-Z][^>]*>/g, (tag) => tag.replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, ""))
+}
+
 /** 把 runs 序列化成规范的内联 HTML（只用于被命令改过的块）。 */
 export function serializeRuns(runs: readonly RichRun[]): string {
   return runs
-    .filter((run) => run.text.length > 0)
+    .filter((run) => run.text.length > 0 || run.image)
     .map((run) => {
+      // 图片按原标记输出：src / alt / 尺寸都保持原样，链接包在外面。
+      if (run.image) {
+        return run.href ? '<a href="' + escapeAttribute(run.href) + '">' + run.image + "</a>" : run.image
+      }
       let out = escapeHtml(run.text).replace(/\n/g, "<br>")
       if (run.bold) out = "<strong>" + out + "</strong>"
       if (run.italic) out = "<em>" + out + "</em>"
@@ -278,6 +405,8 @@ export function serializeRuns(runs: readonly RichRun[]): string {
       if (run.highlight) style.push("background-color:" + run.highlight)
       if (run.size) style.push("font-size:" + run.size + "px")
       if (style.length > 0) out = '<span style="' + style.join(";") + '">' + out + "</span>"
+      // 链接放最外层：文字上的加粗/颜色都留在链接里面，和常见编辑器的结构一致。
+      if (run.href) out = '<a href="' + escapeAttribute(run.href) + '">' + out + "</a>"
       return out
     })
     .join("")
@@ -288,9 +417,9 @@ export function serializePlainText(text: string, style: RunStyle = {}): string {
   return serializeRuns([{ ...style, text, start: 0, end: 0 }])
 }
 
-function parseBlockAttrs(openTag: string): Pick<RichBlock, "align" | "lineHeight" | "indent"> {
+function parseBlockAttrs(openTag: string): Pick<RichBlock, "align" | "lineHeight" | "indent" | "firstLineIndent"> {
   const style = attribute(openTag, "style") ?? ""
-  const result: Pick<RichBlock, "align" | "lineHeight" | "indent"> = {}
+  const result: Pick<RichBlock, "align" | "lineHeight" | "indent" | "firstLineIndent"> = {}
 
   const align = /(?:^|;)\s*text-align\s*:\s*(left|center|right|justify)/i.exec(style)
   const legacyAlign = attribute(openTag, "align")
@@ -302,8 +431,12 @@ function parseBlockAttrs(openTag: string): Pick<RichBlock, "align" | "lineHeight
   const lineHeight = /(?:^|;)\s*line-height\s*:\s*([\d.]+)/i.exec(style)
   if (lineHeight) result.lineHeight = Number(lineHeight[1])
 
-  const indent = /(?:^|;)\s*(?:padding-left|margin-left|text-indent)\s*:\s*(\d+)px/i.exec(style)
+  const indent = /(?:^|;)\s*(?:padding-left|margin-left)\s*:\s*(\d+)px/i.exec(style)
   if (indent) result.indent = Number(indent[1])
+
+  // 首行缩进是独立的排版选项（中文排版里的「首行空两格」），和左缩进分开存。
+  const firstLine = /(?:^|;)\s*text-indent\s*:\s*(\d+)px/i.exec(style)
+  if (firstLine) result.firstLineIndent = Number(firstLine[1])
 
   return result
 }
@@ -322,7 +455,7 @@ export function parseRichBlocks(html: string): RichBlock[] {
   return blocks
 }
 
-function documentRange(html: string): { innerStart: number; innerEnd: number } {
+export function documentRange(html: string): { innerStart: number; innerEnd: number } {
   const body = /<body\b[^>]*>/i.exec(html)
   if (body) {
     const start = body.index + body[0].length

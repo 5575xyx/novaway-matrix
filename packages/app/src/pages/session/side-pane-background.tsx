@@ -9,7 +9,7 @@ import { JOB_ICONS, jobKind, type BackgroundJob } from "./status-panel/backgroun
 
 /**
  * 只渲染尾部的行数。output 没有上限（shell 的 onOutput 每帧全量写回），
- * 整段塞进 DOM 会拖垮滚动；ZCode 的 BackgroundBashOutputSidePane 同样只展示
+ * 整段塞进 DOM 会拖垮滚动；只展示
  * 固定 8KiB 尾窗。
  */
 const TAIL_LINES = 500
@@ -28,7 +28,7 @@ const statusClass = (status: BackgroundJob["status"]) =>
   status === "running" ? "text-foreground novaway-breathe" : "text-foreground-subtlest"
 
 /**
- * 后台任务输出侧栏（对齐 ZCode 的 `BackgroundBashOutputSidePane`）：
+ * 后台任务输出侧栏：
  * 顶栏状态 + 等宽输出区，输出实时跟随底部；向上滚动即暂停跟随并冻结画面，
  * 底部中央浮出「回到底部」按钮，点击或滚回底部恢复跟随。
  *

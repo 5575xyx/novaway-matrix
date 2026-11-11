@@ -71,11 +71,38 @@ export type PptxImageEdit = {
   mime: string
 }
 
+/** 能直接插入的预设形状（PPT 的 prstGeom 名字）。 */
+export type PptxShapeKind = "rect" | "roundRect" | "ellipse" | "triangle" | "diamond" | "rightArrow" | "line" | "star5"
+
+export type PptxShapeOp =
+  | { op: "addTextBox"; slide: number; box?: PptxBox; text: string; style?: PptxTextStyle }
+  /** 插入一个预设形状（矩形 / 圆 / 箭头 / 线条…），可带文字、填充色和描边色。 */
+  | {
+      op: "addShape"
+      slide: number
+      kind: PptxShapeKind
+      box?: PptxBox
+      /** 填充色 RRGGBB；省略 = 主题色。 */
+      fill?: string
+      /** 描边色 RRGGBB；省略 = 无描边。 */
+      line?: string
+      /** 形状里的文字（可选）。 */
+      text?: string
+      style?: PptxTextStyle
+    }
+  /** 往某一页插一张图片；媒体条目和关系会一并补进包里。 */
+  | { op: "addPicture"; slide: number; box?: PptxBox; data: Uint8Array; mime: string }
+  | { op: "deleteShape"; slide: number; shapeId?: string; shapeName?: string }
+  /** 改形状在 PowerPoint 里的名字（`cNvPr@name`）；按 id 或旧名字定位。 */
+  | { op: "renameShape"; slide: number; shapeId?: string; shapeName?: string; name: string }
+
 export type PptxEditInput = {
   bytes: Uint8Array
   textEdits?: readonly PptxTextEdit[]
   shapeEdits?: readonly PptxShapeEdit[]
   imageEdits?: readonly PptxImageEdit[]
+  /** 结构操作：新增文本框、删除形状。 */
+  shapeOps?: readonly PptxShapeOp[]
 }
 
 export type PptxTextEditApplied = {
@@ -147,7 +174,8 @@ export async function editPptx(input: PptxEditInput): Promise<PptxEditResult> {
   const textEdits = input.textEdits ?? []
   const shapeEdits = input.shapeEdits ?? []
   const imageEdits = input.imageEdits ?? []
-  if (textEdits.length === 0 && shapeEdits.length === 0 && imageEdits.length === 0) {
+  const shapeOps = input.shapeOps ?? []
+  if (textEdits.length === 0 && shapeEdits.length === 0 && imageEdits.length === 0 && shapeOps.length === 0) {
     return { bytes: input.bytes, textApplied: [], shapeApplied: [], imageApplied: [], changed: [] }
   }
 
@@ -158,19 +186,24 @@ export async function editPptx(input: PptxEditInput): Promise<PptxEditResult> {
   const imageApplied: PptxImageEditApplied[] = []
 
   // 按目标 slide 分桶：每页的 XML 只解压/改一遍。
-  const slides = new Map<number, { text: PptxTextEdit[]; shapes: PptxShapeEdit[]; images: PptxImageEdit[] }>()
+  const slides = new Map<
+    number,
+    { text: PptxTextEdit[]; shapes: PptxShapeEdit[]; images: PptxImageEdit[]; structure: PptxShapeOp[] }
+  >()
   const bucket = (slide: number) => {
-    const current = slides.get(slide) ?? { text: [], shapes: [], images: [] }
+    const current = slides.get(slide) ?? { text: [], shapes: [], images: [], structure: [] }
     slides.set(slide, current)
     return current
   }
   for (const edit of textEdits) bucket(edit.slide).text.push(edit)
   for (const edit of shapeEdits) bucket(edit.slide).shapes.push(edit)
   for (const edit of imageEdits) bucket(edit.slide).images.push(edit)
+  for (const edit of shapeOps) bucket(edit.slide).structure.push(edit)
 
   const replacements = new Map<string, Uint8Array>()
+  const parts = await slideParts(zip)
   for (const [slide, edits] of slides) {
-    const name = slideEntryName(zip, slide)
+    const name = await slideEntryName(zip, slide, parts)
     const entry = zip.entries.find((item) => item.name === name)
     if (!entry) throw new Error("PPTX 里没有第 " + slide + " 页（" + name + "）")
     const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
@@ -186,17 +219,43 @@ export async function editPptx(input: PptxEditInput): Promise<PptxEditResult> {
       next = outcome.xml
       shapeApplied.push(...outcome.applied)
     }
+    if (edits.structure.length > 0) {
+      next = applyShapeOps(next, edits.structure)
+    }
     if (edits.images.length > 0) {
+      const relsKey = relsNameOf(name)
+      const replacedRels = replacements.get(relsKey)
       const outcome = await applyImageEdits({
         xml: next,
         slide,
+        part: name,
         edits: edits.images,
         zip,
         additions,
+        ...(replacedRels ? { relsText: new TextDecoder().decode(replacedRels) } : {}),
       })
       next = outcome.xml
       imageApplied.push(...outcome.applied)
-      if (outcome.rels !== undefined) replacements.set(slideRelsName(slide), outcome.rels)
+      if (outcome.rels !== undefined) replacements.set(relsKey, outcome.rels)
+    }
+    // 新增图片要走「媒体条目 + 关系 + <p:pic>」三件事，单独一步做。
+    const pictureOps = edits.structure.filter(
+      (item): item is Extract<PptxShapeOp, { op: "addPicture" }> => item.op === "addPicture",
+    )
+    if (pictureOps.length > 0) {
+      const relsKey = relsNameOf(name)
+      const replacedRels = replacements.get(relsKey)
+      const outcome = await applyAddPictures({
+        xml: next,
+        part: name,
+        ops: pictureOps,
+        zip,
+        additions,
+        ...(replacedRels ? { relsText: new TextDecoder().decode(replacedRels) } : {}),
+      })
+      next = outcome.xml
+      imageApplied.push(...outcome.applied)
+      if (outcome.rels !== undefined) replacements.set(relsKey, outcome.rels)
     }
     if (next !== xml) replacements.set(name, new TextEncoder().encode(next))
   }
@@ -216,18 +275,261 @@ export async function editPptx(input: PptxEditInput): Promise<PptxEditResult> {
   }
 }
 
+/** 页面级操作：删页、拖页、复制页、新建页。只动 presentation.xml（和它的 rels）与新建的页面部件。 */
+export type PptxSlideOp =
+  | { op: "deleteSlide"; slide: number }
+  | { op: "moveSlide"; from: number; to: number }
+  | { op: "duplicateSlide"; slide: number }
+  /** 新建一页空白页，插在第 after 页之后（0 = 最前面，省略 = 最后）。 */
+  | { op: "addSlide"; after?: number; layout?: string }
+
+export type PptxSlideOpResult = {
+  bytes: Uint8Array
+  applied: PptxSlideOp[]
+  changed: string[]
+}
+
+/**
+ * 删页 / 调顺序 / 复制页。
+ *
+ * 演示顺序只由 `presentation.xml` 的 `<p:sldIdLst>` 决定，所以：
+ *   - 删除 = 摘掉对应的 `<p:sldId>` 和它的关系条目；页面部件留在包里
+ *     （PowerPoint 不理会未被引用的部件），这样撤销/重做只是把关系加回来；
+ *   - 调顺序 = 重新排列 `<p:sldId>`，一个字节的页面内容都不用碰；
+ *   - 复制页 = 克隆页面部件和它的 rels（媒体/版式关系原样共享），再挂一条新关系
+ *     和 sldId。克隆页紧跟在原页后面，接着改字就是「加一页」。
+ *
+ * 至少保留一页：PowerPoint 打开「零页」的演示会直接报错。
+ */
+export async function editPptxSlides(bytes: Uint8Array, ops: readonly PptxSlideOp[]): Promise<PptxSlideOpResult> {
+  if (ops.length === 0) return { bytes, applied: [], changed: [] }
+
+  const zip = await readZip(bytes)
+  const presentationEntry = zip.entries.find((item) => item.name === "ppt/presentation.xml")
+  if (!presentationEntry) throw new Error("这个 PPTX 没有 ppt/presentation.xml")
+  const relsEntry = zip.entries.find((item) => item.name === "ppt/_rels/presentation.xml.rels")
+  if (!relsEntry) throw new Error("这个 PPTX 没有 ppt/_rels/presentation.xml.rels")
+
+  let presentation = new TextDecoder().decode(await entryData(zip.bytes, presentationEntry))
+  let rels = new TextDecoder().decode(await entryData(zip.bytes, relsEntry))
+  const applied: PptxSlideOp[] = []
+  /** 复制页新增的部件（原 zip 里没有，最后作为 additions 追加）。 */
+  const additions = new Map<string, Uint8Array>()
+  /** 被重写的条目；复制页时这里也会有 [Content_Types].xml。 */
+  const replacements = new Map<string, Uint8Array>()
+
+  /** 当前顺序：rId → 部件名（每次操作后重新算，索引始终跟着最新状态）。 */
+  const readOrder = () => {
+    const list = /<p:sldIdLst\b[^>]*>([\s\S]*?)<\/p:sldIdLst>/.exec(presentation)?.[1] ?? ""
+    const targets = new Map<string, string>()
+    for (const match of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+      const id = /\bId="([^"]*)"/.exec(match[0])?.[1]
+      const target = /\bTarget="([^"]*)"/.exec(match[0])?.[1]
+      if (id && target) targets.set(id, partNameOf(target))
+    }
+    // 整条标签都要留下（重排时直接拼回去），r:id 从标签里再取一次。
+    const idOf = (tag: string) => /\br:id="([^"]*)"/.exec(tag)?.[1] ?? ""
+    return [...list.matchAll(/<p:sldId\b[^>]*\/>/g)].map((match) => {
+      const rId = idOf(match[0])
+      return { rId, tag: match[0], part: targets.get(rId) ?? "" }
+    })
+  }
+
+  for (const op of ops) {
+    const order = readOrder()
+    if (order.length === 0) throw new Error("这个 PPTX 的 presentation.xml 没有页面清单")
+
+    if (op.op === "deleteSlide") {
+      if (!Number.isInteger(op.slide) || op.slide < 1 || op.slide > order.length) {
+        throw new Error("页码超出范围：第 " + op.slide + " 页（共 " + order.length + " 页）")
+      }
+      if (order.length <= 1) throw new Error("演示至少要保留一页")
+      const target = order[op.slide - 1]!
+      const id = target.rId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      presentation = presentation.replace(new RegExp('<p:sldId\\b[^>]*\\br:id="' + id + '"[^>]*/>'), "")
+      rels = rels.replace(new RegExp('<Relationship\\b[^>]*\\bId="' + id + '"[^>]*/>'), "")
+      applied.push(op)
+      continue
+    }
+
+    if (op.op === "duplicateSlide") {
+      if (!Number.isInteger(op.slide) || op.slide < 1 || op.slide > order.length) {
+        throw new Error("页码超出范围：第 " + op.slide + " 页（共 " + order.length + " 页）")
+      }
+      const source = order[op.slide - 1]!
+      // 同一批里连着复制两次：第二次的来源可能是刚克隆出来的部件（还在 additions 里）。
+      const sourceData =
+        additions.get(source.part) ??
+        (await (async () => {
+          const entry = zip.entries.find((item) => item.name === source.part)
+          return entry ? entryData(zip.bytes, entry) : undefined
+        })())
+      if (!sourceData) throw new Error("找不到第 " + op.slide + " 页的部件：" + source.part)
+
+      // 找一个没被占用的 slideN.xml 名字。
+      let nextIndex = 1
+      for (const name of [...zip.entries.map((item) => item.name), ...additions.keys()]) {
+        const match = /^ppt\/slides\/slide(\d+)\.xml$/.exec(name)
+        if (match) nextIndex = Math.max(nextIndex, Number(match[1]) + 1)
+      }
+      const clonePart = "ppt/slides/slide" + nextIndex + ".xml"
+      additions.set(clonePart, sourceData)
+      // 页面 rels 原样复制：媒体和版式关系是相对目标，克隆页可以直接共用。
+      const cloneRels = relsNameOf(clonePart)
+      const sourceRelsName = relsNameOf(source.part)
+      const sourceRelsData =
+        additions.get(sourceRelsName) ??
+        (await (async () => {
+          const entry = zip.entries.find((item) => item.name === sourceRelsName)
+          return entry ? entryData(zip.bytes, entry) : undefined
+        })())
+      if (sourceRelsData) additions.set(cloneRels, sourceRelsData)
+
+      // 关系表和 sldId 都要新 id：取现有最大值 +1，避免和别的部件撞号。
+      const relationshipIds = [...rels.matchAll(/\bId="rId(\d+)"/g)].map((match) => Number(match[1]))
+      const newRId = "rId" + (Math.max(0, ...relationshipIds) + 1)
+      const relationship =
+        '<Relationship Id="' +
+        newRId +
+        '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide' +
+        nextIndex +
+        '.xml"/>'
+      rels = rels.replace("</Relationships>", relationship + "</Relationships>")
+
+      const slideIds = [...presentation.matchAll(/<p:sldId\b[^>]*\bid="(\d+)"/g)].map((match) => Number(match[1]))
+      const slideId = '<p:sldId id="' + (Math.max(255, ...slideIds) + 1) + '" r:id="' + newRId + '"/>'
+      // 紧跟在原页后面：复制出来的这一页就在当前页旁边。
+      const at = presentation.indexOf(source.tag)
+      if (at === -1) throw new Error("presentation.xml 里找不到第 " + op.slide + " 页的 sldId")
+      presentation =
+        presentation.slice(0, at + source.tag.length) + slideId + presentation.slice(at + source.tag.length)
+
+      // slides 在 [Content_Types].xml 里是 Override（不是 Default），新部件要自己声明。
+      const typesName = "[Content_Types].xml"
+      const typesEntry = zip.entries.find((item) => item.name === typesName)
+      const typesCurrent = replacements.get(typesName)
+      if (typesEntry || typesCurrent) {
+        const types = new TextDecoder().decode(typesCurrent ?? (await entryData(zip.bytes, typesEntry!)))
+        const override =
+          '<Override PartName="/' +
+          clonePart +
+          '" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>'
+        // 标准包是 `<Types …>…</Types>`；万一遇到自闭合的简写，也补成成对标签。
+        const nextTypes = /<\/Types>/.test(types)
+          ? types.replace("</Types>", override + "</Types>")
+          : types.replace(/<Types\b([^>]*)\/>/, "<Types$1>" + override + "</Types>")
+        replacements.set(typesName, new TextEncoder().encode(nextTypes))
+      }
+
+      applied.push(op)
+      continue
+    }
+
+    if (op.op === "addSlide") {
+      const after = op.after ?? order.length
+      if (!Number.isInteger(after) || after < 0 || after > order.length) {
+        throw new Error("插入位置超出范围：0 到 " + order.length)
+      }
+      // 新页的名字：不占用已有编号。
+      let nextIndex = 1
+      for (const name of [...zip.entries.map((item) => item.name), ...additions.keys()]) {
+        const match = /^ppt\/slides\/slide(\d+)\.xml$/.exec(name)
+        if (match) nextIndex = Math.max(nextIndex, Number(match[1]) + 1)
+      }
+      const part = "ppt/slides/slide" + nextIndex + ".xml"
+      // 指定了版式就按名字/序号找；没指定沿用相邻页的（新页和它长得像）。
+      const chosen = op.layout ? await resolveLayout(zip, op.layout) : undefined
+      const layout = chosen
+        ? "../slideLayouts/" + chosen.part
+        : await slideLayoutTarget(zip, additions, order[Math.max(0, after - 1)]?.part)
+      const placeholder = chosen ? await layoutPlaceholderShapes(zip, chosen.part) : ""
+      const slideXml = placeholder
+        ? blankSlideXml().replace("</p:spTree>", placeholder + "</p:spTree>")
+        : blankSlideXml()
+      additions.set(part, new TextEncoder().encode(slideXml))
+      additions.set(
+        relsNameOf(part),
+        new TextEncoder().encode(
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="' +
+            layout +
+            '"/></Relationships>',
+        ),
+      )
+
+      const relationshipIds = [...rels.matchAll(/\bId="rId(\d+)"/g)].map((match) => Number(match[1]))
+      const newRId = "rId" + (Math.max(0, ...relationshipIds) + 1)
+      rels = rels.replace(
+        "</Relationships>",
+        '<Relationship Id="' +
+          newRId +
+          '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide' +
+          nextIndex +
+          '.xml"/></Relationships>',
+      )
+      const slideIds = [...presentation.matchAll(/<p:sldId\b[^>]*\bid="(\d+)"/g)].map((match) => Number(match[1]))
+      const slideId = '<p:sldId id="' + (Math.max(255, ...slideIds) + 1) + '" r:id="' + newRId + '"/>'
+      const anchor = after === 0 ? undefined : order[after - 1]
+      if (anchor) {
+        const at = presentation.indexOf(anchor.tag)
+        if (at === -1) throw new Error("presentation.xml 里找不到第 " + after + " 页的 sldId")
+        presentation =
+          presentation.slice(0, at + anchor.tag.length) + slideId + presentation.slice(at + anchor.tag.length)
+      } else if (after === 0) {
+        // 插到最前面：紧跟在 <p:sldIdLst> 的开标签后面。
+        presentation = presentation.replace(/(<p:sldIdLst\b[^>]*>)/, "$1" + slideId)
+      } else {
+        presentation = presentation.replace("</p:sldIdLst>", slideId + "</p:sldIdLst>")
+      }
+      await ensureSlideContentType(zip, additions, replacements, part)
+      applied.push(op)
+      continue
+    }
+
+    if (!Number.isInteger(op.from) || !Number.isInteger(op.to)) {
+      throw new Error("页面序号必须是整数")
+    }
+    if (op.from < 1 || op.from > order.length || op.to < 1 || op.to > order.length) {
+      throw new Error("页码超出范围：从第 " + op.from + " 页到第 " + op.to + " 页（共 " + order.length + " 页）")
+    }
+    if (op.from === op.to) {
+      applied.push(op)
+      continue
+    }
+    const tags = order.map((entry) => entry.tag)
+    const [moved] = tags.splice(op.from - 1, 1)
+    tags.splice(op.to - 1, 0, moved!)
+    presentation = presentation.replace(
+      /(<p:sldIdLst\b[^>]*>)([\s\S]*?)(<\/p:sldIdLst>)/,
+      (_all, open: string, _body: string, close: string) => open + tags.join("") + close,
+    )
+    applied.push(op)
+  }
+
+  replacements.set("ppt/presentation.xml", new TextEncoder().encode(presentation))
+  replacements.set("ppt/_rels/presentation.xml.rels", new TextEncoder().encode(rels))
+  return {
+    bytes: rebuildZip(zip, replacements, additions),
+    applied,
+    changed: [...new Set([...replacements.keys(), ...additions.keys()])],
+  }
+}
+
 /** 列出每一页的可编辑对象：形状文字/格式、表格单元格、图片、几何。 */
 export async function readPptxLayout(bytes: Uint8Array, slides?: readonly number[]): Promise<PptxLayoutNode[]> {
   const zip = await readZip(bytes)
   const wanted = slides ? new Set(slides) : undefined
   const result: PptxLayoutNode[] = []
-  for (const entry of zip.entries) {
-    const match = entry.name.match(/^ppt\/slides\/slide(\d+)\.xml$/)
-    if (!match) continue
-    const slide = Number(match[1])
+  const parts = await slideParts(zip)
+  for (const [position, part] of parts.entries()) {
+    // 对外编号按演示顺序（1 起），不是文件名里的数字。
+    const slide = position + 1
     if (wanted && !wanted.has(slide)) continue
+    const entry = zip.entries.find((item) => item.name === part)
+    if (!entry) continue
     const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
-    const rels = await readSlideRels(zip, slide)
+    const rels = await readSlideRels(zip, part)
     for (const block of scanBlocks(xml)) {
       const paragraphs = block.paragraphs.map((paragraph) => paragraph.text)
       const styles = block.paragraphs.map((paragraph) => paragraphStyle(xml, paragraph))
@@ -265,9 +567,45 @@ export async function readPptxLayout(bytes: Uint8Array, slides?: readonly number
  * `<p:sldSz cx cy>`；缺省按 16:9 的 12192000×6858000 兜底。
  * 上层要把 EMU 换成 pt 再交给 UI —— 见 office/engine/units.ts。
  */
-export async function readPptxDocument(
-  bytes: Uint8Array,
-): Promise<{ size: { w: number; h: number }; nodes: PptxLayoutNode[] }> {
+export type PptxLayoutInfo = {
+  /** 1-based 序号（按 slideLayoutN.xml 排序）。 */
+  index: number
+  /** `<p:cSld name="…">` 里的名字；没有就用序号兜底。 */
+  name: string
+  /** 相对 slideLayouts 目录的部件名，例如 slideLayout2.xml。 */
+  part: string
+}
+
+/** 列出这个 PPTX 里可选的版式（新建页时用）。 */
+export async function listPptxLayouts(bytes: Uint8Array): Promise<PptxLayoutInfo[]> {
+  const zip = await readZip(bytes)
+  return readLayouts(zip)
+}
+
+async function readLayouts(zip: ZipArchive): Promise<PptxLayoutInfo[]> {
+  const entries = zip.entries
+    .filter((item) => /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(item.name))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+  const layouts: PptxLayoutInfo[] = []
+  for (const [index, entry] of entries.entries()) {
+    const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
+    const name = /<p:cSld\b[^>]*\bname="([^"]*)"/.exec(xml)?.[1]
+    layouts.push({
+      index: index + 1,
+      name: name?.trim() || "版式 " + (index + 1),
+      part: entry.name.slice("ppt/slideLayouts/".length),
+    })
+  }
+  return layouts
+}
+
+export async function readPptxDocument(bytes: Uint8Array): Promise<{
+  size: { w: number; h: number }
+  nodes: PptxLayoutNode[]
+  slideCount: number
+  layouts: PptxLayoutInfo[]
+  slides: PptxSlideMeta[]
+}> {
   const zip = await readZip(bytes)
   const entry = zip.entries.find((item) => item.name === "ppt/presentation.xml")
   let size = { w: 12192000, h: 6858000 }
@@ -276,7 +614,358 @@ export async function readPptxDocument(
     const match = /<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(xml)
     if (match) size = { w: Number(match[1]), h: Number(match[2]) }
   }
-  return { size, nodes: await readPptxLayout(bytes) }
+  const slideCount = (await slideParts(zip)).length
+  return {
+    size,
+    nodes: await readPptxLayout(bytes),
+    slideCount,
+    layouts: await readLayouts(zip),
+    slides: await readSlideMetaFromZip(zip),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 页级元数据：备注、隐藏页
+// ---------------------------------------------------------------------------
+
+/** 一页的「非内容」属性：放映时是否隐藏、备注页文字。 */
+export type PptxSlideMeta = {
+  /** 1 起，按演示顺序。 */
+  index: number
+  /** `<p:sld show="0">`：放映时跳过这一页，但仍可编辑。 */
+  hidden: boolean
+  /** 备注页正文（notesSlide 里 body 占位符的文字）。 */
+  notes?: string
+  /** 这一页套用的版式名（读不到时为 undefined）。 */
+  layout?: string
+}
+
+const NOTES_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
+const NOTES_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"
+
+export async function readSlideMeta(bytes: Uint8Array): Promise<PptxSlideMeta[]> {
+  return readSlideMetaFromZip(await readZip(bytes))
+}
+
+async function readSlideMetaFromZip(zip: ZipArchive): Promise<PptxSlideMeta[]> {
+  const parts = await slideParts(zip)
+  const out: PptxSlideMeta[] = []
+  for (const [offset, part] of parts.entries()) {
+    const entry = zip.entries.find((item) => item.name === part)
+    if (!entry) {
+      out.push({ index: offset + 1, hidden: false })
+      continue
+    }
+    const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
+    const notesPart = await notesPartOf(zip, part)
+    const notes = notesPart ? await notesTextOf(zip, notesPart) : undefined
+    const layout = await layoutNameOf(zip, part)
+    out.push({
+      index: offset + 1,
+      hidden: /<p:sld\b[^>]*\bshow="0"/.test(xml),
+      ...(notes ? { notes } : {}),
+      ...(layout ? { layout } : {}),
+    })
+  }
+  return out
+}
+
+/** 找一页的备注页部件：slide 的 rels 里 Type 以 /notesSlide 结尾的那条。 */
+async function notesPartOf(zip: ZipArchive, slidePart: string): Promise<string | undefined> {
+  const relsEntry = zip.entries.find((item) => item.name === relsNameOf(slidePart))
+  if (!relsEntry) return undefined
+  const rels = new TextDecoder().decode(await entryData(zip.bytes, relsEntry))
+  for (const match of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+    if (!match[0].includes(NOTES_REL_TYPE)) continue
+    const target = /\bTarget="([^"]*)"/.exec(match[0])?.[1]
+    if (!target) continue
+    // 备注页的相对目标以 ppt/slides 为基准，例如 ../notesSlides/notesSlide1.xml。
+    return normalizePart("ppt/slides", target)
+  }
+  return undefined
+}
+
+/** 找一页套用的版式部件：slide rels 里 Type 以 /slideLayout 结尾的那条。 */
+async function layoutPartOf(zip: ZipArchive, slidePart: string): Promise<string | undefined> {
+  const relsEntry = zip.entries.find((item) => item.name === relsNameOf(slidePart))
+  if (!relsEntry) return undefined
+  const rels = new TextDecoder().decode(await entryData(zip.bytes, relsEntry))
+  for (const match of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+    if (!/\/slideLayout$/.test(/\bType="([^"]*)"/.exec(match[0])?.[1] ?? "")) continue
+    const target = /\bTarget="([^"]*)"/.exec(match[0])?.[1]
+    if (target) return normalizePart("ppt/slides", target)
+  }
+  return undefined
+}
+
+/** 版式显示名（`<p:cSld name="…">`）；读不到就用部件名。 */
+async function layoutNameOf(zip: ZipArchive, slidePart: string): Promise<string | undefined> {
+  const part = await layoutPartOf(zip, slidePart)
+  if (!part) return undefined
+  const entry = zip.entries.find((item) => item.name === part)
+  if (!entry) return part.slice(part.lastIndexOf("/") + 1)
+  const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
+  return /<p:cSld\b[^>]*\bname="([^"]*)"/.exec(xml)?.[1]?.trim() || part.slice(part.lastIndexOf("/") + 1)
+}
+
+/** 解析相对部件路径（`ppt/slides` + `../notesSlides/notesSlide1.xml`）。 */
+function normalizePart(baseDir: string, target: string): string {
+  if (target.startsWith("/")) return target.slice(1)
+  const stack = baseDir.split("/").filter(Boolean)
+  for (const piece of target.split("/")) {
+    if (piece === "" || piece === ".") continue
+    if (piece === "..") stack.pop()
+    else stack.push(piece)
+  }
+  return stack.join("/")
+}
+
+async function notesTextOf(zip: ZipArchive, part: string): Promise<string | undefined> {
+  const entry = zip.entries.find((item) => item.name === part)
+  if (!entry) return undefined
+  const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
+  // 只要备注正文占位符：页码、页眉页脚占位符不算备注。
+  const body = scanBlocks(xml).find((block) => /<p:ph\b[^>]*\btype="body"/.test(block.body))
+  if (!body) return undefined
+  return (
+    body.paragraphs
+      .map((paragraph) => paragraph.text)
+      .join(CHAR_LINE)
+      .trim() || undefined
+  )
+}
+
+const CHAR_LINE = String.fromCharCode(10)
+
+export type PptxMetaOp =
+  | { op: "setSlideNotes"; slide: number; text: string }
+  | { op: "setSlideHidden"; slide: number; hidden: boolean }
+  /** 换版式：layout 可以是显示名、slideLayoutN.xml 或 1 起的序号。 */
+  | { op: "setSlideLayout"; slide: number; layout: string }
+
+/**
+ * 备注 / 隐藏页：只改 slide 部件、slide 的 rels、备注页部件。
+ *
+ * 备注页不存在时新建一个最小可用的 notesSlide（含正文占位符 + 回指 slide 的关系），
+ * 并把 Override 补进 [Content_Types].xml —— 漏掉它 PowerPoint 会说文件损坏。
+ */
+export async function editPptxMeta(
+  bytes: Uint8Array,
+  ops: readonly PptxMetaOp[],
+): Promise<{ bytes: Uint8Array; applied: PptxMetaOp[]; changed: string[] }> {
+  if (ops.length === 0) return { bytes, applied: [], changed: [] }
+  const zip = await readZip(bytes)
+  const parts = await slideParts(zip)
+  const replacements = new Map<string, Uint8Array>()
+  const additions = new Map<string, Uint8Array>()
+  const applied: PptxMetaOp[] = []
+
+  for (const op of ops) {
+    const part = parts[op.slide - 1]
+    if (!part) throw new Error("PPTX 里没有第 " + op.slide + " 页（共 " + parts.length + " 页）")
+    const entry = zip.entries.find((item) => item.name === part)
+    if (!entry) throw new Error("找不到第 " + op.slide + " 页的部件：" + part)
+    const current = replacements.get(part)
+    const xml = current
+      ? new TextDecoder().decode(current)
+      : new TextDecoder().decode(await entryData(zip.bytes, entry))
+
+    if (op.op === "setSlideHidden") {
+      const next = setSlideHidden(xml, op.hidden)
+      if (next !== xml) replacements.set(part, new TextEncoder().encode(next))
+      applied.push(op)
+      continue
+    }
+
+    if (op.op === "setSlideLayout") {
+      const layouts = await readLayouts(zip)
+      const wanted = op.layout.trim()
+      const chosen =
+        layouts.find((layout) => layout.part === wanted) ??
+        layouts.find((layout) => layout.name === wanted) ??
+        (/^\d+$/.test(wanted) ? layouts[Number(wanted) - 1] : undefined)
+      if (!chosen) {
+        throw new Error("找不到版式 " + wanted + "（可选：" + layouts.map((layout) => layout.name).join(" / ") + "）")
+      }
+      const relsKey = relsNameOf(part)
+      const replacedRels = replacements.get(relsKey)
+      const relsEntry = zip.entries.find((item) => item.name === relsKey)
+      const relsXml = replacedRels
+        ? new TextDecoder().decode(replacedRels)
+        : relsEntry
+          ? new TextDecoder().decode(await entryData(zip.bytes, relsEntry))
+          : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+      const target = "../slideLayouts/" + chosen.part
+      const pattern = /<Relationship\b[^>]*\bType="[^"]*\/slideLayout"[^>]*\/>/
+      let nextRels: string
+      if (pattern.test(relsXml)) {
+        nextRels = relsXml.replace(pattern, (tag) => tag.replace(/\bTarget="[^"]*"/, 'Target="' + target + '"'))
+      } else {
+        const usedIds = [...relsXml.matchAll(/\bId="rId(\d+)"/g)].map((match) => Number(match[1]))
+        const rId = "rId" + String((usedIds.length > 0 ? Math.max(...usedIds) : 0) + 1)
+        nextRels = relsXml.replace(
+          /<\/Relationships>/,
+          '<Relationship Id="' +
+            rId +
+            '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="' +
+            target +
+            '"/></Relationships>',
+        )
+      }
+      replacements.set(relsKey, new TextEncoder().encode(nextRels))
+      applied.push(op)
+      continue
+    }
+
+    const existing = await notesPartOf(zip, part)
+    if (existing) {
+      const notesEntry = zip.entries.find((item) => item.name === existing)
+      if (!notesEntry) throw new Error("找不到备注页部件：" + existing)
+      const notesXml = new TextDecoder().decode(await entryData(zip.bytes, notesEntry))
+      replacements.set(existing, new TextEncoder().encode(writeNotesText(notesXml, op.text)))
+    } else {
+      const created = await createNotesPart(zip, part, op.text)
+      replacements.set(created.relsName, new TextEncoder().encode(created.slideRels))
+      additions.set(created.part, new TextEncoder().encode(created.xml))
+      additions.set(created.notesRelsName, new TextEncoder().encode(created.notesRels))
+      const typesEntry = zip.entries.find((item) => item.name === "[Content_Types].xml")
+      const typesXml = typesEntry ? new TextDecoder().decode(await entryData(zip.bytes, typesEntry)) : undefined
+      if (typesXml !== undefined) {
+        replacements.set("[Content_Types].xml", new TextEncoder().encode(addNotesContentType(typesXml, created.part)))
+      }
+    }
+    applied.push(op)
+  }
+
+  return {
+    bytes: rebuildZip(zip, replacements, additions),
+    applied,
+    changed: [...replacements.keys(), ...additions.keys()],
+  }
+}
+
+/** `<p:sld ... show="0">` 设置 / 移除；根标签缺失时原样返回。 */
+function setSlideHidden(xml: string, hidden: boolean): string {
+  const tag = /<p:sld\b[^>]*>/.exec(xml)?.[0]
+  if (!tag) return xml
+  const cleaned = tag.replace(/\s+show="[^"]*"/, "")
+  const next = hidden ? cleaned.replace(/>$/, ' show="0">') : cleaned
+  if (next === tag) return xml
+  return xml.replace(tag, next)
+}
+
+/** 改写备注页正文：保留第一个 run 的格式，只换文字；多行拆成多段。 */
+function writeNotesText(xml: string, text: string): string {
+  const blocks = scanBlocks(xml)
+  const body = blocks.find((block) => /<p:ph\b[^>]*\btype="body"/.test(block.body))
+  if (!body) return xml
+  const rPr = /<a:rPr\b[^>]*\/>/.exec(body.body)?.[0] ?? ""
+  const endRPr = /<a:endParaRPr\b[^>]*\/>/.exec(body.body)?.[0] ?? ""
+  const paragraphXml = text
+    .split(/\r?\n/)
+    .map(
+      (line) =>
+        "<a:p>" +
+        (line ? "<a:r>" + rPr + "<a:t>" + encodeXml(line) + "</a:t></a:r>" : "") +
+        (endRPr || line ? endRPr || "<a:endParaRPr/>" : "") +
+        "</a:p>",
+    )
+    .join("")
+  // txBody 里 lstStyle 之后才是段落；没有 <a:p> 就整体补进去。
+  const relative = body.body.replace(/<p:txBody\b[^>]*>([\s\S]*?)<\/p:txBody>/, (whole, inner: string) => {
+    const prefix = /^[\s\S]*?<\/a:lstStyle>/.exec(inner)?.[0] ?? /^[\s\S]*?<a:bodyPr\b[^>]*\/>/.exec(inner)?.[0] ?? ""
+    return "<p:txBody>" + prefix + paragraphXml + "</p:txBody>"
+  })
+  if (relative === body.body) return xml
+  return xml.slice(0, body.start) + relative + xml.slice(body.end)
+}
+
+/** 新建最小可用的 notesSlide，并在 slide 的 rels 里挂一条关系。 */
+async function createNotesPart(
+  zip: ZipArchive,
+  slidePart: string,
+  text: string,
+): Promise<{
+  part: string
+  xml: string
+  relsName: string
+  slideRels: string
+  notesRelsName: string
+  notesRels: string
+}> {
+  const used = zip.entries
+    .map((item) => /^ppt\/notesSlides\/notesSlide(\d+)\.xml$/.exec(item.name)?.[1])
+    .filter((value): value is string => value !== undefined)
+    .map(Number)
+  const number = (used.length > 0 ? Math.max(...used) : 0) + 1
+  const part = "ppt/notesSlides/notesSlide" + number + ".xml"
+
+  const relsName = relsNameOf(slidePart)
+  const relsEntry = zip.entries.find((item) => item.name === relsName)
+  const relsXml = relsEntry
+    ? new TextDecoder().decode(await entryData(zip.bytes, relsEntry))
+    : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+  const usedIds = [...relsXml.matchAll(/\bId="rId(\d+)"/g)].map((match) => Number(match[1]))
+  const rId = "rId" + String((usedIds.length > 0 ? Math.max(...usedIds) : 0) + 1)
+  const relativeTarget = "../" + part.slice("ppt/".length)
+  const relation = '<Relationship Id="' + rId + '" Type="' + NOTES_REL_TYPE + '" Target="' + relativeTarget + '"/>'
+  const slideRels = relsXml.replace(/<\/Relationships>/, relation + "</Relationships>")
+
+  const slideTarget = relativeTargetOf(slidePart, "ppt/notesSlides")
+  const notesRels =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="' +
+    slideTarget +
+    '"/>' +
+    "</Relationships>"
+
+  const body = text
+    .split(/\r?\n/)
+    .map(
+      (line) => "<a:p>" + (line ? '<a:r><a:rPr lang="zh-CN"/><a:t>' + encodeXml(line) + "</a:t></a:r>" : "") + "</a:p>",
+    )
+    .join("")
+  const xml =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<p:notes xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
+    'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">' +
+    "<p:cSld><p:spTree>" +
+    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>' +
+    '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>' +
+    "<p:sp>" +
+    '<p:nvSpPr><p:cNvPr id="2" name="备注占位符"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>' +
+    '<p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>' +
+    "<p:spPr/>" +
+    "<p:txBody><a:bodyPr/><a:lstStyle/>" +
+    body +
+    "</p:txBody></p:sp>" +
+    "</p:spTree></p:cSld>" +
+    "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>" +
+    "</p:notes>"
+
+  return { part, xml, relsName, slideRels, notesRelsName: relsNameOf(part), notesRels }
+}
+
+/** 两个部件目录之间的相对引用：`ppt/notesSlides` 引用 `ppt/slides/slide1.xml` → `../slides/slide1.xml`。 */
+function relativeTargetOf(target: string, fromDir: string): string {
+  const to = target.split("/").filter(Boolean)
+  const from = fromDir.split("/").filter(Boolean)
+  let common = 0
+  while (common < to.length - 1 && common < from.length && to[common] === from[common]) common += 1
+  const up = from.length - common
+  return [...Array.from({ length: up }, () => ".."), ...to.slice(common)].join("/")
+}
+
+/** [Content_Types].xml 补一条 notesSlide 的 Override（按 PartName 去重）。 */
+function addNotesContentType(typesXml: string, part: string): string {
+  const partName = "/" + part
+  if (typesXml.includes('PartName="' + partName + '"')) return typesXml
+  const override = '<Override PartName="' + partName + '" ContentType="' + NOTES_CONTENT_TYPE + '"/>'
+  return typesXml.replace(/<\/Types>/, override + "</Types>")
 }
 
 // ---------------------------------------------------------------------------
@@ -903,12 +1592,15 @@ function mimeForExtension(ext: string) {
 async function applyImageEdits(input: {
   xml: string
   slide: number
+  part: string
   edits: readonly PptxImageEdit[]
   zip: ZipArchive
   additions: Map<string, Uint8Array>
+  /** 同一页前面已经改过 rels 时传进来，避免两次修改互相覆盖。 */
+  relsText?: string
 }) {
   let xml = input.xml
-  let rels = await readSlideRelsText(input.zip, input.slide)
+  let rels = input.relsText ?? (await readSlideRelsText(input.zip, input.part))
   const applied: PptxImageEditApplied[] = []
 
   for (const edit of input.edits) {
@@ -942,8 +1634,66 @@ async function applyImageEdits(input: {
   return { xml, rels: applied.length > 0 ? new TextEncoder().encode(rels) : undefined, applied }
 }
 
-function slideRelsName(slide: number) {
-  return "ppt/slides/_rels/slide" + slide + ".xml.rels"
+/** 新增图片：媒体条目 + 关系 + 一个 `<p:pic>`，坐标用 EMU。 */
+async function applyAddPictures(input: {
+  xml: string
+  part: string
+  ops: ReadonlyArray<Extract<PptxShapeOp, { op: "addPicture" }>>
+  zip: ZipArchive
+  additions: Map<string, Uint8Array>
+  relsText?: string
+}) {
+  let xml = input.xml
+  let rels = input.relsText ?? (await readSlideRelsText(input.zip, input.part))
+  const applied: PptxImageEditApplied[] = []
+  for (const op of input.ops) {
+    const ext = MIME_EXT[op.mime.toLowerCase()]
+    if (!ext || op.data.length === 0) continue
+    const mediaPath = uniqueMediaPath(input.zip, input.additions, ext)
+    input.additions.set(mediaPath, op.data)
+    const rid = nextRelId(rels)
+    rels = addRelationship(rels, rid, "../media/" + mediaPath.slice("ppt/media/".length))
+    const id = nextShapeId(xml)
+    const name = "图片 " + id
+    const block = pictureXml({ id, name, box: op.box ?? DEFAULT_PICTURE_BOX, rid })
+    const close = xml.lastIndexOf("</p:spTree>")
+    if (close === -1) continue
+    xml = xml.slice(0, close) + block + xml.slice(close)
+    applied.push({ slide: op.slide, shapeId: String(id), shapeName: name, mediaPath, rId: rid })
+  }
+  return { xml, rels: applied.length > 0 ? new TextEncoder().encode(rels) : undefined, applied }
+}
+
+/** 新图片默认放在左上角，4×3 英寸（EMU）。 */
+const DEFAULT_PICTURE_BOX = { x: 914400, y: 914400, w: 3657600, h: 2743200 }
+
+function pictureXml(input: { id: number; name: string; box: PptxBox; rid: string }): string {
+  return (
+    "<p:pic><p:nvPicPr>" +
+    '<p:cNvPr id="' +
+    input.id +
+    '" name="' +
+    encodeXml(input.name) +
+    '"/>' +
+    '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/>' +
+    "</p:nvPicPr><p:blipFill>" +
+    '<a:blip r:embed="' +
+    input.rid +
+    '"/>' +
+    "<a:stretch><a:fillRect/></a:stretch></p:blipFill>" +
+    "<p:spPr><a:xfrm>" +
+    '<a:off x="' +
+    Math.round(input.box.x) +
+    '" y="' +
+    Math.round(input.box.y) +
+    '"/>' +
+    '<a:ext cx="' +
+    Math.max(1, Math.round(input.box.w)) +
+    '" cy="' +
+    Math.max(1, Math.round(input.box.h)) +
+    '"/>' +
+    '</a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>'
+  )
 }
 
 const REL_NS = 'xmlns="http://schemas.openxmlformats.org/package/2006/relationships"'
@@ -953,15 +1703,15 @@ function emptyRels() {
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships ' + REL_NS + "></Relationships>"
 }
 
-async function readSlideRelsText(zip: ZipArchive, slide: number) {
-  const entry = zip.entries.find((item) => item.name === slideRelsName(slide))
+async function readSlideRelsText(zip: ZipArchive, part: string) {
+  const entry = zip.entries.find((item) => item.name === relsNameOf(part))
   if (!entry) return emptyRels()
   return new TextDecoder().decode(await entryData(zip.bytes, entry))
 }
 
-async function readSlideRels(zip: ZipArchive, slide: number) {
+async function readSlideRels(zip: ZipArchive, part: string) {
   const map = new Map<string, string>()
-  const xml = await readSlideRelsText(zip, slide)
+  const xml = await readSlideRelsText(zip, part)
   const pattern = /<Relationship\b[^>]*>/g
   let match: RegExpExecArray | null
   while ((match = pattern.exec(xml))) {
@@ -1034,8 +1784,224 @@ function findBlock(blocks: readonly Block[], edit: { shapeId?: string; shapeName
   )
 }
 
-/** 改过文本的形状：清掉 autofit 上残留的缩放比例，让编辑器打开时自己重算字号。 */
-function resetAutoFit(xml: string, shapeIds: Set<string>) {
+// ---------------------------------------------------------------------------
+// XML 手术 —— 结构：新建文本框、删除形状
+// ---------------------------------------------------------------------------
+
+/** 新文本框的默认位置：贴左上、约 6.7 × 1.0 英寸（EMU）。 */
+const DEFAULT_TEXT_BOX: PptxBox = { x: 838200, y: 838200, w: 6096000, h: 914400 }
+
+/** 新形状的默认位置：页面中部偏上，3 × 2 英寸（EMU）。 */
+const DEFAULT_SHAPE_BOX: PptxBox = { x: 1371600, y: 1828800, w: 2743200, h: 1828800 }
+
+/** 常见形状的中文名，写进 `p:cNvPr@name`，列表里好认。 */
+const SHAPE_NAMES: Record<PptxShapeKind, string> = {
+  rect: "矩形",
+  roundRect: "圆角矩形",
+  ellipse: "椭圆",
+  triangle: "三角形",
+  diamond: "菱形",
+  rightArrow: "箭头",
+  line: "线条",
+  star5: "五角星",
+}
+
+function nextShapeId(xml: string): number {
+  const ids = [...xml.matchAll(/<p:cNvPr\b[^>]*\bid="(\d+)"/g)].map((match) => Number(match[1]))
+  return Math.max(1, ...ids) + 1
+}
+
+/** 段落属性：只有对齐需要写 pPr。 */
+function paragraphProps(style: PptxTextStyle | undefined): string {
+  if (!style?.align) return ""
+  const algn = style.align === "ctr" ? "ctr" : style.align === "r" ? "r" : style.align === "just" ? "just" : "l"
+  return '<a:pPr algn="' + algn + '"/>'
+}
+
+function textBoxXml(input: { id: number; name: string; box: PptxBox; text: string; style?: PptxTextStyle }): string {
+  const { box } = input
+  const rPr = patchRunProperties('<a:rPr lang="zh-CN" dirty="0"/>', input.style) ?? '<a:rPr lang="zh-CN" dirty="0"/>'
+  const paragraphs = input.text.split(/\r?\n/)
+  const body = paragraphs
+    .map(
+      (line) =>
+        "<a:p>" +
+        paragraphProps(input.style) +
+        (line.length === 0 ? "" : "<a:r>" + rPr + '<a:t xml:space="preserve">' + encodeXml(line) + "</a:t></a:r>") +
+        "</a:p>",
+    )
+    .join("")
+  return (
+    "<p:sp>" +
+    "<p:nvSpPr>" +
+    '<p:cNvPr id="' +
+    input.id +
+    '" name="' +
+    encodeXml(input.name) +
+    '"/>' +
+    '<p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>' +
+    "<p:spPr>" +
+    "<a:xfrm>" +
+    '<a:off x="' +
+    Math.round(box.x) +
+    '" y="' +
+    Math.round(box.y) +
+    '"/>' +
+    '<a:ext cx="' +
+    Math.max(1, Math.round(box.w)) +
+    '" cy="' +
+    Math.max(1, Math.round(box.h)) +
+    '"/>' +
+    "</a:xfrm>" +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' +
+    "</p:spPr>" +
+    '<p:txBody><a:bodyPr wrap="square"><a:spAutoFit/></a:bodyPr><a:lstStyle/>' +
+    body +
+    "</p:txBody></p:sp>"
+  )
+}
+
+/**
+ * 预设形状的 XML。
+ *
+ * 用 `p:sp` + `a:prstGeom`：这是 PowerPoint 的原生形状，拖动缩放、改颜色、
+ * 加动画都不受影响（图片或路径拼出来的形状会丢掉这些能力）。
+ */
+function shapeXml(input: {
+  id: number
+  kind: PptxShapeKind
+  box: PptxBox
+  fill?: string
+  line?: string
+  text?: string
+  style?: PptxTextStyle
+}): string {
+  const { box } = input
+  const geometry = '<a:prstGeom prst="' + input.kind + '"><a:avLst/></a:prstGeom>'
+  const fill = input.fill
+    ? '<a:solidFill><a:srgbClr val="' + encodeXml(input.fill.replace(/^#/, "").toUpperCase()) + '"/></a:solidFill>'
+    : '<a:solidFill><a:schemeClr val="accent1"><a:lumMod val="20000"/><a:lumOff val="80000"/></a:schemeClr></a:solidFill>'
+  // 线条形状本身是描边：默认给个深色，不然页面上什么都看不见。
+  const lineColor = input.line?.replace(/^#/, "").toUpperCase() ?? (input.kind === "line" ? "404040" : undefined)
+  const stroke = lineColor
+    ? '<a:ln w="19050"><a:solidFill><a:srgbClr val="' + encodeXml(lineColor) + '"/></a:solidFill></a:ln>'
+    : "<a:ln><a:noFill/></a:ln>"
+  const body = input.text
+    ? (() => {
+        const rPr =
+          patchRunProperties('<a:rPr lang="zh-CN" dirty="0"/>', input.style) ?? '<a:rPr lang="zh-CN" dirty="0"/>'
+        return (
+          '<p:txBody><a:bodyPr anchor="ctr" wrap="square"/><a:lstStyle/>' +
+          input.text
+            .split(/\r?\n/)
+            .map(
+              (row) =>
+                "<a:p>" +
+                paragraphProps({ align: "ctr", ...(input.style ?? {}) }) +
+                (row.length === 0
+                  ? ""
+                  : "<a:r>" + rPr + '<a:t xml:space="preserve">' + encodeXml(row) + "</a:t></a:r>") +
+                "</a:p>",
+            )
+            .join("") +
+          "</p:txBody>"
+        )
+      })()
+    : ""
+  return (
+    "<p:sp>" +
+    "<p:nvSpPr>" +
+    '<p:cNvPr id="' +
+    input.id +
+    '" name="' +
+    encodeXml(SHAPE_NAMES[input.kind] + " " + input.id) +
+    '"/>' +
+    "<p:cNvSpPr/><p:nvPr/></p:nvSpPr>" +
+    "<p:spPr>" +
+    "<a:xfrm>" +
+    '<a:off x="' +
+    Math.round(box.x) +
+    '" y="' +
+    Math.round(box.y) +
+    '"/>' +
+    '<a:ext cx="' +
+    Math.max(1, Math.round(box.w)) +
+    '" cy="' +
+    Math.max(1, Math.round(box.h)) +
+    '"/>' +
+    "</a:xfrm>" +
+    geometry +
+    (input.kind === "line" ? "" : fill) +
+    stroke +
+    "</p:spPr>" +
+    body +
+    "</p:sp>"
+  )
+}
+
+/**
+ * 结构操作：
+ * - `addShape` 追加一个预设形状；
+ * - `addTextBox` 在形状树末尾追加一个文本框（新页/空页也适用）；
+ * - `deleteShape` 按 id/名称整块删掉——组合里的子形状不允许单独删除
+ *   （删掉一个子形状会让组合的坐标映射失效），直接跳过。
+ */
+function applyShapeOps(xml: string, ops: readonly PptxShapeOp[]): string {
+  let next = xml
+  for (const op of ops) {
+    if (op.op === "addShape") {
+      const id = nextShapeId(next)
+      const block = shapeXml({
+        id,
+        kind: op.kind,
+        box: op.box ?? DEFAULT_SHAPE_BOX,
+        ...(op.fill ? { fill: op.fill } : {}),
+        ...(op.line ? { line: op.line } : {}),
+        ...(op.text ? { text: op.text } : {}),
+        ...(op.style ? { style: op.style } : {}),
+      })
+      const close = next.lastIndexOf("</p:spTree>")
+      if (close === -1) continue
+      next = next.slice(0, close) + block + next.slice(close)
+      continue
+    }
+
+    if (op.op === "addTextBox") {
+      const id = nextShapeId(next)
+      const name = "文本框 " + id
+      const block = textBoxXml({ id, name, box: op.box ?? DEFAULT_TEXT_BOX, text: op.text, style: op.style })
+      const close = next.lastIndexOf("</p:spTree>")
+      if (close === -1) continue
+      next = next.slice(0, close) + block + next.slice(close)
+      continue
+    }
+
+    // 新增图片由 applyAddPictures 处理（要写媒体和关系，不能在这里同步做）。
+    if (op.op === "addPicture") continue
+
+    const block = findBlock(scanBlocks(next), op)
+    if (!block || block.parentId !== undefined) continue
+
+    if (op.op === "renameShape") {
+      // 只换 cNvPr 的 name：id、几何、文字和关系都不动。
+      const body = next.slice(block.start, block.end)
+      const patched = body.replace(/<p:cNvPr\b[^>]*>/, (tag) => {
+        const cleaned = tag.replace(/\sname="[^"]*"/, "")
+        return cleaned.replace(/\/?>$/, (tail) => ' name="' + encodeXml(op.name) + '"' + tail)
+      })
+      if (patched !== body) next = next.slice(0, block.start) + patched + next.slice(block.end)
+      continue
+    }
+
+    next = next.slice(0, block.start) + next.slice(block.end)
+  }
+  return next
+}
+
+/** 改过文本的形状：清掉 autofit 上残留的缩放比例，让编辑器打开时自己重算字号。 */ function resetAutoFit(
+  xml: string,
+  shapeIds: Set<string>,
+) {
   if (shapeIds.size === 0) return xml
   const targets = scanBlocks(xml).filter((block) => shapeIds.has(block.id))
   let next = xml
@@ -1090,10 +2056,169 @@ function decodeXml(input: string) {
     .replace(/&amp;/g, "&")
 }
 
-function slideEntryName(zip: ZipArchive, slide: number) {
-  const name = "ppt/slides/slide" + slide + ".xml"
-  if (zip.entries.some((entry) => entry.name === name)) return name
-  throw new Error("PPTX 里没有第 " + slide + " 页（缺 " + name + "）")
+/**
+ * 演示顺序：`ppt/presentation.xml` 的 `<p:sldIdLst>` 决定页面顺序。
+ *
+ * 页面文件名（slideN.xml）**不一定**等于顺序：用户拖过页面、或用别的工具删过页，
+ * 文件名就和显示顺序错开了。编辑时按顺序定位，写回的仍是同一个部件。
+ * 清单读不出来时退回按文件名排序，至少不会把页弄丢。
+ */
+async function slideParts(zip: ZipArchive): Promise<string[]> {
+  const fallback = zip.entries
+    .map((item) => /^ppt\/slides\/slide(\d+)\.xml$/.exec(item.name))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .sort((a, b) => Number(a[1]) - Number(b[1]))
+    .map((match) => match[0])
+
+  const entry = zip.entries.find((item) => item.name === "ppt/presentation.xml")
+  const relsEntry = zip.entries.find((item) => item.name === "ppt/_rels/presentation.xml.rels")
+  if (!entry || !relsEntry) return fallback
+
+  const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
+  const list = /<p:sldIdLst\b[^>]*>([\s\S]*?)<\/p:sldIdLst>/.exec(xml)?.[1]
+  if (!list) return fallback
+
+  const rels = new TextDecoder().decode(await entryData(zip.bytes, relsEntry))
+  const targets = new Map<string, string>()
+  for (const match of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+    const id = /\bId="([^"]*)"/.exec(match[0])?.[1]
+    const target = /\bTarget="([^"]*)"/.exec(match[0])?.[1]
+    if (id && target) targets.set(id, target)
+  }
+
+  const parts: string[] = []
+  for (const match of list.matchAll(/<p:sldId\b[^>]*\br:id="([^"]*)"/g)) {
+    const target = targets.get(match[1]!)
+    if (target) parts.push(partNameOf(target))
+  }
+  return parts.length > 0 ? parts : fallback
+}
+
+/** rels 里的 Target（相对 ppt/，可能是绝对路径）→ 包内部件名。 */
+function partNameOf(target: string): string {
+  if (target.startsWith("/")) return target.slice(1)
+  return ("ppt/" + target).replace(/\/\.\//g, "/")
+}
+
+/** 部件名 → 它的 .rels 名（`ppt/slides/slide1.xml` → `ppt/slides/_rels/slide1.xml.rels`）。 */
+function relsNameOf(part: string): string {
+  const slash = part.lastIndexOf("/")
+  return part.slice(0, slash) + "/_rels/" + part.slice(slash + 1) + ".rels"
+}
+
+/** 一张空白幻灯片：只有空的形状树，版式通过 rels 关联。 */
+/**
+ * 版式名 → 版式信息。支持三种写法：显示名（`两栏内容`）、部件名
+ * （`slideLayout2.xml`）和 1-based 序号。找不到时把可用版式列出来。
+ */
+async function resolveLayout(zip: ZipArchive, value: string): Promise<PptxLayoutInfo> {
+  const layouts = await readLayouts(zip)
+  const input = value.trim()
+  if (layouts.length === 0) throw new Error("这个 PPTX 里没有版式（slideLayouts）")
+  const index = Number(input)
+  if (Number.isInteger(index) && index >= 1 && index <= layouts.length) return layouts[index - 1]!
+  const lower = input.toLowerCase()
+  const found =
+    layouts.find((item) => item.name.toLowerCase() === lower) ??
+    layouts.find((item) => item.part.toLowerCase() === lower) ??
+    layouts.find((item) => "slidelayout" + lower + ".xml" === item.part.toLowerCase()) ??
+    layouts.find((item) => item.name.toLowerCase().includes(lower))
+  if (!found) {
+    throw new Error(
+      "找不到版式：" + input + "；可用：" + layouts.map((item) => item.name + "（" + item.part + "）").join("、"),
+    )
+  }
+  return found
+}
+
+/** 从版式里挑出占位符形状，带进新页 —— 否则新页只是一张空画布。 */
+async function layoutPlaceholderShapes(zip: ZipArchive, part: string): Promise<string> {
+  const entry = zip.entries.find((item) => item.name === "ppt/slideLayouts/" + part)
+  if (!entry) return ""
+  const xml = new TextDecoder().decode(await entryData(zip.bytes, entry))
+  const shapes: string[] = []
+  let id = 2
+  for (const match of xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)) {
+    const shape = match[0]
+    if (!shape.includes("<p:ph")) continue
+    // 同一页里 cNvPr id 必须唯一；版式里的 id 复制过来会和新页自己的冲突。
+    shapes.push(shape.replace(/(<p:cNvPr\b[^>]*?)\bid="\d+"/, (_all, head: string) => head + 'id="' + id++ + '"'))
+  }
+  return shapes.join("")
+}
+
+function blankSlideXml(): string {
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"' +
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' +
+    ' xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">' +
+    "<p:cSld><p:spTree>" +
+    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>' +
+    '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>' +
+    "</p:spTree></p:cSld>" +
+    "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>"
+  )
+}
+
+/**
+ * 新页用哪张版式：先看相邻那页的 slideLayout 关系（新页和它同一版式），
+ * 找不到就用包里的第一张版式。
+ */
+async function slideLayoutTarget(
+  zip: ZipArchive,
+  additions: Map<string, Uint8Array>,
+  sourcePart: string | undefined,
+): Promise<string> {
+  if (sourcePart) {
+    const name = relsNameOf(sourcePart)
+    const data =
+      additions.get(name) ??
+      (await (async () => {
+        const entry = zip.entries.find((item) => item.name === name)
+        return entry ? entryData(zip.bytes, entry) : undefined
+      })())
+    if (data) {
+      const xml = new TextDecoder().decode(data)
+      const match = /<Relationship\b[^>]*Type="[^"]*\/slideLayout"[^>]*>/.exec(xml)
+      const target = match ? /\bTarget="([^"]*)"/.exec(match[0])?.[1] : undefined
+      if (target) return target
+    }
+  }
+  const layout = zip.entries
+    .map((item) => /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.exec(item.name)?.[0])
+    .filter((name): name is string => name !== undefined)
+    .sort()[0]
+  return layout ? "../" + layout.slice("ppt/".length) : "../slideLayouts/slideLayout1.xml"
+}
+
+/** 新页面部件在 [Content_Types].xml 里的 Override（slides 走 Override，不走 Default）。 */
+async function ensureSlideContentType(
+  zip: ZipArchive,
+  additions: Map<string, Uint8Array>,
+  replacements: Map<string, Uint8Array>,
+  part: string,
+): Promise<void> {
+  const typesName = "[Content_Types].xml"
+  const typesEntry = zip.entries.find((item) => item.name === typesName)
+  const current = replacements.get(typesName) ?? additions.get(typesName)
+  if (!typesEntry && !current) return
+  const types = new TextDecoder().decode(current ?? (await entryData(zip.bytes, typesEntry!)))
+  if (types.includes('PartName="/' + part + '"')) return
+  const override =
+    '<Override PartName="/' +
+    part +
+    '" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>'
+  const next = /<\/Types>/.test(types)
+    ? types.replace("</Types>", override + "</Types>")
+    : types.replace(/<Types\b([^>]*)\/>/, "<Types$1>" + override + "</Types>")
+  replacements.set(typesName, new TextEncoder().encode(next))
+}
+
+async function slideEntryName(zip: ZipArchive, slide: number, parts: readonly string[]) {
+  const name = parts[slide - 1]
+  if (!name) throw new Error("PPTX 里没有第 " + slide + " 页（共 " + parts.length + " 页）")
+  return name
 }
 
 // ---------------------------------------------------------------------------
@@ -1345,6 +2470,74 @@ export function rebuildZip(
     u32(offset),
     u16(zip.comment.length),
     zip.comment,
+  ])
+}
+
+/**
+ * 从零写一个 zip（新建文档用）。
+ *
+ * 和 `rebuildZip` 共用同一套 CRC / 头格式，条目一律以 stored 形式写：
+ * 新建的是空模板，体积可以忽略，换来的是输出可复现（同样的输入 → 同样的字节）。
+ */
+export function buildZip(entries: ReadonlyArray<{ name: string; data: Uint8Array }>): Uint8Array {
+  const localParts: Uint8Array[] = []
+  const centralParts: Uint8Array[] = []
+  let offset = 0
+  for (const entry of entries) {
+    const name = new TextEncoder().encode(entry.name)
+    const crc = crc32(entry.data)
+    const record = concat([
+      u32(0x04034b50),
+      u16(20),
+      u16(0),
+      u16(0),
+      u16(0),
+      u16(0),
+      u32(crc),
+      u32(entry.data.length),
+      u32(entry.data.length),
+      u16(name.length),
+      u16(0),
+      name,
+      entry.data,
+    ])
+    localParts.push(record)
+    centralParts.push(
+      concat([
+        u32(0x02014b50),
+        u16(20),
+        u16(20),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(crc),
+        u32(entry.data.length),
+        u32(entry.data.length),
+        u16(name.length),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(0),
+        u32(offset),
+        name,
+      ]),
+    )
+    offset += record.length
+  }
+  const central = concat(centralParts)
+  return concat([
+    ...localParts,
+    central,
+    u32(0x06054b50),
+    u16(0),
+    u16(0),
+    u16(entries.length),
+    u16(entries.length),
+    u32(central.length),
+    u32(offset),
+    u16(0),
   ])
 }
 

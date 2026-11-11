@@ -3,6 +3,7 @@ import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { usePlatformAccounts, PLATFORM_LIST, type PlatformAccount } from "@/context/platform-accounts"
+import { PlatformIcon } from "@/components/platform-icon"
 import { AddAccountModal } from "./AddAccountModal"
 import { AccountManagerModal } from "./AccountManagerModal"
 import { CheckLoginResultModal } from "./CheckLoginResultModal"
@@ -24,13 +25,13 @@ function AccountItem(props: {
   const statusColor = () => {
     switch (props.account.status) {
       case "valid":
-        return "bg-emerald-500"
+        return "bg-success"
       case "expired":
-        return "bg-amber-500"
+        return "bg-warning"
       case "login_failed":
-        return "bg-rose-500"
+        return "bg-[var(--icon-critical-base)]"
       default:
-        return "bg-gray-300 dark:bg-gray-600"
+        return "bg-foreground-subtlest"
     }
   }
 
@@ -54,7 +55,11 @@ function AccountItem(props: {
         "bg-hover": props.isSelected,
         "hover:bg-hover": !props.isSelected,
       }}
-      style={props.isSelected ? { "box-shadow": "inset 3px 0 0 var(--novaway-mode-color, #FF6B6B)" } : undefined}
+      style={
+        props.isSelected
+          ? { "box-shadow": "inset 3px 0 0 var(--novaway-mode-color, var(--interactive-base))" }
+          : undefined
+      }
       onClick={props.onSelect}
       onContextMenu={handleContextMenu}
     >
@@ -63,18 +68,26 @@ function AccountItem(props: {
           <img src={props.account.avatar} alt="" class="size-full object-cover" />
         ) : info()?.icon ? (
           // 没有头像：用平台图标兜底。比"空圆"或昵称首字更能说明这是哪个平台。
-          <img src={info()?.icon} alt="" class="size-5 object-contain opacity-70" />
+          <PlatformIcon
+            color={info()?.iconColor}
+            markColor={info()?.iconMarkColor}
+            svg={info()?.icon ?? ""}
+            class="size-5 opacity-70"
+          />
         ) : (
           <span class="text-12-regular text-foreground-subtle">{props.account.nickname?.charAt(0)}</span>
         )}
         <span class={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ${statusColor()} ring-2 ring-background`} />
       </div>
       <div class="flex-1 min-w-0">
-        <div class="text-13-medium text-foreground truncate leading-tight">
-          {platform.displayName(props.account)}
-        </div>
+        <div class="text-13-medium text-foreground truncate leading-tight">{platform.displayName(props.account)}</div>
         <div class="flex items-center gap-1 mt-0.5">
-          <img src={info()?.icon} alt="" class="size-3" />
+          <PlatformIcon
+            color={info()?.iconColor}
+            markColor={info()?.iconMarkColor}
+            svg={info()?.icon ?? ""}
+            class="size-3"
+          />
           <span class="text-11-regular text-foreground-subtlest">{info()?.name}</span>
         </div>
       </div>
@@ -93,7 +106,7 @@ function AccountItem(props: {
             检测登录状态
           </button>
           <button
-            class="w-full px-3 py-1.5 text-left text-12-regular text-rose-600 dark:text-rose-400 hover:bg-hover flex items-center gap-2"
+            class="w-full px-3 py-1.5 text-left text-12-regular text-[var(--icon-critical-base)] hover:bg-hover flex items-center gap-2"
             onClick={() => handleMenuAction("remove")}
           >
             <Icon name="trash" size="small" />
@@ -138,7 +151,7 @@ export function PulseSidebar() {
           class="rounded-[10px] p-3"
           style={{
             background:
-              "linear-gradient(135deg, color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 10%, transparent), transparent)",
+              "linear-gradient(135deg, color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 10%, transparent), transparent)",
           }}
         >
           <div class="text-14-medium text-foreground mb-1">账号矩阵</div>
@@ -147,7 +160,7 @@ export function PulseSidebar() {
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-foreground-subtle">
               总账号 {platform.store.accounts.length}
             </span>
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-emerald-600 dark:text-emerald-400">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-icon-success-base">
               在线 {platform.onlineCount()}
             </span>
           </div>

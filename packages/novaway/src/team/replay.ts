@@ -59,8 +59,11 @@ const REASONS = new Set([
 ])
 
 /** 只在有值时写字段：缺字段与「值是 undefined」在响应里要长得一样。 */
-const add = <T extends object, K extends string, V>(target: T, key: K, value: V | undefined): T & Partial<Record<K, V>> =>
-  value === undefined ? target : Object.assign(target, { [key]: value })
+const add = <T extends object, K extends string, V>(
+  target: T,
+  key: K,
+  value: V | undefined,
+): T & Partial<Record<K, V>> => (value === undefined ? target : Object.assign(target, { [key]: value }))
 
 const stepOf = (event: RunEvent): Step => {
   const payload = event.payload
@@ -167,7 +170,11 @@ export function replay(input: {
       .filter((event) => event.kind === "verification.recorded")
       .map((event) => {
         const payload = event.payload ?? {}
-        return [str(field(payload, "acceptanceID")), num(field(payload, "attempt")), str(field(payload, "outcome"))].join(":")
+        return [
+          str(field(payload, "acceptanceID")),
+          num(field(payload, "attempt")),
+          str(field(payload, "outcome")),
+        ].join(":")
       }),
   )
   const passes = summary.lines.filter((line) => line.outcome === "pass")
@@ -177,18 +184,11 @@ export function replay(input: {
     return recorded.has([line.acceptance.id, verification.attempt, verification.outcome].join(":"))
   }).length
   const evidence: EvidenceTrace =
-    passes.length === 0
-      ? "complete"
-      : traced === passes.length
-        ? "complete"
-        : traced === 0
-          ? "absent"
-          : "partial"
+    passes.length === 0 ? "complete" : traced === passes.length ? "complete" : traced === 0 ? "absent" : "partial"
 
   const notes: string[] = []
   if (summary.unverified > 0) notes.push("有 " + summary.unverified + " 条验收没有通过验证证据，未计入通过。")
-  if (summary.stale > 0)
-    notes.push("有 " + summary.stale + " 条证据绑定的快照与当前代码不一致，按未验证计。")
+  if (summary.stale > 0) notes.push("有 " + summary.stale + " 条证据绑定的快照与当前代码不一致，按未验证计。")
   if (summary.fail > 0) notes.push("有 " + summary.fail + " 条验收未达标。")
   if (evidence === "partial") notes.push("部分结论只存在于验证表，事件流里没有对应记录。")
   if (evidence === "absent" && passes.length > 0) notes.push("结论来自验证表；这次运行没有写入验证事件。")

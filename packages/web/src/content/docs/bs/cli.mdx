@@ -78,13 +78,13 @@ novaway attach http://10.20.30.40:4096
 
 #### Opcije
 
-| Opcija                                   | Kratko | Opis                                                                                          |
-| ---------------------------------------- | ------ | --------------------------------------------------------------------------------------------- |
-| <nobr><code>{"--dir"}</code></nobr>      |        | Radni direktorij za pokretanje TUI-a                                                          |
-| <nobr><code>{"--continue"}</code></nobr> | `-c`   | Nastavi posljednju sesiju                                                                     |
-| <nobr><code>{"--session"}</code></nobr>  | `-s`   | ID sesije za nastavak                                                                         |
-| <nobr><code>{"--fork"}</code></nobr>     |        | Forkuj sesiju prilikom nastavka (koristite sa `--continue` ili `--session`)                   |
-| <nobr><code>{"--password"}</code></nobr> | `-p`   | Lozinka za osnovnu autentifikaciju (zadano: `NOVAWAY_SERVER_PASSWORD`)                       |
+| Opcija                                   | Kratko | Opis                                                                                        |
+| ---------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
+| <nobr><code>{"--dir"}</code></nobr>      |        | Radni direktorij za pokretanje TUI-a                                                        |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`   | Nastavi posljednju sesiju                                                                   |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`   | ID sesije za nastavak                                                                       |
+| <nobr><code>{"--fork"}</code></nobr>     |        | Forkuj sesiju prilikom nastavka (koristite sa `--continue` ili `--session`)                 |
+| <nobr><code>{"--password"}</code></nobr> | `-p`   | Lozinka za osnovnu autentifikaciju (zadano: `NOVAWAY_SERVER_PASSWORD`)                      |
 | <nobr><code>{"--username"}</code></nobr> | `-u`   | Korisničko ime za osnovnu autentifikaciju (zadano: `NOVAWAY_SERVER_USERNAME` ili `novaway`) |
 
 ---
@@ -336,25 +336,25 @@ novaway run --attach http://localhost:4096 "Explain async/await in JavaScript"
 
 #### Opcije
 
-| Opcija                                   | Kratko | Opis                                                                                          |
-| ---------------------------------------- | ------ | --------------------------------------------------------------------------------------------- |
-| <nobr><code>{"--command"}</code></nobr>  |        | Naredba za pokretanje, koristite poruku za argumente                                          |
-| <nobr><code>{"--continue"}</code></nobr> | `-c`   | Nastavite posljednju sesiju                                                                   |
-| <nobr><code>{"--session"}</code></nobr>  | `-s`   | ID sesije za nastavak                                                                         |
-| <nobr><code>{"--fork"}</code></nobr>     |        | Forkujte sesiju pri nastavku (koristiti sa `--continue` ili `--session`)                      |
-| <nobr><code>{"--share"}</code></nobr>    |        | Podijelite sesiju                                                                             |
-| <nobr><code>{"--model"}</code></nobr>    | `-m`   | Model za korištenje u obliku provider/model                                                   |
-| <nobr><code>{"--agent"}</code></nobr>    |        | Agent za korištenje                                                                           |
-| <nobr><code>{"--file"}</code></nobr>     | `-f`   | Fajlovi koje treba priložiti poruci                                                           |
-| <nobr><code>{"--format"}</code></nobr>   |        | Format: default (formatiran) ili json (sirovi JSON događaji)                                  |
-| <nobr><code>{"--title"}</code></nobr>    |        | Naslov sesije (koristi skraćeni prompt ako nije navedena vrijednost)                          |
-| <nobr><code>{"--attach"}</code></nobr>   |        | Priključite na pokrenuti NovaWay server (npr. http://localhost:4096)                         |
-| <nobr><code>{"--password"}</code></nobr> | `-p`   | Lozinka za osnovnu autentifikaciju (zadano: `NOVAWAY_SERVER_PASSWORD`)                       |
+| Opcija                                   | Kratko | Opis                                                                                        |
+| ---------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
+| <nobr><code>{"--command"}</code></nobr>  |        | Naredba za pokretanje, koristite poruku za argumente                                        |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`   | Nastavite posljednju sesiju                                                                 |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`   | ID sesije za nastavak                                                                       |
+| <nobr><code>{"--fork"}</code></nobr>     |        | Forkujte sesiju pri nastavku (koristiti sa `--continue` ili `--session`)                    |
+| <nobr><code>{"--share"}</code></nobr>    |        | Podijelite sesiju                                                                           |
+| <nobr><code>{"--model"}</code></nobr>    | `-m`   | Model za korištenje u obliku provider/model                                                 |
+| <nobr><code>{"--agent"}</code></nobr>    |        | Agent za korištenje                                                                         |
+| <nobr><code>{"--file"}</code></nobr>     | `-f`   | Fajlovi koje treba priložiti poruci                                                         |
+| <nobr><code>{"--format"}</code></nobr>   |        | Format: default (formatiran) ili json (sirovi JSON događaji)                                |
+| <nobr><code>{"--title"}</code></nobr>    |        | Naslov sesije (koristi skraćeni prompt ako nije navedena vrijednost)                        |
+| <nobr><code>{"--attach"}</code></nobr>   |        | Priključite na pokrenuti NovaWay server (npr. http://localhost:4096)                        |
+| <nobr><code>{"--password"}</code></nobr> | `-p`   | Lozinka za osnovnu autentifikaciju (zadano: `NOVAWAY_SERVER_PASSWORD`)                      |
 | <nobr><code>{"--username"}</code></nobr> | `-u`   | Korisničko ime za osnovnu autentifikaciju (zadano: `NOVAWAY_SERVER_USERNAME` ili `novaway`) |
-| <nobr><code>{"--dir"}</code></nobr>      |        | Direktorij za pokretanje, ili putanja na udaljenom serveru pri spajanju                       |
-| <nobr><code>{"--variant"}</code></nobr>  |        | Varijanta modela (napor zaključivanja specifičan za provajdera)                               |
-| <nobr><code>{"--thinking"}</code></nobr> |        | Prikaži blokove razmišljanja                                                                  |
-| <nobr><code>{"--port"}</code></nobr>     |        | Port za lokalni server (zadano na nasumični port)                                             |
+| <nobr><code>{"--dir"}</code></nobr>      |        | Direktorij za pokretanje, ili putanja na udaljenom serveru pri spajanju                     |
+| <nobr><code>{"--variant"}</code></nobr>  |        | Varijanta modela (napor zaključivanja specifičan za provajdera)                             |
+| <nobr><code>{"--thinking"}</code></nobr> |        | Prikaži blokove razmišljanja                                                                |
+| <nobr><code>{"--port"}</code></nobr>     |        | Port za lokalni server (zadano na nasumični port)                                           |
 
 ---
 
@@ -559,32 +559,32 @@ NovaWay CLI prihvata sljedeće globalne zastavice.
 
 NovaWay se može konfigurirati pomoću varijabli okruženja.
 
-| Varijabla                             | Tip     | Opis                                                               |
-| ------------------------------------- | ------- | ------------------------------------------------------------------ |
-| `NOVAWAY_AUTO_SHARE`                 | boolean | Automatski dijeli sesije                                           |
-| `NOVAWAY_GIT_BASH_PATH`              | string  | Putanja do Git Bash izvršne datoteke na Windows-u                  |
-| `NOVAWAY_CONFIG`                     | string  | Putanja do konfiguracijskog fajla                                  |
-| `NOVAWAY_TUI_CONFIG`                 | string  | Putanja do TUI konfiguracijskog fajla                              |
-| `NOVAWAY_CONFIG_DIR`                 | string  | Putanja do konfiguracijskog direktorija                            |
-| `NOVAWAY_CONFIG_CONTENT`             | string  | Inline json konfiguracijski sadržaj                                |
-| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Onemogući automatske provjere ažuriranja                           |
-| `NOVAWAY_DISABLE_PRUNE`              | boolean | Onemogući brisanje (pruning) starih podataka                       |
-| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Onemogući automatsko ažuriranje naslova terminala                  |
-| `NOVAWAY_PERMISSION`                 | string  | Inline json konfiguracija dozvola                                  |
-| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Onemogući podrazumijevane dodatke (plugins)                        |
-| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Onemogući automatsko preuzimanje LSP servera                       |
-| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Omogući eksperimentalne modele                                     |
-| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Onemogući automatsko sažimanje konteksta                           |
-| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | Onemogući čitanje iz `.claude` (prompt + vještine)                 |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | Onemogući čitanje `~/.claude/CLAUDE.md`                            |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | Onemogući učitavanje `.claude/skills`                              |
-| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Onemogući dohvaćanje modela iz udaljenih izvora                    |
-| `NOVAWAY_FAKE_VCS`                   | string  | Lažni VCS provajder za potrebe testiranja                          |
-| `NOVAWAY_CLIENT`                     | string  | Identifikator klijenta (zadano na `cli`)                           |
-| `NOVAWAY_ENABLE_EXA`                 | boolean | Omogući Exa alate za web pretraživanje                             |
-| `NOVAWAY_SERVER_PASSWORD`            | string  | Omogući osnovnu autentifikaciju za `serve`/`web`                   |
+| Varijabla                            | Tip     | Opis                                                              |
+| ------------------------------------ | ------- | ----------------------------------------------------------------- |
+| `NOVAWAY_AUTO_SHARE`                 | boolean | Automatski dijeli sesije                                          |
+| `NOVAWAY_GIT_BASH_PATH`              | string  | Putanja do Git Bash izvršne datoteke na Windows-u                 |
+| `NOVAWAY_CONFIG`                     | string  | Putanja do konfiguracijskog fajla                                 |
+| `NOVAWAY_TUI_CONFIG`                 | string  | Putanja do TUI konfiguracijskog fajla                             |
+| `NOVAWAY_CONFIG_DIR`                 | string  | Putanja do konfiguracijskog direktorija                           |
+| `NOVAWAY_CONFIG_CONTENT`             | string  | Inline json konfiguracijski sadržaj                               |
+| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Onemogući automatske provjere ažuriranja                          |
+| `NOVAWAY_DISABLE_PRUNE`              | boolean | Onemogući brisanje (pruning) starih podataka                      |
+| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Onemogući automatsko ažuriranje naslova terminala                 |
+| `NOVAWAY_PERMISSION`                 | string  | Inline json konfiguracija dozvola                                 |
+| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Onemogući podrazumijevane dodatke (plugins)                       |
+| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Onemogući automatsko preuzimanje LSP servera                      |
+| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Omogući eksperimentalne modele                                    |
+| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Onemogući automatsko sažimanje konteksta                          |
+| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | Onemogući čitanje iz `.claude` (prompt + vještine)                |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | Onemogući čitanje `~/.claude/CLAUDE.md`                           |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | Onemogući učitavanje `.claude/skills`                             |
+| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Onemogući dohvaćanje modela iz udaljenih izvora                   |
+| `NOVAWAY_FAKE_VCS`                   | string  | Lažni VCS provajder za potrebe testiranja                         |
+| `NOVAWAY_CLIENT`                     | string  | Identifikator klijenta (zadano na `cli`)                          |
+| `NOVAWAY_ENABLE_EXA`                 | boolean | Omogući Exa alate za web pretraživanje                            |
+| `NOVAWAY_SERVER_PASSWORD`            | string  | Omogući osnovnu autentifikaciju za `serve`/`web`                  |
 | `NOVAWAY_SERVER_USERNAME`            | string  | Poništi osnovno korisničko ime autentifikacije (zadano `novaway`) |
-| `NOVAWAY_MODELS_URL`                 | string  | Prilagođeni URL za dohvaćanje konfiguracije modela                 |
+| `NOVAWAY_MODELS_URL`                 | string  | Prilagođeni URL za dohvaćanje konfiguracije modela                |
 
 ---
 
@@ -592,8 +592,8 @@ NovaWay se može konfigurirati pomoću varijabli okruženja.
 
 Ove varijable okruženja omogućavaju eksperimentalne karakteristike koje se mogu promijeniti ili ukloniti.
 
-| Varijabla                                       | Tip     | Opis                                              |
-| ----------------------------------------------- | ------- | ------------------------------------------------- |
+| Varijabla                                      | Tip     | Opis                                              |
+| ---------------------------------------------- | ------- | ------------------------------------------------- |
 | `NOVAWAY_EXPERIMENTAL`                         | boolean | Omogući sve eksperimentalne funkcije              |
 | `NOVAWAY_EXPERIMENTAL_ICON_DISCOVERY`          | boolean | Omogući otkrivanje ikona                          |
 | `NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | boolean | Onemogući kopiranje pri odabiru u TUI             |

@@ -116,9 +116,7 @@ describe("skill", () => {
           }
 
           // 技能正文应指向配套资料，否则模型不会去读。
-          expect(list.find((entry) => entry.name === "media-ops")!.content).toContain(
-            "references/platform-playbook.md",
-          )
+          expect(list.find((entry) => entry.name === "media-ops")!.content).toContain("references/platform-playbook.md")
           expect(list.find((entry) => entry.name === "account-review")!.content).toContain(
             "references/data-playbook.md",
           )

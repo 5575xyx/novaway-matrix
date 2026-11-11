@@ -22,6 +22,7 @@ export const SessionTable = sqliteTable(
       .notNull()
       .references(() => ProjectTable.id, { onDelete: "cascade" }),
     workspace_id: text().$type<WorkspaceID>(),
+    scope: text().notNull().default("project").$type<"project" | "global">(),
     parent_id: text().$type<SessionID>(),
     slug: text().notNull(),
     directory: text().notNull(),

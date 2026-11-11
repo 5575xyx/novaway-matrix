@@ -15,11 +15,9 @@ import { Dialog } from "@novaway/ui/dialog"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { Icon } from "@novaway/ui/icon"
 import { usePlatformAccounts, PLATFORM_LIST, type PlatformAccount } from "@/context/platform-accounts"
-import {
-  PUBLISH_KIND_LABEL,
-  supportsPublish,
-  type PublishKind,
-} from "@/pages/pulse/publish-capabilities"
+import { PlatformIcon } from "@/components/platform-icon"
+import { useSDK } from "@/context/sdk"
+import { PUBLISH_KIND_LABEL, supportsPublish, type PublishKind } from "@/pages/pulse/publish-capabilities"
 import type { PrecheckIssue, PublishAccountResult, PublishBatch } from "@/pages/pulse/publish-types"
 
 const KINDS: PublishKind[] = ["video", "image_text", "article"]
@@ -48,11 +46,11 @@ function statusLabel(result: PublishAccountResult) {
 function statusTone(result: PublishAccountResult) {
   switch (result.status) {
     case "success":
-      return "text-emerald-600 dark:text-emerald-400"
+      return "text-icon-success-base"
     case "failed":
-      return "text-rose-600 dark:text-rose-400"
+      return "text-[var(--icon-critical-base)]"
     case "unsupported":
-      return "text-amber-600 dark:text-amber-400"
+      return "text-icon-warning-base"
     case "running":
       return "text-foreground"
     default:
@@ -60,12 +58,7 @@ function statusTone(result: PublishAccountResult) {
   }
 }
 
-function AccountRow(props: {
-  account: PlatformAccount
-  kind: PublishKind
-  checked: boolean
-  onToggle: () => void
-}) {
+function AccountRow(props: { account: PlatformAccount; kind: PublishKind; checked: boolean; onToggle: () => void }) {
   const platform = usePlatformAccounts()
   const info = () => PLATFORM_LIST.find((p) => p.id === props.account.platform)
   const supported = () => supportsPublish(props.account.platform, props.kind)
@@ -87,13 +80,18 @@ function AccountRow(props: {
         checked={props.checked}
         disabled={!available()}
         onChange={() => available() && props.onToggle()}
-        class="size-4 rounded border-border accent-[var(--novaway-mode-color,#FF6B6B)]"
+        class="size-4 rounded border-border accent-[var(--novaway-mode-color,var(--interactive-base))]"
       />
       <div class="relative size-7 shrink-0 overflow-hidden rounded-full bg-background-alt flex items-center justify-center">
         {props.account.avatar ? (
           <img src={props.account.avatar} alt="" class="size-full object-cover" />
         ) : info()?.icon ? (
-          <img src={info()?.icon} alt="" class="size-4 object-contain opacity-70" />
+          <PlatformIcon
+            color={info()?.iconColor}
+            markColor={info()?.iconMarkColor}
+            svg={info()?.icon ?? ""}
+            class="size-4 opacity-70"
+          />
         ) : (
           <span class="text-11-regular text-foreground-subtle">{props.account.nickname?.charAt(0)}</span>
         )}
@@ -101,20 +99,25 @@ function AccountRow(props: {
       <span class="min-w-0 flex-1 truncate text-13-medium text-foreground">{platform.displayName(props.account)}</span>
       <Show when={info()?.icon} fallback={<span class="text-xs">{info()?.name}</span>}>
         <span class="flex items-center gap-1 text-11-regular text-foreground-subtlest">
-          <img src={info()?.icon} alt="" class="size-3" />
+          <PlatformIcon
+            color={info()?.iconColor}
+            markColor={info()?.iconMarkColor}
+            svg={info()?.icon ?? ""}
+            class="size-3"
+          />
           {info()?.name}
         </span>
       </Show>
       <Show when={unverified()}>
         <span
-          class="rounded-full border border-amber-300/40 bg-amber-300/10 px-1.5 py-0.5 text-10-medium text-amber-600 dark:text-amber-300"
+          class="rounded-full border border-[color-mix(in_srgb,var(--icon-warning-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-warning-base)_10%,transparent)] px-1.5 py-0.5 text-10-medium text-icon-warning-base"
           title="登录状态未确认（巡检可能被平台风控误判），发布时若失败会给出原因"
         >
           未验证
         </span>
       </Show>
       <Show when={!supported()}>
-        <span class="rounded-full border border-amber-300/40 bg-amber-300/10 px-1.5 py-0.5 text-10-medium text-amber-600 dark:text-amber-300">
+        <span class="rounded-full border border-[color-mix(in_srgb,var(--icon-warning-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-warning-base)_10%,transparent)] px-1.5 py-0.5 text-10-medium text-icon-warning-base">
           不支持
         </span>
       </Show>
@@ -125,6 +128,7 @@ function AccountRow(props: {
 export function PublishModal(props: { accountId?: string }) {
   const dialog = useDialog()
   const platform = usePlatformAccounts()
+  const sdk = useSDK()
 
   // 默认内容类型要"一进来就能发"：
   // - 从某个账号点进来 → 选这个平台支持的；
@@ -170,6 +174,15 @@ export function PublishModal(props: { accountId?: string }) {
   const [batch, setBatch] = createSignal<PublishBatch | undefined>()
   const [error, setError] = createSignal("")
   const [history, setHistory] = createSignal<PublishBatch[]>([])
+  const [pluginDrivers, setPluginDrivers] = createSignal<
+    Array<{ name: string; localName: string; supports?: string[]; account?: unknown; ui?: unknown }>
+  >([])
+  const [pluginAccounts, setPluginAccounts] = createSignal<
+    Array<{ id: string; driverID: string; label: string; profile: Record<string, unknown>; createdAt: number }>
+  >([])
+  const [pluginAccountLabel, setPluginAccountLabel] = createSignal("Release account")
+  const [pluginBusy, setPluginBusy] = createSignal(false)
+  const [pluginMessage, setPluginMessage] = createSignal("")
   // 预检结果：error 挡发布，warning/hint 只在用户确认后才放行。
   const [issues, setIssues] = createSignal<PrecheckIssue[]>([])
   const [acknowledged, setAcknowledged] = createSignal(false)
@@ -186,6 +199,24 @@ export function PublishModal(props: { accountId?: string }) {
   })
 
   onMount(() => {
+    void sdk.client.plugin
+      .contributions({ kind: "publish-driver" })
+      .then((response) => {
+        setPluginDrivers(response.data ?? [])
+      })
+      .catch(() => setPluginDrivers([]))
+    void sdk.client.plugin.publish
+      .accounts()
+      .then((response) => {
+        setPluginAccounts(
+          (response.data ?? []).map((account) => ({
+            ...account,
+            createdAt:
+              typeof account.createdAt === "number" && Number.isFinite(account.createdAt) ? account.createdAt : 0,
+          })),
+        )
+      })
+      .catch(() => setPluginAccounts([]))
     // 进度事件按 accountId 合并；同一时刻只允许有一个批次在跑，不必区分 batchId。
     const offProgress = platform.onPublishProgress((event) => {
       setResults((prev) => ({ ...prev, [event.result.accountId]: event.result }))
@@ -349,6 +380,72 @@ export function PublishModal(props: { accountId?: string }) {
   const failedCount = () =>
     Object.values(results()).filter((item) => item.status === "failed" || item.status === "cancelled").length
 
+  const addPluginAccount = async (driverID: string) => {
+    setPluginBusy(true)
+    setPluginMessage("")
+    try {
+      const response = await sdk.client.plugin.publish.account({
+        driverID,
+        profile: { label: pluginAccountLabel().trim() || "Release account" },
+      })
+      if (response.data) {
+        const account = response.data
+        setPluginAccounts((previous) => [
+          ...previous.filter((item) => item.id !== account.id),
+          {
+            ...account,
+            createdAt:
+              typeof account.createdAt === "number" && Number.isFinite(account.createdAt) ? account.createdAt : 0,
+          },
+        ])
+      }
+      setPluginMessage("账号已保存到当前项目")
+    } catch (cause) {
+      setPluginMessage(cause instanceof Error ? cause.message : "账号添加失败")
+    } finally {
+      setPluginBusy(false)
+    }
+  }
+
+  const removePluginAccount = async (account: { id: string; driverID: string }) => {
+    setPluginBusy(true)
+    setPluginMessage("")
+    try {
+      await sdk.client.plugin.publish.account2.delete({ driverID: account.driverID, accountID: account.id })
+      setPluginAccounts((previous) => previous.filter((item) => item.id !== account.id))
+      setPluginMessage("账号已从当前项目移除")
+    } catch (cause) {
+      setPluginMessage(cause instanceof Error ? cause.message : "账号移除失败")
+    } finally {
+      setPluginBusy(false)
+    }
+  }
+
+  const executePluginPublish = async (account: { id: string; driverID: string }) => {
+    setPluginBusy(true)
+    setPluginMessage("")
+    try {
+      const response = await sdk.client.plugin.publish.execute({
+        driverID: account.driverID,
+        accountID: account.id,
+        kind: kind(),
+        payload: {
+          title: title().trim(),
+          description: content().trim(),
+          tags: tags()
+            .split(/[\\s,，]+/)
+            .filter(Boolean),
+          filePaths: files(),
+        },
+      })
+      setPluginMessage(response.data?.ok === true ? "插件发布执行成功" : "插件已返回结果")
+    } catch (cause) {
+      setPluginMessage(cause instanceof Error ? cause.message : "插件发布失败")
+    } finally {
+      setPluginBusy(false)
+    }
+  }
+
   return (
     <Dialog
       title="发布内容"
@@ -365,10 +462,12 @@ export function PublishModal(props: { accountId?: string }) {
             </button>
             <button
               type="button"
-              class="rounded-[8px] px-4 py-2 text-13-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+              class="rounded-[8px] px-4 py-2 text-13-medium text-[var(--novaway-mode-foreground,var(--text-on-interactive-base))] transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
               style={{
-                background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
-                "box-shadow": "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
+                background:
+                  "linear-gradient(135deg, var(--novaway-mode-color, var(--interactive-base)), color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 72%, var(--background-base)))",
+                "box-shadow":
+                  "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 30%, transparent)",
               }}
               disabled={!canPublish()}
               onClick={submit}
@@ -399,10 +498,12 @@ export function PublishModal(props: { accountId?: string }) {
             </button>
             <button
               type="button"
-              class="rounded-[8px] px-4 py-2 text-13-medium text-white transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
+              class="rounded-[8px] px-4 py-2 text-13-medium text-[var(--novaway-mode-foreground,var(--text-on-interactive-base))] transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
               style={{
-                background: "linear-gradient(135deg, var(--novaway-mode-color, #FF6B6B), #e05555)",
-                "box-shadow": "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, #FF6B6B) 30%, transparent)",
+                background:
+                  "linear-gradient(135deg, var(--novaway-mode-color, var(--interactive-base)), color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 72%, var(--background-base)))",
+                "box-shadow":
+                  "0 4px 12px color-mix(in srgb, var(--novaway-mode-color, var(--interactive-base)) 30%, transparent)",
               }}
               onClick={() => dialog.close()}
             >
@@ -415,6 +516,99 @@ export function PublishModal(props: { accountId?: string }) {
       <div class="max-h-[640px] overflow-y-auto p-5">
         <Show when={phase() === "compose"}>
           <div class="space-y-5">
+            <Show when={pluginDrivers().length > 0}>
+              <div
+                data-slot="plugin-publish-drivers"
+                class="rounded-[10px] border border-border bg-background-alt/40 p-3"
+              >
+                <div class="mb-2 flex items-center justify-between">
+                  <div>
+                    <div class="text-13-medium text-foreground">插件发布驱动</div>
+                    <div class="text-11-regular text-foreground-subtle">能力、账号与执行均来自当前 Runtime Host</div>
+                  </div>
+                  <span class="text-10-medium text-foreground-subtlest">{pluginDrivers().length} 个驱动</span>
+                </div>
+                <For each={pluginDrivers()}>
+                  {(driver) => {
+                    const accounts = () => pluginAccounts().filter((account) => account.driverID === driver.localName)
+                    const supportsCurrent = () => driver.supports?.includes(kind()) ?? false
+                    return (
+                      <div
+                        class="mb-2 last:mb-0 rounded-[8px] border border-border bg-background p-2.5"
+                        data-driver={driver.localName}
+                      >
+                        <div class="flex items-center gap-2">
+                          <span class="min-w-0 flex-1 text-12-medium text-foreground">{driver.name}</span>
+                          <span class="text-10-regular text-foreground-subtlest">
+                            支持：{(driver.supports ?? []).join("、")}
+                          </span>
+                        </div>
+                        <div class="mt-2 flex items-center gap-2">
+                          <input
+                            data-slot="plugin-publish-account-label"
+                            value={pluginAccountLabel()}
+                            onInput={(event) => setPluginAccountLabel(event.currentTarget.value)}
+                            class="min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2 py-1.5 text-11-regular text-foreground outline-none"
+                            placeholder="账号名称"
+                          />
+                          <button
+                            type="button"
+                            data-slot="plugin-publish-add-account"
+                            disabled={pluginBusy()}
+                            class="rounded-[6px] border border-border px-2.5 py-1.5 text-11-medium text-foreground transition-colors hover:bg-hover disabled:opacity-50"
+                            onClick={() => void addPluginAccount(driver.localName)}
+                          >
+                            添加账号
+                          </button>
+                        </div>
+                        <Show
+                          when={accounts().length > 0}
+                          fallback={
+                            <div class="mt-2 text-11-regular text-foreground-subtlest">当前项目暂无该驱动账号</div>
+                          }
+                        >
+                          <div class="mt-2 space-y-1">
+                            <For each={accounts()}>
+                              {(account) => (
+                                <div class="flex items-center gap-2 rounded border border-border px-2 py-1.5">
+                                  <span class="min-w-0 flex-1 truncate text-11-regular text-foreground">
+                                    {account.label}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    data-slot="plugin-publish-remove-account"
+                                    disabled={pluginBusy()}
+                                    class="rounded-[6px] border border-border px-2 py-1 text-10-medium text-foreground-subtle disabled:opacity-40"
+                                    onClick={() => void removePluginAccount(account)}
+                                  >
+                                    移除
+                                  </button>
+                                  <button
+                                    type="button"
+                                    data-slot="plugin-publish-execute"
+                                    disabled={!supportsCurrent() || pluginBusy()}
+                                    class="rounded-[6px] bg-foreground px-2 py-1 text-10-medium text-background disabled:cursor-not-allowed disabled:opacity-40"
+                                    onClick={() => void executePluginPublish(account)}
+                                  >
+                                    {supportsCurrent() ? "用插件发布" : "当前类型不支持"}
+                                  </button>
+                                </div>
+                              )}
+                            </For>
+                          </div>
+                        </Show>
+                      </div>
+                    )
+                  }}
+                </For>
+                <Show when={pluginMessage()}>
+                  <div data-slot="plugin-publish-message" class="mt-2 text-11-regular text-foreground-subtle">
+                    {pluginMessage()}
+                  </div>
+                </Show>
+              </div>
+            </Show>
+
             {/* 内容类型：决定账号可用性，所以放在最上面先选。 */}
             <div>
               <div class="mb-2 text-13-medium text-foreground">内容类型</div>
@@ -425,7 +619,7 @@ export function PublishModal(props: { accountId?: string }) {
                       type="button"
                       class="flex-1 rounded-[8px] border px-3 py-2 text-12-medium transition-all duration-150 active:scale-[0.98]"
                       classList={{
-                        "border-[var(--novaway-mode-color,#FF6B6B)] bg-[color-mix(in_srgb,var(--novaway-mode-color,#FF6B6B)_10%,transparent)] text-foreground":
+                        "border-[var(--novaway-mode-color,var(--interactive-base))] bg-[color-mix(in_srgb,var(--novaway-mode-color,var(--interactive-base))_10%,transparent)] text-foreground":
                           kind() === item,
                         "border-border bg-background text-foreground-subtle hover:bg-hover": kind() !== item,
                       }}
@@ -441,9 +635,7 @@ export function PublishModal(props: { accountId?: string }) {
             <Show when={needsFiles()}>
               <div>
                 <div class="mb-2 flex items-center justify-between">
-                  <span class="text-13-medium text-foreground">
-                    {kind() === "video" ? "视频文件" : "图片"}
-                  </span>
+                  <span class="text-13-medium text-foreground">{kind() === "video" ? "视频文件" : "图片"}</span>
                   <button
                     type="button"
                     class="rounded-[6px] border border-border px-2.5 py-1 text-12-medium text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
@@ -469,7 +661,7 @@ export function PublishModal(props: { accountId?: string }) {
                             <span class="truncate">{file.split(/[\\/]/).pop()}</span>
                             <button
                               type="button"
-                              class="shrink-0 text-foreground-subtlest transition-colors hover:text-rose-500"
+                              class="shrink-0 text-foreground-subtlest transition-colors hover:text-[var(--icon-critical-base)]"
                               onClick={() => setFiles((prev) => prev.filter((item) => item !== file))}
                             >
                               <Icon name="close-small" size="small" />
@@ -489,20 +681,18 @@ export function PublishModal(props: { accountId?: string }) {
                 value={title()}
                 onInput={(e) => setTitle(e.currentTarget.value)}
                 placeholder="输入标题（可选）"
-                class="w-full rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground outline-none transition-all duration-150 placeholder:text-foreground-subtle focus:border-[var(--novaway-mode-color,#FF6B6B)]"
+                class="w-full rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground outline-none transition-all duration-150 placeholder:text-foreground-subtle focus:border-[var(--novaway-mode-color,var(--interactive-base))]"
               />
             </div>
 
             <div>
-              <label class="mb-2 block text-13-medium text-foreground">
-                {kind() === "article" ? "正文" : "描述"}
-              </label>
+              <label class="mb-2 block text-13-medium text-foreground">{kind() === "article" ? "正文" : "描述"}</label>
               <textarea
                 value={content()}
                 onInput={(e) => setContent(e.currentTarget.value)}
                 placeholder={kind() === "article" ? "文章正文…" : "作品描述…"}
                 rows={kind() === "article" ? 8 : 4}
-                class="w-full resize-none rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground outline-none transition-all duration-150 placeholder:text-foreground-subtle focus:border-[var(--novaway-mode-color,#FF6B6B)]"
+                class="w-full resize-none rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground outline-none transition-all duration-150 placeholder:text-foreground-subtle focus:border-[var(--novaway-mode-color,var(--interactive-base))]"
               />
             </div>
 
@@ -512,7 +702,7 @@ export function PublishModal(props: { accountId?: string }) {
                 value={tags()}
                 onInput={(e) => setTags(e.currentTarget.value)}
                 placeholder="用空格分隔，例如：生活 好物 效率"
-                class="w-full rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground outline-none transition-all duration-150 placeholder:text-foreground-subtle focus:border-[var(--novaway-mode-color,#FF6B6B)]"
+                class="w-full rounded-[8px] border border-border bg-background px-3.5 py-2.5 text-13-regular text-foreground outline-none transition-all duration-150 placeholder:text-foreground-subtle focus:border-[var(--novaway-mode-color,var(--interactive-base))]"
               />
             </div>
 
@@ -545,12 +735,12 @@ export function PublishModal(props: { accountId?: string }) {
               <div class="mt-1.5 flex items-center justify-between text-11-regular text-foreground-subtle">
                 <span>将发布到 {readyAccounts().length} 个账号</span>
                 <Show when={platform.store.accounts.length > 0 && readyAccounts().length === 0}>
-                  <span class="text-rose-600 dark:text-rose-400">
+                  <span class="text-[var(--icon-critical-base)]">
                     没有账号支持{PUBLISH_KIND_LABEL[kind()]}，换个内容类型或先添加账号
                   </span>
                 </Show>
                 <Show when={skippedAccounts().length > 0}>
-                  <span class="text-amber-600 dark:text-amber-400">
+                  <span class="text-icon-warning-base">
                     {skippedAccounts().length} 个账号已跳过（该平台不支持
                     {PUBLISH_KIND_LABEL[kind()]}）
                   </span>
@@ -559,10 +749,8 @@ export function PublishModal(props: { accountId?: string }) {
             </div>
 
             <Show when={issues().length > 0}>
-              <div class="rounded-[10px] border border-amber-300/40 bg-amber-300/5 px-3 py-2.5">
-                <div class="mb-1.5 text-12-medium text-amber-600 dark:text-amber-300">
-                  发布前预检 · {issues().length} 条
-                </div>
+              <div class="rounded-[10px] border border-[color-mix(in_srgb,var(--icon-warning-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-warning-base)_5%,transparent)] px-3 py-2.5">
+                <div class="mb-1.5 text-12-medium text-icon-warning-base">发布前预检 · {issues().length} 条</div>
                 <ul class="space-y-1.5">
                   <For each={issues()}>
                     {(issue) => (
@@ -570,8 +758,10 @@ export function PublishModal(props: { accountId?: string }) {
                         <span
                           class="mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-10-medium"
                           classList={{
-                            "bg-rose-300/15 text-rose-600 dark:text-rose-300": issue.level === "error",
-                            "bg-amber-300/15 text-amber-600 dark:text-amber-300": issue.level === "warning",
+                            "bg-[color-mix(in_srgb,var(--icon-critical-base)_15%,transparent)] text-[var(--icon-critical-base)]":
+                              issue.level === "error",
+                            "bg-[color-mix(in_srgb,var(--icon-warning-base)_15%,transparent)] text-icon-warning-base":
+                              issue.level === "warning",
                             "bg-background-alt text-foreground-subtle": issue.level === "hint",
                           }}
                         >
@@ -596,7 +786,7 @@ export function PublishModal(props: { accountId?: string }) {
             </Show>
 
             <Show when={error()}>
-              <div class="rounded-[8px] border border-rose-300/40 bg-rose-300/10 px-3 py-2 text-12-regular text-rose-600 dark:text-rose-300">
+              <div class="rounded-[8px] border border-[color-mix(in_srgb,var(--icon-critical-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-3 py-2 text-12-regular text-[var(--icon-critical-base)]">
                 {error()}
               </div>
             </Show>
@@ -612,10 +802,12 @@ export function PublishModal(props: { accountId?: string }) {
                       return (
                         <div class="flex items-center gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-11-regular text-foreground-subtle">
                           <Icon name="archive" size="small" class="shrink-0 text-foreground-subtlest" />
-                          <span class="min-w-0 flex-1 truncate">{item.input.title || item.input.description || "未命名内容"}</span>
-                          <span class="shrink-0 text-emerald-600 dark:text-emerald-400">成功 {ok}</span>
+                          <span class="min-w-0 flex-1 truncate">
+                            {item.input.title || item.input.description || "未命名内容"}
+                          </span>
+                          <span class="shrink-0 text-icon-success-base">成功 {ok}</span>
                           <Show when={fail > 0}>
-                            <span class="shrink-0 text-rose-600 dark:text-rose-400">失败 {fail}</span>
+                            <span class="shrink-0 text-[var(--icon-critical-base)]">失败 {fail}</span>
                           </Show>
                           <span class="shrink-0 text-foreground-subtlest">
                             {new Date(item.startedAt).toLocaleString("zh-CN", { hour12: false })}
@@ -654,7 +846,7 @@ export function PublishModal(props: { accountId?: string }) {
                       <span class={`shrink-0 text-11-medium ${statusTone(result)}`}>{statusLabel(result)}</span>
                     </div>
                     <Show when={result.warnings?.length}>
-                      <div class="mt-1 space-y-0.5 text-11-regular text-amber-600 dark:text-amber-400">
+                      <div class="mt-1 space-y-0.5 text-11-regular text-icon-warning-base">
                         <For each={result.warnings}>{(warning) => <div>预检：{warning}</div>}</For>
                       </div>
                     </Show>
@@ -662,11 +854,11 @@ export function PublishModal(props: { accountId?: string }) {
                       <div
                         class="h-full rounded-full transition-[width] duration-300"
                         classList={{
-                          "bg-[var(--novaway-mode-color,#FF6B6B)]":
+                          "bg-[var(--novaway-mode-color,var(--interactive-base))]":
                             result.status === "running" || result.status === "pending",
-                          "bg-emerald-500": result.status === "success",
-                          "bg-rose-500": result.status === "failed",
-                          "bg-amber-500": result.status === "unsupported" || result.status === "cancelled",
+                          "bg-success": result.status === "success",
+                          "bg-[var(--icon-critical-base)]": result.status === "failed",
+                          "bg-warning": result.status === "unsupported" || result.status === "cancelled",
                         }}
                         style={{ width: `${Math.max(4, result.progress)}%` }}
                       />

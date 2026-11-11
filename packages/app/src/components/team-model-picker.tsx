@@ -99,7 +99,7 @@ export const TeamModelPicker: Component<{
             <Icon name="lu-users" size="small" class="shrink-0" />
             <span class="min-w-0 flex-1 truncate">{props.inheritLabel}</span>
             <Show when={!props.value}>
-              <Icon name="circle-check" size="small" class="shrink-0 text-primary" />
+              <Icon name="circle-check" size="small" class="shrink-0 text-text-interactive-base" />
             </Show>
           </button>
           <List

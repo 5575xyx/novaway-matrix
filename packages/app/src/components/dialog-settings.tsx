@@ -37,7 +37,7 @@ const settingsTabs = [
 ] as const
 export type SettingsTab = (typeof settingsTabs)[number]
 
-const isSettingsTab = (value: string): value is SettingsTab => settingsTabs.some((tab) => tab === value)
+export const isSettingsTab = (value: string): value is SettingsTab => settingsTabs.some((tab) => tab === value)
 
 // 设置页挂在**应用级** Suspense 之下。某个标签页里只要有一个资源还在加载，
 // 整个应用就会被换成启动 Splash（用户看到的"切个菜单整页闪一下"）。
@@ -95,7 +95,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
   })
 
   // 切换标签是**即时**的：每个面板自己有数据加载态，再叠一层全屏「加载中」
-  // 只会让切换看起来卡顿（对齐 ZCode 的丝滑切换）。
+  // 只会让切换看起来卡顿。
   const changeTab = (value: string) => {
     if (!isSettingsTab(value)) return
     if (value === tab()) return
@@ -147,7 +147,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
               </div>
               <div class="h-px w-full bg-border" />
               {/*
-                导航按 ZCode Settings 的三组组织（基础设置 / Agent 能力 / 数据与统计）：
+                导航按三组组织（基础设置 / Agent 能力 / 数据与统计）：
                 之前是十几个触发器的平铺列表，找不到"这属于哪一类"。
                 分组标签用 Tabs.SectionTitle（settings 变体下是 12px 的弱化小标题）。
               */}
@@ -300,7 +300,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         </Tabs.Content>
         <Tabs.Content value="plugins" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
-            <SettingsPlugins />
+            <SettingsPlugins directory={directory()} />
           </Suspense>
         </Tabs.Content>
       </Tabs>

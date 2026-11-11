@@ -78,13 +78,13 @@ novaway attach http://10.20.30.40:4096
 
 #### Opções
 
-| Flag                                     | Curto | Descrição                                                                         |
-| ---------------------------------------- | ----- | --------------------------------------------------------------------------------- |
-| <nobr><code>{"--dir"}</code></nobr>      |       | Diretório de trabalho para iniciar o TUI                                          |
-| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continuar a última sessão                                                         |
-| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID da sessão para continuar                                                       |
-| <nobr><code>{"--fork"}</code></nobr>     |       | Bifurcar a sessão ao continuar (use com `--continue` ou `--session`)              |
-| <nobr><code>{"--password"}</code></nobr> | `-p`  | Senha de autenticação básica (padrão: `NOVAWAY_SERVER_PASSWORD`)                 |
+| Flag                                     | Curto | Descrição                                                                       |
+| ---------------------------------------- | ----- | ------------------------------------------------------------------------------- |
+| <nobr><code>{"--dir"}</code></nobr>      |       | Diretório de trabalho para iniciar o TUI                                        |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continuar a última sessão                                                       |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID da sessão para continuar                                                     |
+| <nobr><code>{"--fork"}</code></nobr>     |       | Bifurcar a sessão ao continuar (use com `--continue` ou `--session`)            |
+| <nobr><code>{"--password"}</code></nobr> | `-p`  | Senha de autenticação básica (padrão: `NOVAWAY_SERVER_PASSWORD`)                |
 | <nobr><code>{"--username"}</code></nobr> | `-u`  | Usuário de autenticação básica (padrão: `NOVAWAY_SERVER_USERNAME` ou `novaway`) |
 
 ---
@@ -339,25 +339,25 @@ novaway run --attach http://localhost:4096 "Explique async/await em JavaScript"
 
 #### Opções
 
-| Flag                                     | Curto | Descrição                                                                         |
-| ---------------------------------------- | ----- | --------------------------------------------------------------------------------- |
-| <nobr><code>{"--command"}</code></nobr>  |       | O comando a ser executado, use mensagem para argumentos                           |
-| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continue a última sessão                                                          |
-| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID da sessão para continuar                                                       |
-| <nobr><code>{"--fork"}</code></nobr>     |       | Criar um fork da sessão ao continuar (use com `--continue` ou `--session`)        |
-| <nobr><code>{"--share"}</code></nobr>    |       | Compartilhe a sessão                                                              |
-| <nobr><code>{"--model"}</code></nobr>    | `-m`  | Modelo a ser usado na forma de provider/model                                     |
-| <nobr><code>{"--agent"}</code></nobr>    |       | Agente a ser usado                                                                |
-| <nobr><code>{"--file"}</code></nobr>     | `-f`  | Arquivo(s) a serem anexados à mensagem                                            |
-| <nobr><code>{"--format"}</code></nobr>   |       | Formato: padrão (formatado) ou json (eventos JSON brutos)                         |
-| <nobr><code>{"--title"}</code></nobr>    |       | Título para a sessão (usa o prompt truncado se nenhum valor for fornecido)        |
-| <nobr><code>{"--attach"}</code></nobr>   |       | Anexe a um servidor novaway em execução (por exemplo, http://localhost:4096)     |
-| <nobr><code>{"--password"}</code></nobr> | `-p`  | Senha de autenticação básica (padrão: `NOVAWAY_SERVER_PASSWORD`)                 |
+| Flag                                     | Curto | Descrição                                                                       |
+| ---------------------------------------- | ----- | ------------------------------------------------------------------------------- |
+| <nobr><code>{"--command"}</code></nobr>  |       | O comando a ser executado, use mensagem para argumentos                         |
+| <nobr><code>{"--continue"}</code></nobr> | `-c`  | Continue a última sessão                                                        |
+| <nobr><code>{"--session"}</code></nobr>  | `-s`  | ID da sessão para continuar                                                     |
+| <nobr><code>{"--fork"}</code></nobr>     |       | Criar um fork da sessão ao continuar (use com `--continue` ou `--session`)      |
+| <nobr><code>{"--share"}</code></nobr>    |       | Compartilhe a sessão                                                            |
+| <nobr><code>{"--model"}</code></nobr>    | `-m`  | Modelo a ser usado na forma de provider/model                                   |
+| <nobr><code>{"--agent"}</code></nobr>    |       | Agente a ser usado                                                              |
+| <nobr><code>{"--file"}</code></nobr>     | `-f`  | Arquivo(s) a serem anexados à mensagem                                          |
+| <nobr><code>{"--format"}</code></nobr>   |       | Formato: padrão (formatado) ou json (eventos JSON brutos)                       |
+| <nobr><code>{"--title"}</code></nobr>    |       | Título para a sessão (usa o prompt truncado se nenhum valor for fornecido)      |
+| <nobr><code>{"--attach"}</code></nobr>   |       | Anexe a um servidor novaway em execução (por exemplo, http://localhost:4096)    |
+| <nobr><code>{"--password"}</code></nobr> | `-p`  | Senha de autenticação básica (padrão: `NOVAWAY_SERVER_PASSWORD`)                |
 | <nobr><code>{"--username"}</code></nobr> | `-u`  | Usuário de autenticação básica (padrão: `NOVAWAY_SERVER_USERNAME` ou `novaway`) |
-| <nobr><code>{"--dir"}</code></nobr>      |       | Diretório de execução, ou caminho no servidor remoto ao anexar                    |
-| <nobr><code>{"--variant"}</code></nobr>  |       | Variante do modelo (nível de raciocínio específico do provedor)                   |
-| <nobr><code>{"--thinking"}</code></nobr> |       | Mostrar blocos de pensamento                                                      |
-| <nobr><code>{"--port"}</code></nobr>     |       | Porta para o servidor local (padrão para porta aleatória)                         |
+| <nobr><code>{"--dir"}</code></nobr>      |       | Diretório de execução, ou caminho no servidor remoto ao anexar                  |
+| <nobr><code>{"--variant"}</code></nobr>  |       | Variante do modelo (nível de raciocínio específico do provedor)                 |
+| <nobr><code>{"--thinking"}</code></nobr> |       | Mostrar blocos de pensamento                                                    |
+| <nobr><code>{"--port"}</code></nobr>     |       | Porta para o servidor local (padrão para porta aleatória)                       |
 
 ---
 
@@ -562,31 +562,31 @@ A CLI do novaway aceita as seguintes flags globais.
 
 O novaway pode ser configurado usando variáveis de ambiente.
 
-| Variável                              | Tipo    | Descrição                                                             |
-| ------------------------------------- | ------- | --------------------------------------------------------------------- |
-| `NOVAWAY_AUTO_SHARE`                 | boolean | Compartilhar sessões automaticamente                                  |
-| `NOVAWAY_GIT_BASH_PATH`              | string  | Caminho para o executável do Git Bash no Windows                      |
-| `NOVAWAY_CONFIG`                     | string  | Caminho para o arquivo de configuração                                |
-| `NOVAWAY_CONFIG_DIR`                 | string  | Caminho para o diretório de configuração                              |
-| `NOVAWAY_CONFIG_CONTENT`             | string  | Conteúdo de configuração json inline                                  |
-| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Desabilitar verificações de atualização automática                    |
-| `NOVAWAY_DISABLE_PRUNE`              | boolean | Desabilitar a poda de dados antigos                                   |
-| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Desabilitar atualizações automáticas do título do terminal            |
-| `NOVAWAY_PERMISSION`                 | string  | Configuração de permissões json inline                                |
-| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Desabilitar plugins padrão                                            |
-| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Desabilitar downloads automáticos do servidor LSP                     |
-| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Habilitar modelos experimentais                                       |
-| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Desabilitar compactação automática de contexto                        |
-| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | Desabilitar leitura de `.claude` (prompt + habilidades)               |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | Desabilitar leitura de `~/.claude/CLAUDE.md`                          |
-| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | Desabilitar carregamento de `.claude/skills`                          |
-| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Desabilitar busca de modelos de fontes remotas                        |
-| `NOVAWAY_FAKE_VCS`                   | string  | Provedor VCS falso para fins de teste                                 |
-| `NOVAWAY_CLIENT`                     | string  | Identificador do cliente (padrão é `cli`)                             |
-| `NOVAWAY_ENABLE_EXA`                 | boolean | Habilitar ferramentas de busca web Exa                                |
-| `NOVAWAY_SERVER_PASSWORD`            | string  | Habilitar autenticação básica para `serve`/`web`                      |
+| Variável                             | Tipo    | Descrição                                                            |
+| ------------------------------------ | ------- | -------------------------------------------------------------------- |
+| `NOVAWAY_AUTO_SHARE`                 | boolean | Compartilhar sessões automaticamente                                 |
+| `NOVAWAY_GIT_BASH_PATH`              | string  | Caminho para o executável do Git Bash no Windows                     |
+| `NOVAWAY_CONFIG`                     | string  | Caminho para o arquivo de configuração                               |
+| `NOVAWAY_CONFIG_DIR`                 | string  | Caminho para o diretório de configuração                             |
+| `NOVAWAY_CONFIG_CONTENT`             | string  | Conteúdo de configuração json inline                                 |
+| `NOVAWAY_DISABLE_AUTOUPDATE`         | boolean | Desabilitar verificações de atualização automática                   |
+| `NOVAWAY_DISABLE_PRUNE`              | boolean | Desabilitar a poda de dados antigos                                  |
+| `NOVAWAY_DISABLE_TERMINAL_TITLE`     | boolean | Desabilitar atualizações automáticas do título do terminal           |
+| `NOVAWAY_PERMISSION`                 | string  | Configuração de permissões json inline                               |
+| `NOVAWAY_DISABLE_DEFAULT_PLUGINS`    | boolean | Desabilitar plugins padrão                                           |
+| `NOVAWAY_DISABLE_LSP_DOWNLOAD`       | boolean | Desabilitar downloads automáticos do servidor LSP                    |
+| `NOVAWAY_ENABLE_EXPERIMENTAL_MODELS` | boolean | Habilitar modelos experimentais                                      |
+| `NOVAWAY_DISABLE_AUTOCOMPACT`        | boolean | Desabilitar compactação automática de contexto                       |
+| `NOVAWAY_DISABLE_CLAUDE_CODE`        | boolean | Desabilitar leitura de `.claude` (prompt + habilidades)              |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_PROMPT` | boolean | Desabilitar leitura de `~/.claude/CLAUDE.md`                         |
+| `NOVAWAY_DISABLE_CLAUDE_CODE_SKILLS` | boolean | Desabilitar carregamento de `.claude/skills`                         |
+| `NOVAWAY_DISABLE_MODELS_FETCH`       | boolean | Desabilitar busca de modelos de fontes remotas                       |
+| `NOVAWAY_FAKE_VCS`                   | string  | Provedor VCS falso para fins de teste                                |
+| `NOVAWAY_CLIENT`                     | string  | Identificador do cliente (padrão é `cli`)                            |
+| `NOVAWAY_ENABLE_EXA`                 | boolean | Habilitar ferramentas de busca web Exa                               |
+| `NOVAWAY_SERVER_PASSWORD`            | string  | Habilitar autenticação básica para `serve`/`web`                     |
 | `NOVAWAY_SERVER_USERNAME`            | string  | Substituir nome de usuário de autenticação básica (padrão `novaway`) |
-| `NOVAWAY_MODELS_URL`                 | string  | URL personalizada para buscar configuração de modelos                 |
+| `NOVAWAY_MODELS_URL`                 | string  | URL personalizada para buscar configuração de modelos                |
 
 ---
 
@@ -594,8 +594,8 @@ O novaway pode ser configurado usando variáveis de ambiente.
 
 Essas variáveis de ambiente habilitam recursos experimentais que podem mudar ou ser removidos.
 
-| Variável                                        | Tipo    | Descrição                                                 |
-| ----------------------------------------------- | ------- | --------------------------------------------------------- |
+| Variável                                       | Tipo    | Descrição                                                 |
+| ---------------------------------------------- | ------- | --------------------------------------------------------- |
 | `NOVAWAY_EXPERIMENTAL`                         | boolean | Habilitar todos os recursos experimentais                 |
 | `NOVAWAY_EXPERIMENTAL_ICON_DISCOVERY`          | boolean | Habilitar descoberta de ícones                            |
 | `NOVAWAY_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`  | boolean | Desabilitar cópia ao selecionar no TUI                    |

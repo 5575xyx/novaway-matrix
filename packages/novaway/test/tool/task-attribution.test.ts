@@ -190,7 +190,11 @@ describe("tool.task attribution", () => {
       const seen: SessionPrompt.PromptInput[] = []
       const ops: TaskPromptOps = {
         ...base,
-        prompt: (input) => Effect.flatMap(Effect.sync(() => (seen.push(input), input)), base.prompt),
+        prompt: (input) =>
+          Effect.flatMap(
+            Effect.sync(() => (seen.push(input), input)),
+            base.prompt,
+          ),
       }
 
       yield* def.execute(
@@ -228,7 +232,11 @@ describe("tool.task attribution", () => {
       const seen: SessionPrompt.PromptInput[] = []
       const ops: TaskPromptOps = {
         ...base,
-        prompt: (input) => Effect.flatMap(Effect.sync(() => (seen.push(input), input)), base.prompt),
+        prompt: (input) =>
+          Effect.flatMap(
+            Effect.sync(() => (seen.push(input), input)),
+            base.prompt,
+          ),
       }
 
       yield* def.execute(
@@ -328,4 +336,3 @@ describe("tool.task attribution", () => {
     }),
   )
 })
-

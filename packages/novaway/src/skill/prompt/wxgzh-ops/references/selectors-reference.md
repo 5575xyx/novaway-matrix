@@ -55,11 +55,11 @@ const saveButtonSelectors = [
 
 平台后台不是普通单文档页面，`document.querySelector` 只能看到最外层：
 
-| 平台 | 元素实际在哪 | 查询方式 |
-| --- | --- | --- |
-| 公众号正文 | 同源 iframe `#ueditor_0` | `iframe.contentDocument.querySelector(...)` |
-| 视频号 | wujie 微前端的 shadow root（`wujie-app.wujie_iframe`） | `host.shadowRoot.querySelector(...)` |
-| 小红书发布按钮 | **closed** shadow root（`<xhs-publish-btn>` 内部） | 脚本进不去，只能按坐标点 |
+| 平台           | 元素实际在哪                                           | 查询方式                                    |
+| -------------- | ------------------------------------------------------ | ------------------------------------------- |
+| 公众号正文     | 同源 iframe `#ueditor_0`                               | `iframe.contentDocument.querySelector(...)` |
+| 视频号         | wujie 微前端的 shadow root（`wujie-app.wujie_iframe`） | `host.shadowRoot.querySelector(...)`        |
+| 小红书发布按钮 | **closed** shadow root（`<xhs-publish-btn>` 内部）     | 脚本进不去，只能按坐标点                    |
 
 `webview_snapshot` / `webview_click` / `webview_fill` 已经内置了深度查询：
 会遍历主文档 → 同源 iframe → 开放 shadow root（最多 6 层）。

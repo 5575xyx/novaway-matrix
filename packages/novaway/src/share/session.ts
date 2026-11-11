@@ -1,4 +1,5 @@
 import { Session } from "@/session/session"
+import * as InstanceState from "@/effect/instance-state"
 import { SessionID } from "@/session/schema"
 import { SyncEvent } from "@/sync"
 import { Effect, Layer, Scope, Context } from "effect"
@@ -41,12 +42,13 @@ export const layer = Layer.effect(
 
     const create = Effect.fn("SessionShare.create")(function* (input?: Session.CreateParams) {
       const conf = yield* cfg.get()
+      const instance = yield* InstanceState.context
       // 默认团队模式（§4.5）只在这里生效：这是「用户新建会话」的唯一入口，
       // 团队内部派生会话、子代理都带 parentID，不会被默认值波及。
       const defaults = TeamDefaults.resolve({
         requested: input,
         parentID: input?.parentID,
-        enabled: TeamSwitch.enabled(conf.experimental),
+        enabled: instance.scope === "project" && TeamSwitch.enabled(conf.experimental),
         fallback: {
           mode: conf.experimental?.team_default_mode,
           ids: conf.experimental?.team_default_ids,
