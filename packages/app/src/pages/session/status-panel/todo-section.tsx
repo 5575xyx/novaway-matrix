@@ -13,8 +13,8 @@ export { todoSectionModel, isTodoDone, type TodoSectionModel } from "./todo-sect
  *
  * 待办行：每条前面是一个圆圈，用颜色区分状态 ——
  * - 未开始：空心灰圈；
- * - 进行中：蓝色圆环 + 呼吸动画（一眼看出"现在在做这条"）；
- * - 已完成：实心蓝圈 + 对勾；
+ * - 进行中：交互语义色圆环 + 呼吸动画（一眼看出"现在在做这条"）；
+ * - 已完成：成功语义色实心圆 + 配套前景勾；
  * - 已取消：空心圈 + 删除线文字。
  *
  * 这里不用 Kobalte 的 Checkbox：todo 是只读进度展示，点它并不会切换服务端状态，
@@ -26,13 +26,13 @@ const STATUS_STYLE: Record<
 > = {
   pending: { ring: "border-border-hover bg-transparent", label: "pending" },
   in_progress: {
-    ring: "border-[var(--icon-blue)] bg-transparent",
-    dot: "bg-[var(--icon-blue)] novaway-breathe-dot",
+    ring: "border-interactive-base bg-transparent",
+    dot: "bg-surface-interactive-base novaway-breathe-dot",
     label: "running",
   },
-  // 已完成用绿色实心圆 + 白勾：与「运行中」的蓝色区分开，
+  // 已完成使用成功语义色，与「运行中」的交互语义色区分开，
   // 扫一眼就能看出"哪些已经做完了"（用户要求有颜色区别）。
-  completed: { ring: "border-[var(--diff-added)] bg-[var(--diff-added)]", check: "text-background", label: "done" },
+  completed: { ring: "border-success-base bg-surface-success-base", check: "text-on-success-base", label: "done" },
   cancelled: { ring: "border-border-hover bg-transparent", label: "cancelled" },
 }
 
@@ -47,7 +47,7 @@ function TodoStatusCircle(props: { status: string }) {
       <Show when={style().label === "done"}>
         <svg
           viewBox="0 0 12 12"
-          class={`size-2.5 ${style().check ?? "text-background"}`}
+          class={`size-2.5 ${style().check ?? "text-on-success-base"}`}
           fill="none"
           aria-hidden="true"
         >
@@ -123,7 +123,7 @@ export function useTodoSection(): () => StatusPanelSection | null {
                       "text-foreground": !done,
                       "text-foreground-subtle line-through decoration-foreground-subtlest": todo.status === "cancelled",
                       "text-foreground-subtle": todo.status === "completed",
-                      "text-[var(--icon-blue)] font-medium": todo.status === "in_progress",
+                      "text-interactive-base font-medium": todo.status === "in_progress",
                     }}
                   >
                     {todo.content}

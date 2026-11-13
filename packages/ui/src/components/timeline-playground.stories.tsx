@@ -1570,16 +1570,16 @@ function Playground() {
   } as const
   const btnAccent = {
     ...btnStyle,
-    border: "1px solid var(--primary)",
+    border: "1px solid var(--border-interactive-base)",
     background: "var(--surface-interactive-weak)",
     "font-weight": "500",
-    color: "var(--icon-blue)",
+    color: "var(--icon-interactive-base)",
   } as const
   const btnDanger = {
     ...btnStyle,
     border: "1px solid var(--border-critical-base)",
     background: "transparent",
-    color: "var(--text-on-critical-base)",
+    color: "var(--icon-critical-base)",
   } as const
 
   return (
@@ -1645,7 +1645,7 @@ function Playground() {
                 </div>
               </Show>
               <Show when={issue()}>
-                <div style={{ "font-size": "10px", color: "var(--text-on-critical-base)", "line-height": "1.4" }}>
+                <div style={{ "font-size": "10px", color: "var(--icon-critical-base)", "line-height": "1.4" }}>
                   {issue()}
                 </div>
               </Show>
@@ -1821,7 +1821,9 @@ function Playground() {
                                   style={{
                                     "font-size": "11px",
                                     color:
-                                      css[ctrl.key] !== undefined ? "var(--icon-blue)" : "var(--foreground-subtle)",
+                                      css[ctrl.key] !== undefined
+                                        ? "var(--icon-interactive-base)"
+                                        : "var(--foreground-subtle)",
                                     "font-family": "var(--font-family-mono)",
                                     "min-width": "40px",
                                     "text-align": "right",
@@ -1841,7 +1843,7 @@ function Playground() {
                                 style={{
                                   width: "100%",
                                   height: "4px",
-                                  "accent-color": "var(--icon-blue)",
+                                  "accent-color": "var(--surface-interactive-base)",
                                   cursor: "pointer",
                                 }}
                               />

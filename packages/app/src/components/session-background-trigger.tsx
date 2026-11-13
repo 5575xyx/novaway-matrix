@@ -53,7 +53,7 @@ export function SessionBackgroundTrigger(props: { style?: JSX.CSSProperties }) {
             onClick={open}
             aria-label={language.t(KIND_TOOLTIP_KEY[group.kind], { count: group.count })}
           >
-            <Icon name={JOB_ICONS[group.kind]} class="size-4.5 text-icon-blue" />
+            <Icon name={JOB_ICONS[group.kind]} class="size-4.5 text-icon-interactive-base" />
             <span class="text-xs tabular-nums">{group.count}</span>
           </Button>
         </Tooltip>

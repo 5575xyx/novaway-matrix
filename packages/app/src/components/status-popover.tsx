@@ -42,9 +42,9 @@ export function StatusPopover() {
           <div
             classList={{
               "absolute -top-px -right-px size-1.5 rounded-full": true,
-              "bg-success": ready() && healthy(),
-              "bg-warning": ready() && server.healthy() === true && mcpIssue() === "warning",
-              "bg-destructive":
+              "bg-surface-success-base": ready() && healthy(),
+              "bg-surface-warning-base": ready() && server.healthy() === true && mcpIssue() === "warning",
+              "bg-surface-critical-base":
                 server.healthy() === false || (ready() && server.healthy() === true && mcpIssue() === "critical"),
               "bg-border": server.healthy() === undefined || !ready(),
             }}

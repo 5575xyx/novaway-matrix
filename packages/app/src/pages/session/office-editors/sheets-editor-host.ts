@@ -16,6 +16,26 @@ import JSZip from "jszip"
 import type { OfficeEditor, OfficeEditorMount } from "../office-editor-host"
 import { buildLexoraContext, type LexoraViewContext } from "./lexora-view-context"
 
+let activeThemeConsumers = 0
+
+/** Univer's embedded Tailwind bundle scopes dark: utilities under .univer-dark. */
+function acquireUniverColorScheme(context: LexoraViewContext) {
+  let released = false
+  const apply = ({ colorScheme }: { colorScheme: string }) => {
+    document.documentElement.classList.toggle("univer-dark", colorScheme === "dark")
+  }
+  activeThemeConsumers++
+  apply(context.environment)
+  const subscription = context.onEnvironmentChange(apply)
+  return () => {
+    if (released) return
+    released = true
+    subscription.dispose()
+    activeThemeConsumers = Math.max(0, activeThemeConsumers - 1)
+    if (activeThemeConsumers === 0) document.documentElement.classList.remove("univer-dark")
+  }
+}
+
 /** /office/ 下的表格编辑器 bundle（Vite 原样托管 public/）。 */
 const OFFICE_BUNDLE_URL = "/office/sheets-editor.js"
 
@@ -92,20 +112,27 @@ async function restoreTemplateBytes(bytes: Uint8Array, name: string): Promise<Ui
 export const mountSheetsEditor: OfficeEditorMount = async (host) => {
   const bundle = await loadSheetsBundle()
   const context = buildLexoraContext(host)
-  const editor = await bundle.mountSheets({
-    context,
-    container: host.container,
-    bytes: await normalizeTemplateBytes(host.bytes, host.name),
-    // The editor's importer gates the workbook mode by filename in some builds.
-    // Give it the canonical workbook name; the Host still keeps the real template
-    // name and restores its content type on serialization.
-    name: templateContentType(host.name) ? host.name.replace(/\.(xltx|xltm)$/i, ".xlsx") : host.name,
-    onDirty: host.onDirty,
-    onSaveRequest: host.onSaveRequest,
-    onSave: async () => {
-      await host.onSaveRequest?.()
-    },
-  })
+  const releaseTheme = acquireUniverColorScheme(context)
+  let editor: Awaited<ReturnType<SheetsEditorBundle["mountSheets"]>>
+  try {
+    editor = await bundle.mountSheets({
+      context,
+      container: host.container,
+      bytes: await normalizeTemplateBytes(host.bytes, host.name),
+      // The editor's importer gates the workbook mode by filename in some builds.
+      // Give it the canonical workbook name; the Host still keeps the real template
+      // name and restores its content type on serialization.
+      name: templateContentType(host.name) ? host.name.replace(/\.(xltx|xltm)$/i, ".xlsx") : host.name,
+      onDirty: host.onDirty,
+      onSaveRequest: host.onSaveRequest,
+      onSave: async () => {
+        await host.onSaveRequest?.()
+      },
+    })
+  } catch (error) {
+    releaseTheme()
+    throw error
+  }
   let lastEditorBytes: Uint8Array | undefined
   return {
     save: async () => {
@@ -117,6 +144,9 @@ export const mountSheetsEditor: OfficeEditorMount = async (host) => {
       // that representation while the Host writes the restored template package.
       await editor.markSaved?.(lastEditorBytes ?? bytes)
     },
-    dispose: () => editor.dispose(),
+    dispose: () => {
+      releaseTheme()
+      editor.dispose()
+    },
   }
 }

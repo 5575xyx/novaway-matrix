@@ -269,7 +269,7 @@ function QueryResultTable(props: { result: QueryResult; loading?: boolean; onLoa
           <span>{language.t("database.result.affected", { count: Number(props.result.affected ?? 0) })}</span>
         </Show>
         <Show when={props.result.truncated}>
-          <span class="text-icon-warning-base">{language.t("database.result.truncated")}</span>
+          <span class="text-warning-base">{language.t("database.result.truncated")}</span>
         </Show>
       </div>
 
@@ -1040,7 +1040,7 @@ export function DatabasePage(props: { onBack: () => void }) {
             class="grid size-8 shrink-0 place-items-center rounded-lg"
             style={{
               color: "var(--icon-interactive-base)",
-              background: "color-mix(in srgb, var(--icon-interactive-base) 16%, transparent)",
+              background: "var(--surface-interactive-weak)",
             }}
           >
             <Icon name="database" size="normal" />

@@ -174,7 +174,7 @@ export function useDocumentReviewSection(sessionID: () => string): () => StatusP
                 <div class="flex min-w-0 items-center gap-2">
                   <Icon name="checklist" size="small" class="shrink-0 text-foreground" />
                   <span class="min-w-0 flex-1 truncate text-ui-base text-foreground">{item.title}</span>
-                  <span class="shrink-0 text-ui-xs tabular-nums text-icon-warning-base">
+                  <span class="shrink-0 text-ui-xs tabular-nums text-warning-base">
                     {t("session.review.awaiting", { time: formatWait(now() - item.createdAt) })}
                   </span>
                 </div>
@@ -234,7 +234,7 @@ export function useDocumentReviewSection(sessionID: () => string): () => StatusP
             )}
           </For>
           <Show when={store.error}>
-            <div class="px-2 text-ui-xs text-icon-critical-base">{store.error}</div>
+            <div class="px-2 text-ui-xs text-critical-base">{store.error}</div>
           </Show>
         </div>
       ),

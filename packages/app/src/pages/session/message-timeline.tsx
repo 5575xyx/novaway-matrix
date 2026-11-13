@@ -82,6 +82,7 @@ import { sessionTitle } from "@/utils/session-title"
 import { LOCAL_URL, normalizeLocalUrl, stripAnsi } from "@/utils/dev-server-detect"
 import { isExcludedPath, relativeToWorkspace, resolveWorkspacePath } from "@/utils/preview-sources"
 import { uniqueSummaryDiffs } from "@/pages/session/message-timeline.summary-diffs"
+import { approveTurn, isTurnApproved, undoTurnApproval } from "@/pages/session/message-timeline.turn-review"
 import { collectTurnWrittenPaths } from "./written-files"
 import { isBareFileName, matchUniqueFileName } from "./output-file-path"
 import {
@@ -425,10 +426,13 @@ function TimelineThinkingRow(props: {
   )
 }
 
-function TimelineDiffSummaryRow(props: {
+export function TimelineDiffSummaryRow(props: {
   diffs: SummaryDiff[]
   fallback: boolean
+  sessionID: string
+  userMessageID: string
   onOpen?: (path: string) => void
+  onReview?: (files: string[]) => void
 }): JSX.Element {
   const language = useLanguage()
   const maxFiles = 10
@@ -454,6 +458,7 @@ function TimelineDiffSummaryRow(props: {
   const files = () => props.diffs
   const overflow = createMemo(() => Math.max(0, files().length - maxFiles))
   const visible = createMemo(() => (showAll() ? files() : files().slice(0, maxFiles)))
+  const approved = createMemo(() => isTurnApproved(props.sessionID, props.userMessageID, props.diffs))
 
   return (
     <div
@@ -462,30 +467,96 @@ function TimelineDiffSummaryRow(props: {
       data-show-all={showAll() || undefined}
       data-fallback={props.fallback || undefined}
       data-collapsed={state.collapsed || undefined}
+      data-approved={approved() || undefined}
     >
       <div data-slot="session-turn-diffs-header" onClick={toggleCollapsed} role={props.fallback ? "button" : undefined}>
-        <span
-          data-slot="session-turn-diffs-indicator"
-          class="inline-flex size-3.5 align-middle text-[var(--syntax-diff-add)]"
-        >
+        <span data-slot="session-turn-diffs-indicator" class="shrink-0">
           <Icon name="lu-file-output" size="small" />
         </span>
-        <span data-slot="session-turn-diffs-label">
-          {language.t(props.fallback ? "ui.sessionTurn.diffs.session" : "ui.sessionTurn.diffs.thisTurn", {
-            count: String(files().length),
-          })}
-        </span>
-        <Show when={totalChanges().additions > 0 || totalChanges().deletions > 0}>
-          <span data-slot="session-turn-diffs-total">
-            <span data-slot="session-turn-diffs-total-add">{`+${totalChanges().additions}`}</span>
-            <span data-slot="session-turn-diffs-total-del">{`-${totalChanges().deletions}`}</span>
+        <div data-slot="session-turn-diffs-heading" class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span data-slot="session-turn-diffs-label">
+            {language.t(props.fallback ? "session.turnDiffs.editedSession" : "session.turnDiffs.edited", {
+              count: String(files().length),
+            })}
           </span>
-        </Show>
-        <Show when={props.fallback}>
-          <span data-slot="session-turn-diffs-chevron">
-            <Icon name="chevron-down" size="small" />
-          </span>
-        </Show>
+          <Show when={totalChanges().additions > 0 || totalChanges().deletions > 0}>
+            <span data-slot="session-turn-diffs-total">
+              <span data-slot="session-turn-diffs-total-add">{`+${totalChanges().additions}`}</span>
+              <span data-slot="session-turn-diffs-total-del">{`-${totalChanges().deletions}`}</span>
+            </span>
+          </Show>
+        </div>
+        <div
+          data-slot="session-turn-diffs-actions"
+          class="flex shrink-0 items-center gap-1.5"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Show
+            when={approved()}
+            fallback={
+              <Button
+                variant="secondary"
+                size="small"
+                data-action="turn-diffs-approve"
+                title={language.t("session.turnDiffs.approveHint")}
+                onClick={() => {
+                  const saved = approveTurn(props.sessionID, props.userMessageID, props.diffs)
+                  showToast({
+                    variant: saved ? "success" : "error",
+                    title: language.t(saved ? "session.turnDiffs.approvedToast" : "session.turnDiffs.saveFailed"),
+                  })
+                }}
+              >
+                {language.t("session.turnDiffs.approve")}
+              </Button>
+            }
+          >
+            <span data-slot="session-turn-diffs-approved-chip">
+              <Icon name="check-small" size="small" />
+              {language.t("session.turnDiffs.approved")}
+            </span>
+            <IconButton
+              icon="lu-undo"
+              variant="ghost"
+              size="small"
+              data-action="turn-diffs-undo-approve"
+              class="text-foreground-subtle"
+              aria-label={language.t("session.turnDiffs.undoApprove")}
+              title={language.t("session.turnDiffs.undoApprove")}
+              onClick={() => {
+                const saved = undoTurnApproval(props.sessionID, props.userMessageID)
+                showToast({
+                  variant: saved ? "success" : "error",
+                  title: language.t(saved ? "session.turnDiffs.undoToast" : "session.turnDiffs.saveFailed"),
+                })
+              }}
+            />
+          </Show>
+          <Show when={props.onReview}>
+            <Button
+              variant="secondary"
+              size="small"
+              data-action="turn-diffs-review"
+              title={language.t("session.turnDiffs.reviewHint")}
+              onClick={() => props.onReview?.(files().map((diff) => diff.file))}
+            >
+              {language.t("session.turnDiffs.review")}
+            </Button>
+          </Show>
+          <Show when={props.fallback}>
+            <IconButton
+              icon="chevron-down"
+              variant="ghost"
+              size="small"
+              data-slot="session-turn-diffs-chevron"
+              aria-expanded={!state.collapsed}
+              aria-label={language.t(
+                state.collapsed ? "ui.sessionTurn.diffs.showAll" : "ui.sessionTurn.diffs.showLess",
+              )}
+              onClick={toggleCollapsed}
+            />
+          </Show>
+        </div>
       </div>
       <Show when={!state.collapsed}>
         <div data-component="session-turn-diffs-content">
@@ -819,6 +890,7 @@ function TimelineToolEvidenceRow(props: { images: EvidenceImage[] }) {
 
 export function MessageTimeline(props: {
   actions?: UserActions
+  onReviewTurn?: (messageID: string, files: string[]) => void
   scroll: { overflow: boolean; bottom: boolean; jump: boolean }
   onResumeScroll: () => void
   setScrollRef: (el: HTMLDivElement | undefined) => void
@@ -2288,9 +2360,9 @@ export function MessageTimeline(props: {
     const fillSummary = createMemo(() => officePptxFillPlanSummary(fillPlan()))
     const [savedPath, setSavedPath] = createSignal("")
     const actionButton =
-      "group inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground-subtle shadow-none outline-none transition-all duration-150 hover:-translate-y-px hover:border-icon-blue/45 hover:bg-icon-blue/10 hover:text-icon-blue hover:shadow-[0_8px_22px_color-mix(in_srgb,var(--icon-interactive-base)_12%,transparent)] active:translate-y-0 active:scale-[0.98] active:border-icon-blue/60 active:bg-icon-blue/15 focus-visible:border-icon-blue/60 focus-visible:ring-2 focus-visible:ring-icon-blue/20"
+      "group inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground-subtle shadow-none outline-none transition-all duration-150 hover:-translate-y-px hover:border-interactive-hover/45 hover:bg-surface-interactive-weak hover:text-interactive-base hover:shadow-[0_8px_22px_color-mix(in_srgb,var(--surface-interactive-base)_12%,transparent)] active:translate-y-0 active:scale-[0.98] active:border-interactive-active/60 active:bg-surface-interactive-base/15 focus-visible:border-interactive-focus/60 focus-visible:ring-2 focus-visible:ring-border-interactive-focus/20"
     const primaryActionButton =
-      "group inline-flex items-center gap-1.5 rounded-[8px] border border-icon-blue/40 bg-icon-blue/10 px-2.5 py-1.5 text-12-medium text-icon-blue shadow-none outline-none transition-all duration-150 hover:-translate-y-px hover:border-icon-blue/60 hover:bg-icon-blue/20 hover:shadow-[0_8px_24px_color-mix(in_srgb,var(--icon-interactive-base)_16%,transparent)] active:translate-y-0 active:scale-[0.98] active:bg-icon-blue/25 focus-visible:border-icon-blue/70 focus-visible:ring-2 focus-visible:ring-icon-blue/25 disabled:cursor-not-allowed disabled:translate-y-0 disabled:scale-100 disabled:opacity-60 disabled:shadow-none"
+      "group inline-flex items-center gap-1.5 rounded-[8px] border border-interactive-base/40 bg-surface-interactive-weak px-2.5 py-1.5 text-12-medium text-interactive-base shadow-none outline-none transition-all duration-150 hover:-translate-y-px hover:border-interactive-hover/60 hover:bg-surface-interactive-weak-hover hover:shadow-[0_8px_24px_color-mix(in_srgb,var(--surface-interactive-base)_16%,transparent)] active:translate-y-0 active:scale-[0.98] active:bg-surface-interactive-base/25 focus-visible:border-interactive-focus/70 focus-visible:ring-2 focus-visible:ring-border-interactive-focus/25 disabled:cursor-not-allowed disabled:translate-y-0 disabled:scale-100 disabled:opacity-60 disabled:shadow-none"
     const save = useMutation(() => ({
       mutationFn: async () => {
         const file =
@@ -2481,7 +2553,7 @@ export function MessageTimeline(props: {
                         </div>
                         <button
                           type="button"
-                          class="h-8 shrink-0 rounded-[7px] border border-border px-2.5 text-11-medium text-foreground-subtle hover:text-icon-blue"
+                          class="h-8 shrink-0 rounded-[7px] border border-border px-2.5 text-11-medium text-foreground-subtle hover:text-interactive-base"
                           onClick={() => void restoreArtifactVersion(artifact.id)}
                         >
                           恢复
@@ -2518,7 +2590,7 @@ export function MessageTimeline(props: {
             <div class="truncate text-12-medium text-foreground">{input.artifact.title}</div>
             <div class="truncate text-11-regular text-foreground-subtle">{deliverableSummary()}</div>
             <Show when={quality().status === "review"}>
-              <div class="mt-0.5 truncate text-10-regular text-icon-warning-base" title={quality().summary}>
+              <div class="mt-0.5 truncate text-10-regular text-warning-base" title={quality().summary}>
                 质量提醒：{quality().summary}
               </div>
             </Show>
@@ -2528,7 +2600,7 @@ export function MessageTimeline(props: {
           <Show when={input.artifact.slides.length > 0}>
             <button
               type="button"
-              class="group inline-flex min-w-[168px] items-center justify-between gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground outline-none transition-colors hover:border-icon-blue/45 hover:bg-icon-blue/10 focus-visible:border-icon-blue/60 focus-visible:ring-2 focus-visible:ring-icon-blue/20"
+              class="group inline-flex min-w-[168px] items-center justify-between gap-2 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-12-medium text-foreground outline-none transition-colors hover:border-interactive-hover/45 hover:bg-surface-interactive-weak focus-visible:border-interactive-focus/60 focus-visible:ring-2 focus-visible:ring-border-interactive-focus/20"
               title={officePptTemplateDescription(pptTemplate())}
               onClick={openTemplateGallery}
             >
@@ -2756,7 +2828,7 @@ export function MessageTimeline(props: {
                 <div class="rounded-[8px] border border-border bg-surface/70 p-4">
                   <div class="flex items-start justify-between gap-3 border-b border-border pb-3">
                     <div class="min-w-0">
-                      <div class="text-11-medium text-icon-blue">第 {slide.index} 页</div>
+                      <div class="text-11-medium text-interactive-base">第 {slide.index} 页</div>
                       <div class="mt-1 truncate text-15-medium text-foreground">{slide.title}</div>
                     </div>
                     <Icon name="layout-bottom" size="small" class="shrink-0 text-foreground-subtlest" />
@@ -3025,7 +3097,10 @@ export function MessageTimeline(props: {
               <TimelineDiffSummaryRow
                 diffs={diffSummaryRow().diffs}
                 fallback={!!diffSummaryRow().fallback}
+                sessionID={sessionKey()}
+                userMessageID={diffSummaryRow().userMessageID}
                 onOpen={openDiffFile}
+                onReview={(files) => props.onReviewTurn?.(diffSummaryRow().userMessageID, files)}
               />
             </div>
           </TimelineRowFrame>
@@ -3318,7 +3393,7 @@ export function MessageTimeline(props: {
       <Show when={total() > 0}>
         <div data-component="todo-grouped-overview" class="w-full rounded-xl border border-border bg-panel px-4 py-3.5">
           <div class="flex items-start gap-2.5">
-            <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--icon-blue)_14%,var(--background))] text-[var(--icon-blue)]">
+            <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-surface-interactive-weak text-icon-interactive-base">
               <Icon name="lu-list-checks" size="normal" />
             </span>
             <div class="min-w-0 flex-1">
@@ -3331,8 +3406,7 @@ export function MessageTimeline(props: {
                     <span
                       class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-12-medium tabular-nums"
                       classList={{
-                        "bg-[color-mix(in_srgb,var(--icon-blue)_12%,var(--background))] text-[var(--icon-blue)]":
-                          live(),
+                        "bg-surface-interactive-weak text-interactive-base": live(),
                         "bg-surface text-foreground-subtle": !live(),
                       }}
                     >
@@ -3363,7 +3437,7 @@ export function MessageTimeline(props: {
                 </span>
                 <div class="h-[5px] min-w-0 flex-1 overflow-hidden rounded-full bg-surface">
                   <div
-                    class="h-full rounded-full bg-icon-blue transition-[width] duration-500"
+                    class="h-full rounded-full bg-surface-interactive-base transition-[width] duration-500"
                     style={{ width: `${total() > 0 ? (done() / total()) * 100 : 0}%` }}
                   />
                 </div>
@@ -3688,9 +3762,9 @@ export function MessageTimeline(props: {
         <span
           class="grid size-4 shrink-0 place-items-center"
           classList={{
-            "text-[var(--diff-added)]": props.status === "completed",
+            "text-success-base": props.status === "completed",
             // 只有真的在跑才转圈；中断后保持静态，避免"看起来还在执行"。
-            "text-icon-blue": props.status === "in_progress",
+            "text-interactive-base": props.status === "in_progress",
             "novaway-spinner": props.status === "in_progress" && !!props.live,
             "text-border-hover": props.status === "pending" || props.status === "cancelled",
           }}
@@ -3868,8 +3942,8 @@ export function MessageTimeline(props: {
                         classList={{ "opacity-0": workingStatus() === "hiding" }}
                       >
                         <div class="relative size-4 flex items-center justify-center">
-                          <div class="absolute inset-0 rounded-full border-[1.5px] border-icon-blue animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                          <div class="size-1.5 rounded-full bg-icon-blue" />
+                          <div class="absolute inset-0 rounded-full border-[1.5px] border-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
+                          <div class="size-1.5 rounded-full bg-surface-interactive-base" />
                         </div>
                       </div>
                     </Show>
@@ -3920,7 +3994,7 @@ export function MessageTimeline(props: {
                   <div class="shrink-0 flex items-center gap-3">
                     <button
                       type="button"
-                      class="hidden h-8 items-center gap-1.5 rounded-[7px] border border-border bg-background px-2.5 text-11-medium text-foreground-subtle outline-none transition-colors hover:border-icon-blue/40 hover:text-icon-blue md:inline-flex"
+                      class="hidden h-8 items-center gap-1.5 rounded-[7px] border border-border bg-background px-2.5 text-11-medium text-foreground-subtle outline-none transition-colors hover:border-interactive-hover/40 hover:text-interactive-base md:inline-flex"
                       title="把当前对话需求保存为可复用工作流"
                       disabled={saveConversationWorkflow.isPending || !latestUserPrompt()}
                       onClick={() => saveConversationWorkflow.mutate()}
@@ -3978,11 +4052,16 @@ export function MessageTimeline(props: {
           </Show>
         </Show>
         <Show when={suggestionsLoading() || turnSuggestions().length > 0}>
-          <div class="mx-auto w-full px-4 pb-5 pt-3" style={{ "max-width": "var(--session-content-max-width, 820px)" }}>
-            <div class="mb-2 text-11-medium text-foreground-subtle">
-              {language.t("session.followupSuggestions.title")}
-            </div>
-            <Show when={suggestionsLoading()}>
+          <div
+            class="mx-auto w-full px-4 md:px-5 pb-5 pt-3"
+            style={{ "max-width": "var(--session-content-max-width, 820px)" }}
+          >
+            <Show when={turnSuggestions().length > 0}>
+              <div class="mb-2 text-11-medium text-foreground-subtle">
+                {language.t("session.followupSuggestions.title")}
+              </div>
+            </Show>
+            <Show when={suggestionsLoading() && turnSuggestions().length === 0}>
               <div class="text-12-regular text-foreground-subtle">
                 {language.t("session.followupSuggestions.loading")}
               </div>
@@ -3992,7 +4071,7 @@ export function MessageTimeline(props: {
                 {(suggestion) => (
                   <button
                     type="button"
-                    class="rounded-lg border border-border bg-surface px-3 py-2 text-left text-12-regular text-foreground-subtle transition-colors hover:border-icon-blue/50 hover:bg-hover hover:text-foreground"
+                    class="rounded-lg border border-border bg-surface px-3 py-2 text-left text-12-regular text-foreground-subtle transition-colors hover:border-interactive-hover/50 hover:bg-hover hover:text-foreground"
                     onClick={() => {
                       const id = sessionID()
                       if (!id) return

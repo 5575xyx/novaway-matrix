@@ -75,17 +75,21 @@ export const PluginContribution = Schema.Struct({
   ui: Schema.optional(Schema.Unknown),
   action: Schema.optional(Schema.Unknown),
   view: Schema.optional(Schema.Unknown),
-  match: Schema.optional(Schema.Struct({
-    tool: Schema.optional(Schema.String),
-    partType: Schema.optional(Schema.String),
-    extension: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
-    format: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
-    mime: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
-  })),
-  renderer: Schema.optional(Schema.Union([
-    Schema.Struct({ type: Schema.Literal("builtin"), id: Schema.String }),
-    Schema.Struct({ type: Schema.Literal("iframe"), url: Schema.String }),
-  ])),
+  match: Schema.optional(
+    Schema.Struct({
+      tool: Schema.optional(Schema.String),
+      partType: Schema.optional(Schema.String),
+      extension: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
+      format: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
+      mime: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
+    }),
+  ),
+  renderer: Schema.optional(
+    Schema.Union([
+      Schema.Struct({ type: Schema.Literal("builtin"), id: Schema.String }),
+      Schema.Struct({ type: Schema.Literal("iframe"), url: Schema.String }),
+    ]),
+  ),
   viewId: Schema.optional(Schema.String),
   priority: Schema.optional(Schema.Number),
   readOnly: Schema.optional(Schema.Boolean),

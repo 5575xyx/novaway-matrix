@@ -175,28 +175,22 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
             }}
           >
             <Show when={models.autoMode()}>
-              <Icon name="autopilot" class="size-4 shrink-0 text-icon-blue transition-opacity duration-150" />
+              <Icon
+                name="autopilot"
+                class="size-4 shrink-0 text-icon-interactive-base transition-opacity duration-150"
+              />
             </Show>
             <Show when={!models.autoMode() && currentModel()?.provider?.id}>
               <ProviderIcon
                 id={iconId()}
                 colorId={iconId()}
                 brand
-                class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
+                class="size-4 shrink-0 text-icon-interactive-base transition-opacity duration-150"
               />
             </Show>
             <span
               class="min-w-0 truncate"
-              style={
-                nameColor()
-                  ? { color: nameColor() }
-                  : {
-                      background: "linear-gradient(135deg, var(--icon-interactive-base), var(--icon-agent-plan-base))",
-                      "-webkit-background-clip": "text",
-                      "-webkit-text-fill-color": "transparent",
-                      "background-clip": "text",
-                    }
-              }
+              style={nameColor() ? { color: nameColor() } : { color: "var(--text-interactive-base)" }}
             >
               {modelLabel()}
             </span>
@@ -314,10 +308,10 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
             aria-label={language.t("prompt.action.attachFile")}
             onClick={() => fileInputRef?.click()}
           >
-            <Icon name="link" class="size-4.5 text-icon-blue" />
+            <Icon name="link" class="size-4.5 text-icon-interactive-base" />
           </Button>
           <Button type="button" variant="ghost" class="size-8 p-0" aria-label="提及 @" onClick={() => insertText("@")}>
-            <span class="text-sm font-semibold text-icon-blue">@</span>
+            <span class="text-sm font-semibold text-interactive-base">@</span>
           </Button>
           <Button
             type="button"
@@ -326,7 +320,7 @@ export function SideChatComposer(props: { tab: SidePaneSessionTab }) {
             aria-label="斜杠命令 /"
             onClick={() => insertText("/")}
           >
-            <span class="text-sm font-semibold text-icon-blue">/</span>
+            <span class="text-sm font-semibold text-interactive-base">/</span>
           </Button>
           <div class="flex-1" />
           <Show

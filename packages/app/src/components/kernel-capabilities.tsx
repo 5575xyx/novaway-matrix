@@ -104,7 +104,7 @@ export const KernelCapabilitiesCard: Component<{
       </div>
 
       <Show when={error()}>
-        <div class="border-b border-border px-4 py-1.5 text-ui-xs text-icon-critical-base">{error()}</div>
+        <div class="border-b border-border px-4 py-1.5 text-ui-xs text-critical-base">{error()}</div>
       </Show>
 
       <Show when={summary()}>

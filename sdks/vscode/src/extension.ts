@@ -2,6 +2,7 @@
 export function deactivate() {}
 
 import * as vscode from "vscode"
+import { AcpClient, type PermissionOption } from "./acp"
 
 const TERMINAL_NAME = "novaway"
 
@@ -40,7 +41,68 @@ export function activate(context: vscode.ExtensionContext) {
     }
   })
 
-  context.subscriptions.push(openNewTerminalDisposable, openTerminalDisposable, addFilepathDisposable)
+  const acpOutput = vscode.window.createOutputChannel("NovaWay ACP")
+  let acp: AcpClient | undefined
+
+  const openAcpDisposable = vscode.commands.registerCommand("novaway.openAcpSession", async () => {
+    const text = await vscode.window.showInputBox({ prompt: "Ask NovaWay through ACP" })
+    if (!text) return
+
+    acpOutput.show(true)
+    acpOutput.appendLine(`> ${text}`)
+    if (!acp) {
+      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+      if (!cwd) {
+        vscode.window.showErrorMessage("NovaWay ACP needs an open workspace folder")
+        return
+      }
+      const command = vscode.workspace.getConfiguration("novaway").get<string>("executable") ?? "novaway"
+      const client = new AcpClient({
+        command,
+        cwd,
+        onText: (chunk) => acpOutput.append(chunk),
+        onTool: (title) => acpOutput.appendLine(`[tool] ${title}`),
+        onLog: (line) => acpOutput.appendLine(line),
+        onPermission: async ({ title, options }) => {
+          const allow = options.find((option: PermissionOption) => (option.kind ?? "").startsWith("allow"))
+          const deny = options.find((option: PermissionOption) => (option.kind ?? "").startsWith("reject"))
+          const picked = await vscode.window.showInformationMessage(`NovaWay wants to run: ${title}`, "Allow", "Deny")
+          if (picked === "Allow") return allow?.optionId
+          return deny?.optionId
+        },
+      })
+      try {
+        await client.start()
+        acp = client
+      } catch (error) {
+        acpOutput.appendLine(`failed to start ACP: ${error instanceof Error ? error.message : String(error)}`)
+        vscode.window.showErrorMessage("Failed to start NovaWay ACP")
+        return
+      }
+    }
+
+    try {
+      const stop = await acp.prompt(text)
+      acpOutput.appendLine(`[stop] ${stop}`)
+    } catch (error) {
+      acpOutput.appendLine(`ACP error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  })
+
+  const stopAcpDisposable = vscode.commands.registerCommand("novaway.stopAcpSession", () => {
+    acp?.stop()
+    acp = undefined
+    acpOutput.appendLine("[stopped]")
+  })
+
+  context.subscriptions.push(
+    openNewTerminalDisposable,
+    openTerminalDisposable,
+    addFilepathDisposable,
+    openAcpDisposable,
+    stopAcpDisposable,
+    acpOutput,
+  )
 
   async function openTerminal() {
     // Create a new terminal in split screen

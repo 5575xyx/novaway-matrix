@@ -337,10 +337,11 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                         <div
                           classList={{
                             "size-1.5 rounded-full shrink-0": true,
-                            "bg-success": status() === "connected",
-                            "bg-destructive": status() === "failed",
+                            "bg-surface-success-base": status() === "connected",
+                            "bg-surface-critical-base": status() === "failed",
                             "bg-border": status() === "disabled",
-                            "bg-warning": status() === "needs_auth" || status() === "needs_client_registration",
+                            "bg-surface-warning-base":
+                              status() === "needs_auth" || status() === "needs_client_registration",
                           }}
                         />
                         <span class="flex flex-col min-w-0 flex-1">
@@ -389,8 +390,8 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                       <div
                         classList={{
                           "size-1.5 rounded-full shrink-0": true,
-                          "bg-success": item.status === "connected",
-                          "bg-destructive": item.status === "error",
+                          "bg-surface-success-base": item.status === "connected",
+                          "bg-surface-critical-base": item.status === "error",
                         }}
                       />
                       <span class="text-14-regular text-foreground truncate">{item.name || item.id}</span>
@@ -430,7 +431,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                 <For each={plugins()}>
                   {(plugin) => (
                     <div class="flex items-center gap-2 w-full px-2 py-1">
-                      <div class="size-1.5 rounded-full shrink-0 bg-success" />
+                      <div class="size-1.5 rounded-full shrink-0 bg-surface-success-base" />
                       <span class="text-14-regular text-foreground truncate">{plugin}</span>
                     </div>
                   )}

@@ -1,4 +1,4 @@
-import { For, Show, type Component } from "solid-js"
+import { For, Show, type Component, type JSX } from "solid-js"
 
 /**
  * 团队头像与成员叠层（群聊列表用）。
@@ -8,13 +8,7 @@ import { For, Show, type Component } from "solid-js"
  * 头像全部来自员工自己的离线头像，不额外引入资源。
  */
 
-const TONES = [
-  "bg-primary/10 text-text-interactive-base",
-  "bg-success/10 text-icon-success-base",
-  "bg-warning/10 text-icon-warning-base",
-  "bg-icon-blue/10 text-icon-blue",
-  "bg-destructive/10 text-icon-critical-base",
-] as const
+const CATEGORY_COUNT = 5
 
 const hash = (value: string) => {
   let result = 2166136261
@@ -42,10 +36,16 @@ export function teamInitials(name: string) {
 
 /** 团队头像：按队名稳定着色，同一支队每次打开都是同一个颜色。 */
 export const TeamAvatar: Component<{ name: string; class?: string }> = (props) => {
-  const tone = () => TONES[hash(props.name) % TONES.length] ?? TONES[0]
+  const category = () => hash(props.name) % CATEGORY_COUNT
   return (
     <span
-      class={`grid size-9 shrink-0 place-items-center rounded-[10px] text-ui-xs font-medium ring-1 ring-inset ring-border ${tone()} ${props.class ?? ""}`}
+      class={`grid size-9 shrink-0 place-items-center rounded-[10px] text-ui-xs font-medium ring-1 ring-inset ring-border ${props.class ?? ""}`}
+      style={
+        {
+          background: `var(--team-category-${category()})`,
+          color: `var(--team-category-${category()}-foreground)`,
+        } as JSX.CSSProperties
+      }
       aria-hidden="true"
     >
       {teamInitials(props.name)}

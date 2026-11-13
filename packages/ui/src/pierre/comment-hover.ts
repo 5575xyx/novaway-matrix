@@ -21,7 +21,7 @@ export function createHoverCommentUtility(props: {
   button.style.justifyContent = "center"
   button.style.border = "none"
   button.style.borderRadius = "var(--radius-md)"
-  button.style.background = "var(--icon-interactive-base)"
+  button.style.background = "var(--surface-interactive-base)"
   button.style.color = "var(--text-on-interactive-base)"
   button.style.boxShadow = "var(--shadow-xs)"
   button.style.fontSize = "14px"

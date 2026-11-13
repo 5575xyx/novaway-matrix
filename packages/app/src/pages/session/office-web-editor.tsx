@@ -35,7 +35,7 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="h-8 rounded-[7px] border border-icon-blue/40 bg-icon-blue/10 px-3 text-12-medium text-icon-blue"
+            class="h-8 rounded-[7px] border border-interactive-base/40 bg-surface-interactive-weak px-3 text-12-medium text-interactive-base"
             onClick={() => void save()}
           >
             保存 HTML
@@ -63,9 +63,10 @@ export function OfficeWebEditor(props: { artifact: OfficeArtifact; onClose: () =
           <div class="flex items-center justify-between gap-2">
             <span class="text-12-medium text-foreground">实时预览</span>
             <Show when={message()}>
-              <span class="text-11-regular text-icon-blue">{message()}</span>
+              <span class="text-11-regular text-interactive-base">{message()}</span>
             </Show>
           </div>
+          {/* iframe 展示网页文档本身，白底与内嵌 HTML 的纸面内容一致，不跟随 App 主题。 */}
           <iframe
             title="网页看板预览"
             sandbox="allow-scripts"
@@ -83,6 +84,8 @@ function extractHtml(body: string) {
   if (fenced?.[1]?.trim()) return fenced[1].trim()
   const direct = body.match(/^<!DOCTYPE html[\s\S]*<\/html>\s*$/im)
   if (direct?.[0]) return direct[0].trim()
+  // These defaults style the generated HTML document shown inside the sandboxed iframe;
+  // they are document content colors, not App surfaces, and intentionally remain theme-independent.
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>

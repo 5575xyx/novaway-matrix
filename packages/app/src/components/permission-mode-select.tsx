@@ -9,12 +9,20 @@ import { PERMISSION_MODES, type PermissionTone, type SessionPermissionMode } fro
 /**
  * 档位配色通过主题语义色区分风险等级，不绑定具体色相；越靠后代表权限越宽。
  */
+const TONE_ICON: Record<PermissionTone, string> = {
+  neutral: "text-icon-base",
+  interactive: "text-icon-interactive-base",
+  info: "text-icon-info-base",
+  warning: "text-icon-warning-base",
+  critical: "text-icon-critical-base",
+}
+
 const TONE_TEXT: Record<PermissionTone, string> = {
   neutral: "text-foreground",
-  blue: "text-icon-blue",
-  violet: "text-[var(--icon-agent-plan-base)]",
-  amber: "text-icon-warning-base",
-  rose: "text-[var(--icon-critical-base)]",
+  interactive: "text-interactive-base",
+  info: "text-info-base",
+  warning: "text-warning-base",
+  critical: "text-critical-base",
 }
 
 /**
@@ -68,7 +76,7 @@ export const PermissionModeSelect: Component<{
           class="flex h-7 items-center gap-1.5 rounded-[8px] px-2 text-12-medium transition-colors hover:bg-hover"
           aria-label={language.t("permission.mode.label")}
         >
-          <Icon name={mode().icon} size="small" class={`shrink-0 ${TONE_TEXT[mode().tone]}`} />
+          <Icon name={mode().icon} size="small" class={`shrink-0 ${TONE_ICON[mode().tone]}`} />
           <span
             data-slot="permission-mode-label"
             class={`shrink-0 ${TONE_TEXT[mode().tone]}`}
@@ -84,7 +92,7 @@ export const PermissionModeSelect: Component<{
               <>
                 <DropdownMenu.Item onSelect={() => choose(item.value)}>
                   <div class="flex w-full items-start gap-2.5">
-                    <Icon name={item.icon} size="small" class={`mt-0.5 shrink-0 ${TONE_TEXT[item.tone]}`} />
+                    <Icon name={item.icon} size="small" class={`mt-0.5 shrink-0 ${TONE_ICON[item.tone]}`} />
                     <div class="flex min-w-0 flex-1 flex-col">
                       <span class="flex items-center gap-1.5 text-13-medium text-foreground">
                         {language.t(item.titleKey as never)}
@@ -99,7 +107,7 @@ export const PermissionModeSelect: Component<{
                       </span>
                     </div>
                     <Show when={item.value === current()}>
-                      <Icon name="check" size="small" class={`mt-0.5 shrink-0 ${TONE_TEXT[mode().tone]}`} />
+                      <Icon name="check" size="small" class={`mt-0.5 shrink-0 ${TONE_ICON[mode().tone]}`} />
                     </Show>
                   </div>
                 </DropdownMenu.Item>

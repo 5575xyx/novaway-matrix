@@ -40,8 +40,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "编码",
     icon: "F",
     description: "编程、调试、项目工程和代码协作专用工作舱。",
-    color: "var(--interactive-base)",
-    foreground: "var(--text-on-interactive-base)",
+    color: "var(--app-mode-forge)",
+    foreground: "var(--app-mode-forge-foreground)",
   },
   {
     id: "zen",
@@ -49,8 +49,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "办公",
     icon: "Z",
     description: "文档、日程、办公协作和轻量知识处理空间。",
-    color: "var(--surface-success-base)",
-    foreground: "var(--text-on-success-base)",
+    color: "var(--app-mode-zen)",
+    foreground: "var(--app-mode-zen-foreground)",
   },
   {
     id: "spark",
@@ -58,8 +58,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "创意",
     icon: "S",
     description: "写作、视频、短剧、海报和创意生成工作室。",
-    color: "var(--surface-warning-base)",
-    foreground: "var(--text-on-warning-base)",
+    color: "var(--app-mode-spark)",
+    foreground: "var(--app-mode-spark-foreground)",
   },
   {
     id: "future",
@@ -67,8 +67,8 @@ export const APP_MODES: AppModeConfig[] = [
     shortName: "探索",
     icon: "N",
     description: "为高级用户预留的自定义工作流和探索空间。",
-    color: "var(--surface-brand-base)",
-    foreground: "var(--text-on-brand-base)",
+    color: "var(--app-mode-future)",
+    foreground: "var(--app-mode-future-foreground)",
   },
 ]
 

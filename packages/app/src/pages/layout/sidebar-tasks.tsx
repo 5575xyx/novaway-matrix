@@ -394,7 +394,7 @@ export function TaskFilterBar(props: {
             classList={{
               "transition-colors": true,
               "border-b-2 -mb-px pb-1.5": variant === "underline",
-              "border-icon-blue text-foreground font-medium": variant === "underline" && props.filter === tab.id,
+              "border-interactive-base text-foreground font-medium": variant === "underline" && props.filter === tab.id,
               "border-transparent text-foreground-subtle hover:text-foreground":
                 variant === "underline" && props.filter !== tab.id,
               "text-foreground font-medium": variant === "text" && props.filter === tab.id,

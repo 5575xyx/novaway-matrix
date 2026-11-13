@@ -105,7 +105,7 @@ render(
     <PlatformProvider value={platform}>
       <ThemeProvider>
         <LanguageProvider locale="zh">
-          <div data-e2e="panel" class="h-[360px] w-[520px] border border-border">
+          <div data-e2e="panel" class="h-[360px] w-[520px] border border-border bg-background">
             <Switch>
               <Match when={failure()}>{(value) => <OfficePreviewFailureState failure={value()} />}</Match>
               <Match when={base64()}>{(value) => <div data-e2e="content">{value()}</div>}</Match>

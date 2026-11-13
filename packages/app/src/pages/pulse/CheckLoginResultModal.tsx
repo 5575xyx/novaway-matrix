@@ -27,11 +27,11 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
     <Dialog title="账号登录状态检测" size="large">
       <div class="p-4">
         <div class="flex items-center gap-4 mb-4">
-          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-13-medium text-icon-success-base">
+          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-success-weak text-13-medium text-success-base">
             <Icon name="circle-check" size="small" />
             在线 {onlineCount()}
           </div>
-          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--icon-critical-base)_12%,transparent)] text-13-medium text-[var(--icon-critical-base)]">
+          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-critical-weak text-13-medium text-critical-base">
             <Icon name="circle-x" size="small" />
             离线 {offlineCount()}
           </div>
@@ -50,7 +50,7 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
                   <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-hover transition-colors">
                     <Show
                       when={result.valid}
-                      fallback={<Icon name="circle-x" size="small" class="text-[var(--icon-critical-base)] shrink-0" />}
+                      fallback={<Icon name="circle-x" size="small" class="text-icon-critical-base shrink-0" />}
                     >
                       <Icon name="circle-check" size="small" class="text-icon-success-base shrink-0" />
                     </Show>
@@ -80,7 +80,7 @@ export function CheckLoginResultModal(props: { results: CheckResult[]; onRemove:
                     </div>
                     <Show when={!result.valid}>
                       <button
-                        class="shrink-0 text-12-regular text-[var(--icon-critical-base)] hover:underline px-2 py-1"
+                        class="shrink-0 text-12-regular text-critical-base hover:underline px-2 py-1"
                         onClick={() => setConfirmRemoveId(result.id)}
                       >
                         移除

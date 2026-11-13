@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Option } from "effect"
 import * as os from "os"
 
 import { InstanceState } from "@/effect/instance-state"
+import type { InstanceContext } from "@/project/instance-context"
 import { Shell } from "@/shell/shell"
 import { Git } from "@/git"
 
@@ -49,7 +50,15 @@ export function provider(model: Provider.Model) {
 }
 
 export interface Interface {
-  readonly environment: (model: Provider.Model) => Effect.Effect<string[]>
+  /**
+   * `override` lets a session whose working directory differs from the loaded
+   * instance (team/arena worktree) report its own cwd, instead of the root
+   * checkout the process happens to be running from.
+   */
+  readonly environment: (
+    model: Provider.Model,
+    override?: Pick<InstanceContext, "directory" | "worktree" | "project" | "scope">,
+  ) => Effect.Effect<string[]>
   readonly skills: (agent: Agent.Info, activatedPaths?: string[]) => Effect.Effect<string | undefined>
 }
 
@@ -62,6 +71,7 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const skill = yield* Skill.Service
+    const configService = Option.getOrUndefined(yield* Effect.serviceOption(Config.Service))
 
     /**
      * Repository snapshot injected once per instance, mirroring Claude Code's
@@ -107,8 +117,11 @@ export const layer = Layer.effect(
     )
 
     return Service.of({
-      environment: Effect.fn("SystemPrompt.environment")(function* (model: Provider.Model) {
-        const ctx = yield* InstanceState.context
+      environment: Effect.fn("SystemPrompt.environment")(function* (
+        model: Provider.Model,
+        override?: Pick<InstanceContext, "directory" | "worktree" | "project" | "scope">,
+      ) {
+        const ctx = override ?? (yield* InstanceState.context)
         if (ctx.scope === "global") {
           return [
             `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}. Today's date: ${new Date().toDateString()}.`,
@@ -154,13 +167,15 @@ export const layer = Layer.effect(
         if (Permission.disabled(["skill"], agent.permission).has("skill")) return
 
         const list = yield* skill.available(agent, activatedPaths)
+        const skillsConfig = configService ? yield* configService.get() : undefined
+        const listingBudget = Math.floor(100_000 * (skillsConfig?.skills?.listing_budget_fraction ?? 0.05))
 
         return [
           "Skills provide specialized instructions and workflows for specific tasks.",
           "Use the skill tool to load a skill when a task matches its description.",
           // the agents seem to ingest the information about skills a bit better if we present a more verbose
           // version of them here and a less verbose version in tool description, rather than vice versa.
-          Skill.fmt(list, { verbose: true }),
+          Skill.fmt(list, { verbose: true, budget: listingBudget }),
         ].join("\n")
       }),
     })

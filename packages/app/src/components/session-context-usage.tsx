@@ -70,7 +70,7 @@ export function SessionContextUsage() {
                     )}
                   </Show>
                   <Show when={ctx().budget && ctx().budget!.status !== "normal"}>
-                    <span class="text-12-regular text-icon-warning-base">
+                    <span class="text-12-regular text-warning-base">
                       {language.t(
                         ctx().budget!.status === "blocking" ? "context.usage.blocking" : "context.usage.warning",
                       )}

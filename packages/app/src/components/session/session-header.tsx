@@ -289,8 +289,8 @@ export function SessionHeader(): JSX.Element {
                   <div class="flex size-5 shrink-0 items-center justify-center [&_[data-component=app-icon]]:size-5">
                     <Show when={opening()} fallback={<AppIcon id={current().icon} />}>
                       <div class="relative size-3.5 flex items-center justify-center">
-                        <div class="absolute inset-0 rounded-full border-[1.5px] border-icon-blue animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                        <div class="size-1 rounded-full bg-icon-blue" />
+                        <div class="absolute inset-0 rounded-full border-[1.5px] border-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
+                        <div class="size-1 rounded-full bg-surface-interactive-base" />
                       </div>
                     </Show>
                   </div>
@@ -375,7 +375,7 @@ export function SessionHeader(): JSX.Element {
         title={language.t("workspace.header.sidePane")}
         aria-expanded={layout.sidePane.opened()}
         onClick={() => layout.sidePane.toggle()}
-        class={layout.sidePane.opened() ? "text-icon-blue" : ""}
+        class={layout.sidePane.opened() ? "text-interactive-base" : ""}
       />
     </>
   )

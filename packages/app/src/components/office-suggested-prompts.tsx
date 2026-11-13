@@ -158,7 +158,7 @@ export const OfficeSuggestedPrompts: Component<{
             </button>
             <button
               type="button"
-              class="h-8 rounded-lg bg-foreground px-3 text-13-medium text-background transition-opacity hover:opacity-90"
+              class="h-8 rounded-lg bg-surface-interactive-base px-3 text-13-medium text-text-on-interactive-base transition-colors hover:bg-surface-interactive-hover"
               onClick={() => {
                 settings.office.setShowSuggestions(false)
                 dialog.close()
@@ -293,7 +293,7 @@ function PluginActionBody(props: { state?: PluginActionState }) {
       <Show when={props.state?.phase === "confirmation" && props.state.actionLabel && props.state.onAction}>
         <button
           type="button"
-          class="h-7 self-end rounded-lg bg-foreground px-2.5 text-12-medium text-background transition-opacity hover:opacity-90"
+          class="h-7 self-end rounded-lg bg-surface-interactive-base px-2.5 text-12-medium text-text-on-interactive-base transition-colors hover:bg-surface-interactive-hover"
           onClick={() => props.state?.onAction?.()}
         >
           {props.state?.actionLabel}
@@ -402,7 +402,7 @@ export const OfficePluginPicker: Component<{
           </Switch>
           <button
             type="button"
-            class="h-8 rounded-lg bg-foreground px-3 text-13-medium text-background transition-opacity hover:opacity-90"
+            class="h-8 rounded-lg bg-surface-interactive-base px-3 text-13-medium text-text-on-interactive-base transition-colors hover:bg-surface-interactive-hover"
             onClick={props.onClose}
           >
             {language.t("common.done")}

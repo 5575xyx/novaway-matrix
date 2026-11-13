@@ -316,4 +316,12 @@ describe("Markdown 属性操作", () => {
     expect(applied.ok).toBe(false)
     if (!applied.ok) expect(applied.error.code).toBe("unsupported_format")
   })
+
+  test("DOCX export lazily loads document creation without an import cycle", async () => {
+    const opened = await markdownEngine.open(encoder.encode("# Release"))
+    if (!opened.ok) throw new Error(opened.error.message)
+    const exported = await markdownEngine.export!(opened.data, "docx", encoder.encode("# Release"))
+    expect(exported.ok).toBe(true)
+    if (exported.ok) expect(exported.data.byteLength).toBeGreaterThan(0)
+  })
 })

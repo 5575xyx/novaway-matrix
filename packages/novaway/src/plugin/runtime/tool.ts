@@ -34,17 +34,18 @@ export function adaptTool(input: { name: string; contribution: ToolContribution 
         const directory = context.directory ?? instance?.directory ?? ""
         const worktree = instance?.worktree ?? directory
         const result = yield* Effect.tryPromise({
-          try: () => input.contribution.execute(args, {
-            sessionID: context.sessionID,
-            messageID: context.messageID,
-            agent: context.agent,
-            directory,
-            worktree,
-            abort: context.abort,
-            metadata: (value) => run(context.metadata(value)).then(() => undefined),
-            ask: (value) => run(context.ask({ ...value, metadata: value.metadata ?? {} })),
-          }),
-          catch: (error) => error instanceof Error ? error : new Error(String(error)),
+          try: () =>
+            input.contribution.execute(args, {
+              sessionID: context.sessionID,
+              messageID: context.messageID,
+              agent: context.agent,
+              directory,
+              worktree,
+              abort: context.abort,
+              metadata: (value) => run(context.metadata(value)).then(() => undefined),
+              ask: (value) => run(context.ask({ ...value, metadata: value.metadata ?? {} })),
+            }),
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
         }).pipe(Effect.orDie)
         return result
       }).pipe(

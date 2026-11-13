@@ -75,11 +75,11 @@
 
 ## 遗留（Round 2 候选）
 
-| 项                                  | 说明                                                                                                 |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| macOS Tahoe(26)+ 的 12px 面板圆角   | 需要系统版本探测；`Platform` 目前只有 `os`，本轮 macOS 统一 6px                                      |
+| 项                                  | 说明                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| macOS Tahoe(26)+ 的 12px 面板圆角   | 需要系统版本探测；`Platform` 目前只有 `os`，本轮 macOS 统一 6px                                        |
 | Windows/Linux 自绘窗控              | 沿用 Electron 原生 `titleBarOverlay`（本轮已为其预留 138px / 78px 安全区），参照产品为 Header 内联自绘 |
-| Status Panel 区块在内容真变化时重建 | `<For>` 按引用 + children 为即时 JSX；彻底解法是 `summary/children` 改访问器 + 固定 id 顺序渲染      |
-| Aurora 装饰语言与彩色阴影           | `--shadow-card*`、`--shadow-floating`、`deco-float`、`logo-breathe`、`btn-glow` 等仍在               |
-| 参照产品 Light / Dark 配色           | 未引入；本轮只对齐结构与几何                                                                         |
-| 暗色截图                            | 需人工切换主题后核对（自动化路径不通）                                                               |
+| Status Panel 区块在内容真变化时重建 | `<For>` 按引用 + children 为即时 JSX；彻底解法是 `summary/children` 改访问器 + 固定 id 顺序渲染        |
+| Aurora 装饰语言与彩色阴影           | `--shadow-card*`、`--shadow-floating`、`deco-float`、`logo-breathe`、`btn-glow` 等仍在                 |
+| 参照产品 Light / Dark 配色          | 未引入；本轮只对齐结构与几何                                                                           |
+| 暗色截图                            | 需人工切换主题后核对（自动化路径不通）                                                                 |

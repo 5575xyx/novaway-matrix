@@ -26,6 +26,12 @@ describe("hook events", () => {
         "TaskCompleted",
         "TeammateIdle",
         "Notification",
+        "SessionDelete",
+        "UserPromptExpansion",
+        "PostToolBatch",
+        "MessageDisplay",
+        "TodoCreated",
+        "TodoCompleted",
       ]
       const hooks: Record<string, unknown> = {}
       for (const event of events) {

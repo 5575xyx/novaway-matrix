@@ -203,7 +203,7 @@ export const ProjectSwitcherChip: Component = () => {
                   <div class="truncate text-11-regular text-foreground-subtle">{project.worktree}</div>
                 </div>
                 <Show when={isCurrent(project)}>
-                  <Icon name="check" size="small" class="shrink-0 text-icon-blue" />
+                  <Icon name="check" size="small" class="shrink-0 text-icon-interactive-base" />
                 </Show>
               </button>
             )}

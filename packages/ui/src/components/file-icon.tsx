@@ -177,13 +177,13 @@ const EXTENSIONS: Record<Exclude<FileIconCategory, "plain">, string[]> = {
   ],
 }
 
-// 主题 token 尚未落地时也用语义色兜底，避免首帧短暂闪现固定色板。
+// 主题 token 尚未落地时也用独立的文件类别语义色兜底，避免串用 Agent、状态或语法色。
 const FALLBACK: Record<FileIconCategory, string> = {
-  code: "var(--icon-interactive-base)",
-  doc: "var(--icon-info-base)",
-  data: "var(--icon-info-base)",
-  style: "var(--icon-agent-plan-base)",
-  shell: "var(--icon-warning-base)",
+  code: "var(--icon-file-category-0)",
+  doc: "var(--icon-file-category-1)",
+  data: "var(--icon-file-category-2)",
+  style: "var(--icon-file-category-3)",
+  shell: "var(--icon-file-category-3)",
   plain: "var(--foreground-subtle)",
 }
 

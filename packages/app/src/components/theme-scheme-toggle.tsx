@@ -55,7 +55,7 @@ export function ThemeSchemeToggle(props: { variant?: "row" | "icon" }) {
     <span
       class="flex size-6.5 shrink-0 items-center justify-center rounded-[7px] [&_svg]:size-[17px]"
       style={{
-        color: isDark() ? "var(--icon-agent-plan-base)" : "var(--icon-warning-base)",
+        color: "var(--icon-interactive-base)",
         background: "color-mix(in srgb, currentColor 14%, transparent)",
       }}
     >

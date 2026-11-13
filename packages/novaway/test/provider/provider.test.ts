@@ -112,9 +112,7 @@ async function markPluginDependenciesReady(dir: string) {
 
 const it = testEffect(Provider.defaultLayer)
 const experimentalModels = testEffect(providerLayer({ enableExperimentalModels: true }))
-const pluginProvider = testEffect(
-  Layer.merge(providerLayer(), PluginRuntimeService.defaultLayer),
-)
+const pluginProvider = testEffect(Layer.merge(providerLayer(), PluginRuntimeService.defaultLayer))
 
 const alphaProviderConfig = {
   provider: {
@@ -143,27 +141,29 @@ pluginProvider.instance(
   Effect.gen(function* () {
     const runtime = yield* PluginRuntimeService.Service
     const host = yield* runtime.get
-    yield* Effect.promise(() => host.load({
-      id: "acme.provider",
-      scope: "project",
-      root: "/plugins/acme.provider",
-      manifest: { name: "acme.provider", apiVersion: 2, contributes: { providers: [] } },
-      async activate({ registries }) {
-        registries.providers?.register({
-          id: "acme",
-          name: "Acme",
-          sdk: "@ai-sdk/openai-compatible",
-          options: { baseURL: "https://acme.example/v1" },
-          models: {
-            "acme-chat": {
-              name: "Acme Chat",
-              tool_call: true,
-              limit: { context: 32_000, output: 4_096 },
+    yield* Effect.promise(() =>
+      host.load({
+        id: "acme.provider",
+        scope: "project",
+        root: "/plugins/acme.provider",
+        manifest: { name: "acme.provider", apiVersion: 2, contributes: { providers: [] } },
+        async activate({ registries }) {
+          registries.providers?.register({
+            id: "acme",
+            name: "Acme",
+            sdk: "@ai-sdk/openai-compatible",
+            options: { baseURL: "https://acme.example/v1" },
+            models: {
+              "acme-chat": {
+                name: "Acme Chat",
+                tool_call: true,
+                limit: { context: 32_000, output: 4_096 },
+              },
             },
-          },
-        })
-      },
-    }))
+          })
+        },
+      }),
+    )
     const provider = yield* Provider.Service
     const providers = yield* provider.list()
     const info = providers[ProviderID.make("acme")]
@@ -174,21 +174,23 @@ pluginProvider.instance(
     yield* Effect.sync(() => host.deactivate("acme.provider", "project"))
     yield* provider.reload()
     expect((yield* provider.list())[ProviderID.make("acme")]).toBeUndefined()
-    yield* Effect.promise(() => host.load({
-      id: "acme.provider",
-      scope: "project",
-      root: "/plugins/acme.provider",
-      manifest: { name: "acme.provider", apiVersion: 2, contributes: { providers: [] } },
-      async activate({ registries }) {
-        registries.providers?.register({
-          id: "acme",
-          name: "Acme",
-          sdk: "@ai-sdk/openai-compatible",
-          options: { baseURL: "https://acme.example/v1" },
-          models: { "acme-chat": { name: "Acme Chat" } },
-        })
-      },
-    }))
+    yield* Effect.promise(() =>
+      host.load({
+        id: "acme.provider",
+        scope: "project",
+        root: "/plugins/acme.provider",
+        manifest: { name: "acme.provider", apiVersion: 2, contributes: { providers: [] } },
+        async activate({ registries }) {
+          registries.providers?.register({
+            id: "acme",
+            name: "Acme",
+            sdk: "@ai-sdk/openai-compatible",
+            options: { baseURL: "https://acme.example/v1" },
+            models: { "acme-chat": { name: "Acme Chat" } },
+          })
+        },
+      }),
+    )
     yield* provider.reload()
     expect((yield* provider.list())[ProviderID.make("acme")]).toBeDefined()
   }),
@@ -201,28 +203,41 @@ pluginProvider.instance(
     const requests: Request[] = []
     const encoder = new TextEncoder()
     const server = Bun.serve({
-    port: 0,
-    fetch(request) {
-      requests.push(request)
-      const body = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          const send = (value: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`))
-          send({ id: "chatcmpl-plugin", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", content: "hello" } }] })
-          await Bun.sleep(1)
-          send({ id: "chatcmpl-plugin", object: "chat.completion.chunk", choices: [{ index: 0, delta: { content: " from plugin" } }] })
-          send({ id: "chatcmpl-plugin", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"))
-          controller.close()
-        },
-      })
-      return new Response(body, { headers: { "content-type": "text/event-stream" } })
-    },
-  })
+      port: 0,
+      fetch(request) {
+        requests.push(request)
+        const body = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            const send = (value: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`))
+            send({
+              id: "chatcmpl-plugin",
+              object: "chat.completion.chunk",
+              choices: [{ index: 0, delta: { role: "assistant", content: "hello" } }],
+            })
+            await Bun.sleep(1)
+            send({
+              id: "chatcmpl-plugin",
+              object: "chat.completion.chunk",
+              choices: [{ index: 0, delta: { content: " from plugin" } }],
+            })
+            send({
+              id: "chatcmpl-plugin",
+              object: "chat.completion.chunk",
+              choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+            })
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+            controller.close()
+          },
+        })
+        return new Response(body, { headers: { "content-type": "text/event-stream" } })
+      },
+    })
     process.env.ACME_PLUGIN_API_KEY = "plugin-test-key"
     try {
       const runtime = yield* PluginRuntimeService.Service
       const host = yield* runtime.get
-      yield* Effect.promise(() => host.load({
+      yield* Effect.promise(() =>
+        host.load({
           id: "acme.streaming",
           scope: "project",
           root: "/plugins/acme.streaming",
@@ -237,18 +252,21 @@ pluginProvider.instance(
               models: { "acme-chat": { name: "Acme Chat" } },
             })
           },
-        }))
-        const provider = yield* Provider.Service
-        const model = yield* provider.getModel(ProviderID.make("acme-stream"), ModelID.make("acme-chat"))
-        const language = yield* provider.getLanguage(model)
-        const chunks = yield* Effect.promise(() => (async () => {
+        }),
+      )
+      const provider = yield* Provider.Service
+      const model = yield* provider.getModel(ProviderID.make("acme-stream"), ModelID.make("acme-chat"))
+      const language = yield* provider.getLanguage(model)
+      const chunks = yield* Effect.promise(() =>
+        (async () => {
           const result = streamText({ model: language, prompt: "Say hello" })
           return Array.fromAsync(result.textStream)
-        })())
-        expect(requests).toHaveLength(1)
-        expect(requests[0]?.url).toBe(`http://127.0.0.1:${server.port}/v1/chat/completions`)
-        expect(requests[0]?.headers.get("authorization")).toBe("Bearer plugin-test-key")
-        expect(chunks.join("")).toBe("hello from plugin")
+        })(),
+      )
+      expect(requests).toHaveLength(1)
+      expect(requests[0]?.url).toBe(`http://127.0.0.1:${server.port}/v1/chat/completions`)
+      expect(requests[0]?.headers.get("authorization")).toBe("Bearer plugin-test-key")
+      expect(chunks.join("")).toBe("hello from plugin")
     } finally {
       server.stop(true)
       if (previousKey === undefined) delete process.env.ACME_PLUGIN_API_KEY

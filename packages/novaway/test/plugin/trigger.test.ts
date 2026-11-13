@@ -82,7 +82,32 @@ const triggerSystemTransform = Effect.fn("PluginTriggerTest.triggerSystemTransfo
   return out.system
 })
 
+const triggerChatParams = Effect.fn("PluginTriggerTest.triggerChatParams")(function* (excludePluginIDs: string[] = []) {
+  const plugin = yield* Plugin.Service
+  const out = { topP: 0.8, temperature: 0.3, topK: 0, maxOutputTokens: undefined, options: {} }
+  yield* plugin.trigger("chat.params", {} as any, out, { excludePluginIDs })
+  return out.topP
+})
+
 describe("plugin.trigger", () => {
+  it.live("skips only the legacy hook whose explicit plugin id is already active in Runtime Host", () =>
+    withProject(
+      [
+        "export default {",
+        '  id: "shared-plugin",',
+        "  server: async () => ({",
+        '    "chat.params": async (_input, output) => { output.topP += 0.1 },',
+        "  }),",
+        "}",
+        "",
+      ].join("\n"),
+      Effect.gen(function* () {
+        expect(yield* triggerChatParams()).toBeCloseTo(0.9)
+        expect(yield* triggerChatParams(["SHARED-PLUGIN"])).toBeCloseTo(0.8)
+      }),
+    ),
+  )
+
   it.live("runs synchronous hooks without crashing", () =>
     withProject(
       [

@@ -269,7 +269,7 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                   </span>
                   <button
                     type="button"
-                    class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
+                    class="flex h-9 items-center gap-2 rounded-lg bg-surface-interactive-base px-3.5 text-13-medium text-text-on-interactive-base transition-colors hover:bg-surface-interactive-hover"
                     onClick={() => openCreate()}
                   >
                     {language.t("automation.create" as never)}
@@ -281,7 +281,7 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                 <div class="flex items-center justify-end">
                   <button
                     type="button"
-                    class="flex h-9 items-center gap-2 rounded-lg bg-foreground px-3.5 text-13-medium text-background transition-opacity hover:opacity-90"
+                    class="flex h-9 items-center gap-2 rounded-lg bg-surface-interactive-base px-3.5 text-13-medium text-text-on-interactive-base transition-colors hover:bg-surface-interactive-hover"
                     onClick={() => openCreate()}
                   >
                     <Icon name="plus-small" size="small" />
@@ -349,8 +349,8 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                         <span
                           class="grid size-6 place-items-center rounded-md"
                           style={{
-                            color: "var(--icon-warning-base)",
-                            background: "color-mix(in srgb, var(--icon-warning-base) 16%, transparent)",
+                            color: "var(--icon-interactive-base)",
+                            background: "var(--surface-interactive-weak)",
                           }}
                         >
                           <Icon name="autopilot" size="small" />
@@ -431,9 +431,9 @@ export const AutomationPage: Component<{ onBack: () => void }> = (props) => {
                       <span
                         class="size-2 rounded-full"
                         classList={{
-                          "bg-[var(--diff-added)]": run.status === "completed",
-                          "bg-[var(--icon-blue)] novaway-breathe-dot": run.status === "running",
-                          "bg-[var(--diff-removed)]": run.status === "error",
+                          "bg-surface-success-base": run.status === "completed",
+                          "bg-surface-interactive-base novaway-breathe-dot": run.status === "running",
+                          "bg-surface-critical-base": run.status === "error",
                         }}
                       />
                       <span class="min-w-0 flex-1 truncate text-foreground-subtle">
@@ -571,7 +571,7 @@ const AutomationDialog: Component<{
           </div>
         </div>
         <Show when={error()}>
-          <span class="text-12-regular text-icon-critical-base">{error()}</span>
+          <span class="text-12-regular text-critical-base">{error()}</span>
         </Show>
         <div class="flex justify-end gap-2">
           <Button type="button" variant="secondary" disabled={saving()} onClick={() => dialog.close()}>

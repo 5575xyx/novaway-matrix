@@ -1,5 +1,10 @@
-import { describe, expect, test } from "bun:test"
-import { Effect } from "effect"
+import { describe, expect, test, spyOn } from "bun:test"
+import { Effect, Layer } from "effect"
+import { Config } from "../../src/config/config"
+import * as Embedder from "../../src/memory/embedder"
+import { testEffect } from "../lib/effect"
+import { MemoryID } from "../../src/memory/schema"
+import { SessionID } from "../../src/session/schema"
 import { Memory } from "../../src/memory/service"
 import { ProjectTable } from "../../src/project/project.sql"
 import { ProjectID } from "../../src/project/schema"
@@ -24,6 +29,92 @@ function seedProjectID(id: ProjectID) {
       .run(),
   )
 }
+
+const it = testEffect(
+  Layer.mergeAll(
+    Memory.defaultLayer,
+    Layer.mock(Config.Service, { get: () => Effect.succeed({ memory: { embedding_mode: "off" } }) }),
+  ),
+)
+
+it.live("effective off config reaches both write paths and search embedding", () =>
+  Effect.gen(function* () {
+    const memory = yield* Memory.Service
+    const projectID = ProjectID.make("memory-config-off")
+    seedProjectID(projectID)
+    const embed = spyOn(Embedder, "embedText")
+    try {
+      const first = yield* memory.add({
+        projectID,
+        content: "off config first",
+        factKey: "off-config",
+        scope: "project",
+      })
+      const second = yield* memory.add({
+        projectID,
+        content: "off config second",
+        factKey: "off-config",
+        scope: "project",
+      })
+      yield* memory.list({ projectID, search: "off" })
+      yield* memory.list({ projectID, search: "zzzznomatchingtoken" })
+      expect(first.embedding).toBeUndefined()
+      expect(second.embedding).toBeUndefined()
+      expect(embed.mock.calls.length).toBeGreaterThanOrEqual(4)
+      expect(embed.mock.calls.every(([cfg]) => cfg.embedding_mode === "off")).toBe(true)
+    } finally {
+      embed.mockRestore()
+    }
+  }),
+)
+
+it.live("ID reads enforce project, global, session and active-memory boundaries", () =>
+  Effect.gen(function* () {
+    const memory = yield* Memory.Service
+    const projectID = ProjectID.make("memory-read-current")
+    const otherProject = ProjectID.make("memory-read-other")
+    seedProjectID(projectID)
+    seedProjectID(otherProject)
+    const own = yield* memory.add({ projectID, scope: "project", content: "own readable fact" })
+    const other = yield* memory.add({
+      projectID: otherProject,
+      scope: "project",
+      content: "private other project fact",
+    })
+    const global = yield* memory.add({ scope: "global", target: "user", content: "global readable profile" })
+    const sessionID = SessionID.make("ses_read_scope")
+    // Session references are optional here; other-session access is tested by scope denial.
+    expect(yield* memory.read({ id: own.id, projectID })).toEqual(own)
+    expect(yield* memory.read({ id: other.id, projectID, includeGlobal: true })).toBeUndefined()
+    expect(yield* memory.read({ id: global.id, projectID })).toBeUndefined()
+    expect(yield* memory.read({ id: global.id, projectID, sessionID, includeGlobal: true })).toEqual(global)
+    expect(yield* memory.read({ id: own.id, projectID, scope: "global" })).toBeUndefined()
+    expect(yield* memory.read({ id: own.id, projectID, target: "user" })).toBeUndefined()
+    expect(yield* memory.read({ id: MemoryID.make("mem_missing"), projectID })).toBeUndefined()
+    yield* memory.update({ id: own.id, archived: true })
+    expect(yield* memory.read({ id: own.id, projectID })).toBeUndefined()
+    yield* memory.remove(global.id)
+  }),
+)
+
+it.live("prefetch supplements unrelated global profiles with an independent query", () =>
+  Effect.gen(function* () {
+    const memory = yield* Memory.Service
+    const profile = yield* memory.add({
+      scope: "global",
+      target: "user",
+      content: "prefer concise replies",
+      importance: 1,
+    })
+    const text = yield* memory.prefetch({
+      query: "zzzzunrelatedquery",
+      projectID: ProjectID.make("memory-config-off"),
+      sessionID: SessionID.make("ses_memory_prefetch"),
+    })
+    expect(text).toContain(profile.id)
+    yield* memory.remove(profile.id)
+  }),
+)
 
 describe("memory lifecycle & hybrid helpers", () => {
   test("deriveFactKey normalizes package manager switches", () => {

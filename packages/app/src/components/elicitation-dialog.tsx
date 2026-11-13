@@ -236,7 +236,7 @@ export function ElicitationDialog(props: { directory: string }) {
                             href={url()}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-12-regular text-accent underline break-all"
+                            class="text-12-regular text-interactive-base underline break-all"
                           >
                             {url()}
                           </a>
@@ -255,7 +255,7 @@ export function ElicitationDialog(props: { directory: string }) {
                             <span class="text-12-regular text-foreground-subtle">
                               {field.label}
                               <Show when={field.required}>
-                                <span class="text-[var(--icon-critical-base)]"> *</span>
+                                <span class="text-critical-base"> *</span>
                               </Show>
                             </span>
                             <Show

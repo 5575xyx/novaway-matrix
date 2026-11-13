@@ -193,7 +193,7 @@ export function useBackgroundSection(
                     <div class="mt-0.5 truncate font-mono text-ui-xs text-foreground-subtle">{job.output}</div>
                   </Show>
                   <Show when={job.status === "error" && job.error}>
-                    <div class="mt-0.5 truncate text-ui-xs text-icon-critical-base" title={job.error}>
+                    <div class="mt-0.5 truncate text-ui-xs text-critical-base" title={job.error}>
                       {job.error}
                     </div>
                   </Show>
@@ -213,7 +213,7 @@ export function useBackgroundSection(
             )}
           </For>
           <Show when={store.error}>
-            <div class="px-2 text-ui-xs text-icon-critical-base">{store.error}</div>
+            <div class="px-2 text-ui-xs text-critical-base">{store.error}</div>
           </Show>
         </div>
       ),

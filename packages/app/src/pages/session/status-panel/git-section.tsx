@@ -19,7 +19,7 @@ export { buildGitSectionModel, gitSectionStat, type GitSectionModel, type GitSec
 
 const messageInputClass =
   "h-7 flex-1 min-w-0 rounded-md border border-border bg-input px-2 text-ui-sm " +
-  "text-foreground placeholder:text-foreground-subtle outline-none focus:border-primary"
+  "text-foreground placeholder:text-foreground-subtle outline-none focus:border-interactive-focus"
 
 // 区块描述符由调用方的 memo 驱动：model 为 null 时该区块整体不进 sections，面板随之不挂载。
 // 这里刻意不用 Kobalte 承载的 Button/TextField——它们的模块作用域会触碰客户端 API，
@@ -70,8 +70,7 @@ export function useGitSection(): () => StatusPanelSection | null {
     }
     return (
       <span>
-        <span class="text-icon-success-base">+{stat.added}</span>{" "}
-        <span class="text-icon-critical-base">-{stat.removed}</span>
+        <span class="text-success-base">+{stat.added}</span> <span class="text-critical-base">-{stat.removed}</span>
       </span>
     )
   }
@@ -146,10 +145,10 @@ export function useGitSection(): () => StatusPanelSection | null {
               <Show when={current.ahead > 0 || current.behind > 0}>
                 <span class="shrink-0 text-ui-sm tabular-nums text-foreground-subtle">
                   <Show when={current.ahead > 0}>
-                    <span class="text-icon-success-base">↑{current.ahead}</span>
+                    <span class="text-success-base">↑{current.ahead}</span>
                   </Show>
                   <Show when={current.behind > 0}>
-                    <span class="text-icon-warning-base">↓{current.behind}</span>
+                    <span class="text-warning-base">↓{current.behind}</span>
                   </Show>
                 </span>
               </Show>
@@ -357,7 +356,7 @@ export function useGitSection(): () => StatusPanelSection | null {
                 </Show>
               </div>
               <Show when={git.error()}>
-                <div class="text-ui-xs text-icon-critical-base break-words">{git.error()}</div>
+                <div class="text-ui-xs text-critical-base break-words">{git.error()}</div>
               </Show>
             </div>
           </Popover>

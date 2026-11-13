@@ -38,6 +38,7 @@ import WXGZH_OPS_BODY from "./prompt/wxgzh-ops/SKILL.md" with { type: "text" }
 import XIAOHONGSHU_OPS_BODY from "./prompt/xiaohongshu-ops/SKILL.md" with { type: "text" }
 import { isRecord } from "@/util/record"
 import { ensureSkillExtracted } from "./skill-assets"
+import * as SkillUsage from "./usage"
 import * as ExtensionLoader from "@/extension/loader"
 import * as Generation from "@/extension/generation"
 import { PluginRuntimeService } from "@/plugin/runtime/service"
@@ -179,6 +180,32 @@ const BUILT_IN_SKILLS = [
   builtInSkillFromMarkdown(XIAOHONGSHU_OPS_BODY),
 ]
 
+export function usageScore(usage: { count: number; lastUsed: number } | undefined, now = Date.now()) {
+  if (!usage) return 0
+  const ageDays = Math.max(0, (now - usage.lastUsed) / (24 * 60 * 60 * 1000))
+  return usage.count * 0.5 ** (ageDays / 7)
+}
+
+export function rankByUsage<T extends { name: string }>(
+  items: readonly T[],
+  ledger: SkillUsage.Ledger,
+  now = Date.now(),
+) {
+  return items.toSorted(
+    (a, b) => usageScore(ledger[b.name], now) - usageScore(ledger[a.name], now) || a.name.localeCompare(b.name),
+  )
+}
+
+export function fitListingBudget(text: string, budget: number) {
+  const limit = Math.max(0, Math.floor(budget))
+  if (text.length <= limit) return text
+  const marker = "…"
+  if (limit <= marker.length) return marker.slice(0, limit)
+  const notice = "\n… skills omitted to fit prompt budget"
+  const suffix = notice.length <= limit ? notice : marker
+  return text.slice(0, limit - suffix.length) + suffix
+}
+
 export const Info = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
@@ -196,6 +223,8 @@ export const Info = Schema.Struct({
   disableModelInvocation: Schema.optional(Schema.Boolean),
   argumentHint: Schema.optional(Schema.String),
   whenToUse: Schema.optional(Schema.String),
+  // Provenance: "auto-skill" for self-evolved skills; absent for user-authored.
+  source: Schema.optional(Schema.String),
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
@@ -328,6 +357,7 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.I
       : {}),
     ...(typeof data["argument-hint"] === "string" ? { argumentHint: data["argument-hint"] } : {}),
     ...(typeof data.when_to_use === "string" ? { whenToUse: data.when_to_use } : {}),
+    ...(typeof data.source === "string" ? { source: data.source } : {}),
   }
 })
 
@@ -529,7 +559,9 @@ export const layer = Layer.effect(
         name: entry.name,
         description: entry.item.description,
         location: entry.root
-          ? "file" in entry.item.source ? path.dirname(path.resolve(entry.root, entry.item.source.file)) : entry.root
+          ? "file" in entry.item.source
+            ? path.dirname(path.resolve(entry.root, entry.item.source.file))
+            : entry.root
           : `plugin://${entry.pluginID}/${entry.localName}`,
         content: "text" in entry.item.source ? entry.item.source.text : "",
         paths: [],
@@ -541,7 +573,9 @@ export const layer = Layer.effect(
       yield* refreshIfStale()
       const s = yield* InstanceState.get(state)
       if (yield* Effect.map(disabledNames(), (names) => names.has(name))) return undefined
-      return s.skills[name] ?? (yield* Effect.map(contributedSkills, (items) => items.find((skill) => skill.name === name)))
+      return (
+        s.skills[name] ?? (yield* Effect.map(contributedSkills, (items) => items.find((skill) => skill.name === name)))
+      )
     })
 
     const all = Effect.fn("Skill.all")(function* () {
@@ -560,7 +594,11 @@ export const layer = Layer.effect(
     })
 
     const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info, activatedPaths?: string[]) {
-      let list = (yield* all()).toSorted((a, b) => a.name.localeCompare(b.name))
+      const ctx = yield* InstanceState.context
+      const usage = yield* Effect.promise(() => SkillUsage.read(ctx.directory)).pipe(
+        Effect.catch(() => Effect.succeed({})),
+      )
+      let list = rankByUsage(yield* all(), usage)
       if (activatedPaths) {
         // Skills with a `paths` frontmatter are only visible after the model has
         // touched a matching file.
@@ -674,31 +712,30 @@ export const defaultLayer = layer.pipe(
   Layer.provide(RuntimeFlags.defaultLayer),
 )
 
-export function fmt(list: Info[], opts: { verbose: boolean }) {
+export function fmt(list: Info[], opts: { verbose: boolean; budget?: number }) {
   const described = list.filter((skill) => skill.description !== undefined)
   if (described.length === 0) return "No skills are currently available."
   if (opts.verbose) {
-    return [
-      "<available_skills>",
-      ...described
-        .toSorted((a, b) => a.name.localeCompare(b.name))
-        .flatMap((skill) => [
+    return fitListingBudget(
+      [
+        "<available_skills>",
+        ...described.flatMap((skill) => [
           "  <skill>",
           `    <name>${skill.name}</name>`,
           `    <description>${skill.description}</description>`,
           `    <location>${pathToFileURL(skill.location).href}</location>`,
           "  </skill>",
         ]),
-      "</available_skills>",
-    ].join("\n")
+        "</available_skills>",
+      ].join("\n"),
+      opts.budget ?? Number.POSITIVE_INFINITY,
+    )
   }
 
-  return [
-    "## Available Skills",
-    ...described
-      .toSorted((a, b) => a.name.localeCompare(b.name))
-      .map((skill) => `- **${skill.name}**: ${skill.description}`),
-  ].join("\n")
+  return fitListingBudget(
+    ["## Available Skills", ...described.map((skill) => `- **${skill.name}**: ${skill.description}`)].join("\n"),
+    opts.budget ?? Number.POSITIVE_INFINITY,
+  )
 }
 
 export * as Skill from "."

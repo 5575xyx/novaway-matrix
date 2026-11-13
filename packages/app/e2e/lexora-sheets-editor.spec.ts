@@ -15,6 +15,49 @@ interface Handle {
   dispose: () => void
 }
 
+test("XLSX 编辑器控件跟随 Host 浅／深色方案", async ({ page }) => {
+  await page.goto("/e2e/fixtures/lexora-sheets-editor.html")
+  const status = page.locator('[data-slot="status"]')
+  await expect(status).toHaveAttribute("data-mounted", "true", { timeout: 90_000 })
+  const readEditorPaint = () =>
+    page.locator("#editor").evaluate((root) =>
+      Array.from(root.querySelectorAll<HTMLElement>("*"))
+        .filter((element) => {
+          const rect = element.getBoundingClientRect()
+          return rect.width > 0 && rect.height > 0
+        })
+        .map((element) => {
+          const style = getComputedStyle(element)
+          return `${style.color}|${style.backgroundColor}|${style.borderColor}`
+        })
+        .sort(),
+    )
+  const light = await readEditorPaint()
+  expect(light.length).toBeGreaterThan(0)
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.colorScheme = "dark"
+    document.documentElement.classList.add("dark")
+  })
+  await expect
+    .poll(() => page.locator("html").evaluate((element) => element.classList.contains("univer-dark")))
+    .toBe(true)
+  await expect.poll(readEditorPaint).not.toEqual(light)
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.colorScheme = "light"
+    document.documentElement.classList.remove("dark")
+  })
+  await expect
+    .poll(() => page.locator("html").evaluate((element) => element.classList.contains("univer-dark")))
+    .toBe(false)
+  await expect.poll(readEditorPaint).toEqual(light)
+
+  await page.evaluate(() => (window as unknown as { __lexoraSheets?: Handle }).__lexoraSheets?.dispose())
+  await expect
+    .poll(() => page.locator("html").evaluate((element) => element.classList.contains("univer-dark")))
+    .toBe(false)
+})
 test("XLSM 显示宏支持边界，未编辑保存不应悄悄丢弃 VBA package part", async ({ page }) => {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(String(error)))

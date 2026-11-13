@@ -1,4 +1,6 @@
 import { useNavigate, useParams } from "@solidjs/router"
+import { base64Encode } from "@novaway/core/util/encode"
+import { getFilename } from "@novaway/core/util/path"
 import { useFilteredList } from "@novaway/ui/hooks"
 import { useSpring } from "@novaway/ui/motion-spring"
 import {
@@ -93,6 +95,8 @@ import { OfficePptTemplateGallery } from "@/components/office-ppt-template-galle
 import { officePptTemplateName } from "@/pages/session/office-export"
 import { openCustomPptTemplateDialog } from "@/pages/session/office-custom-template"
 import { ProjectSwitcherChip } from "@/components/project-switcher"
+import { useGlobalSDK } from "@/context/global-sdk"
+import { useGitSnapshot } from "@/pages/session/git-panel"
 import { officeAgentScenario } from "@/pages/session/office-agent-scenarios"
 import { transformOfficePrompt } from "@/pages/session/office-agent-prompt"
 import { Dialog as KobalteDialog } from "@kobalte/core/dialog"
@@ -101,10 +105,12 @@ import { Dialog } from "@novaway/ui/dialog"
 interface PromptInputProps {
   class?: string
   globalChat?: boolean
+  embedded?: boolean
   ref?: (el: HTMLDivElement) => void
   autoSubmitKey?: string
   newSessionWorktree?: string
   onNewSessionWorktreeReset?: () => void
+  onNewSessionWorktreeSelect?: (directory: string) => void
   edit?: { id: string; prompt: Prompt; context: FollowupDraft["context"] }
   onEditLoaded?: () => void
   shouldQueue?: () => boolean
@@ -169,7 +175,7 @@ function AddMenuItem(props: {
       class="flex w-full items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
       onClick={() => props.onSelect()}
     >
-      <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-icon-blue">
+      <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-interactive-base">
         <Show when={props.glyph} fallback={<Icon name={props.icon ?? "plus-small"} size="small" />}>
           {props.glyph}
         </Show>
@@ -188,7 +194,7 @@ function AddMenuItem(props: {
           </Show>
         }
       >
-        <Icon name="check" size="small" class="mt-0.5 shrink-0 text-icon-blue" />
+        <Icon name="check" size="small" class="mt-0.5 shrink-0 text-icon-interactive-base" />
       </Show>
     </button>
   )
@@ -227,9 +233,82 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
   const globalSync = useGlobalSync()
   const local = useLocal()
+  const layout = useLayout()
+  const globalSDK = useGlobalSDK()
+  const git = useGitSnapshot()
+  const currentProject = createMemo(() =>
+    layout.projects.all().find((project) => project.worktree === sync.project?.worktree),
+  )
+  const [newBranch, setNewBranch] = createSignal("")
+  const [worktreeCreating, setWorktreeCreating] = createSignal(false)
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = createSignal(false)
+  const [branchMenuOpen, setBranchMenuOpen] = createSignal(false)
+  const [availableWorktrees, setAvailableWorktrees] = createSignal<string[]>([])
+  const createWorkspace = async () => {
+    const project = currentProject()
+    if (!project || worktreeCreating()) return
+    setWorktreeCreating(true)
+    try {
+      const created = await globalSDK.client.worktree
+        .create({ directory: project.worktree })
+        .then((result) => result.data)
+      if (!created?.directory) return
+      globalSync.child(created.directory)
+      layout.projects.open(created.directory)
+      navigate(`/${base64Encode(created.directory)}/session`)
+    } catch (error) {
+      showToast({
+        title: "创建 Worktree 失败",
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setWorktreeCreating(false)
+    }
+  }
+  const createBranch = () => {
+    const name = newBranch().trim()
+    if (!name || git.busy()) return
+    void git.createBranch(name).then((created) => {
+      if (created) setNewBranch("")
+    })
+  }
+  const workspaces = createMemo(() => {
+    const project = currentProject()
+    if (!project) return []
+    const confirmed = new Set(availableWorktrees())
+    return [project.worktree, ...(project.sandboxes ?? []).filter((directory) => confirmed.has(directory))]
+  })
+  const workspaceSelection = createMemo(() => {
+    if (!routeParams.id && props.onNewSessionWorktreeSelect) return props.newSessionWorktree || "main"
+    return sdk.directory === currentProject()?.worktree ? "main" : sdk.directory
+  })
+  const refreshWorktrees = () => {
+    const project = currentProject()
+    if (!project || project.vcs !== "git") {
+      setAvailableWorktrees([])
+      return
+    }
+    void globalSDK.client.worktree
+      .list({ directory: project.worktree })
+      .then((result) => setAvailableWorktrees(result.data ?? []))
+  }
+  const workspaceLabel = (selection: string) => {
+    if (selection === "main") return "本地"
+    const workspace = workspaces().find((directory) => directory === selection)
+    if (!workspace || workspace === currentProject()?.worktree) return "本地"
+    return `Worktree · ${getFilename(workspace)}`
+  }
+  const selectWorkspace = (directory: string) => {
+    if (!routeParams.id && props.onNewSessionWorktreeSelect) {
+      props.onNewSessionWorktreeSelect(directory === currentProject()?.worktree ? "main" : directory)
+      return
+    }
+    if (directory === sdk.directory) return
+    layout.projects.open(directory)
+    navigate(`/${base64Encode(directory)}`)
+  }
   const files = useFile()
   const prompt = usePrompt()
-  const layout = useLayout()
   const comments = useComments()
   const dialog = useDialog()
   const providers = useProviders()
@@ -2118,7 +2197,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           "rounded-2xl border border-input-border bg-transparent p-3 transition-colors": true,
           "hover:border-input-border-hover": !working() && !store.optimizing,
           "focus-within:border-input-border-focused": true,
-          "border-icon-blue border-dashed": store.draggingType !== null,
+          "border-interactive-base border-dashed": store.draggingType !== null,
           [props.class ?? ""]: !!props.class,
         }}
       >
@@ -2530,7 +2609,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       stroke-width="1.5"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      class="size-4 text-icon-blue"
+                      class="size-4 text-interactive-base"
                     >
                       <path d="M3 7v6h6" />
                       <path d="M3 13a9 9 0 1 0 3-7.7L3 7" />
@@ -2578,7 +2657,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         stroke-width="1.5"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        class="size-4 text-icon-blue"
+                        class="size-4 text-interactive-base"
                       >
                         <path d="M15 4V2M15 16V14M8 9H10M3 9H5M6 12L4 14M11 6L13.5 3.5M13.5 14.5L11 17" />
                         <path d="M9.5 5.5L15 11L13 13L7.5 7.5L9.5 5.5Z" fill="currentColor" opacity="0.3" />
@@ -2593,7 +2672,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       stroke-width="1.5"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      class="size-4 text-icon-blue animate-optimize-spin"
+                      class="size-4 text-interactive-base animate-optimize-spin"
                     >
                       <path d="M15 4V2M15 16V14M8 9H10M3 9H5M6 12L4 14M11 6L13.5 3.5M13.5 14.5L11 17" opacity="0.4" />
                       <path d="M9.5 5.5L15 11L13 13L7.5 7.5L9.5 5.5Z" fill="currentColor" opacity="0.4" />
@@ -2688,7 +2767,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           <Show when={modelsCtx.autoMode()}>
                             <Icon
                               name="autopilot"
-                              class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
+                              class="size-4 shrink-0 text-icon-interactive-base transition-opacity duration-150"
                             />
                           </Show>
                           <Show when={!modelsCtx.autoMode() && local.model.current()?.provider?.id}>
@@ -2706,7 +2785,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                                 local.model.current()?.name,
                               )}
                               brand
-                              class="size-4 shrink-0 text-icon-blue transition-opacity duration-150"
+                              class="size-4 shrink-0 text-icon-interactive-base transition-opacity duration-150"
                             />
                           </Show>
                           <span
@@ -2728,13 +2807,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                                       local.model.current()?.name,
                                     ),
                                   }
-                                : {
-                                    background:
-                                      "linear-gradient(135deg, var(--icon-interactive-base), var(--icon-agent-plan-base))",
-                                    "-webkit-background-clip": "text",
-                                    "-webkit-text-fill-color": "transparent",
-                                    "background-clip": "text",
-                                  }
+                                : { color: "var(--text-interactive-base)" }
                             }
                           >
                             {modelsCtx.autoMode()
@@ -2818,7 +2891,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       "aria-label": "添加",
                       title: "添加",
                       class:
-                        "flex size-8 items-center justify-center rounded-md text-icon-blue transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-50",
+                        "flex size-8 items-center justify-center rounded-md text-interactive-base transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-50",
                     } as Record<string, unknown>
                   }
                   trigger={<Icon name="plus" class="size-4.5" />}
@@ -3041,7 +3114,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                                     onClick={openPluginSettings}
                                     class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
                                   >
-                                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-icon-blue">
+                                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-interactive-base">
                                       <Icon name="lu-wrench" size="small" />
                                     </span>
                                     <span class="min-w-0 flex-1">
@@ -3082,15 +3155,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   </div>
                 </Popover>
               </Show>
-              {/* 权限模式与上下文占用放到输入框底部：顶部工具条在右侧面板展开后
-                  会被模型名/思考强度挤满，这几个入口挪到底部反而更稳、更顺手
-                  （+ 之后跟模式与用量）。 */}
               <Show when={!globalChat()}>
                 <div data-component="prompt-auto-accept" class="flex items-center">
                   <PermissionModeSelect
                     sessionID={sessionID()}
                     onChange={(mode) => {
-                      // 角色与档位保持一致：选计划模式就切到规划蓝图，离开时回到锻造工程。
                       if (props.agent) return
                       const next = agentForPermission(mode, local.agent.current()?.name)
                       if (next) local.agent.set(next)
@@ -3104,6 +3173,166 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           </div>
         </div>
       </DockShellForm>
+      <Show when={!props.embedded && !globalChat()}>
+        <div class="mx-auto mt-1 flex w-full min-w-0 items-center gap-1 px-3 text-13-regular text-foreground-subtle">
+          <button
+            type="button"
+            class="flex h-7 min-w-0 max-w-48 items-center gap-1.5 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
+            onClick={() => layout.projectPicker.toggle()}
+          >
+            <Icon name="folder" size="small" class="shrink-0" />
+            <span class="truncate">{currentProject()?.name || getFilename(sdk.directory)}</span>
+          </button>
+          <Popover
+            placement="top-start"
+            gutter={8}
+            class="w-72"
+            open={workspaceMenuOpen()}
+            onOpenChange={(open) => {
+              setWorkspaceMenuOpen(open)
+              if (open) refreshWorktrees()
+            }}
+            triggerAs="button"
+            triggerProps={{
+              type: "button",
+              class:
+                "flex h-7 max-w-48 items-center gap-1.5 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover",
+            }}
+            trigger={
+              <>
+                <Icon name={workspaceSelection() === "main" ? "folder" : "branch"} size="small" />
+                <span class="truncate">{workspaceLabel(workspaceSelection())}</span>
+                <Icon name="chevron-down" size="small" />
+              </>
+            }
+          >
+            <div class="flex flex-col gap-1 p-1">
+              <div class="px-2 py-1 text-11-regular text-foreground-subtle">当前工作区</div>
+              <For each={workspaces()}>
+                {(directory) => {
+                  const selection = () => (directory === currentProject()?.worktree ? "main" : directory)
+                  return (
+                    <button
+                      type="button"
+                      data-action="prompt-workspace-item"
+                      onClick={() => {
+                        selectWorkspace(directory)
+                        setWorkspaceMenuOpen(false)
+                      }}
+                      class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-12-regular text-foreground transition-colors hover:bg-hover"
+                    >
+                      <Icon name={selection() === "main" ? "folder" : "branch"} size="small" />
+                      <span class="min-w-0 flex-1 truncate">{workspaceLabel(selection())}</span>
+                      <Show when={workspaceSelection() === selection()}>
+                        <Icon name="check" size="small" class="text-icon-interactive-base" />
+                      </Show>
+                    </button>
+                  )
+                }}
+              </For>
+              <Show when={currentProject()?.vcs === "git" && !routeParams.id}>
+                <button
+                  type="button"
+                  data-action="prompt-workspace-create"
+                  disabled={worktreeCreating()}
+                  onClick={() => {
+                    setWorkspaceMenuOpen(false)
+                    void createWorkspace()
+                  }}
+                  class="flex items-center gap-2 rounded-md border-t border-border px-2 py-2 text-left text-12-regular text-foreground transition-colors hover:bg-hover disabled:opacity-50"
+                >
+                  <Icon name="plus" size="small" />
+                  新建隔离会话（Worktree）
+                </button>
+              </Show>
+            </div>
+          </Popover>
+          <Popover
+            placement="top-start"
+            gutter={8}
+            class="w-72"
+            open={branchMenuOpen()}
+            onOpenChange={setBranchMenuOpen}
+            triggerAs="button"
+            triggerProps={{
+              type: "button",
+              disabled: !git.snapshot() || git.busy(),
+              class:
+                "flex h-7 max-w-48 items-center gap-1.5 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover disabled:opacity-50",
+            }}
+            trigger={
+              <>
+                <Icon name="branch" size="small" />
+                <span class="truncate">{git.snapshot()?.branch.branch ?? "Git 分支"}</span>
+                <Icon name="chevron-down" size="small" />
+              </>
+            }
+          >
+            <div class="flex max-h-72 flex-col gap-1 overflow-y-auto p-1">
+              <For each={git.snapshot()?.branches ?? []}>
+                {(branch) => (
+                  <button
+                    type="button"
+                    disabled={branch.name === git.snapshot()?.branch.branch || git.busy()}
+                    onClick={() => {
+                      setBranchMenuOpen(false)
+                      void git.checkout(branch.name)
+                    }}
+                    class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-12-regular text-foreground transition-colors hover:bg-hover disabled:opacity-50"
+                  >
+                    <Icon name="branch" size="small" />
+                    <span class="min-w-0 flex-1 truncate">{branch.name}</span>
+                    <Show when={branch.name === git.snapshot()?.branch.branch}>
+                      <Icon name="check" size="small" class="text-icon-interactive-base" />
+                    </Show>
+                  </button>
+                )}
+              </For>
+              <div class="flex items-center gap-1 border-t border-border p-1">
+                <input
+                  data-action="prompt-git-new-branch-input"
+                  type="text"
+                  value={newBranch()}
+                  onInput={(event) => setNewBranch(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return
+                    event.preventDefault()
+                    createBranch()
+                  }}
+                  placeholder={language.t("git.branch.newPlaceholder")}
+                  class="h-7 min-w-0 flex-1 rounded-md border border-border bg-input px-2 text-12-regular text-foreground outline-none"
+                />
+                <Button
+                  data-action="prompt-git-new-branch"
+                  size="small"
+                  variant="secondary"
+                  disabled={!newBranch().trim() || git.busy()}
+                  onClick={() => {
+                    createBranch()
+                    if (newBranch().trim()) return
+                    setBranchMenuOpen(false)
+                  }}
+                >
+                  {language.t("git.branch.create")}
+                </Button>
+              </div>
+            </div>
+          </Popover>
+          <div class="flex-1" />
+          <Show when={git.snapshot()}>
+            {(snapshot) => (
+              <span class="shrink-0 text-11-regular text-foreground-subtlest">
+                <Show when={Number(snapshot().branch.ahead) > 0}>
+                  <span class="text-success-base">↑{Number(snapshot().branch.ahead)}</span>
+                </Show>
+                <Show when={Number(snapshot().branch.behind) > 0}>
+                  <span class="ml-1 text-warning-base">↓{Number(snapshot().branch.behind)}</span>
+                </Show>
+              </span>
+            )}
+          </Show>
+        </div>
+      </Show>
     </div>
   )
 }

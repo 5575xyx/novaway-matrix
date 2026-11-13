@@ -46,9 +46,9 @@ export type TaskRowProps = {
 }
 
 const STATUS_DOT_CLASS: Record<TaskStatus, string> = {
-  running: "bg-icon-blue novaway-breathe-dot",
-  waiting: "bg-warning",
-  failed: "bg-diff-removed",
+  running: "bg-surface-interactive-base novaway-breathe-dot",
+  waiting: "bg-surface-warning-base",
+  failed: "bg-surface-critical-base",
   idle: "bg-border-hover",
 }
 
@@ -173,7 +173,7 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
         />
       </Show>
       <Show when={props.waitingBadge?.()}>
-        <span class="text-ui-xs px-1 rounded border border-warning text-icon-warning-base shrink-0">
+        <span class="text-ui-xs px-1 rounded border border-warning-base text-warning-base shrink-0">
           {t("taskCenter.waiting")}
         </span>
       </Show>

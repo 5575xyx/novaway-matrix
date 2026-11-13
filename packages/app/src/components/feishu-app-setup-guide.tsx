@@ -157,7 +157,7 @@ function GuideLinkRow(props: { link: GuideLink }) {
       </div>
       <button
         type="button"
-        class="flex h-8 shrink-0 items-center gap-1 rounded-[6px] border border-success/40 bg-success/10 px-2 text-10-medium text-icon-success-base transition-all duration-150 hover:-translate-y-px hover:bg-success/20 hover:shadow-[0_6px_14px_color-mix(in_srgb,var(--success)_16%,transparent)] active:translate-y-0 active:scale-95"
+        class="flex h-8 shrink-0 items-center gap-1 rounded-[6px] border border-interactive-base/40 bg-surface-interactive-weak px-2 text-10-medium text-interactive-base transition-all duration-150 hover:-translate-y-px hover:bg-surface-interactive-base/20 hover:shadow-[0_6px_14px_color-mix(in_srgb,var(--surface-interactive-base)_16%,transparent)] active:translate-y-0 active:scale-95"
         onClick={() => copyLink()}
       >
         <Icon name={copied() ? "circle-check" : "copy"} size="small" />
@@ -196,7 +196,7 @@ export function FeishuAppSetupGuide(props: { compact?: boolean }): JSX.Element {
             <For each={guideSteps}>
               {(step, index) => (
                 <li class="flex gap-2.5">
-                  <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--icon-success-base)_15%,transparent)] text-11-medium text-[var(--icon-success-base)]">
+                  <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-interactive-weak text-11-medium text-interactive-base">
                     {index() + 1}
                   </span>
                   <div class="min-w-0">

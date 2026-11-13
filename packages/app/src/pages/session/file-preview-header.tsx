@@ -63,6 +63,8 @@ export type FilePreviewHeaderProps = {
   /** 内嵌文件树右栏的开关：宿主提供时才渲染按钮。 */
   treeOpen?: boolean
   onToggleTree?: () => void
+  /** HTML 文件：文件名旁的地球图标直接变成「在浏览器中预览」按钮，不用翻「⋯」。 */
+  onPreviewInBrowser?: () => void
 }
 
 function iconOf(path: string) {
@@ -108,7 +110,7 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
           aria-pressed={!!props.treeOpen}
           classList={{
             "-ml-1 shrink-0": true,
-            "text-icon-blue": !!props.treeOpen,
+            "text-interactive-base": !!props.treeOpen,
             "text-foreground-subtle": !props.treeOpen,
           }}
           aria-label={props.treeOpen ? language.t("sidePane.tree.hide") : language.t("sidePane.tree.show")}
@@ -117,7 +119,20 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
         />
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-1.5">
-        <Icon name={iconOf(props.path)} size="small" class="shrink-0 text-foreground-subtlest" />
+        {props.onPreviewInBrowser ? (
+          <IconButton
+            icon={iconOf(props.path)}
+            variant="ghost"
+            size="small"
+            data-action="file-preview-open-browser"
+            class="-ml-1 shrink-0 text-foreground-subtle hover:text-interactive-base"
+            aria-label={language.t("session.filePreview.previewInBrowser")}
+            title={language.t("session.filePreview.previewInBrowser")}
+            onClick={() => props.onPreviewInBrowser?.()}
+          />
+        ) : (
+          <Icon name={iconOf(props.path)} size="small" class="shrink-0 text-foreground-subtlest" />
+        )}
         <span class="min-w-0 truncate text-ui-sm font-medium text-foreground" title={props.path}>
           {filename()}
         </span>
@@ -131,8 +146,8 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
             class="shrink-0 text-ui-xs"
             classList={{
               "text-foreground-subtle": props.saveStatus === "dirty",
-              "text-icon-blue": props.saveStatus === "saving",
-              "text-icon-critical-base": props.saveStatus === "error",
+              "text-interactive-base": props.saveStatus === "saving",
+              "text-critical-base": props.saveStatus === "error",
             }}
           >
             {status()}
@@ -181,7 +196,7 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
             disabled={!dirty() || props.saveStatus === "saving"}
             classList={{
               "shrink-0": true,
-              "text-icon-blue": dirty(),
+              "text-interactive-base": dirty(),
               "text-foreground-subtle": !dirty(),
             }}
             aria-label={language.t("common.save")}

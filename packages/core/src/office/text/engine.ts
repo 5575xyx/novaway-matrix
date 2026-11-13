@@ -9,7 +9,7 @@
  */
 
 import type { ApplyOutcome, OfficeEngine, OfficeOp, OfficeResult } from "../engine/contract"
-import { docxFromBlocks, type DocxBlock } from "../create"
+import type { DocxBlock } from "../create"
 import { printToPdf } from "../pdf/print"
 import { fail, ok } from "../engine/contract"
 import {
@@ -339,7 +339,10 @@ function createTextEngine(format: "text" | "markdown"): OfficeEngine<TextState> 
       if (kind === "html" || kind === "htm") {
         return ok(new TextEncoder().encode(markdownToHtml(state.text)))
       }
-      if (kind === "docx") return ok(docxFromBlocks(titleOfMarkdown(state.text), markdownToBlocks(state.text)))
+      if (kind === "docx") {
+        const { docxFromBlocks } = await import("../create")
+        return ok(docxFromBlocks(titleOfMarkdown(state.text), markdownToBlocks(state.text)))
+      }
       return fail("unsupported_format", format + " 不能导出成 " + target, "支持 txt / md / html / docx / pdf")
     },
   }

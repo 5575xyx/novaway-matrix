@@ -111,9 +111,9 @@ describe("迁移（§12.1）", () => {
       ["existing", "project", "/old/plugin", 0, "failed", 42],
     )
     migrate(db, entries.slice(index))
-    expect(sqlite.query(`SELECT plugin_id, instance_key, enabled, status, updated_at FROM plugin_state`).all()).toEqual([
-      { plugin_id: "existing", instance_key: "", enabled: 0, status: "failed", updated_at: 42 },
-    ])
+    expect(sqlite.query(`SELECT plugin_id, instance_key, enabled, status, updated_at FROM plugin_state`).all()).toEqual(
+      [{ plugin_id: "existing", instance_key: "", enabled: 0, status: "failed", updated_at: 42 }],
+    )
   })
 
   test("重复执行：对同一个库再放一遍全量 journal 不报错、不重复建表", () => {

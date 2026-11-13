@@ -171,6 +171,55 @@ describe("applyDirectoryEvent", () => {
     expect(contributions).toBe(1)
   })
 
+  test("drops a disabled plugin's contributions immediately from the event", () => {
+    const [store, setStore] = createStore(
+      baseState({
+        plugin_contributions: [
+          { pluginID: "sample", kind: "surface", name: "home", localName: "home", status: "active", title: "Home" },
+          { pluginID: "other", kind: "surface", name: "other", localName: "other", status: "active", title: "Other" },
+        ] as State["plugin_contributions"],
+      }),
+    )
+    let contributions = 0
+    applyDirectoryEvent({
+      event: { type: "plugin.changed", properties: { pluginID: "sample", enabled: false, generation: 3 } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+      loadContributions: () => {
+        contributions += 1
+      },
+    })
+    expect(store.plugin_contributions.map((item) => item.pluginID)).toEqual(["other"])
+    expect(contributions).toBe(1)
+  })
+
+  test("keeps contributions on enable events and when the state is unknown", () => {
+    for (const properties of [
+      { pluginID: "sample", enabled: true, generation: 4 },
+      { pluginID: "sample", generation: 5 },
+    ]) {
+      const [store, setStore] = createStore(
+        baseState({
+          plugin_contributions: [
+            { pluginID: "sample", kind: "surface", name: "home", localName: "home", status: "active", title: "Home" },
+          ] as State["plugin_contributions"],
+        }),
+      )
+      applyDirectoryEvent({
+        event: { type: "plugin.changed", properties },
+        store,
+        setStore,
+        push() {},
+        directory: "/tmp",
+        loadLsp() {},
+      })
+      expect(store.plugin_contributions.map((item) => item.pluginID)).toEqual(["sample"])
+    }
+  })
+
   test("inserts root sessions in sorted order and updates sessionTotal", () => {
     const [store, setStore] = createStore(
       baseState({

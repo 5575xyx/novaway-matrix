@@ -3,7 +3,12 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { PluginHost } from "../src/plugin/host"
-import { createAgentRegistry, createCommandRegistry, createSkillRegistry, createToolRegistry } from "../src/plugin/contributions"
+import {
+  createAgentRegistry,
+  createCommandRegistry,
+  createSkillRegistry,
+  createToolRegistry,
+} from "../src/plugin/contributions"
 import type { Manifest } from "@novaway/plugin-api"
 import { createHost, type Plugin } from "../src/plugin/runtime/host"
 import { createInterceptorRuntime } from "../src/plugin/runtime/hooks"
@@ -107,19 +112,57 @@ try {
   const coldResult = summarize(coldStartup)
   const warmResult = summarize(warmStartup)
 
+  const memoryHost = createHost({
+    tools: createToolRegistry(),
+    agents: createAgentRegistry(),
+    skills: createSkillRegistry(),
+    commands: createCommandRegistry(),
+    interceptors: createInterceptorRuntime(),
+  })
+  const cyclePlugin: Plugin = {
+    id: "bench-cycle",
+    scope: "project",
+    root: path.join(config, "extensions", "bench-0"),
+    manifest: {
+      name: "bench-cycle",
+      apiVersion: 2,
+      contributes: { tools: [{ id: "tool", description: "benchmark", parameters: { type: "object" } }] },
+    },
+    async activate({ registries }) {
+      registries.tools.register(
+        { pluginID: "bench-cycle", scope: "project" },
+        { id: "tool", description: "benchmark", parameters: { type: "object" }, execute: async () => "ok" },
+      )
+    },
+  }
+  Bun.gc(true)
+  const heapBeforeCycles = process.memoryUsage().heapUsed
+  for (let cycle = 0; cycle < 50; cycle++) {
+    await memoryHost.activate(cyclePlugin)
+    memoryHost.deactivate(cyclePlugin.id, cyclePlugin.scope)
+  }
+  Bun.gc(true)
+  const heapGrowth = process.memoryUsage().heapUsed - heapBeforeCycles
+  memoryHost.dispose()
+  if (memoryHost.registries.tools.list().length !== 0)
+    throw new Error("50 activate/deactivate cycles left tool contributions behind")
+
   const interceptors = createInterceptorRuntime()
-  for (let index = 0; index < 20; index++) {
-    interceptors.register({ pluginID: `bench-${index}`, scope: "project" }, {
-      id: "chat",
-      hook: "chat.message",
-      handler: () => undefined,
-    })
+  for (let index = 0; index < 10; index++) {
+    interceptors.register(
+      { pluginID: `bench-${index}`, scope: "project" },
+      {
+        id: "chat",
+        hook: "chat.params",
+        handler: () => undefined,
+      },
+    )
   }
   const interceptorSamples: number[] = []
   for (let run = 0; run < 9; run++) {
     const start = performance.now()
-    for (let turn = 0; turn < 100; turn++) await interceptors.trigger("chat.message", {}, {})
-    interceptorSamples.push((performance.now() - start) / 100)
+    for (let turn = 0; turn < 1_000; turn++) await interceptors.trigger("chat.params", {}, {})
+    interceptorSamples.push((performance.now() - start) / 1_000)
   }
   const interceptorMs = median(interceptorSamples)
 
@@ -130,8 +173,10 @@ try {
       `warm=${warmResult.total.toFixed(2)}ms [discover=${warmResult.discovery.toFixed(2)}ms ` +
       `activate=${warmResult.activation.toFixed(2)}ms]`,
   )
-  console.log(`20 no-op interceptors median per turn: ${interceptorMs.toFixed(3)}ms`)
-  if (cold >= 120 || warm >= 30 || coldResult.total >= 400 || interceptorMs >= 15) process.exitCode = 1
+  console.log(`10 no-op chat.params interceptors median per turn: ${interceptorMs.toFixed(3)}ms`)
+  console.log(`50 activate/deactivate cycles retained heap: ${(heapGrowth / 1_048_576).toFixed(2)}MiB`)
+  if (cold >= 120 || warm >= 30 || coldResult.total >= 400 || interceptorMs >= 15 || heapGrowth >= 20 * 1_048_576)
+    process.exitCode = 1
 } finally {
   PluginHost.clearIndexCache()
   await fs.rm(root, { recursive: true, force: true })

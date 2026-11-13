@@ -35,7 +35,10 @@ test("办公首页可从附加菜单打开真实 PPT 模板预览并选择模板
   await page.getByRole("tab", { name: "PPT生成" }).click()
 
   const form = page.locator("form")
-  await form.getByRole("button", { name: /更多|More/i }).first().click()
+  await form
+    .getByRole("button", { name: /更多|More/i })
+    .first()
+    .click()
   await page.getByRole("menuitem", { name: /模板|template/i }).click()
   const picker = page.getByRole("dialog").last()
   const title = picker.getByText("Swiss Grid 瑞士网格", { exact: true })
@@ -49,7 +52,10 @@ test("办公首页可从附加菜单打开真实 PPT 模板预览并选择模板
   await expect(preview.getByRole("img")).toHaveCount(6)
   await page.keyboard.press("Escape")
 
-  await form.getByRole("button", { name: /更多|More/i }).first().click()
+  await form
+    .getByRole("button", { name: /更多|More/i })
+    .first()
+    .click()
   await page.getByRole("menuitem", { name: /模板|template/i }).click()
   const pickerAgain = page.getByRole("dialog").last()
   await pickerAgain.getByText("Swiss Grid 瑞士网格", { exact: true }).click()
@@ -81,30 +87,76 @@ test("办公会话通过查询参数锁定 PPT 模板，重新进入时仍优先
 })
 
 test("设置页可以打开 Provider 配置界面", async ({ page }) => {
-  await enterZenOffice(page)
-  // 设置入口：全局标题栏移除后落在侧栏 footer，行文案为 sidebar.settings（en "Settings"）。
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page
-    .getByRole("button", { name: /^(Open settings|Settings|设置)$/ })
-    .first()
-    .click()
-  // 设置页 tab：settings.providers.title（en "Providers"）
-  await page.getByRole("tab", { name: "Providers" }).click()
-  await expect(page.getByText("Connected providers", { exact: true })).toBeVisible()
-  await expect(page.getByText("Add Provider", { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "Add Provider" }).click()
-  const providerDialog = page.getByRole("dialog").last()
-  await expect(providerDialog).toBeVisible()
+  const openProviderDialog = async () => {
+    await enterZenOffice(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page
+      .getByRole("button", { name: /^(Open settings|Settings|设置)$/ })
+      .first()
+      .click()
+    await page.getByRole("tab", { name: "Providers" }).click()
+    await expect(page.getByText("Connected providers", { exact: true })).toBeVisible()
+    const addProvider = page.getByRole("button", { name: "Add Provider" }).first()
+    await expect(addProvider).toBeVisible()
+    await addProvider.click()
+    const dialog = page.getByRole("dialog").last()
+    await expect(dialog).toBeVisible()
+    return dialog
+  }
+
+  const lightDialog = await openProviderDialog()
+  const readDialogPaint = (dialog: ReturnType<typeof page.getByRole>) =>
+    dialog.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return { background: style.backgroundColor, foreground: style.color, border: style.borderColor }
+    })
+  const light = await readDialogPaint(lightDialog)
+  expect(light.background).not.toBe("rgba(0, 0, 0, 0)")
+
+  await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "dark"))
+  await page.reload()
+  await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
+  const darkDialog = await openProviderDialog()
+  const dark = await readDialogPaint(darkDialog)
+  expect(dark.background).not.toBe(light.background)
+  expect(dark.foreground).not.toBe(light.foreground)
+  expect(dark.border).not.toBe(light.border)
+
   // provider tag "custom"：settings.providers.tag.custom（en "Custom"）
-  await providerDialog.getByRole("button", { name: /Custom/ }).click()
+  await darkDialog.getByRole("button", { name: /Custom/ }).click()
   // 自定义供应商对话框：provider.custom.field.provider.customOption（en "Custom Provider"）
   await expect(page.getByRole("dialog").last()).toContainText("Custom Provider")
 })
 
-test("办公首页可以从项目按钮打开目录选择界面", async ({ page }) => {
-  await enterZenOffice(page)
-  await page.getByRole("button", { name: /Select a project|选择项目目录/ }).click()
-  await expect(page.getByRole("dialog").last()).toBeVisible()
+test("办公首页项目选择弹窗支持浅色和深色主题", async ({ page }) => {
+  const openProjectDialog = async () => {
+    await enterZenOffice(page)
+    await page
+      .getByRole("button", { name: /Open project|打开项目/ })
+      .last()
+      .click()
+    const dialog = page.getByRole("dialog").last()
+    await expect(dialog).toBeVisible()
+    return dialog
+  }
+  const readDialogPaint = (dialog: ReturnType<typeof page.getByRole>) =>
+    dialog.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return { background: style.backgroundColor, foreground: style.color, border: style.borderColor }
+    })
+
+  const lightDialog = await openProjectDialog()
+  const light = await readDialogPaint(lightDialog)
+  expect(light.background).not.toBe("rgba(0, 0, 0, 0)")
+
+  await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "dark"))
+  await page.reload()
+  await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
+  const darkDialog = await openProjectDialog()
+  const dark = await readDialogPaint(darkDialog)
+  expect(dark.background).not.toBe(light.background)
+  expect(dark.foreground).not.toBe(light.foreground)
+  expect(dark.border).not.toBe(light.border)
 })
 
 test("移动端无需 hover 可直接预览并选择真实模板", async ({ page }) => {
@@ -113,7 +165,10 @@ test("移动端无需 hover 可直接预览并选择真实模板", async ({ page
   await page.getByRole("tab", { name: "PPT生成" }).click()
 
   const form = page.locator("form")
-  await form.getByRole("button", { name: /更多|More/i }).first().click()
+  await form
+    .getByRole("button", { name: /更多|More/i })
+    .first()
+    .click()
   await page.getByRole("menuitem", { name: /模板|template/i }).click()
   const picker = page.getByRole("dialog").last()
   await expect(picker.getByText("Swiss Grid 瑞士网格", { exact: true })).toBeVisible()
@@ -125,7 +180,10 @@ test("移动端无需 hover 可直接预览并选择真实模板", async ({ page
   await expect(preview.getByRole("img")).toHaveCount(6)
   await expect(preview.getByRole("img").first()).toHaveJSProperty("complete", true)
   await page.keyboard.press("Escape")
-  await form.getByRole("button", { name: /更多|More/i }).first().click()
+  await form
+    .getByRole("button", { name: /更多|More/i })
+    .first()
+    .click()
   await page.getByRole("menuitem", { name: /模板|template/i }).click()
   await page.getByRole("dialog").last().getByText("Swiss Grid 瑞士网格", { exact: true }).click()
   await expect(page.getByText("Swiss Grid 瑞士网格", { exact: true }).last()).toBeVisible()

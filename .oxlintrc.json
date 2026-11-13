@@ -52,6 +52,7 @@
   "ignorePatterns": [
     "**/node_modules",
     "**/dist",
+    "**/dist.pre-*",
     "**/.build",
     "**/.sst",
     "**/*.d.ts",

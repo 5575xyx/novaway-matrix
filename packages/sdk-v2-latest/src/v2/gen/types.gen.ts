@@ -866,7 +866,7 @@ export type PermissionRule = {
 
 export type PermissionRuleset = Array<PermissionRule>
 
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
 
 export type Session = {
   id: string
@@ -1186,7 +1186,7 @@ export type AgentConfig = {
   hooks?: {
     [key: string]: unknown
   }
-  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+  permissionMode?: "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
   maxTurns?: number
   background?: boolean
   isolation?: "worktree"
@@ -1566,7 +1566,7 @@ export type Config = {
   instructions?: Array<string>
   layout?: LayoutConfig
   permission?: PermissionConfig
-  permission_mode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+  permission_mode?: "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
   tools?: {
     [key: string]: boolean
   }
@@ -2684,7 +2684,7 @@ export type Agent = {
   hooks?: {
     [key: string]: unknown
   }
-  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+  permissionMode?: "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
   maxTurns?: number
   background?: boolean
   isolation?: "worktree"

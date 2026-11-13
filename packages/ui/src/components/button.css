@@ -56,23 +56,23 @@
   }
 
   &:focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--primary) 55%, transparent);
+    outline: 2px solid var(--border-interactive-focus);
     outline-offset: 2px;
   }
 
   /* ── 变体 ───────────────────────────────────────────────── */
 
   &[data-variant="primary"] {
-    background-color: var(--primary);
-    color: var(--primary-foreground);
+    background-color: var(--surface-interactive-base);
+    color: var(--text-on-interactive-base);
 
     & svg {
-      color: var(--primary-foreground);
+      color: var(--text-on-interactive-base);
     }
 
     &:hover:not(:disabled) {
-      background-color: color-mix(in oklab, var(--primary) 80%, transparent);
-      box-shadow: 0 4px 12px color-mix(in oklab, var(--primary) 25%, transparent);
+      background-color: var(--surface-interactive-hover);
+      box-shadow: 0 4px 12px color-mix(in oklab, var(--surface-interactive-base) 25%, transparent);
     }
   }
 
@@ -110,11 +110,11 @@
   }
 
   &[data-variant="destructive"] {
-    background-color: var(--destructive);
-    color: var(--destructive-foreground);
+    background-color: var(--surface-critical-base);
+    color: var(--text-on-critical-base);
 
     &:hover:not(:disabled) {
-      background-color: color-mix(in oklab, var(--destructive) 90%, transparent);
+      background-color: color-mix(in oklab, var(--surface-critical-base) 90%, transparent);
     }
   }
 

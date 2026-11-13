@@ -10,7 +10,9 @@ test("CSV 网格保留文本值、引用字段与 CRLF，并允许结构编辑",
   await page.locator('[data-component="csv-grid"] tbody tr').nth(1).locator("td").nth(0).dblclick()
   await page.locator("input").fill("Bob")
   await page.locator("input").press("Enter")
-  await expect.poll(() => text.evaluate((element) => element.textContent)).toBe('name,amount,note\r\nBob,12,"a,b"\r\n=1+1,0,plain')
+  await expect
+    .poll(() => text.evaluate((element) => element.textContent))
+    .toBe('name,amount,note\r\nBob,12,"a,b"\r\n=1+1,0,plain')
   await page.locator("[data-action=csv-insertRows]").click()
   await expect
     .poll(() => text.evaluate((element) => element.textContent))
@@ -27,16 +29,16 @@ test("CSV BOM、分号分隔、Unicode 与公式样式文本编辑后均保留",
   await grid.locator("tbody tr").nth(1).locator("td").nth(2).dblclick()
   await page.locator("input").fill("保留;分号")
   await page.locator("input").press("Enter")
-  await expect.poll(() => text.evaluate((element) => element.textContent)).toBe(
-    '﻿姓名;金额;备注\r\n张三;12;"保留;分号"\r\n=1+1;0;文本',
-  )
+  await expect
+    .poll(() => text.evaluate((element) => element.textContent))
+    .toBe('﻿姓名;金额;备注\r\n张三;12;"保留;分号"\r\n=1+1;0;文本')
 
   await grid.locator("tbody tr").nth(2).locator("td").nth(0).click()
   await page.keyboard.press("Escape")
   await page.locator("[data-action=csv-insertColumns]").click()
-  await expect.poll(() => text.evaluate((element) => element.textContent)).toBe(
-    '﻿;姓名;金额;备注\r\n;张三;12;"保留;分号"\r\n;=1+1;0;文本',
-  )
+  await expect
+    .poll(() => text.evaluate((element) => element.textContent))
+    .toBe('﻿;姓名;金额;备注\r\n;张三;12;"保留;分号"\r\n;=1+1;0;文本')
 })
 
 test("CSV 阅读模式隐藏编辑控件", async ({ page }) => {

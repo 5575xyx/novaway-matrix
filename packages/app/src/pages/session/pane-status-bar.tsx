@@ -57,7 +57,7 @@ export const PaneStatusBar: Component<{
             data-action="pane-zoom-reset"
             class="min-w-12 rounded px-1 text-center text-ui-xs tabular-nums transition-colors hover:bg-hover hover:text-foreground"
             classList={{
-              "text-icon-blue": props.zoom.fitted?.() ?? false,
+              "text-interactive-base": props.zoom.fitted?.() ?? false,
               "text-foreground-subtle": !(props.zoom.fitted?.() ?? false),
             }}
             aria-label="复位缩放"
@@ -82,7 +82,7 @@ export const PaneStatusBar: Component<{
               data-action="pane-zoom-fit"
               class="ml-1 rounded px-1.5 py-0.5 text-ui-xs transition-colors hover:bg-hover hover:text-foreground"
               classList={{
-                "text-icon-blue": props.zoom.fitted?.() ?? false,
+                "text-interactive-base": props.zoom.fitted?.() ?? false,
                 "text-foreground-subtle": !(props.zoom.fitted?.() ?? false),
               }}
               title={props.zoom.fitLabel}

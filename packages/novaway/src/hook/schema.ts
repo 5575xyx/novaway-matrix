@@ -7,12 +7,15 @@ import { Schema } from "effect"
 export const EVENTS = [
   "SessionStart",
   "SessionEnd",
+  "SessionDelete",
   "UserPromptSubmit",
+  "UserPromptExpansion",
   "Stop",
   "StopFailure",
   "PreToolUse",
   "PostToolUse",
   "PostToolUseFailure",
+  "PostToolBatch",
   "PermissionRequest",
   "PermissionDenied",
   "Elicitation",
@@ -22,8 +25,11 @@ export const EVENTS = [
   "PreCompact",
   "PostCompact",
   "Notification",
+  "MessageDisplay",
   "TaskCreated",
   "TaskCompleted",
+  "TodoCreated",
+  "TodoCompleted",
   "TeammateIdle",
   "InstructionsLoaded",
   "FileChanged",
@@ -114,6 +120,7 @@ export type TriggerInput = {
   error?: string
   prompt?: string
   metadata?: Record<string, unknown>
+  asyncRewake?: boolean
 }
 
 export type Result = {

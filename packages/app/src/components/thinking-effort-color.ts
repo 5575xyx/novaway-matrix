@@ -1,24 +1,21 @@
 import type { JSX } from "solid-js"
 
-/**
- * 思考强度颜色从主题的交互色渐变到计划色：级别仍有连续的视觉变化，
- * 但色相完全由当前主题 palette 决定，不再固定为青绿到紫色。
- */
+/** 档位比例仍用于调用方布局与无障碍信息，不再映射到 Agent 身份色。 */
 export function effortRatio(index: number, count: number) {
   return count <= 1 ? 0 : index / (count - 1)
 }
 
-function color(ratio: number) {
-  const progress = Math.max(0, Math.min(1, ratio))
-  return `color-mix(in oklab, var(--icon-interactive-base) ${(1 - progress) * 100}%, var(--icon-agent-plan-base) ${progress * 100}%)`
+/** 思考强度属于输入交互状态；色相由交互色语义 token 统一决定。 */
+function color(_ratio: number) {
+  return "var(--icon-interactive-base)"
 }
 
-/** 填充色：低档到高档在主题交互色与计划色之间渐变。 */
+/** 各档位保持一致的主题交互色，档位差异由文案与控件位置表达。 */
 export function effortFill(ratio: number) {
   return color(ratio)
 }
 
-/** 文字色：保持同一主题渐变，级别差异由颜色混合比例表达。 */
+/** 文字色：使用主题交互色；档位差异由档位标签与滑块位置表达。 */
 export function effortText(ratio: number): JSX.CSSProperties {
   return { color: color(ratio) }
 }

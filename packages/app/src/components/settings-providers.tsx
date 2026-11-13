@@ -379,7 +379,7 @@ export const SettingsProviders: Component = () => {
       />
       <span class="min-w-0 flex-1 truncate text-13-regular text-foreground">{item.name}</span>
       <Show when={connectedRow}>
-        <span class="size-1.5 shrink-0 rounded-full bg-[var(--diff-added)]" />
+        <span class="size-1.5 shrink-0 rounded-full bg-surface-success-base" />
       </Show>
       <Show when={!connectedRow}>
         <Icon name="plus-small" size="small" class="shrink-0 text-foreground-subtlest" />
@@ -617,7 +617,7 @@ export const SettingsProviders: Component = () => {
                                   </div>
                                 </Show>
                                 <button
-                                  class="shrink-0 text-12-regular text-foreground-subtle hover:text-icon-critical-base"
+                                  class="shrink-0 text-12-regular text-foreground-subtle hover:text-critical-base"
                                   onClick={() => void removeEntry(item().id, index(), item().name)}
                                 >
                                   {language.t("common.remove")}

@@ -1,7 +1,7 @@
 import { describe, expect } from "bun:test"
 import path from "node:path"
 import { Effect } from "effect"
-import { run } from "@/hook/exec"
+import { run, takeAsyncResults } from "@/hook/exec"
 import type * as Hook from "@/hook/schema"
 import { TestInstance } from "../fixture/fixture"
 import { Layer } from "effect"
@@ -101,6 +101,35 @@ describe("async hooks", () => {
       // The hook still runs, just later and without a result.
       yield* Effect.sleep("1200 millis")
       expect(yield* Effect.promise(() => exists(file))).toBe(true)
+    }),
+  )
+
+  it.instance("stores async hook context until the next prompt consumes it", () =>
+    Effect.gen(function* () {
+      const sessionID = "async-result-session"
+      yield* run(
+        command({
+          command: `node -e "process.stdout.write(JSON.stringify({hookSpecificOutput:{additionalContext:'async context'}}))"`,
+          async: true,
+        }),
+        {
+          event: "Stop",
+          sessionID,
+        },
+      )
+      const result = yield* Effect.promise(
+        () =>
+          new Promise<{ tool: string; text: string }[]>((resolve) => {
+            const poll = () => {
+              const pending = takeAsyncResults(sessionID)
+              if (pending.length) resolve(pending)
+              else setTimeout(poll, 20)
+            }
+            poll()
+          }),
+      )
+      expect(result).toEqual([{ tool: "Stop", text: "async context" }])
+      expect(takeAsyncResults(sessionID)).toEqual([])
     }),
   )
 

@@ -12,6 +12,11 @@ export const Info = Schema.Struct({
   disabled: Schema.optional(Schema.Array(Schema.String)).annotate({
     description: "Skill names that are disabled (hidden from agents); re-enable by removing them here.",
   }),
+  listing_budget_fraction: Schema.optional(
+    Schema.Number.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(1)),
+  ).annotate({
+    description: "Fraction of the available prompt budget used for listing skills.",
+  }),
 })
 
 export type Info = Schema.Schema.Type<typeof Info>

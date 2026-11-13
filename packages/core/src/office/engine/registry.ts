@@ -93,7 +93,13 @@ export function registerOfficeEngine(registration: OfficeEngineRegistration): { 
   }
 }
 
-function registerBuiltIn(format: string, kind: DocumentKind, extensions: string[], engine: OfficeEngine<unknown>, aliases?: Record<string, string>) {
+function registerBuiltIn(
+  format: string,
+  kind: DocumentKind,
+  extensions: string[],
+  engine: OfficeEngine<unknown>,
+  aliases?: Record<string, string>,
+) {
   registerOfficeEngine({ format, kind, extensions, aliases, engine })
 }
 
@@ -186,10 +192,25 @@ export function officeFormatOf(path: string): OfficeFormat | undefined {
 // Keep the historical built-in behavior in the same registry used by plugins.
 registerBuiltIn("docx", "document", ["docx", "docm", "dotx", "dotm"], docxEngine as unknown as OfficeEngine<unknown>)
 registerBuiltIn("xlsx", "spreadsheet", ["xlsx", "xlsm", "xltx", "xltm"], xlsxEngine as unknown as OfficeEngine<unknown>)
-registerBuiltIn("pptx", "presentation", ["pptx", "pptm", "potx", "potm", "ppsx", "ppsm"], pptxEngine as unknown as OfficeEngine<unknown>)
+registerBuiltIn(
+  "pptx",
+  "presentation",
+  ["pptx", "pptm", "potx", "potm", "ppsx", "ppsm"],
+  pptxEngine as unknown as OfficeEngine<unknown>,
+)
 registerBuiltIn("pdf", "pdf", ["pdf"], pdfEngine as unknown as OfficeEngine<unknown>)
-registerBuiltIn("legacy", "document", ["odt", "ods", "odp", "rtf", "doc", "xls", "ppt"], legacyEngine as unknown as OfficeEngine<unknown>)
+registerBuiltIn(
+  "legacy",
+  "document",
+  ["odt", "ods", "odp", "rtf", "doc", "xls", "ppt"],
+  legacyEngine as unknown as OfficeEngine<unknown>,
+)
 registerBuiltIn("csv", "spreadsheet", ["csv"], csvEngine as unknown as OfficeEngine<unknown>)
 registerBuiltIn("html", "richtext", ["html", "htm", "xhtml", "shtml"], richEngine as unknown as OfficeEngine<unknown>)
-registerBuiltIn("markdown", "markdown", ["md", "markdown", "mdown", "mkd", "mdx"], markdownEngine as unknown as OfficeEngine<unknown>)
+registerBuiltIn(
+  "markdown",
+  "markdown",
+  ["md", "markdown", "mdown", "mkd", "mdx"],
+  markdownEngine as unknown as OfficeEngine<unknown>,
+)
 registerBuiltIn("text", "plaintext", ["txt"], textEngine as unknown as OfficeEngine<unknown>)

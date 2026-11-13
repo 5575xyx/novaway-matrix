@@ -15,14 +15,36 @@ interface Handle {
   dispose: () => void
 }
 
-function getHandle(page: import("@playwright/test").Page): Promise<Handle> {
-  return page.evaluate(() => {
-    const h = (window as unknown as { __lexoraDocx?: Handle }).__lexoraDocx
-    if (!h) throw new Error("editor handle missing")
-    return h
-  })
+function readEditorPaint(page: import("@playwright/test").Page) {
+  return page.locator("#editor").evaluate((root) =>
+    Array.from(root.querySelectorAll<HTMLElement>("*"))
+      .filter((element) => {
+        const rect = element.getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0
+      })
+      .map((element) => {
+        const style = getComputedStyle(element)
+        return `${style.color}|${style.backgroundColor}|${style.borderColor}`
+      })
+      .filter((paint) => paint !== "rgba(0, 0, 0, 0)|rgba(0, 0, 0, 0)|rgb(0, 0, 0)")
+      .sort(),
+  )
 }
 
+test("DOCX 编辑器的控件跟随 Host 浅／深色方案", async ({ page }) => {
+  await page.goto("/e2e/fixtures/lexora-docx-editor.html")
+  const status = page.locator('[data-slot="status"]')
+  await expect(status).toHaveAttribute("data-mounted", "true", { timeout: 60_000 })
+  const light = await readEditorPaint(page)
+  expect(light.length).toBeGreaterThan(0)
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.colorScheme = "dark"
+    document.documentElement.classList.add("dark")
+  })
+  await expect(status).toHaveAttribute("data-color-scheme", "dark")
+  await expect.poll(() => readEditorPaint(page)).not.toEqual(light)
+})
 test("DOCM 编辑并保存后保留原始 VBA package part 字节", async ({ page }) => {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(String(error)))

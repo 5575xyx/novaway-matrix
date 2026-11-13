@@ -33,6 +33,7 @@ import { SessionCommand } from "./cli/cmd/session"
 import { DbCommand } from "./cli/cmd/db"
 import { MemoryCommand } from "./cli/cmd/memory"
 import { CuratorCommand } from "./cli/cmd/curator"
+import { ArenaCommand } from "./cli/cmd/arena"
 import { JsonMigration } from "@/storage/json-migration"
 import { Database } from "@/storage/db"
 import { errorMessage } from "./util/error"
@@ -208,6 +209,7 @@ const cli = yargs(args)
   .command(SessionCommand)
   .command(MemoryCommand)
   .command(CuratorCommand)
+  .command(ArenaCommand)
   .command(PluginCommand)
   .command(DbCommand)
   .fail((msg, err) => {

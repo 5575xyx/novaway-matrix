@@ -1,16 +1,13 @@
 import { type Component, type JSX } from "solid-js"
 
 /**
- * 资源行（AI 员工 / 技能 / 命令 / 规则 / MCP / 插件）的固定色板。
- *
- * 之前所有这些行统一是「浅底 + 灰图标」，一屏十几行看起来像表格、几乎没法扫读。
- * 现在按名字哈希取一个稳定色：同一个条目永远同色，不同条目一眼能分开。
+ * 命令等工具资源行使用 tool-category 分类色：同一个条目永远同色，不同条目便于扫读。
  */
 const rowAccentPalette = [
-  "var(--icon-interactive-base)",
-  "var(--icon-agent-plan-base)",
-  "var(--icon-info-base)",
-  "var(--icon-brand-base)",
+  "var(--tool-category-0)",
+  "var(--tool-category-1)",
+  "var(--tool-category-2)",
+  "var(--tool-category-3)",
 ]
 
 export function rowAccent(seed: string) {

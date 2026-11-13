@@ -10,6 +10,7 @@ import { Config } from "@/config/config"
 import type { Agent } from "@/agent/agent"
 import type { MessageV2 } from "./message-v2"
 import { Plugin } from "@/plugin"
+import * as PluginRuntimeService from "@/plugin/runtime/tag"
 import { SystemPrompt } from "./system"
 import { Permission } from "@/permission"
 import { PermissionID } from "@/permission/schema"
@@ -289,20 +290,38 @@ const live: Layer.Layer<
         maxOutputTokens: ProviderTransform.maxOutputTokens(input.model, flags.outputTokenMax),
         options,
       }
+      const chatParamsInput = {
+        sessionID: input.sessionID,
+        agent: input.agent.name,
+        model: input.model,
+        provider: item,
+        message: input.user,
+      }
+      let runtimeParams = requestParams
+      let runtimePluginIDs: string[] = []
+      const runtimeOption = yield* Effect.serviceOption(PluginRuntimeService.Service)
+      if (input.scope !== "global" && Option.isSome(runtimeOption)) {
+        const host = yield* runtimeOption.value.get
+        runtimePluginIDs = [
+          ...new Set(host.registries.interceptors.chain("chat.params").map(({ pluginID }) => pluginID)),
+        ]
+        const outcome = yield* Effect.promise(() =>
+          host.registries.interceptors.trigger("chat.params", chatParamsInput, requestParams),
+        )
+        runtimeParams = outcome.output
+        if (outcome.skipped.length > 0) {
+          l.warn("runtime chat.params interceptor skipped", {
+            skipped: outcome.skipped.map(({ pluginID, name, reason }) => ({ pluginID, name, reason })),
+          })
+        }
+      }
+      // Runtime Host entries are the v2 path; Plugin.trigger remains the legacy compatibility path during migration.
       const params =
         input.scope === "global"
           ? requestParams
-          : yield* plugin.trigger(
-              "chat.params",
-              {
-                sessionID: input.sessionID,
-                agent: input.agent.name,
-                model: input.model,
-                provider: item,
-                message: input.user,
-              },
-              requestParams,
-            )
+          : yield* plugin.trigger("chat.params", chatParamsInput, runtimeParams, {
+              excludePluginIDs: runtimePluginIDs,
+            })
 
       const { headers } =
         input.scope === "global"

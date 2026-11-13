@@ -165,9 +165,7 @@ export function pluginOfficeExtensions(
   contributions: ReadonlyArray<{ kind?: string; extensions?: readonly string[] }> | undefined,
 ): string[] {
   if (!contributions) return []
-  return contributions
-    .filter((item) => item.kind === "office-engine")
-    .flatMap((item) => item.extensions ?? [])
+  return contributions.filter((item) => item.kind === "office-engine").flatMap((item) => item.extensions ?? [])
 }
 
 export function isPluginOfficePath(

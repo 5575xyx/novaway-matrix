@@ -10,7 +10,7 @@ import catppuccinMacchiatoThemeJson from "./themes/catppuccin-macchiato.json"
 import cobalt2ThemeJson from "./themes/cobalt2.json"
 import cursorThemeJson from "./themes/cursor.json"
 import draculaThemeJson from "./themes/dracula.json"
-import everforestThemeJson from "./themes/everforest.json"
+import parchmentThemeJson from "./themes/parchment.json"
 import flexokiThemeJson from "./themes/flexoki.json"
 import githubThemeJson from "./themes/github.json"
 import gruvboxThemeJson from "./themes/gruvbox.json"
@@ -49,7 +49,7 @@ export const catppuccinMacchiatoTheme = catppuccinMacchiatoThemeJson as DesktopT
 export const cobalt2Theme = cobalt2ThemeJson as DesktopTheme
 export const cursorTheme = cursorThemeJson as DesktopTheme
 export const draculaTheme = draculaThemeJson as DesktopTheme
-export const everforestTheme = everforestThemeJson as DesktopTheme
+export const parchmentTheme = parchmentThemeJson as DesktopTheme
 export const flexokiTheme = flexokiThemeJson as DesktopTheme
 export const githubTheme = githubThemeJson as DesktopTheme
 export const gruvboxTheme = gruvboxThemeJson as DesktopTheme
@@ -89,7 +89,7 @@ export const DEFAULT_THEMES: Record<string, DesktopTheme> = {
   cobalt2: cobalt2Theme,
   cursor: cursorTheme,
   dracula: draculaTheme,
-  everforest: everforestTheme,
+  parchment: parchmentTheme,
   flexoki: flexokiTheme,
   github: githubTheme,
   gruvbox: gruvboxTheme,

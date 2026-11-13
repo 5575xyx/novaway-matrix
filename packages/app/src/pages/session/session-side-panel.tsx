@@ -39,6 +39,7 @@ import {
 } from "@/context/layout"
 import { createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { confirmOfficeEditorClose } from "@/pages/session/office-editor-session"
+import { disposeOfficeEditorsForDirectory, reconcileOfficeEditors } from "@/pages/session/office-editor-keepalive"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { forgetTextHistory } from "@/pages/session/text-history"
 import { PreviewPanel } from "@/pages/session/preview-panel"
@@ -165,6 +166,18 @@ export function SessionSidePanel(props: {
     return officeFileTabs().at(-1)
   })
   const hostForFileTab = (tab: string) => (isOfficeFileTab(tab) ? "office" : "preview")
+
+  // Office 编辑器保活：切标签只摘挂 DOM，不重建。这里按「还开着的标签」回收缓存 ——
+  // 只有真正关闭（×、关闭其它、命令关闭）的标签才释放编辑器；面板卸载时整目录释放。
+  createEffect(() => {
+    const open = new Set<string>()
+    for (const item of tabs().all()) {
+      const target = file.pathFromTab(item)
+      if (target) open.add(target)
+    }
+    reconcileOfficeEditors(sdk.directory, open)
+  })
+  onCleanup(() => disposeOfficeEditorsForDirectory(sdk.directory))
   /** 顶层只显示宿主标签，具体文件标签放在下面一行。 */
   const builtinStripTabs = createMemo(() =>
     layout.sidePane.tabs().filter((item) => props.workspaceAvailable || !workspaceOnlyTabs.has(item)),
@@ -779,13 +792,13 @@ function SidePaneDivider(props: { axis: SidePaneSplitAxis; onRatio: (ratio: numb
       classList={{
         "w-[5px] cursor-col-resize": props.axis === "right",
         "h-[5px] cursor-row-resize": props.axis === "below",
-        "bg-icon-blue/20": dragging(),
+        "bg-surface-interactive-weak-hover": dragging(),
       }}
       onPointerDown={onPointerDown}
       onDblClick={props.onClose}
     >
       <div
-        class="absolute bg-border transition-colors group-hover:bg-icon-blue"
+        class="absolute bg-border transition-colors group-hover:bg-border-interactive-base"
         classList={{
           "left-1/2 top-0 h-full w-px -translate-x-1/2": props.axis === "right",
           "left-0 top-1/2 h-px w-full -translate-y-1/2": props.axis === "below",
@@ -996,7 +1009,7 @@ function SidePaneEmptyState(props: { workspaceAvailable: boolean; onOpenFiles: (
   return (
     <div
       data-component="side-pane-empty"
-      class="side-pane-launcher flex-1 min-h-0 overflow-y-auto flex items-center justify-center bg-[radial-gradient(circle_at_50%_38%,color-mix(in_srgb,var(--icon-blue)_8%,transparent),transparent_58%)]"
+      class="side-pane-launcher flex-1 min-h-0 overflow-y-auto flex items-center justify-center bg-[radial-gradient(circle_at_50%_38%,color-mix(in_srgb,var(--surface-interactive-weak)_70%,transparent),transparent_58%)]"
       classList={{ "px-5 py-10": !compact(), "px-2 py-3": compact() }}
     >
       <div
@@ -1014,10 +1027,10 @@ function SidePaneEmptyState(props: { workspaceAvailable: boolean; onOpenFiles: (
             <button
               type="button"
               data-component="side-pane-launcher-workspace-tree"
-              class="side-pane-launcher-button group flex h-12 min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-surface/70 px-3 text-ui-base font-medium text-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-icon-blue/45 hover:bg-icon-blue/5 hover:shadow-md"
+              class="side-pane-launcher-button group flex h-12 min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-surface/70 px-3 text-ui-base font-medium text-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-interactive-hover/45 hover:bg-surface-interactive-weak hover:shadow-md"
               onClick={props.onToggleTree}
             >
-              <Icon name="tree-structure" size="small" class="shrink-0 text-icon-blue" />
+              <Icon name="tree-structure" size="small" class="shrink-0 text-icon-interactive-base" />
               <span class="side-pane-launcher-label min-w-0 flex-1 truncate text-left">
                 {language.t("sidebar.tree.workspaceFiles")}
               </span>
@@ -1026,7 +1039,7 @@ function SidePaneEmptyState(props: { workspaceAvailable: boolean; onOpenFiles: (
           <button
             type="button"
             data-component="side-pane-launcher-external-files"
-            class="side-pane-launcher-button group flex h-12 min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-surface/70 px-3 text-ui-base font-medium text-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-icon-blue/45 hover:bg-icon-blue/5 hover:shadow-md"
+            class="side-pane-launcher-button group flex h-12 min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-surface/70 px-3 text-ui-base font-medium text-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-interactive-hover/45 hover:bg-surface-interactive-weak hover:shadow-md"
             onClick={props.onOpenFiles}
           >
             <Icon name="folder" size="small" class="shrink-0 text-foreground-subtlest" />
@@ -1045,7 +1058,7 @@ function SidePaneEmptyState(props: { workspaceAvailable: boolean; onOpenFiles: (
             {(item) => (
               <button
                 type="button"
-                class="side-pane-launcher-button group flex h-12 min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-surface/70 px-3 text-ui-base font-medium text-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-icon-blue/45 hover:bg-icon-blue/5 hover:shadow-md"
+                class="side-pane-launcher-button group flex h-12 min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-surface/70 px-3 text-ui-base font-medium text-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-interactive-hover/45 hover:bg-surface-interactive-weak hover:shadow-md"
                 onClick={() => layout.sidePane.add(item.id)}
               >
                 <Icon name={item.icon} size="small" class="shrink-0 text-foreground-subtlest" />

@@ -61,7 +61,7 @@ export function WindowControls() {
         </button>
         <button
           type="button"
-          class="grid size-7 place-items-center rounded-md text-foreground-subtle transition-colors hover:bg-destructive hover:text-destructive-foreground"
+          class="grid size-7 place-items-center rounded-md text-foreground-subtle transition-colors hover:bg-surface-critical-base hover:text-text-on-critical-base"
           aria-label={language.t("window.close")}
           title={language.t("window.close")}
           onClick={() => void window.api?.closeWindow?.()}

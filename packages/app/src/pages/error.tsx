@@ -2,7 +2,6 @@ import { TextField } from "@novaway/ui/text-field"
 import { Logo } from "@novaway/ui/logo"
 import { Button } from "@novaway/ui/button"
 import { Component } from "solid-js"
-import { usePlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
 
 const NOVAWAY_VERSION = "1.0.0"
@@ -215,11 +214,12 @@ function formatError(error: unknown, t: Translator): string {
 
 interface ErrorPageProps {
   error: unknown
+  restart?: () => void
 }
 
 export const ErrorPage: Component<ErrorPageProps> = (props) => {
-  const platform = usePlatform()
   const language = useLanguage()
+  const restart = props.restart ?? (() => window.location.reload())
 
   return (
     <div class="relative flex-1 h-screen w-screen min-h-0 flex flex-col items-center justify-center bg-background font-sans">
@@ -239,7 +239,7 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
           hideLabel
         />
         <div class="flex flex-row items-center justify-center gap-3 flex-wrap max-w-64">
-          <Button size="large" onClick={platform.restart}>
+          <Button size="large" onClick={restart}>
             {language.t("error.page.action.restart")}
           </Button>
         </div>

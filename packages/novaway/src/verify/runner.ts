@@ -6,6 +6,7 @@
  */
 import { spawn } from "node:child_process"
 import { Shell } from "@/shell/shell"
+import { Sandbox } from "@/sandbox/sandbox"
 import { summarize, tail, type VerifyOutcome } from "./summary"
 
 export type RunResult = VerifyOutcome & {
@@ -22,19 +23,32 @@ export async function run(input: {
   timeoutMs?: number
   signal?: AbortSignal
   env?: NodeJS.ProcessEnv
+  /** When enabled, the command runs inside the same OS sandbox as the shell tool. */
+  sandbox?: Sandbox.Config
 }): Promise<RunResult> {
   const started = Date.now()
   const shell = Shell.acceptable(undefined)
   const timeoutMs = input.timeoutMs ?? 10 * 60 * 1000
+  const sandboxed =
+    input.sandbox?.enabled && process.platform !== "win32"
+      ? Sandbox.wrapShell({ shell, command: input.command, cwd: input.cwd }, input.sandbox)
+      : undefined
 
   return new Promise<RunResult>((resolve) => {
-    const child = spawn(input.command, {
-      cwd: input.cwd,
-      shell,
-      env: input.env ?? process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: process.platform !== "win32",
-    })
+    const child = sandboxed
+      ? spawn(sandboxed.command, sandboxed.args, {
+          cwd: sandboxed.cwd,
+          env: input.env ?? process.env,
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: true,
+        })
+      : spawn(input.command, {
+          cwd: input.cwd,
+          shell,
+          env: input.env ?? process.env,
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: process.platform !== "win32",
+        })
 
     let output = ""
     let timedOut = false

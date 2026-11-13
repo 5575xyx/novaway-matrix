@@ -199,6 +199,7 @@ export const CuratorDryRunCommand = effectCmd({
       evolution.dryRun(Schema.decodeUnknownSync(EvolutionSchema.EvolutionCandidateID)(args.candidateID), {
         directory: ctx.directory,
         worktree: ctx.worktree,
+        projectID: ctx.project.id,
       }),
     )
     if (!dryRun) return yield* fail(`Self-evolution candidate not found: ${args.candidateID}`)
@@ -229,6 +230,7 @@ export const CuratorApplyFileCommand = effectCmd({
       evolution.applyToDisk(Schema.decodeUnknownSync(EvolutionSchema.EvolutionCandidateID)(args.candidateID), {
         directory: ctx.directory,
         worktree: ctx.worktree,
+        projectID: ctx.project.id,
       }),
     )
     if (!result) return yield* fail(`Self-evolution candidate not found or not pending: ${args.candidateID}`)
@@ -241,8 +243,11 @@ export const CuratorDismissCommand = effectCmd({
   describe: "dismiss a self-evolution candidate",
   builder: candidateIDBuilder,
   handler: Effect.fn("Cli.curator.dismiss")(function* (args: CandidateIDArgs) {
+    const ctx = yield* requireInstance()
     const candidate = yield* Evolution.Service.use((evolution) =>
-      evolution.dismiss(Schema.decodeUnknownSync(EvolutionSchema.EvolutionCandidateID)(args.candidateID)),
+      evolution.dismiss(Schema.decodeUnknownSync(EvolutionSchema.EvolutionCandidateID)(args.candidateID), {
+        projectID: ctx.project.id,
+      }),
     )
     if (!candidate) return yield* fail(`Self-evolution candidate not found or not pending: ${args.candidateID}`)
     console.log(formatEvolutionCandidates([candidate], outputFormat(args.format)))

@@ -46,11 +46,11 @@ function statusLabel(result: PublishAccountResult) {
 function statusTone(result: PublishAccountResult) {
   switch (result.status) {
     case "success":
-      return "text-icon-success-base"
+      return "text-success-base"
     case "failed":
-      return "text-[var(--icon-critical-base)]"
+      return "text-critical-base"
     case "unsupported":
-      return "text-icon-warning-base"
+      return "text-warning-base"
     case "running":
       return "text-foreground"
     default:
@@ -110,14 +110,14 @@ function AccountRow(props: { account: PlatformAccount; kind: PublishKind; checke
       </Show>
       <Show when={unverified()}>
         <span
-          class="rounded-full border border-[color-mix(in_srgb,var(--icon-warning-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-warning-base)_10%,transparent)] px-1.5 py-0.5 text-10-medium text-icon-warning-base"
+          class="rounded-full border border-warning-base/40 bg-surface-warning-weak px-1.5 py-0.5 text-10-medium text-warning-base"
           title="登录状态未确认（巡检可能被平台风控误判），发布时若失败会给出原因"
         >
           未验证
         </span>
       </Show>
       <Show when={!supported()}>
-        <span class="rounded-full border border-[color-mix(in_srgb,var(--icon-warning-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-warning-base)_10%,transparent)] px-1.5 py-0.5 text-10-medium text-icon-warning-base">
+        <span class="rounded-full border border-warning-base/40 bg-surface-warning-weak px-1.5 py-0.5 text-10-medium text-warning-base">
           不支持
         </span>
       </Show>
@@ -587,7 +587,7 @@ export function PublishModal(props: { accountId?: string }) {
                                     type="button"
                                     data-slot="plugin-publish-execute"
                                     disabled={!supportsCurrent() || pluginBusy()}
-                                    class="rounded-[6px] bg-foreground px-2 py-1 text-10-medium text-background disabled:cursor-not-allowed disabled:opacity-40"
+                                    class="rounded-[6px] bg-surface-interactive-base px-2 py-1 text-10-medium text-text-on-interactive-base disabled:cursor-not-allowed disabled:opacity-40"
                                     onClick={() => void executePluginPublish(account)}
                                   >
                                     {supportsCurrent() ? "用插件发布" : "当前类型不支持"}
@@ -661,7 +661,7 @@ export function PublishModal(props: { accountId?: string }) {
                             <span class="truncate">{file.split(/[\\/]/).pop()}</span>
                             <button
                               type="button"
-                              class="shrink-0 text-foreground-subtlest transition-colors hover:text-[var(--icon-critical-base)]"
+                              class="shrink-0 text-foreground-subtlest transition-colors hover:text-icon-critical-base"
                               onClick={() => setFiles((prev) => prev.filter((item) => item !== file))}
                             >
                               <Icon name="close-small" size="small" />
@@ -735,12 +735,12 @@ export function PublishModal(props: { accountId?: string }) {
               <div class="mt-1.5 flex items-center justify-between text-11-regular text-foreground-subtle">
                 <span>将发布到 {readyAccounts().length} 个账号</span>
                 <Show when={platform.store.accounts.length > 0 && readyAccounts().length === 0}>
-                  <span class="text-[var(--icon-critical-base)]">
+                  <span class="text-critical-base">
                     没有账号支持{PUBLISH_KIND_LABEL[kind()]}，换个内容类型或先添加账号
                   </span>
                 </Show>
                 <Show when={skippedAccounts().length > 0}>
-                  <span class="text-icon-warning-base">
+                  <span class="text-warning-base">
                     {skippedAccounts().length} 个账号已跳过（该平台不支持
                     {PUBLISH_KIND_LABEL[kind()]}）
                   </span>
@@ -749,8 +749,8 @@ export function PublishModal(props: { accountId?: string }) {
             </div>
 
             <Show when={issues().length > 0}>
-              <div class="rounded-[10px] border border-[color-mix(in_srgb,var(--icon-warning-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-warning-base)_5%,transparent)] px-3 py-2.5">
-                <div class="mb-1.5 text-12-medium text-icon-warning-base">发布前预检 · {issues().length} 条</div>
+              <div class="rounded-[10px] border border-warning-base/40 bg-surface-warning-weak px-3 py-2.5">
+                <div class="mb-1.5 text-12-medium text-warning-base">发布前预检 · {issues().length} 条</div>
                 <ul class="space-y-1.5">
                   <For each={issues()}>
                     {(issue) => (
@@ -758,10 +758,8 @@ export function PublishModal(props: { accountId?: string }) {
                         <span
                           class="mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-10-medium"
                           classList={{
-                            "bg-[color-mix(in_srgb,var(--icon-critical-base)_15%,transparent)] text-[var(--icon-critical-base)]":
-                              issue.level === "error",
-                            "bg-[color-mix(in_srgb,var(--icon-warning-base)_15%,transparent)] text-icon-warning-base":
-                              issue.level === "warning",
+                            "bg-surface-critical-weak text-critical-base": issue.level === "error",
+                            "bg-surface-warning-weak text-warning-base": issue.level === "warning",
                             "bg-background-alt text-foreground-subtle": issue.level === "hint",
                           }}
                         >
@@ -786,7 +784,7 @@ export function PublishModal(props: { accountId?: string }) {
             </Show>
 
             <Show when={error()}>
-              <div class="rounded-[8px] border border-[color-mix(in_srgb,var(--icon-critical-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-3 py-2 text-12-regular text-[var(--icon-critical-base)]">
+              <div class="rounded-[8px] border border-critical-base/40 bg-surface-critical-weak px-3 py-2 text-12-regular text-critical-base">
                 {error()}
               </div>
             </Show>
@@ -805,9 +803,9 @@ export function PublishModal(props: { accountId?: string }) {
                           <span class="min-w-0 flex-1 truncate">
                             {item.input.title || item.input.description || "未命名内容"}
                           </span>
-                          <span class="shrink-0 text-icon-success-base">成功 {ok}</span>
+                          <span class="shrink-0 text-success-base">成功 {ok}</span>
                           <Show when={fail > 0}>
-                            <span class="shrink-0 text-[var(--icon-critical-base)]">失败 {fail}</span>
+                            <span class="shrink-0 text-critical-base">失败 {fail}</span>
                           </Show>
                           <span class="shrink-0 text-foreground-subtlest">
                             {new Date(item.startedAt).toLocaleString("zh-CN", { hour12: false })}
@@ -846,7 +844,7 @@ export function PublishModal(props: { accountId?: string }) {
                       <span class={`shrink-0 text-11-medium ${statusTone(result)}`}>{statusLabel(result)}</span>
                     </div>
                     <Show when={result.warnings?.length}>
-                      <div class="mt-1 space-y-0.5 text-11-regular text-icon-warning-base">
+                      <div class="mt-1 space-y-0.5 text-11-regular text-warning-base">
                         <For each={result.warnings}>{(warning) => <div>预检：{warning}</div>}</For>
                       </div>
                     </Show>
@@ -856,9 +854,9 @@ export function PublishModal(props: { accountId?: string }) {
                         classList={{
                           "bg-[var(--novaway-mode-color,var(--interactive-base))]":
                             result.status === "running" || result.status === "pending",
-                          "bg-success": result.status === "success",
-                          "bg-[var(--icon-critical-base)]": result.status === "failed",
-                          "bg-warning": result.status === "unsupported" || result.status === "cancelled",
+                          "bg-surface-success-base": result.status === "success",
+                          "bg-surface-critical-base": result.status === "failed",
+                          "bg-surface-warning-base": result.status === "unsupported" || result.status === "cancelled",
                         }}
                         style={{ width: `${Math.max(4, result.progress)}%` }}
                       />

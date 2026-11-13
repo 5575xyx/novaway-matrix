@@ -78,7 +78,7 @@ function GroupSidebar(props: {
           <Show when={showNewInput()}>
             <div class="flex items-center gap-1 px-1 py-0.5">
               <input
-                class="flex-1 h-7 px-2 rounded border border-primary bg-background text-12-regular text-foreground outline-none"
+                class="flex-1 h-7 px-2 rounded border border-interactive-selected bg-background text-12-regular text-foreground outline-none"
                 value={newGroupName()}
                 onInput={(e) => setNewGroupName(e.currentTarget.value)}
                 onKeyDown={(e) => {
@@ -118,7 +118,7 @@ function GroupSidebar(props: {
                   }
                 >
                   <input
-                    class="flex-1 h-7 px-2 rounded border border-primary bg-background text-12-regular text-foreground outline-none"
+                    class="flex-1 h-7 px-2 rounded border border-interactive-selected bg-background text-12-regular text-foreground outline-none"
                     value={editName()}
                     onInput={(e) => setEditName(e.currentTarget.value)}
                     onKeyDown={(e) => {
@@ -130,7 +130,7 @@ function GroupSidebar(props: {
                 </Show>
                 <Show when={group.id !== 1 && editingId() !== group.id}>
                   <button
-                    class="size-5 shrink-0 rounded flex items-center justify-center text-foreground-subtlest hover:text-[var(--icon-critical-base)] hover:bg-hover transition-colors opacity-0 group-hover:opacity-100"
+                    class="size-5 shrink-0 rounded flex items-center justify-center text-foreground-subtlest hover:text-icon-critical-base hover:bg-hover transition-colors opacity-0 group-hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation()
                       setDeleteConfirmGroupId(group.id)
@@ -251,17 +251,17 @@ function AccountTable(props: {
                       <span
                         class="inline-flex items-center gap-1 text-12-regular"
                         classList={{
-                          "text-icon-success-base": account.status === "valid",
-                          "text-icon-warning-base": account.status === "expired",
-                          "text-[var(--icon-critical-base)]": account.status === "login_failed",
+                          "text-success-base": account.status === "valid",
+                          "text-warning-base": account.status === "expired",
+                          "text-critical-base": account.status === "login_failed",
                         }}
                       >
                         <span
                           class="size-1.5 rounded-full"
                           classList={{
-                            "bg-success": account.status === "valid",
-                            "bg-warning": account.status === "expired",
-                            "bg-[var(--icon-critical-base)]": account.status === "login_failed",
+                            "bg-surface-success-base": account.status === "valid",
+                            "bg-surface-warning-base": account.status === "expired",
+                            "bg-surface-critical-base": account.status === "login_failed",
                           }}
                         />
                         {account.status === "valid" ? "在线" : account.status === "expired" ? "离线" : "异常"}
@@ -269,7 +269,7 @@ function AccountTable(props: {
                     </td>
                     <td class="px-4 py-3">
                       <select
-                        class="h-7 px-2 rounded border border-border bg-background text-12-regular text-foreground outline-none hover:border-primary transition-colors cursor-pointer"
+                        class="h-7 px-2 rounded border border-border bg-background text-12-regular text-foreground outline-none hover:border-interactive-hover transition-colors cursor-pointer"
                         value={account.groupId}
                         onChange={(e) => {
                           const newGroupId = Number(e.currentTarget.value)

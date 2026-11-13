@@ -899,7 +899,7 @@ export const RunConsole: Component<{
         <span>{t("run.metrics.settled", { n: numeric(data.tokens.settled).toLocaleString() })}</span>
         {/* 用量不明单独显示：不并入已结算，也不并进总数。 */}
         <Show when={numeric(data.tokens.unknown) > 0}>
-          <span class="text-icon-warning-base">
+          <span class="text-warning-base">
             {t("run.metrics.unknown", { n: numeric(data.tokens.unknown).toLocaleString() })}
           </span>
         </Show>
@@ -910,9 +910,7 @@ export const RunConsole: Component<{
           })}
         </span>
         <Show when={numeric(data.tokens.overrunRuns) > 0}>
-          <span class="text-icon-critical-base">
-            {t("run.metrics.overrun", { n: numeric(data.tokens.overrunRuns) })}
-          </span>
+          <span class="text-critical-base">{t("run.metrics.overrun", { n: numeric(data.tokens.overrunRuns) })}</span>
         </Show>
         {/* 成本只统计有提供方回报的运行；覆盖率单列，不把缺数据的运行当 0。 */}
         <Show when={numeric(data.tokens.costCovered) > 0}>
@@ -1071,16 +1069,16 @@ export const RunConsole: Component<{
       {/* 不再有页头：这个控制台嵌在团队页里，页头与返回都属于团队页。 */}
 
       <Show when={error()}>
-        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-icon-critical-base">{error()}</div>
+        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-critical-base">{error()}</div>
       </Show>
 
       <Show when={notice()}>
-        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-icon-success-base">{notice()}</div>
+        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-success-base">{notice()}</div>
       </Show>
 
       {/* 关闭 ≠ 删数据、也不停已在跑的运行：页面照旧可看可改，只是不能开始新的执行。 */}
       <Show when={!switchedOn()}>
-        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-icon-warning-base">
+        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-warning-base">
           {t("run.switch.off")}
         </div>
       </Show>
@@ -1147,7 +1145,7 @@ export const RunConsole: Component<{
                   <For each={[t("run.new.step1"), t("run.new.step2"), t("run.new.step3")]}>
                     {(text, index) => (
                       <li class="flex items-start gap-2">
-                        <span class="mt-px grid size-4 shrink-0 place-items-center rounded-full bg-primary/15 text-[10px] text-text-interactive-base">
+                        <span class="mt-px grid size-4 shrink-0 place-items-center rounded-full bg-surface-interactive-weak text-[10px] text-text-interactive-base">
                           {index() + 1}
                         </span>
                         <span>{text}</span>
@@ -1322,8 +1320,8 @@ export const RunConsole: Component<{
                             <span
                               class="mt-px grid size-4 shrink-0 place-items-center rounded-full text-[10px]"
                               classList={{
-                                "bg-success/15 text-icon-success-base": step.done,
-                                "bg-primary/15 text-text-interactive-base":
+                                "bg-surface-success-weak text-success-base": step.done,
+                                "bg-surface-interactive-weak text-text-interactive-base":
                                   !step.done && index() === (profiles().length > 0 ? 1 : 0),
                                 "bg-border text-foreground-subtle":
                                   !step.done && index() !== (profiles().length > 0 ? 1 : 0),
@@ -1402,9 +1400,7 @@ export const RunConsole: Component<{
                               */}
                               <Show when={TERMINAL.has(data().run.state) || data().run.mergeState !== "unmerged"}>
                                 <Tag
-                                  class={
-                                    data().run.mergeState === "merge_failed" ? "text-icon-critical-base" : undefined
-                                  }
+                                  class={data().run.mergeState === "merge_failed" ? "text-critical-base" : undefined}
                                   title={t("run.merge.stateHint")}
                                 >
                                   {t(`run.merge.state.${data().run.mergeState}`)}
@@ -1460,9 +1456,7 @@ export const RunConsole: Component<{
                             <div class="text-15-medium text-foreground">{step().title}</div>
                             <div class="mt-0.5 text-ui-xs leading-relaxed text-foreground-subtle">{step().hint}</div>
                             <Show when={guideNote()}>
-                              {(note) => (
-                                <div class="mt-1 text-ui-xs leading-relaxed text-icon-warning-base">{note()}</div>
-                              )}
+                              {(note) => <div class="mt-1 text-ui-xs leading-relaxed text-warning-base">{note()}</div>}
                             </Show>
                           </div>
                           {/*
@@ -1517,16 +1511,16 @@ export const RunConsole: Component<{
                   */}
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-ui-xs">
                       <span class="text-foreground-subtle" title={t("run.metric.passHint")}>
-                        {t("run.metric.pass")} <b class="text-icon-success-base">{summary()?.pass ?? 0}</b>
+                        {t("run.metric.pass")} <b class="text-success-base">{summary()?.pass ?? 0}</b>
                       </span>
                       <span class="text-foreground-subtle" title={t("run.metric.failHint")}>
-                        {t("run.metric.fail")} <b class="text-icon-critical-base">{summary()?.fail ?? 0}</b>
+                        {t("run.metric.fail")} <b class="text-critical-base">{summary()?.fail ?? 0}</b>
                       </span>
                       <span class="text-foreground-subtle" title={t("run.metric.unverifiedHint")}>
-                        {t("run.metric.unverified")} <b class="text-icon-warning-base">{summary()?.unverified ?? 0}</b>
+                        {t("run.metric.unverified")} <b class="text-warning-base">{summary()?.unverified ?? 0}</b>
                       </span>
                       <span class="text-foreground-subtle" title={t("run.metric.staleHint")}>
-                        {t("run.metric.stale")} <b class="text-icon-warning-base">{summary()?.stale ?? 0}</b>
+                        {t("run.metric.stale")} <b class="text-warning-base">{summary()?.stale ?? 0}</b>
                       </span>
                       <span class="ml-auto text-foreground-subtlest">
                         {t(`run.verdict.${summary()?.verdict ?? "pending"}`)}
@@ -1535,8 +1529,8 @@ export const RunConsole: Component<{
                   </Show>
 
                   <Show when={(data().needsReview ?? []).length > 0}>
-                    <div class="flex flex-col gap-1 rounded-lg border border-warning bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-icon-warning-base" title={t("run.review.hint")}>
+                    <div class="flex flex-col gap-1 rounded-lg border border-warning-base bg-surface px-3 py-2">
+                      <div class="text-ui-xs text-warning-base" title={t("run.review.hint")}>
                         {t("run.review.title", { count: String(data().needsReview.length) })}
                       </div>
                       <For each={data().needsReview}>
@@ -1574,7 +1568,7 @@ export const RunConsole: Component<{
                   <Show when={(data().denials ?? []).length > 0}>
                     <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
                       <div class="flex items-center justify-between gap-2">
-                        <div class="text-ui-xs text-icon-warning-base" title={t("run.denials.hint")}>
+                        <div class="text-ui-xs text-warning-base" title={t("run.denials.hint")}>
                           {t("run.denials.title", { count: String(data().denials.length) })}
                         </div>
                         {/* 放行是人的决定：模型没有接口把自己被拒的动作重新打开。 */}
@@ -1599,7 +1593,7 @@ export const RunConsole: Component<{
                   </Show>
                   <Show when={(data().blockers ?? []).length > 0}>
                     <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
-                      <div class="text-ui-xs text-icon-critical-base">
+                      <div class="text-ui-xs text-critical-base">
                         {t("run.blocked.title", { count: String((data().blockers ?? []).length) })}
                       </div>
                       <For each={data().blockers ?? []}>
@@ -1608,7 +1602,7 @@ export const RunConsole: Component<{
                             <Tag>{blocker.kind}</Tag>
                             <Show when={blocker.tool}>{(tool) => <Tag>{tool()}</Tag>}</Show>
                             <span class="min-w-0 flex-1 truncate">{blocker.reason ?? ""}</span>
-                            <span class={blocker.swappable ? "text-foreground-subtlest" : "text-icon-warning-base"}>
+                            <span class={blocker.swappable ? "text-foreground-subtlest" : "text-warning-base"}>
                               {blocker.swappable ? t("run.blocked.swappable") : t("run.blocked.noSwap")}
                             </span>
                             {/* §4.3：每个阻塞都能一键跳到对应会话处理，看板只给结论。 */}
@@ -1696,7 +1690,7 @@ export const RunConsole: Component<{
                         }
                       >
                         <Show when={visibleLines().length === 0}>
-                          <div class="flex items-center gap-1.5 text-ui-xs text-icon-success-base">
+                          <div class="flex items-center gap-1.5 text-ui-xs text-success-base">
                             <Icon name="circle-check" size="small" />
                             {t("run.acceptance.allPassed", { count: String(rankedLines().length) })}
                           </div>
@@ -1721,9 +1715,9 @@ export const RunConsole: Component<{
                                 <span
                                   classList={{
                                     "mt-1 size-2 shrink-0 rounded-full": true,
-                                    "bg-success": line.outcome === "pass",
-                                    "bg-destructive": line.outcome === "fail",
-                                    "bg-warning": line.outcome !== "pass" && line.outcome !== "fail",
+                                    "bg-surface-success-base": line.outcome === "pass",
+                                    "bg-surface-critical-base": line.outcome === "fail",
+                                    "bg-surface-warning-base": line.outcome !== "pass" && line.outcome !== "fail",
                                   }}
                                 />
                                 <div class="min-w-0 flex-1">
@@ -1767,9 +1761,7 @@ export const RunConsole: Component<{
                                   <div class="text-ui-xs text-foreground-subtle">{t("run.evidence.title")}</div>
                                   <Show
                                     when={evidenceFor(line.acceptanceID).length > 0}
-                                    fallback={
-                                      <div class="text-ui-xs text-icon-warning-base">{t("run.evidence.empty")}</div>
-                                    }
+                                    fallback={<div class="text-ui-xs text-warning-base">{t("run.evidence.empty")}</div>}
                                   >
                                     <For each={evidenceFor(line.acceptanceID)}>
                                       {(record) => (
@@ -1800,7 +1792,7 @@ export const RunConsole: Component<{
                                           </Show>
                                           {/* 缓存命中也算证据，但必须看得出它不是这次新验的（§19.1）。 */}
                                           <Show when={record.reused}>
-                                            <Tag class="text-icon-warning-base" title={t("run.evidence.reusedHint")}>
+                                            <Tag class="text-warning-base" title={t("run.evidence.reusedHint")}>
                                               {t("run.evidence.reused")}
                                             </Tag>
                                           </Show>
@@ -1863,7 +1855,7 @@ export const RunConsole: Component<{
                                 {t(`run.mission.status.${mission().status}`)}
                               </Tag>
                               <Show when={missionDiff()?.skippedReason}>
-                                {(reason) => <span class="text-icon-warning-base">{reason()}</span>}
+                                {(reason) => <span class="text-warning-base">{reason()}</span>}
                               </Show>
                               <Show when={missionDiff()?.head}>
                                 {(head) => (
@@ -1917,11 +1909,11 @@ export const RunConsole: Component<{
                             </div>
                             <Show when={missionDiff()?.files?.length}>
                               <div class="flex flex-wrap items-center gap-1.5">
-                                <Tag class="text-icon-success-base">
+                                <Tag class="text-success-base">
                                   {"+" +
                                     (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.added), 0)}
                                 </Tag>
-                                <Tag class="text-icon-critical-base">
+                                <Tag class="text-critical-base">
                                   {"-" +
                                     (missionDiff()?.files ?? []).reduce((sum, file) => sum + numeric(file.removed), 0)}
                                 </Tag>
@@ -1934,8 +1926,8 @@ export const RunConsole: Component<{
                               {(file) => (
                                 <div class="flex items-center gap-1.5 text-ui-xs text-foreground-subtle">
                                   <span class="min-w-0 flex-1 truncate">{file.path}</span>
-                                  <span class="shrink-0 text-icon-success-base">{"+" + numeric(file.added)}</span>
-                                  <span class="shrink-0 text-icon-critical-base">{"-" + numeric(file.removed)}</span>
+                                  <span class="shrink-0 text-success-base">{"+" + numeric(file.added)}</span>
+                                  <span class="shrink-0 text-critical-base">{"-" + numeric(file.removed)}</span>
                                 </div>
                               )}
                             </For>
@@ -1944,7 +1936,7 @@ export const RunConsole: Component<{
                             </Show>
                             {/* 未跟踪文件不是已交付：单独说清楚，不并进上面的改动数字。 */}
                             <Show when={(missionDiff()?.untracked ?? []).length > 0}>
-                              <span class="text-ui-xs text-icon-warning-base">
+                              <span class="text-ui-xs text-warning-base">
                                 {t("run.mission.untracked", { count: String((missionDiff()?.untracked ?? []).length) })}
                               </span>
                             </Show>
@@ -1958,7 +1950,7 @@ export const RunConsole: Component<{
                   */}
                       <Show when={truncations().length > 0}>
                         <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
-                          <div class="text-ui-xs text-icon-warning-base">
+                          <div class="text-ui-xs text-warning-base">
                             {t("run.context.truncated", { count: String(truncations().length) })}
                           </div>
                           <For each={truncations()}>
@@ -2003,7 +1995,7 @@ export const RunConsole: Component<{
                                 })}
                               </Tag>
                               <Show when={usage().overrun}>
-                                <Tag class="text-icon-critical-base">{t("run.usage.overrun")}</Tag>
+                                <Tag class="text-critical-base">{t("run.usage.overrun")}</Tag>
                               </Show>
                             </div>
                             <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
@@ -2160,7 +2152,7 @@ export const RunConsole: Component<{
                               </div>
                               {/* 必须照实说的边界：未验证/过期不计入通过、结论是否有事件背书。 */}
                               <For each={chain().conclusion.notes}>
-                                {(note) => <div class="text-ui-xs text-icon-warning-base">{note}</div>}
+                                {(note) => <div class="text-ui-xs text-warning-base">{note}</div>}
                               </For>
                               <Show when={chain().steps.length > 0}>
                                 <div class="flex max-h-64 flex-col gap-0.5 overflow-y-auto">

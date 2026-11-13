@@ -53,6 +53,7 @@ import {
   ComputerWaitForWindowTool,
   ComputerWindowsTool,
 } from "./computer"
+import { ComputerTaskTool } from "./computer-task"
 import { MemoryTool } from "./memory"
 import { GenerateImageTool } from "./generate_image"
 import { GenerateVideoTool } from "./generate_video"
@@ -87,6 +88,8 @@ import { Database as DatabaseModule } from "@/database"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
 import { ConfigMemory } from "@/config/memory"
+import { ConfigArena } from "@/config/arena"
+import { ConfigComputer } from "@/config/computer"
 import { ConfigProvider } from "@/config/provider"
 import { ProtocolRegistry } from "@novaway/llm/protocols"
 import { type ToolContext as PluginToolContext, type ToolDefinition } from "@novaway/plugin"
@@ -113,6 +116,7 @@ import { WorkflowRunTool } from "./workflow-run"
 import { ResumeWorkflowTool } from "./workflow-resume"
 import { ListSavedWorkflowsTool, SaveWorkflowTool } from "./workflow-save"
 import { OrchestratorTool } from "./orchestrator"
+import { ArenaTool } from "./arena"
 import { OrchestratorService, defaultLayer as OrchestratorDefaultLayer } from "@/orchestrator/orchestrator"
 import { Glob } from "@novaway/core/util/glob"
 import path from "path"
@@ -593,6 +597,8 @@ export const layer: Layer.Layer<
     const computerWindows = yield* ComputerWindowsTool
     const computerWaitForWindow = yield* ComputerWaitForWindowTool
     const computerFocus = yield* ComputerFocusTool
+    const arenaTool = yield* ArenaTool
+    const computerTask = yield* ComputerTaskTool
     const generateimagetool = yield* GenerateImageTool
     const generatevideotool = yield* GenerateVideoTool
     const generateNarrationTool = yield* GenerateNarrationTool
@@ -784,6 +790,10 @@ export const layer: Layer.Layer<
         const computerControlEnabled = cfg.experimental?.computer_control ?? flags.experimentalComputerControl
         // 团队编排总控（§13.1）：关闭时不注入 team_run —— 模型连入口都看不到，而不是调了才失败。
         const teamOrchestrationEnabled = TeamSwitch.enabled(cfg.experimental)
+        // Arena stays out of the prompt unless opted in; it spawns N sessions.
+        const arenaEnabled = ConfigArena.resolve(cfg.arena).enabled
+        // Multi-step computer use is a separate opt-in from the single-step tools.
+        const computerTaskEnabled = ConfigComputer.resolve(cfg.computer).enabled
 
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
@@ -886,6 +896,8 @@ export const layer: Layer.Layer<
           save_workflow: Tool.init(saveWorkflowTool),
           list_saved_workflows: Tool.init(listSavedWorkflowsTool),
           orchestrator: orchestrator ? Tool.init(orchestrator) : Effect.succeed(undefined),
+          arena_run: arenaEnabled ? Tool.init(arenaTool) : Effect.succeed(undefined),
+          computer_task: computerTaskEnabled ? Tool.init(computerTask) : Effect.succeed(undefined),
           team_run: Tool.init(teamRunTool),
           team_run_status: Tool.init(teamRunStatusTool),
           team_create: teamTool ? Tool.init(teamTool) : Effect.succeed(undefined),
@@ -1043,6 +1055,8 @@ export const layer: Layer.Layer<
           tool.save_workflow,
           tool.list_saved_workflows,
           tool.orchestrator!,
+          ...(arenaEnabled && tool.arena_run ? [tool.arena_run] : []),
+          ...(computerTaskEnabled && tool.computer_task ? [tool.computer_task] : []),
           ...(teamOrchestrationEnabled ? [tool.team_run, tool.team_run_status] : []),
           tool.team_create!,
           tool.team_delete,
@@ -1164,6 +1178,8 @@ export const layer: Layer.Layer<
     const describeSkill = Effect.fn("ToolRegistry.describeSkill")(function* (agent: Agent.Info) {
       const list = yield* skill.available(agent)
       if (list.length === 0) return "No skills are currently available."
+      const cfg = yield* config.get()
+      const budget = Math.floor(100_000 * (cfg.skills?.listing_budget_fraction ?? 0.05))
       return [
         "Load a specialized skill that provides domain-specific instructions and workflows.",
         "",
@@ -1176,7 +1192,7 @@ export const layer: Layer.Layer<
         "The following skills provide specialized sets of instructions for particular tasks",
         "Invoke this tool to load a skill when a task matches one of the available skills listed below:",
         "",
-        Skill.fmt(list, { verbose: false }),
+        Skill.fmt(list, { verbose: false, budget }),
       ].join("\n")
     })
 

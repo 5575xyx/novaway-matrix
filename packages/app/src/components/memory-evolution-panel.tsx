@@ -281,7 +281,7 @@ export function MemoryEvolutionPanel() {
           onInterval={setEvolutionInterval}
         />
         <Show when={evolutionConfig().auto_apply_file === true}>
-          <div class="mb-2 rounded-md border border-[color-mix(in_srgb,var(--icon-warning-base)_40%,transparent)] bg-[color-mix(in_srgb,var(--icon-warning-base)_10%,transparent)] px-2.5 py-1.5 text-11-regular text-icon-warning-base">
+          <div class="mb-2 rounded-md border border-warning-base/40 bg-surface-warning-weak px-2.5 py-1.5 text-11-regular text-warning-base">
             自动写入已开启：新产生的进化候选会直接写入 .novaway 文件，无需在此确认。
           </div>
         </Show>
@@ -470,10 +470,8 @@ function EvolutionRow(props: {
             <Tag>{props.candidate.target}</Tag>
             <Tag
               classList={{
-                "border-[color-mix(in_srgb,var(--icon-agent-plan-base)_50%,transparent)] bg-[color-mix(in_srgb,var(--icon-agent-plan-base)_15%,transparent)] text-[var(--icon-agent-plan-base)]":
-                  scope === "global",
-                "border-[color-mix(in_srgb,var(--icon-info-base)_50%,transparent)] bg-[color-mix(in_srgb,var(--icon-info-base)_15%,transparent)] text-[var(--icon-info-base)]":
-                  scope === "project",
+                "border-border/80 bg-surface-weak text-foreground-subtle": scope === "global",
+                "border-info-base/50 bg-surface-info-weak text-info-base": scope === "project",
               }}
             >
               {language.t(`settings.evolution.scope.${scope}` as never)}

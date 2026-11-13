@@ -1,6 +1,6 @@
-import { describe, expect } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { Effect, Layer } from "effect"
-import { Skill } from "../../src/skill"
+import { Skill, fitListingBudget, rankByUsage, usageScore } from "../../src/skill"
 import { Discovery } from "../../src/skill/discovery"
 import { RuntimeFlags } from "../../src/effect/runtime-flags"
 import { Bus } from "../../src/bus"
@@ -73,6 +73,31 @@ const withHome = <A, E, R>(home: string, self: Effect.Effect<A, E, R>) =>
         process.env.NOVAWAY_TEST_HOME = prev
       }),
   )
+
+describe("skill ranking and prompt budget", () => {
+  test("decays usage by half each week and uses name as a stable tie-breaker", () => {
+    const now = 100 * 24 * 60 * 60 * 1000
+    expect(usageScore({ count: 8, lastUsed: now - 7 * 24 * 60 * 60 * 1000 }, now)).toBe(4)
+    expect(
+      rankByUsage(
+        [{ name: "zeta" }, { name: "alpha" }, { name: "recent" }],
+        {
+          zeta: { count: 4, lastUsed: now },
+          alpha: { count: 4, lastUsed: now },
+          recent: { count: 5, lastUsed: now },
+        },
+        now,
+      ).map((item) => item.name),
+    ).toEqual(["recent", "alpha", "zeta"])
+  })
+
+  test("keeps a listing within its character budget", () => {
+    const result = fitListingBudget("A skill listing that is too long", 20)
+    expect(result.length).toBeLessThanOrEqual(20)
+    expect(result).toHaveLength(20)
+    expect(fitListingBudget("long", 0)).toBe("")
+  })
+})
 
 describe("skill", () => {
   it.live("includes root utility skills as built-in skills", () =>
@@ -151,6 +176,49 @@ Instructions here.
           expect(item).toBeDefined()
           expect(item!.description).toBe("A test skill for verification.")
           expect(item!.location).toContain(path.join("skill", "test-skill", "SKILL.md"))
+        }),
+      { git: true },
+    ),
+  )
+
+  it.live("carries auto-skill provenance from frontmatter", () =>
+    provideTmpdirInstance(
+      (dir) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() =>
+            Promise.all([
+              Bun.write(
+                path.join(dir, ".novaway", "skill", "auto-made", "SKILL.md"),
+                `---
+name: auto-made
+description: Extracted automatically from a long tool session.
+source: auto-skill
+---
+
+# Auto Made
+`,
+              ),
+              Bun.write(
+                path.join(dir, ".novaway", "skill", "hand-made", "SKILL.md"),
+                `---
+name: hand-made
+description: Written by a human.
+---
+
+# Hand Made
+`,
+              ),
+            ]),
+          )
+
+          const skill = yield* Skill.Service
+          const list = (yield* skill.all()).filter((s) => !s.builtIn)
+          const auto = list.find((s) => s.name === "auto-made")
+          const hand = list.find((s) => s.name === "hand-made")
+
+          // 自动生成的技能要在运行时带着来源标记，供进化 write-once 与设置页保护使用。
+          expect(auto?.source).toBe("auto-skill")
+          expect(hand?.source).toBeUndefined()
         }),
       { git: true },
     ),

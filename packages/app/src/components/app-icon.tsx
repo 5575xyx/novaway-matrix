@@ -110,21 +110,20 @@ function inferGlyph(seed: string) {
 }
 
 const THEME_TONES = [
-  ["--icon-interactive-base", "--text-on-interactive-base"],
-  ["--icon-agent-plan-base", "--text-on-brand-base"],
-  ["--icon-success-base", "--text-on-success-base"],
-  ["--icon-warning-base", "--text-on-warning-base"],
-  ["--icon-info-base", "--text-on-info-base"],
-  ["--icon-critical-base", "--text-on-critical-base"],
-  ["--icon-brand-base", "--text-on-brand-base"],
+  "--tool-category-0",
+  "--tool-category-1",
+  "--tool-category-2",
+  "--tool-category-3",
+  "--tool-category-4",
+  "--tool-category-5",
 ] as const
 
 function themedTone(seed: string) {
-  const [token, foreground] = THEME_TONES[hash(seed) % THEME_TONES.length]!
+  const token = THEME_TONES[hash(seed) % THEME_TONES.length]!
   return {
-    from: `color-mix(in oklab, var(${token}) 78%, var(--surface))`,
-    to: `var(${token})`,
-    foreground: `var(${foreground})`,
+    from: `color-mix(in oklab, var(${token}) 8%, var(--surface))`,
+    to: `color-mix(in oklab, var(${token}) 18%, var(--surface))`,
+    foreground: `var(${token})`,
   }
 }
 

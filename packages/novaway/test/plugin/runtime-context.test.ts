@@ -288,11 +288,16 @@ describe("tool entry loading", () => {
       path.join(base, "provider.mjs"),
       `export default { id: "acme", name: "Acme", sdk: "@ai-sdk/openai-compatible", models: { chat: { name: "Chat" } } }`,
     )
-    await expect(loadProviderEntries({ root: base, entries: ["provider.mjs"], pluginID: "acme" })).resolves.toMatchObject([
-      { id: "acme", name: "Acme" },
-    ])
-    await fs.writeFile(path.join(path.dirname(base), "outside-provider.mjs"), "export default { id: 'outside', name: 'Outside' }")
-    await expect(loadProviderEntries({ root: base, entries: ["../outside-provider.mjs"], pluginID: "acme" })).rejects.toThrow("路径越界")
+    await expect(
+      loadProviderEntries({ root: base, entries: ["provider.mjs"], pluginID: "acme" }),
+    ).resolves.toMatchObject([{ id: "acme", name: "Acme" }])
+    await fs.writeFile(
+      path.join(path.dirname(base), "outside-provider.mjs"),
+      "export default { id: 'outside', name: 'Outside' }",
+    )
+    await expect(
+      loadProviderEntries({ root: base, entries: ["../outside-provider.mjs"], pluginID: "acme" }),
+    ).rejects.toThrow("路径越界")
   })
 
   test("rejects entry symlinks escaping the plugin root", async () => {
@@ -328,13 +333,19 @@ describe("activation resource ownership", () => {
     )
     const plugin = createDiscoveredPlugin({
       instance: {
-        id: "builtin.providers", status: "installed", scope: "builtin", origin: "extension", adapter: "v2",
+        id: "builtin.providers",
+        status: "installed",
+        scope: "builtin",
+        origin: "extension",
+        adapter: "v2",
         manifest: manifest("builtin.providers", undefined, {
           kind: "declarative",
           contributes: { providers: ["provider.mjs"] },
         }),
         location: { kind: "directory", root: base, label: "builtin" },
-        issues: [], diagnostics: [], contributions: 1,
+        issues: [],
+        diagnostics: [],
+        contributions: 1,
       },
       runtime: h.input,
     })
@@ -352,13 +363,21 @@ describe("activation resource ownership", () => {
     await fs.writeFile(path.join(base, "office.mjs"), "export default { open: async () => ({ ok: true }) }")
     const plugin = createDiscoveredPlugin({
       instance: {
-        id: "builtin.office", status: "installed", scope: "builtin", origin: "extension", adapter: "v2",
+        id: "builtin.office",
+        status: "installed",
+        scope: "builtin",
+        origin: "extension",
+        adapter: "v2",
         manifest: manifest("builtin.office", undefined, {
           kind: "declarative",
-          contributes: { officeEngines: [{ format: "foo", kind: "document", extensions: ["foo"], entry: "office.mjs" }] },
+          contributes: {
+            officeEngines: [{ format: "foo", kind: "document", extensions: ["foo"], entry: "office.mjs" }],
+          },
         }),
         location: { kind: "directory", root: base, label: "builtin" },
-        issues: [], diagnostics: [], contributions: 1,
+        issues: [],
+        diagnostics: [],
+        contributions: 1,
       },
       runtime: h.input,
     })
@@ -372,16 +391,25 @@ describe("activation resource ownership", () => {
   test("built-in publish driver entries register and release with Host lifecycle", async () => {
     const h = harness()
     h.input.registries.publish = createPublishRegistry()
-    await fs.writeFile(path.join(base, "publish.mjs"), `export default { id: "acme", name: "Acme", supports: ["article"], urls: { article: "https://acme.test" } }`)
+    await fs.writeFile(
+      path.join(base, "publish.mjs"),
+      `export default { id: "acme", name: "Acme", supports: ["article"], urls: { article: "https://acme.test" } }`,
+    )
     const plugin = createDiscoveredPlugin({
       instance: {
-        id: "builtin.publish", status: "installed", scope: "builtin", origin: "extension", adapter: "v2",
+        id: "builtin.publish",
+        status: "installed",
+        scope: "builtin",
+        origin: "extension",
+        adapter: "v2",
         manifest: manifest("builtin.publish", undefined, {
           kind: "declarative",
           contributes: { publishDrivers: ["publish.mjs"] },
         }),
         location: { kind: "directory", root: base, label: "builtin" },
-        issues: [], diagnostics: [], contributions: 1,
+        issues: [],
+        diagnostics: [],
+        contributions: 1,
       },
       runtime: h.input,
     })
@@ -398,13 +426,29 @@ describe("activation resource ownership", () => {
     h.input.registries.surfaces = createSurfaceRegistry()
     const plugin = createDiscoveredPlugin({
       instance: {
-        id: "builtin.ui", status: "installed", scope: "builtin", origin: "extension", adapter: "v2",
+        id: "builtin.ui",
+        status: "installed",
+        scope: "builtin",
+        origin: "extension",
+        adapter: "v2",
         manifest: manifest("builtin.ui", undefined, {
           kind: "declarative",
-          contributes: { surfaces: [{ slot: "sidebar.item", id: "foo", title: "Foo", icon: "sparkles", action: { type: "view", viewId: "foo" } }] },
+          contributes: {
+            surfaces: [
+              {
+                slot: "sidebar.item",
+                id: "foo",
+                title: "Foo",
+                icon: "sparkles",
+                action: { type: "view", viewId: "foo" },
+              },
+            ],
+          },
         }),
         location: { kind: "directory", root: base, label: "builtin" },
-        issues: [], diagnostics: [], contributions: 1,
+        issues: [],
+        diagnostics: [],
+        contributions: 1,
       },
       runtime: h.input,
     })
@@ -420,28 +464,51 @@ describe("activation resource ownership", () => {
     const h = harness()
     h.input.registries.publish = createPublishRegistry()
     h.input.registries.surfaces = createSurfaceRegistry()
-    await fs.writeFile(path.join(base, "publish-d7.mjs"), `export default { id: "builtin-publish", name: "Builtin Publish", supports: ["article"], urls: { article: "https://builtin.test" } }`)
+    await fs.writeFile(
+      path.join(base, "publish-d7.mjs"),
+      `export default { id: "builtin-publish", name: "Builtin Publish", supports: ["article"], urls: { article: "https://builtin.test" } }`,
+    )
     const builtin = createDiscoveredPlugin({
       instance: {
-        id: "builtin.bundle", status: "installed", scope: "builtin", origin: "extension", adapter: "v2",
+        id: "builtin.bundle",
+        status: "installed",
+        scope: "builtin",
+        origin: "extension",
+        adapter: "v2",
         manifest: manifest("builtin.bundle", undefined, {
           kind: "declarative",
           contributes: {
             publishDrivers: ["publish-d7.mjs"],
-            surfaces: [{ slot: "sidebar.item", id: "builtin-home", title: "Builtin", icon: "home", action: { type: "view", viewId: "builtin" } }],
+            surfaces: [
+              {
+                slot: "sidebar.item",
+                id: "builtin-home",
+                title: "Builtin",
+                icon: "home",
+                action: { type: "view", viewId: "builtin" },
+              },
+            ],
           },
         }),
         location: { kind: "directory", root: base, label: "builtin" },
-        issues: [], diagnostics: [], contributions: 2,
+        issues: [],
+        diagnostics: [],
+        contributions: 2,
       },
       runtime: h.input,
     })
     const host = createHost(h.input.registries as never)
     await host.activate(builtin)
     const other = {
-      id: "other", scope: "project" as const, root: base, manifest: manifest("other"),
+      id: "other",
+      scope: "project" as const,
+      root: base,
+      manifest: manifest("other"),
       async activate({ registries }: { registries: typeof h.input.registries }) {
-        registries.tools.register({ pluginID: "other", scope: "project" }, { id: "other", description: "other", parameters: { type: "object" }, execute: async () => "ok" })
+        registries.tools.register(
+          { pluginID: "other", scope: "project" },
+          { id: "other", description: "other", parameters: { type: "object" }, execute: async () => "ok" },
+        )
       },
     }
     await host.activate(other)
@@ -498,6 +565,101 @@ describe("activation resource ownership", () => {
     await expect(second.execute({}, execution)).rejects.toMatchObject({ code: "tool_unavailable" })
   })
 
+  test("activationEvents without onStartup defer tool entry imports until the first call", async () => {
+    const h = harness()
+    const entry = path.join(base, "lazy.mjs")
+    await fs.writeFile(
+      entry,
+      [
+        "globalThis.__novawayLazyImports = (globalThis.__novawayLazyImports ?? 0) + 1",
+        "export default (api) => ({ execute: async () => `lazy:${api.id}` })",
+      ].join("\n"),
+    )
+    const globals = globalThis as { __novawayLazyImports?: number }
+    globals.__novawayLazyImports = 0
+    const pluginManifest = manifest("acme", undefined, {
+      kind: "declarative",
+      activationEvents: ["onTool:acme_weather"],
+      contributes: {
+        tools: [{ id: "weather", entry: "./lazy.mjs", description: "weather", parameters: { type: "object" } }],
+      },
+    })
+    const plugin = createDiscoveredPlugin({
+      instance: {
+        id: "acme",
+        status: "installed",
+        scope: "project",
+        origin: "extension",
+        adapter: "v2",
+        manifest: pluginManifest,
+        location: { kind: "directory", root: base, label: "project" },
+        issues: [],
+        diagnostics: [],
+        installOrder: 4,
+        contributions: 1,
+      },
+      runtime: h.input,
+    })
+    const host = createHost(h.input.registries as never)
+    await host.activate(plugin)
+    // 静态 schema 先进入索引，模型立刻看得见；代码要等第一次调用。
+    expect(globals.__novawayLazyImports).toBe(0)
+    const listed = h.input.registries.tools.list()
+    expect(listed.map((item) => item.name)).toEqual(["acme_weather"])
+    expect(listed[0]!.item.parameters).toEqual({ type: "object" })
+
+    const toolEntry = listed[0]!.item
+    const execution = { abort: new AbortController().signal } as Parameters<typeof toolEntry.execute>[1]
+    expect(await toolEntry.execute({}, execution)).toBe("lazy:acme")
+    expect(globals.__novawayLazyImports).toBe(1)
+    // 第二次调用复用同一份实现，不再导入。
+    expect(await toolEntry.execute({}, execution)).toBe("lazy:acme")
+    expect(globals.__novawayLazyImports).toBe(1)
+
+    host.deactivate("acme", "project")
+    await expect(toolEntry.execute({}, execution)).rejects.toMatchObject({ code: "tool_unavailable" })
+    host.dispose()
+  })
+
+  test("plugins without activationEvents still import tool entries at activation", async () => {
+    const h = harness()
+    const entry = path.join(base, "eager.mjs")
+    await fs.writeFile(
+      entry,
+      [
+        "globalThis.__novawayEagerImports = (globalThis.__novawayEagerImports ?? 0) + 1",
+        "export default () => ({ execute: async () => 'eager' })",
+      ].join("\n"),
+    )
+    const globals = globalThis as { __novawayEagerImports?: number }
+    globals.__novawayEagerImports = 0
+    const pluginManifest = manifest("acme", undefined, {
+      kind: "declarative",
+      contributes: {
+        tools: [{ id: "weather", entry: "./eager.mjs", description: "weather", parameters: { type: "object" } }],
+      },
+    })
+    const plugin = createDiscoveredPlugin({
+      instance: {
+        id: "acme-eager",
+        status: "installed",
+        scope: "project",
+        origin: "extension",
+        adapter: "v2",
+        manifest: pluginManifest,
+        location: { kind: "directory", root: base, label: "project" },
+        issues: [],
+        diagnostics: [],
+        contributions: 1,
+      },
+      runtime: h.input,
+    })
+    const host = createHost(h.input.registries as never)
+    await host.activate(plugin)
+    expect(globals.__novawayEagerImports).toBe(1)
+    host.dispose()
+  })
+
   test("discovered v2 Agent, Skill, and Command declarations register and release with Host lifecycle", async () => {
     const h = harness()
     await fs.writeFile(path.join(base, "writer.md"), "Write concise, evidence-based reports.")
@@ -507,15 +669,29 @@ describe("activation resource ownership", () => {
       contributes: {
         agents: [{ id: "writer", description: "Report writer", mode: "primary", prompt: { file: "writer.md" } }],
         skills: [{ id: "research", description: "Research skill", source: { file: "SKILL.md" } }],
-        commands: [{ id: "draft", description: "Draft a report", template: "Write a report about $ARGUMENTS", argumentHint: "$ARGUMENTS" }],
+        commands: [
+          {
+            id: "draft",
+            description: "Draft a report",
+            template: "Write a report about $ARGUMENTS",
+            argumentHint: "$ARGUMENTS",
+          },
+        ],
       },
     })
     const plugin = createDiscoveredPlugin({
       instance: {
-        id: "acme", status: "installed", scope: "project", origin: "extension", adapter: "v2",
+        id: "acme",
+        status: "installed",
+        scope: "project",
+        origin: "extension",
+        adapter: "v2",
         manifest: pluginManifest,
         location: { kind: "directory", root: base, label: "project" },
-        issues: [], diagnostics: [], installOrder: 4, contributions: 3,
+        issues: [],
+        diagnostics: [],
+        installOrder: 4,
+        contributions: 3,
       },
       runtime: h.input,
     })
@@ -525,7 +701,10 @@ describe("activation resource ownership", () => {
     expect(h.input.registries.agents.list().map((entry) => entry.name)).toEqual(["acme_writer"])
     expect(h.input.registries.agents.list()[0]?.item.prompt).toBe("Write concise, evidence-based reports.")
     expect(h.input.registries.skills.list().map((entry) => entry.name)).toEqual(["acme_research"])
-    expect(h.input.registries.skills.list()[0]?.item.source).toEqual({ file: "SKILL.md", text: "Use this skill to summarize source material." })
+    expect(h.input.registries.skills.list()[0]?.item.source).toEqual({
+      file: "SKILL.md",
+      text: "Use this skill to summarize source material.",
+    })
     expect(h.input.registries.skills.list()[0]?.root).toBe(base)
     expect(h.input.registries.commands.list().map((entry) => entry.name)).toEqual(["acme_draft"])
     expect(h.input.registries.commands.list()[0]?.item.template).toContain("$ARGUMENTS")

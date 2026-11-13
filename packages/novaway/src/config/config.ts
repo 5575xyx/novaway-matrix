@@ -22,6 +22,10 @@ import { NonNegativeInt, PositiveInt, type DeepMutable } from "@novaway/core/sch
 import { ConfigAgent } from "./agent"
 import { ConfigAttachment } from "./attachment"
 import { ConfigBrowser } from "./browser"
+import { ConfigComputer } from "./computer"
+import { ConfigSandbox } from "./sandbox"
+import { ConfigArena } from "./arena"
+import { ConfigChannels } from "./channels"
 import { ConfigCommand } from "./command"
 import { ConfigFormatter } from "./formatter"
 import { ConfigLayout } from "./layout"
@@ -354,8 +358,15 @@ export const Info = Schema.Struct({
   }),
   layout: Schema.optional(ConfigLayout.Layout).annotate({ description: "@deprecated Always uses stretch layout." }),
   permission: Schema.optional(ConfigPermission.Info),
+  permission_auto: Schema.optional(ConfigPermission.AutoInfo),
+  computer: Schema.optional(ConfigComputer.Info),
+  sandbox: Schema.optional(ConfigSandbox.Info),
+  arena: Schema.optional(ConfigArena.Info),
+  channels: Schema.optional(ConfigChannels.Info).annotate({
+    description: "External IM channels (Feishu, Telegram, DingTalk, WeCom). Disabled by default.",
+  }),
   permission_mode: Schema.optional(
-    Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]),
+    Schema.Literals(["default", "acceptEdits", "plan", "auto", "bypassPermissions", "unattended"]),
   ).annotate({
     description: "Default permission mode for sessions.",
   }),

@@ -64,7 +64,7 @@ export function FilePreviewBinaryContent(props: {
         <Switch>
           <Match when={props.mediaFailure()}>
             {(failure) => (
-              <div class="p-3 text-12-regular text-icon-critical-base" role="alert">
+              <div class="p-3 text-12-regular text-critical-base" role="alert">
                 {failure()}
               </div>
             )}

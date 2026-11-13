@@ -378,6 +378,35 @@ for (const item of targets) {
   const bunTarget = ["bun", osName, item.arch].join("-")
   console.log(`building ${name}`)
   await $`mkdir -p dist/${name}/bin`
+  // The compiled binary cannot scan BUNFS for directory trees. Ship the trusted
+  // builtin plugin manifests and entry files as a sidecar at the platform
+  // package root; ExtensionLoader resolves ../builtin-plugins from bin/novaway.
+  const builtinRoot = path.join(dir, "dist", name, "builtin-plugins")
+  await fs.promises.cp(path.join(dir, "builtin-plugins"), builtinRoot, {
+    recursive: true,
+    force: true,
+  })
+  // Executable entries in the single-file binary's sidecar cannot resolve
+  // workspace package aliases at runtime. Bundle the shipped Office engine
+  // against the release source graph while keeping its manifest path stable.
+  const officeEntry = path.join(builtinRoot, "novaway-ui", "foo-office.mjs")
+  if (fs.existsSync(officeEntry)) {
+    const bundleDir = path.join(builtinRoot, "novaway-ui", ".office-bundle")
+    const result = await Bun.build({
+      entrypoints: [path.join(dir, "builtin-plugins", "novaway-ui", "foo-office.mjs")],
+      outdir: bundleDir,
+      naming: "foo-office.mjs",
+      target: "bun",
+      format: "esm",
+      splitting: false,
+    })
+    if (!result.success) {
+      const details = result.logs.map((entry) => entry.message).join("\\n")
+      throw new Error(`builtin Office engine sidecar bundle failed${details ? `:\\n${details}` : ""}`)
+    }
+    await fs.promises.copyFile(path.join(bundleDir, "foo-office.mjs"), officeEntry)
+    await fs.promises.rm(bundleDir, { recursive: true, force: true })
+  }
 
   const localPath = path.resolve(dir, "node_modules/@opentui/core/parser.worker.js")
   const rootPath = path.resolve(dir, "../../node_modules/@opentui/core/parser.worker.js")

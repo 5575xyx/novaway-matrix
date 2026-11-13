@@ -42,6 +42,7 @@ import { V2Api } from "./groups/v2"
 import { GoalApi } from "./groups/goal"
 import { WorkflowApi } from "./groups/workflow"
 import { DynamicWorkflowApi } from "./groups/dynamic-workflow"
+import { ArenaApi } from "./groups/arena"
 import { OrchestratorApi } from "./groups/orchestrator"
 import { TeamApi } from "./groups/team"
 import { MissionApi } from "./groups/mission"
@@ -102,6 +103,7 @@ export const InstanceHttpApi = InstanceGroups.addHttpApi(TuiApi)
   .add(WorkflowApi)
   .addHttpApi(DynamicWorkflowApi)
   .add(OrchestratorApi)
+  .add(ArenaApi)
   .addHttpApi(TeamApi)
   .add(ProfileApi)
   .add(MissionApi)

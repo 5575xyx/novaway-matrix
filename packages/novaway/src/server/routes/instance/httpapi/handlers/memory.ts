@@ -1,4 +1,5 @@
 import { Memory } from "@/memory/service"
+import { BackgroundJob } from "@/background/job"
 import { MemorySchema } from "@/memory/schema"
 import { InstanceState } from "@/effect/instance-state"
 import { Effect } from "effect"
@@ -22,6 +23,7 @@ import { inspectOllama, setupLocalEmbedding } from "@/memory/ollama-setup"
 export const memoryHandlers = HttpApiBuilder.group(InstanceHttpApi, "memory", (handlers) =>
   Effect.gen(function* () {
     const memory = yield* Memory.Service
+    const background = yield* BackgroundJob.Service
 
     const projectID = Effect.fn("MemoryHttpApi.projectID")(function* () {
       return (yield* InstanceState.context).project.id
@@ -43,6 +45,18 @@ export const memoryHandlers = HttpApiBuilder.group(InstanceHttpApi, "memory", (h
 
     const status = Effect.fn("MemoryHttpApi.status")(function* () {
       return yield* memory.status({ projectID: yield* projectID(), includeGlobal: true })
+    })
+
+    const learningHistory = Effect.fn("MemoryHttpApi.learningHistory")(function* () {
+      const project = yield* projectID()
+      const jobs = yield* background.list({ includePersisted: true, limit: 500 })
+      return jobs
+        .filter(
+          (job) =>
+            (job.type === "learning.memory" || job.type === "learning.evolution") &&
+            job.metadata?.projectID === project,
+        )
+        .slice(0, 50)
     })
 
     const reviewStatus = Effect.fn("MemoryHttpApi.reviewStatus")(function* () {
@@ -220,6 +234,7 @@ export const memoryHandlers = HttpApiBuilder.group(InstanceHttpApi, "memory", (h
     return handlers
       .handle("list", list)
       .handle("status", status)
+      .handle("learningHistory", learningHistory)
       .handle("add", add)
       .handle("reviewStatus", reviewStatus)
       .handle("review", review)

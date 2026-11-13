@@ -203,20 +203,20 @@
   [data-slot="toast-progress-fill"] {
     height: 100%;
     width: var(--kb-toast-progress-fill-width);
-    background-color: var(--primary);
+    background-color: var(--indicator-interactive-base);
     transition: width 250ms linear;
   }
 
   &[data-variant="success"] [data-slot="toast-progress-fill"] {
-    background-color: var(--icon-success-base);
+    background-color: var(--indicator-success-base);
   }
 
   &[data-variant="error"] [data-slot="toast-progress-fill"] {
-    background-color: var(--icon-critical-base);
+    background-color: var(--indicator-critical-base);
   }
 
   &[data-variant="loading"] [data-slot="toast-progress-fill"] {
-    background-color: var(--icon-info-base);
+    background-color: var(--indicator-info-base);
   }
 }
 

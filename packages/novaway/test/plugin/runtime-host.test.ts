@@ -242,16 +242,24 @@ describe("PluginRuntimeHost", () => {
     const entered = Promise.withResolvers<AbortSignal>()
     const resume = Promise.withResolvers<void>()
     const plugin: Plugin = {
-      id: "snapshot", scope: "project", manifest, root: "/plugins/snapshot",
+      id: "snapshot",
+      scope: "project",
+      manifest,
+      root: "/plugins/snapshot",
       async activate({ registries: current }) {
-        current.tools.register({ pluginID: "snapshot", scope: "project" }, {
-          id: "run", description: "run", parameters: { type: "object" },
-          async execute(_, ctx) {
-            entered.resolve(ctx.abort)
-            await resume.promise
-            return String(ctx.abort.aborted)
+        current.tools.register(
+          { pluginID: "snapshot", scope: "project" },
+          {
+            id: "run",
+            description: "run",
+            parameters: { type: "object" },
+            async execute(_, ctx) {
+              entered.resolve(ctx.abort)
+              await resume.promise
+              return String(ctx.abort.aborted)
+            },
           },
-        })
+        )
       },
     }
     await host.load(plugin)
@@ -276,14 +284,36 @@ describe("PluginRuntimeHost", () => {
     const { host, registries } = setup()
     const cleaned: string[] = []
     const plugin: Plugin = {
-      id: "cleanup", scope: "project", manifest, root: "/plugins/cleanup",
+      id: "cleanup",
+      scope: "project",
+      manifest,
+      root: "/plugins/cleanup",
       async activate({ resources, registries: current }) {
-        resources.push({ dispose() { cleaned.push("first") } })
-        resources.push({ dispose() { cleaned.push("broken"); throw new Error("cleanup exploded") } })
-        resources.push({ dispose() { cleaned.push("last") } })
-        current.tools.register({ pluginID: "cleanup", scope: "project" }, {
-          id: "hello", description: "hello", parameters: { type: "object" }, execute: async () => "ok",
+        resources.push({
+          dispose() {
+            cleaned.push("first")
+          },
         })
+        resources.push({
+          dispose() {
+            cleaned.push("broken")
+            throw new Error("cleanup exploded")
+          },
+        })
+        resources.push({
+          dispose() {
+            cleaned.push("last")
+          },
+        })
+        current.tools.register(
+          { pluginID: "cleanup", scope: "project" },
+          {
+            id: "hello",
+            description: "hello",
+            parameters: { type: "object" },
+            execute: async () => "ok",
+          },
+        )
       },
     }
     await host.load(plugin)
@@ -302,7 +332,10 @@ describe("PluginRuntimeHost", () => {
     const host = createHost({ ...base.registries, providers })
     const adapter = { id: "acme", name: "Acme", options: { baseURL: "https://example.test/v1" } }
     await host.load({
-      id: "builtin.providers", scope: "builtin", manifest: { ...manifest, name: "builtin.providers" }, root: "/plugins/providers",
+      id: "builtin.providers",
+      scope: "builtin",
+      manifest: { ...manifest, name: "builtin.providers" },
+      root: "/plugins/providers",
       async activate({ registries }) {
         registries.providers?.register(adapter)
       },
@@ -324,7 +357,13 @@ describe("PluginRuntimeHost", () => {
       async activate({ registries: current }) {
         current.tools.register(
           { pluginID: "builtin.knowledge", scope: "builtin", root: "/plugins/builtin.knowledge", overrides: [] },
-          { id: "knowledge_search", global: true, description: "builtin knowledge", parameters: { type: "object" }, execute: async () => "builtin" },
+          {
+            id: "knowledge_search",
+            global: true,
+            description: "builtin knowledge",
+            parameters: { type: "object" },
+            execute: async () => "builtin",
+          },
         )
       },
     }
@@ -336,7 +375,12 @@ describe("PluginRuntimeHost", () => {
       async activate({ registries: current }) {
         current.tools.register(
           { pluginID: "acme", scope: "project", root: "/plugins/acme", overrides: ["builtin.knowledge"] },
-          { id: "knowledge_search", description: "replacement knowledge", parameters: { type: "object" }, execute: async () => "replacement" },
+          {
+            id: "knowledge_search",
+            description: "replacement knowledge",
+            parameters: { type: "object" },
+            execute: async () => "replacement",
+          },
         )
       },
     }
@@ -345,10 +389,14 @@ describe("PluginRuntimeHost", () => {
     expect(registries.tools.list().map((entry) => entry.name)).toEqual(["knowledge_search"])
     await host.load(replacement)
     expect(registries.tools.list().map((entry) => entry.name)).toEqual(["acme_knowledge_search"])
-    expect(await registries.tools.list()[0]!.item.execute({}, { abort: new AbortController().signal } as never)).toBe("replacement")
+    expect(await registries.tools.list()[0]!.item.execute({}, { abort: new AbortController().signal } as never)).toBe(
+      "replacement",
+    )
     host.deactivate("acme", "project")
     expect(registries.tools.list().map((entry) => entry.name)).toEqual(["knowledge_search"])
-    expect(await registries.tools.list()[0]!.item.execute({}, { abort: new AbortController().signal } as never)).toBe("builtin")
+    expect(await registries.tools.list()[0]!.item.execute({}, { abort: new AbortController().signal } as never)).toBe(
+      "builtin",
+    )
     host.dispose()
   })
 
@@ -357,9 +405,16 @@ describe("PluginRuntimeHost", () => {
     const order: string[] = []
     for (const id of ["dependency", "dependent", "last"]) {
       await host.load({
-        id, scope: "project", manifest, root: `/plugins/${id}`,
+        id,
+        scope: "project",
+        manifest,
+        root: `/plugins/${id}`,
         async activate({ resources }) {
-          resources.push({ dispose() { order.push(id) } })
+          resources.push({
+            dispose() {
+              order.push(id)
+            },
+          })
         },
       })
     }
@@ -372,12 +427,21 @@ describe("PluginRuntimeHost", () => {
   test("host disposal still releases other plugins when one cleanup fails", async () => {
     const { host } = setup()
     let cleaned = false
-    for (const id of ["broken", "healthy"]) await host.load({
-      id, scope: "project", manifest, root: `/plugins/${id}`,
-      async activate({ resources }) {
-        resources.push({ dispose() { if (id === "broken") throw new Error("cleanup exploded"); cleaned = true } })
-      },
-    })
+    for (const id of ["broken", "healthy"])
+      await host.load({
+        id,
+        scope: "project",
+        manifest,
+        root: `/plugins/${id}`,
+        async activate({ resources }) {
+          resources.push({
+            dispose() {
+              if (id === "broken") throw new Error("cleanup exploded")
+              cleaned = true
+            },
+          })
+        },
+      })
     expect(() => host.dispose()).toThrow("cleanup exploded")
     expect(cleaned).toBe(true)
     expect(host.state("broken", "project")?.status).toBe("failed")

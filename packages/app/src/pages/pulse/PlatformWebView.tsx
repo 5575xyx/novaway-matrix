@@ -142,7 +142,12 @@ export function PlatformWebView(props: PlatformWebViewProps) {
       <Show when={!error()}>
         <div class="flex items-center gap-3 px-4 py-2 bg-background-alt border-b border-border shrink-0">
           <div class="size-5 rounded overflow-hidden bg-background-alt">
-            <PlatformIcon color={info()?.iconColor} markColor={info()?.iconMarkColor} svg={info()?.icon ?? ""} class="size-full object-contain" />
+            <PlatformIcon
+              color={info()?.iconColor}
+              markColor={info()?.iconMarkColor}
+              svg={info()?.icon ?? ""}
+              class="size-full object-contain"
+            />
           </div>
           <span class="text-13-medium text-foreground">{info()?.name}</span>
           <span class="text-12-regular text-foreground-subtlest">{info()?.viewUrl}</span>

@@ -411,7 +411,7 @@ pub trait Provider: Send + Sync {
 | A. 全量 Rust           | Core + Server + TUI + Web + Desktop 全重写         | 60–90 PM | 18–30 个月 | 极高  | 高       | 不建议           |
 | B. Rust 内核 + 现有 UI | Rust daemon + 保留 SolidJS/Electron/TUI            | 30–45 PM |  9–15 个月 | 中    | 高       | **推荐目标**     |
 | C. 绞杀式              | 先 Rust 化 PTY/索引/Provider/Server 热点，逐步扩大 | 10–25 PM |   4–9 个月 | 低–中 | 中       | **推荐落地方式** |
-| D. 只重构 TS           | 借参照产品分层，不换语言                         |  6–12 PM |   3–6 个月 | 低    | 低       | 备选             |
+| D. 只重构 TS           | 借参照产品分层，不换语言                           |  6–12 PM |   3–6 个月 | 低    | 低       | 备选             |
 
 ### 6.1 方向性评分（5 分制）
 

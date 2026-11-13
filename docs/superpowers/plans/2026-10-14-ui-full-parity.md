@@ -5,17 +5,17 @@
 
 ## 总览
 
-| 阶段 | 内容                                                                         | 状态                   |
-| ---- | ---------------------------------------------------------------------------- | ---------------------- |
-| P0   | 引入参照产品 token 层（palette / 参照产品 token / resolve 接线 / colors.txt）    | ✅ `6b97906`           |
-| B1   | 基础控件：Button / IconButton / TextField / Select / Switch / Checkbox / Tag | ✅ `6ce7558` `55f7193` |
-| B2   | 浮层：DropdownMenu / Popover / Dialog / Toast / Tooltip                      | ✅ `d0b3acf`           |
-| B3   | 会话主体：消息时间线 / 气泡 / 工具调用块 / Thinking / Code / Diff            |                        |
-| B4   | 输入区：PromptInput 及其子件                                                 |                        |
-| B5   | 侧栏与面板：侧栏 / 任务列表 / 文件树 / Side Pane / 终端面板                  |                        |
-| B6   | 设置页：settings-\* 全量                                                     |                        |
-| B7   | 状态面板 / 首页 / 办公 / Pulse / 其余                                        |                        |
-| B8   | 收尾：删旧 token 层、Aurora 装饰、彩色阴影                                   |                        |
+| 阶段 | 内容                                                                          | 状态                   |
+| ---- | ----------------------------------------------------------------------------- | ---------------------- |
+| P0   | 引入参照产品 token 层（palette / 参照产品 token / resolve 接线 / colors.txt） | ✅ `6b97906`           |
+| B1   | 基础控件：Button / IconButton / TextField / Select / Switch / Checkbox / Tag  | ✅ `6ce7558` `55f7193` |
+| B2   | 浮层：DropdownMenu / Popover / Dialog / Toast / Tooltip                       | ✅ `d0b3acf`           |
+| B3   | 会话主体：消息时间线 / 气泡 / 工具调用块 / Thinking / Code / Diff             |                        |
+| B4   | 输入区：PromptInput 及其子件                                                  |                        |
+| B5   | 侧栏与面板：侧栏 / 任务列表 / 文件树 / Side Pane / 终端面板                   |                        |
+| B6   | 设置页：settings-\* 全量                                                      |                        |
+| B7   | 状态面板 / 首页 / 办公 / Pulse / 其余                                         |                        |
+| B8   | 收尾：删旧 token 层、Aurora 装饰、彩色阴影                                    |                        |
 
 ## 每批的固定做法
 
@@ -29,7 +29,7 @@
 
 参照产品基线：`packages/ui/src/components/ui/button.tsx`（cva 变体表）。
 
-| 项     | NovaWay 现状                                           | 参照产品                                                                                    |
+| 项     | NovaWay 现状                                           | 参照产品                                                                                 |
 | ------ | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | 圆角   | `var(--radius-lg)` = 12px                              | `rounded-md`(8px) 默认；`xs/icon-xs` → `rounded-sm`；`lg/icon-md/icon-lg` → `rounded-lg` |
 | 高度   | small 28 / normal 36 / large 44                        | `h-5`(20, xs) / `h-6`(24, sm) / `h-7`(28, default) / `h-8`(32, lg) / icon 尺寸同档       |
@@ -69,7 +69,7 @@
 
 实测剩余旧 token 出现次数（前 12）：
 
-| 旧 token                              | 次数 | 参照产品候选                                        |
+| 旧 token                              | 次数 | 参照产品候选                                      |
 | ------------------------------------- | ---- | ------------------------------------------------- |
 | `--text-strong`                       | 84   | `--foreground`                                    |
 | `--text-weak`                         | 79   | `--foreground-subtle` 或 `-subtlest`（按用途）    |
@@ -100,16 +100,16 @@
 
 ### 全部批次已交付
 
-| 批次  | 提交                | 内容                                                                                                   |
-| ----- | ------------------- | ------------------------------------------------------------------------------------------------------ |
-| P0    | `6b97906`           | 引入参照产品 token 层（palette / 参照产品 token / resolve 接线 / colors.txt）                              |
+| 批次  | 提交                | 内容                                                                                                    |
+| ----- | ------------------- | ------------------------------------------------------------------------------------------------------- |
+| P0    | `6b97906`           | 引入参照产品 token 层（palette / 参照产品 token / resolve 接线 / colors.txt）                           |
 | B1    | `6ce7558` `55f7193` | 基础控件：Button / IconButton / TextField / Select / Switch / Checkbox / Tag + **圆角刻度改参照产品值** |
-| B2    | `d0b3acf`           | 浮层：DropdownMenu / Popover / Dialog / Toast / Tooltip                                                |
-| B3    | `1f3c658`           | 会话主体：Markdown / 消息气泡 / 工具块 / 审查（**并确立 4→3 级文字层级口径**）                         |
-| 全局  | `8918ea8` `8f8c664` | 全仓 CSS 批量迁移（47 文件 645 处）+ 修生成器与 5 个未定义 token                                       |
-| B4    | `116ea39`           | 输入区壳 `rounded-2xl border-input-border bg-input` + **Aurora 装饰块整块删除**（570→253 行）          |
-| B8    | `a9dcfff`           | Aurora 阴影/渐变 token 清零 + card 去投影 + 修 8 处 `--syntax-unknown`                                 |
-| B5–B7 | `6c14eee` `8ef200e` | 字阶全量收口到 `text-ui-*`（31 处 CSS + 24 个遗留工具类）+ Tabs 几何 + 旧语义色收敛（42 文件 126 处）  |
+| B2    | `d0b3acf`           | 浮层：DropdownMenu / Popover / Dialog / Toast / Tooltip                                                 |
+| B3    | `1f3c658`           | 会话主体：Markdown / 消息气泡 / 工具块 / 审查（**并确立 4→3 级文字层级口径**）                          |
+| 全局  | `8918ea8` `8f8c664` | 全仓 CSS 批量迁移（47 文件 645 处）+ 修生成器与 5 个未定义 token                                        |
+| B4    | `116ea39`           | 输入区壳 `rounded-2xl border-input-border bg-input` + **Aurora 装饰块整块删除**（570→253 行）           |
+| B8    | `a9dcfff`           | Aurora 阴影/渐变 token 清零 + card 去投影 + 修 8 处 `--syntax-unknown`                                  |
+| B5–B7 | `6c14eee` `8ef200e` | 字阶全量收口到 `text-ui-*`（31 处 CSS + 24 个遗留工具类）+ Tabs 几何 + 旧语义色收敛（42 文件 126 处）   |
 
 ### 最终状态
 
@@ -117,9 +117,9 @@
 | ----------------- | -------------------------------------------------------------------------------------------------- |
 | 全仓旧 token 引用 | **0**（仅剩功能性调色板：`--syntax-*` 代码高亮、`--shadow-xs-border*` focus ring、`--spacing` 等） |
 | Aurora 装饰语言   | **已清除**（13 个零引用 class + 11 个零引用 keyframes + 10 个 token）                              |
-| 圆角刻度          | 参照产品值（4/6/8/12/16），旧 Aurora 是 6/8/12/16/20                                                 |
+| 圆角刻度          | 参照产品值（4/6/8/12/16），旧 Aurora 是 6/8/12/16/20                                               |
 | 字阶              | 全部由 `--ui-font-size` 驱动，随「界面字号」设置缩放                                               |
-| 亮/暗             | 参照产品 Light / Dark 实测正确（`--background` 248,248,248 / 22,22,22 等）                          |
+| 亮/暗             | 参照产品 Light / Dark 实测正确（`--background` 248,248,248 / 22,22,22 等）                         |
 | 测试              | ui 30/30、app 685 pass / 6 fail（6 条为 HEAD 既有失败）、e2e **14/14**                             |
 | 检查              | tsgo 两个包通过、prettier 全通过                                                                   |
 

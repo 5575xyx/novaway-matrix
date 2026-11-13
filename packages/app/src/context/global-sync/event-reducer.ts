@@ -112,6 +112,18 @@ export function applyDirectoryEvent(input: {
   const event = input.event
   switch (event.type) {
     case "plugin.changed": {
+      const props = event.properties as { pluginID?: string; enabled?: boolean }
+      // 停用事件带有目标状态：先本地移除该插件贡献，rail 图标立即消失（§6.4 SSE → 重渲染 < 300ms），
+      // 随后 loadContributions 再与服务端对齐；进入/未带状态的事件只走重拉。
+      if (props.pluginID && props.enabled === false) {
+        const pluginID = props.pluginID
+        if (input.store.plugin_contributions.some((item) => item.pluginID === pluginID)) {
+          input.setStore(
+            "plugin_contributions",
+            input.store.plugin_contributions.filter((item) => item.pluginID !== pluginID),
+          )
+        }
+      }
       input.loadAgents?.()
       input.loadCommands?.()
       input.loadContributions?.()

@@ -48,6 +48,7 @@ export interface Interface {
     name: Name,
     input: Input,
     output: Output,
+    options?: { excludePluginIDs?: readonly string[] },
   ) => Effect.Effect<Output>
   readonly list: () => Effect.Effect<Hooks[]>
   readonly init: () => Effect.Effect<void>
@@ -99,16 +100,27 @@ function getLegacyPlugins(mod: Record<string, unknown>) {
   return result
 }
 
-async function applyPlugin(load: PluginLoader.Loaded, input: PluginInput, hooks: Hooks[]) {
+async function applyPlugin(
+  load: PluginLoader.Loaded,
+  input: PluginInput,
+  addHooks: (hooks: Hooks, ownerID?: string) => void,
+) {
   const plugin = readV1Plugin(load.mod, load.spec, "server", "detect")
   if (plugin) {
-    await resolvePluginId(load.source, load.spec, load.target, readPluginId(plugin.id, load.spec), load.pkg)
-    hooks.push(await (plugin as PluginModule).server(input, load.options))
+    const ownerID = await resolvePluginId(
+      load.source,
+      load.spec,
+      load.target,
+      readPluginId(plugin.id, load.spec),
+      load.pkg,
+    )
+    addHooks(await (plugin as PluginModule).server(input, load.options), ownerID)
     return
   }
 
+  const packageID = typeof load.pkg?.json.name === "string" ? load.pkg.json.name.trim() : undefined
   for (const server of getLegacyPlugins(load.mod)) {
-    hooks.push(await server(input, load.options))
+    addHooks(await server(input, load.options), packageID || undefined)
   }
 }
 
@@ -118,6 +130,11 @@ export const layer = Layer.effect(
     const bus = yield* Bus.Service
     const config = yield* Config.Service
     const flags = yield* RuntimeFlags.Service
+    const hookOwners = new WeakMap<Hooks, string>()
+    const rememberHooks = (hooks: Hooks, ownerID?: string) => {
+      if (ownerID?.trim()) hookOwners.set(hooks, ownerID.trim().toLowerCase())
+      return hooks
+    }
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("Plugin.state")(function* (ctx) {
@@ -222,7 +239,7 @@ export const layer = Layer.effect(
           // Keep plugin execution sequential so hook registration and execution
           // order remains deterministic across plugin runs.
           yield* Effect.tryPromise({
-            try: () => applyPlugin(load, input, hooks),
+            try: () => applyPlugin(load, input, (value, ownerID) => hooks.push(rememberHooks(value, ownerID))),
             catch: (err) => {
               const message = errorMessage(err)
               log.error("failed to load plugin", { path: load.spec, error: message })
@@ -285,10 +302,13 @@ export const layer = Layer.effect(
       Name extends TriggerName,
       Input = Parameters<Required<Hooks>[Name]>[0],
       Output = Parameters<Required<Hooks>[Name]>[1],
-    >(name: Name, input: Input, output: Output) {
+    >(name: Name, input: Input, output: Output, options?: { excludePluginIDs?: readonly string[] }) {
       if (!name) return output
+      const excluded = new Set((options?.excludePluginIDs ?? []).map((id) => id.trim().toLowerCase()))
       const s = yield* InstanceState.get(state)
       for (const hook of s.hooks) {
+        const ownerID = hookOwners.get(hook)
+        if (ownerID && excluded.has(ownerID)) continue
         const fn = hook[name] as any
         if (!fn) continue
         yield* Effect.promise(async () => fn(input, output))

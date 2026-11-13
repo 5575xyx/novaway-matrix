@@ -43,8 +43,26 @@
       {
         "command": "novaway.addFilepathToTerminal",
         "title": "Add Filepath to Terminal"
+      },
+      {
+        "command": "novaway.openAcpSession",
+        "title": "NovaWay: Ask via ACP"
+      },
+      {
+        "command": "novaway.stopAcpSession",
+        "title": "NovaWay: Stop ACP Session"
       }
     ],
+    "configuration": {
+      "title": "NovaWay",
+      "properties": {
+        "novaway.executable": {
+          "type": "string",
+          "default": "novaway",
+          "description": "Command used to start the NovaWay CLI for ACP sessions."
+        }
+      }
+    },
     "menus": {
       "editor/title": [
         {

@@ -23,3 +23,17 @@ export function containsPath(filepath: string, ctx: InstanceContext): boolean {
   if (ctx.worktree === "/") return false
   return AppFileSystem.contains(ctx.worktree, filepath)
 }
+
+/**
+ * Workspace boundary for a session.
+ *
+ * A session may run in its own directory (team or arena worktree) while the
+ * loaded instance points at the root checkout. In that case only the session
+ * directory is in scope — otherwise the root checkout would silently count as
+ * "inside the workspace" and worktree isolation would be nominal.
+ */
+export function containsSessionPath(filepath: string, ctx: InstanceContext, sessionDirectory?: string): boolean {
+  if (sessionDirectory && AppFileSystem.normalizePath(sessionDirectory) !== AppFileSystem.normalizePath(ctx.directory))
+    return AppFileSystem.contains(sessionDirectory, filepath)
+  return containsPath(filepath, ctx)
+}

@@ -109,15 +109,15 @@ export const InstalledExtensions: Component<{ directory: string; refreshKey?: nu
                   <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{item.description}</div>
                 </Show>
                 <Show when={item.error}>
-                  <div class="mt-0.5 truncate text-ui-xs text-icon-critical-base">{item.error}</div>
+                  <div class="mt-0.5 truncate text-ui-xs text-critical-base">{item.error}</div>
                 </Show>
                 <For each={item.issues ?? []}>
                   {(issue) => (
                     <div
                       class="mt-0.5 truncate text-ui-xs"
                       classList={{
-                        "text-icon-critical-base": issue.severity === "error",
-                        "text-icon-warning-base": issue.severity !== "error",
+                        "text-critical-base": issue.severity === "error",
+                        "text-warning-base": issue.severity !== "error",
                       }}
                       title={issue.code}
                     >

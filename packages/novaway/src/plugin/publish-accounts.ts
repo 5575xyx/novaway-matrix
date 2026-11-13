@@ -62,7 +62,14 @@ export async function removePublishAccount(directory: string, driverID: string, 
 function isStoredAccount(value: unknown): value is StoredPublishAccount {
   if (!value || typeof value !== "object") return false
   const item = value as Record<string, unknown>
-  return typeof item.id === "string" && typeof item.driverID === "string" && typeof item.label === "string" &&
-    typeof item.token === "string" && typeof item.createdAt === "number" &&
-    !!item.profile && typeof item.profile === "object" && !Array.isArray(item.profile)
+  return (
+    typeof item.id === "string" &&
+    typeof item.driverID === "string" &&
+    typeof item.label === "string" &&
+    typeof item.token === "string" &&
+    typeof item.createdAt === "number" &&
+    !!item.profile &&
+    typeof item.profile === "object" &&
+    !Array.isArray(item.profile)
+  )
 }

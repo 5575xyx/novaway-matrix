@@ -207,6 +207,7 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
           ...(typeof md.data.display_name === "string" ? { display_name: md.data.display_name } : {}),
           ...(typeof md.data.description === "string" ? { description: md.data.description } : {}),
           ...(category ? { category } : {}),
+          ...(typeof md.data.source === "string" ? { source: md.data.source } : {}),
         },
         content: md.content,
       }
@@ -244,6 +245,7 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
           data: {
             name: item.name,
             ...(item.description ? { description: item.description } : {}),
+            ...(item.source ? { source: item.source } : {}),
           },
           content: item.content,
         }
@@ -448,6 +450,10 @@ export const settingsHandlers = HttpApiBuilder.group(InstanceHttpApi, "settings"
       const name = safeName(ctx.params.name)
       if (!name) return yield* new HttpApiError.BadRequest({})
       const existing = (yield* listSkills()).find((item) => item.name === name && item.editable)
+      if (existing?.data.source === "auto-skill")
+        return yield* new HttpApiError.BadRequest({
+          message: "该技能由自动进化生成，请通过进化候选更新，不要在设置页直接改写。",
+        } as never)
       const file = existing?.location ?? path.join(yield* projectDir(), "skills", name, "SKILL.md")
       yield* fs
         .writeWithDirs(

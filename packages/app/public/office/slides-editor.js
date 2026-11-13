@@ -141148,18 +141148,16 @@ function Uce({
                                                         children: [
                                                           (0, G.jsx)("span", {
                                                             className: "rb-chart-scheme-swatches",
-                                                            children: ge.colors
-                                                              .slice(0, 4)
-                                                              .map((Zt) =>
-                                                                (0, G.jsx)(
-                                                                  "span",
-                                                                  {
-                                                                    className: "rb-chart-scheme-dot",
-                                                                    style: { background: Zt },
-                                                                  },
-                                                                  Zt,
-                                                                ),
+                                                            children: ge.colors.slice(0, 4).map((Zt) =>
+                                                              (0, G.jsx)(
+                                                                "span",
+                                                                {
+                                                                  className: "rb-chart-scheme-dot",
+                                                                  style: { background: Zt },
+                                                                },
+                                                                Zt,
                                                               ),
+                                                            ),
                                                           }),
                                                           (0, G.jsx)("span", {
                                                             className: "rb-chart-scheme-label",
@@ -141509,23 +141507,21 @@ function Uce({
                                               "div",
                                               {
                                                 className: "rb-col",
-                                                children: _ce
-                                                  .slice(ge, ge + 3)
-                                                  .map(({ label: Zt, rot: _a }) =>
-                                                    (0, G.jsxs)(
-                                                      "button",
-                                                      {
-                                                        className: "rb-small",
-                                                        disabled: !za,
-                                                        onClick: () => za?.(_a),
-                                                        children: [
-                                                          (0, G.jsx)(aS, { size: 18 }),
-                                                          (0, G.jsx)("span", { children: Ce(Zt) }),
-                                                        ],
-                                                      },
-                                                      Zt,
-                                                    ),
+                                                children: _ce.slice(ge, ge + 3).map(({ label: Zt, rot: _a }) =>
+                                                  (0, G.jsxs)(
+                                                    "button",
+                                                    {
+                                                      className: "rb-small",
+                                                      disabled: !za,
+                                                      onClick: () => za?.(_a),
+                                                      children: [
+                                                        (0, G.jsx)(aS, { size: 18 }),
+                                                        (0, G.jsx)("span", { children: Ce(Zt) }),
+                                                      ],
+                                                    },
+                                                    Zt,
                                                   ),
+                                                ),
                                               },
                                               ge,
                                             ),

@@ -21,8 +21,9 @@ export const Parameters = Schema.Struct({
   patchText: Schema.String.annotate({ description: "The full patch text that describes all changes to be made" }),
 })
 
-const permissionRoot = (instance: { directory: string; worktree: string }) =>
-  instance.worktree === "/" ? instance.directory : instance.worktree
+// 会话可能跑在自己的 worktree 里（团队/竞技场），路径都相对它。
+const permissionRoot = (instance: { directory: string; worktree: string }, directory?: string) =>
+  directory ?? (instance.worktree === "/" ? instance.directory : instance.worktree)
 
 export const ApplyPatchTool = Tool.define(
   "apply_patch",
@@ -61,7 +62,7 @@ export const ApplyPatchTool = Tool.define(
       }
 
       const instance = yield* InstanceState.context
-      const root = permissionRoot(instance)
+      const root = permissionRoot(instance, ctx.directory)
 
       // Mirrors Edit/Write: a patch may only rewrite (or delete) content the
       // model has actually read, and only while that content is still what is

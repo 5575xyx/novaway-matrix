@@ -4,6 +4,7 @@ import type { PathLike } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type { PluginMeta } from "@/plugin/meta"
+import * as ExtensionLoader from "@/extension/loader"
 import { PluginHost } from "@/plugin/host"
 
 /**
@@ -168,6 +169,22 @@ describe("PluginHost.discover", () => {
     expect(builtin?.adapter).toBe("v2")
     expect(builtin?.location.kind).toBe("directory")
     if (builtin?.location.kind === "directory") expect(builtin.location.label).toBe("builtin")
+  })
+
+  test("compiled release resolves its builtin sidecar beside the executable", async () => {
+    const previous = process.env.NOVAWAY_BUILTIN_PLUGINS
+    delete process.env.NOVAWAY_BUILTIN_PLUGINS
+    try {
+      const packageRoot = path.join(base, "dist", "xymt-novaway-windows-x64")
+      const executable = path.join(packageRoot, "bin", "novaway.exe")
+      const sidecar = path.join(packageRoot, "builtin-plugins")
+      await fs.mkdir(sidecar, { recursive: true })
+
+      expect(ExtensionLoader.builtinRoot(executable)).toBe(sidecar)
+    } finally {
+      if (previous === undefined) delete process.env.NOVAWAY_BUILTIN_PLUGINS
+      else process.env.NOVAWAY_BUILTIN_PLUGINS = previous
+    }
   })
 
   test("约定目录型扩展（无 manifest）按 legacy-extension 收，贡献数为 0 而不是 invalid", async () => {

@@ -51,11 +51,7 @@ import {
   sameDocumentBytes,
 } from "@/pages/session/office-preview-utils"
 import { officeExportTargets } from "@/pages/session/office-export-targets"
-import {
-  saveOfficeEditor,
-  snapshotOfficeEditor,
-  registerOfficeEditorCloseGuard,
-} from "@/pages/session/office-editor-session"
+import { saveOfficeEditor, snapshotOfficeEditor } from "@/pages/session/office-editor-session"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 import type { OfficeFilePreviewProps } from "@/pages/session/office-file-preview"
 import { FilePreviewBinaryContent, getFileMediaPreviewFormat } from "@/pages/session/file-preview-binary-content"
@@ -422,7 +418,11 @@ function createScrollSync(input: { tab: () => string; view: ReturnType<typeof us
   }
 }
 
-function PluginFilePreviewerHost(props: { previewer?: ReturnType<typeof pluginFilePreviewer>; active: boolean; children: any }) {
+function PluginFilePreviewerHost(props: {
+  previewer?: ReturnType<typeof pluginFilePreviewer>
+  active: boolean
+  children: any
+}) {
   const supported = () => props.active && props.previewer?.viewId === "novaway.office.file"
   return (
     <Show when={supported()} fallback={props.children}>
@@ -448,9 +448,7 @@ export function FileTabContent(props: { tab: string }) {
   const sdk = useSDK()
   const globalSync = useGlobalSync()
   const [directoryStore] = globalSync.child(sdk.directory, { bootstrap: false })
-  const activePluginOfficeExtensions = createMemo(() =>
-    pluginOfficeExtensions(directoryStore.plugin_contributions),
-  )
+  const activePluginOfficeExtensions = createMemo(() => pluginOfficeExtensions(directoryStore.plugin_contributions))
   const isActivePluginOfficePath = (target: string | undefined) =>
     isPluginOfficePath(target, [{ kind: "office-engine", extensions: activePluginOfficeExtensions() }])
   const dialog = useDialog()
@@ -485,40 +483,8 @@ export function FileTabContent(props: { tab: string }) {
 
   const path = createMemo(() => file.pathFromTab(props.tab))
   const activeFilePreviewer = createMemo(() => pluginFilePreviewer(path(), directoryStore.plugin_contributions))
-  let unregisterOfficeCloseGuard: (() => void) | undefined
-  createEffect(
-    on(path, (target) => {
-      unregisterOfficeCloseGuard?.()
-      unregisterOfficeCloseGuard = undefined
-      if (!target || !isOfficePreviewPath(target)) return
-      unregisterOfficeCloseGuard = registerOfficeEditorCloseGuard(target, () => {
-        if (!officeDirty() || path() !== target) return Promise.resolve(true)
-        return new Promise<boolean>((resolve) => {
-          let settled = false
-          const finish = (allow: boolean) => {
-            if (settled) return
-            settled = true
-            resolve(allow)
-          }
-          void dialog.show(() => (
-            <ConfirmDialog
-              open
-              title="文档尚未保存"
-              description={`“${target.split(/[\\/]/).pop()}”有未保存的更改。关闭后这些更改将丢失。`}
-              confirmText="仍然关闭"
-              variant="danger"
-              onConfirm={() => finish(true)}
-              onClose={() => {
-                dialog.close()
-                finish(false)
-              }}
-            />
-          ))
-        })
-      })
-    }),
-  )
-  onCleanup(() => unregisterOfficeCloseGuard?.())
+  // 关闭守卫由 Office 编辑器保活缓存常驻注册（见 office-editor-keepalive）：
+  // 标签 inactive 时编辑器仍保活，守卫读缓存实例的脏状态，关闭照样能拦截。
   createEffect(() => {
     if (platform.platform !== "desktop" || !platform.getInstalledEditors) {
       setInstalledEditors([])
@@ -3906,6 +3872,7 @@ export function FileTabContent(props: { tab: string }) {
                   openNativeMenu={officeNativeMenu()}
                   viewMenu={isOfficeDocumentPreview(current()) ? [] : headerViews()}
                   menu={headerMenu()}
+                  onPreviewInBrowser={isHtml() ? openInBrowser : undefined}
                   treeOpen={!isOfficeDocumentPreview(current()) && layout.sidePane.tree()}
                   onToggleTree={isOfficeDocumentPreview(current()) ? undefined : () => layout.sidePane.toggleTree()}
                   badge={
@@ -4043,610 +4010,618 @@ export function FileTabContent(props: { tab: string }) {
                         <PluginFilePreviewerHost previewer={activeFilePreviewer()} active={previewBranch() === "text"}>
                           <Show when={previewBranch() === "text"}>
                             <div class="relative flex h-full min-h-0 flex-col">
-                            {/* 查找/替换条：匹配由 core 的纯函数现算，替换只把结果塞回 draft，
+                              {/* 查找/替换条：匹配由 core 的纯函数现算，替换只把结果塞回 draft，
                               仍然走同一条防抖保存，不新增写盘通道。 */}
-                            <Show when={findOpen() && !(isCsv() && csvMode() === "grid")}>
-                              <FilePreviewTextFindBar
+                              <Show when={findOpen() && !(isCsv() && csvMode() === "grid")}>
+                                <FilePreviewTextFindBar
+                                  inputRef={(element) => {
+                                    findInputRef = element
+                                  }}
+                                  query={findQuery()}
+                                  onQueryInput={setFindQuery}
+                                  onQueryKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault()
+                                      findStep(event.shiftKey ? -1 : 1)
+                                    }
+                                    if (event.key === "Escape") {
+                                      event.preventDefault()
+                                      closeFind()
+                                    }
+                                  }}
+                                  invalid={findInvalid()}
+                                  matchCount={findMatches().length}
+                                  matchIndex={findIndex()}
+                                  onStep={findStep}
+                                  options={[
+                                    {
+                                      id: "case",
+                                      label: "Aa",
+                                      title: "区分大小写",
+                                      active: findCaseSensitive,
+                                      toggle: setFindCaseSensitive,
+                                    },
+                                    {
+                                      id: "regex",
+                                      label: ".*",
+                                      title: "正则表达式",
+                                      active: findRegex,
+                                      toggle: setFindRegex,
+                                    },
+                                    {
+                                      id: "word",
+                                      label: "整词",
+                                      title: "全字匹配",
+                                      active: findWholeWord,
+                                      toggle: setFindWholeWord,
+                                    },
+                                  ]}
+                                  replaceOpen={findReplaceOpen()}
+                                  replacement={findReplacement()}
+                                  onReplacementInput={setFindReplacement}
+                                  onReplacementKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault()
+                                      replaceCurrentFind()
+                                    }
+                                    if (event.key === "Escape") {
+                                      event.preventDefault()
+                                      closeFind()
+                                    }
+                                  }}
+                                  onReplaceCurrent={replaceCurrentFind}
+                                  onReplaceAll={replaceAllFind}
+                                  onToggleReplace={() => setFindReplaceOpen(!findReplaceOpen())}
+                                  onClose={closeFind}
+                                />
+                              </Show>
+                              <FilePreviewWorkspaceSearchResults
+                                open={workspaceOpen()}
                                 inputRef={(element) => {
-                                  findInputRef = element
+                                  workspaceInput = element
                                 }}
-                                query={findQuery()}
-                                onQueryInput={setFindQuery}
+                                query={workspaceQuery()}
+                                busy={workspaceBusy()}
+                                groups={workspaceGroups()}
+                                resultCount={workspaceResults().length}
+                                onQueryInput={(query) => {
+                                  setWorkspaceQuery(query)
+                                  runWorkspaceSearch(query)
+                                }}
                                 onQueryKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.preventDefault()
-                                    findStep(event.shiftKey ? -1 : 1)
+                                    runWorkspaceSearch(workspaceQuery())
                                   }
-                                  if (event.key === "Escape") {
-                                    event.preventDefault()
-                                    closeFind()
-                                  }
+                                  if (event.key === "Escape") closeWorkspaceSearch()
                                 }}
-                                invalid={findInvalid()}
-                                matchCount={findMatches().length}
-                                matchIndex={findIndex()}
-                                onStep={findStep}
-                                options={[
-                                  {
-                                    id: "case",
-                                    label: "Aa",
-                                    title: "区分大小写",
-                                    active: findCaseSensitive,
-                                    toggle: setFindCaseSensitive,
-                                  },
-                                  {
-                                    id: "regex",
-                                    label: ".*",
-                                    title: "正则表达式",
-                                    active: findRegex,
-                                    toggle: setFindRegex,
-                                  },
-                                  {
-                                    id: "word",
-                                    label: "整词",
-                                    title: "全字匹配",
-                                    active: findWholeWord,
-                                    toggle: setFindWholeWord,
-                                  },
-                                ]}
-                                replaceOpen={findReplaceOpen()}
-                                replacement={findReplacement()}
-                                onReplacementInput={setFindReplacement}
-                                onReplacementKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    event.preventDefault()
-                                    replaceCurrentFind()
-                                  }
-                                  if (event.key === "Escape") {
-                                    event.preventDefault()
-                                    closeFind()
-                                  }
-                                }}
-                                onReplaceCurrent={replaceCurrentFind}
-                                onReplaceAll={replaceAllFind}
-                                onToggleReplace={() => setFindReplaceOpen(!findReplaceOpen())}
-                                onClose={closeFind}
+                                onClose={closeWorkspaceSearch}
+                                onResult={openSearchResult}
                               />
-                            </Show>
-                            <FilePreviewWorkspaceSearchResults
-                              open={workspaceOpen()}
-                              inputRef={(element) => {
-                                workspaceInput = element
-                              }}
-                              query={workspaceQuery()}
-                              busy={workspaceBusy()}
-                              groups={workspaceGroups()}
-                              resultCount={workspaceResults().length}
-                              onQueryInput={(query) => {
-                                setWorkspaceQuery(query)
-                                runWorkspaceSearch(query)
-                              }}
-                              onQueryKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault()
-                                  runWorkspaceSearch(workspaceQuery())
-                                }
-                                if (event.key === "Escape") closeWorkspaceSearch()
-                              }}
-                              onClose={closeWorkspaceSearch}
-                              onResult={openSearchResult}
-                            />
-                            {/* 跳转到行：条很窄，和查找条一样贴着编辑区顶部。 */}
-                            <Show when={gotoOpen()}>
-                              <FilePreviewTextGotoBar
-                                inputRef={(element) => {
-                                  gotoInputRef = element
-                                }}
-                                value={gotoValue()}
-                                lineCount={draft().split(NEWLINE).length}
-                                onInput={setGotoValue}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    event.preventDefault()
-                                    const line = Number(gotoValue().trim())
-                                    if (Number.isFinite(line) && line >= 1) jumpToLine(line)
-                                    return
-                                  }
-                                  if (event.key === "Escape") {
-                                    event.preventDefault()
-                                    closeGoto()
-                                  }
-                                }}
-                                onClose={closeGoto}
-                              />
-                            </Show>
-                            {/* 大纲浮层：透明底板负责「点外面收起」，内容面板在左上角。 */}
-                            <Show when={outlineOpen()}>
-                              <div
-                                class="absolute inset-0 z-20"
-                                onMouseDown={(event) => {
-                                  if (event.target === event.currentTarget) setOutlineOpen(false)
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Escape") setOutlineOpen(false)
-                                }}
-                              >
-                                <div class="absolute left-3 top-10 max-h-72 w-64 overflow-y-auto rounded-lg border border-border bg-background py-1 shadow-lg">
-                                  <div class="px-3 py-1 text-11-regular text-foreground-subtlest">大纲</div>
-                                  <Show
-                                    when={outlineItems().length > 0}
-                                    fallback={
-                                      <div class="px-3 py-2 text-11-regular text-foreground-subtlest">还没有标题</div>
-                                    }
-                                  >
-                                    <For each={outlineItems()}>
-                                      {(entry) => (
-                                        <button
-                                          type="button"
-                                          data-action="markdown-outline-jump"
-                                          class="flex w-full items-center gap-1 py-1 pr-3 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                                          style={{ "padding-left": `${12 + (entry.level - 1) * 12}px` }}
-                                          onClick={() => jumpToOutline(entry.line)}
-                                        >
-                                          <span class="min-w-0 flex-1 truncate">{entry.text}</span>
-                                          <span class="shrink-0 text-11-regular text-foreground-subtlest">
-                                            {entry.line}
-                                          </span>
-                                        </button>
-                                      )}
-                                    </For>
-                                  </Show>
-                                </div>
-                              </div>
-                            </Show>
-                            {/* 笔记浮层：标签 / 出链 / 反链。
-                              点标签转到「全局」搜索，点链接打开文件，点反链跳到那一行。 */}
-                            <Show when={notesOpen()}>
-                              <div
-                                class="absolute inset-0 z-20"
-                                onMouseDown={(event) => {
-                                  if (event.target === event.currentTarget) setNotesOpen(false)
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Escape") setNotesOpen(false)
-                                }}
-                              >
-                                <div class="absolute left-3 top-10 max-h-80 w-72 overflow-y-auto rounded-lg border border-border bg-background py-1 shadow-lg">
-                                  <div class="px-3 py-1 text-11-regular text-foreground-subtlest">笔记</div>
-                                  <Show when={noteHeading()}>
-                                    {(title) => (
-                                      <div
-                                        class="truncate px-3 py-0.5 text-12-medium text-foreground"
-                                        data-action="markdown-notes-title"
-                                      >
-                                        {title()}
-                                      </div>
-                                    )}
-                                  </Show>
-                                  <div class="px-3 pt-1.5 text-11-regular text-foreground-subtlest">标签</div>
-                                  <Show
-                                    when={noteTagItems().length > 0}
-                                    fallback={
-                                      <div class="px-3 py-1 text-11-regular text-foreground-subtlest">
-                                        还没有标签（写法：#标签）
-                                      </div>
-                                    }
-                                  >
-                                    <div class="flex flex-wrap gap-1 px-3 py-1">
-                                      <For each={noteTagItems()}>
-                                        {(tag) => (
-                                          <button
-                                            type="button"
-                                            data-action="markdown-notes-tag"
-                                            class="rounded bg-hover px-1.5 py-0.5 text-11-regular text-foreground-subtle transition-colors hover:text-foreground"
-                                            onClick={() => searchNoteTag("#" + tag)}
-                                          >
-                                            {"#" + tag}
-                                          </button>
-                                        )}
-                                      </For>
-                                    </div>
-                                  </Show>
-                                  <div class="px-3 pt-1.5 text-11-regular text-foreground-subtlest">出链</div>
-                                  <Show
-                                    when={noteLinkItems().length > 0}
-                                    fallback={
-                                      <div class="px-3 py-1 text-11-regular text-foreground-subtlest">
-                                        还没有链接（写法：[[目标]]）
-                                      </div>
-                                    }
-                                  >
-                                    <For each={noteLinkItems().slice(0, 30)}>
-                                      {(link) => (
-                                        <button
-                                          type="button"
-                                          data-action="markdown-notes-link"
-                                          class="flex w-full items-center gap-1 py-1 pr-3 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                                          style={{ "padding-left": "12px" }}
-                                          title={link.target}
-                                          onClick={() => openNoteLink(link.target)}
-                                        >
-                                          <span class="min-w-0 flex-1 truncate">
-                                            {link.alias ?? link.target}
-                                            {link.anchor ? " › " + link.anchor : ""}
-                                          </span>
-                                          <span class="shrink-0 text-11-regular text-foreground-subtlest">
-                                            {link.line}
-                                          </span>
-                                        </button>
-                                      )}
-                                    </For>
-                                  </Show>
-                                  <div class="px-3 pt-1.5 text-11-regular text-foreground-subtlest">
-                                    反链{backlinksBusy() ? "（搜索中…）" : "（" + String(backlinks().length) + "）"}
-                                  </div>
-                                  <Show
-                                    when={backlinks().length > 0}
-                                    fallback={
-                                      <div class="px-3 py-1 text-11-regular text-foreground-subtlest">
-                                        {backlinksBusy() ? "正在项目里查找…" : "没有别的笔记链接到这里"}
-                                      </div>
-                                    }
-                                  >
-                                    <For each={backlinks()}>
-                                      {(item) => (
-                                        <button
-                                          type="button"
-                                          data-action="markdown-notes-backlink"
-                                          class="flex w-full items-center gap-1 py-1 pr-3 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                                          style={{ "padding-left": "12px" }}
-                                          title={item.text}
-                                          onClick={() => {
-                                            setNotesOpen(false)
-                                            openSearchResult(item)
-                                          }}
-                                        >
-                                          <span class="min-w-0 flex-1 truncate">
-                                            {item.path}
-                                            <span class="text-foreground-subtlest">:{item.line}</span>
-                                          </span>
-                                        </button>
-                                      )}
-                                    </For>
-                                  </Show>
-                                </div>
-                              </div>
-                            </Show>
-                            {/* 命令面板：输入即过滤，↑↓ 选择，回车执行，Esc 关闭。
-                              只覆盖编辑区，不挡住上面的工具栏。 */}
-                            <Show when={paletteOpen()}>
-                              <div
-                                class="absolute inset-x-0 top-0 z-30 mx-auto max-w-xl rounded-lg border border-border bg-background shadow-lg"
-                                data-component="text-palette"
-                              >
-                                <input
-                                  ref={(el) => {
-                                    paletteInput = el
+                              {/* 跳转到行：条很窄，和查找条一样贴着编辑区顶部。 */}
+                              <Show when={gotoOpen()}>
+                                <FilePreviewTextGotoBar
+                                  inputRef={(element) => {
+                                    gotoInputRef = element
                                   }}
-                                  type="text"
-                                  data-action="text-palette-query"
-                                  placeholder="输入命令…（Esc 关闭）"
-                                  class="w-full rounded-t-lg border-b border-border bg-background px-3 py-2 text-12-regular text-foreground outline-none"
-                                  value={paletteQuery()}
-                                  onInput={(event) => {
-                                    setPaletteQuery(event.currentTarget.value)
-                                    setPaletteIndex(0)
-                                  }}
+                                  value={gotoValue()}
+                                  lineCount={draft().split(NEWLINE).length}
+                                  onInput={setGotoValue}
                                   onKeyDown={(event) => {
-                                    const items = paletteItems()
-                                    if (event.key === "ArrowDown") {
-                                      event.preventDefault()
-                                      setPaletteIndex((current) =>
-                                        items.length === 0 ? 0 : (current + 1) % items.length,
-                                      )
-                                      return
-                                    }
-                                    if (event.key === "ArrowUp") {
-                                      event.preventDefault()
-                                      setPaletteIndex((current) =>
-                                        items.length === 0 ? 0 : (current + items.length - 1) % items.length,
-                                      )
-                                      return
-                                    }
                                     if (event.key === "Enter") {
                                       event.preventDefault()
-                                      const picked = items[paletteIndex()]
-                                      if (picked) runPaletteCommand(picked.id)
+                                      const line = Number(gotoValue().trim())
+                                      if (Number.isFinite(line) && line >= 1) jumpToLine(line)
                                       return
                                     }
                                     if (event.key === "Escape") {
                                       event.preventDefault()
-                                      closePalette()
+                                      closeGoto()
                                     }
                                   }}
+                                  onClose={closeGoto}
                                 />
-                                <div class="max-h-72 overflow-y-auto py-1">
-                                  <For each={paletteItems().slice(0, PALETTE_LIMIT)}>
-                                    {(item, index) => (
-                                      <button
-                                        type="button"
-                                        data-action={`text-palette-${item.id}`}
-                                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-12-regular transition-colors"
-                                        classList={{
-                                          "bg-hover text-foreground": index() === paletteIndex(),
-                                          "text-foreground-subtle hover:bg-hover hover:text-foreground":
-                                            index() !== paletteIndex(),
-                                        }}
-                                        onMouseEnter={() => setPaletteIndex(index())}
-                                        onClick={() => runPaletteCommand(item.id)}
-                                      >
-                                        <span class="min-w-0 flex-1 truncate">{item.label}</span>
-                                        <Show when={item.shortcut}>
-                                          <span class="shrink-0 text-11-regular text-foreground-subtlest">
-                                            {item.shortcut}
-                                          </span>
-                                        </Show>
-                                      </button>
-                                    )}
-                                  </For>
-                                  <Show when={paletteItems().length === 0}>
-                                    <div class="px-3 py-2 text-11-regular text-foreground-subtlest">没有匹配的命令</div>
-                                  </Show>
+                              </Show>
+                              {/* 大纲浮层：透明底板负责「点外面收起」，内容面板在左上角。 */}
+                              <Show when={outlineOpen()}>
+                                <div
+                                  class="absolute inset-0 z-20"
+                                  onMouseDown={(event) => {
+                                    if (event.target === event.currentTarget) setOutlineOpen(false)
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Escape") setOutlineOpen(false)
+                                  }}
+                                >
+                                  <div class="absolute left-3 top-10 max-h-72 w-64 overflow-y-auto rounded-lg border border-border bg-background py-1 shadow-lg">
+                                    <div class="px-3 py-1 text-11-regular text-foreground-subtlest">大纲</div>
+                                    <Show
+                                      when={outlineItems().length > 0}
+                                      fallback={
+                                        <div class="px-3 py-2 text-11-regular text-foreground-subtlest">还没有标题</div>
+                                      }
+                                    >
+                                      <For each={outlineItems()}>
+                                        {(entry) => (
+                                          <button
+                                            type="button"
+                                            data-action="markdown-outline-jump"
+                                            class="flex w-full items-center gap-1 py-1 pr-3 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                                            style={{ "padding-left": `${12 + (entry.level - 1) * 12}px` }}
+                                            onClick={() => jumpToOutline(entry.line)}
+                                          >
+                                            <span class="min-w-0 flex-1 truncate">{entry.text}</span>
+                                            <span class="shrink-0 text-11-regular text-foreground-subtlest">
+                                              {entry.line}
+                                            </span>
+                                          </button>
+                                        )}
+                                      </For>
+                                    </Show>
+                                  </div>
                                 </div>
-                              </div>
-                            </Show>
-                            <Show
-                              when={!(isCsv() && csvMode() === "grid")}
-                              fallback={
-                                <CsvGrid path={path()} text={draft()} onChange={applyDraftText} readOnly={!editing()} />
-                              }
-                            >
-                              <div
-                                class="flex min-h-0 flex-1"
-                                classList={{ "mx-auto w-full max-w-3xl": focusMode() }}
-                                style={{ zoom: String(fontZoom() / 100) }}
-                              >
-                                {/* 自动换行后一行会占多个视觉行，行号列的 24px 网格对不上；
-                              隐藏行号是诚实的做法（比错位的行号好）。 */}
-                                <Show when={!editorWrap()}>
-                                  <div
-                                    ref={(el) => {
-                                      gutterRef = el
-                                    }}
-                                    class="w-12 shrink-0 overflow-hidden bg-background py-4 pr-2 text-right font-mono text-13 leading-6 text-foreground-subtle select-none"
-                                    style={{ "line-height": "24px" }}
-                                  >
-                                    <For each={lineNumbers()}>
-                                      {(line) => (
+                              </Show>
+                              {/* 笔记浮层：标签 / 出链 / 反链。
+                              点标签转到「全局」搜索，点链接打开文件，点反链跳到那一行。 */}
+                              <Show when={notesOpen()}>
+                                <div
+                                  class="absolute inset-0 z-20"
+                                  onMouseDown={(event) => {
+                                    if (event.target === event.currentTarget) setNotesOpen(false)
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Escape") setNotesOpen(false)
+                                  }}
+                                >
+                                  <div class="absolute left-3 top-10 max-h-80 w-72 overflow-y-auto rounded-lg border border-border bg-background py-1 shadow-lg">
+                                    <div class="px-3 py-1 text-11-regular text-foreground-subtlest">笔记</div>
+                                    <Show when={noteHeading()}>
+                                      {(title) => (
                                         <div
-                                          class="h-6"
-                                          style={{ height: "24px", "line-height": "24px" }}
-                                          onContextMenu={(event: MouseEvent) => {
-                                            event.preventDefault()
-                                            openContextMenu({ start: line, end: line }, event.clientX, event.clientY)
-                                          }}
+                                          class="truncate px-3 py-0.5 text-12-medium text-foreground"
+                                          data-action="markdown-notes-title"
                                         >
-                                          {line}
+                                          {title()}
                                         </div>
                                       )}
-                                    </For>
+                                    </Show>
+                                    <div class="px-3 pt-1.5 text-11-regular text-foreground-subtlest">标签</div>
+                                    <Show
+                                      when={noteTagItems().length > 0}
+                                      fallback={
+                                        <div class="px-3 py-1 text-11-regular text-foreground-subtlest">
+                                          还没有标签（写法：#标签）
+                                        </div>
+                                      }
+                                    >
+                                      <div class="flex flex-wrap gap-1 px-3 py-1">
+                                        <For each={noteTagItems()}>
+                                          {(tag) => (
+                                            <button
+                                              type="button"
+                                              data-action="markdown-notes-tag"
+                                              class="rounded bg-hover px-1.5 py-0.5 text-11-regular text-foreground-subtle transition-colors hover:text-foreground"
+                                              onClick={() => searchNoteTag("#" + tag)}
+                                            >
+                                              {"#" + tag}
+                                            </button>
+                                          )}
+                                        </For>
+                                      </div>
+                                    </Show>
+                                    <div class="px-3 pt-1.5 text-11-regular text-foreground-subtlest">出链</div>
+                                    <Show
+                                      when={noteLinkItems().length > 0}
+                                      fallback={
+                                        <div class="px-3 py-1 text-11-regular text-foreground-subtlest">
+                                          还没有链接（写法：[[目标]]）
+                                        </div>
+                                      }
+                                    >
+                                      <For each={noteLinkItems().slice(0, 30)}>
+                                        {(link) => (
+                                          <button
+                                            type="button"
+                                            data-action="markdown-notes-link"
+                                            class="flex w-full items-center gap-1 py-1 pr-3 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                                            style={{ "padding-left": "12px" }}
+                                            title={link.target}
+                                            onClick={() => openNoteLink(link.target)}
+                                          >
+                                            <span class="min-w-0 flex-1 truncate">
+                                              {link.alias ?? link.target}
+                                              {link.anchor ? " › " + link.anchor : ""}
+                                            </span>
+                                            <span class="shrink-0 text-11-regular text-foreground-subtlest">
+                                              {link.line}
+                                            </span>
+                                          </button>
+                                        )}
+                                      </For>
+                                    </Show>
+                                    <div class="px-3 pt-1.5 text-11-regular text-foreground-subtlest">
+                                      反链{backlinksBusy() ? "（搜索中…）" : "（" + String(backlinks().length) + "）"}
+                                    </div>
+                                    <Show
+                                      when={backlinks().length > 0}
+                                      fallback={
+                                        <div class="px-3 py-1 text-11-regular text-foreground-subtlest">
+                                          {backlinksBusy() ? "正在项目里查找…" : "没有别的笔记链接到这里"}
+                                        </div>
+                                      }
+                                    >
+                                      <For each={backlinks()}>
+                                        {(item) => (
+                                          <button
+                                            type="button"
+                                            data-action="markdown-notes-backlink"
+                                            class="flex w-full items-center gap-1 py-1 pr-3 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                                            style={{ "padding-left": "12px" }}
+                                            title={item.text}
+                                            onClick={() => {
+                                              setNotesOpen(false)
+                                              openSearchResult(item)
+                                            }}
+                                          >
+                                            <span class="min-w-0 flex-1 truncate">
+                                              {item.path}
+                                              <span class="text-foreground-subtlest">:{item.line}</span>
+                                            </span>
+                                          </button>
+                                        )}
+                                      </For>
+                                    </Show>
                                   </div>
-                                </Show>
-                                {/* 着色层和 textarea 叠在同一个盒子里：透明字的 textarea 在上层
-                              负责输入，彩色文字在下层负责观感，滚动位置由 translate 跟上。 */}
-                                <div class="relative min-w-0 flex-1 bg-background">
-                                  <Show when={!editorWrap() && highlightLanguage() !== undefined}>
-                                    <CodeHighlight
-                                      text={draft()}
-                                      path={path()}
-                                      scrollTop={editorScroll().top}
-                                      scrollLeft={editorScroll().left}
-                                      onSync={setHighlightSynced}
-                                    />
-                                  </Show>
-                                  <textarea
+                                </div>
+                              </Show>
+                              {/* 命令面板：输入即过滤，↑↓ 选择，回车执行，Esc 关闭。
+                              只覆盖编辑区，不挡住上面的工具栏。 */}
+                              <Show when={paletteOpen()}>
+                                <div
+                                  class="absolute inset-x-0 top-0 z-30 mx-auto max-w-xl rounded-lg border border-border bg-background shadow-lg"
+                                  data-component="text-palette"
+                                >
+                                  <input
                                     ref={(el) => {
-                                      editorRef = el
+                                      paletteInput = el
                                     }}
-                                    class="relative h-full w-full resize-none py-4 pr-4 font-mono text-13 leading-6 outline-none"
-                                    classList={{
-                                      "overflow-x-auto": !editorWrap(),
-                                      "bg-transparent text-transparent": highlightOn(),
-                                      "bg-background": !highlightOn(),
-                                    }}
-                                    style={{ "line-height": "24px", "caret-color": "var(--foreground)" }}
-                                    value={draft()}
-                                    readOnly={!editing()}
-                                    wrap={editorWrap() ? "soft" : "off"}
-                                    spellcheck={false}
-                                    onScroll={(event) => {
-                                      const position = {
-                                        top: event.currentTarget.scrollTop,
-                                        left: event.currentTarget.scrollLeft,
-                                      }
-                                      if (gutterRef) gutterRef.scrollTop = position.top
-                                      setEditorScroll(position)
-                                    }}
+                                    type="text"
+                                    data-action="text-palette-query"
+                                    placeholder="输入命令…（Esc 关闭）"
+                                    class="w-full rounded-t-lg border-b border-border bg-background px-3 py-2 text-12-regular text-foreground outline-none"
+                                    value={paletteQuery()}
                                     onInput={(event) => {
-                                      const element = event.currentTarget
-                                      const previous = draft()
-                                      const anchor = Math.max(0, Math.min(caretAt(), previous.length))
-                                      const head = Math.max(
-                                        anchor,
-                                        Math.min(anchor + selectionLength(), previous.length),
-                                      )
-                                      const target = path()
-                                      if (target) {
-                                        recordTextChange(
-                                          target,
-                                          { text: previous, anchor, head },
-                                          {
-                                            text: element.value,
-                                            anchor: element.selectionStart,
-                                            head: element.selectionEnd,
-                                          },
-                                          "typing",
-                                        )
-                                        bumpHistory()
-                                      }
-                                      setDraft(element.value)
-                                      syncCaret(element)
-                                      centerCaret(element)
-                                      if (target) rememberDraft(target, element.value)
-                                      scheduleSave()
+                                      setPaletteQuery(event.currentTarget.value)
+                                      setPaletteIndex(0)
                                     }}
-                                    onSelect={(event) => syncCaret(event.currentTarget)}
-                                    onBlur={() => {
-                                      if (draft() !== contents()) void saveEditing()
-                                    }}
-                                    onContextMenu={handleEditorContextMenu}
-                                    onMouseDown={handleEditorMouseDown}
-                                    onMouseUp={handleEditorMouseUp}
                                     onKeyDown={(event) => {
-                                      if (!editing()) return
-                                      const accel = event.metaKey || event.ctrlKey
-                                      // 撤销 / 重做：跨标签切回来也要能退（原生 textarea 的栈会随卸载丢掉）。
-                                      // 自己没记过这一步时放行给浏览器，保留原生手感。
-                                      if (accel && event.key.toLowerCase() === "z") {
-                                        const target = path()
-                                        const redo = event.shiftKey
-                                        if (target && (redo ? canRedoText(target) : canUndoText(target))) {
-                                          event.preventDefault()
-                                          stepTextHistory(redo ? "redo" : "undo")
-                                          return
-                                        }
-                                      }
-                                      if (accel && !event.shiftKey && event.key.toLowerCase() === "y") {
-                                        const target = path()
-                                        if (target && canRedoText(target)) {
-                                          event.preventDefault()
-                                          stepTextHistory("redo")
-                                          return
-                                        }
-                                      }
-                                      if (accel && event.key.toLowerCase() === "s") {
+                                      const items = paletteItems()
+                                      if (event.key === "ArrowDown") {
                                         event.preventDefault()
-                                        void saveEditing()
+                                        setPaletteIndex((current) =>
+                                          items.length === 0 ? 0 : (current + 1) % items.length,
+                                        )
                                         return
                                       }
-                                      if (accel && event.shiftKey && event.key.toLowerCase() === "p") {
+                                      if (event.key === "ArrowUp") {
                                         event.preventDefault()
-                                        openPalette()
+                                        setPaletteIndex((current) =>
+                                          items.length === 0 ? 0 : (current + items.length - 1) % items.length,
+                                        )
                                         return
                                       }
-                                      if (accel && event.key.toLowerCase() === "f") {
+                                      if (event.key === "Enter") {
                                         event.preventDefault()
-                                        openFind(false)
+                                        const picked = items[paletteIndex()]
+                                        if (picked) runPaletteCommand(picked.id)
                                         return
                                       }
-                                      if (accel && event.key.toLowerCase() === "h") {
+                                      if (event.key === "Escape") {
                                         event.preventDefault()
-                                        openFind(true)
-                                        return
-                                      }
-                                      if (accel && event.key.toLowerCase() === "g") {
-                                        event.preventDefault()
-                                        openGoto()
-                                        return
-                                      }
-                                      if (event.key === "Escape" && findOpen()) {
-                                        event.preventDefault()
-                                        closeFind()
-                                        return
-                                      }
-                                      if (event.key === "Tab" && !accel && !event.altKey) {
-                                        event.preventDefault()
-                                        runEditorCommand(event.shiftKey ? "outdent" : "indent")
-                                        return
-                                      }
-                                      if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-                                        event.preventDefault()
-                                        runEditorCommand(event.key === "ArrowUp" ? "moveUp" : "moveDown")
-                                        return
-                                      }
-                                      if (accel && event.key === "/") {
-                                        event.preventDefault()
-                                        runEditorCommand("comment")
-                                        return
-                                      }
-                                      if (accel && event.shiftKey && event.key.toLowerCase() === "k") {
-                                        event.preventDefault()
-                                        runEditorCommand("delete")
-                                        return
-                                      }
-                                      if (accel && event.shiftKey && event.key.toLowerCase() === "d") {
-                                        event.preventDefault()
-                                        runEditorCommand("duplicate")
+                                        closePalette()
                                       }
                                     }}
                                   />
-                                </div>
-                              </div>
-                            </Show>
-                            {/* 底部状态栏：光标行列 + 选区 + 全文统计 + 缩放。
-                              阅读模式下光标本就没有意义，视图开关统一收在头部的「⋯」菜单里。 */}
-                            <Show when={editing() && !(isCsv() && csvMode() === "grid")}>
-                              <PaneStatusBar
-                                info={
-                                  <span class="flex min-w-0 items-center gap-3">
-                                    <span>
-                                      行 {caretInfo().line}，列 {caretInfo().column}
-                                    </span>
-                                    <Show when={selectionLength() > 0}>
-                                      <span>已选 {selectionLength()} 字符</span>
+                                  <div class="max-h-72 overflow-y-auto py-1">
+                                    <For each={paletteItems().slice(0, PALETTE_LIMIT)}>
+                                      {(item, index) => (
+                                        <button
+                                          type="button"
+                                          data-action={`text-palette-${item.id}`}
+                                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-12-regular transition-colors"
+                                          classList={{
+                                            "bg-hover text-foreground": index() === paletteIndex(),
+                                            "text-foreground-subtle hover:bg-hover hover:text-foreground":
+                                              index() !== paletteIndex(),
+                                          }}
+                                          onMouseEnter={() => setPaletteIndex(index())}
+                                          onClick={() => runPaletteCommand(item.id)}
+                                        >
+                                          <span class="min-w-0 flex-1 truncate">{item.label}</span>
+                                          <Show when={item.shortcut}>
+                                            <span class="shrink-0 text-11-regular text-foreground-subtlest">
+                                              {item.shortcut}
+                                            </span>
+                                          </Show>
+                                        </button>
+                                      )}
+                                    </For>
+                                    <Show when={paletteItems().length === 0}>
+                                      <div class="px-3 py-2 text-11-regular text-foreground-subtlest">
+                                        没有匹配的命令
+                                      </div>
                                     </Show>
-                                  </span>
+                                  </div>
+                                </div>
+                              </Show>
+                              <Show
+                                when={!(isCsv() && csvMode() === "grid")}
+                                fallback={
+                                  <CsvGrid
+                                    path={path()}
+                                    text={draft()}
+                                    onChange={applyDraftText}
+                                    readOnly={!editing()}
+                                  />
                                 }
-                                extra={
-                                  <span class="flex items-center gap-3">
-                                    <span>{editorStats().lines} 行</span>
-                                    <span>{editorStats().characters} 字符</span>
-                                    <span>{editorStats().words} 词</span>
-                                  </span>
-                                }
-                                zoom={{
-                                  value: () => fontZoom(),
-                                  onStep: (zoomIn) =>
-                                    setFontZoom((x) => Math.max(50, Math.min(200, x + (zoomIn ? 10 : -10)))),
-                                  onReset: () => setFontZoom(100),
-                                }}
-                              />
-                            </Show>
-                          </div>
-                        </Show>
+                              >
+                                <div
+                                  class="flex min-h-0 flex-1"
+                                  classList={{ "mx-auto w-full max-w-3xl": focusMode() }}
+                                  style={{ zoom: String(fontZoom() / 100) }}
+                                >
+                                  {/* 自动换行后一行会占多个视觉行，行号列的 24px 网格对不上；
+                              隐藏行号是诚实的做法（比错位的行号好）。 */}
+                                  <Show when={!editorWrap()}>
+                                    <div
+                                      ref={(el) => {
+                                        gutterRef = el
+                                      }}
+                                      class="w-12 shrink-0 overflow-hidden bg-background py-4 pr-2 text-right font-mono text-13 leading-6 text-foreground-subtle select-none"
+                                      style={{ "line-height": "24px" }}
+                                    >
+                                      <For each={lineNumbers()}>
+                                        {(line) => (
+                                          <div
+                                            class="h-6"
+                                            style={{ height: "24px", "line-height": "24px" }}
+                                            onContextMenu={(event: MouseEvent) => {
+                                              event.preventDefault()
+                                              openContextMenu({ start: line, end: line }, event.clientX, event.clientY)
+                                            }}
+                                          >
+                                            {line}
+                                          </div>
+                                        )}
+                                      </For>
+                                    </div>
+                                  </Show>
+                                  {/* 着色层和 textarea 叠在同一个盒子里：透明字的 textarea 在上层
+                              负责输入，彩色文字在下层负责观感，滚动位置由 translate 跟上。 */}
+                                  <div class="relative min-w-0 flex-1 bg-background">
+                                    <Show when={!editorWrap() && highlightLanguage() !== undefined}>
+                                      <CodeHighlight
+                                        text={draft()}
+                                        path={path()}
+                                        scrollTop={editorScroll().top}
+                                        scrollLeft={editorScroll().left}
+                                        onSync={setHighlightSynced}
+                                      />
+                                    </Show>
+                                    <textarea
+                                      ref={(el) => {
+                                        editorRef = el
+                                      }}
+                                      class="relative h-full w-full resize-none py-4 pr-4 font-mono text-13 leading-6 outline-none"
+                                      classList={{
+                                        "overflow-x-auto": !editorWrap(),
+                                        "bg-transparent text-transparent": highlightOn(),
+                                        "bg-background": !highlightOn(),
+                                      }}
+                                      style={{ "line-height": "24px", "caret-color": "var(--foreground)" }}
+                                      value={draft()}
+                                      readOnly={!editing()}
+                                      wrap={editorWrap() ? "soft" : "off"}
+                                      spellcheck={false}
+                                      onScroll={(event) => {
+                                        const position = {
+                                          top: event.currentTarget.scrollTop,
+                                          left: event.currentTarget.scrollLeft,
+                                        }
+                                        if (gutterRef) gutterRef.scrollTop = position.top
+                                        setEditorScroll(position)
+                                      }}
+                                      onInput={(event) => {
+                                        const element = event.currentTarget
+                                        const previous = draft()
+                                        const anchor = Math.max(0, Math.min(caretAt(), previous.length))
+                                        const head = Math.max(
+                                          anchor,
+                                          Math.min(anchor + selectionLength(), previous.length),
+                                        )
+                                        const target = path()
+                                        if (target) {
+                                          recordTextChange(
+                                            target,
+                                            { text: previous, anchor, head },
+                                            {
+                                              text: element.value,
+                                              anchor: element.selectionStart,
+                                              head: element.selectionEnd,
+                                            },
+                                            "typing",
+                                          )
+                                          bumpHistory()
+                                        }
+                                        setDraft(element.value)
+                                        syncCaret(element)
+                                        centerCaret(element)
+                                        if (target) rememberDraft(target, element.value)
+                                        scheduleSave()
+                                      }}
+                                      onSelect={(event) => syncCaret(event.currentTarget)}
+                                      onBlur={() => {
+                                        if (draft() !== contents()) void saveEditing()
+                                      }}
+                                      onContextMenu={handleEditorContextMenu}
+                                      onMouseDown={handleEditorMouseDown}
+                                      onMouseUp={handleEditorMouseUp}
+                                      onKeyDown={(event) => {
+                                        if (!editing()) return
+                                        const accel = event.metaKey || event.ctrlKey
+                                        // 撤销 / 重做：跨标签切回来也要能退（原生 textarea 的栈会随卸载丢掉）。
+                                        // 自己没记过这一步时放行给浏览器，保留原生手感。
+                                        if (accel && event.key.toLowerCase() === "z") {
+                                          const target = path()
+                                          const redo = event.shiftKey
+                                          if (target && (redo ? canRedoText(target) : canUndoText(target))) {
+                                            event.preventDefault()
+                                            stepTextHistory(redo ? "redo" : "undo")
+                                            return
+                                          }
+                                        }
+                                        if (accel && !event.shiftKey && event.key.toLowerCase() === "y") {
+                                          const target = path()
+                                          if (target && canRedoText(target)) {
+                                            event.preventDefault()
+                                            stepTextHistory("redo")
+                                            return
+                                          }
+                                        }
+                                        if (accel && event.key.toLowerCase() === "s") {
+                                          event.preventDefault()
+                                          void saveEditing()
+                                          return
+                                        }
+                                        if (accel && event.shiftKey && event.key.toLowerCase() === "p") {
+                                          event.preventDefault()
+                                          openPalette()
+                                          return
+                                        }
+                                        if (accel && event.key.toLowerCase() === "f") {
+                                          event.preventDefault()
+                                          openFind(false)
+                                          return
+                                        }
+                                        if (accel && event.key.toLowerCase() === "h") {
+                                          event.preventDefault()
+                                          openFind(true)
+                                          return
+                                        }
+                                        if (accel && event.key.toLowerCase() === "g") {
+                                          event.preventDefault()
+                                          openGoto()
+                                          return
+                                        }
+                                        if (event.key === "Escape" && findOpen()) {
+                                          event.preventDefault()
+                                          closeFind()
+                                          return
+                                        }
+                                        if (event.key === "Tab" && !accel && !event.altKey) {
+                                          event.preventDefault()
+                                          runEditorCommand(event.shiftKey ? "outdent" : "indent")
+                                          return
+                                        }
+                                        if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+                                          event.preventDefault()
+                                          runEditorCommand(event.key === "ArrowUp" ? "moveUp" : "moveDown")
+                                          return
+                                        }
+                                        if (accel && event.key === "/") {
+                                          event.preventDefault()
+                                          runEditorCommand("comment")
+                                          return
+                                        }
+                                        if (accel && event.shiftKey && event.key.toLowerCase() === "k") {
+                                          event.preventDefault()
+                                          runEditorCommand("delete")
+                                          return
+                                        }
+                                        if (accel && event.shiftKey && event.key.toLowerCase() === "d") {
+                                          event.preventDefault()
+                                          runEditorCommand("duplicate")
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </Show>
+                              {/* 底部状态栏：光标行列 + 选区 + 全文统计 + 缩放。
+                              阅读模式下光标本就没有意义，视图开关统一收在头部的「⋯」菜单里。 */}
+                              <Show when={editing() && !(isCsv() && csvMode() === "grid")}>
+                                <PaneStatusBar
+                                  info={
+                                    <span class="flex min-w-0 items-center gap-3">
+                                      <span>
+                                        行 {caretInfo().line}，列 {caretInfo().column}
+                                      </span>
+                                      <Show when={selectionLength() > 0}>
+                                        <span>已选 {selectionLength()} 字符</span>
+                                      </Show>
+                                    </span>
+                                  }
+                                  extra={
+                                    <span class="flex items-center gap-3">
+                                      <span>{editorStats().lines} 行</span>
+                                      <span>{editorStats().characters} 字符</span>
+                                      <span>{editorStats().words} 词</span>
+                                    </span>
+                                  }
+                                  zoom={{
+                                    value: () => fontZoom(),
+                                    onStep: (zoomIn) =>
+                                      setFontZoom((x) => Math.max(50, Math.min(200, x + (zoomIn ? 10 : -10)))),
+                                    onReset: () => setFontZoom(100),
+                                  }}
+                                />
+                              </Show>
+                            </div>
+                          </Show>
                         </PluginFilePreviewerHost>
                         <PluginFilePreviewerHost previewer={activeFilePreviewer()} active={!previewBranch()}>
                           <Show when={!previewBranch()}>
                             <FilePreviewBinaryContent
-                            path={path}
-                            loaded={() => state()?.loaded === true}
-                            loading={() => state()?.loading === true}
-                            error={() => state()?.error}
-                            officeFailure={officeFailure}
-                            officeBase64={officeBase64}
-                            imageBase64={imageBase64}
-                            mediaUrl={mediaPreviewUrl}
-                            mediaFailure={mediaFailureForCurrent}
-                            onMediaError={refreshMediaTicket}
-                            editing={editing}
-                            loadingLabel={language.t("common.loading")}
-                            onSaveImage={saveImage}
-                            officePreviewProps={
-                              {
-                                onEdited: () => file.load(path()!, { force: true }),
-                                onSaveParagraph: saveDocxParagraph,
-                                onSaveCell: saveCell,
-                                onDirty: setOfficeDirty,
-                                beforeOfficeSave: (baseline, target = path()!) => confirmOfficeSave(target, baseline),
-                                writeOfficeBytes: (bytes, expectedBaselineSha256, target = path()!) =>
-                                  writeOfficeEditorBytes(target, bytes, expectedBaselineSha256),
-                                prepareLegacyEditor: prepareLegacyOfficeEditor,
-                                onPdfPageOp: (op) => applyPdfPageOperation(path()!, op),
-                                onTogglePdfTools: (open) => {
-                                  if (open && officeDirty()) {
-                                    showToast({
-                                      variant: "default",
-                                      title: "请先保存 PDF 编辑器中的更改",
-                                      description: "保存后再切换到其他页面工具，避免丢失编辑内容。",
-                                    })
-                                    return false
-                                  }
-                                  return true
-                                },
-                                onPdfPage: setPdfViewPage,
-                              } satisfies Omit<OfficeFilePreviewProps, "path" | "base64">
-                            }
-                          />
+                              path={path}
+                              loaded={() => state()?.loaded === true}
+                              loading={() => state()?.loading === true}
+                              error={() => state()?.error}
+                              officeFailure={officeFailure}
+                              officeBase64={officeBase64}
+                              imageBase64={imageBase64}
+                              mediaUrl={mediaPreviewUrl}
+                              mediaFailure={mediaFailureForCurrent}
+                              onMediaError={refreshMediaTicket}
+                              editing={editing}
+                              loadingLabel={language.t("common.loading")}
+                              onSaveImage={saveImage}
+                              officePreviewProps={
+                                {
+                                  onEdited: () => file.load(path()!, { force: true }),
+                                  onSaveParagraph: saveDocxParagraph,
+                                  onSaveCell: saveCell,
+                                  onDirty: setOfficeDirty,
+                                  beforeOfficeSave: (baseline, target = path()!) => confirmOfficeSave(target, baseline),
+                                  writeOfficeBytes: (bytes, expectedBaselineSha256, target = path()!) =>
+                                    writeOfficeEditorBytes(target, bytes, expectedBaselineSha256),
+                                  prepareLegacyEditor: prepareLegacyOfficeEditor,
+                                  onPdfPageOp: (op) => applyPdfPageOperation(path()!, op),
+                                  onTogglePdfTools: (open) => {
+                                    if (open && officeDirty()) {
+                                      showToast({
+                                        variant: "default",
+                                        title: "请先保存 PDF 编辑器中的更改",
+                                        description: "保存后再切换到其他页面工具，避免丢失编辑内容。",
+                                      })
+                                      return false
+                                    }
+                                    return true
+                                  },
+                                  onPdfPage: setPdfViewPage,
+                                  closeGuardPath: path(),
+                                } satisfies Omit<OfficeFilePreviewProps, "path" | "base64">
+                              }
+                            />
                           </Show>
                         </PluginFilePreviewerHost>
                       </>

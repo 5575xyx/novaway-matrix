@@ -143,22 +143,22 @@
     }
 
     &.subagent-link {
-      color: var(--icon-blue);
+      color: var(--icon-interactive-base);
       text-decoration: none;
       text-underline-offset: 2px;
       font-weight: var(--font-weight-regular);
 
       &:hover {
-        color: var(--icon-blue);
+        color: var(--icon-interactive-base);
         text-decoration: underline;
       }
 
       &:active {
-        color: var(--icon-blue);
+        color: var(--icon-interactive-base);
       }
 
       &:visited {
-        color: var(--icon-blue);
+        color: var(--icon-interactive-base);
       }
     }
   }
@@ -395,8 +395,8 @@
     border-radius: 999px;
     background: linear-gradient(
       180deg,
-      color-mix(in oklab, var(--icon-info-base) 72%, var(--icon-interactive-base)) 0%,
-      var(--icon-info-base) 100%
+      color-mix(in oklab, var(--tool-tone, var(--tool-category-0)) 72%, var(--surface)) 0%,
+      var(--tool-tone, var(--tool-category-0)) 100%
     );
     opacity: 0.5;
     transition: opacity 0.15s ease;
@@ -436,49 +436,49 @@
   }
 }
 
-/* ===== 工具行配色：每种工具映射到可换肤的语义色 =====
- * 统一用 `--tool-tone` 派生指示条、徽标与卡片浅染；工具类型的色彩区分随主题调色板变化。 */
+/* ===== 工具行配色：每种工具使用独立的分类身份色 =====
+ * 统一用 `--tool-tone` 派生指示条、徽标与卡片浅染；分类色不借用成功、警告、错误状态色。 */
 [data-component="tool-trigger"][data-badge] {
-  --tool-tone: var(--icon-info-base);
+  --tool-tone: var(--tool-category-0);
   border-radius: 10px;
   background: color-mix(in oklab, var(--tool-tone) 5%, transparent);
 }
 
 [data-component="tool-trigger"][data-badge="green"] {
-  --tool-tone: var(--icon-success-base);
+  --tool-tone: var(--tool-category-1);
 }
 
 [data-component="tool-trigger"][data-badge="blue"] {
-  --tool-tone: var(--icon-info-base);
+  --tool-tone: var(--tool-category-2);
 }
 
 [data-component="tool-trigger"][data-badge="purple"] {
-  --tool-tone: var(--icon-agent-plan-base);
+  --tool-tone: var(--tool-category-0);
 }
 
 [data-component="tool-trigger"][data-badge="orange"] {
-  --tool-tone: var(--icon-warning-base);
+  --tool-tone: var(--tool-category-4);
 }
 
 [data-component="tool-trigger"][data-badge="indigo"] {
-  --tool-tone: var(--icon-interactive-base);
+  --tool-tone: var(--tool-category-3);
 }
 
 [data-component="tool-trigger"][data-badge="cyan"],
 [data-component="tool-trigger"][data-badge="teal"] {
-  --tool-tone: var(--icon-info-base);
+  --tool-tone: var(--tool-category-2);
 }
 
 [data-component="tool-trigger"][data-badge="violet"] {
-  --tool-tone: var(--icon-agent-plan-base);
+  --tool-tone: var(--tool-category-0);
 }
 
 [data-component="tool-trigger"][data-badge="red"] {
-  --tool-tone: var(--icon-critical-base);
+  --tool-tone: var(--tool-category-4);
 }
 
 [data-component="tool-trigger"][data-badge="yellow"] {
-  --tool-tone: var(--icon-warning-base);
+  --tool-tone: var(--tool-category-1);
 }
 
 [data-component="tool-trigger"][data-badge]::before {
@@ -498,9 +498,9 @@
   place-items: center;
   border-radius: 7px;
   flex-shrink: 0;
-  background: color-mix(in oklab, var(--tool-tone, var(--icon-info-base)) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--tool-tone, var(--icon-info-base)) 22%, transparent);
-  color: var(--tool-tone, var(--icon-info-base));
+  background: color-mix(in oklab, var(--tool-tone, var(--tool-category-0)) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--tool-tone, var(--tool-category-0)) 22%, transparent);
+  color: var(--tool-tone, var(--tool-category-0));
 }
 
 /* 字体差异化:工具行的路径/参数用等宽字体,和正文的无衬线明显区分。

@@ -67,10 +67,14 @@ describe("office preview detection", () => {
       readOnly: false,
     })
     expect(pluginFilePreviewer("notes/readme.txt", previewers)).toBeUndefined()
-    expect(pluginFilePreviewer("notes/readme.foo", [{ ...previewers[0]!, match: { extension: ".foo" } }])).toMatchObject({
+    expect(
+      pluginFilePreviewer("notes/readme.foo", [{ ...previewers[0]!, match: { extension: ".foo" } }]),
+    ).toMatchObject({
       localName: "foo-preview",
     })
-    expect(pluginFilePreviewer("notes/readme.foo", [{ ...previewers[0]!, match: { extension: [".txt"] } }])).toBeUndefined()
+    expect(
+      pluginFilePreviewer("notes/readme.foo", [{ ...previewers[0]!, match: { extension: [".txt"] } }]),
+    ).toBeUndefined()
   })
 
   test("leaves source files on the normal text path", () => {

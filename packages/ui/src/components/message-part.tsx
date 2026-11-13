@@ -307,14 +307,6 @@ const agentPalette = [
   "var(--icon-agent-build-base)",
   "var(--icon-agent-docs-base)",
   "var(--icon-agent-plan-base)",
-  "var(--syntax-info)",
-  "var(--syntax-success)",
-  "var(--syntax-warning)",
-  "var(--syntax-property)",
-  "var(--syntax-constant)",
-  "var(--diff-added)",
-  "var(--diff-removed)",
-  "var(--icon-warning-base)",
 ]
 
 function tone(name: string) {
@@ -1050,7 +1042,7 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
       <Collapsible.Trigger>
         <div
           data-component="context-tool-group-trigger"
-          class="relative rounded-[10px] px-3 py-2 transition-colors hover:bg-[color-mix(in_srgb,var(--icon-info-base)_5%,transparent)]"
+          class="relative rounded-[10px] px-3 py-2 transition-colors hover:bg-surface-interactive-weak"
         >
           <span
             data-slot="context-tool-group-title"
@@ -1066,10 +1058,9 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
             </span>
             <span
               data-slot="tool-badge-icon"
-              class="grid size-7 place-items-center rounded-[8px] text-[var(--icon-info-base)]"
+              class="grid size-7 place-items-center rounded-[8px] text-[var(--tool-category-2)]"
               style={{
-                "background-image":
-                  "linear-gradient(135deg, color-mix(in srgb, var(--icon-info-base) 16%, transparent) 0%, color-mix(in srgb, var(--icon-interactive-base) 16%, transparent) 100%)",
+                "background-color": "color-mix(in srgb, var(--tool-category-2) 14%, transparent)",
               }}
             >
               <Icon name="magnifying-glass" size="small" />
@@ -2174,7 +2165,7 @@ ToolRegistry.register({
             <img data-component="task-tool-avatar" src={avatar()} alt="" draggable={false} />
             <Show when={running()}>
               {/* 子代理运行中用统一呼吸灯：和重试提示、工具执行同一个动效语言。 */}
-              <span data-component="task-tool-spinner" style={{ color: tone() ?? "var(--icon-blue)" }}>
+              <span data-component="task-tool-spinner" style={{ color: tone() ?? "var(--icon-interactive-base)" }}>
                 <Breathing />
               </span>
             </Show>
@@ -2963,7 +2954,7 @@ ToolRegistry.register({
         <Show when={!pending() && result()}>
           <div class="px-3 py-2 overflow-auto max-h-64">
             <Show when={result().error}>
-              <div class="text-12-regular text-icon-critical-base">{result().error}</div>
+              <div class="text-12-regular text-critical-base">{result().error}</div>
             </Show>
             <Show when={columns().length > 0}>
               <table class="w-full text-12-regular">

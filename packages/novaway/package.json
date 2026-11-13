@@ -12,6 +12,7 @@
     "gate:release": "bun run script/release-gate.ts",
     "scan:boundary": "bun run script/scan-boundary.ts",
     "verify:plugins": "bun run script/verify-plugins.ts",
+    "gate:perf": "bun run script/plugin-perf-gate.ts",
     "perf:plugin-index": "bun run script/plugin-index-benchmark.ts",
     "experiment:report": "bun run script/experiment.ts",
     "test:httpapi": "bun run script/httpapi-exercise.ts --mode coverage --fail-on-missing --fail-on-skip && bun run script/httpapi-exercise.ts --mode auth --fail-on-missing --fail-on-skip && bun run script/httpapi-exercise.ts --mode effect --fail-on-missing --fail-on-skip",

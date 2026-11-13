@@ -78,7 +78,7 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
         <div class="flex flex-col gap-2">
           <label class="text-14-medium text-foreground">{language.t("command.project.create.dialog.name")}</label>
           <input
-            class="flex h-10 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground placeholder:text-foreground-subtle outline-none focus:border-primary"
+            class="flex h-10 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground placeholder:text-foreground-subtle outline-none focus:border-interactive-focus"
             type="text"
             value={folderName()}
             onInput={(e) => {
@@ -92,7 +92,7 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
             }}
           />
           <Show when={nameError()}>
-            <span class="text-12-regular text-icon-critical-base">{nameError()}</span>
+            <span class="text-12-regular text-critical-base">{nameError()}</span>
           </Show>
         </div>
 
@@ -112,7 +112,7 @@ export function DialogCreateProject(props: DialogCreateProjectProps) {
             </Button>
           </div>
           <Show when={pathError()}>
-            <span class="text-12-regular text-icon-critical-base">{pathError()}</span>
+            <span class="text-12-regular text-critical-base">{pathError()}</span>
           </Show>
         </div>
 

@@ -26,12 +26,16 @@ export function injectMemoryContext(input: { messages: ModelMessage[]; context: 
 
   const index = input.messages.findLastIndex((message) => message.role === "user")
   if (index === -1) return input.messages
-  if (typeof input.messages[index]?.content !== "string") return input.messages
-
   return input.messages.map((message, current) => {
-    if (current !== index) return message
-    return { ...message, content: `${message.content}\n\n${block}` }
-  }) as ModelMessage[]
+    if (current !== index || message.role !== "user") return message
+    return {
+      ...message,
+      content:
+        typeof message.content === "string"
+          ? `${message.content}\n\n${block}`
+          : [...message.content, { type: "text" as const, text: block }],
+    }
+  })
 }
 
 export * as MemoryContext from "./context"

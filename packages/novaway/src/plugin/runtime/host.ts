@@ -75,10 +75,14 @@ export function createHost(hostRegistries: HostRegistries): Host {
   let disposed = false
 
   function cleanupFailure(id: string, errors: readonly unknown[]) {
-    const error = pluginError("cleanup_failed", errors.map((error) => error instanceof Error ? error.message : String(error)).join("; "), {
-      pluginID: id.slice(id.indexOf(":") + 1),
-      retryable: false,
-    })
+    const error = pluginError(
+      "cleanup_failed",
+      errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; "),
+      {
+        pluginID: id.slice(id.indexOf(":") + 1),
+        retryable: false,
+      },
+    )
     cleanupFailures.set(id, error)
     return error
   }
@@ -103,7 +107,10 @@ export function createHost(hostRegistries: HostRegistries): Host {
       ...registry,
       register(source: Parameters<ContributionRegistry<T>["register"]>[0], item: T) {
         signal.throwIfAborted()
-        return registry.register({ ...source, pluginID: plugin.id, scope: plugin.scope, ownerID, root: plugin.root }, item)
+        return registry.register(
+          { ...source, pluginID: plugin.id, scope: plugin.scope, ownerID, root: plugin.root },
+          item,
+        )
       },
       release() {
         signal.throwIfAborted()
@@ -129,46 +136,50 @@ export function createHost(hostRegistries: HostRegistries): Host {
     }
     const tools = bind(hostRegistries.tools)
     const previewers = hostRegistries.previewers === undefined ? undefined : bind(hostRegistries.previewers)
-    const providers = hostRegistries.providers === undefined
-      ? undefined
-      : {
-          ...hostRegistries.providers,
-          register(item: ProviderAdapter) {
-            signal.throwIfAborted()
-            const disposable = hostRegistries.providers!.register(item)
-            return resources.push(disposable)
-          },
-        }
-    const office = hostRegistries.office === undefined
-      ? undefined
-      : {
-          ...hostRegistries.office,
-          register(item: OfficeEngineContribution) {
-            signal.throwIfAborted()
-            const disposable = hostRegistries.office!.register(item)
-            return resources.push(disposable)
-          },
-        }
-    const publish = hostRegistries.publish === undefined
-      ? undefined
-      : {
-          ...hostRegistries.publish,
-          register(item: PublishDriverContribution) {
-            signal.throwIfAborted()
-            const disposable = hostRegistries.publish!.register(item)
-            return resources.push(disposable)
-          },
-        }
-    const surfaces = hostRegistries.surfaces === undefined
-      ? undefined
-      : {
-          ...hostRegistries.surfaces,
-          register(item: SurfaceContribution) {
-            signal.throwIfAborted()
-            const disposable = hostRegistries.surfaces!.register(item)
-            return resources.push(disposable)
-          },
-        }
+    const providers =
+      hostRegistries.providers === undefined
+        ? undefined
+        : {
+            ...hostRegistries.providers,
+            register(item: ProviderAdapter) {
+              signal.throwIfAborted()
+              const disposable = hostRegistries.providers!.register(item)
+              return resources.push(disposable)
+            },
+          }
+    const office =
+      hostRegistries.office === undefined
+        ? undefined
+        : {
+            ...hostRegistries.office,
+            register(item: OfficeEngineContribution) {
+              signal.throwIfAborted()
+              const disposable = hostRegistries.office!.register(item)
+              return resources.push(disposable)
+            },
+          }
+    const publish =
+      hostRegistries.publish === undefined
+        ? undefined
+        : {
+            ...hostRegistries.publish,
+            register(item: PublishDriverContribution) {
+              signal.throwIfAborted()
+              const disposable = hostRegistries.publish!.register(item)
+              return resources.push(disposable)
+            },
+          }
+    const surfaces =
+      hostRegistries.surfaces === undefined
+        ? undefined
+        : {
+            ...hostRegistries.surfaces,
+            register(item: SurfaceContribution) {
+              signal.throwIfAborted()
+              const disposable = hostRegistries.surfaces!.register(item)
+              return resources.push(disposable)
+            },
+          }
     return {
       ...hostRegistries,
       tools: {
@@ -180,7 +191,8 @@ export function createHost(hostRegistries: HostRegistries): Host {
               // A cached turn/tool snapshot never revives after a later enable.
               if (signal.aborted) {
                 throw pluginError("tool_unavailable", `插件 ${plugin.id} 已停用`, {
-                  pluginID: plugin.id, contributionID: item.id,
+                  pluginID: plugin.id,
+                  contributionID: item.id,
                 })
               }
               return item.execute(args, { ...context, abort: AbortSignal.any([signal, context.abort]) })
@@ -233,7 +245,8 @@ export function createHost(hostRegistries: HostRegistries): Host {
     }
     if (scope === undefined) release(pluginID)
     if (failures.length === 1) throw failures[0]
-    if (failures.length > 1) throw pluginError("cleanup_failed", failures.map(String).join("; "), { pluginID, retryable: false })
+    if (failures.length > 1)
+      throw pluginError("cleanup_failed", failures.map(String).join("; "), { pluginID, retryable: false })
   }
 
   function load(plugin: Plugin): Promise<void> {
@@ -309,7 +322,8 @@ export function createHost(hostRegistries: HostRegistries): Host {
         }
       }
       if (failures.length === 1) throw failures[0]
-      if (failures.length > 1) throw pluginError("cleanup_failed", failures.map(String).join("; "), { retryable: false })
+      if (failures.length > 1)
+        throw pluginError("cleanup_failed", failures.map(String).join("; "), { retryable: false })
     },
   }
 }

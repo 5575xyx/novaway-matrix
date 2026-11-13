@@ -40,12 +40,12 @@ import { useLanguage } from "@/context/language"
 import { useModels } from "@/context/models"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
-import { agentDisplayName, skillDisplayName } from "@/utils/agent"
+import { agentColor, agentDisplayName, skillDisplayName } from "@/utils/agent"
 import { agentAvatar, agentAvatarSeeds, agentAvatarSrc } from "@/utils/agent-avatar"
 import { pathKey } from "@/utils/path-key"
 import { AiFixButton } from "./ai-fix-button"
 import { AppIcon, appIcon } from "./app-icon"
-import { rowAccent, rowAccentTint, SettingsGroup, SettingsPage } from "./settings-parts"
+import { rowAccentTint, SettingsGroup, SettingsPage } from "./settings-parts"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
 
@@ -485,7 +485,7 @@ const SkillSelectDialog: Component<{
     >
       <div class="flex flex-col gap-3 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <Show when={error()}>
-          <div class="text-12-regular text-icon-critical-base">{error()}</div>
+          <div class="text-12-regular text-critical-base">{error()}</div>
         </Show>
         <SettingsGroup>
           <Show
@@ -726,7 +726,7 @@ const SourceImportDialog: Component<{
           disabled={save.isPending || !!success()}
         />
         <Show when={success()}>
-          <div class="rounded-md border border-border-success-base/30 bg-surface-success-weak px-3 py-2 text-13-regular text-icon-success-base">
+          <div class="rounded-md border border-border-success-base/30 bg-surface-success-weak px-3 py-2 text-13-regular text-success-base">
             {success()}
           </div>
         </Show>
@@ -800,7 +800,7 @@ const ConfirmActionDialog: Component<{
         <div class="flex flex-col gap-1">
           <span class="text-14-regular text-foreground">{props.description}</span>
           <Show when={error()}>
-            <span class="text-12-regular text-icon-critical-base">{error()}</span>
+            <span class="text-12-regular text-critical-base">{error()}</span>
           </Show>
         </div>
       </div>
@@ -931,13 +931,13 @@ const AgentDetailDialog: Component<{
       <div class="flex flex-col gap-4 px-2.5 pb-3 max-h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
         <div
           class="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5"
-          style={{ background: rowAccentTint(rowAccent(props.agent.name), 8) }}
+          style={{ background: rowAccentTint(agentColor(props.agent.name), 8) }}
         >
           <img
             src={agentAvatar(props.agent.name, props.agent.options)}
             alt=""
             class="size-10 rounded-xl object-cover"
-            style={{ "box-shadow": `0 0 0 1px ${rowAccentTint(rowAccent(props.agent.name), 45)}` }}
+            style={{ "box-shadow": `0 0 0 1px ${rowAccentTint(agentColor(props.agent.name), 45)}` }}
           />
           <span class="min-w-0 truncate text-15-medium text-foreground">
             {agentDisplayName(props.agent.name, props.agent.options)}
@@ -1116,7 +1116,7 @@ const AvatarPicker: Component<{
           type="button"
           class={cell}
           classList={{
-            "border-primary": !props.seed,
+            "border-interactive-selected": !props.seed,
             "border-transparent hover:border-border": !!props.seed,
           }}
           title={language.t("settings.agents.field.avatar.auto")}
@@ -1131,7 +1131,7 @@ const AvatarPicker: Component<{
               type="button"
               class={cell}
               classList={{
-                "border-primary": props.seed === seed,
+                "border-interactive-selected": props.seed === seed,
                 "border-transparent hover:border-border": props.seed !== seed,
               }}
               title={language.t("settings.agents.field.avatar.pick")}
@@ -1753,7 +1753,7 @@ const ProjectInstructionGenerateDialog: Component<{
                       classList={{
                         "mt-1 size-1.5 shrink-0 rounded-full": true,
                         "bg-surface-success-base": item.step === "written",
-                        "bg-foreground animate-pulse": item.step !== "written",
+                        "bg-surface-interactive-base animate-pulse": item.step !== "written",
                       }}
                     />
                     <div class="min-w-0">
@@ -4192,7 +4192,7 @@ export const PluginStoreSection: Component<{
       </SettingsGroup>
 
       <Show when={error()}>
-        {(message) => <div class="pt-2 text-12-regular text-icon-critical-base break-words">{message()}</div>}
+        {(message) => <div class="pt-2 text-12-regular text-critical-base break-words">{message()}</div>}
       </Show>
       <p class="pt-2 text-12-regular text-foreground-subtle">{language.t("settings.plugins.store.restartHint")}</p>
     </div>
@@ -4385,22 +4385,8 @@ const McpRow: Component<{
       ? props.status.error
       : undefined
   const configurable = () => !!props.onEdit || !!props.onDelete
-  // MCP 行的色：图标块按名字取稳定色，状态标签按状态取语义色（连上=绿、失败=红、
-  // 待授权=琥珀、停用=灰），一眼能扫出哪个服务出了问题。
+  // MCP 图标色按名字保持稳定的识别色；连接状态标签则分开使用状态 surface、文字和边框角色。
   const accent = createMemo(() => appIcon(props.name, { fallback: "mcp" }).to)
-  const statusColor = () => {
-    switch (status()) {
-      case "connected":
-        return "var(--icon-success-base)"
-      case "failed":
-        return "var(--icon-critical-base)"
-      case "needs_auth":
-      case "needs_client_registration":
-        return "var(--icon-warning-base)"
-      default:
-        return "var(--foreground-subtlest)"
-    }
-  }
 
   return (
     <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
@@ -4410,10 +4396,16 @@ const McpRow: Component<{
           <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent() }} />
           <span class="truncate text-13-medium text-foreground">{props.name}</span>
           <Tag
-            style={{
-              color: statusColor(),
-              border: `1px solid color-mix(in srgb, ${statusColor()} 35%, transparent)`,
-              background: `color-mix(in srgb, ${statusColor()} 12%, var(--background))`,
+            classList={{
+              "border-success-base/35 bg-surface-success-weak text-success-base": status() === "connected",
+              "border-critical-base/35 bg-surface-critical-weak text-critical-base": status() === "failed",
+              "border-warning-base/35 bg-surface-warning-weak text-warning-base":
+                status() === "needs_auth" || status() === "needs_client_registration",
+              "border-border bg-surface text-foreground-subtle":
+                status() !== "connected" &&
+                status() !== "failed" &&
+                status() !== "needs_auth" &&
+                status() !== "needs_client_registration",
             }}
           >
             {label()}

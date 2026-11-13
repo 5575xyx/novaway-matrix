@@ -33,8 +33,8 @@ function ThemeColorFixture() {
       <button data-action="dark" onClick={() => theme.setColorScheme("dark")}>
         Dark
       </button>
-      <button data-action="everforest" onClick={() => theme.setTheme("everforest")}>
-        Everforest
+      <button data-action="parchment" onClick={() => theme.setTheme("parchment")}>
+        Parchment
       </button>
       <ProviderIcon id="openai" brand style={{ width: "32px", height: "32px" }} />
       <ProviderIcon id="google" brand style={{ width: "32px", height: "32px" }} />
@@ -70,6 +70,10 @@ function ThemeColorFixture() {
       <span class="text-icon-critical-base" data-semantic-utility="critical">
         Critical utility
       </span>
+      <span data-theme-status-dot="success" class="size-2 rounded-full bg-icon-success-base" />
+      <span data-theme-status-dot="warning" class="size-2 rounded-full bg-icon-warning-base" />
+      <span data-theme-status-dot="critical" class="size-2 rounded-full bg-icon-critical-base" />
+      <span data-theme-status-dot="interactive" class="size-2 rounded-full bg-icon-interactive-base" />
       <span data-semantic-reference="success" style={{ display: "none", color: "var(--icon-success-base)" }} />
       <span data-semantic-reference="warning" style={{ display: "none", color: "var(--icon-warning-base)" }} />
       <span data-semantic-reference="critical" style={{ display: "none", color: "var(--icon-critical-base)" }} />
@@ -109,13 +113,34 @@ function ThemeColorFixture() {
       <Card variant="info" data-theme-component="info-card">
         <CardTitle variant="info">Information</CardTitle>
       </Card>
+      <Card variant="success" data-theme-component="success-card">
+        <CardTitle variant="success">Success</CardTitle>
+      </Card>
+      <Card variant="warning" data-theme-component="warning-card">
+        <CardTitle variant="warning">Warning</CardTitle>
+      </Card>
+      <Card variant="error" data-theme-component="error-card">
+        <CardTitle variant="error">Error</CardTitle>
+      </Card>
       <Tag data-theme-component="tag">Theme tag</Tag>
       <span class="text-text-interactive-base" data-theme-component="interactive-text-utility">
         Semantic link
       </span>
+      <span class="text-icon-interactive-base" data-theme-component="interactive-icon-utility">
+        Interactive icon
+      </span>
+      <span class="border border-interactive-base" data-theme-component="interactive-border-utility" />
+      <span
+        data-theme-reference="interactive-text"
+        style={{ display: "none", color: "var(--text-interactive-base)" }}
+      />
       <span
         data-theme-reference="interactive-icon"
         style={{ display: "none", color: "var(--icon-interactive-base)" }}
+      />
+      <span
+        data-theme-reference="interactive-border"
+        style={{ display: "none", borderColor: "var(--border-interactive-base)" }}
       />
       <TextField data-theme-component="text-field" label="Theme input" placeholder="Type here" />
       <Checkbox data-theme-component="checkbox" defaultChecked>

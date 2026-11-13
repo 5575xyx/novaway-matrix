@@ -1,8 +1,38 @@
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import * as Tool from "./tool"
 import DESCRIPTION_WRITE from "./todowrite.txt"
 import DESCRIPTION_EDIT from "./todoedit.txt"
 import { Todo } from "../session/todo"
+import { Service as HookService } from "@/hook/service"
+import type { Interface as HookServiceInterface } from "@/hook/service"
+
+/**
+ * 对比前后两份清单,把新增项与转为 completed 的项发给 TodoCreated / TodoCompleted 钩子。
+ * 钩子是纯观察者:结果丢弃,不影响待办写入。
+ */
+const announceTodoChanges = (
+  hooks: HookServiceInterface | undefined,
+  sessionID: string,
+  before: readonly Todo.Info[],
+  after: readonly Todo.Info[],
+) =>
+  Effect.gen(function* () {
+    if (!hooks) return
+    const key = (item: Todo.Info) => `${item.goalId ?? ""}\u0000${item.content}`
+    const previous = new Map(before.map((item) => [key(item), item]))
+    for (const item of after) {
+      const old = previous.get(key(item))
+      if (!old) {
+        yield* hooks.trigger({ event: "TodoCreated", sessionID, args: item, result: item.content }).pipe(Effect.ignore)
+        continue
+      }
+      if (old.status !== "completed" && item.status === "completed") {
+        yield* hooks
+          .trigger({ event: "TodoCompleted", sessionID, args: item, result: item.content })
+          .pipe(Effect.ignore)
+      }
+    }
+  })
 
 // Todo.Info is still a zod schema (session/todo.ts). Inline the field shape
 // here rather than referencing its `.shape` — the LLM-visible JSON Schema is
@@ -28,6 +58,7 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
   "todowrite",
   Effect.gen(function* () {
     const todo = yield* Todo.Service
+    const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookService))
 
     return {
       description: DESCRIPTION_WRITE,
@@ -41,6 +72,7 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
             metadata: {},
           })
 
+          const previous = yield* todo.get(ctx.sessionID)
           // Claude Code clears the stored list once every item is completed:
           // a finished checklist should not linger in the panel (or in the next
           // request) and the model already has the result it wrote.
@@ -50,6 +82,7 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
             sessionID: ctx.sessionID,
             todos: stored,
           })
+          yield* announceTodoChanges(hooks, ctx.sessionID, previous, stored)
 
           return {
             title: `${stored.filter((x) => x.status !== "completed").length} todos`,
@@ -111,6 +144,7 @@ export const TodoEditTool = Tool.define<typeof TodoEditParameters, Metadata, Tod
   "todoedit",
   Effect.gen(function* () {
     const todo = yield* Todo.Service
+    const hooks = Option.getOrUndefined(yield* Effect.serviceOption(HookService))
 
     return {
       description: DESCRIPTION_EDIT,
@@ -173,6 +207,7 @@ export const TodoEditTool = Tool.define<typeof TodoEditParameters, Metadata, Tod
           // Same rule as todowrite: a fully completed checklist is dropped.
           const allDone = next.length > 0 && next.every((item) => item.status === "completed")
           if (allDone) yield* todo.update({ sessionID: ctx.sessionID, todos: [] })
+          yield* announceTodoChanges(hooks, ctx.sessionID, current, allDone ? [] : next)
           return {
             title: `todoedit: ${params.action}`,
             output: [

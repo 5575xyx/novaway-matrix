@@ -32,6 +32,7 @@ export const evolutionHandlers = HttpApiBuilder.group(InstanceHttpApi, "evolutio
     }) {
       return yield* evolution.list({
         projectID: yield* projectID(),
+        includeGlobal: true,
         kind: ctx.query.kind,
         status: ctx.query.status,
         limit: ctx.query.limit,
@@ -41,7 +42,7 @@ export const evolutionHandlers = HttpApiBuilder.group(InstanceHttpApi, "evolutio
     const applyCandidate = Effect.fn("EvolutionHttpApi.applyCandidate")(function* (ctx: {
       params: { candidateID: EvolutionSchema.EvolutionCandidateID }
     }) {
-      const item = yield* evolution.apply(ctx.params.candidateID)
+      const item = yield* evolution.apply(ctx.params.candidateID, { projectID: yield* projectID() })
       if (!item) return yield* notFound("Evolution candidate not found")
       return item
     })
@@ -53,6 +54,7 @@ export const evolutionHandlers = HttpApiBuilder.group(InstanceHttpApi, "evolutio
       const item = yield* evolution.applyToDisk(ctx.params.candidateID, {
         directory: state.directory,
         worktree: state.worktree,
+        projectID: state.project.id,
       })
       if (!item) return yield* notFound("Evolution candidate not found")
       return item
@@ -62,7 +64,7 @@ export const evolutionHandlers = HttpApiBuilder.group(InstanceHttpApi, "evolutio
       params: { candidateID: EvolutionSchema.EvolutionCandidateID }
       payload: typeof CandidateUpdatePayload.Type
     }) {
-      const item = yield* evolution.update(ctx.params.candidateID, ctx.payload)
+      const item = yield* evolution.update(ctx.params.candidateID, ctx.payload, { projectID: yield* projectID() })
       if (!item) return yield* notFound("Evolution candidate not found")
       return item
     })
@@ -70,7 +72,7 @@ export const evolutionHandlers = HttpApiBuilder.group(InstanceHttpApi, "evolutio
     const previewCandidate = Effect.fn("EvolutionHttpApi.previewCandidate")(function* (ctx: {
       params: { candidateID: EvolutionSchema.EvolutionCandidateID }
     }) {
-      const item = yield* evolution.preview(ctx.params.candidateID)
+      const item = yield* evolution.preview(ctx.params.candidateID, { projectID: yield* projectID() })
       if (!item) return yield* notFound("Evolution candidate not found")
       return item
     })
@@ -82,6 +84,7 @@ export const evolutionHandlers = HttpApiBuilder.group(InstanceHttpApi, "evolutio
       const item = yield* evolution.dryRun(ctx.params.candidateID, {
         directory: state.directory,
         worktree: state.worktree,
+        projectID: state.project.id,
       })
       if (!item) return yield* notFound("Evolution candidate not found")
       return item
@@ -90,7 +93,7 @@ export const evolutionHandlers = HttpApiBuilder.group(InstanceHttpApi, "evolutio
     const dismissCandidate = Effect.fn("EvolutionHttpApi.dismissCandidate")(function* (ctx: {
       params: { candidateID: EvolutionSchema.EvolutionCandidateID }
     }) {
-      const item = yield* evolution.dismiss(ctx.params.candidateID)
+      const item = yield* evolution.dismiss(ctx.params.candidateID, { projectID: yield* projectID() })
       if (!item) return yield* notFound("Evolution candidate not found")
       return item
     })

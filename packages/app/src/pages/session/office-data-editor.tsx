@@ -62,14 +62,14 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="h-8 rounded-[7px] border border-icon-blue/40 bg-icon-blue/10 px-3 text-12-medium text-icon-blue"
+            class="h-8 rounded-[7px] border border-interactive-base/40 bg-surface-interactive-weak px-3 text-12-medium text-interactive-base"
             onClick={() => void save("csv")}
           >
             导出 CSV
           </button>
           <button
             type="button"
-            class="h-8 rounded-[7px] border border-icon-blue/40 bg-icon-blue/10 px-3 text-12-medium text-icon-blue"
+            class="h-8 rounded-[7px] border border-interactive-base/40 bg-surface-interactive-weak px-3 text-12-medium text-interactive-base"
             onClick={() => void save("xlsx")}
           >
             导出 XLSX
@@ -116,7 +116,7 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
                   <td class="border-b border-border px-1 text-center">
                     <button
                       type="button"
-                      class="grid size-7 place-items-center rounded-[6px] text-foreground-subtle hover:text-[var(--icon-critical-base)]"
+                      class="grid size-7 place-items-center rounded-[6px] text-foreground-subtle hover:text-icon-critical-base"
                       title="删除行"
                       onClick={() => removeRow(rowIndex())}
                     >
@@ -139,7 +139,7 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
           添加行
         </button>
         <Show when={message()}>
-          <span class="text-11-regular text-icon-blue">{message()}</span>
+          <span class="text-11-regular text-interactive-base">{message()}</span>
         </Show>
       </div>
 
@@ -153,7 +153,7 @@ export function OfficeDataEditor(props: { artifact: OfficeArtifact; onClose: () 
         />
         <button
           type="button"
-          class="mt-2 h-8 rounded-[7px] border border-icon-blue/35 bg-icon-blue/10 px-3 text-12-medium text-icon-blue"
+          class="mt-2 h-8 rounded-[7px] border border-interactive-base/35 bg-surface-interactive-weak px-3 text-12-medium text-interactive-base"
           onClick={importCsv}
         >
           导入 CSV

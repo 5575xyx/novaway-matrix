@@ -25,11 +25,11 @@ function AccountItem(props: {
   const statusColor = () => {
     switch (props.account.status) {
       case "valid":
-        return "bg-success"
+        return "bg-surface-success-base"
       case "expired":
-        return "bg-warning"
+        return "bg-surface-warning-base"
       case "login_failed":
-        return "bg-[var(--icon-critical-base)]"
+        return "bg-surface-critical-base"
       default:
         return "bg-foreground-subtlest"
     }
@@ -106,7 +106,7 @@ function AccountItem(props: {
             检测登录状态
           </button>
           <button
-            class="w-full px-3 py-1.5 text-left text-12-regular text-[var(--icon-critical-base)] hover:bg-hover flex items-center gap-2"
+            class="w-full px-3 py-1.5 text-left text-12-regular text-critical-base hover:bg-hover flex items-center gap-2"
             onClick={() => handleMenuAction("remove")}
           >
             <Icon name="trash" size="small" />
@@ -160,7 +160,7 @@ export function PulseSidebar() {
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-foreground-subtle">
               总账号 {platform.store.accounts.length}
             </span>
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-icon-success-base">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border text-11-regular text-success-base">
               在线 {platform.onlineCount()}
             </span>
           </div>
@@ -181,14 +181,14 @@ export function PulseSidebar() {
       <div class="shrink-0 p-2 border-b border-border">
         <div class="flex gap-1.5">
           <button
-            class="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-[8px] border border-border text-13-medium text-foreground transition-all duration-150 hover:bg-hover hover:border-primary"
+            class="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-[8px] border border-border text-13-medium text-foreground transition-all duration-150 hover:bg-hover hover:border-interactive-hover"
             onClick={openAccountManager}
           >
             <Icon name="sidebar" size="small" class="text-foreground-subtle" />
             账号管理器
           </button>
           <button
-            class="shrink-0 size-9 rounded-[8px] border border-border bg-background flex items-center justify-center text-foreground transition-all duration-150 hover:bg-hover hover:border-primary"
+            class="shrink-0 size-9 rounded-[8px] border border-border bg-background flex items-center justify-center text-foreground transition-all duration-150 hover:bg-hover hover:border-interactive-hover"
             onClick={openAddAccount}
           >
             <Icon name="plus" size="small" />

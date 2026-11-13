@@ -4,7 +4,7 @@ import type { OfficeEditor, OfficeEditorContext, OfficeEditorMount } from "./off
 export function createOfficeEditorLifecycle(options: {
   context: Omit<OfficeEditorContext, "signal" | "onDirty" | "onSaveRequest">
   mount: OfficeEditorMount
-  beforeSave?: (baseline: Uint8Array) => Promise<string | false>
+  beforeSave?: (baseline: Uint8Array) => Promise<string | false | undefined>
   write: (bytes: Uint8Array, baseline?: string) => Promise<void>
   onDirty: (dirty: boolean) => void
 }) {

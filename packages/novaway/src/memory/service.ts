@@ -1,6 +1,7 @@
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Option, Schema } from "effect"
+import { Config } from "@/config/config"
 import { and, desc, eq, inArray, isNull, or, sql } from "@/storage/db"
 import * as Database from "@/storage/db"
 import { MemoryEntryTable, MemoryRelationTable, MemoryReviewCandidateTable, MemoryReviewStateTable } from "./memory.sql"
@@ -40,7 +41,13 @@ import {
 import { memoryProjectID as scopeProjectID, resolveMemoryScope, type MemoryScopeName } from "./scope"
 import { domainLabel, resolveMemoryDomain, type MemoryDomain } from "./domain"
 import { deriveFactKey, resolveMemoryOperation } from "./fact"
-import { addMemoryMetadataTags, memoryEntitiesFromTags, memoryKindFromTags, resolveMemoryKind } from "./kind"
+import {
+  addMemoryMetadataTags,
+  memoryEntitiesFromTags,
+  memoryKindFromTags,
+  resolveMemoryKind,
+  type MemoryKind,
+} from "./kind"
 import { extractRelation } from "./relations"
 import { ConfigMemory } from "@/config/memory"
 import { embedText, parseEmbeddingJson } from "./embedder"
@@ -76,10 +83,24 @@ export const Event = {
 
 export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<Info[]>
+  readonly read: (input: {
+    id: MemoryID
+    projectID: ProjectID
+    includeGlobal?: boolean
+    scope?: Info["scope"]
+    target?: Info["target"]
+    sessionID?: SessionID
+  }) => Effect.Effect<Info | undefined>
   readonly add: (input: FileBackedAddInput) => Effect.Effect<Info>
   readonly update: (input: UpdateInput) => Effect.Effect<Info | undefined>
   readonly remove: (id: MemoryID) => Effect.Effect<boolean>
-  readonly prefetch: (input: PrefetchInput) => Effect.Effect<string>
+  readonly prefetch: (
+    input: PrefetchInput & {
+      /** 可选的 LLM 相关性过滤：失败时回退到未过滤候选。 */
+      relevanceFilter?: (items: Info[]) => Effect.Effect<Info[], unknown>
+      hasLiveToolSchema?: boolean
+    },
+  ) => Effect.Effect<string>
   readonly syncTurn: (input: {
     userContent: string
     assistantContent: string
@@ -87,6 +108,7 @@ export interface Interface {
     sessionID: AddInput["sessionID"]
     originMessageID?: AddInput["originMessageID"]
     agent?: string
+    optedOut?: boolean
   }) => Effect.Effect<void>
   readonly status: (input?: {
     projectID?: AddInput["projectID"]
@@ -106,7 +128,7 @@ export interface Interface {
   readonly applyReviewCandidate: (
     id: ReviewCandidateID,
     location?: MemoryFileLocation,
-    options?: { scope?: AddInput["scope"] },
+    options?: { scope?: AddInput["scope"]; auto?: boolean },
   ) => Effect.Effect<Info | undefined>
   readonly dismissReviewCandidate: (id: ReviewCandidateID) => Effect.Effect<ReviewCandidate | undefined>
   readonly reviewStatus: (input?: {
@@ -322,13 +344,21 @@ function memoryScope(input: {
   userContent?: string
   content?: string
   scope?: AddInput["scope"]
+  kind?: MemoryKind
 }) {
-  return resolveMemoryScope({
+  const resolved = resolveMemoryScope({
     projectID: input.projectID,
     userContent: input.userContent,
     content: input.content,
     scope: input.scope as MemoryScopeName | undefined,
   })
+  // 写入层硬路由：没有显式 scope 时按记忆类型定默认层级，
+  // 避免「用户偏好」被固化成单项目事实、「项目决策/流程」被写进全局。
+  // 文本里明确说了「仅本会话」的仍以会话为准。
+  if (input.scope !== undefined || !input.projectID || resolved === "session") return resolved
+  if (input.kind === "preference") return "global"
+  if (input.kind === "procedure" || input.kind === "decision") return "project"
+  return resolved
 }
 
 function memoryProjectID(projectID: AddInput["projectID"] | undefined, scope: AddInput["scope"]) {
@@ -347,14 +377,15 @@ function candidateRow(
   const content = proposal.content.trim()
   if (content.length < 4) return
   const now = Date.now()
+  const baseTags = Array.from(new Set([...(proposal.tags ?? []), "review"].map((tag) => tag.trim()).filter(Boolean)))
+  const kind = resolveMemoryKind({ kind: proposal.kind, content, tags: baseTags })
   const scope = memoryScope({
     projectID: input.projectID,
     userContent: input.userContent,
     content,
     scope: proposal.scope,
+    kind,
   })
-  const baseTags = Array.from(new Set([...(proposal.tags ?? []), "review"].map((tag) => tag.trim()).filter(Boolean)))
-  const kind = resolveMemoryKind({ kind: proposal.kind, content, tags: baseTags })
   const tags = addMemoryMetadataTags(baseTags, kind, proposal.entities)
   const domain = resolveMemoryDomain({
     domain: proposal.domain as MemoryDomain | undefined,
@@ -525,6 +556,48 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         })
         .pipe(Effect.catchCause(() => Effect.void))
 
+    // Use the caller's effective configuration without introducing a Config/Memory layer cycle.
+    const memoryConfig = Effect.gen(function* () {
+      const config = yield* Effect.serviceOption(Config.Service)
+      return Option.isSome(config) ? (yield* config.value.get()).memory : undefined
+    })
+
+    const scopeEnabled = (cfg: ConfigMemory.Info | undefined, scope: string) =>
+      scope === "global" ? cfg?.global_enabled !== false : cfg?.project_enabled !== false
+
+    const read: Interface["read"] = Effect.fn("Memory.read")(function* (input) {
+      // A missing project must never turn an ID lookup into an unrestricted read.
+      if (!input.projectID) return undefined
+      const row = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .select()
+            .from(MemoryEntryTable)
+            .where(
+              and(
+                ...conditions({ ...input, sessionID: undefined }),
+                eq(MemoryEntryTable.id, input.id),
+                or(
+                  and(eq(MemoryEntryTable.scope, "project"), eq(MemoryEntryTable.project_id, input.projectID)),
+                  input.includeGlobal
+                    ? and(eq(MemoryEntryTable.scope, "global"), isNull(MemoryEntryTable.project_id))
+                    : undefined,
+                  input.sessionID
+                    ? and(
+                        eq(MemoryEntryTable.scope, "session"),
+                        eq(MemoryEntryTable.project_id, input.projectID),
+                        eq(MemoryEntryTable.session_id, input.sessionID),
+                      )
+                    : undefined,
+                ),
+              ),
+            )
+            .get(),
+        ),
+      )
+      return row ? rowToInfo(row) : undefined
+    })
+
     const list: Interface["list"] = Effect.fn("Memory.list")(function* (input) {
       const search = input?.search?.trim()
       const poolLimit = search ? Math.max(input?.limit ?? DEFAULT_LIMIT, 200) : (input?.limit ?? DEFAULT_LIMIT)
@@ -550,17 +623,18 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       })
       if (!search) return filtered.slice(0, input?.limit ?? DEFAULT_LIMIT)
 
+      const cfg = ConfigMemory.resolve(yield* memoryConfig)
+      const semantic = cfg.embedding_mode === "off" ? "off" : "on"
       const ftsIds = searchFtsIds(search, input?.limit ?? DEFAULT_LIMIT)
       if (!ftsIds.length) {
-        const dense = yield* Effect.promise(() => embedText(ConfigMemory.resolve(), search)).pipe(
-          Effect.catch(() => Effect.succeed(null)),
-        )
+        const dense = yield* Effect.promise(() => embedText(cfg, search)).pipe(Effect.catch(() => Effect.succeed(null)))
         return filtered
           .map((item) => ({
             item,
             score: hybridScore(search, item, {
               queryEmbedding: dense?.vector,
               queryEmbeddingModel: dense?.modelId,
+              semantic,
             }),
           }))
           .filter((item) => item.score >= 8)
@@ -578,9 +652,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         ),
       )
       const byId = new Map([...filtered, ...extra.map(rowToInfo)].map((item) => [item.id, item]))
-      const dense = yield* Effect.promise(() => embedText(ConfigMemory.resolve(), search)).pipe(
-        Effect.catch(() => Effect.succeed(null)),
-      )
+      const dense = yield* Effect.promise(() => embedText(cfg, search)).pipe(Effect.catch(() => Effect.succeed(null)))
       return mergeHybridCandidates({
         query: search,
         keywordItems: items,
@@ -589,7 +661,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         limit: input?.limit ?? DEFAULT_LIMIT,
         queryEmbedding: dense?.vector,
         queryEmbeddingModel: dense?.modelId,
-        semantic: dense ? "on" : "on",
+        semantic,
       })
     })
 
@@ -669,14 +741,15 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
 
     const add: Interface["add"] = Effect.fn("Memory.add")(function* (input) {
       const now = Date.now()
+      const baseTags = input.tags ? Array.from(input.tags) : []
+      const kind = resolveMemoryKind({ kind: input.kind, content: input.content, tags: baseTags })
       const scope = memoryScope({
         projectID: input.projectID,
         content: input.content,
         userContent: input.content,
         scope: input.scope,
+        kind,
       })
-      const baseTags = input.tags ? Array.from(input.tags) : []
-      const kind = resolveMemoryKind({ kind: input.kind, content: input.content, tags: baseTags })
       const tags = addMemoryMetadataTags(baseTags, kind, input.entities)
       const domain = resolveMemoryDomain({
         domain: input.domain as MemoryDomain | undefined,
@@ -685,6 +758,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       })
       const factKey = deriveFactKey(input.content, input.factKey)
       const operation = resolveMemoryOperation(input.operation)
+      const cfg = yield* memoryConfig
       const existing = yield* findActiveByFactKey({
         factKey,
         projectID: memoryProjectID(input.projectID, scope),
@@ -742,7 +816,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
           last_confirmed_at: now,
         }
         const embedded = yield* Effect.promise(() =>
-          maybeEmbedMemory(row.content, row.summary ?? undefined, { kind, entities: input.entities }),
+          maybeEmbedMemory(row.content, row.summary ?? undefined, { kind, entities: input.entities }, cfg),
         )
         const rowWithEmbed = { ...row, ...embedded }
         if (input.location) yield* Effect.promise(() => writeMemoryFile(rowWithEmbed, input.location!))
@@ -775,7 +849,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         last_confirmed_at: now,
       }
       const embedded = yield* Effect.promise(() =>
-        maybeEmbedMemory(row.content, row.summary ?? undefined, { kind, entities: input.entities }),
+        maybeEmbedMemory(row.content, row.summary ?? undefined, { kind, entities: input.entities }, cfg),
       )
       const rowWithEmbed = { ...row, ...embedded }
       if (input.location) yield* Effect.promise(() => writeMemoryFile(rowWithEmbed, input.location!))
@@ -834,7 +908,12 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
                 ? {}
                 : { domain: nextDomain }),
               ...(input.scope === undefined ? {} : { scope: nextScope, project_id: nextProjectID }),
-              ...(input.archived === undefined ? {} : { time_archived: input.archived ? now : null }),
+              // 取消归档必须同时清掉过期时间：归档时 valid_to 被写成过去，只清 time_archived 会让它继续被列表过滤掉。
+              ...(input.archived === undefined
+                ? {}
+                : input.archived
+                  ? { time_archived: now }
+                  : { time_archived: null, valid_to: null }),
               ...(input.validFrom === undefined ? {} : { valid_from: input.validFrom }),
               ...(input.validTo === undefined ? {} : { valid_to: input.validTo }),
               ...(input.confirm ? { last_confirmed_at: now, confidence: Math.min(1, existing.confidence + 0.05) } : {}),
@@ -859,31 +938,53 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
 
     const prefetch: Interface["prefetch"] = Effect.fn("Memory.prefetch")(function* (input) {
       if (!shouldPrefetch(input.query)) return ""
-      const pool = yield* list({
+      const cfg = yield* memoryConfig
+      const resolved = ConfigMemory.resolve(cfg)
+      const candidates = (yield* list({
         projectID: input.projectID,
         includeGlobal: true,
         search: input.query,
         limit: 200,
-      })
+      })).filter((item) => scopeEnabled(cfg, item.scope))
+      // 过滤太小的候选集不值得额外一次 LLM 调用；失败时保留原候选。
+      const pool =
+        input.relevanceFilter && candidates.length > 3
+          ? yield* input.relevanceFilter(candidates).pipe(Effect.catch(() => Effect.succeed(candidates)))
+          : candidates
       const relations = yield* listRelations({
         projectID: input.projectID,
         limit: 200,
       })
+      const globalUsers =
+        cfg?.global_enabled === false ? [] : yield* list({ scope: "global", target: "user", limit: 200 })
       return buildPrefetchText(input.query, pool, {
+        source: "retrieved",
+        globalUsers,
         limit: input.limit ?? DEFAULT_PREFETCH_LIMIT,
         maxChars: input.maxChars ?? DEFAULT_PREFETCH_BUDGET_CHARS,
         relations,
+        staleness: resolved.staleness_reminders,
+        hasLiveToolSchema: input.hasLiveToolSchema,
       })
     })
 
     const syncTurn: Interface["syncTurn"] = Effect.fn("Memory.syncTurn")(function* (input) {
+      if (input.optedOut) return
       const content = explicitMemory(input.userContent)
-      if (!content) return
+      if (
+        !content ||
+        /-----BEGIN (?:[A-Z ]*PRIVATE KEY|PGP PRIVATE KEY BLOCK)-----|\b(?:sk-(?:proj-)?[\w-]{12,}|gh[pousr]_[\w]{20,}|github_pat_[\w]{20,}|AKIA[A-Z0-9]{16})\b|(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|client[_ -]?secret|password|passwd|密码|密钥|口令|凭据)["'\s]*(?:[:=：]|是|为)["'\s]*[^\s,;，；"'}]{3,}/i.test(
+          content,
+        )
+      )
+        return
+      const scope = memoryScope({ projectID: input.projectID, userContent: input.userContent })
+      if (!scopeEnabled(yield* memoryConfig, scope)) return
       yield* add({
         projectID: input.projectID,
         sessionID: input.sessionID,
         target: "memory",
-        scope: memoryScope({ projectID: input.projectID, userContent: input.userContent }),
+        scope,
         content,
         source: "turn",
         originMessageID: input.originMessageID,
@@ -938,6 +1039,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       return row ? rowToCandidate(row) : undefined
     })
 
+    // 只累计「攒了几轮」，不写已审查游标：游标由 markReviewed 在成功落库后推进。
     const advanceReviewState = Effect.fn("Memory.advanceReviewState")(function* (input: ReviewServiceInput) {
       if (!input.sessionID) return true
       const now = Date.now()
@@ -955,8 +1057,6 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
               session_id: input.sessionID!,
               project_id: input.projectID,
               turn_count: next,
-              last_reviewed_message_id: input.sourceMessageID,
-              last_reviewed_at: now,
               time_created: current?.time_created ?? now,
               time_updated: now,
             })
@@ -965,8 +1065,6 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
               set: {
                 project_id: input.projectID,
                 turn_count: next,
-                last_reviewed_message_id: input.sourceMessageID,
-                last_reviewed_at: now,
                 time_updated: now,
               },
             })
@@ -974,7 +1072,28 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
           return next
         }),
       )
-      return turn % interval === 0
+      return turn >= interval
+    })
+
+    // 非对称持久性：审查真正完成（候选已落库，哪怕是空结果）才清零计数，
+    // 这样推理或写库失败时计数继续累积，下一轮马上重试，而不是等下一个完整间隔。
+    const markReviewed = Effect.fn("Memory.markReviewed")(function* (input: ReviewServiceInput) {
+      if (!input.sessionID) return
+      const now = Date.now()
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(MemoryReviewStateTable)
+            .set({
+              turn_count: 0,
+              ...(input.sourceMessageID ? { last_reviewed_message_id: input.sourceMessageID } : {}),
+              last_reviewed_at: now,
+              time_updated: now,
+            })
+            .where(eq(MemoryReviewStateTable.session_id, input.sessionID!))
+            .run(),
+        ),
+      )
     })
 
     const reviewDue: Interface["reviewDue"] = Effect.fn("Memory.reviewDue")(function* (input) {
@@ -1022,7 +1141,9 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         if (!due) return []
       }
       const rows = candidateRowsFromReview(input)
-      return yield* persistCandidates(input, rows)
+      const persisted = yield* persistCandidates(input, rows)
+      if (!input.dryRun) yield* markReviewed(input)
+      return persisted
     })
 
     const reviewCompaction: Interface["reviewCompaction"] = Effect.fn("Memory.reviewCompaction")(function* (input) {
@@ -1082,6 +1203,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
           content: candidate.content,
           scope: options?.scope ?? candidate.scope,
         })
+        if (options?.auto && !scopeEnabled(yield* memoryConfig, scope)) return
         const item = yield* add({
           projectID: scope === "global" ? undefined : candidate.projectID,
           sessionID: candidate.sessionID,
@@ -1268,6 +1390,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
 
     return Service.of({
       list,
+      read,
       add,
       update,
       remove,

@@ -18,7 +18,7 @@
   }
 
   /* p-px + **rounded-full** 药丸形，
-     默认 32×18、sm 28×16；选中 `bg-primary`、未选中 `bg-primary/30`；拇指圆形纯色。
+     默认 32×18、sm 28×16；选中使用交互表面色、未选中使用其 30% 透明度；拇指使用配套前景色。
      旧版是 28×16 直角(3px)开关 + 带边框的方块拇指。 */
   [data-slot="switch-control"] {
     display: inline-flex;
@@ -30,7 +30,7 @@
     flex-shrink: 0;
     border-radius: 9999px;
     border: none;
-    background: color-mix(in oklab, var(--primary) 30%, transparent);
+    background: color-mix(in oklab, var(--surface-interactive-base) 30%, transparent);
     box-shadow: 0 0 0 0 transparent;
     /* 开关是「点一下就该有反应」的控件：hover 给一圈淡环，按下轻微收缩，
        切换时轨道与拇指都有明确的过渡，用户不会怀疑自己没点中。 */
@@ -42,7 +42,7 @@
 
   /* 整行可点：把 hover 反馈扩展到标签区域。 */
   &:hover:not([data-disabled]):not([data-readonly]) [data-slot="switch-control"] {
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 16%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--border-interactive-focus) 16%, transparent);
   }
 
   &:active:not([data-disabled]):not([data-readonly]) [data-slot="switch-control"] {
@@ -56,7 +56,7 @@
 
     border-radius: 9999px;
     border: none;
-    background: var(--primary-foreground);
+    background: var(--text-on-interactive-base);
 
     transform: translateX(0);
     transition:
@@ -104,7 +104,7 @@
   }
 
   &[data-checked] [data-slot="switch-control"] {
-    background-color: var(--primary);
+    background-color: var(--surface-interactive-base);
   }
 
   &[data-checked] [data-slot="switch-thumb"] {
@@ -121,7 +121,7 @@
   }
 
   &[data-invalid] [data-slot="switch-control"] {
-    box-shadow: 0 0 0 2px color-mix(in oklab, var(--destructive) 20%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--surface-critical-base) 20%, transparent);
   }
 
   &[data-readonly] {

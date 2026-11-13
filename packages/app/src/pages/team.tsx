@@ -72,7 +72,7 @@ const statusIcon = (status: TeamMemberView["status"]) =>
 
 const statusTone = (status: TeamMemberView["status"]) =>
   status === "active"
-    ? "text-icon-success-base"
+    ? "text-success-base"
     : status === "archived"
       ? "text-foreground-subtlest"
       : "text-foreground-subtle"
@@ -85,18 +85,19 @@ const statusTone = (status: TeamMemberView["status"]) =>
  */
 /** 工作线列表里的状态点：颜色回答「要不要点开它」，不再多摆一排标签。 */
 const runDot = (run: { state: string }) => ({
-  "bg-success": run.state === "done",
-  "bg-warning": run.state === "partial" || run.state === "needs_review" || run.state === "awaiting_approval",
-  "bg-primary": run.state === "running" || run.state === "blocked" || run.state === "paused",
+  "bg-surface-success-base": run.state === "done",
+  "bg-surface-warning-base":
+    run.state === "partial" || run.state === "needs_review" || run.state === "awaiting_approval",
+  "bg-surface-interactive-base": run.state === "running" || run.state === "blocked" || run.state === "paused",
   "bg-border":
     run.state === "failed" || run.state === "cancelled" || run.state === "exceeded" || run.state === "planning",
 })
 
 const runStateTone = (state: string) =>
   state === "done"
-    ? "text-icon-success-base"
+    ? "text-success-base"
     : state === "partial" || state === "needs_review" || state === "awaiting_approval"
-      ? "text-icon-warning-base"
+      ? "text-warning-base"
       : state === "failed" || state === "exceeded" || state === "cancelled"
         ? "text-foreground-subtlest"
         : "text-foreground-subtle"
@@ -613,7 +614,7 @@ export const TeamPage: Component<{
       <PageHeader onBack={() => props.onBack()} title={t("team.title")} />
 
       <Show when={error()}>
-        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-icon-critical-base">{error()}</div>
+        <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-critical-base">{error()}</div>
       </Show>
 
       <div class="flex min-h-0 flex-1">
@@ -820,7 +821,7 @@ export const TeamPage: Component<{
                         <button
                           type="button"
                           class="rounded border border-border px-1.5 py-px text-ui-xs transition-colors hover:bg-hover"
-                          classList={{ "text-icon-blue": team().team.autoEligible }}
+                          classList={{ "text-interactive-base": team().team.autoEligible }}
                           onClick={() => void toggleAuto()}
                           title={t("team.auto.hint")}
                         >
@@ -1327,7 +1328,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
         <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.employees.hint")}</div>
         <Show when={error()}>
-          <div class="text-12-regular text-icon-critical-base">{error()}</div>
+          <div class="text-12-regular text-critical-base">{error()}</div>
         </Show>
 
         <div class="flex flex-col gap-2">
@@ -1397,7 +1398,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                   <div class="flex flex-col gap-2 border-t border-border px-3 py-2">
                     <div class="flex gap-2">
                       <input
-                        class="flex h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                        class="flex h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
                         value={draft().name}
                         placeholder={t("team.employees.namePlaceholder")}
                         onInput={(event) => setDraft({ ...draft(), name: event.currentTarget.value })}
@@ -1430,13 +1431,13 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
                       onSelect={(model) => setDraft({ ...draft(), model: model ?? "" })}
                     />
                     <input
-                      class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                      class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
                       value={draft().skills}
                       placeholder={t("team.employees.skillsPlaceholder")}
                       onInput={(event) => setDraft({ ...draft(), skills: event.currentTarget.value })}
                     />
                     <textarea
-                      class="min-h-20 w-full resize-y rounded-[8px] border border-border bg-surface px-3 py-2 text-14-regular text-foreground outline-none focus:border-primary"
+                      class="min-h-20 w-full resize-y rounded-[8px] border border-border bg-surface px-3 py-2 text-14-regular text-foreground outline-none focus:border-interactive-focus"
                       value={draft().prompt}
                       placeholder={t("team.employees.dutyPlaceholder")}
                       onInput={(event) => setDraft({ ...draft(), prompt: event.currentTarget.value })}
@@ -1460,7 +1461,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
           <label class="text-13-medium text-foreground">{t("team.employees.add")}</label>
           <div class="flex gap-2">
             <input
-              class="flex h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+              class="flex h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
               value={name()}
               placeholder={t("team.employees.namePlaceholder")}
               onInput={(event) => setName(event.currentTarget.value)}
@@ -1476,7 +1477,7 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
             </select>
           </div>
           <input
-            class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+            class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
             value={duty()}
             placeholder={t("team.employees.dutyPlaceholder")}
             onInput={(event) => setDuty(event.currentTarget.value)}
@@ -1665,7 +1666,7 @@ function DialogProfiles(props: {
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
         <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.profiles.hint")}</div>
         <Show when={error()}>
-          <div class="text-12-regular text-icon-critical-base">{error()}</div>
+          <div class="text-12-regular text-critical-base">{error()}</div>
         </Show>
 
         <Show when={!form()}>
@@ -1720,7 +1721,7 @@ function DialogProfiles(props: {
                         <Button
                           variant="ghost"
                           size="small"
-                          class="text-icon-critical-base"
+                          class="text-critical-base"
                           disabled={busy()}
                           onClick={() => void remove(profile.id)}
                         >
@@ -1751,7 +1752,7 @@ function DialogProfiles(props: {
             <div class="flex flex-col gap-1">
               <label class="text-13-medium text-foreground">{t("team.profiles.name")}</label>
               <input
-                class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
                 value={draft().name}
                 placeholder={t("team.profiles.namePlaceholder")}
                 onInput={(event) => setDraft({ ...draft(), name: event.currentTarget.value })}
@@ -1760,7 +1761,7 @@ function DialogProfiles(props: {
             <div class="flex flex-col gap-1">
               <label class="text-13-medium text-foreground">{t("team.profiles.description")}</label>
               <input
-                class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+                class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
                 value={draft().description}
                 placeholder={t("team.profiles.descriptionPlaceholder")}
                 onInput={(event) => setDraft({ ...draft(), description: event.currentTarget.value })}
@@ -1804,7 +1805,7 @@ function DialogProfiles(props: {
                         </Show>
                         <Show when={picked(employee.id)}>
                           <input
-                            class="h-8 w-40 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-ui-xs text-foreground outline-none focus:border-primary"
+                            class="h-8 w-40 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-ui-xs text-foreground outline-none focus:border-interactive-focus"
                             value={dutyOf(employee.id)}
                             placeholder={t("team.profiles.dutyPlaceholder")}
                             onInput={(event) => setDuty(employee.id, event.currentTarget.value)}
@@ -1916,7 +1917,7 @@ function DialogCreateTeam(props: {
         <div class="flex flex-col gap-2">
           <label class="text-13-medium text-foreground">{t("team.name")}</label>
           <input
-            class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+            class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
             value={name()}
             placeholder={t("team.namePlaceholder")}
             autofocus
@@ -1926,7 +1927,7 @@ function DialogCreateTeam(props: {
         <div class="flex flex-col gap-2">
           <label class="text-13-medium text-foreground">{t("team.goal")}</label>
           <input
-            class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-primary"
+            class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
             value={goal()}
             placeholder={t("team.goalPlaceholder")}
             onInput={(event) => setGoal(event.currentTarget.value)}
@@ -1962,7 +1963,7 @@ function DialogCreateTeam(props: {
             <span class="text-ui-xs text-foreground-subtle">{picked().length}</span>
           </div>
           <input
-            class="flex h-8 w-full rounded-[8px] border border-border bg-surface px-2.5 text-13-regular text-foreground outline-none focus:border-primary"
+            class="flex h-8 w-full rounded-[8px] border border-border bg-surface px-2.5 text-13-regular text-foreground outline-none focus:border-interactive-focus"
             value={search()}
             placeholder={t("team.member.search")}
             onInput={(event) => setSearch(event.currentTarget.value)}
@@ -1998,7 +1999,7 @@ function DialogCreateTeam(props: {
                   type="button"
                   class="flex min-w-0 items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors"
                   classList={{
-                    "border-primary bg-surface": picked().includes(agent.name),
+                    "border-interactive-selected bg-surface": picked().includes(agent.name),
                     "border-border hover:bg-hover": !picked().includes(agent.name),
                   }}
                   title={agent.name}
@@ -2025,7 +2026,7 @@ function DialogCreateTeam(props: {
           </div>
         </div>
         <Show when={error()}>
-          <div class="text-12-regular text-icon-critical-base">{error()}</div>
+          <div class="text-12-regular text-critical-base">{error()}</div>
         </Show>
         <div class="flex items-center justify-end gap-3 pt-1">
           <Button variant="secondary" onClick={() => dialog.close()}>

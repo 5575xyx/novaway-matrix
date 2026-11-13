@@ -6,6 +6,7 @@
 //   3. save() 产出可解析的 PPTX 字节；
 //   4. 用 save() 的字节重新挂载（模拟「保存后重开」）。
 import { pptxFromSlides } from "@novaway/core/office/create"
+import { buildLexoraContext } from "@/pages/session/office-editors/lexora-view-context"
 import JSZip from "jszip"
 
 // 浏览器里没有 Buffer：分块转 base64。
@@ -35,26 +36,6 @@ async function makeMacroPptm() {
 async function readMacroProject(bytes: Uint8Array) {
   const archive = await JSZip.loadAsync(bytes)
   return (await archive.file("ppt/vbaProject.bin")?.async("uint8array")) ?? null
-}
-
-// 模拟 NovaWay Host 的最小 Lexora ViewContext（对齐 lexora-view-context.ts）。
-const context = {
-  signal: new AbortController().signal,
-  workers: {
-    create: async (entry: string | URL, options?: { type?: "classic" | "module" }) =>
-      new Worker(typeof entry === "string" ? entry : entry.toString(), options),
-  },
-  clipboard: {
-    read: async () => ({ text: "" }),
-    write: async () => {},
-  },
-  resources: {
-    pickFiles: async () => [],
-    readBytes: async () => ({ data: new Uint8Array(), size: 0, eof: true }),
-    saveFile: async () => true,
-  },
-  environment: { colorScheme: "light" },
-  onEnvironmentChange: () => ({ dispose: () => {} }),
 }
 
 interface OfficeEditor {
@@ -107,22 +88,35 @@ async function main() {
   root.append(container)
   let dirty = false
   let current: OfficeEditor | undefined
+  let currentAbortController: AbortController | undefined
   try {
     const { mountSlidesEditor } = await loadBundle()
     const mount = async (bytes: Uint8Array, name: string) => {
       current?.dispose()
+      currentAbortController?.abort()
+      currentAbortController = new AbortController()
       container.replaceChildren()
       dirty = false
       status.setAttribute("data-dirty", "false")
+      const onDirty = (value: boolean) => {
+        dirty = value
+        status.setAttribute("data-dirty", String(value))
+      }
+      const context = buildLexoraContext({
+        container,
+        bytes,
+        name,
+        onDirty,
+        signal: currentAbortController.signal,
+      })
+      status.setAttribute("data-color-scheme", context.environment.colorScheme)
+      context.onEnvironmentChange(({ colorScheme }) => status.setAttribute("data-color-scheme", colorScheme))
       const editor = await mountSlidesEditor({
         context,
         container,
         bytes,
         name,
-        onDirty: (value) => {
-          dirty = value
-          status.setAttribute("data-dirty", String(value))
-        },
+        onDirty,
       })
       current = editor
       status.textContent = "mounted"

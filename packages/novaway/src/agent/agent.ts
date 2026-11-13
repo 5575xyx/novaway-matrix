@@ -58,7 +58,7 @@ export const Info = Schema.Struct({
   ),
   hooks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   permissionMode: Schema.optional(
-    Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]),
+    Schema.Literals(["default", "acceptEdits", "plan", "auto", "bypassPermissions", "unattended"]),
   ),
   maxTurns: Schema.optional(Schema.Finite),
   background: Schema.optional(Schema.Boolean),
@@ -839,14 +839,19 @@ export const layer = Layer.effect(
         const defaultInfo = Effect.fnUntraced(function* () {
           const c = yield* config.get()
           if (c.default_agent) {
-            const agent = agents[c.default_agent] ?? (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === c.default_agent)))
+            const agent =
+              agents[c.default_agent] ??
+              (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === c.default_agent)))
             if (!agent) throw new Error(`default agent "${c.default_agent}" not found`)
             if (agent.mode === "subagent") throw new Error(`default agent "${c.default_agent}" is a subagent`)
             if (agent.hidden === true) throw new Error(`default agent "${c.default_agent}" is hidden`)
             return agent
           }
-          const visible = Object.values(agents).find((a) => a.mode !== "subagent" && a.hidden !== true)
-            ?? (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.mode !== "subagent" && item.hidden !== true)))
+          const visible =
+            Object.values(agents).find((a) => a.mode !== "subagent" && a.hidden !== true) ??
+            (yield* Effect.map(pluginAgents, (items) =>
+              items.find((item) => item.mode !== "subagent" && item.hidden !== true),
+            ))
           if (!visible) throw new Error("no primary visible agent found")
           return visible
         })
@@ -884,9 +889,14 @@ export const layer = Layer.effect(
           prompt: typeof contribution.prompt === "string" ? contribution.prompt : "",
           permission: Permission.fromConfig(contribution.permission ?? {}),
           options: contribution.options ?? {},
-          ...(contribution.model === undefined ? {} : {
-            model: { providerID: ProviderID.make(contribution.model.providerID), modelID: ModelID.make(contribution.model.modelID) },
-          }),
+          ...(contribution.model === undefined
+            ? {}
+            : {
+                model: {
+                  providerID: ProviderID.make(contribution.model.providerID),
+                  modelID: ModelID.make(contribution.model.modelID),
+                },
+              }),
           ...(contribution.tools === undefined ? {} : { tools: [...contribution.tools] }),
           ...(contribution.disallowedTools === undefined ? {} : { disallowedTools: [...contribution.disallowedTools] }),
         } satisfies Info
@@ -910,8 +920,9 @@ export const layer = Layer.effect(
       const cfg = yield* config.get()
       if (!cfg.default_agent) return yield* InstanceState.useEffect(state, (s) => s.defaultInfo())
       const base = yield* InstanceState.useEffect(state, (s) => s.list())
-      const selected = base.find((item) => item.name === cfg.default_agent)
-        ?? (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === cfg.default_agent)))
+      const selected =
+        base.find((item) => item.name === cfg.default_agent) ??
+        (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === cfg.default_agent)))
       if (!selected) throw new Error(`default agent "${cfg.default_agent}" not found`)
       if (selected.mode === "subagent") throw new Error(`default agent "${cfg.default_agent}" is a subagent`)
       if (selected.hidden === true) throw new Error(`default agent "${cfg.default_agent}" is hidden`)

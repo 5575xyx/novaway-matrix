@@ -40,7 +40,9 @@ test("PDF 页面兼容工具的编辑、裁边、批注、提取、拆分和合�
   const mergeDownload = page.waitForEvent("download")
   const fileChooser = page.waitForEvent("filechooser")
   await page.locator('[data-action="pdf-merge-documents"]').click()
-  await (await fileChooser).setFiles({
+  await (
+    await fileChooser
+  ).setFiles({
     name: "second.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from(pdfBytes),

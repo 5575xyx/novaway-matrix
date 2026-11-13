@@ -4,6 +4,9 @@ import { Session } from "./session"
 import type { SessionID } from "./schema"
 import { MessageV2 } from "./message-v2"
 import { Provider } from "@/provider/provider"
+import { Service as DistillService, defaultLayer as DistillLayer } from "./distill"
+import type { ConsolidationAudit } from "@/memory/schema"
+import type { ProjectID } from "@/project/schema"
 
 export interface DreamAnalysis {
   readonly sessionId: string
@@ -60,10 +63,26 @@ const DreamResult = Schema.Struct({
   ),
 })
 
+export interface ConsolidationReport {
+  readonly sessions: number
+  readonly drafts: number
+  readonly audits: ConsolidationAudit[]
+  readonly skipped?: "insufficient-sessions" | "no-drafts"
+}
+
 export interface Interface {
   readonly analyzeSession: (sessionId: SessionID, model: Provider.Model) => Effect.Effect<DreamAnalysis>
 
   readonly analyzeHistory: (model: Provider.Model, limit?: number) => Effect.Effect<DreamAnalysis[]>
+
+  readonly consolidate: (input: {
+    model: Provider.Model
+    projectID?: ProjectID
+    sessionID?: SessionID
+    minSessions?: number
+    userScope?: boolean
+    limit?: number
+  }) => Effect.Effect<ConsolidationReport>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/DreamService") {}
@@ -89,11 +108,12 @@ function transcript(messages: readonly MessageV2.WithParts[], maxChars = 12000) 
   return joined.length > maxChars ? joined.slice(joined.length - maxChars) : joined
 }
 
-export const layer: Layer.Layer<Service, never, Session.Service | Provider.Service> = Layer.effect(
+export const layer: Layer.Layer<Service, never, Session.Service | Provider.Service | DistillService> = Layer.effect(
   Service,
   Effect.gen(function* () {
     const session = yield* Session.Service
     const provider = yield* Provider.Service
+    const distill = yield* DistillService
 
     const analyzeTranscript = (input: { model: Provider.Model; transcript: string }) =>
       Effect.gen(function* () {
@@ -129,7 +149,7 @@ export const layer: Layer.Layer<Service, never, Session.Service | Provider.Servi
             messages,
             schema: Object.assign(Schema.toStandardSchemaV1(DreamResult), Schema.toStandardJSONSchemaV1(DreamResult)),
           }).then((r) => r.object as Schema.Schema.Type<typeof DreamResult>),
-        ).pipe(Effect.catch((err) => Effect.succeed(undefined)))
+        ).pipe(Effect.catch(() => Effect.succeed(undefined)))
 
         if (!result) return empty
         return {
@@ -153,6 +173,18 @@ export const layer: Layer.Layer<Service, never, Session.Service | Provider.Servi
         }
       })
 
+    const analyzeHistory: Interface["analyzeHistory"] = (model: Provider.Model, limit = 10) =>
+      Effect.gen(function* () {
+        const sessions = yield* session.list({ limit })
+        const analyses: DreamAnalysis[] = []
+        for (const s of sessions) {
+          const messages = yield* session.messages({ sessionID: s.id }).pipe(Effect.orDie)
+          const analysis = yield* analyzeTranscript({ model, transcript: transcript(messages) })
+          analyses.push({ sessionId: s.id, ...analysis, analyzedAt: new Date() })
+        }
+        return analyses
+      }).pipe(Effect.orDie)
+
     return {
       analyzeSession: (sessionId: SessionID, model: Provider.Model) =>
         Effect.gen(function* () {
@@ -165,19 +197,54 @@ export const layer: Layer.Layer<Service, never, Session.Service | Provider.Servi
           }
         }).pipe(Effect.orDie),
 
-      analyzeHistory: (model: Provider.Model, limit = 10) =>
-        Effect.gen(function* () {
-          const sessions = yield* session.list({ limit })
-          const analyses: DreamAnalysis[] = []
-          for (const s of sessions) {
-            const messages = yield* session.messages({ sessionID: s.id }).pipe(Effect.orDie)
-            const analysis = yield* analyzeTranscript({ model, transcript: transcript(messages) })
-            analyses.push({ sessionId: s.id, ...analysis, analyzedAt: new Date() })
-          }
-          return analyses
-        }).pipe(Effect.orDie),
+      analyzeHistory,
+
+      consolidate: Effect.fn("DreamService.consolidate")(function* (input) {
+        const minSessions = Math.max(1, input.minSessions ?? 5)
+        const analyses = yield* analyzeHistory(input.model, input.limit ?? Math.max(minSessions, 10))
+        const useful = analyses.filter(
+          (item) => item.patterns.length + item.insights.length + item.suggestions.length > 0,
+        )
+        if (useful.length < minSessions) {
+          return { sessions: useful.length, drafts: 0, audits: [], skipped: "insufficient-sessions" as const }
+        }
+
+        const results = yield* Effect.forEach(useful, (analysis) => distill.fromAnalysis(analysis), {
+          concurrency: 1,
+        })
+        const seen = new Set<string>()
+        const drafts = results
+          .flatMap((result) => result.memories)
+          .filter((draft) => {
+            const key = normalizeDraft(draft.content)
+            if (!key || seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+        if (!drafts.length) {
+          return { sessions: useful.length, drafts: 0, audits: [], skipped: "no-drafts" as const }
+        }
+
+        const audits = yield* distill.applyMemories({
+          projectID: input.projectID,
+          sessionID: input.sessionID,
+          includeGlobal: input.userScope ?? false,
+          result: { memories: drafts, patterns: [], appliedAt: new Date() },
+        })
+        return { sessions: useful.length, drafts: drafts.length, audits }
+      }),
     }
   }),
 )
 
-export const defaultLayer = layer.pipe(Layer.provide(Session.defaultLayer), Layer.provide(Provider.defaultLayer))
+function normalizeDraft(content: string) {
+  return content.replace(/\s+/g, " ").trim().toLowerCase()
+}
+
+export const defaultLayer = layer.pipe(
+  Layer.provide(Session.defaultLayer),
+  Layer.provide(Provider.defaultLayer),
+  Layer.provide(DistillLayer),
+)
+
+export * as Dream from "./dream"

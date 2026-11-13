@@ -97,7 +97,7 @@ export type PermissionRuleConfig = PermissionAction | Record<string, PermissionA
  */
 export type PermissionConfig = Record<string, PermissionRuleConfig>
 
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
 
 /** 运行时规则集（`Permission.Ruleset`）：会话上生效的那份，不是用户写的配置。 */
 export type PermissionRule = {

@@ -48,7 +48,10 @@ export function RunLive(props: {
         <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
           {/* 进度条只是辅助：数字在右边，不让人靠一条色带猜。 */}
           <div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border">
-            <div class="h-full rounded-full bg-primary transition-all" style={{ width: summary().percent + "%" }} />
+            <div
+              class="h-full rounded-full bg-surface-interactive-base transition-all"
+              style={{ width: summary().percent + "%" }}
+            />
           </div>
           <span class="shrink-0">
             {t("run.live.tasks", { done: String(summary().done), total: String(summary().total) })}
@@ -61,7 +64,7 @@ export function RunLive(props: {
           <For each={summary().current}>
             {(task) => (
               <div class="flex items-center gap-1.5 text-ui-xs text-foreground-subtle">
-                <span class="size-1.5 shrink-0 rounded-full bg-primary" />
+                <span class="size-1.5 shrink-0 rounded-full bg-surface-interactive-base" />
                 <span class="min-w-0 flex-1 truncate" title={task.subject}>
                   {task.subject}
                 </span>
@@ -80,7 +83,7 @@ export function RunLive(props: {
             </span>
           </Show>
           <Show when={summary().failed > 0}>
-            <span class="text-icon-critical-base">{t("run.live.failed", { count: String(summary().failed) })}</span>
+            <span class="text-critical-base">{t("run.live.failed", { count: String(summary().failed) })}</span>
           </Show>
         </div>
       </Show>

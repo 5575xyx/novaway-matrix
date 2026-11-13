@@ -119,6 +119,7 @@ import { SidebarRail, SidebarRailButton, type SidebarRailItem } from "./layout/s
 import { ExtensionsPage } from "./extensions"
 import { KernelPage } from "./kernel"
 import { TeamPage } from "./team"
+import { ArenaPage } from "./arena"
 import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
 import { GlobalChatTasks } from "./layout/global-chat-tasks"
 
@@ -348,6 +349,9 @@ export default function Layout(props: ParentProps) {
     teamPage: {
       open: false,
     },
+    arenaPage: {
+      open: false,
+    },
     pulsePage: {
       open: false,
     },
@@ -367,6 +371,7 @@ export default function Layout(props: ParentProps) {
     "knowledgePage",
     "kernelPage",
     "teamPage",
+    "arenaPage",
     "pulsePage",
   ] as const
   type FramePage = (typeof FRAME_PAGES)[number]
@@ -401,6 +406,7 @@ export default function Layout(props: ParentProps) {
   const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
   const kernelTransition = createMountTransition(() => state.kernelPage.open)
   const teamTransition = createMountTransition(() => state.teamPage.open)
+  const arenaTransition = createMountTransition(() => state.arenaPage.open)
 
   // 窄窗口下侧栏是浮层（z-50、fixed），盖在上面会让覆盖层的返回按钮点不到。
   // 打开任何整帧页面时先把移动侧栏收起来。
@@ -412,7 +418,8 @@ export default function Layout(props: ParentProps) {
       state.automationPage.open ||
       state.knowledgePage.open ||
       state.kernelPage.open ||
-      state.teamPage.open
+      state.teamPage.open ||
+      state.arenaPage.open
     ) {
       layout.mobileSidebar.hide()
     }
@@ -611,9 +618,12 @@ export default function Layout(props: ParentProps) {
 
   const updateButtonBusy = () => updateState.stage === "checking" || updateState.stage === "downloading"
 
-  // icon 组件基础色是 foreground-subtle；成功色按钮上使用对应的对比文字色。
-  const updateIconColor = () =>
-    updateState.stage === "checking" ? "var(--foreground-subtle)" : "var(--text-on-success-base)"
+  // 图标文字色随背景等级匹配：下载中使用 strong surface，其余成功状态使用 base surface。
+  const updateIconColor = () => {
+    if (updateState.stage === "checking") return "var(--foreground-subtle)"
+    if (updateState.stage === "downloading") return "var(--text-on-success-strong)"
+    return "var(--text-on-success-base)"
+  }
 
   // 点按钮先看「这次更新改了什么」：manual 路径在「有新版本」时点开是下载，
   // 自动路径在「已下载」时点开是安装。两者都先弹更新说明。
@@ -1549,11 +1559,7 @@ export default function Layout(props: ParentProps) {
         id: `theme.set.${id}`,
         title: language.t("command.theme.set", { theme: theme.name(id) }),
         category: language.t("command.category.theme"),
-        onSelect: () => theme.commitPreview(),
-        onHighlight: () => {
-          theme.previewTheme(id)
-          return () => theme.cancelPreview()
-        },
+        onSelect: () => theme.setTheme(id),
       })
     }
 
@@ -1570,11 +1576,7 @@ export default function Layout(props: ParentProps) {
         id: `theme.scheme.${scheme}`,
         title: language.t("command.theme.scheme.set", { scheme: colorSchemeLabel(scheme) }),
         category: language.t("command.category.theme"),
-        onSelect: () => theme.commitPreview(),
-        onHighlight: () => {
-          theme.previewColorScheme(scheme)
-          return () => theme.cancelPreview()
-        },
+        onSelect: () => theme.setColorScheme(scheme),
       })
     }
 
@@ -1701,6 +1703,16 @@ export default function Layout(props: ParentProps) {
 
   function closeTeamPage() {
     setState("teamPage", "open", false)
+    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
+  }
+
+  function openArenaPage() {
+    closeFramePages("arenaPage")
+    setState("arenaPage", "open", true)
+  }
+
+  function closeArenaPage() {
+    setState("arenaPage", "open", false)
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
@@ -2729,7 +2741,7 @@ export default function Layout(props: ParentProps) {
                   "bg-[var(--surface-success-base)] text-[var(--text-on-success-base)]":
                     updateState.stage === "available" || updateState.stage === "downloaded",
                   "border border-border bg-surface text-foreground-subtle": updateState.stage === "checking",
-                  "bg-[var(--surface-success-strong)] text-[var(--text-on-success-base)]":
+                  "bg-[var(--surface-success-strong)] text-[var(--text-on-success-strong)]":
                     updateState.stage === "downloading",
                 }}
                 aria-label={updateButtonTooltip()}
@@ -2830,7 +2842,7 @@ export default function Layout(props: ParentProps) {
             aria-label={language.t("sidebar.automation")}
             onClick={openAutomationPage}
           >
-            <Icon name="autopilot" size="small" class="shrink-0 text-[var(--icon-warning-base)]" />
+            <Icon name="autopilot" size="small" class="shrink-0 text-icon-interactive-base" />
             <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.automation")}</span>
           </Button>
           {/* 命令面板开关（设置 → 通用 → 高级 → 命令面板）：关掉后这条入口整条消失。 */}
@@ -3469,7 +3481,7 @@ export default function Layout(props: ParentProps) {
         id: "automation",
         icon: "autopilot",
         label: language.t("sidebar.automation"),
-        tone: "var(--icon-warning-base)",
+        tone: "var(--icon-interactive-base)",
         active: state.automationPage.open,
         onClick: openAutomationPage,
       })
@@ -3489,7 +3501,7 @@ export default function Layout(props: ParentProps) {
         id: "knowledge",
         icon: "review",
         label: language.t("sidebar.knowledge"),
-        tone: "var(--icon-success-base)",
+        tone: "var(--icon-interactive-base)",
         active: state.knowledgePage.open,
         onClick: openKnowledgePage,
       },
@@ -3497,15 +3509,23 @@ export default function Layout(props: ParentProps) {
         id: "teams",
         icon: "lu-users",
         label: language.t("sidebar.team"),
-        tone: "var(--icon-info-base)",
+        tone: "var(--icon-interactive-base)",
         active: state.teamPage.open,
         onClick: openTeamPage,
+      },
+      {
+        id: "arena",
+        icon: "lu-flip-horizontal-2",
+        label: language.t("sidebar.arena"),
+        tone: "var(--icon-interactive-base)",
+        active: state.arenaPage.open,
+        onClick: openArenaPage,
       },
       {
         id: "extensions",
         icon: "dot-grid",
         label: language.t("sidebar.extensionsMarket"),
-        tone: "var(--icon-agent-plan-base)",
+        tone: "var(--icon-interactive-base)",
         active: state.extensionsPage.open,
         onClick: openExtensionsPage,
       },
@@ -3513,7 +3533,7 @@ export default function Layout(props: ParentProps) {
         id: "kernel",
         icon: "lu-activity",
         label: language.t("sidebar.kernel"),
-        tone: "var(--icon-agent-plan-base)",
+        tone: "var(--icon-interactive-base)",
         active: state.kernelPage.open,
         onClick: openKernelPage,
       },
@@ -3523,7 +3543,7 @@ export default function Layout(props: ParentProps) {
         id: "pulse",
         icon: "globe",
         label: language.t("sidebar.pulseWorkspace"),
-        tone: "var(--icon-critical-base)",
+        tone: "var(--icon-interactive-base)",
         active: state.pulsePage.open,
         onClick: openPulsePage,
       },
@@ -3547,7 +3567,7 @@ export default function Layout(props: ParentProps) {
         id: `plugin-surface:${contribution.pluginID}:${contribution.localName}`,
         icon: contribution.icon && isIconName(contribution.icon) ? contribution.icon : "dot-grid",
         label: contribution.title,
-        tone: "var(--icon-agent-plan-base)",
+        tone: "var(--icon-interactive-base)",
         active: viewPath !== undefined && location.pathname === viewPath,
         onClick: () => {
           if (action.type === "command") {
@@ -3572,7 +3592,7 @@ export default function Layout(props: ParentProps) {
         id: "sideChat",
         icon: "speech-bubble",
         label: language.t("sidebar.sideChat"),
-        tone: "var(--icon-agent-plan-base)",
+        tone: "var(--icon-interactive-base)",
         onClick: openSideChatFromSidebar,
       })
     }
@@ -3618,6 +3638,7 @@ export default function Layout(props: ParentProps) {
         state.knowledgePage.open ||
         state.kernelPage.open ||
         state.teamPage.open ||
+        state.arenaPage.open ||
         state.pulsePage.open
           ? "true"
           : undefined
@@ -3878,6 +3899,28 @@ export default function Layout(props: ParentProps) {
                       onManageAgents={() => openSettingsFromExtensions("agents")}
                       onOpenSession={(sessionID) => {
                         closeTeamPage()
+                        if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
+                      }}
+                    />
+                  </div>
+                </section>
+              </Show>
+              <Show when={arenaTransition.mounted()}>
+                <section
+                  data-panel-transition
+                  data-state={arenaTransition.closing() ? "closed" : "open"}
+                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  aria-label={language.t("arena.title")}
+                  aria-hidden={arenaTransition.closing()}
+                  inert={arenaTransition.closing()}
+                >
+                  <FrameWindowControls />
+                  <div class="flex-1 min-h-0">
+                    <ArenaPage
+                      directory={currentDir()}
+                      onBack={closeArenaPage}
+                      onOpenSession={(sessionID) => {
+                        closeArenaPage()
                         if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
                       }}
                     />

@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process"
+import { Shell } from "@/shell/shell"
+import { Sandbox } from "@/sandbox/sandbox"
 
 /**
  * 命令类验收（§6.2 / §19.1）。
@@ -106,7 +108,12 @@ function killTree(pid: number | undefined) {
  * 继承进程环境（测试要 `PATH`，也要它自己的凭据配置）；输出只用来数行数，
  * 不返回、不落库。超时后连子进程一起结束，不留半成品在后台跑。
  */
-export function execute(input: { directory: string; spec: CommandSpec }): Promise<Result> {
+export function execute(input: {
+  directory: string
+  spec: CommandSpec
+  /** Optional OS sandbox. Verification commands run in a worktree, so this is opt-in. */
+  sandbox?: Sandbox.Config
+}): Promise<Result> {
   return new Promise((resolve) => {
     const started = Date.now()
     let lines = 0
@@ -121,13 +128,27 @@ export function execute(input: { directory: string; spec: CommandSpec }): Promis
       const tail = pending.length > 0 ? 1 : 0
       resolve({ code, timedOut, durationMs: Date.now() - started, lines: lines + tail })
     }
-    const child = spawn(input.spec.run, {
-      cwd: input.directory,
-      shell: true,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
-      windowsHide: true,
-    })
+    const sandboxed =
+      input.sandbox?.enabled && process.platform !== "win32"
+        ? Sandbox.wrapShell(
+            { shell: Shell.acceptable(undefined), command: input.spec.run, cwd: input.directory },
+            input.sandbox,
+          )
+        : undefined
+    const child = sandboxed
+      ? spawn(sandboxed.command, sandboxed.args, {
+          cwd: sandboxed.cwd,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: process.env,
+          windowsHide: true,
+        })
+      : spawn(input.spec.run, {
+          cwd: input.directory,
+          shell: true,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: process.env,
+          windowsHide: true,
+        })
     const count = (chunk: Buffer) => {
       const text = chunk.toString()
       for (const char of text) {

@@ -6,7 +6,8 @@ import path from "path"
 import * as Log from "@novaway/core/util/log"
 import { BackgroundJob } from "@/background/job"
 import { Identifier } from "@/id/id"
-import { containsPath, type InstanceContext } from "../project/instance-context"
+import { Sandbox } from "@/sandbox/sandbox"
+import { containsSessionPath, type InstanceContext } from "../project/instance-context"
 import { InstanceState } from "@/effect/instance-state"
 import { lazy } from "@/util/lazy"
 import { Language, type Node } from "web-tree-sitter"
@@ -14,6 +15,7 @@ import { Language, type Node } from "web-tree-sitter"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { fileURLToPath } from "url"
 import { Config } from "@/config/config"
+import { ConfigSandbox } from "@/config/sandbox"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Shell } from "@/shell/shell"
 import { ShellID } from "./shell/id"
@@ -340,13 +342,26 @@ const ask = Effect.fn("ShellTool.ask")(function* (ctx: Tool.Context, scan: Scan,
   })
 })
 
-function cmd(shell: string, command: string, cwd: string, env: NodeJS.ProcessEnv) {
+function cmd(shell: string, command: string, cwd: string, env: NodeJS.ProcessEnv, sandbox?: Sandbox.Config) {
   if (process.platform === "win32" && Shell.ps(shell)) {
     return ChildProcess.make(shell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], {
       cwd,
       env,
       stdin: "ignore",
       detached: false,
+    })
+  }
+
+  // Sandboxing is opt-in. When enabled, the command string becomes an argv invocation
+  // (`shell -c <command>`) so bwrap/container/sandbox-exec can wrap it. Unsupported
+  // backends throw here instead of falling back to an unsandboxed run.
+  if (sandbox?.enabled && process.platform !== "win32") {
+    const wrapped = Sandbox.wrapShell({ shell, command, cwd }, sandbox)
+    return ChildProcess.make(wrapped.command, wrapped.args, {
+      cwd: wrapped.cwd,
+      env,
+      stdin: "ignore",
+      detached: true,
     })
   }
 
@@ -471,6 +486,7 @@ const definition = (kind: ShellKind) =>
       ps: boolean,
       shell: string,
       instance: InstanceContext,
+      sessionDirectory?: string,
     ) {
       const scan: Scan = {
         dirs: new Set<string>(),
@@ -488,7 +504,7 @@ const definition = (kind: ShellKind) =>
           for (const arg of pathArgs(command, ps, shellKind === "cmd")) {
             const resolved = yield* argPath(arg, cwd, ps, shell)
             log.info("resolved path", { arg, resolved })
-            if (!resolved || containsPath(resolved, instance)) continue
+            if (!resolved || containsSessionPath(resolved, instance, sessionDirectory)) continue
             const dir = (yield* fs.isDir(resolved)) ? resolved : path.dirname(resolved)
             scan.dirs.add(dir)
           }
@@ -523,6 +539,7 @@ const definition = (kind: ShellKind) =>
         env: NodeJS.ProcessEnv
         timeout: number
         description: string
+        sandbox?: Sandbox.Config
         signal?: AbortSignal
         onOutput?: (text: string) => Effect.Effect<void>
       },
@@ -575,7 +592,7 @@ const definition = (kind: ShellKind) =>
       const code: number | null = yield* Effect.scoped(
         Effect.gen(function* () {
           yield* Effect.addFinalizer(closeSink)
-          const handle = yield* spawner.spawn(cmd(input.shell, input.command, input.cwd, input.env))
+          const handle = yield* spawner.spawn(cmd(input.shell, input.command, input.cwd, input.env, input.sandbox))
 
           const publish = () => {
             const base = ctx.metadata({
@@ -751,13 +768,20 @@ const definition = (kind: ShellKind) =>
                   const tree = yield* Effect.acquireRelease(parse(params.command, ps), (tree) =>
                     Effect.sync(() => tree.delete()),
                   )
-                  const scan = yield* collect(tree.rootNode, cwd, ps, shell, instanceCtx)
-                  if (!containsPath(cwd, instanceCtx)) scan.dirs.add(cwd)
+                  const scan = yield* collect(tree.rootNode, cwd, ps, shell, instanceCtx, ctx.directory)
+                  if (!containsSessionPath(cwd, instanceCtx, ctx.directory)) scan.dirs.add(cwd)
                   yield* ask(ctx, scan, kind === "powershell" ? "powershell" : ShellID.ToolID)
                 }),
               )
 
               const env = yield* shellEnv(ctx, cwd)
+              const sandbox = ConfigSandbox.resolve(cfg.sandbox)
+              if (sandbox.enabled && process.platform === "win32") {
+                log.warn(
+                  "sandbox enabled on Windows: no OS-level isolation is available, commands rely on permission rules",
+                  { sessionID: ctx.sessionID },
+                )
+              }
               const input = {
                 shell,
                 command: params.command,
@@ -765,6 +789,7 @@ const definition = (kind: ShellKind) =>
                 env,
                 timeout,
                 description: params.description,
+                ...(sandbox.enabled ? { sandbox } : {}),
               }
 
               // 所有命令都创建 BackgroundJob：状态面板能看到实时输出并停止。

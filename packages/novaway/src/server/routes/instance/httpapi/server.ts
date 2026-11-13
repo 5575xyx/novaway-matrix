@@ -120,6 +120,7 @@ import { videosHandlers } from "./handlers/videos"
 import { goalHandlers } from "./handlers/goal"
 import { workflowHandlers } from "./handlers/workflow"
 import { dynamicWorkflowHandlers } from "./handlers/dynamic-workflow"
+import { arenaHandlers } from "./handlers/arena"
 import { orchestratorHandlers } from "./handlers/orchestrator"
 import { runHandlers } from "./handlers/run"
 import { teamHandlers } from "./handlers/team"
@@ -230,6 +231,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     workflowHandlers,
     dynamicWorkflowHandlers,
     orchestratorHandlers,
+    arenaHandlers,
     runHandlers,
     teamHandlers,
   ]),

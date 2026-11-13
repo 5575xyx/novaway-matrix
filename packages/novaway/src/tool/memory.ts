@@ -13,7 +13,7 @@ const Parameters = Schema.Struct({
     description: "add 或 replace 时写入的记忆内容。",
   }),
   id: Schema.optional(MemorySchema.MemoryID).annotate({
-    description: "replace 或 remove 时要修改的记忆 ID。",
+    description: "read 时获取完整原文，replace 或 remove 时修改的记忆 ID。仅可读取当前项目、当前会话或全局记忆。",
   }),
   query: Schema.optional(Schema.String).annotate({
     description: "search 时使用的关键词。",
@@ -106,6 +106,22 @@ export const MemoryTool = Tool.define(
                 action: "relations",
                 count: relations.length,
               },
+            }
+          }
+
+          if (params.action === "read" && params.id) {
+            const item = yield* memory.read({
+              id: params.id,
+              projectID: session.projectID,
+              sessionID: ctx.sessionID,
+              includeGlobal: true,
+              scope: params.scope,
+              target: params.target,
+            })
+            return {
+              title: item ? `Memory ${item.id}` : "Memory not found",
+              output: JSON.stringify(item ?? { error: "not found" }, null, 2),
+              metadata: { id: params.id as MemorySchema.MemoryID | undefined, action: "read", count: item ? 1 : 0 },
             }
           }
 

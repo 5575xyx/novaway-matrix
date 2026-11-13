@@ -26,9 +26,12 @@ export const EvolutionCandidateTable = sqliteTable(
     tags: text({ mode: "json" }).$type<string[]>().notNull().default([]),
     expected_outcomes: text({ mode: "json" }).$type<string[]>().notNull().default([]),
     source_message_id: text().$type<MessageID>(),
+    origin: text().$type<import("./schema").Origin>(),
+    content_hash: text(),
     status: text().$type<Status>().notNull().default("pending"),
     validation_status: text().$type<ValidationStatus>().notNull().default("pending"),
     validation_note: text(),
+    lifecycle: text({ mode: "json" }).$type<import("./schema").Lifecycle>().notNull().default({ applications: [] }),
     ...Timestamps,
     time_applied: integer(),
   },
@@ -40,6 +43,7 @@ export const EvolutionCandidateTable = sqliteTable(
     index("evolution_candidate_source_idx").on(table.source_message_id),
     index("evolution_candidate_domain_idx").on(table.domain),
     index("evolution_candidate_validation_status_idx").on(table.validation_status),
+    index("evolution_candidate_content_idx").on(table.content_hash),
   ],
 )
 

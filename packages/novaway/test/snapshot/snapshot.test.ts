@@ -10,7 +10,6 @@ import { disposeAllInstances, provideInstance, TestInstance, tmpdirScoped } from
 import { testEffect } from "../lib/effect"
 import { canCreateSymlinks } from "../lib/symlink-support"
 
-
 const it = testEffect(Layer.mergeAll(Snapshot.defaultLayer, AppFileSystem.defaultLayer))
 const symlinksAvailable = await canCreateSymlinks()
 const itSymlink = symlinksAvailable ? it.instance : it.instance.skip

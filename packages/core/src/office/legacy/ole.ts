@@ -169,7 +169,10 @@ export function readOle(bytes: Uint8Array): OleFile | undefined {
       let cursor = 0
       for (const sector of sectors) {
         const start = sector * miniSize
-        const part = miniStream.subarray(start, Math.min(start + miniSize, miniStream.length, start + data.length - cursor))
+        const part = miniStream.subarray(
+          start,
+          Math.min(start + miniSize, miniStream.length, start + data.length - cursor),
+        )
         data.set(part, cursor)
         cursor += part.length
         if (cursor >= data.length) break

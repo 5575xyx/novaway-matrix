@@ -13,10 +13,7 @@ import * as ModelsDev from "@novaway/core/models-dev"
 import { AppFileSystem } from "@novaway/core/filesystem"
 
 const DIGITALOCEAN = ProviderID.make("digitalocean")
-const digitalOceanPluginLayer = Plugin.layer.pipe(
-  Layer.provide(Bus.layer),
-  Layer.provide(Config.defaultLayer),
-)
+const digitalOceanPluginLayer = Plugin.layer.pipe(Layer.provide(Bus.layer), Layer.provide(Config.defaultLayer))
 const digitalOceanProviderLayer = Layer.suspend(() =>
   Provider.layer.pipe(
     Layer.provide(AppFileSystem.defaultLayer),

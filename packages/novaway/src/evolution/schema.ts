@@ -31,6 +31,10 @@ export type Status = Schema.Schema.Type<typeof Status>
 export const CandidateSource = Schema.Literals(["background", "session-end"])
 export type CandidateSource = Schema.Schema.Type<typeof CandidateSource>
 
+/** Provenance of a candidate; drives write-once and edit protection. */
+export const Origin = Schema.Literals(["auto-skill", "learned", "manual"])
+export type Origin = Schema.Schema.Type<typeof Origin>
+
 export const ContentFormat = Schema.Literals(["content", "unified_diff"])
 export type ContentFormat = Schema.Schema.Type<typeof ContentFormat>
 
@@ -40,7 +44,38 @@ export type Domain = Schema.Schema.Type<typeof Domain>
 export const ValidationStatus = Schema.Literals(["pending", "validated", "failed"])
 export type ValidationStatus = Schema.Schema.Type<typeof ValidationStatus>
 
+export const FeedbackInput = Schema.Struct({
+  success: Schema.Boolean,
+  note: Schema.String,
+  source: Schema.optional(Schema.String),
+  sessionID: Schema.optional(SessionID),
+})
+export type FeedbackInput = Schema.Schema.Type<typeof FeedbackInput>
+
+export const Application = Schema.Struct({
+  id: Schema.String,
+  root: Schema.String,
+  path: Schema.String,
+  before: Schema.NullOr(Schema.String),
+  after: Schema.NullOr(Schema.String),
+  time: Schema.Number,
+  state: Schema.Literals(["prepared", "applied", "failed", "rolled_back"]),
+  structure: Schema.Literals(["pending", "passed", "failed"]),
+  activation: Schema.Literals(["pending", "succeeded", "failed", "unavailable", "not_applicable"]),
+  behavior: Schema.Literals(["pending", "reported_success", "reported_failure", "mixed"]),
+  note: Schema.String,
+  rolledBackAt: Schema.optional(Schema.Number),
+  feedback: Schema.Array(Schema.Struct({ ...FeedbackInput.fields, time: Schema.Number })),
+})
+export type Application = Schema.Schema.Type<typeof Application>
+export const Lifecycle = Schema.Struct({
+  approvedAt: Schema.optional(Schema.Number),
+  applications: Schema.Array(Application),
+})
+export type Lifecycle = Schema.Schema.Type<typeof Lifecycle>
+
 export const Candidate = Schema.Struct({
+  lifecycle: Schema.optional(Lifecycle),
   id: EvolutionCandidateID,
   projectID: Schema.optional(ProjectID),
   sessionID: Schema.optional(SessionID),
@@ -54,6 +89,8 @@ export const Candidate = Schema.Struct({
   tags: Schema.Array(Schema.String),
   expectedOutcomes: Schema.optional(Schema.Array(Schema.String)),
   sourceMessageID: Schema.optional(MessageID),
+  origin: Schema.optional(Origin),
+  contentHash: Schema.optional(Schema.String),
   status: Status,
   validationStatus: ValidationStatus,
   validationNote: Schema.optional(Schema.String),

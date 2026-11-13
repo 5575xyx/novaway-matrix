@@ -30,16 +30,27 @@ describe("plugin tool adapter", () => {
     const RequestID = Context.Reference<string>("plugin-test/RequestID", { defaultValue: () => "missing" })
     const seen: string[] = []
     const ctx = context()
-    ctx.metadata = () => Effect.gen(function* () { seen.push(`metadata:${yield* RequestID}`) })
-    ctx.ask = () => Effect.gen(function* () { seen.push(`ask:${yield* RequestID}`) })
-    const tool = adaptTool({ name: "demo_context", contribution: {
-      id: "context", description: "Context propagation", parameters,
-      execute: async (_, api) => {
-        await api.metadata({ title: "working" })
-        await api.ask({ permission: "plugin", patterns: ["*"], always: ["*"], metadata: {} })
-        return "ok"
+    ctx.metadata = () =>
+      Effect.gen(function* () {
+        seen.push(`metadata:${yield* RequestID}`)
+      })
+    ctx.ask = () =>
+      Effect.gen(function* () {
+        seen.push(`ask:${yield* RequestID}`)
+      })
+    const tool = adaptTool({
+      name: "demo_context",
+      contribution: {
+        id: "context",
+        description: "Context propagation",
+        parameters,
+        execute: async (_, api) => {
+          await api.metadata({ title: "working" })
+          await api.ask({ permission: "plugin", patterns: ["*"], always: ["*"], metadata: {} })
+          return "ok"
+        },
       },
-    } })
+    })
     await Effect.runPromise(tool.execute({ value: "ok" }, ctx).pipe(Effect.provideService(RequestID, "request-1")))
     expect(seen).toEqual(["metadata:request-1", "ask:request-1"])
   })

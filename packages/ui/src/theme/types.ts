@@ -64,7 +64,10 @@ export type TokenCategory =
 export type ThemeToken = string
 
 export type CssVarRef = `var(--${string})`
+export type CssColorMix = `color-mix(in oklab, ${string})`
+export type CssRgba = `rgba(${string})`
 
-export type ColorValue = HexColor | CssVarRef
+/** Runtime theme values may be hex, a CSS variable, or CSS color functions emitted by the resolver. */
+export type ColorValue = HexColor | CssVarRef | CssColorMix | CssRgba
 
 export type ResolvedTheme = Record<ThemeToken, ColorValue>

@@ -1,10 +1,11 @@
 import { Context, Effect, Layer } from "effect"
 import { and, eq, sql } from "drizzle-orm"
 import { Database } from "@/storage/db"
-import { GoalTable, type GoalProgress } from "./goal.sql"
+import { GoalBudgetTable, GoalTable, type GoalProgress } from "./goal.sql"
 import { TodoTable as GoalTodoTable } from "./session.sql"
 import { NotFoundError } from "@/storage/storage"
 import { SessionID } from "./schema"
+import type { Budget } from "./goal-budget"
 
 export interface Goal {
   readonly id: string
@@ -56,6 +57,12 @@ export interface Interface {
   readonly getProgress: (input: { goalId: string; sessionId: SessionID }) => Effect.Effect<GoalProgress, NotFoundError>
 
   readonly updateProgress: (input: { goalId: string; sessionId: SessionID }) => Effect.Effect<void, NotFoundError>
+
+  /** 读取（或首次创建）目标的持久预算，startedAt 只在创建时写入。 */
+  readonly budget: (input: { goalId: string; sessionId: SessionID; startedAt: number }) => Effect.Effect<Budget>
+
+  /** 记一轮续跑，并把本轮消耗的 token 增量累加进预算。 */
+  readonly chargeBudget: (input: { goalId: string; sessionId: SessionID; tokens: number }) => Effect.Effect<Budget>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/GoalService") {}
@@ -330,7 +337,78 @@ export const layer = Layer.effect(
       )
     })
 
-    return Service.of({ create, list, get, update, delete: deleteGoal, getProgress, updateProgress })
+    const readBudget = (goalId: string) =>
+      Effect.sync(() =>
+        Database.use((db) =>
+          db.select().from(GoalBudgetTable).where(eq(GoalBudgetTable.goal_id, goalId)).limit(1).get(),
+        ),
+      ).pipe(
+        Effect.map((row): Budget | undefined =>
+          row ? { turns: row.turns, tokens: row.tokens, startedAt: Number(row.started_at) } : undefined,
+        ),
+      )
+
+    const budget = Effect.fn("GoalService.budget")(function* (input: {
+      goalId: string
+      sessionId: SessionID
+      startedAt: number
+    }) {
+      const existing = yield* readBudget(input.goalId)
+      if (existing) return existing
+      const now = new Date()
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .insert(GoalBudgetTable)
+            .values({
+              goal_id: input.goalId,
+              session_id: input.sessionId,
+              turns: 0,
+              tokens: 0,
+              started_at: new Date(input.startedAt),
+              updated_at: now,
+            })
+            .onConflictDoNothing()
+            .run(),
+        ),
+      )
+      return (yield* readBudget(input.goalId)) ?? { turns: 0, tokens: 0, startedAt: input.startedAt }
+    })
+
+    const chargeBudget = Effect.fn("GoalService.chargeBudget")(function* (input: {
+      goalId: string
+      sessionId: SessionID
+      tokens: number
+    }) {
+      const delta = Math.max(0, Math.floor(input.tokens))
+      const now = new Date()
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(GoalBudgetTable)
+            .set({
+              turns: sql`${GoalBudgetTable.turns} + 1`,
+              tokens: sql`${GoalBudgetTable.tokens} + ${delta}`,
+              updated_at: now,
+            })
+            .where(eq(GoalBudgetTable.goal_id, input.goalId))
+            .run(),
+        ),
+      )
+      return (yield* readBudget(input.goalId)) ?? { turns: 0, tokens: delta, startedAt: 0 }
+    })
+
+    return Service.of({
+      create,
+      list,
+      get,
+      update,
+      delete: deleteGoal,
+      getProgress,
+      updateProgress,
+      budget,
+      chargeBudget,
+    })
   }),
 )
 

@@ -46,7 +46,7 @@ export {
   cobalt2Theme,
   cursorTheme,
   draculaTheme,
-  everforestTheme,
+  parchmentTheme,
   flexokiTheme,
   githubTheme,
   gruvboxTheme,

@@ -156,9 +156,7 @@ ${url()}
             autocomplete="off"
           />
           <Show when={store.invalid}>
-            <span class="shrink-0 text-11-regular text-[var(--icon-critical-base)]">
-              {language.t("preview.invalid")}
-            </span>
+            <span class="shrink-0 text-11-regular text-critical-base">{language.t("preview.invalid")}</span>
           </Show>
         </div>
         <Show when={props.files && props.files.count() > 0}>
@@ -241,7 +239,7 @@ ${url()}
             data-slot="preview-loading"
             class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-panel/92 backdrop-blur-[1px] transition-opacity duration-200"
           >
-            <Spinner class="size-6 text-icon-blue" />
+            <Spinner class="size-6 text-interactive-base" />
             <div class="text-12-regular text-foreground-subtle">{language.t("preview.loading")}</div>
             <div class="max-w-[80%] truncate text-11-regular text-foreground-subtlest">{url()}</div>
             <Show when={slowHint()}>
@@ -336,7 +334,7 @@ function PickCommentCard(props: { element: PickedElement; onAdd: (comment: strin
         <button
           type="button"
           data-action="preview-pick-add"
-          class="rounded-lg border border-icon-blue/40 bg-icon-blue/10 px-3 py-1.5 text-12-medium text-icon-blue transition-colors hover:bg-icon-blue/20"
+          class="rounded-lg border border-interactive-base/40 bg-surface-interactive-weak px-3 py-1.5 text-12-medium text-interactive-base transition-colors hover:bg-surface-interactive-weak-hover"
           onClick={() => props.onAdd(draft())}
         >
           {language.t("preview.pick.add")}

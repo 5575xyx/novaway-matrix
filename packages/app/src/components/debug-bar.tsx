@@ -64,7 +64,7 @@ function Cell(props: { bad?: boolean; dim?: boolean; label: string; tip: string;
         <div
           classList={{
             "text-[13px] leading-none font-bold tabular-nums sm:text-[14px]": true,
-            "text-icon-critical-base": !!props.bad,
+            "text-critical-base": !!props.bad,
             "opacity-70": !!props.dim,
           }}
         >

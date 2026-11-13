@@ -12,6 +12,12 @@ import { mkdir, readFile, stat, unlink, writeFile } from "fs/promises"
 import path from "path"
 import { EvolutionCandidateTable, EvolutionReviewStateTable } from "./evolution.sql"
 import { evaluateEvolutionCandidate, evaluateEvolutionRegression } from "./eval"
+import { InstanceRef } from "@/effect/instance-ref"
+import { randomUUID, createHash } from "node:crypto"
+import { lstat } from "node:fs/promises"
+import ts from "typescript"
+import matter from "gray-matter"
+import type { Application, FeedbackInput, Lifecycle } from "./schema"
 import { Skill } from "@/skill"
 import { Command } from "@/command"
 import {
@@ -68,18 +74,44 @@ export interface Interface {
     reviewInterval?: number
   }) => Effect.Effect<boolean>
   readonly list: (input?: ListInput) => Effect.Effect<Candidate[]>
-  readonly update: (id: EvolutionCandidateID, input: CandidateUpdate) => Effect.Effect<Candidate | undefined>
-  readonly preview: (id: EvolutionCandidateID) => Effect.Effect<CandidatePreview | undefined>
+  readonly update: (
+    id: EvolutionCandidateID,
+    input: CandidateUpdate,
+    scope?: { projectID?: ReviewInput["projectID"] },
+  ) => Effect.Effect<Candidate | undefined>
+  readonly preview: (
+    id: EvolutionCandidateID,
+    scope?: { projectID?: ReviewInput["projectID"] },
+  ) => Effect.Effect<CandidatePreview | undefined>
   readonly dryRun: (
     id: EvolutionCandidateID,
-    input: { directory: string; worktree: string; globalConfig?: string },
+    input: { directory: string; worktree: string; globalConfig?: string; projectID?: ReviewInput["projectID"] },
   ) => Effect.Effect<CandidateDryRun | undefined>
-  readonly apply: (id: EvolutionCandidateID) => Effect.Effect<Candidate | undefined>
+  readonly apply: (
+    id: EvolutionCandidateID,
+    scope?: { projectID?: ReviewInput["projectID"] },
+  ) => Effect.Effect<Candidate | undefined>
   readonly applyToDisk: (
     id: EvolutionCandidateID,
-    input: { directory: string; worktree: string; globalConfig?: string },
+    input: { directory: string; worktree: string; globalConfig?: string; projectID?: ReviewInput["projectID"] },
   ) => Effect.Effect<CandidateFileApply | undefined>
-  readonly dismiss: (id: EvolutionCandidateID) => Effect.Effect<Candidate | undefined>
+  readonly history: (
+    id: EvolutionCandidateID,
+    scope?: { projectID?: ReviewInput["projectID"] },
+  ) => Effect.Effect<readonly Application[] | undefined>
+  readonly feedback: (
+    id: EvolutionCandidateID,
+    input: FeedbackInput,
+    scope?: { projectID?: ReviewInput["projectID"] },
+  ) => Effect.Effect<Candidate | undefined>
+  readonly rollback: (
+    id: EvolutionCandidateID,
+    input: { directory: string; worktree: string; globalConfig?: string; projectID?: ReviewInput["projectID"] },
+  ) => Effect.Effect<Candidate | undefined>
+  readonly dismiss: (
+    id: EvolutionCandidateID,
+    scope?: { projectID?: ReviewInput["projectID"] },
+  ) => Effect.Effect<Candidate | undefined>
   readonly status: (input?: {
     projectID?: ReviewInput["projectID"]
     sessionID?: ReviewInput["sessionID"]
@@ -91,6 +123,7 @@ export class Service extends Context.Service<Service, Interface>()("@novaway/Evo
 function rowToCandidate(row: typeof EvolutionCandidateTable.$inferSelect): Candidate {
   return {
     id: row.id,
+    lifecycle: row.lifecycle ?? { applications: [] },
     ...(row.project_id ? { projectID: row.project_id } : {}),
     ...(row.session_id ? { sessionID: row.session_id } : {}),
     kind: row.kind,
@@ -103,6 +136,8 @@ function rowToCandidate(row: typeof EvolutionCandidateTable.$inferSelect): Candi
     tags: row.tags,
     ...(row.expected_outcomes.length ? { expectedOutcomes: row.expected_outcomes } : {}),
     ...(row.source_message_id ? { sourceMessageID: row.source_message_id } : {}),
+    ...(row.origin ? { origin: row.origin } : {}),
+    ...(row.content_hash ? { contentHash: row.content_hash } : {}),
     status: row.status,
     validationStatus: (row.validation_status ?? "pending") as Candidate["validationStatus"],
     ...(row.validation_note ? { validationNote: row.validation_note } : {}),
@@ -137,7 +172,7 @@ function isGlobalEvolutionProposal(proposal: CandidateProposal) {
 }
 
 function isGlobalCandidate(candidate: Candidate) {
-  return candidate.tags.includes("global")
+  return !candidate.projectID && candidate.tags.includes("global")
 }
 
 function conditions(input?: ListInput) {
@@ -166,8 +201,8 @@ function emptySourceCounts(): StatusSummary["source"] {
   }
 }
 
-function sourceCounts(items: Candidate[]): StatusSummary["source"] {
-  return items.reduce((counts, item) => {
+function sourceCounts(statuses: Candidate[]): StatusSummary["source"] {
+  return statuses.reduce((counts, item) => {
     const source = candidateSource(item)
     return {
       ...counts,
@@ -207,6 +242,8 @@ function normalizeProposal(
     ),
     expected_outcomes: proposal.expectedOutcomes?.map((item) => item.trim()).filter(Boolean) ?? [],
     source_message_id: input.sourceMessageID,
+    origin: proposal.tags?.includes("auto-skill") ? "auto-skill" : "learned",
+    content_hash: contentHash(proposal.kind, target, content),
     status: "pending",
     validation_status: "pending",
     time_created: now,
@@ -236,6 +273,13 @@ function explicitSessionEndProposal(text: string): CandidateProposal | undefined
 function normalizeTags(input: readonly string[] | undefined) {
   if (!input) return
   return Array.from(new Set([...input, "evolution"].map((tag) => tag.trim()).filter(Boolean)))
+}
+
+/** Cross-session identity of a proposal: same kind/target/content means the same skill. */
+function contentHash(kind: string, target: string, content: string) {
+  return createHash("sha256")
+    .update(JSON.stringify([kind, target.trim(), content.trim()]))
+    .digest("hex")
 }
 
 function buildPreview(candidate: Candidate): CandidatePreview {
@@ -279,6 +323,13 @@ function targetFile(candidate: Candidate, input: { directory: string; worktree: 
   const root = isGlobalCandidate(candidate)
     ? (input.globalConfig ?? Global.Path.config)
     : path.join(input.worktree === "/" ? input.directory : input.worktree, ".novaway")
+  if (
+    path.isAbsolute(candidate.target) ||
+    candidate.target.split(/[\\/]+/).some((part) => part === "..") ||
+    /[:\x00]/.test(candidate.target)
+  ) {
+    throw new Error("Unsafe evolution target")
+  }
   const name = targetSegments(candidate.target)
   const segments = name.length ? name : ["untitled"]
   const file = (() => {
@@ -294,13 +345,13 @@ function targetFile(candidate: Candidate, input: { directory: string; worktree: 
 }
 
 function isExecutableToolSource(content: string) {
-  return /export\s+default\s+/.test(content) && /\bexecute\s*:/.test(content) && /\bargs\s*:/.test(content)
+  return /export\s+default\s+/.test(content) && /\bexecute\s*(?::|\()/.test(content) && /\bargs\s*:/.test(content)
 }
 
 /** Turn free-form tool guidance into a loadable plugin tool module when needed. */
 function materializeToolSource(candidate: Candidate) {
   const content = candidate.content.trim()
-  if (isExecutableToolSource(content)) return `${content.trim()}\n`
+  if (isExecutableToolSource(content) || /\b(import|export)\s/.test(content)) return `${content.trim()}\n`
 
   const rawName = targetSegments(candidate.target).at(-1) || "evolved_tool"
   const exportName = rawName.replace(/[^a-zA-Z0-9_]/g, "_") || "evolved_tool"
@@ -337,6 +388,41 @@ function materializeToolSource(candidate: Candidate) {
 
 function normalizeContent(content: string) {
   return `${content.trim()}\n`
+}
+
+/**
+ * Write-once protection for skills: an auto-extracted candidate may only
+ * update a skill that the auto pipeline itself created, and a human-authored
+ * skill is never overwritten by auto extraction.
+ */
+class SkillWriteOnceError extends Error {}
+
+function skillWriteBlocked(candidate: Candidate, before: string) {
+  if (candidate.kind !== "skill" || !before.trim()) return
+  const existing = (() => {
+    const value = matter(before).data.source
+    return typeof value === "string" ? value : undefined
+  })()
+  if (existing === "auto-skill" && candidate.origin !== "auto-skill")
+    return new SkillWriteOnceError("该技能由自动进化生成，只能由 auto-skill 候选更新。")
+  if (existing !== "auto-skill" && candidate.origin === "auto-skill")
+    return new SkillWriteOnceError("目标技能已存在且不是自动生成的，write-once 保护拒绝覆盖。")
+}
+
+/** Auto-extracted skills get the frontmatter the loader needs and provenance for edit protection. */
+function autoSkillFile(candidate: Candidate, content: string) {
+  if (candidate.kind !== "skill" || candidate.origin !== "auto-skill" || candidate.contentFormat === "unified_diff")
+    return content
+  const parsed = matter(content)
+  const name =
+    typeof parsed.data.name === "string" && parsed.data.name.trim()
+      ? parsed.data.name.trim()
+      : targetSegments(candidate.target).at(-1) || "evolved-skill"
+  const data: Record<string, unknown> = { ...parsed.data, name }
+  if (typeof data.description !== "string" || !data.description.trim())
+    data.description = candidate.title.trim() || candidate.reason.trim()
+  if (typeof data.source !== "string") data.source = "auto-skill"
+  return matter.stringify(parsed.content.trim() ? parsed.content.trimEnd() + "\n" : "", data)
 }
 
 function contentAfter(candidate: Candidate, before: string) {
@@ -396,7 +482,18 @@ async function buildDryRun(
     () => false,
   )
   const before = exists ? await readFile(file, "utf8") : ""
-  const after = contentAfter(candidate, before)
+  const blocked = skillWriteBlocked(candidate, before)
+  if (blocked) throw blocked
+  const after = autoSkillFile(candidate, contentAfter(candidate, before))
+  if (candidate.kind === "tool") {
+    const source = ts.createSourceFile(file, after, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+    const diagnostics =
+      (source as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }).parseDiagnostics ?? []
+    if (diagnostics.length) throw new Error("Evolved tool source has TypeScript syntax errors")
+    if (!isExecutableToolSource(after)) throw new Error("Evolved tool must export a plugin tool with execute and args")
+  }
+  if (candidate.contentFormat === "unified_diff" && !after.trim())
+    throw new Error("Evolution patch produced an empty file")
   const root = input.worktree === "/" ? input.directory : input.worktree
   const relative = path.relative(isGlobalCandidate(candidate) ? (input.globalConfig ?? root) : root, file)
   return {
@@ -426,8 +523,13 @@ async function writeDryRun(dryRun: CandidateDryRun, input: { directory: string; 
   }
 }
 
-async function verifyDryRun(dryRun: CandidateDryRun, input: { directory: string; worktree: string }) {
+async function verifyDryRun(
+  dryRun: CandidateDryRun,
+  input: { directory: string; worktree: string },
+  expectedOutcomes?: readonly string[],
+) {
   const root = input.worktree === "/" ? input.directory : input.worktree
+  const written: string[] = []
   for (const file of dryRun.files) {
     const absolute = path.join(root, file.path)
     const exists = await stat(absolute).then(
@@ -438,6 +540,14 @@ async function verifyDryRun(dryRun: CandidateDryRun, input: { directory: string;
     if (actual !== file.after) {
       return { ok: false as const, path: absolute, message: `文件内容与候选不一致：${file.path}` }
     }
+    written.push(actual)
+  }
+  const regression = evaluateEvolutionRegression({ expectedOutcomes, writtenContent: written.join("\n") })
+  if (!regression.pass) {
+    return {
+      ok: false as const,
+      message: `回归校验失败：缺少预期结果 ${regression.missing.join("、")}`,
+    }
   }
   return { ok: true as const }
 }
@@ -445,7 +555,9 @@ async function verifyDryRun(dryRun: CandidateDryRun, input: { directory: string;
 async function rollbackDryRun(dryRun: CandidateDryRun, input: { directory: string; worktree: string }) {
   const root = input.worktree === "/" ? input.directory : input.worktree
   for (const file of dryRun.files) {
-    await unlink(path.join(root, file.path)).catch(() => {})
+    const absolute = path.join(root, file.path)
+    if (file.exists) await writeFile(absolute, file.before)
+    else await unlink(absolute).catch(() => {})
   }
 }
 
@@ -498,6 +610,13 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         Database.use((db) => db.select().from(EvolutionCandidateTable).where(eq(EvolutionCandidateTable.id, id)).get()),
       )
       return row ? rowToCandidate(row) : undefined
+    })
+    const inScope = Effect.fn("Evolution.inScope")(function* (
+      id: EvolutionCandidateID,
+      projectID?: ReviewInput["projectID"],
+    ) {
+      const candidate = yield* getByID(id)
+      return candidate && (!candidate.projectID || candidate.projectID === projectID) ? candidate : undefined
     })
 
     const reviewDue: Interface["reviewDue"] = Effect.fn("Evolution.reviewDue")(function* (input) {
@@ -557,26 +676,23 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         status: "pending",
         limit: DEFAULT_LIMIT,
       })
-      const pending = rows.filter(
-        (row) =>
-          !existing.some(
-            (item) =>
-              item.kind === row.kind &&
-              item.target === row.target &&
-              item.content === row.content &&
-              item.sourceMessageID === input.sourceMessageID,
-          ),
-      )
+      // Auto-extracted skills are deduplicated across sessions (write-once by
+      // kind+target+content) so the same skill is not re-proposed each session.
+      const crossSession = rows.some((row) => row.origin === "auto-skill")
+      const existingAny = crossSession
+        ? yield* list({ projectID: input.projectID, includeGlobal: true, status: "pending", limit: DEFAULT_LIMIT })
+        : existing
+      const matches = (row: (typeof rows)[number], item: Candidate) =>
+        item.contentHash && row.content_hash
+          ? item.contentHash === row.content_hash
+          : item.kind === row.kind &&
+            item.target === row.target &&
+            item.content === row.content &&
+            (row.origin === "auto-skill" ? true : item.sourceMessageID === input.sourceMessageID)
+      const poolFor = (row: (typeof rows)[number]) => (row.origin === "auto-skill" ? existingAny : existing)
+      const pending = rows.filter((row) => !poolFor(row).some((item) => matches(row, item)))
       const duplicates = rows
-        .map((row) =>
-          existing.find(
-            (item) =>
-              item.kind === row.kind &&
-              item.target === row.target &&
-              item.content === row.content &&
-              item.sourceMessageID === input.sourceMessageID,
-          ),
-        )
+        .map((row) => poolFor(row).find((item) => matches(row, item)))
         .filter((item) => item !== undefined)
       if (pending.length) {
         yield* Effect.sync(() => Database.use((db) => db.insert(EvolutionCandidateTable).values(pending).run()))
@@ -599,8 +715,8 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       })
     })
 
-    const update: Interface["update"] = Effect.fn("Evolution.update")(function* (id, input) {
-      const candidate = yield* getByID(id)
+    const update: Interface["update"] = Effect.fn("Evolution.update")(function* (id, input, scope) {
+      const candidate = yield* inScope(id, scope?.projectID)
       if (!candidate || candidate.status !== "pending") return
       const next = {
         ...(input.kind ? { kind: input.kind } : {}),
@@ -613,6 +729,11 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         ...(input.expectedOutcomes
           ? { expected_outcomes: input.expectedOutcomes.map((item) => item.trim()).filter(Boolean) }
           : {}),
+        content_hash: contentHash(
+          input.kind ?? candidate.kind,
+          input.target?.trim() ?? candidate.target,
+          input.content?.trim() ?? candidate.content,
+        ),
       }
       if (!Object.keys(next).length) return candidate
       yield* Effect.sync(() =>
@@ -631,20 +752,26 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       return yield* getByID(id)
     })
 
-    const preview: Interface["preview"] = Effect.fn("Evolution.preview")(function* (id) {
-      const candidate = yield* getByID(id)
+    const preview: Interface["preview"] = Effect.fn("Evolution.preview")(function* (id, scope) {
+      const candidate = yield* inScope(id, scope?.projectID)
       if (!candidate) return
       return buildPreview(candidate)
     })
 
     const dryRun: Interface["dryRun"] = Effect.fn("Evolution.dryRun")(function* (id, input) {
-      const candidate = yield* getByID(id)
+      const candidate = yield* inScope(id, input.projectID)
       if (!candidate) return
-      return yield* Effect.promise(() => buildDryRun(candidate, input))
+      // A rejected write-once target has no preview; other failures stay defects.
+      return yield* Effect.promise(() =>
+        buildDryRun(candidate, input).catch((error) => {
+          if (error instanceof SkillWriteOnceError) return undefined
+          throw error
+        }),
+      )
     })
 
-    const apply: Interface["apply"] = Effect.fn("Evolution.apply")(function* (id) {
-      const candidate = yield* getByID(id)
+    const apply: Interface["apply"] = Effect.fn("Evolution.apply")(function* (id, scope) {
+      const candidate = yield* inScope(id, scope?.projectID)
       if (!candidate || candidate.status !== "pending") return
       const now = Date.now()
       yield* Effect.sync(() =>
@@ -663,8 +790,85 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       return yield* getByID(id)
     })
 
+    const history: Interface["history"] = Effect.fn("Evolution.history")(function* (id, scope) {
+      const candidate = yield* inScope(id, scope?.projectID)
+      return candidate?.lifecycle?.applications
+    })
+
+    const feedback: Interface["feedback"] = Effect.fn("Evolution.feedback")(function* (id, input, scope) {
+      const candidate = yield* inScope(id, scope?.projectID)
+      const applications = candidate?.lifecycle?.applications
+      if (!candidate || !applications?.length) return
+      const index = applications.length - 1
+      const application = applications[index]!
+      const now = Date.now()
+      const next = applications.slice()
+      next[index] = {
+        ...application,
+        behavior: input.success ? "reported_success" : "reported_failure",
+        note: input.note || application.note,
+        feedback: [...application.feedback, { ...input, time: now }],
+      }
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(EvolutionCandidateTable)
+            .set({ lifecycle: { ...candidate.lifecycle, applications: next }, time_updated: now })
+            .where(eq(EvolutionCandidateTable.id, id))
+            .run(),
+        ),
+      )
+      yield* publishUpdated({ projectID: candidate.projectID, sessionID: candidate.sessionID })
+      return yield* getByID(id)
+    })
+
+    const rollback: Interface["rollback"] = Effect.fn("Evolution.rollback")(function* (id, input) {
+      const candidate = yield* inScope(id, input.projectID)
+      const applications = candidate?.lifecycle?.applications
+      const index = applications?.findLastIndex((item) => item.state === "applied") ?? -1
+      if (!candidate || !applications || index < 0) return
+      const application = applications[index]!
+      const expectedRoot = isGlobalCandidate(candidate)
+        ? (input.globalConfig ?? Global.Path.config)
+        : input.worktree === "/"
+          ? input.directory
+          : input.worktree
+      if (
+        path.resolve(expectedRoot) !== path.resolve(application.root) ||
+        path.isAbsolute(application.path) ||
+        application.path.split(/[\\/]+/).includes("..")
+      ) {
+        throw new Error("Evolution application path is outside the requested workspace")
+      }
+      const file = path.resolve(application.root, application.path)
+      if (!AppFileSystem.contains(application.root, file)) throw new Error("Unsafe evolution rollback path")
+      yield* Effect.promise(async () => {
+        const info = await lstat(file).catch(() => undefined)
+        if (info?.isSymbolicLink()) throw new Error("Refusing to rollback through a symbolic link")
+        const current = info?.isFile() ? await readFile(file, "utf8") : null
+        if (current !== application.after)
+          throw new Error("Evolution file changed after application; refusing rollback")
+        if (application.before === null) await unlink(file)
+        else await writeFile(file, application.before)
+      })
+      const now = Date.now()
+      const next = applications.slice()
+      next[index] = { ...application, state: "rolled_back", rolledBackAt: now }
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(EvolutionCandidateTable)
+            .set({ lifecycle: { ...candidate.lifecycle, applications: next }, time_updated: now })
+            .where(eq(EvolutionCandidateTable.id, id))
+            .run(),
+        ),
+      )
+      yield* publishUpdated({ projectID: candidate.projectID, sessionID: candidate.sessionID })
+      return yield* getByID(id)
+    })
+
     const applyToDisk: Interface["applyToDisk"] = Effect.fn("Evolution.applyToDisk")(function* (id, input) {
-      const candidate = yield* getByID(id)
+      const candidate = yield* inScope(id, input.projectID)
       if (!candidate || candidate.status !== "pending") return
       const validation = evaluateEvolutionCandidate({
         title: candidate.title,
@@ -694,7 +898,30 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         })
         return
       }
-      const dryRunResult = yield* Effect.promise(() => buildDryRun(candidate, input))
+      const dryRunResult = yield* Effect.promise(() =>
+        buildDryRun(candidate, input).catch((error: unknown) => {
+          if (error instanceof SkillWriteOnceError) return error
+          throw error
+        }),
+      )
+      if (dryRunResult instanceof SkillWriteOnceError) {
+        const now = Date.now()
+        yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(EvolutionCandidateTable)
+              .set({
+                validation_status: "failed",
+                validation_note: dryRunResult.message,
+                time_updated: now,
+              })
+              .where(eq(EvolutionCandidateTable.id, id))
+              .run(),
+          ),
+        )
+        yield* publishUpdated({ projectID: candidate.projectID, sessionID: candidate.sessionID })
+        return
+      }
       const applyInput = isGlobalCandidate(candidate)
         ? { ...input, worktree: input.globalConfig ?? Global.Path.config }
         : input
@@ -728,7 +955,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         })
         throw error
       }
-      const verified = yield* Effect.promise(() => verifyDryRun(dryRunResult, applyInput))
+      const verified = yield* Effect.promise(() => verifyDryRun(dryRunResult, applyInput, candidate.expectedOutcomes))
       if (!verified.ok) {
         yield* Effect.promise(() => rollbackDryRun(dryRunResult, applyInput))
         const now = Date.now()
@@ -754,39 +981,6 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
           projectID: candidate.projectID,
           sessionID: candidate.sessionID,
           message: verified.message,
-        })
-        return
-      }
-      const regression = evaluateEvolutionRegression({
-        expectedOutcomes: candidate.expectedOutcomes,
-        writtenContent: dryRunResult.files.map((file) => file.after).join("\n"),
-      })
-      if (!regression.pass) {
-        yield* Effect.promise(() => rollbackDryRun(dryRunResult, applyInput))
-        const now = Date.now()
-        const message = `回归校验失败（${regression.score.toFixed(2)}）：${regression.missing.join("；")}`
-        yield* Effect.sync(() =>
-          Database.use((db) =>
-            db
-              .update(EvolutionCandidateTable)
-              .set({
-                validation_status: "failed",
-                validation_note: message,
-                time_updated: now,
-              })
-              .where(eq(EvolutionCandidateTable.id, id))
-              .run(),
-          ),
-        )
-        yield* publishUpdated({
-          projectID: candidate.projectID,
-          sessionID: candidate.sessionID,
-        })
-        yield* publishAutoApplyFileFailed({
-          candidateID: id,
-          projectID: candidate.projectID,
-          sessionID: candidate.sessionID,
-          message,
         })
         return
       }
@@ -872,13 +1066,32 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
         }
       }
       const now = Date.now()
+      const appliedRoot = applyInput.worktree === "/" ? applyInput.directory : applyInput.worktree
+      const application: Application = {
+        id: randomUUID(),
+        root: appliedRoot,
+        path: dryRunResult.files[0]!.path,
+        before: dryRunResult.files[0]!.exists ? dryRunResult.files[0]!.before : null,
+        after: dryRunResult.files[0]!.after,
+        time: now,
+        state: "applied",
+        structure: "passed",
+        activation: note.includes("hot-reloaded") ? "succeeded" : "unavailable",
+        behavior: "pending",
+        note,
+        feedback: [],
+      }
       yield* Effect.sync(() =>
         Database.use((db) =>
           db
             .update(EvolutionCandidateTable)
             .set({
               status: "applied",
-              validation_status: note.includes("failed") || note.includes("unavailable") ? "validated" : "validated",
+              lifecycle: {
+                ...(candidate.lifecycle ?? { applications: [] }),
+                applications: [...(candidate.lifecycle?.applications ?? []), application],
+              },
+              validation_status: "validated",
               validation_note: note,
               time_applied: now,
               time_updated: now,
@@ -896,8 +1109,8 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       return { candidate: applied, dryRun: dryRunResult }
     })
 
-    const dismiss: Interface["dismiss"] = Effect.fn("Evolution.dismiss")(function* (id) {
-      const candidate = yield* getByID(id)
+    const dismiss: Interface["dismiss"] = Effect.fn("Evolution.dismiss")(function* (id, scope) {
+      const candidate = yield* inScope(id, scope?.projectID)
       if (!candidate || candidate.status !== "pending") return
       const now = Date.now()
       yield* Effect.sync(() =>
@@ -917,7 +1130,12 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
     })
 
     const status: Interface["status"] = Effect.fn("Evolution.status")(function* (input) {
-      const items = yield* list({ projectID: input?.projectID, sessionID: input?.sessionID, limit: 10_000 })
+      const items = yield* list({
+        projectID: input?.projectID,
+        includeGlobal: true,
+        sessionID: input?.sessionID,
+        limit: 10_000,
+      })
       return {
         pending: items.filter((item) => item.status === "pending").length,
         applied: items.filter((item) => item.status === "applied").length,
@@ -943,6 +1161,9 @@ export const layer: Layer.Layer<Service, never, Bus.Service> = Layer.effect(
       dryRun,
       apply,
       applyToDisk,
+      history,
+      feedback,
+      rollback,
       dismiss,
       status,
     })

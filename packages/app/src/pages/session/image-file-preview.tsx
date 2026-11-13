@@ -32,6 +32,8 @@ function objectUrlOf(base64: string, mime: string): string | undefined {
 
 export type ImageSave = (base64: string) => Promise<void>
 
+const IMAGE_ANNOTATION_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#111111"] as const
+
 const TOOL_META: Array<{ tool: AnnotateTool; icon: Parameters<typeof Icon>[0]["name"]; label: string }> = [
   { tool: "pen", icon: "lu-pen-line", label: "画笔" },
   { tool: "highlighter", icon: "lu-highlighter", label: "荧光笔" },
@@ -405,7 +407,7 @@ function CropDialog(props: {
         <Show when={drag()}>
           {(d) => (
             <div
-              class="pointer-events-none absolute border-2 border-primary/80"
+              class="pointer-events-none absolute border-2 border-interactive-selected/80"
               style={{
                 left: `${(d().x / (img()?.naturalWidth ?? 1)) * 100}%`,
                 top: `${(d().y / (img()?.naturalHeight ?? 1)) * 100}%`,
@@ -427,7 +429,8 @@ function AnnotateDialog(props: {
   onApply: (base64: string) => Promise<void>
 }) {
   const [tool, setTool] = createSignal<AnnotateTool>("pen")
-  const [color, setColor] = createSignal("#ef4444")
+  // 标注色属于用户写入图片的内容数据，故保持与应用界面主题色相互独立。
+  const [color, setColor] = createSignal<(typeof IMAGE_ANNOTATION_COLORS)[number]>(IMAGE_ANNOTATION_COLORS[0])
   const [size, setSize] = createSignal(4)
   const [strokes, setStrokes] = createSignal<Stroke[]>([])
   const [draft, setDraft] = createSignal<Stroke | undefined>()
@@ -549,7 +552,8 @@ function AnnotateDialog(props: {
             )}
           </For>
           <div class="mx-2 h-5 w-px bg-border" />
-          <For each={["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#111111"]}>
+          {/* 固定调色板用于标注内容，不是 App 状态色或品牌色。 */}
+          <For each={IMAGE_ANNOTATION_COLORS}>
             {(swatch) => (
               <button
                 type="button"

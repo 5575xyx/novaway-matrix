@@ -103,7 +103,7 @@ export default function TaskCenterPage() {
           <button
             type="button"
             aria-label={language.t("taskCenter.search")}
-            class="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 min-w-[220px] text-left text-ui-caption text-foreground-subtle hover:text-foreground hover:border-primary transition-colors"
+            class="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 min-w-[220px] text-left text-ui-caption text-foreground-subtle hover:text-foreground hover:border-interactive-hover transition-colors"
             onClick={() => command.trigger("file.open")}
           >
             <Icon name="magnifying-glass" size="small" class="shrink-0" />
@@ -124,7 +124,7 @@ export default function TaskCenterPage() {
               {(card) => (
                 <button
                   type="button"
-                  class="rounded-lg border border-border bg-panel p-3 text-left hover:border-primary transition-colors flex flex-col gap-1"
+                  class="rounded-lg border border-border bg-panel p-3 text-left hover:border-interactive-hover transition-colors flex flex-col gap-1"
                   onClick={() => navigate(`/${base64Encode(card.project.worktree)}/session`)}
                 >
                   <div class="flex items-center gap-1.5 min-w-0">
@@ -150,7 +150,7 @@ export default function TaskCenterPage() {
             </For>
             <button
               type="button"
-              class="rounded-lg border border-dashed border-border-hover px-4 py-3 text-ui-caption text-foreground-subtle hover:text-foreground hover:border-primary cursor-pointer flex items-center gap-2 justify-center transition-colors"
+              class="rounded-lg border border-dashed border-border-hover px-4 py-3 text-ui-caption text-foreground-subtle hover:text-foreground hover:border-interactive-hover cursor-pointer flex items-center gap-2 justify-center transition-colors"
               onClick={() => command.trigger("project.open")}
             >
               <Icon name="folder" size="small" class="shrink-0" />
@@ -189,7 +189,7 @@ export default function TaskCenterPage() {
           </Show>
           <button
             type="button"
-            class="rounded-lg border border-dashed border-border-hover px-4 py-3 text-ui-caption text-foreground-subtle hover:text-foreground hover:border-primary cursor-pointer flex items-center gap-2 transition-colors"
+            class="rounded-lg border border-dashed border-border-hover px-4 py-3 text-ui-caption text-foreground-subtle hover:text-foreground hover:border-interactive-hover cursor-pointer flex items-center gap-2 transition-colors"
             onClick={() => command.trigger("project.open")}
           >
             <Icon name="plus" size="small" class="shrink-0" />

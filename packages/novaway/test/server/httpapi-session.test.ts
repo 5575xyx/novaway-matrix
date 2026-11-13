@@ -209,9 +209,7 @@ describe("session HttpApi", () => {
       expect(created.workspaceID).toBeUndefined()
       expect(created.directory).toContain(path.join("global-chat", "sessions"))
       expect((yield* Effect.promise(() => stat(created.directory))).isDirectory()).toBe(true)
-      const second = yield* json<Session.Info>(
-        yield* request(SessionPaths.globalCreate, { method: "POST" }),
-      )
+      const second = yield* json<Session.Info>(yield* request(SessionPaths.globalCreate, { method: "POST" }))
       expect(second.directory).not.toBe(created.directory)
       expect((yield* Effect.promise(() => stat(second.directory))).isDirectory()).toBe(true)
       const projectInstance = yield* InstanceStore.Service.use((store) => store.load({ directory: test.directory }))
@@ -235,9 +233,7 @@ describe("session HttpApi", () => {
       // The alias route must resolve subsequent session operations to its private
       // project instance; accepting the first prompt proves the session is not
       // being sent back through the restricted global-scope runtime.
-      const sessionInfo = yield* json<Session.Info>(
-        yield* request(sessionPath(SessionPaths.get), { headers }),
-      )
+      const sessionInfo = yield* json<Session.Info>(yield* request(sessionPath(SessionPaths.get), { headers }))
       expect(sessionInfo.id).toBe(created.id)
       expect(sessionInfo.scope).toBe("project")
       expect(sessionInfo.directory).toBe(created.directory)

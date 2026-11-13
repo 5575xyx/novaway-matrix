@@ -4,6 +4,8 @@ import { Effect, Schema } from "effect"
 import * as Stream from "effect/Stream"
 import { Ripgrep } from "../file/ripgrep"
 import { Skill } from "../skill"
+import * as SkillUsage from "@/skill/usage"
+import { InstanceState } from "@/effect/instance-state"
 import * as SkillPython from "@/skill/python-env"
 import * as PptEngine from "@/office/ppt-engine"
 import { Service as SessionService } from "@/session/session"
@@ -47,6 +49,12 @@ export const SkillTool = Tool.define(
             always: [params.name],
             metadata: {},
           })
+
+          // 使用账本只用于技能排序与生命周期巡检，写失败不影响本次加载。
+          const instance = yield* InstanceState.context
+          yield* Effect.promise(() =>
+            SkillUsage.record({ directory: ctx.directory ?? instance.directory, name: info.name }),
+          ).pipe(Effect.ignore)
 
           // `context: fork` runs the skill in an isolated subagent session so the
           // main conversation does not absorb its intermediate tool output.

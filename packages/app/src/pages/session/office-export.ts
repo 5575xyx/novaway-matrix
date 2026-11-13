@@ -576,6 +576,7 @@ export function bytesToBase64(bytes: Uint8Array) {
 
 export async function createOfficeHtmlExportFile(artifact: OfficeArtifact): Promise<OfficeExportFile> {
   const htmlBody = await marked.parse(artifact.body)
+  // 以下是独立 HTML 导出的文档排版色，不是运行时 App 面板配色；导出文件不依赖 UI 主题 CSS。
   const baseStyle = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 14px; line-height: 1.75; color: #1a1a2e; max-width: 820px; margin: 0 auto; padding: 48px 32px; background: #fff; }

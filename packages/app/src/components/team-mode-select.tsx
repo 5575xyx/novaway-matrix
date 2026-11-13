@@ -121,7 +121,7 @@ export const TeamModeSelect: Component<{ sessionID?: string }> = (props) => {
             <Icon
               name="lu-users"
               size="small"
-              class={`shrink-0 ${active() ? "text-icon-blue" : "text-foreground-subtle"}`}
+              class={`shrink-0 ${active() ? "text-icon-interactive-base" : "text-foreground-subtle"}`}
             />
             <span
               data-slot="team-mode-label"
@@ -151,7 +151,7 @@ export const TeamModeSelect: Component<{ sessionID?: string }> = (props) => {
               <Show when={autoTeams().length > 0}>
                 <DropdownMenu.Item onSelect={() => apply({ mode: "auto", teamIDs: [] })}>
                   <div class="flex w-full items-start gap-2.5">
-                    <Icon name="lu-zap" size="small" class="mt-0.5 shrink-0 text-icon-blue" />
+                    <Icon name="lu-zap" size="small" class="mt-0.5 shrink-0 text-icon-interactive-base" />
                     <div class="flex min-w-0 flex-1 flex-col">
                       <span class="text-13-medium text-foreground">{language.t("team.mode.auto")}</span>
                       <span class="text-11-regular leading-4 text-foreground-subtle">

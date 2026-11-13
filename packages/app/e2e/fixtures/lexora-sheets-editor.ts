@@ -6,6 +6,7 @@
 //   3. save() 产出可解析的 XLSX 字节；
 //   4. 用 save() 的字节重新挂载（模拟「保存后重开」）。
 import { xlsxFromSheets } from "@novaway/core/office/create"
+import { mountSheetsEditor } from "@/pages/session/office-editors/sheets-editor-host"
 import JSZip from "jszip"
 
 // 浏览器里没有 Buffer：分块转 base64。
@@ -40,59 +41,10 @@ async function readMacroProject(bytes: Uint8Array) {
   return (await archive.file("xl/vbaProject.bin")?.async("uint8array")) ?? null
 }
 
-// 模拟 NovaWay Host 的最小 Lexora ViewContext（对齐 lexora-view-context.ts）。
-const context = {
-  signal: new AbortController().signal,
-  workers: {
-    create: async (entry: string | URL, options?: { type?: "classic" | "module" }) =>
-      new Worker(typeof entry === "string" ? entry : entry.toString(), options),
-  },
-  clipboard: {
-    read: async () => ({ text: "" }),
-    write: async () => {},
-  },
-  resources: {
-    pickFiles: async () => [],
-    saveFile: async () => true,
-  },
-  environment: { colorScheme: "light" },
-  onEnvironmentChange: () => ({ dispose: () => {} }),
-}
-
 interface SheetsEditor {
   save: () => Promise<Uint8Array>
   markSaved?: (bytes?: Uint8Array) => void
   dispose: () => void
-}
-
-let bundlePromise:
-  | Promise<{
-      mountSheets: (options: {
-        context: unknown
-        container: HTMLElement
-        bytes: Uint8Array
-        name: string
-        onDirty: (dirty: boolean) => void
-      }) => Promise<SheetsEditor>
-    }>
-  | undefined
-
-function loadBundle() {
-  bundlePromise ??= (async () => {
-    // 运行时拼接 + 随机 query：esbuild 无法常量折叠、Vite 无法静态解析出
-    // public 路径，交给浏览器原生 import()。Vite 中间件原样响应 /office/*。
-    const bundleUrl = `/office/sheets-editor.js?novaway=${Math.random().toString(36).slice(2)}`
-    return (await import(/* @vite-ignore */ bundleUrl)) as {
-      mountSheets: (options: {
-        context: unknown
-        container: HTMLElement
-        bytes: Uint8Array
-        name: string
-        onDirty: (dirty: boolean) => void
-      }) => Promise<SheetsEditor>
-    }
-  })()
-  return bundlePromise
 }
 
 async function main() {
@@ -110,22 +62,25 @@ async function main() {
   root.append(container)
   let dirty = false
   let current: SheetsEditor | undefined
+  let currentAbortController: AbortController | undefined
   try {
-    const { mountSheets } = await loadBundle()
     const mount = async (bytes: Uint8Array, name: string) => {
       current?.dispose()
+      currentAbortController?.abort()
+      currentAbortController = new AbortController()
       container.replaceChildren()
       dirty = false
       status.setAttribute("data-dirty", "false")
-      const editor = await mountSheets({
-        context,
+      const onDirty = (value: boolean) => {
+        dirty = value
+        status.setAttribute("data-dirty", String(value))
+      }
+      const editor = await mountSheetsEditor({
         container,
         bytes,
         name,
-        onDirty: (value) => {
-          dirty = value
-          status.setAttribute("data-dirty", String(value))
-        },
+        onDirty,
+        signal: currentAbortController.signal,
       })
       current = editor
       status.textContent = "mounted"

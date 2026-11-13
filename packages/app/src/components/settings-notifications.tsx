@@ -89,7 +89,7 @@ function FeishuAppHelpTip() {
             Secret，然后在「添加应用能力」中添加机器人，申请 im:message.p2p_msg:readonly、im:message:send_as_bot
             权限，并订阅 im.message.receive_v1，事件订阅方式选择长连接。
           </span>
-          <span class="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none p-2">
+          <span class="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background transition-colors focus-visible:border-interactive-focus focus-visible:outline-none p-2">
             <code class="min-w-0 flex-1 truncate text-11-regular text-foreground">{link}</code>
             <button
               type="button"
@@ -104,7 +104,7 @@ function FeishuAppHelpTip() {
           </span>
           <Show when={copied()}>
             <span
-              class="mt-2 flex items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-2 py-1.5 text-11-medium text-icon-success-base"
+              class="mt-2 flex items-center gap-1.5 rounded-lg border border-success-base/30 bg-surface-success-weak px-2 py-1.5 text-11-medium text-success-base"
               aria-live="polite"
             >
               <Icon name="circle-check" size="small" />
@@ -250,7 +250,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuWebhookDraft()}
               onInput={(event) => setFeishuWebhookDraft(event.currentTarget.value)}
               placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-interactive-focus focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -261,7 +261,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuKeywordDraft()}
               onInput={(event) => setFeishuKeywordDraft(event.currentTarget.value)}
               placeholder="默认 NovaWay"
-              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[160px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-interactive-focus focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[160px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -277,7 +277,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuAppIdDraft()}
               onInput={(event) => setFeishuAppIdDraft(event.currentTarget.value)}
               placeholder="cli_..."
-              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-interactive-focus focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow
@@ -294,7 +294,7 @@ export const SettingsNotifications: Component = () => {
               value={feishuAppSecretDraft()}
               onInput={(event) => setFeishuAppSecretDraft(event.currentTarget.value)}
               placeholder="请输入 App Secret"
-              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-icon-blue focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
+              class="h-9 w-full min-w-0 rounded-lg border border-border bg-background transition-colors focus-visible:border-interactive-focus focus-visible:outline-none px-3 text-12-regular text-foreground outline-none sm:w-[300px]"
             />
           </SettingsRow>
           <SettingsRow

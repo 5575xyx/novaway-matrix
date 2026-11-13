@@ -27,7 +27,7 @@
     aspect-ratio: 1;
     flex-shrink: 0;
     /* size-4 + rounded-sm + border-input-border +
-       bg-input，选中态改 **实心 bg-primary + 反色勾**（旧版是浅色底 + 深色勾）。 */
+       bg-input，选中态改 **实心 surface-interactive-base + 配套前景勾**（旧版是浅色底 + 深色勾）。 */
     border-radius: var(--radius-sm);
     border: 1px solid var(--input-border);
     background: var(--input);
@@ -40,7 +40,7 @@
 
   /* 勾选框也补上按压反馈，避免"点了没反应"的错觉。 */
   &:hover:not([data-disabled]) [data-slot="checkbox-checkbox-control"] {
-    border-color: color-mix(in oklab, var(--primary) 55%, var(--input-border));
+    border-color: color-mix(in oklab, var(--border-interactive-hover) 55%, var(--input-border));
   }
 
   &:active:not([data-disabled]) [data-slot="checkbox-checkbox-control"] {
@@ -53,7 +53,7 @@
     justify-content: center;
     width: 100%;
     height: 100%;
-    color: var(--primary-foreground);
+    color: var(--text-on-interactive-base);
     opacity: 0;
     transform: scale(0.9);
     transition:
@@ -96,8 +96,8 @@
 
   &[data-checked] [data-slot="checkbox-checkbox-control"],
   &[data-indeterminate] [data-slot="checkbox-checkbox-control"] {
-    border-color: var(--primary);
-    background-color: var(--primary);
+    border-color: var(--surface-interactive-base);
+    background-color: var(--surface-interactive-base);
   }
 
   &[data-checked] [data-slot="checkbox-checkbox-indicator"],
@@ -112,7 +112,7 @@
   }
 
   &[data-invalid] [data-slot="checkbox-checkbox-control"] {
-    border-color: var(--destructive);
+    border-color: var(--border-critical-base);
   }
 
   &[data-readonly] {

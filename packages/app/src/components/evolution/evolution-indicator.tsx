@@ -37,7 +37,7 @@ export function EvolutionIndicator() {
           aria-label={language.t("settings.evolution.title" as never)}
         >
           <Icon size="small" name="branch" />
-          <span class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-[var(--icon-interactive-base)] text-10-medium text-text-on-interactive-base flex items-center justify-center leading-none">
+          <span class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-[var(--surface-interactive-base)] text-10-medium text-text-on-interactive-base flex items-center justify-center leading-none">
             {badge()}
           </span>
         </Button>

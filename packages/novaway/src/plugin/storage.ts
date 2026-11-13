@@ -85,7 +85,11 @@ function identity(pluginID: string, scope: PluginScope, instanceKey = "") {
 }
 
 function find(db: Db, pluginID: string, scope: PluginScope, instanceKey = "") {
-  return db.select().from(PluginStateTable).where(identity(pluginID, scope, instanceKey)).get()
+  return db
+    .select()
+    .from(PluginStateTable)
+    .where(identity(pluginID, scope, instanceKey))
+    .get()
 }
 
 /** 写入或覆盖一个实例的状态行，返回落库后的行。 */

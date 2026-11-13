@@ -65,8 +65,8 @@
       }
 
       &:has([data-invalid]) {
-        border-color: var(--destructive);
-        box-shadow: 0 0 0 2px color-mix(in oklab, var(--destructive) 20%, transparent);
+        border-color: var(--border-critical-base);
+        box-shadow: 0 0 0 2px color-mix(in oklab, var(--surface-critical-base) 20%, transparent);
       }
 
       &:not(:has([data-slot="input-copy-button"])) {

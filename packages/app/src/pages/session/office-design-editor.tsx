@@ -9,6 +9,7 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
   const sdk = useSDK()
   const [title, setTitle] = createSignal(props.artifact.title || "新品发布")
   const [subtitle, setSubtitle] = createSignal("2026 秋季新品 · 抢先体验")
+  // 下列颜色是生成内容的初始画布配色，会写入 Office 文档，不属于 App UI 主题。
   const [accent, setAccent] = createSignal("#10b981")
   const [background, setBackground] = createSignal("#0f172a")
   const [textColor, setTextColor] = createSignal("#ffffff")
@@ -91,7 +92,7 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="h-8 rounded-[7px] border border-icon-blue/40 bg-icon-blue/10 px-3 text-12-medium text-icon-blue"
+            class="h-8 rounded-[7px] border border-interactive-base/40 bg-surface-interactive-weak px-3 text-12-medium text-interactive-base"
             onClick={() => void exportPng()}
           >
             导出 PNG
@@ -155,7 +156,10 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
             <button
               type="button"
               class="h-9 rounded-[7px] border border-border text-12-medium text-foreground-subtle"
-              classList={{ "border-icon-blue/40 bg-icon-blue/10 text-icon-blue": layout() === "landscape" }}
+              classList={{
+                "border-interactive-base/40 bg-surface-interactive-weak text-interactive-base":
+                  layout() === "landscape",
+              }}
               onClick={() => setLayout("landscape")}
             >
               横版
@@ -163,14 +167,16 @@ export function OfficeDesignEditor(props: { artifact: OfficeArtifact; onClose: (
             <button
               type="button"
               class="h-9 rounded-[7px] border border-border text-12-medium text-foreground-subtle"
-              classList={{ "border-icon-blue/40 bg-icon-blue/10 text-icon-blue": layout() === "portrait" }}
+              classList={{
+                "border-interactive-base/40 bg-surface-interactive-weak text-interactive-base": layout() === "portrait",
+              }}
               onClick={() => setLayout("portrait")}
             >
               竖版
             </button>
           </div>
           <Show when={message()}>
-            <span class="text-11-regular text-icon-blue">{message()}</span>
+            <span class="text-11-regular text-interactive-base">{message()}</span>
           </Show>
         </div>
 

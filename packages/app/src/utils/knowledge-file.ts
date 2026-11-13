@@ -24,15 +24,15 @@ export function knowledgeFileKind(name: string): KnowledgeFileKind {
   return "text"
 }
 
-/** 文件类型图标使用主题色区分，但不绑定固定色值。 */
+/** 文件类型图标使用独立的文件分类主题色，不与 Agent 身份色耦合。 */
 export const FILE_TONE: Record<
   KnowledgeFileKind,
   { icon: "code-lines" | "table" | "review" | "chart" | "terminal"; color: string; background: string }
 > = {
   markdown: {
     icon: "code-lines",
-    color: "var(--icon-interactive-base)",
-    background: "color-mix(in srgb, var(--icon-interactive-base) 14%, transparent)",
+    color: "var(--icon-file-category-0)",
+    background: "var(--surface-file-category-0)",
   },
   text: {
     icon: "code-lines",
@@ -41,32 +41,32 @@ export const FILE_TONE: Record<
   },
   data: {
     icon: "table",
-    color: "var(--icon-info-base)",
-    background: "color-mix(in srgb, var(--icon-info-base) 14%, transparent)",
+    color: "var(--icon-file-category-1)",
+    background: "var(--surface-file-category-1)",
   },
   pdf: {
     icon: "review",
-    color: "var(--icon-critical-base)",
-    background: "color-mix(in srgb, var(--icon-critical-base) 14%, transparent)",
+    color: "var(--icon-file-category-2)",
+    background: "var(--surface-file-category-2)",
   },
   word: {
     icon: "review",
-    color: "var(--icon-interactive-base)",
-    background: "color-mix(in srgb, var(--icon-interactive-base) 14%, transparent)",
+    color: "var(--icon-file-category-0)",
+    background: "var(--surface-file-category-0)",
   },
   slide: {
     icon: "chart",
-    color: "var(--icon-warning-base)",
-    background: "color-mix(in srgb, var(--icon-warning-base) 14%, transparent)",
+    color: "var(--icon-file-category-3)",
+    background: "var(--surface-file-category-3)",
   },
   sheet: {
     icon: "table",
-    color: "var(--icon-success-base)",
-    background: "color-mix(in srgb, var(--icon-success-base) 14%, transparent)",
+    color: "var(--icon-file-category-1)",
+    background: "var(--surface-file-category-1)",
   },
   code: {
     icon: "terminal",
-    color: "var(--icon-agent-plan-base)",
-    background: "color-mix(in srgb, var(--icon-agent-plan-base) 14%, transparent)",
+    color: "var(--icon-file-category-0)",
+    background: "var(--surface-file-category-0)",
   },
 }

@@ -272,7 +272,7 @@ function TurnNavigatorBar(props: {
             <span
               class="block h-0.5 w-3 origin-left rounded-full transition-[opacity,transform,background-color] duration-150 ease-out"
               classList={{
-                "bg-foreground": distance() === 0,
+                "bg-surface-interactive-base": distance() === 0,
                 "bg-foreground-subtlest": distance() !== 0,
               }}
               style={{ opacity: visual().opacity, transform: `scaleX(${visual().scaleX})` }}

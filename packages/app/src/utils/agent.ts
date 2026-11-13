@@ -10,14 +10,6 @@ const palette = [
   "var(--icon-agent-build-base)",
   "var(--icon-agent-docs-base)",
   "var(--icon-agent-plan-base)",
-  "var(--syntax-info)",
-  "var(--syntax-success)",
-  "var(--syntax-warning)",
-  "var(--syntax-property)",
-  "var(--syntax-constant)",
-  "var(--diff-added)",
-  "var(--diff-removed)",
-  "var(--icon-warning-base)",
 ]
 
 function tone(name: string) {

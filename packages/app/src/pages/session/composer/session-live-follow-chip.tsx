@@ -83,10 +83,10 @@ export function SessionLiveFollowChip(props: { sessionID: string }) {
         // 开关本身的过渡：颜色慢一点才看得出"状态换了"，位移快一点跟手。
         "transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out": true,
         "cursor-pointer outline-none hover:-translate-y-px active:translate-y-0 active:scale-[0.97]": true,
-        "focus-visible:ring-2 focus-visible:ring-syntax-success/50": true,
-        "border-syntax-success/35 bg-syntax-success/10 text-syntax-success hover:border-syntax-success/55 hover:bg-syntax-success/15":
+        "focus-visible:ring-2 focus-visible:ring-border-interactive-focus/50": true,
+        "border-success-base/35 bg-surface-success-weak text-success-base hover:border-success-hover hover:bg-surface-success-base/15":
           state() === "armed" || state() === "live",
-        "border-syntax-success/60 bg-syntax-success/15 text-syntax-success shadow-[0_0_0_1px_color-mix(in_srgb,var(--syntax-success)_12%,transparent),0_2px_10px_-4px_color-mix(in_srgb,var(--syntax-success)_45%,transparent)]":
+        "border-success-base/60 bg-surface-success-base/15 text-success-base shadow-[0_0_0_1px_color-mix(in_srgb,var(--surface-success-base)_12%,transparent),0_2px_10px_-4px_color-mix(in_srgb,var(--surface-success-base)_45%,transparent)]":
           state() === "live",
         "border-border bg-surface text-foreground-subtlest hover:border-foreground-subtlest/40 hover:text-foreground-subtle":
           state() === "off",
@@ -105,13 +105,13 @@ export function SessionLiveFollowChip(props: { sessionID: string }) {
       <span class="relative flex size-2 shrink-0 items-center justify-center">
         {/* 正在跟随：外圈脉冲（slow ping）。 */}
         <Show when={state() === "live"}>
-          <span aria-hidden="true" class="live-follow-ping absolute inset-0 rounded-full bg-syntax-success" />
+          <span aria-hidden="true" class="live-follow-ping absolute inset-0 rounded-full bg-surface-success-base" />
         </Show>
         <span
           aria-hidden="true"
           class="relative size-2 rounded-full transition-[background-color,opacity] duration-300"
           classList={{
-            "bg-syntax-success": state() === "armed" || state() === "live",
+            "bg-surface-success-base": state() === "armed" || state() === "live",
             "bg-foreground-subtlest/50": state() === "taken",
             "bg-foreground-subtlest/60": state() === "off",
             // 待命时缓慢呼吸（在等下一次写盘），跟写时呼吸更明显。

@@ -1,4 +1,7 @@
 @import "@novaway/ui/styles/tailwind";
+/* The shared UI stylesheet can resolve from app/node_modules in Bun workspaces.
+   Scan App sources from this stylesheet so responsive and state utilities are emitted reliably. */
+@source "./";
 
 /* 窗口拖拽区。
  *
@@ -301,7 +304,7 @@
   top: 1px;
   width: 14px;
   height: 14px;
-  color: var(--diff-added);
+  color: var(--icon-success-base);
 }
 
 [data-tool-density="compact"] [data-slot="tool-badge-icon"] {
@@ -630,19 +633,27 @@
  * 不用大面积卡片，选中态只留下蓝色信号线和轻微底色。 */
 [data-component="sidebar-global-task"] {
   border: 1px solid transparent;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--icon-blue) 7%, transparent), transparent 72%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-interactive-weak) 72%, transparent),
+    transparent 72%
+  );
 }
 
 [data-component="sidebar-global-task"]:hover {
-  border-color: color-mix(in srgb, var(--icon-blue) 28%, var(--border));
-  background: linear-gradient(90deg, color-mix(in srgb, var(--icon-blue) 12%, transparent), transparent 80%);
+  border-color: color-mix(in srgb, var(--border-interactive-base) 28%, var(--border));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-interactive-weak) 86%, transparent),
+    transparent 80%
+  );
 }
 
 [data-component="sidebar-global-task"][data-selected="true"] {
-  border-color: color-mix(in srgb, var(--icon-blue) 42%, var(--border));
+  border-color: color-mix(in srgb, var(--border-interactive-base) 42%, var(--border));
   box-shadow:
-    inset 2px 0 0 var(--icon-blue),
-    0 0 18px color-mix(in srgb, var(--icon-blue) 8%, transparent);
+    inset 2px 0 0 var(--border-interactive-base),
+    0 0 18px color-mix(in srgb, var(--surface-interactive-base) 8%, transparent);
 }
 
 [data-component="task-row"] {
@@ -683,7 +694,7 @@
   background: linear-gradient(
     110deg,
     transparent 28%,
-    color-mix(in srgb, var(--icon-blue) 8%, transparent),
+    color-mix(in srgb, var(--surface-interactive-weak) 8%, transparent),
     transparent 72%
   );
   opacity: 0;
@@ -779,7 +790,7 @@
      跟"简约"是反的；运行状态已经由停止按钮和进度条表达，边框没必要再喊一遍。 */
   [data-dock-surface="shell"][data-working="true"] {
     box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--icon-blue) 55%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--border-interactive-base) 55%, transparent),
       0 4px 24px color-mix(in srgb, var(--text-strong) 8%, transparent);
   }
   /* 提示词优化中：输入内容区波纹扫光 */
@@ -804,7 +815,7 @@
   /* 外壳仅轻微提示，主效果在内容区 */
   [data-dock-surface="shell"][data-optimizing="true"] {
     box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--icon-blue) 45%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--border-interactive-base) 45%, transparent),
       0 4px 24px color-mix(in srgb, var(--text-strong) 8%, transparent) !important;
   }
 
@@ -822,9 +833,9 @@
       105deg,
       transparent 0%,
       transparent 38%,
-      color-mix(in srgb, var(--icon-blue) 10%, transparent) 46%,
-      color-mix(in srgb, var(--icon-blue) 28%, transparent) 50%,
-      color-mix(in srgb, var(--icon-blue) 10%, transparent) 54%,
+      color-mix(in srgb, var(--surface-interactive-base) 10%, transparent) 46%,
+      color-mix(in srgb, var(--surface-interactive-base) 28%, transparent) 50%,
+      color-mix(in srgb, var(--surface-interactive-base) 10%, transparent) 54%,
       transparent 62%,
       transparent 100%
     );
@@ -837,7 +848,7 @@
       90deg,
       var(--foreground) 0%,
       var(--foreground) 38%,
-      color-mix(in srgb, var(--icon-blue) 88%, white) 50%,
+      color-mix(in srgb, var(--text-on-interactive-base) 88%, transparent) 50%,
       var(--foreground) 62%,
       var(--foreground) 100%
     );
@@ -1360,13 +1371,13 @@
 /* 就地编辑不画框：Word 里点段落只有光标和一层极淡的底，
    描边框会盖住版式，看起来像页面坏了。选中 / 改字各用一层主题色淡底区分。 */
 .docx-preview-viewport [data-docx-selected] {
-  background: color-mix(in srgb, var(--icon-blue) 7%, transparent);
+  background: color-mix(in srgb, var(--surface-interactive-weak) 70%, transparent);
   border-radius: 2px;
 }
 .docx-preview-viewport [data-docx-editing] {
-  background: color-mix(in srgb, var(--icon-blue) 12%, transparent);
+  background: color-mix(in srgb, var(--surface-interactive-base) 12%, transparent);
   border-radius: 2px;
-  caret-color: var(--icon-blue);
+  caret-color: var(--text-interactive-base);
   outline: none !important;
 }
 
@@ -1378,7 +1389,7 @@
 
 /* 用户气泡:蓝底白字(原型是 --tp-accent 实心),右上小圆角收角。 */
 [data-slot="user-message-text"] {
-  background: var(--icon-blue) !important;
+  background: var(--surface-interactive-base) !important;
   color: var(--text-on-interactive-base) !important;
   border-radius: 14px 14px 5px 14px !important;
   padding: 9px 14px !important;
@@ -1467,28 +1478,26 @@
   min-width: 0;
 }
 
-/* ===== 轮尾操作行:赞/踩选中态高亮 =====
- * Icon wrapper div 强制 color:var(--foreground-subtle),会覆盖父级 button 的
- * text-* 类。必须直接给 SVG 设颜色才能穿透 wrapper 的继承色。 */
+/* 轮尾正向反馈：语义成功色 */
 [data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-up"] {
-  background-color: color-mix(in srgb, var(--syntax-string) 12%, transparent);
+  background-color: var(--surface-success-weak);
 }
 
 [data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-up"] [data-slot="icon-svg"] {
-  color: var(--syntax-string);
+  color: var(--icon-success-base);
 }
 
 [data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-down"] {
-  background-color: color-mix(in srgb, var(--syntax-warning) 12%, transparent);
+  background-color: var(--surface-critical-weak);
 }
 
 [data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-down"] [data-slot="icon-svg"] {
-  color: var(--syntax-warning);
+  color: var(--icon-critical-base);
 }
 
-/* 复制成功:对勾变绿 */
+/* 复制成功:对勾使用成功语义色 */
 [data-component="icon-button"][data-copied="true"] [data-slot="icon-svg"] {
-  color: var(--syntax-success);
+  color: var(--icon-success-base);
 }
 
 /* ===== 工具 badge 图标:穿透 wrapper 的默认色 =====
@@ -1530,12 +1539,9 @@
   animation: breathing-pulse 1.5s ease-in-out infinite;
 }
 
-/* ===== 产物卡片:按文件类型着色 =====
- * 原来整张卡是灰白加一个灰色图标,一屏好几个产物时完全分不清类型。
- * 现在按类型取一个色相 `--preview-tone`,派生图标底色、描边与"打开"按钮,
- * hover 轻浮起;颜色只做点缀,不抢正文。 */
+/* 产物类别取文件分类色，不复用 Agent 身份色或状态色。 */
 [data-component="session-turn-preview"] [data-preview-tone] {
-  --preview-tone: var(--icon-interactive-base);
+  --preview-tone: var(--icon-file-category-0);
   border-color: color-mix(in oklab, var(--preview-tone) 18%, var(--border));
   background: linear-gradient(
     135deg,
@@ -1545,32 +1551,33 @@
   box-shadow: var(--shadow-xs);
 }
 
+/* 文件类型在独立的 file-category 调色板中归类；不会借用 Agent 身份色或状态色。 */
 [data-component="session-turn-preview"] [data-preview-tone="web"] {
-  --preview-tone: var(--icon-interactive-base);
+  --preview-tone: var(--icon-file-category-2);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="html"] {
-  --preview-tone: var(--syntax-property);
+  --preview-tone: var(--icon-file-category-0);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="doc"] {
-  --preview-tone: var(--icon-info-base);
+  --preview-tone: var(--icon-file-category-0);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="sheet"] {
-  --preview-tone: var(--icon-success-base);
+  --preview-tone: var(--icon-file-category-1);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="slides"] {
-  --preview-tone: var(--icon-warning-base);
+  --preview-tone: var(--icon-file-category-3);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="pdf"] {
-  --preview-tone: var(--icon-critical-base);
+  --preview-tone: var(--icon-file-category-3);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone="image"] {
-  --preview-tone: var(--icon-agent-plan-base);
+  --preview-tone: var(--icon-file-category-2);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone]:hover {
@@ -1596,14 +1603,15 @@
 }
 
 [data-slot="preview-card-open"] {
-  border-color: color-mix(in oklab, var(--preview-tone) 26%, var(--border));
-  background: color-mix(in oklab, var(--preview-tone) 10%, transparent);
-  color: var(--preview-tone);
+  border-color: var(--border-interactive-base);
+  background: var(--surface-interactive-weak);
+  color: var(--text-interactive-base);
 }
 
 [data-component="session-turn-preview"] [data-preview-tone]:hover [data-slot="preview-card-open"] {
-  background: color-mix(in oklab, var(--preview-tone) 18%, transparent);
-  border-color: color-mix(in oklab, var(--preview-tone) 42%, var(--border));
+  background: var(--surface-interactive-base);
+  border-color: var(--border-interactive-base);
+  color: var(--text-on-interactive-base);
 }
 
 [data-slot="preview-card-open-divider"] {
@@ -1620,16 +1628,15 @@
 [data-slot="preview-card-offline"] {
   flex-shrink: 0;
   border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--syntax-critical) 30%, transparent);
-  background: color-mix(in oklab, var(--syntax-critical) 10%, transparent);
-  color: var(--syntax-critical);
+  border: 1px solid var(--border-critical-base);
+  background: var(--surface-critical-weak);
+  color: var(--text-critical-base);
   padding: 1px 8px;
   font-size: var(--font-size-ui-xs);
   line-height: 1.5;
 }
 
-/* 服务仍在运行：任务结束后它可能还占着端口。用绿色标签明确告诉用户，
-   而不是只给一个看起来像普通产物卡的链接。 */
+/* 服务仍在运行：状态提示使用成功语义色。 */
 [data-component="session-turn-preview"] [data-preview-tone="online"] {
   --preview-tone: var(--icon-success-base);
 }
@@ -1637,44 +1644,92 @@
 [data-slot="preview-card-online"] {
   flex-shrink: 0;
   border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--syntax-success) 30%, transparent);
-  background: color-mix(in oklab, var(--syntax-success) 10%, transparent);
-  color: var(--syntax-success);
+  border: 1px solid var(--border-success-base);
+  background: var(--surface-success-weak);
+  color: var(--text-success-base);
   padding: 1px 8px;
   font-size: var(--font-size-ui-xs);
   line-height: 1.5;
 }
 
-/* ===== 变更摘要卡:同样给一点色彩 =====
- * 标题前的图标用绿色块、"本次调整 N 个文件"的增删数字保留语义色,
- * 让产物链路的消息流里有一处明显"有东西产出"的信号。 */
 [data-component="session-turn-diffs-group"] {
-  border-color: color-mix(in oklab, var(--diff-added) 16%, var(--border)) !important;
-  background: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--diff-added) 5%, var(--panel)) 0%,
-    var(--panel) 60%
-  ) !important;
+  width: 100% !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border-color: var(--border) !important;
+  background: var(--panel) !important;
+  box-shadow: none;
 }
 
-[data-slot="session-turn-diffs-indicator"] {
-  width: 22px !important;
-  height: 22px !important;
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-indicator"] {
+  width: 44px !important;
+  height: 44px !important;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
-  background: color-mix(in oklab, var(--diff-added) 15%, transparent);
-  border: 1px solid color-mix(in oklab, var(--diff-added) 24%, transparent);
-  color: var(--diff-added) !important;
+  border-radius: 8px;
+  background: var(--surface);
+  margin: 0;
+  color: var(--icon-base) !important;
 }
 
-/* 图标块变大后，标题行按中心对齐，别让文字贴在图标下沿。 */
-[data-slot="session-turn-diffs-header"] {
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-header"] {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 14px;
   flex-wrap: wrap;
+  position: static;
+  height: auto;
+  padding: 16px 18px !important;
+}
+
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-label"] {
+  font-size: var(--font-size-ui-base);
+  font-weight: 600;
+}
+
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-total"] {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+}
+
+[data-component="session-turn-diffs-group"] [data-component="session-turn-diffs-content"] {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+}
+
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diff-trigger"] {
+  padding: 8px 18px;
+}
+
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diff-filename"] {
+  font-weight: 400;
+  color: var(--foreground-subtle);
+}
+
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diff-chevron"] {
+  display: none;
+}
+
+[data-component="session-turn-diffs-group"] [data-slot="session-turn-diffs-more"] {
+  margin: 0;
+  padding: 8px 18px;
+}
+
+[data-slot="session-turn-diffs-approved-chip"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-ui-sm);
+  color: var(--text-success-base);
+}
+
+@media (max-width: 480px) {
+  [data-slot="session-turn-diffs-actions"] {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
 }
 
 /* ===== 聊天区非正文文本的色阶 =====
@@ -1801,9 +1856,9 @@
      下限保证正文很短时三颗按钮也放得下，不会被 overflow 裁掉。 */
   min-height: 280px;
   max-height: min(64vh, 560px);
-  border-color: color-mix(in oklab, var(--mode-accent, var(--primary)) 28%, var(--border));
+  border-color: color-mix(in oklab, var(--mode-accent, var(--border-interactive-base)) 28%, var(--border));
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--mode-accent, var(--primary)) 10%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--border-interactive-base) 10%, transparent),
     0 1px 2px color-mix(in srgb, var(--text-strong) 4%, transparent);
 }
 
@@ -1842,7 +1897,7 @@
   background:
     radial-gradient(
       120% 90% at 50% 0%,
-      color-mix(in oklab, var(--mode-accent, var(--primary)) 8%, transparent),
+      color-mix(in oklab, var(--mode-accent, var(--surface-interactive-base)) 8%, transparent),
       transparent 60%
     ),
     linear-gradient(to bottom, color-mix(in oklab, var(--text-strong) 3%, transparent), transparent 40%);
@@ -1931,9 +1986,9 @@
 /* 评审操作采用主题语义色：打开使用交互色，通过使用成功色，调整使用警告色。 */
 [data-slot="document-review-actions"] [data-component="button"][data-action="open"] {
   border-color: var(--border-interactive-active);
-  background: var(--interactive-base);
+  background: var(--surface-interactive-base);
   color: var(--text-on-interactive-base);
-  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--interactive-base) 72%, transparent);
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--surface-interactive-base) 72%, transparent);
 }
 
 [data-slot="document-review-actions"] [data-component="button"][data-action="open"]:hover:not(:disabled) {
@@ -2117,28 +2172,13 @@
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      to bottom,
-      transparent 74%,
-      color-mix(in oklab, var(--icon-interactive-base) 14%, transparent) 79%,
-      transparent 85%
-    ),
-    radial-gradient(
-      46% 42% at 50% 26%,
-      color-mix(in oklab, var(--icon-interactive-base) 26%, transparent),
-      transparent 72%
-    ),
-    radial-gradient(
-      34% 34% at 22% 40%,
-      color-mix(in oklab, var(--icon-agent-plan-base) 18%, transparent),
-      transparent 74%
-    ),
-    radial-gradient(
-      34% 34% at 78% 40%,
-      color-mix(in oklab, var(--icon-agent-build-base) 18%, transparent),
-      transparent 74%
-    );
+  /* 聊天空态画布保持中性：只做几乎不可见的明度起伏，不叠加 Agent 或交互色光晕。 */
+  background: linear-gradient(
+    to bottom,
+    transparent 74%,
+    color-mix(in oklab, var(--foreground) 2%, transparent) 79%,
+    transparent 85%
+  );
   animation: session-new-aurora 7.5s ease-in-out infinite;
 }
 
@@ -2152,8 +2192,8 @@
   height: 300px;
   transform: translateX(-50%);
   background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--icon-interactive-base) 22%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--icon-interactive-base) 22%, transparent) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in oklab, var(--border) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 22%, transparent) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: radial-gradient(52% 62% at 50% 42%, #000 0%, transparent 76%);
   -webkit-mask-image: radial-gradient(52% 62% at 50% 42%, #000 0%, transparent 76%);
@@ -2196,7 +2236,7 @@
   background: linear-gradient(
     180deg,
     var(--foreground) 8%,
-    color-mix(in oklab, var(--icon-interactive-base) 55%, var(--foreground)) 96%
+    color-mix(in oklab, var(--text-interactive-base) 55%, var(--foreground)) 96%
   );
   -webkit-background-clip: text;
   background-clip: text;
@@ -2255,50 +2295,44 @@
  */
 [data-app-mode] {
   background-image:
-    linear-gradient(90deg, color-mix(in srgb, var(--icon-blue) 0.7%, transparent) 1px, transparent 1px),
-    linear-gradient(color-mix(in srgb, var(--icon-blue) 0.7%, transparent) 1px, transparent 1px);
+    linear-gradient(90deg, color-mix(in srgb, var(--border-interactive-base) 0.7%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--border-interactive-base) 0.7%, transparent) 1px, transparent 1px);
   background-size: 32px 32px;
   background-position: 0 0;
 }
 
-[data-component="message-timeline"] [data-timeline-row] {
-  width: calc(100% - 64px) !important;
-  max-width: 1200px !important;
-  margin-right: auto !important;
-  margin-left: auto !important;
-}
-
-@media (max-width: 767px) {
-  [data-component="message-timeline"] [data-timeline-row] {
-    width: calc(100% - 24px) !important;
-  }
-}
+/* 时间线行宽不再单独钉死：行框与输入框外框共用 --session-content-max-width
+ * （设置里的「内容宽度」），两者必须同宽同变化，见 message-timeline / session-composer-region。 */
 
 [data-component="sidebar-nav-desktop"],
 [data-component="sidebar-nav-mobile"] {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--surface) 98%, var(--icon-blue)),
+    color-mix(in srgb, var(--surface-interactive-weak) 20%, var(--surface)),
     var(--surface)
   ) !important;
-  box-shadow: inset -1px 0 color-mix(in srgb, var(--icon-blue) 6%, var(--border));
+  box-shadow: inset -1px 0 color-mix(in srgb, var(--border-interactive-base) 6%, var(--border));
 }
 
 [data-component="sidebar-rail"] {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, var(--icon-blue)), var(--surface));
-  border-color: color-mix(in srgb, var(--icon-blue) 7%, var(--border)) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-interactive-weak) 20%, var(--surface)),
+    var(--surface)
+  );
+  border-color: color-mix(in srgb, var(--border-interactive-base) 7%, var(--border)) !important;
 }
 
 [data-component="sidebar-top-band"] {
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--icon-blue) 5%, var(--border));
+  border-bottom: 1px solid color-mix(in srgb, var(--border-interactive-base) 5%, var(--border));
 }
 
 [data-component="sidebar-new-task"] {
-  border: 1px solid color-mix(in srgb, var(--icon-blue) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-interactive-base) 35%, transparent);
   box-shadow:
-    0 1px 0 color-mix(in srgb, white 18%, transparent) inset,
-    0 8px 20px -14px color-mix(in srgb, var(--icon-blue) 70%, transparent);
+    0 1px 0 color-mix(in srgb, var(--surface-highlight-base) 18%, transparent) inset,
+    0 8px 20px -14px color-mix(in srgb, var(--surface-interactive-base) 70%, transparent);
   letter-spacing: 0.01em;
   transition:
     transform 160ms ease,
@@ -2310,41 +2344,49 @@
   transform: translateY(-1px);
   filter: brightness(1.06);
   box-shadow:
-    0 1px 0 color-mix(in srgb, white 22%, transparent) inset,
-    0 10px 24px -12px color-mix(in srgb, var(--icon-blue) 80%, transparent);
+    0 1px 0 color-mix(in srgb, var(--surface-highlight-base) 22%, transparent) inset,
+    0 10px 24px -12px color-mix(in srgb, var(--surface-interactive-base) 80%, transparent);
 }
 
 [data-component="sidebar-panel-slot"] {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--background) 96%, var(--icon-blue)), var(--background));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--background) 96%, var(--surface-interactive-weak)),
+    var(--background)
+  );
 }
 
 [data-component="conv-frame"] {
-  border-color: color-mix(in srgb, var(--icon-blue) 5%, var(--border)) !important;
-  box-shadow: 0 12px 36px -28px color-mix(in srgb, var(--icon-blue) 45%, transparent);
+  border-color: color-mix(in srgb, var(--border-interactive-base) 5%, var(--border)) !important;
+  box-shadow: 0 12px 36px -28px color-mix(in srgb, var(--border-interactive-base) 45%, transparent);
 }
 
 [data-component="workspace-header"] {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--icon-blue)), transparent);
-  border-bottom-color: color-mix(in srgb, var(--icon-blue) 5%, var(--border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 94%, var(--surface-interactive-weak)),
+    transparent
+  );
+  border-bottom-color: color-mix(in srgb, var(--border-interactive-base) 5%, var(--border));
 }
 
 [data-component="side-pane-frame"] {
-  border-color: color-mix(in srgb, var(--icon-blue) 7%, var(--border)) !important;
-  box-shadow: -12px 12px 32px -28px color-mix(in srgb, var(--icon-blue) 65%, transparent);
+  border-color: color-mix(in srgb, var(--border-interactive-base) 7%, var(--border)) !important;
+  box-shadow: -12px 12px 32px -28px color-mix(in srgb, var(--surface-interactive-base) 65%, transparent);
 }
 
 [data-dock-surface="shell"] {
-  border-color: color-mix(in srgb, var(--icon-blue) 18%, var(--border)) !important;
+  border-color: color-mix(in srgb, var(--border-interactive-base) 18%, var(--border)) !important;
   box-shadow:
-    0 1px 0 color-mix(in srgb, white 14%, transparent) inset,
-    0 18px 40px -28px color-mix(in srgb, var(--icon-blue) 60%, transparent);
+    0 1px 0 color-mix(in srgb, var(--surface-highlight-base) 14%, transparent) inset,
+    0 18px 40px -28px color-mix(in srgb, var(--surface-interactive-base) 60%, transparent);
 }
 
 [data-component="status-panel-expanded"],
 [data-component="status-panel-mini"],
 [data-component="status-panel-expand"] {
-  border-color: color-mix(in srgb, var(--icon-blue) 8%, var(--border));
-  box-shadow: 0 12px 28px -24px color-mix(in srgb, var(--icon-blue) 60%, transparent);
+  border-color: color-mix(in srgb, var(--border-interactive-base) 8%, var(--border));
+  box-shadow: 0 12px 28px -24px color-mix(in srgb, var(--surface-interactive-base) 60%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

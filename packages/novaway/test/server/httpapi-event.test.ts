@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Bus } from "../../src/bus"
+import { BackgroundJobTable } from "../../src/background/job.sql"
+import { Database } from "../../src/storage/db"
 import { AppRuntime } from "../../src/effect/app-runtime"
 import { InstanceRef } from "../../src/effect/instance-ref"
 import { Server } from "../../src/server/server"
@@ -128,6 +130,61 @@ describe("event HttpApi", () => {
     } finally {
       await reader.cancel()
     }
+  })
+
+  test("returns only this project's learning jobs and includes running jobs", async () => {
+    await using first = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
+    await using second = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
+    const response = await app().request(MemoryPaths.learningHistory, {
+      headers: { "x-novaway-directory": first.path },
+    })
+    await expectOk(response)
+    const projectID = (await reloadTestInstance({ directory: first.path })).project.id
+    const otherProjectID = (await reloadTestInstance({ directory: second.path })).project.id
+    await Effect.runPromise(
+      Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .insert(BackgroundJobTable)
+            .values([
+              {
+                id: "job_learning_history_running",
+                type: "learning.memory",
+                title: "running review",
+                status: "running",
+                started_at: Date.now(),
+                metadata: { projectID },
+              },
+              {
+                id: "job_learning_history_other_project",
+                type: "learning.evolution",
+                title: "other project",
+                status: "completed",
+                started_at: Date.now(),
+                metadata: { projectID: otherProjectID },
+              },
+              {
+                id: "job_learning_history_unrelated",
+                type: "test",
+                title: "unrelated job",
+                status: "completed",
+                started_at: Date.now(),
+                metadata: { projectID },
+              },
+            ])
+            .run(),
+        ),
+      ),
+    )
+
+    const history = await app().request(MemoryPaths.learningHistory, {
+      headers: { "x-novaway-directory": first.path },
+    })
+    await expectOk(history)
+    const jobs = await history.json()
+    expect(jobs).toContainEqual(expect.objectContaining({ id: "job_learning_history_running", status: "running" }))
+    expect(jobs).not.toContainEqual(expect.objectContaining({ id: "job_learning_history_other_project" }))
+    expect(jobs).not.toContainEqual(expect.objectContaining({ id: "job_learning_history_unrelated" }))
   })
 
   test("delivers memory review update events after review candidates are created", async () => {

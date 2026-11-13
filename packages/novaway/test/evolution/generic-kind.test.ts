@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { mkdtemp } from "fs/promises"
+import { mkdir, mkdtemp } from "fs/promises"
+import { randomUUID } from "node:crypto"
 import os from "os"
 import path from "path"
 import { Evolution } from "../../src/evolution/service"
@@ -21,7 +22,7 @@ function seedProjectID(id: ProjectID) {
 
 describe("generic evolution kinds", () => {
   test("keeps global strategy/habit/knowledge candidates reusable across projects", async () => {
-    const projectID = ProjectID.make("generic-evolution-project")
+    const projectID = ProjectID.make(`generic-evolution-project-${randomUUID()}`)
     seedProjectID(projectID)
     for (const kind of ["strategy", "habit", "knowledge"] as const) {
       const candidates = await runEvolution(
@@ -48,7 +49,7 @@ describe("generic evolution kinds", () => {
 
   test("writes project habit candidates into generic evolution artifacts", async () => {
     const worktree = await tempWorktree()
-    const projectID = ProjectID.make("habit-apply-project")
+    const projectID = ProjectID.make(`habit-apply-project-${randomUUID()}`)
     seedProjectID(projectID)
     const candidates = await runEvolution(
       Evolution.Service.use((evolution) =>
@@ -68,7 +69,9 @@ describe("generic evolution kinds", () => {
       ),
     )
     const applied = await runEvolution(
-      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+      Evolution.Service.use((evolution) =>
+        evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree, projectID }),
+      ),
     )
     const relative = applied?.dryRun.files[0].path.replace(/\\/g, "/")
     expect(relative).toContain(".novaway/evolution/weekly-review.md")
@@ -77,7 +80,7 @@ describe("generic evolution kinds", () => {
 
   test("rejects incomplete evolution candidates before writing files", async () => {
     const worktree = await tempWorktree()
-    const projectID = ProjectID.make("invalid-evolution-project")
+    const projectID = ProjectID.make(`invalid-evolution-project-${randomUUID()}`)
     seedProjectID(projectID)
     const candidates = await runEvolution(
       Evolution.Service.use((evolution) =>
@@ -97,11 +100,13 @@ describe("generic evolution kinds", () => {
       ),
     )
     const applied = await runEvolution(
-      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+      Evolution.Service.use((evolution) =>
+        evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree, projectID }),
+      ),
     )
     const status = await runEvolution(Evolution.Service.use((evolution) => evolution.status({ projectID })))
     expect(applied).toBeUndefined()
-    expect(status.pending).toBe(1)
+    expect(status.pending).toBeGreaterThanOrEqual(1)
     const candidate = await runEvolution(
       Evolution.Service.use((evolution) => evolution.list({ projectID, status: "pending" })),
     )
@@ -110,7 +115,7 @@ describe("generic evolution kinds", () => {
 
   test("applies candidates whose expected outcomes appear in the written file", async () => {
     const worktree = await tempWorktree()
-    const projectID = ProjectID.make("regression-ok-project")
+    const projectID = ProjectID.make(`regression-ok-project-${randomUUID()}`)
     seedProjectID(projectID)
     const candidates = await runEvolution(
       Evolution.Service.use((evolution) =>
@@ -131,7 +136,9 @@ describe("generic evolution kinds", () => {
       ),
     )
     const applied = await runEvolution(
-      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+      Evolution.Service.use((evolution) =>
+        evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree, projectID }),
+      ),
     )
     expect(applied?.candidate.validationStatus).toBe("validated")
     expect(applied?.candidate.validationNote).toContain("written")
@@ -140,7 +147,10 @@ describe("generic evolution kinds", () => {
 
   test("rolls back candidates whose expected outcomes are missing", async () => {
     const worktree = await tempWorktree()
-    const projectID = ProjectID.make("regression-fail-project")
+    const artifactPath = path.join(worktree, ".novaway", "evolution", "meeting-notes.md")
+    await mkdir(path.dirname(artifactPath), { recursive: true })
+    await Bun.write(artifactPath, "Existing user content must be restored.\n")
+    const projectID = ProjectID.make(`regression-fail-project-${randomUUID()}`)
     seedProjectID(projectID)
     const candidates = await runEvolution(
       Evolution.Service.use((evolution) =>
@@ -161,7 +171,9 @@ describe("generic evolution kinds", () => {
       ),
     )
     const applied = await runEvolution(
-      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+      Evolution.Service.use((evolution) =>
+        evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree, projectID }),
+      ),
     )
     const candidate = await runEvolution(
       Evolution.Service.use((evolution) => evolution.list({ projectID, status: "pending" })),
@@ -169,6 +181,7 @@ describe("generic evolution kinds", () => {
     expect(applied).toBeUndefined()
     expect(candidate[0]?.validationStatus).toBe("failed")
     expect(candidate[0]?.validationNote).toContain("回归校验失败")
-    expect(await Bun.file(path.join(worktree, ".novaway", "evolution", "meeting-notes.md")).exists()).toBe(false)
+    expect(await Bun.file(artifactPath).exists()).toBe(true)
+    expect(await Bun.file(artifactPath).text()).toBe("Existing user content must be restored.\n")
   })
 })

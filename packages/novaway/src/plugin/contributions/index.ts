@@ -1,4 +1,15 @@
-import type { AgentContribution, CommandContribution, OfficeEngineContribution, PreviewContribution, ProviderAdapter, PublishDriverContribution, SkillContribution, SurfaceContribution, ToolContribution, Registry } from "@novaway/plugin-api"
+import type {
+  AgentContribution,
+  CommandContribution,
+  OfficeEngineContribution,
+  PreviewContribution,
+  ProviderAdapter,
+  PublishDriverContribution,
+  SkillContribution,
+  SurfaceContribution,
+  ToolContribution,
+  Registry,
+} from "@novaway/plugin-api"
 import { createRegistry, type ContributionRegistry } from "./registry"
 
 /**
@@ -21,11 +32,13 @@ export function createProviderRegistry(): Registry<ProviderAdapter> {
     register(item) {
       entries.set(item.id, item)
       change()
-      return { dispose: () => {
-        if (entries.get(item.id) !== item) return
-        entries.delete(item.id)
-        change()
-      } }
+      return {
+        dispose: () => {
+          if (entries.get(item.id) !== item) return
+          entries.delete(item.id)
+          change()
+        },
+      }
     },
     resolve(id) {
       return entries.get(id)
@@ -70,7 +83,6 @@ export function createOfficeRegistry(): Registry<OfficeEngineContribution> {
     },
   }
 }
-
 
 export function createPublishRegistry(): Registry<PublishDriverContribution> {
   const entries = new Map<string, PublishDriverContribution>()

@@ -6,6 +6,7 @@
 //   3. save() 产出可解析的 DOCX 字节；
 //   4. 用 save() 的字节重新挂载（模拟「保存后重开」），能读到编辑后的内容。
 import { createDocument } from "@novaway/core/office/create"
+import { buildLexoraContext } from "@/pages/session/office-editors/lexora-view-context"
 import JSZip from "jszip"
 
 // 浏览器里没有 Buffer：分块转 base64。
@@ -32,25 +33,6 @@ async function makeMacroDocm() {
 async function readMacroProject(bytes: Uint8Array) {
   const archive = await JSZip.loadAsync(bytes)
   return (await archive.file("word/vbaProject.bin")?.async("uint8array")) ?? null
-}
-
-// 模拟 NovaWay Host 的最小 Lexora ViewContext（对齐 docx-editor-host.ts）。
-const context = {
-  signal: new AbortController().signal,
-  workers: {
-    create: async (entry: string | URL, options?: { type?: "classic" | "module" }) =>
-      new Worker(typeof entry === "string" ? entry : entry.toString(), options),
-  },
-  clipboard: {
-    read: async () => ({ text: "" }),
-    write: async () => {},
-  },
-  resources: {
-    pickFiles: async () => [],
-    saveFile: async () => true,
-  },
-  environment: { colorScheme: "light" },
-  onEnvironmentChange: () => ({ dispose: () => {} }),
 }
 
 interface DocxEditor {
@@ -104,15 +86,30 @@ async function main() {
 
   let dirty = false
   let current: DocxEditor | undefined
+  let currentAbortController: AbortController | undefined
   try {
     const { mountDocxEditor } = await loadBundle()
     const mount = async (bytes: Uint8Array, name: string) => {
       current?.dispose()
+      currentAbortController?.abort()
+      currentAbortController = new AbortController()
       container.replaceChildren()
       dirty = false
       status.setAttribute("data-dirty", "false")
+      const editorContext = buildLexoraContext({
+        container,
+        bytes,
+        name,
+        onDirty: (value) => {
+          dirty = value
+          status.setAttribute("data-dirty", String(value))
+        },
+        signal: currentAbortController.signal,
+      })
+      status.setAttribute("data-color-scheme", editorContext.environment.colorScheme)
+      editorContext.onEnvironmentChange(({ colorScheme }) => status.setAttribute("data-color-scheme", colorScheme))
       const editor = await mountDocxEditor({
-        context,
+        context: editorContext,
         container,
         bytes,
         name,

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core"
+import { index, sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core"
 import { SessionTable } from "./session.sql"
 
 export interface GoalProgress {
@@ -24,3 +24,19 @@ export const GoalTable = sqliteTable("goal", {
   created_at: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updated_at: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 })
+
+/** 每个目标的累计用量，跨进程重启持久；目标删除时级联清理。 */
+export const GoalBudgetTable = sqliteTable(
+  "goal_budget",
+  {
+    goal_id: text("goal_id")
+      .primaryKey()
+      .references(() => GoalTable.id, { onDelete: "cascade" }),
+    session_id: text("session_id").notNull(),
+    turns: integer("turns").notNull().default(0),
+    tokens: integer("tokens").notNull().default(0),
+    started_at: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    updated_at: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("goal_budget_session_idx").on(t.session_id)],
+)

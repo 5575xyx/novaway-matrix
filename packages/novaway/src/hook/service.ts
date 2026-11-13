@@ -16,7 +16,7 @@ import { Bus } from "@/bus"
 import { Config } from "@/config/config"
 import { FileWatcher } from "@/file/watcher"
 import { Event as PlanApprovalEvent } from "@/session/plan-approval"
-import { matches, run } from "./exec"
+import { matches, run, takeAsyncResults } from "./exec"
 
 const log = Log.create({ service: "hook" })
 
@@ -314,8 +314,15 @@ export const layer = Layer.effect(
       // `hooks.json` next to the project must keep applying after `cwd` changes,
       // matching how `collect()` gathers files.
       const instance = Option.getOrUndefined(yield* Effect.serviceOption(InstanceRef))
-      const dirs = [Global.Path.config, path.join(Global.Path.home, ".claude"), input.cwd ?? process.cwd()]
-      if (instance) dirs.push(instance.directory, instance.worktree)
+      const dirs = [
+        Global.Path.config,
+        path.join(Global.Path.home, ".claude"),
+        ...(input.cwd ? [input.cwd] : []),
+        ...(instance ? [instance.directory, instance.worktree] : []),
+      ]
+      const bridge = yield* EffectBridge.make()
+      const stateContext = yield* bridge.run(InstanceState.context).pipe(Effect.option)
+      if (Option.isSome(stateContext)) dirs.push(stateContext.value.directory, stateContext.value.worktree)
       const candidates = dirs
         .filter((dir): dir is string => !!dir)
         .flatMap((dir) => [
@@ -323,7 +330,23 @@ export const layer = Layer.effect(
           path.join(dir, "settings.json"),
           path.join(dir, "novaway.json"),
         ])
-      if (!candidates.some((file) => existsSync(file))) return yield* bridged(input)
+      const pendingAsync = input.asyncRewake ? takeAsyncResults(input.sessionID ?? "") : []
+      if (!candidates.some((file) => existsSync(file))) {
+        let bridgedResult = yield* bridged(input)
+        if (pendingAsync.length > 0) {
+          bridgedResult = {
+            ...bridgedResult,
+            additionalContext: [
+              bridgedResult.additionalContext,
+              ...pendingAsync.map((item) => `[async hook: ${item.tool}] ${item.text}`),
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+            ran: true,
+          }
+        }
+        return bridgedResult
+      }
 
       const s = yield* ensure()
       // Plugins run first so a JSON hook can see (and override) their decision.
@@ -367,6 +390,18 @@ export const layer = Layer.effect(
           if (hook.once && registration.hooks.length === 1) {
             s.registrations = s.registrations.filter((item) => item !== registration)
           }
+        }
+      }
+      if (pendingAsync.length > 0) {
+        result = {
+          ...result,
+          additionalContext: [
+            result.additionalContext,
+            ...pendingAsync.map((item) => `[async hook: ${item.tool}] ${item.text}`),
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+          ran: true,
         }
       }
       return result

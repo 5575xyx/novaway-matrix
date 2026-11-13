@@ -73,7 +73,7 @@ export const SettingsHooks: Component<{ directory?: string }> = (props) => {
             </Button>
           </div>
           <Show when={error()}>
-            <div class="border-b border-border px-4 py-1.5 text-ui-xs text-icon-critical-base">{error()}</div>
+            <div class="border-b border-border px-4 py-1.5 text-ui-xs text-critical-base">{error()}</div>
           </Show>
           <div class="flex flex-wrap items-center gap-1.5 px-4 py-2">
             <Tag>{t("settings.hooks.count", { count: registrations() })}</Tag>

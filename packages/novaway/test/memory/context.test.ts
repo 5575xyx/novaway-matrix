@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { convertToModelMessages } from "ai"
 import { buildMemoryContextBlock, injectMemoryContext, sanitizeMemoryContext } from "../../src/memory/context"
 import {
   buildPrefetchText,
@@ -48,6 +49,34 @@ describe("memory context fencing", () => {
     expect(messages[2].content).toContain("current")
     expect(messages[2].content).toContain("mem_1")
     expect(messages[2].content).toContain("memory tool")
+  })
+
+  test("injects into SDK-converted arrays without mutating text, images or files", async () => {
+    const input = await convertToModelMessages([
+      { role: "user", parts: [{ type: "text", text: "old" }] },
+      {
+        role: "user",
+        parts: [
+          { type: "text", text: "inspect attachments" },
+          { type: "file", mediaType: "image/png", url: "https://example.com/image.png" },
+          { type: "file", mediaType: "application/pdf", url: "https://example.com/report.pdf" },
+        ],
+      },
+    ])
+    const before = structuredClone(input)
+    expect(Array.isArray(input[1].content)).toBe(true)
+    const currentMessage = input[1]
+    if (currentMessage.role !== "user" || typeof currentMessage.content === "string") {
+      throw new Error("Expected converted user message with multimodal parts")
+    }
+    const result = injectMemoryContext({ messages: input, context: "memory fact" })
+    expect(input).toEqual(before)
+    expect(result[0]).toBe(input[0])
+    expect(result[1].content).toEqual([
+      ...currentMessage.content,
+      { type: "text", text: buildMemoryContextBlock("memory fact") },
+    ])
+    expect(result[1].content).not.toBe(currentMessage.content)
   })
 
   test("sanitize removes standalone tags and system notes", () => {
@@ -115,6 +144,35 @@ describe("memory prefetch gate and budget", () => {
 
     expect(buildPrefetchText("你好", pool)).toBe("")
     expect(buildPrefetchText("monorepo 运行时", pool).length).toBeGreaterThan(0)
+  })
+
+  test("retrieved candidates keep semantic rank while raw pools retain the lexical gate", () => {
+    const semantic = mem({
+      id: MemoryID.make("mem_semantic"),
+      content: "automobile repair",
+      scope: "project",
+      target: "memory",
+    })
+    const lexical = mem({
+      id: MemoryID.make("mem_lexical"),
+      content: "vehicle maintenance",
+      scope: "project",
+      target: "memory",
+    })
+    const profile = mem({
+      id: MemoryID.make("mem_profile"),
+      content: "concise replies",
+      scope: "global",
+      target: "user",
+    })
+    expect(selectPrefetchItems("vehicle maintenance", [semantic, lexical])).toEqual([lexical])
+    expect(
+      selectPrefetchItems("vehicle maintenance", [semantic, lexical], {
+        source: "retrieved",
+        globalUsers: [profile],
+        limit: 3,
+      }),
+    ).toEqual([profile, semantic, lexical])
   })
 
   test("scoreMemory boosts relevant hits", () => {

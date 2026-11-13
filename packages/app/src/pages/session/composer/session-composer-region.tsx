@@ -34,6 +34,7 @@ export function SessionComposerRegion(props: {
   autoSubmitKey?: string
   newSessionWorktree: string
   onNewSessionWorktreeReset: () => void
+  onNewSessionWorktreeSelect?: (directory: string) => void
   onSubmit: () => void
   onResponseSubmit: () => void
   followup?: {
@@ -46,6 +47,7 @@ export function SessionComposerRegion(props: {
     onAbort: () => void
     onSend: (id: string) => void
     onEdit: (id: string) => void
+    onDelete: (id: string) => void
     onEditLoaded: () => void
   }
   revert?: {
@@ -192,12 +194,13 @@ export function SessionComposerRegion(props: {
       <div
         classList={{
           "w-full pointer-events-auto": true,
-          "px-4": !props.embedded,
-          // 补偿输入框两侧各 16px 的内边距，使输入框外框与消息内容宽度一致。
+          // 与时间线行框同一套几何：外框 max-width 用同一个变量，内边距也同款，
+          // 输入框外缘才能和消息内容（卡片/正文）左右缘完全对齐，并随「内容宽度」同宽变化。
+          "px-4 md:px-5": !props.embedded,
           "mx-auto": !props.embedded,
           "w-full": props.embedded,
         }}
-        style={!props.embedded ? { "max-width": "calc(var(--session-content-max-width, 820px) + 2rem)" } : undefined}
+        style={!props.embedded ? { "max-width": "var(--session-content-max-width, 820px)" } : undefined}
       >
         <Show when={props.state.questionRequest()} keyed>
           {(request) => (
@@ -270,6 +273,7 @@ export function SessionComposerRegion(props: {
                   sending={props.followup!.sending}
                   onSend={props.followup!.onSend}
                   onEdit={props.followup!.onEdit}
+                  onDelete={props.followup!.onDelete}
                 />
               </Show>
               <Show
@@ -281,6 +285,7 @@ export function SessionComposerRegion(props: {
                       autoSubmitKey={props.autoSubmitKey}
                       newSessionWorktree={props.newSessionWorktree}
                       onNewSessionWorktreeReset={props.onNewSessionWorktreeReset}
+                      onNewSessionWorktreeSelect={props.onNewSessionWorktreeSelect}
                       edit={props.followup?.edit}
                       onEditLoaded={props.followup?.onEditLoaded}
                       shouldQueue={props.followup?.queue}

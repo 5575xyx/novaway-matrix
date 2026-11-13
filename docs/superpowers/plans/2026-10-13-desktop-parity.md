@@ -13,7 +13,7 @@
 | T3   | 移除全局 Titlebar，拖拽带下沉                                        | T2    | `layout.tsx`、`titlebar.tsx`                                                                                                |
 | T4   | 侧栏 IA：264 / 拖拽带 / 新建 + 命令中心 / 文件树 slide-over / footer | T3    | `layout.tsx`、`sidebar-*.tsx`、`context/layout.tsx`                                                                         |
 | T5   | 更新 e2e 与单测（含新增 A6–A9、A11）                                 | T2–T4 | `packages/app/e2e/layout.spec.ts`、相关单测                                                                                 |
-| T6   | 逐条跑验收 A1–A14，记录证据                                          | T5    | `docs/superpowers/plans/2026-10-13-desktop-parity-verification.md`                                                    |
+| T6   | 逐条跑验收 A1–A14，记录证据                                          | T5    | `docs/superpowers/plans/2026-10-13-desktop-parity-verification.md`                                                          |
 
 **每任务的收尾动作（统一）**
 
@@ -267,12 +267,12 @@ curl -s http://127.0.0.1:9222/json | head -40
 
 ## 已知限制（写进最终报告）
 
-| 项                                 | 说明                                                           |
-| ---------------------------------- | -------------------------------------------------------------- |
-| macOS Tahoe(26)+ 圆角              | 需要 OS 版本探测；本轮统一 6px                                 |
-| Windows/Linux 自绘窗控             | 沿用 Electron 原生 `titleBarOverlay`，参照产品为 Header 内联自绘 |
-| 窗口拖动自动化验证                 | CDP 可断言 `app-region`，真实拖动需人工                        |
-| Aurora token / 参照产品主题 / 浮层语言 | Round 2                                                        |
+| 项                                     | 说明                                                             |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| macOS Tahoe(26)+ 圆角                  | 需要 OS 版本探测；本轮统一 6px                                   |
+| Windows/Linux 自绘窗控                 | 沿用 Electron 原生 `titleBarOverlay`，参照产品为 Header 内联自绘 |
+| 窗口拖动自动化验证                     | CDP 可断言 `app-region`，真实拖动需人工                          |
+| Aurora token / 参照产品主题 / 浮层语言 | Round 2                                                          |
 
 ---
 

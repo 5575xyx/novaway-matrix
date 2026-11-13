@@ -18,9 +18,10 @@ export default {
   ui: { accent: "#635bff", docs: "https://example.invalid/fixture-publish" },
   runtime: {
     async login(input) {
-      const label = typeof input?.profile?.label === "string" && input.profile.label.trim()
-        ? input.profile.label.trim()
-        : "Fixture account"
+      const label =
+        typeof input?.profile?.label === "string" && input.profile.label.trim()
+          ? input.profile.label.trim()
+          : "Fixture account"
       return {
         id: `fixture-account-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "default"}`,
         label,

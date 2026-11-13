@@ -46,8 +46,9 @@ export const GlobTool = Tool.define(
             },
           })
 
-          let search = params.path ?? ins.directory
-          search = path.isAbsolute(search) ? search : path.resolve(ins.directory, search)
+          const base = ctx.directory ?? ins.directory
+          let search = params.path ?? base
+          search = path.isAbsolute(search) ? search : path.resolve(base, search)
           yield* reference.ensure(search)
           const info = yield* fs.stat(search).pipe(Effect.catch(() => Effect.succeed(undefined)))
           if (info?.type === "File") {

@@ -352,7 +352,7 @@ export function OfficeHomeWorkspace(props: {
             <button
               type="submit"
               disabled={submitting()}
-              class="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+              class="grid size-8 shrink-0 place-items-center rounded-full bg-surface-interactive-base text-text-on-interactive-base transition-colors hover:bg-surface-interactive-hover disabled:opacity-40"
               title={language.t("prompt.action.send")}
               aria-label={language.t("prompt.action.send")}
             >

@@ -9,7 +9,7 @@ type Git = ReturnType<typeof useGitSnapshot>
 
 const fieldClass =
   "h-8 min-w-0 flex-1 rounded-md border border-border bg-input px-2 text-ui-sm text-foreground " +
-  "placeholder:text-foreground-subtlest outline-none focus:border-primary"
+  "placeholder:text-foreground-subtlest outline-none focus:border-interactive-focus"
 
 /**
  * 分支管理弹窗。
@@ -93,7 +93,7 @@ export function GitBranchDialog(props: { git: Git; onClose: () => void }) {
                       </button>
                       <button
                         type="button"
-                        class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-[var(--icon-critical-base)] group-hover:opacity-100 disabled:opacity-40"
+                        class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-critical-base group-hover:opacity-100 disabled:opacity-40"
                         disabled={props.git.busy() || pending() !== undefined}
                         onClick={() => run(`remove:${branch.name}`, () => props.git.removeBranch(branch.name))}
                       >
@@ -130,7 +130,7 @@ export function GitBranchDialog(props: { git: Git; onClose: () => void }) {
         </div>
 
         <Show when={props.git.error()}>
-          <div class="rounded-md bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-2 py-1.5 text-ui-xs text-[var(--icon-critical-base)]">
+          <div class="rounded-md bg-surface-critical-weak px-2 py-1.5 text-ui-xs text-critical-base">
             {props.git.error()}
           </div>
         </Show>
@@ -189,7 +189,7 @@ export function GitRemoteDialog(props: { git: Git; onClose: () => void }) {
                     <span class="min-w-0 flex-1 truncate text-ui-xs text-foreground-subtle">{remote.url}</span>
                     <button
                       type="button"
-                      class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-[var(--icon-critical-base)] group-hover:opacity-100 disabled:opacity-40"
+                      class="shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs text-foreground-subtle opacity-0 transition-opacity hover:bg-hover hover:text-critical-base group-hover:opacity-100 disabled:opacity-40"
                       disabled={props.git.busy()}
                       onClick={() => void props.git.removeRemote(remote.name)}
                     >
@@ -210,7 +210,7 @@ export function GitRemoteDialog(props: { git: Git; onClose: () => void }) {
               value={remoteName()}
               onInput={(event) => setRemoteName(event.currentTarget.value)}
               placeholder="origin"
-              class="h-8 w-24 shrink-0 rounded-md border border-border bg-input px-2 text-ui-sm text-foreground placeholder:text-foreground-subtlest outline-none focus:border-primary"
+              class="h-8 w-24 shrink-0 rounded-md border border-border bg-input px-2 text-ui-sm text-foreground placeholder:text-foreground-subtlest outline-none focus:border-interactive-focus"
             />
             <input
               type="text"
@@ -231,7 +231,7 @@ export function GitRemoteDialog(props: { git: Git; onClose: () => void }) {
         </div>
 
         <Show when={props.git.error()}>
-          <div class="rounded-md bg-[color-mix(in_srgb,var(--icon-critical-base)_10%,transparent)] px-2 py-1.5 text-ui-xs text-[var(--icon-critical-base)]">
+          <div class="rounded-md bg-surface-critical-weak px-2 py-1.5 text-ui-xs text-critical-base">
             {props.git.error()}
           </div>
         </Show>

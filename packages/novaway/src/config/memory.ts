@@ -10,6 +10,12 @@ export const Info = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean).annotate({
     description: "启用持久记忆召回与 memory 工具。默认 true（全自动越用越聪明）。",
   }),
+  global_enabled: Schema.optional(Schema.Boolean).annotate({
+    description: "启用全局记忆：在所有项目中读取和更新个人偏好/习惯。关闭后自动学习不再使用或更新全局记忆。默认 true。",
+  }),
+  project_enabled: Schema.optional(Schema.Boolean).annotate({
+    description: "启用项目记忆：按项目读取和更新代码库规则/经验。关闭后自动学习不再使用或更新项目记忆。默认 true。",
+  }),
   prefetch_limit: Schema.optional(PositiveInt).annotate({
     description: "轻量预取最多注入的记忆条数（摘要索引）。默认 5。",
   }),
@@ -30,6 +36,12 @@ export const Info = Schema.Struct({
   }),
   auto_apply: Schema.optional(Schema.Boolean).annotate({
     description: "记忆候选自动写入长期记忆，无需人工点通过。默认 true。",
+  }),
+  prefetch_llm: Schema.optional(Schema.Boolean).annotate({
+    description: "召回时额外用一次小 LLM 筛选与当前请求相关的记忆（会增加首字延迟）。默认 false。",
+  }),
+  staleness_reminders: Schema.optional(Schema.Boolean).annotate({
+    description: "在记忆索引里标注陈旧条目的「N 天前，使用前先核实」。默认 true。",
   }),
   /**
    * 向量检索后端（开箱即用）：
@@ -68,6 +80,8 @@ export type Info = Schema.Schema.Type<typeof Info>
 export function resolve(input?: Info) {
   return {
     enabled: input?.enabled ?? true,
+    global_enabled: input?.global_enabled ?? true,
+    project_enabled: input?.project_enabled ?? true,
     prefetch_limit: input?.prefetch_limit ?? 5,
     prefetch_budget_chars: input?.prefetch_budget_chars ?? 1200,
     auto_extract: input?.auto_extract ?? true,
@@ -75,6 +89,8 @@ export function resolve(input?: Info) {
     review_llm: input?.review_llm ?? true,
     review_interval: input?.review_interval ?? 1,
     auto_apply: input?.auto_apply ?? true,
+    prefetch_llm: input?.prefetch_llm ?? false,
+    staleness_reminders: input?.staleness_reminders ?? true,
     embedding_mode: input?.embedding_mode ?? ("auto" as const),
     embedding_provider: input?.embedding_provider ?? "openai",
     embedding_model: input?.embedding_model ?? "text-embedding-3-small",

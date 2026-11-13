@@ -151,6 +151,64 @@ describe("evolution candidate service", () => {
     ).toBe(false)
   })
 
+  test("scopes candidate mutations and lifecycle reads to their project", async () => {
+    const projectA = ProjectID.make(`evolution-scope-a-${Date.now()}`)
+    const projectB = ProjectID.make(`evolution-scope-b-${Date.now()}`)
+    seedProjectID(projectA)
+    seedProjectID(projectB)
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          projectID: projectA,
+          proposals: [
+            {
+              kind: "project",
+              target: "private-rule",
+              title: "private project rule",
+              content: "This candidate belongs to project A only.",
+              reason: "Project-specific behavior must not cross scope.",
+            },
+          ],
+        }),
+      ),
+    )
+    const candidateID = candidates[0].id
+
+    expect(
+      await runEvolution(Evolution.Service.use((evolution) => evolution.preview(candidateID, { projectID: projectB }))),
+    ).toBeUndefined()
+    expect(
+      await runEvolution(Evolution.Service.use((evolution) => evolution.apply(candidateID, { projectID: projectB }))),
+    ).toBeUndefined()
+    expect(
+      await runEvolution(Evolution.Service.use((evolution) => evolution.dismiss(candidateID, { projectID: projectB }))),
+    ).toBeUndefined()
+    expect(
+      await runEvolution(Evolution.Service.use((evolution) => evolution.history(candidateID, { projectID: projectB }))),
+    ).toBeUndefined()
+    expect(
+      await runEvolution(
+        Evolution.Service.use((evolution) =>
+          evolution.feedback(candidateID, { success: true, note: "wrong project" }, { projectID: projectB }),
+        ),
+      ),
+    ).toBeUndefined()
+    expect(
+      await runEvolution(
+        Evolution.Service.use((evolution) =>
+          evolution.rollback(candidateID, { directory: "", worktree: "", projectID: projectB }),
+        ),
+      ),
+    ).toBeUndefined()
+    expect(
+      (
+        await runEvolution(
+          Evolution.Service.use((evolution) => evolution.list({ projectID: projectA, status: "pending" })),
+        )
+      ).some((item) => item.id === candidateID),
+    ).toBe(true)
+  })
+
   test("creates pending self-evolution candidates", async () => {
     const candidates = await runEvolution(
       Evolution.Service.use((evolution) =>
@@ -582,8 +640,12 @@ describe("evolution candidate service", () => {
         }),
       ),
     )
-    await runEvolution(Evolution.Service.use((evolution) => evolution.apply(background[0].id)))
-    const status = await runEvolution(Evolution.Service.use((evolution) => evolution.status({ sessionID })))
+    await runEvolution(
+      Evolution.Service.use((evolution) => evolution.apply(background[0].id, { projectID: ProjectID.global })),
+    )
+    const status = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.status({ projectID: ProjectID.global, sessionID })),
+    )
 
     expect(status.source.all).toBe(1)
     expect(status.source.background).toBe(1)
@@ -643,6 +705,58 @@ describe("evolution candidate service", () => {
     expect(candidates[0].content).toBe("future reviews should capture verification commands")
     expect(candidates[0].tags).toContain("session-end")
     expect(due).toBe(false)
+  })
+
+  test("records applications, accepts feedback, and safely rolls back its own file", async () => {
+    const worktree = await tempWorktree()
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "skill",
+              target: "lifecycle-skill",
+              title: "Lifecycle skill",
+              content: "A durable workflow for validating changes.",
+              reason: "Verify application lifecycle tracking and rollback.",
+            },
+          ],
+        }),
+      ),
+    )
+    const candidateID = candidates[0]!.id
+    await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidateID, { directory: worktree, worktree })),
+    )
+    const target = path.join(worktree, ".novaway", "skills", "lifecycle-skill", "SKILL.md")
+    const appliedContent = await readFile(target, "utf8")
+    expect(appliedContent).toContain("durable workflow")
+    expect(await runEvolution(Evolution.Service.use((evolution) => evolution.history(candidateID)))).toHaveLength(1)
+    await writeFile(target, "external change\n")
+    await expect(
+      runEvolution(
+        Evolution.Service.use((evolution) => evolution.rollback(candidateID, { directory: worktree, worktree })),
+      ),
+    ).rejects.toThrow("refusing rollback")
+    await writeFile(target, appliedContent)
+
+    await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.feedback(candidateID, {
+          success: true,
+          note: "Validated in a clean workspace.",
+        }),
+      ),
+    )
+    const withFeedback = await runEvolution(Evolution.Service.use((evolution) => evolution.history(candidateID)))
+    expect(withFeedback?.[0]?.feedback).toHaveLength(1)
+    expect(withFeedback?.[0]?.behavior).toBe("reported_success")
+
+    const rolledBack = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.rollback(candidateID, { directory: worktree, worktree })),
+    )
+    expect(rolledBack?.lifecycle?.applications[0]?.state).toBe("rolled_back")
+    expect(await Bun.file(target).exists()).toBe(false)
   })
 
   test("applyToDisk marks validation status on skill candidates", async () => {
@@ -802,5 +916,104 @@ describe("evolution candidate service", () => {
     const source = await Bun.file(file).text()
     expect(source).toContain("description: 'echo tool'")
     expect(source).toContain("return text")
+  })
+
+  test("deduplicates auto-extracted skills across sessions", async () => {
+    const target = `auto-skill-dedupe-${Date.now()}`
+    const proposal = {
+      kind: "skill" as const,
+      scope: "project" as const,
+      target,
+      title: "Build triage",
+      content: "Run the focused build first, then the full suite.",
+      reason: "repeated build triage workflow.",
+      tags: ["auto-skill"],
+    }
+    const first = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({ sessionID: seedSession("ses-dedupe-1"), proposals: [proposal] }),
+      ),
+    )
+    const second = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({ sessionID: seedSession("ses-dedupe-2"), proposals: [proposal] }),
+      ),
+    )
+
+    expect(second[0].id).toBe(first[0].id)
+    expect(second[0].origin).toBe("auto-skill")
+    const pending = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.list({ status: "pending", limit: 200 })),
+    )
+    expect(pending.filter((item) => item.target === target)).toHaveLength(1)
+  })
+
+  test("auto-skill write-once refuses to overwrite a human-authored skill", async () => {
+    const worktree = await tempWorktree()
+    const target = `human-skill-${Date.now()}`
+    const file = path.join(worktree, ".novaway", "skills", target, "SKILL.md")
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, "---\nname: " + target + "\ndescription: human skill\n---\n\nhand written.\n")
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "skill",
+              scope: "project",
+              target,
+              title: "Auto extraction",
+              content: "auto generated body.",
+              reason: "tool activity.",
+              tags: ["auto-skill"],
+            },
+          ],
+        }),
+      ),
+    )
+
+    const applied = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+    )
+
+    expect(applied).toBeUndefined()
+    expect(await readFile(file, "utf-8")).toContain("hand written.")
+    const items = await runEvolution(Evolution.Service.use((evolution) => evolution.list({ limit: 200 })))
+    const candidate = items.find((item) => item.id === candidates[0].id)
+    expect(candidate?.validationStatus).toBe("failed")
+    expect(candidate?.validationNote).toContain("write-once")
+  })
+
+  test("writes auto-extracted skills with provenance and frontmatter", async () => {
+    const worktree = await tempWorktree()
+    const target = `auto-skill-write-${Date.now()}`
+    const candidates = await runEvolution(
+      Evolution.Service.use((evolution) =>
+        evolution.review({
+          proposals: [
+            {
+              kind: "skill",
+              scope: "project",
+              target,
+              title: "Release checklist",
+              content: "1. Build\n2. Smoke test\n3. Tag",
+              reason: "repeated release workflow.",
+              tags: ["auto-skill"],
+            },
+          ],
+        }),
+      ),
+    )
+
+    const applied = await runEvolution(
+      Evolution.Service.use((evolution) => evolution.applyToDisk(candidates[0].id, { directory: worktree, worktree })),
+    )
+
+    expect(applied?.candidate.status).toBe("applied")
+    const text = await readFile(path.join(worktree, ".novaway", "skills", target, "SKILL.md"), "utf-8")
+    expect(text).toContain("name: " + target)
+    expect(text).toContain("description:")
+    expect(text).toContain("source: auto-skill")
+    expect(text).toContain("1. Build")
   })
 })

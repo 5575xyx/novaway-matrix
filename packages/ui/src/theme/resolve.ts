@@ -106,11 +106,24 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
     const dark = Math.min(x, y)
     return (light + 0.05) / (dark + 0.05)
   }
-  const on = (fill: HexColor) => (hit(neutral[0], fill) > hit(neutral[11], fill) ? neutral[0] : neutral[11])
+  const on = (fill: HexColor) =>
+    hit("#ffffff", fill) > hit("#000000", fill) ? ("#ffffff" as HexColor) : ("#000000" as HexColor)
   const iconTone = (scale: HexColor[], preferred: number) => {
     let best: { color: HexColor; distance: number } | undefined
     for (let index = 0; index < scale.length; index++) {
       if (hit(scale[index], background) < 3) continue
+      const distance = Math.abs(index - preferred)
+      if (!best || distance < best.distance) best = { color: scale[index], distance }
+    }
+    if (best) return best.color
+    return scale.reduce((mostContrasting, color) =>
+      hit(color, background) > hit(mostContrasting, background) ? color : mostContrasting,
+    )
+  }
+  const textTone = (scale: HexColor[], preferred: number) => {
+    let best: { color: HexColor; distance: number } | undefined
+    for (let index = 0; index < scale.length; index++) {
+      if (hit(scale[index], background) < 4.5) continue
       const distance = Math.abs(index - preferred)
       if (!best || distance < best.distance) best = { color: scale[index], distance }
     }
@@ -157,6 +170,10 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["shadow-color"] = isDark ? neutral[0] : neutral[11]
 
   tokens["surface-base"] = neutralAlpha[1]
+  tokens["surface-highlight-base"] = isDark ? neutral[10] : neutral[0]
+  tokens["surface-presentation-stage"] = "#000000"
+  tokens["text-on-presentation-stage"] = "#ffffff"
+  tokens["text-on-presentation-stage-muted"] = "rgba(255, 255, 255, 0.7)"
   tokens["base"] = neutralAlpha[1]
   tokens["surface-base-hover"] = neutralAlpha[2]
   tokens["surface-base-active"] = neutralAlpha[2]
@@ -246,25 +263,30 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["text-invert-weaker"] = isDark ? neutral[7] : neutral[3]
   tokens["text-invert-strong"] = isDark ? neutral[11] : neutral[0]
   tokens["text-interactive-base"] = interactive[isDark ? 10 : 9]
+  tokens["text-success-base"] = content(colors.success, success)
+  tokens["text-warning-base"] = content(colors.warning, warning)
+  tokens["text-critical-base"] = content(colors.error, error)
+  tokens["text-info-base"] = content(colors.info, info)
   tokens["text-on-brand-base"] = on(brandb)
   tokens["text-on-interactive-base"] = on(interb)
-  tokens["text-on-interactive-weak"] = on(interb)
+  tokens["text-on-interactive-weak"] = on(interw)
   tokens["text-on-success-base"] = on(succb)
   tokens["text-on-critical-base"] = on(critb)
-  tokens["text-on-critical-weak"] = on(critb)
+  tokens["text-on-critical-weak"] = on(critw)
   tokens["text-on-critical-strong"] = on(crits)
   tokens["text-on-warning-base"] = on(warnb)
   tokens["text-on-info-base"] = on(infob)
   tokens["text-diff-add-base"] = diffAdd[10]
-  tokens["text-on-diff-add-base"] = on(diffAdd[10])
+  tokens["text-on-diff-add-base"] = on(diffAdd[2])
   tokens["text-diff-delete-base"] = diffDelete[9]
+  tokens["text-on-diff-delete-base"] = on(diffDelete[2])
   tokens["text-diff-delete-strong"] = diffDelete[11]
   tokens["text-diff-add-strong"] = diffAdd[isDark ? 7 : 11]
-  tokens["text-on-info-weak"] = on(infob)
+  tokens["text-on-info-weak"] = on(infow)
   tokens["text-on-info-strong"] = on(infos)
-  tokens["text-on-warning-weak"] = on(warnb)
+  tokens["text-on-warning-weak"] = on(warnw)
   tokens["text-on-warning-strong"] = on(warns)
-  tokens["text-on-success-weak"] = on(succb)
+  tokens["text-on-success-weak"] = on(succw)
   tokens["text-on-success-strong"] = on(succs)
   tokens["text-on-brand-weak"] = on(brandb)
   tokens["text-on-brand-weaker"] = on(brandb)
@@ -328,7 +350,8 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["border-info-base"] = info[isDark ? 6 : 6]
   tokens["border-info-hover"] = info[isDark ? 7 : 7]
   tokens["border-info-selected"] = info[8]
-  tokens["border-color"] = neutral[0]
+  // Backward-compatible generic border alias must follow the theme's neutral border role.
+  tokens["border-color"] = tokens["border-base"]
 
   tokens["icon-base"] = colors.compact && !isDark ? tokens["text-weak"] : neutral[isDark ? 9 : 8]
   tokens["icon-hover"] = colors.compact && !isDark ? tokens["text-base"] : neutral[10]
@@ -363,6 +386,15 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["icon-info-base"] = iconTone(info, isDark ? 8 : 6)
   tokens["icon-info-hover"] = iconTone(info, isDark ? 9 : 7)
   tokens["icon-info-active"] = iconTone(info, 10)
+  tokens["indicator-interactive-base"] = tokens["icon-interactive-base"]
+  tokens["indicator-success-base"] = tokens["icon-success-base"]
+  tokens["indicator-critical-base"] = tokens["icon-critical-base"]
+  tokens["indicator-info-base"] = tokens["icon-info-base"]
+  tokens["accent-interactive-base"] = tokens["icon-interactive-base"]
+  tokens["accent-success-base"] = tokens["icon-success-base"]
+  tokens["accent-warning-base"] = tokens["icon-warning-base"]
+  tokens["accent-critical-base"] = tokens["icon-critical-base"]
+  tokens["accent-info-base"] = tokens["icon-info-base"]
   tokens["icon-on-brand-base"] = on(brandb)
   tokens["icon-on-brand-hover"] = on(brandh)
   tokens["icon-on-brand-selected"] = on(brandh)
@@ -372,6 +404,53 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["icon-agent-docs-base"] = amber[8]
   tokens["icon-agent-ask-base"] = blue[8]
   tokens["icon-agent-build-base"] = interactive[isDark ? 10 : 8]
+  tokens["text-agent-plan-base"] = textTone(info, 8)
+  tokens["text-agent-docs-base"] = textTone(amber, 8)
+  tokens["text-agent-ask-base"] = textTone(blue, 8)
+  tokens["text-agent-build-base"] = textTone(interactive, 8)
+  const appModeNames = ["forge", "zen", "spark", "future"] as const
+  const appModeSeeds = [0, 90, 180, 270].map((h) => shift(colors.primary, { h, c: 1.08 }))
+  appModeSeeds.forEach((seed, index) => {
+    const scale = generateScale(seed, isDark)
+    const color = iconTone(scale, 8)
+    const mode = appModeNames[index]!
+    tokens[`app-mode-${mode}`] = color
+    tokens[`app-mode-${mode}-foreground`] = on(color)
+  })
+  for (let index = 0; index < 5; index++) {
+    const seed = shift(colors.accent, { h: index * 72, c: 1.08 })
+    const scale = generateScale(seed, isDark)
+    const color = scale[6]!
+    tokens[`team-category-${index}`] = alphaTone(color, isDark ? 0.26 : 0.14)
+    tokens[`team-category-${index}-foreground`] = textTone(scale, 8)
+  }
+
+  const toolCategoryColors = [
+    iconTone(info, 8),
+    iconTone(amber, 8),
+    iconTone(blue, 8),
+    iconTone(interactive, isDark ? 10 : 8),
+    iconTone(accent, 8),
+    iconTone(primary, 8),
+  ]
+  toolCategoryColors.forEach((color, index) => {
+    tokens[`tool-category-${index}`] = color
+  })
+  const fileCategoryColors = [iconTone(info, 8), iconTone(amber, 8), iconTone(blue, 8), iconTone(primary, 8)]
+  fileCategoryColors.forEach((color, index) => {
+    tokens[`icon-file-category-${index}`] = color
+    tokens[`surface-file-category-${index}`] = `color-mix(in oklab, ${color} ${isDark ? 18 : 14}%, transparent)`
+  })
+  for (const [role, tone] of [
+    ["plan", "var(--icon-agent-plan-base)"],
+    ["docs", "var(--icon-agent-docs-base)"],
+    ["ask", "var(--icon-agent-ask-base)"],
+    ["build", "var(--icon-agent-build-base)"],
+  ] as const) {
+    tokens[`surface-agent-${role}-base`] = `color-mix(in oklab, ${tone} ${isDark ? 18 : 14}%, transparent)`
+    tokens[`surface-agent-${role}-hover`] = `color-mix(in oklab, ${tone} ${isDark ? 24 : 20}%, transparent)`
+    tokens[`border-agent-${role}-base`] = `color-mix(in oklab, ${tone} ${isDark ? 48 : 42}%, transparent)`
+  }
 
   const graphLaneColors = [
     interactive[6],

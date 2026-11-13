@@ -113,7 +113,7 @@ export function DialogReleaseNotes(props: { highlights: Highlight[] }) {
                     <div
                       class="w-full h-0.5 rounded-[1px] transition-colors duration-200"
                       classList={{
-                        "bg-foreground": i === index(),
+                        "bg-surface-interactive-base": i === index(),
                         "bg-foreground-subtlest": i !== index(),
                       }}
                     />

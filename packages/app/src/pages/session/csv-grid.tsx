@@ -199,7 +199,7 @@ export const CsvGrid: Component<{
                       <td
                         class="max-w-[480px] cursor-default overflow-hidden border border-border px-1.5 py-[1px] align-bottom whitespace-nowrap text-ellipsis text-foreground"
                         classList={{
-                          "bg-selected outline outline-1 -outline-offset-1 outline-icon-blue":
+                          "bg-selected outline outline-1 -outline-offset-1 outline-border-interactive-selected":
                             !editing() && selected()?.row === row && selected()?.col === col,
                         }}
                         onClick={() => {

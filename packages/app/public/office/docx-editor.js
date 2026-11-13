@@ -39458,15 +39458,13 @@ fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {
         getMetadata() {
           let e = "GetMetadata"
           return this.#t.getOrInsertComputed(e, () =>
-            this.messageHandler
-              .sendWithPromise(e, null)
-              .then((n) => ({
-                info: n[0],
-                metadata: n[1] ? new rpe(n[1]) : null,
-                contentDispositionFilename: this.#e?.filename ?? null,
-                contentLength: this.#e?.contentLength ?? null,
-                hasStructTree: n[2],
-              })),
+            this.messageHandler.sendWithPromise(e, null).then((n) => ({
+              info: n[0],
+              metadata: n[1] ? new rpe(n[1]) : null,
+              contentDispositionFilename: this.#e?.filename ?? null,
+              contentLength: this.#e?.contentLength ?? null,
+              hasStructTree: n[2],
+            })),
           )
         }
         getMarkInfo() {
@@ -249413,19 +249411,17 @@ function aYe({
                 (0, Xt.jsxs)(Xt.Fragment, {
                   children: [
                     z.suggestions.length === 0 && He(k("appSpellNoSuggestions"), { disabled: !0 }),
-                    z.suggestions
-                      .slice(0, 5)
-                      .map((ge) =>
-                        (0, Xt.jsx)(
-                          "button",
-                          {
-                            className: "ctx-item ctx-item-strong",
-                            onClick: Ne(() => q(ge)),
-                            children: (0, Xt.jsx)("span", { className: "ctx-label", children: ge }),
-                          },
-                          ge,
-                        ),
+                    z.suggestions.slice(0, 5).map((ge) =>
+                      (0, Xt.jsx)(
+                        "button",
+                        {
+                          className: "ctx-item ctx-item-strong",
+                          onClick: Ne(() => q(ge)),
+                          children: (0, Xt.jsx)("span", { className: "ctx-label", children: ge }),
+                        },
+                        ge,
                       ),
+                    ),
                     (0, Xt.jsx)("div", { className: "ctx-sep" }),
                     He(k("appSpellIgnoreAll"), { onClick: Ne(J) }),
                     He(k("appSpellAddToDictionary"), { onClick: Ne(H) }),

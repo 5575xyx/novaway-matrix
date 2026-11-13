@@ -4,17 +4,17 @@
 
 ## 1. 证据化状态矩阵
 
-| 范围 | 当前状态 | 证据 | 缺口 / 后续阶段 |
-| --- | --- | --- | --- |
-| Plugin API / Manifest | 部分实现 | `packages/plugin-api/src/{manifest,registry,context}.ts`；当前类型检查尚需全仓确认 | contribution 定义覆盖范围与各运行时消费者尚未逐项完成；本轮不把未实现的 Super-Agent 消费者算作通过 |
-| 发现、校验、目录归一化 | 部分接线 | `src/plugin/host.ts`、`manifest.ts`、`catalog.ts`；`test/plugin/host.test.ts`、`catalog.test.ts` | `PluginHost.inspect()` 是发现/索引模型，不等于 Runtime Host 已激活插件 |
-| Runtime Host 核心 | 单元级原型，非生产闭环 | `src/plugin/runtime/{host,activation,context,service}.ts`；`test/plugin/runtime-host.test.ts` | 已有激活/资源释放单测，但 API 没有用 discovery 结果完成 activate/deactivate；还需定义并验证失败恢复与在途调用语义 |
-| instance scope | 有初步实现/测试 | `PluginRuntimeService.layer` 使用 `InstanceState.make`；Host 测试验证不同 directory 得到不同 registry | 生产 server、handler、ToolRegistry 是否共享同一 Host，需进一步测试当前实际 Layer 组装；不能只凭 Layer 名称判定 |
-| HTTP plugin API | 部分生产接线 | `handlers/plugin.ts` list 读取 `runtime.get` 状态；toggle 写 `PluginStorage`、切换旧 Extension 状态并发布事件 | toggle 不调用 Runtime Host 的 activate/deactivate；存储状态可改变而运行态不变 |
-| ToolRegistry | 兼容/Runtime 混合路径 | `src/tool/registry.ts` 静态导入大量内置工具；同时从 Runtime Host 读取 tools 并订阅注册变化 | 当前 Host 未由 API 激活器填充；D1 无生产端到端执行证据；需要防止同一能力从 legacy 与 Runtime 双重注册 |
-| 领域贡献 | 尚未接入生产消费者 | `PluginRuntimeHost` 类型含可选 Provider/Office/Publish/Surface 等 registry；Manifest 与 Catalog 可列部分声明 | 没有逐类消费者/激活路径和 D3–D6 演练通过证据 |
-| 默认发行组合 | 未验证 | 尚无本基线可引用的安装/启用/无凭证引导黄金路径测试 | 阶段 4 |
-| Super-Agent contribution | 仅类型/设计层 | Plugin API 中存在 Super-Agent 声明种类；设计文档保留后续路线路径 | 不实现其运行时，不列入本轮插件 DoD |
+| 范围                     | 当前状态               | 证据                                                                                                          | 缺口 / 后续阶段                                                                                                   |
+| ------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Plugin API / Manifest    | 部分实现               | `packages/plugin-api/src/{manifest,registry,context}.ts`；当前类型检查尚需全仓确认                            | contribution 定义覆盖范围与各运行时消费者尚未逐项完成；本轮不把未实现的 Super-Agent 消费者算作通过                |
+| 发现、校验、目录归一化   | 部分接线               | `src/plugin/host.ts`、`manifest.ts`、`catalog.ts`；`test/plugin/host.test.ts`、`catalog.test.ts`              | `PluginHost.inspect()` 是发现/索引模型，不等于 Runtime Host 已激活插件                                            |
+| Runtime Host 核心        | 单元级原型，非生产闭环 | `src/plugin/runtime/{host,activation,context,service}.ts`；`test/plugin/runtime-host.test.ts`                 | 已有激活/资源释放单测，但 API 没有用 discovery 结果完成 activate/deactivate；还需定义并验证失败恢复与在途调用语义 |
+| instance scope           | 有初步实现/测试        | `PluginRuntimeService.layer` 使用 `InstanceState.make`；Host 测试验证不同 directory 得到不同 registry         | 生产 server、handler、ToolRegistry 是否共享同一 Host，需进一步测试当前实际 Layer 组装；不能只凭 Layer 名称判定    |
+| HTTP plugin API          | 部分生产接线           | `handlers/plugin.ts` list 读取 `runtime.get` 状态；toggle 写 `PluginStorage`、切换旧 Extension 状态并发布事件 | toggle 不调用 Runtime Host 的 activate/deactivate；存储状态可改变而运行态不变                                     |
+| ToolRegistry             | 兼容/Runtime 混合路径  | `src/tool/registry.ts` 静态导入大量内置工具；同时从 Runtime Host 读取 tools 并订阅注册变化                    | 当前 Host 未由 API 激活器填充；D1 无生产端到端执行证据；需要防止同一能力从 legacy 与 Runtime 双重注册             |
+| 领域贡献                 | 尚未接入生产消费者     | `PluginRuntimeHost` 类型含可选 Provider/Office/Publish/Surface 等 registry；Manifest 与 Catalog 可列部分声明  | 没有逐类消费者/激活路径和 D3–D6 演练通过证据                                                                      |
+| 默认发行组合             | 未验证                 | 尚无本基线可引用的安装/启用/无凭证引导黄金路径测试                                                            | 阶段 4                                                                                                            |
+| Super-Agent contribution | 仅类型/设计层          | Plugin API 中存在 Super-Agent 声明种类；设计文档保留后续路线路径                                              | 不实现其运行时，不列入本轮插件 DoD                                                                                |
 
 ## 2. 已执行门禁
 
@@ -56,7 +56,6 @@
 - 插件 API schema 已增加 toggle scope 和 PluginTransitionError，但未运行 SDK/OpenAPI code generation；若会覆盖用户已有输出，先核实输出范围再执行。
 
 > 以上是增量记录。实施计划、D1–D9 与全仓门禁仍未结项。
-
 
 阶段 0 和阶段 1 均未验收，完整计划与“万物皆插件”目标未完成。生产 toggle/ToolRegistry闭环现在有可执行插件的专项覆盖；仍有运行态自动化启动、D1–D9行为覆盖、贡献类型迁移、lint/完整测试门禁等未结项。
 

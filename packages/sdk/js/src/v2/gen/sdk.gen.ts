@@ -8,6 +8,11 @@ import type {
   AppLogErrors,
   AppLogResponses,
   AppSkillsResponses,
+  ArenaDetailErrors,
+  ArenaDetailResponses,
+  ArenaListResponses,
+  ArenaRunErrors,
+  ArenaRunResponses,
   Auth as Auth3,
   AuthAddEntryErrors,
   AuthAddEntryResponses,
@@ -314,6 +319,8 @@ import type {
   MemoryEmbeddingSetupLocalResponses,
   MemoryEmbeddingStatusErrors,
   MemoryEmbeddingStatusResponses,
+  MemoryLearningHistoryErrors,
+  MemoryLearningHistoryResponses,
   MemoryListErrors,
   MemoryListRelationsErrors,
   MemoryListRelationsResponses,
@@ -6244,6 +6251,35 @@ export class Memory extends HeyApiClient {
     })
   }
 
+  public learningHistory<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      MemoryLearningHistoryResponses,
+      MemoryLearningHistoryErrors,
+      ThrowOnError
+    >({
+      url: "/memory/learning/history",
+      ...options,
+      ...params,
+    })
+  }
+
   public reviewStatus<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string
@@ -10364,6 +10400,7 @@ export class Session3 extends HeyApiClient {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
+      goalContinuation?: boolean
       messageID?: string
       model?: {
         providerID: string
@@ -10391,6 +10428,7 @@ export class Session3 extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "goalExecution" },
+            { in: "body", key: "goalContinuation" },
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
@@ -10918,6 +10956,7 @@ export class Session3 extends HeyApiClient {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
+      goalContinuation?: boolean
       messageID?: string
       model?: {
         providerID: string
@@ -10945,6 +10984,7 @@ export class Session3 extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "goalExecution" },
+            { in: "body", key: "goalContinuation" },
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
@@ -14383,6 +14423,111 @@ export class Orchestrator extends HeyApiClient {
   }
 }
 
+export class Arena extends HeyApiClient {
+  /**
+   * List arena runs
+   *
+   * Recent arena runs in this workspace, newest first. Runs are recorded by `arena_run` and `novaway arena`.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ArenaListResponses, unknown, ThrowOnError>({
+      url: "/arena/runs",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run arena task
+   *
+   * Run the configured arena models in isolated worktrees and return the completed comparison.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      task?: string
+      concurrency?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      keepWorktrees?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "task" },
+            { in: "body", key: "concurrency" },
+            { in: "body", key: "keepWorktrees" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ArenaRunResponses, ArenaRunErrors, ThrowOnError>({
+      url: "/arena/runs",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Arena run detail
+   *
+   * One arena run with every contender's diff, verdict and usage.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ArenaDetailResponses, ArenaDetailErrors, ThrowOnError>({
+      url: "/arena/runs/{runID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Member extends HeyApiClient {
   /**
    * Add a team member
@@ -16382,6 +16527,11 @@ export class NovawayClient extends HeyApiClient {
   private _orchestrator?: Orchestrator
   get orchestrator(): Orchestrator {
     return (this._orchestrator ??= new Orchestrator({ client: this.client }))
+  }
+
+  private _arena?: Arena
+  get arena(): Arena {
+    return (this._arena ??= new Arena({ client: this.client }))
   }
 
   private _team?: Team

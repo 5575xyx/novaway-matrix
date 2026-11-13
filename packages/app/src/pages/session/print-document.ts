@@ -13,6 +13,7 @@
 
 const PRINT_CSS = [
   "@page { size: A4; margin: 12mm; }",
+  // 打印介质明确使用纸张白底和黑色正文，避免 App 暗色主题渗入纸面输出。
   "html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }",
   "body { -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #111; }",
   "[data-print-hide] { display: none !important; }",

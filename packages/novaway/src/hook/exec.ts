@@ -8,6 +8,29 @@ import type * as Hook from "./schema"
 const log = Log.create({ service: "hook.exec" })
 
 const DEFAULT_TIMEOUT_MS = 60_000
+const asyncResults = new Map<string, { tool: string; text: string }[]>()
+const ASYNC_RESULTS_MAX = 10
+
+export function takeAsyncResults(sessionID: string) {
+  const results = asyncResults.get(sessionID)
+  if (!results?.length) return []
+  asyncResults.delete(sessionID)
+  return results
+}
+
+export function forgetAsyncResults(sessionID: string) {
+  asyncResults.delete(sessionID)
+}
+
+function rememberAsyncResult(sessionID: string | undefined, tool: string, result: Hook.Result) {
+  if (!sessionID) return
+  const text = [result.reason, result.additionalContext].filter(Boolean).join("\n")
+  if (!text) return
+  const results = asyncResults.get(sessionID) ?? []
+  results.push({ tool, text })
+  if (results.length > ASYNC_RESULTS_MAX) results.splice(0, results.length - ASYNC_RESULTS_MAX)
+  asyncResults.set(sessionID, results)
+}
 
 function payload(input: Hook.TriggerInput) {
   return {
@@ -111,6 +134,11 @@ function runCommand(command: string, input: Hook.TriggerInput, timeout: number):
           finish({ blocked: parsed.decision === "deny", ran: true, ...parsed })
         })
 
+        child.stdin.on("error", (error) => {
+          if ((error as NodeJS.ErrnoException).code !== "EPIPE") {
+            finish({ blocked: false, ran: true, reason: error.message })
+          }
+        })
         child.stdin.end(JSON.stringify(payload(input)))
       }),
     catch: (error) => error,
@@ -252,8 +280,10 @@ export function run(hook: Hook.Command, input: Hook.TriggerInput): Effect.Effect
         return runPrompt(hook, input, timeout)
     }
   }
-  if (!("async" in hook && hook.async === true)) return execute()
+  const asyncRewake = input.asyncRewake === true
+  if (!("async" in hook && hook.async === true) && !asyncRewake) return execute()
   return execute().pipe(
+    Effect.tap((result) => Effect.sync(() => rememberAsyncResult(input.sessionID, input.tool ?? input.event, result))),
     Effect.tapError((error) => Effect.logWarning("async hook failed", { error: String(error) })),
     Effect.ignore,
     Effect.forkDetach,

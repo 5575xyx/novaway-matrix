@@ -106,7 +106,10 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        input: { index: "src/main/index.ts", sidecar: "src/main/sidecar.ts" },
+        input: {
+          index: "src/main/index.ts",
+          sidecar: "src/main/sidecar.ts",
+        },
       },
       externalizeDeps: { include: [nodePtyPkg] },
     },
@@ -168,6 +171,33 @@ export default defineConfig({
     plugins: [appPlugin, sentry],
     publicDir: "../../../app/public",
     root: "src/renderer",
+    optimizeDeps: {
+      // worker / office 编辑器代码里引的是 CJS 包（@pierre/diffs 依赖 lru_map 等）。
+      // desktop 的 renderer 配置独立于 packages/app/vite.config.ts，漏掉 include 时
+      // Vite 会把 CJS 原件直接发给浏览器，模块图在第一个 default 导入处就抛
+      // "does not provide an export named 'default'"，窗口只剩白屏。
+      include: ["lru_map", "pako", "fuzzysort", "jszip"],
+      exclude: [
+        // workspace 里的 TS/TSX 包交给 vite-plugin-solid 编译（与 packages/app/vite.config.ts
+        // 一致）。让 esbuild 预打包会把 `export namespace` 这类 TS 语法误判成非 ESM
+        // （needsInterop），再按 CJS 默认导出做 interop，运行时找不到 default 导出。
+        "@novaway/core",
+        "@novaway/sdk",
+        "@novaway/ui",
+        // `@pierre/diffs` 与 `@pierre/diffs/worker` 是同一包的两个入口，内部靠模块级单例
+        // 登记自定义主题。分开预打包会各生成一份 RegisteredCustomThemes：registerCustomTheme("NovaWay")
+        // 写进 A，worker 却读 B，报 "resolveTheme: No valid loader for NovaWay"。排除后共享同一份源码。
+        "@pierre/diffs",
+      ],
+    },
+    resolve: {
+      // desktop 的源码（index.tsx）从 packages/desktop/node_modules 解析 workspace 包，
+      // 而 @novaway/app 里的源码会从 packages/app/node_modules 解析。两边一旦落到
+      // 不同的目录（例如 app 下留了一份旧拷贝），ThemeProvider / context 就会各建
+      // 一个 Solid context 实例，运行时报 "Theme context must be used within a context provider"。
+      // dedupe 强制这些包统一从 renderer root（即 packages/desktop）解析。
+      dedupe: ["@novaway/core", "@novaway/sdk", "@novaway/ui"],
+    },
     define: {
       "import.meta.env.VITE_NOVAWAY_CHANNEL": JSON.stringify(channel),
     },

@@ -866,7 +866,7 @@ export type PermissionRule = {
 
 export type PermissionRuleset = Array<PermissionRule>
 
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
 
 export type Session = {
   id: string
@@ -1186,7 +1186,7 @@ export type AgentConfig = {
   hooks?: {
     [key: string]: unknown
   }
-  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+  permissionMode?: "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
   maxTurns?: number
   background?: boolean
   isolation?: "worktree"
@@ -1233,6 +1233,7 @@ export type AgentConfig = {
     | "default"
     | "acceptEdits"
     | "plan"
+    | "auto"
     | "bypassPermissions"
     | "unattended"
     | "worktree"
@@ -1372,6 +1373,11 @@ export type McpRemoteConfig = {
  */
 export type LayoutConfig = "auto" | "stretch"
 
+export type PermissionAutoConfig = {
+  classifier?: boolean
+  denial_limit?: number
+}
+
 export type ImageAttachmentConfig = {
   auto_resize?: boolean
   max_width?: number
@@ -1418,6 +1424,10 @@ export type Config = {
     paths?: Array<string>
     urls?: Array<string>
     disabled?: Array<string>
+    /**
+     * Fraction of the available prompt budget used for listing skills.
+     */
+    listing_budget_fraction?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
   reference?: ReferenceConfig
   watcher?: {
@@ -1487,6 +1497,8 @@ export type Config = {
   }
   memory?: {
     enabled?: boolean
+    global_enabled?: boolean
+    project_enabled?: boolean
     prefetch_limit?: number
     prefetch_budget_chars?: number
     auto_extract?: boolean
@@ -1494,6 +1506,8 @@ export type Config = {
     review_llm?: boolean
     review_interval?: number
     auto_apply?: boolean
+    prefetch_llm?: boolean
+    staleness_reminders?: boolean
     embedding_mode?: "auto" | "local" | "provider" | "ollama" | "off"
     embedding_provider?: string
     embedding_model?: string
@@ -1511,11 +1525,20 @@ export type Config = {
     review_interval?: number
     auto_apply?: boolean
     auto_apply_file?: boolean
+    auto_skill?: boolean
+    auto_skill_threshold?: number
+    curator_enabled?: boolean
+    curator_stale_days?: number
+    curator_archive_days?: number
   }
   goal?: {
     enabled?: boolean
     max_iterations?: number
     judge_model?: string
+    max_tokens?: number
+    max_active_ms?: number
+    verifier?: "judge" | "agent"
+    evidence_min_bytes?: number
   }
   checkpoint?: {
     auto_enabled?: boolean
@@ -1524,6 +1547,10 @@ export type Config = {
   dream?: {
     enabled?: boolean
     interval?: number
+    consolidation_enabled?: boolean
+    min_hours?: number
+    min_sessions?: number
+    user_scope_enabled?: boolean
   }
   /**
    * Enable or configure formatters. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.
@@ -1565,7 +1592,59 @@ export type Config = {
   instructions?: Array<string>
   layout?: LayoutConfig
   permission?: PermissionConfig
-  permission_mode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+  permission_auto?: PermissionAutoConfig
+  computer?: {
+    enabled?: boolean
+    max_steps?: number
+  }
+  sandbox?: {
+    enabled?: boolean
+    backend?: "auto" | "bwrap" | "landlock" | "seatbelt" | "docker" | "podman"
+    docker_image?: string
+    network?: boolean
+    allow_paths?: Array<string>
+  }
+  arena?: {
+    enabled?: boolean
+    concurrency?: number
+    max_contenders?: number
+    models?: Array<string>
+    keep_worktrees?: boolean
+  }
+  channels?: {
+    enabled?: boolean
+    /**
+     * Restart attempts before a channel is marked failed (default: 3).
+     */
+    max_restarts?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    channels?: Array<{
+      /**
+       * Channel instance name, used in the routing map.
+       */
+      name: string
+      kind: "feishu" | "telegram" | "dingtalk" | "wecom" | "slack"
+      enabled?: boolean
+      user_id?: string
+      secret_name?: string
+      host?: string
+      /**
+       * Webhook bind port for DingTalk/WeCom/Slack inbound. Omit to disable the inbound listener.
+       */
+      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      path?: string
+      app_id?: string
+      app_secret?: string
+      bot_token?: string
+      webhook?: string
+      sign_secret?: string
+      corp_id?: string
+      corp_secret?: string
+      agent_id?: string
+      callback_token?: string
+      aes_key?: string
+    }>
+  }
+  permission_mode?: "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
   tools?: {
     [key: string]: boolean
   }
@@ -1905,6 +1984,30 @@ export type EvolutionCandidateProposal = {
 }
 
 export type EvolutionCandidate = {
+  lifecycle?: {
+    approvedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    applications: Array<{
+      id: string
+      root: string
+      path: string
+      before: string
+      after: string
+      time: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      state: "prepared" | "applied" | "failed" | "rolled_back"
+      structure: "pending" | "passed" | "failed"
+      activation: "pending" | "succeeded" | "failed" | "unavailable" | "not_applicable"
+      behavior: "pending" | "reported_success" | "reported_failure" | "mixed"
+      note: string
+      rolledBackAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      feedback: Array<{
+        success: boolean
+        note: string
+        source?: string
+        sessionID?: string
+        time: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }>
+    }>
+  }
   id: string
   projectID?: string
   sessionID?: string
@@ -1918,6 +2021,8 @@ export type EvolutionCandidate = {
   tags: Array<string>
   expectedOutcomes?: Array<string>
   sourceMessageID?: string
+  origin?: "auto-skill" | "learned" | "manual"
+  contentHash?: string
   status: "pending" | "applied" | "dismissed"
   validationStatus: "pending" | "validated" | "failed"
   validationNote?: string
@@ -2683,7 +2788,7 @@ export type Agent = {
   hooks?: {
     [key: string]: unknown
   }
-  permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
+  permissionMode?: "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
   maxTurns?: number
   background?: boolean
   isolation?: "worktree"
@@ -3656,6 +3761,54 @@ export type DynamicWorkflowEvent = {
   type: string
   payload: unknown
   timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ArenaRunView = {
+  id: string
+  task: string
+  status: string
+  winner?: string
+  verified: boolean
+  note?: string
+  createdAt: string
+  contenders: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ArenaFileView = {
+  path: string
+  added: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  removed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  binary: boolean
+}
+
+export type ArenaDiffView = {
+  baseSHA: string
+  head: string
+  files: Array<ArenaFileView>
+  untracked: Array<string>
+  truncated: boolean
+}
+
+export type ArenaContenderView = {
+  id: string
+  status: "completed" | "failed" | "skipped"
+  sessionID?: string
+  directory?: string
+  text?: string
+  diff?: ArenaDiffView
+  usage?: {
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  error?: string
+  durationMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  verdict?: "pass" | "fail"
+  score?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ArenaRunDetailView = {
+  run: ArenaRunView
+  results: Array<ArenaContenderView>
 }
 
 export type TeamView = {
@@ -4878,6 +5031,7 @@ export type EventPluginChanged = {
   type: "plugin.changed"
   properties: {
     pluginID?: string
+    enabled?: boolean
     generation: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
@@ -6297,6 +6451,7 @@ export type EventPluginChanged1 = {
   type: "plugin.changed"
   properties: {
     pluginID?: string
+    enabled?: boolean
     generation: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
@@ -10928,6 +11083,7 @@ export type AppSkillsResponses = {
     disableModelInvocation?: boolean
     argumentHint?: string
     whenToUse?: string
+    source?: string
   }>
 }
 
@@ -11361,6 +11517,34 @@ export type MemoryStatusResponses = {
 }
 
 export type MemoryStatusResponse = MemoryStatusResponses[keyof MemoryStatusResponses]
+
+export type MemoryLearningHistoryData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/memory/learning/history"
+}
+
+export type MemoryLearningHistoryErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type MemoryLearningHistoryError = MemoryLearningHistoryErrors[keyof MemoryLearningHistoryErrors]
+
+export type MemoryLearningHistoryResponses = {
+  /**
+   * Success
+   */
+  200: Array<BackgroundJobInfo>
+}
+
+export type MemoryLearningHistoryResponse = MemoryLearningHistoryResponses[keyof MemoryLearningHistoryResponses]
 
 export type MemoryReviewStatusData = {
   body?: never
@@ -14966,6 +15150,7 @@ export type SessionPromptData = {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
+    goalContinuation?: boolean
     messageID?: string
     model?: {
       providerID: string
@@ -15737,6 +15922,7 @@ export type SessionPromptAsyncData = {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
+    goalContinuation?: boolean
     messageID?: string
     model?: {
       providerID: string
@@ -18960,6 +19146,91 @@ export type OrchestratorExecuteOrchestratorPlanResponses = {
    */
   200: unknown
 }
+
+export type ArenaListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/arena/runs"
+}
+
+export type ArenaListResponses = {
+  /**
+   * Arena runs
+   */
+  200: Array<ArenaRunView>
+}
+
+export type ArenaListResponse = ArenaListResponses[keyof ArenaListResponses]
+
+export type ArenaRunData = {
+  body?: {
+    task: string
+    concurrency?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    keepWorktrees?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/arena/runs"
+}
+
+export type ArenaRunErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * InternalServerError
+   */
+  500: EffectHttpApiErrorInternalServerError
+}
+
+export type ArenaRunError = ArenaRunErrors[keyof ArenaRunErrors]
+
+export type ArenaRunResponses = {
+  /**
+   * Arena run result
+   */
+  200: ArenaRunDetailView
+}
+
+export type ArenaRunResponse = ArenaRunResponses[keyof ArenaRunResponses]
+
+export type ArenaDetailData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/arena/runs/{runID}"
+}
+
+export type ArenaDetailErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ArenaDetailError = ArenaDetailErrors[keyof ArenaDetailErrors]
+
+export type ArenaDetailResponses = {
+  /**
+   * Arena run detail
+   */
+  200: ArenaRunDetailView
+}
+
+export type ArenaDetailResponse = ArenaDetailResponses[keyof ArenaDetailResponses]
 
 export type TeamOverviewData = {
   body?: never

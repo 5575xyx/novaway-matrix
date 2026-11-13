@@ -67,6 +67,33 @@ test.describe("Office 预览三态", () => {
     await expect(page.locator('[data-e2e="skeleton"]')).toHaveCount(0)
   })
 
+  test("失败态的文字与容器表面跟随浅色和深色主题", async ({ page }) => {
+    await runScenario(page, "rejected")
+    const card = page.locator('[data-component="office-preview-failure"]')
+    const panel = page.locator('[data-e2e="panel"]')
+    const title = card.locator('[data-e2e="title"]')
+    const readPaint = async () => {
+      const [background, foreground, border] = await Promise.all([
+        panel.evaluate((element) => getComputedStyle(element).backgroundColor),
+        title.evaluate((element) => getComputedStyle(element).color),
+        panel.evaluate((element) => getComputedStyle(element).borderColor),
+      ])
+      return { background, foreground, border }
+    }
+    const light = await readPaint()
+    expect(light.background).not.toBe("rgba(0, 0, 0, 0)")
+
+    await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "dark"))
+    await page.reload()
+    await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
+    await runScenario(page, "rejected")
+    const dark = await readPaint()
+    expect(dark.background).not.toBe("rgba(0, 0, 0, 0)")
+    expect(dark.background).not.toBe(light.background)
+    expect(dark.foreground).not.toBe(light.foreground)
+    expect(dark.border).not.toBe(light.border)
+  })
+
   test("迟到的结果不能盖掉当前文件", async ({ page }) => {
     await page.evaluate(() => {
       const preview = (window as unknown as { __preview: { run: (id: string) => Promise<void> } }).__preview

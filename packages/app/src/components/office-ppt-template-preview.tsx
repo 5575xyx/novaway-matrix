@@ -45,7 +45,7 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
               when={realPreviews().length > 0}
               fallback={<span class="text-11-medium text-foreground-subtle">版式示意</span>}
             >
-              <span class="rounded-[6px] border border-[color-mix(in_srgb,var(--icon-info-base)_25%,transparent)] bg-[color-mix(in_srgb,var(--icon-info-base)_10%,transparent)] px-2 py-1 text-11-medium text-[var(--icon-info-base)]">
+              <span class="rounded-[6px] border border-info-base/25 bg-surface-info-weak px-2 py-1 text-11-medium text-info-base">
                 {metadata()?.source === "Pptx"
                   ? "真实 PPTX 模板页面"
                   : metadata()?.source === "Reveal"
@@ -59,6 +59,7 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
           </div>
         </div>
 
+        {/* 缩略图是幻灯片纸面内容，固定白色画布不跟随 App 面板主题。 */}
         <Show when={realPreviews().length > 0} fallback={<GeneratedLayoutPreview template={props.template} />}>
           <div class="grid gap-4 md:grid-cols-3">
             <For each={realPreviews()}>
@@ -83,6 +84,7 @@ export function OfficePptTemplatePreview(props: { template: OfficePptTemplateID 
 }
 
 function GeneratedLayoutPreview(props: { template: OfficePptTemplateID }) {
+  // 模板预览呈现幻灯片设计稿；以下动态颜色来自模板内容定义，而非 App UI 配色。
   const visual = officePptTemplateVisual(props.template)
 
   return (

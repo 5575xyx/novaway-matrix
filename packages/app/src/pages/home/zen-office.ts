@@ -9,7 +9,6 @@ export type HomeAction = {
   title: string
   description: string
   icon: HomeActionIcon
-  accent: string
   meta: string
   action: string
   placeholder: string
@@ -61,7 +60,6 @@ export const zenActions: HomeAction[] = [
     title: "文档整理",
     description: "生成方案、报告、周报、会议纪要，并围绕选中文本持续润色。",
     icon: "pencil-line",
-    accent: "from-emerald-400/22 via-cyan-300/12 to-transparent",
     meta: "写作 / 改写 / 审阅",
     action: "开始创建",
     placeholder: "例如：为新产品发布会写一份项目方案，包含背景、目标、执行计划和风险。",
@@ -81,7 +79,6 @@ export const zenActions: HomeAction[] = [
     title: "PPT生成",
     description: "从主题或资料生成大纲、页面文案、图表建议和演讲备注。",
     icon: "layout-bottom",
-    accent: "from-sky-400/22 via-indigo-300/12 to-transparent",
     meta: "大纲 / 页面 / 备注",
     action: "开始创建",
     placeholder: "例如：生成一份 8 页客户提案 PPT，面向企业管理层，突出价值和落地路径。",
@@ -101,7 +98,6 @@ export const zenActions: HomeAction[] = [
     title: "AI 资料库",
     description: "把资料、文档和多来源信息整理成可检索的知识资产和 FAQ。",
     icon: "database",
-    accent: "from-cyan-400/22 via-teal-300/12 to-transparent",
     meta: "摘要 / 索引 / 对比",
     action: "开始整理",
     placeholder: "例如：总结这份行业报告，提炼关键结论、术语、数据和可追问问题。",
@@ -120,7 +116,6 @@ export const zenActions: HomeAction[] = [
     title: "表格分析",
     description: "把 CSV、Excel 和业务数据整理成可核验的分析结论、图表建议和行动建议。",
     icon: "table",
-    accent: "from-teal-400/22 via-emerald-300/12 to-transparent",
     meta: "清洗 / 透视 / 图表",
     action: "开始分析",
     placeholder: "例如：分析这份销售数据，找出增长最快的产品、下降原因和下一步行动。",
@@ -140,7 +135,6 @@ export const zenActions: HomeAction[] = [
     title: "视觉设计",
     description: "把品牌、活动或内容目标转成海报、封面、配图、色板和视觉规范。",
     icon: "photo",
-    accent: "from-violet-400/22 via-fuchsia-300/12 to-transparent",
     meta: "海报 / 封面 / 配图",
     action: "开始设计",
     placeholder: "例如：为新品发布设计一张活动海报，包含主标题、副标题、关键信息和视觉基调。",
@@ -160,7 +154,6 @@ export const zenActions: HomeAction[] = [
     title: "网页看板",
     description: "把数据、进度或业务信息转成可交互的 HTML 看板、追踪页和工具页。",
     icon: "window-cursor",
-    accent: "from-orange-400/22 via-amber-300/12 to-transparent",
     meta: "看板 / 工具 / 页面",
     action: "开始构建",
     placeholder: "例如：做一个销售周报看板，包含核心指标、趋势图、排名表和行动项。",

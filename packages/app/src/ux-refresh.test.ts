@@ -6,12 +6,12 @@ const read = (path: string) => readFileSync(join(import.meta.dir, path), "utf8")
 
 const tailwindThemeSource = read("../../ui/src/styles/tailwind/index.css")
 const statusPanelSource = read("pages/session/status-panel/status-panel.tsx")
-const sidebarMenuRowSource = read("components/sidebar-menu-row.tsx")
 const layoutSource = read("pages/layout.tsx")
 const settingsListSource = read("components/settings-list.tsx")
 const settingsGeneralSource = read("components/settings-general.tsx")
 const workspaceHeaderSource = read("components/session/workspace-header.tsx")
 const messageTimelineSource = read("pages/session/message-timeline.tsx")
+const sessionSource = read("pages/session.tsx")
 
 // 圆角刻度用 Tailwind 默认 4/6/8/12/16。
 // 旧版是 Aurora 的 6/8/12/16/20，整体偏大一级；主题样式不覆盖 --radius-*，
@@ -31,6 +31,26 @@ describe("radius scale matches Tailwind defaults", () => {
   })
 })
 
+describe("conversation canvas stays neutral under accent themes", () => {
+  test("the chat workspace uses the neutral panel surface", () => {
+    expect(sessionSource).toContain('data-component="conv-frame"')
+    expect(sessionSource).toContain(
+      "rounded-[var(--workspace-panel-radius)] border border-border bg-panel overflow-hidden",
+    )
+    const appCss = read("index.css")
+    const sessionAurora = appCss
+      .split('[data-component="session-new-aurora"]::before')[1]
+      ?.split('[data-component="session-new-aurora"]::after')[0]
+    expect(sessionAurora).toBeDefined()
+    expect(sessionAurora).not.toMatch(/(?:icon|surface)-(?:agent-|interactive)/)
+    const sessionGrid = appCss
+      .split('[data-component="session-new-aurora"]::after')[1]
+      ?.split("@keyframes session-new-aurora")[0]
+    expect(sessionGrid).toBeDefined()
+    expect(sessionGrid).not.toContain("border-interactive")
+  })
+})
+
 // 右栏五段原本靠 border-t hairline 连成一片,现在各自是独立圆角卡片。
 // 后续无标题胶囊改版把卡片间距收紧到 gap-1.5、卡片本身换成半透明底
 // (rounded-xl bg-background/85 + shadow),外层不再有 p-2 padding。
@@ -42,29 +62,102 @@ describe("right panel sections become separate cards", () => {
   })
 })
 
-// 侧栏顶部原本是四个 icon-only 按钮挤在一行,只能靠 tooltip 认功能。
-describe("sidebar header becomes a labelled vertical menu", () => {
-  test("rows stack vertically and carry a visible text label", () => {
-    expect(sidebarMenuRowSource).toContain("flex w-full items-center gap-2")
-    expect(sidebarMenuRowSource).toContain("flex-1 truncate text-left")
+describe("sidebar rail labels and footer", () => {
+  test("rail actions use interactive color, not Agent or status roles", () => {
+    const railItems = layoutSource.split("const railItems = (): SidebarRailItem[] => {")[1]?.split("\n  const ")[0]
+    expect(railItems).toBeDefined()
+    expect(railItems).toContain('tone: "var(--icon-interactive-base)"')
+    expect(railItems).not.toMatch(/--icon-(?:agent-|success|warning|info|critical)/)
+    expect(read("components/theme-scheme-toggle.tsx")).toContain('color: "var(--icon-interactive-base)"')
+    expect(read("components/theme-scheme-toggle.tsx")).not.toContain("--icon-agent-plan-base")
+    expect(read("components/theme-scheme-toggle.tsx")).not.toContain("--icon-warning-base")
   })
 
-  test("database and settings live in the left icon rail, not as full-width rows", () => {
-    // 用户反馈底部三行太占垂直空间：改成最左侧 40px 窄图标条，只留图标 + hover 提示。
-    expect(layoutSource).not.toContain("<SidebarMenuRow")
-    expect(layoutSource).toContain("items={railItems()}")
-    expect(layoutSource).toContain('label: language.t("sidebar.database")')
-    expect(layoutSource).toContain('label: language.t("sidebar.settings")')
+  test("Agent identity and tool-category palettes stay independent", () => {
+    const agentSource = read("utils/agent.ts").split("const palette = [")[1]?.split("]")[0]
+    const toolAccentSource = read("components/settings-parts.tsx").split("const rowAccentPalette = [")[1]?.split("]")[0]
+    const uiMessagePart = read("../../ui/src/components/message-part.tsx")
+    const uiAgentPalette = uiMessagePart.split("const agentPalette = [")[1]?.split("]")[0]
+    expect(agentSource).toContain("--icon-agent-ask-base")
+    expect(agentSource).toContain("--icon-agent-plan-base")
+    expect(agentSource).not.toMatch(/--(?:syntax-|diff-|icon-(?:warning|success|critical|info))/)
+    expect(toolAccentSource).toContain("--tool-category-0")
+    expect(toolAccentSource).toContain("--tool-category-3")
+    expect(toolAccentSource).not.toMatch(/--(?:icon-agent-|icon-brand-|icon-success|icon-warning)/)
+    expect(uiAgentPalette).toContain("--icon-agent-ask-base")
+    expect(uiAgentPalette).not.toContain("--icon-brand-base")
+    expect(uiMessagePart).toContain("text-[var(--tool-category-2)]")
+    expect(uiMessagePart).not.toContain(
+      "var(--icon-agent-docs-base) 16%, transparent) 0%, color-mix(in srgb, var(--icon-brand-base)",
+    )
   })
 
-  // 字号/字重/颜色一起提:原来 caption + text-base 在浅色底上太轻,三行菜单读起来是灰的。
-  test("rows use a bigger bolder darker label", () => {
-    // 用户要求再放大一档并加粗：14px + semibold。
-    //（侧栏菜单行把字号收进 classList，不再和 text-foreground 拼在同一串里。）
-    expect(sidebarMenuRowSource).toContain('"text-14-semibold": !large()')
-    expect(sidebarMenuRowSource).toContain("text-foreground")
-    expect(read("components/theme-scheme-toggle.tsx")).toContain("text-[15px] font-medium text-foreground")
-    expect(read("components/mode-switch.tsx")).toContain("text-14-semibold")
+  test("team and work-mode identities use their own theme palettes", () => {
+    const teamAvatar = read("components/team-avatar.tsx")
+    const layout = read("context/layout.tsx")
+    const themeCss = read("../../ui/src/styles/theme.css")
+    expect(teamAvatar).toContain("--team-category-${category()}")
+    expect(teamAvatar).not.toMatch(/(?:surface|text)-agent-|surface-brand-base/)
+    for (const mode of ["forge", "zen", "spark", "future"]) {
+      expect(layout).toContain(`--app-mode-${mode}`)
+      expect(themeCss).toContain(`--app-mode-${mode}:`)
+      expect(themeCss).toContain(`--app-mode-${mode}-foreground:`)
+    }
+    expect(layout).not.toMatch(/surface-(?:success|warning|brand)-base/)
+  })
+
+  test("generic app icons use tool-category hues rather than brand or status colors", () => {
+    const appIcon = read("components/app-icon.tsx")
+    const tonePalette = appIcon.split("const THEME_TONES = [")[1]?.split("] as const")[0]
+    expect(tonePalette).toContain("--tool-category-0")
+    expect(tonePalette).toContain("--tool-category-5")
+    expect(tonePalette).not.toMatch(/--(?:surface|text-on)-(?:brand|success|warning|info|critical|interactive)/)
+    expect(appIcon).toContain("color-mix(in oklab, var(${token}) 18%, var(--surface))")
+  })
+
+  test("file icon colors stay in the file-category palette", () => {
+    const fileIcon = read("../../ui/src/components/file-icon.tsx")
+    const legacyFileTokens = read("../../ui/src/theme/novaway-tokens.ts")
+    expect(fileIcon).toContain('code: "var(--icon-file-category-0)"')
+    expect(fileIcon).toContain('doc: "var(--icon-file-category-1)"')
+    expect(fileIcon).toContain('data: "var(--icon-file-category-2)"')
+    expect(fileIcon).not.toMatch(/--icon-(?:agent-|warning|info|interactive)/)
+    expect(legacyFileTokens).not.toContain('"file-icon-doc": "var(--icon-agent-docs-base)"')
+    expect(legacyFileTokens).not.toContain('"file-icon-shell": "var(--icon-agent-build-base)"')
+    expect(legacyFileTokens).not.toContain('"file-icon-style": "var(--terminal-bright-magenta)"')
+  })
+
+  test("model capabilities and thinking effort do not borrow Agent identity hues", () => {
+    const modelCapabilities = read("components/model-capability-summary.tsx")
+    const thinkingEffort = read("components/thinking-effort-color.ts")
+    expect(modelCapabilities).not.toContain("text-agent-plan-base")
+    expect(thinkingEffort).not.toContain("icon-agent-plan-base")
+    expect(thinkingEffort).toContain("var(--icon-interactive-base)")
+  })
+
+  test("data visualizations use graph-lane colors, not Agent or status colors", () => {
+    const relationNodePalette = read("components/settings-memory.tsx")
+      .split("function relationNodeColor")[1]
+      ?.split("const RelationGraph")[0]
+    const evalTrend = read("components/knowledge/eval-trend.tsx")
+    expect(relationNodePalette).toContain("--graph-lane-0")
+    expect(relationNodePalette).toContain("--graph-lane-3")
+    expect(relationNodePalette).not.toMatch(/--icon-(?:agent-|success|warning|info|critical)/)
+    expect(evalTrend).toContain('stroke="var(--graph-lane-0)"')
+    expect(evalTrend).toContain('stroke="var(--graph-lane-1)"')
+    expect(evalTrend).not.toMatch(/--icon-(?:success|interactive)-base/)
+  })
+
+  test("file preview cards use file-category colors instead of Agent or status colors", () => {
+    const previewTones = read("index.css")
+      .split("/* 文件类型在独立的 file-category 调色板中归类")[1]
+      ?.split('[data-component="session-turn-preview"] [data-preview-tone="offline"]')[0]
+    expect(previewTones).toBeDefined()
+    expect(previewTones).toContain("--icon-file-category-0")
+    expect(previewTones).toContain("--icon-file-category-1")
+    expect(previewTones).toContain("--icon-file-category-2")
+    expect(previewTones).toContain("--icon-file-category-3")
+    expect(previewTones).not.toMatch(/--icon-(?:agent-|brand-|success|warning|info|critical)/)
   })
 
   // 菜单标签直接叫目标名词,不带"打开"前缀;主题切换显示要切过去的那个模式名(浅色时是深色模式)。

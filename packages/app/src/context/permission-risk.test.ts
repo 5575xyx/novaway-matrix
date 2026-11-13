@@ -60,6 +60,7 @@ describe("permission mode resolution", () => {
       "plan",
       "default",
       "acceptEdits",
+      "auto",
       "bypassPermissions",
       "unattended",
     ])

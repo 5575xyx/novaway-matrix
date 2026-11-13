@@ -20,18 +20,18 @@ const KIND_ICON: Record<DrillView["kind"], "lu-list-checks" | "lu-users" | "lu-z
 }
 
 const TASK_DOT: Record<string, string> = {
-  completed: "bg-success",
-  in_progress: "bg-primary",
+  completed: "bg-surface-success-base",
+  in_progress: "bg-surface-interactive-base",
   pending: "bg-border",
-  failed: "bg-destructive",
+  failed: "bg-surface-critical-base",
   cancelled: "bg-border",
 }
 
 const OUTCOME_DOT: Record<string, string> = {
-  pass: "bg-success",
-  fail: "bg-destructive",
-  stale: "bg-warning",
-  unverified: "bg-warning",
+  pass: "bg-surface-success-base",
+  fail: "bg-surface-critical-base",
+  stale: "bg-surface-warning-base",
+  unverified: "bg-surface-warning-base",
 }
 
 export function TeamDrilldown(props: {
@@ -56,7 +56,7 @@ export function TeamDrilldown(props: {
   const outcomeLabel = (outcome: string | undefined) => outcome ?? t("team.drill.notVerified")
 
   return (
-    <div class="flex flex-col gap-2 rounded-lg border border-primary/30 bg-background px-3 py-2">
+    <div class="flex flex-col gap-2 rounded-lg border border-interactive-selected/30 bg-background px-3 py-2">
       <div class="flex flex-wrap items-center gap-1.5 text-ui-xs">
         <Icon name={KIND_ICON[props.view.kind]} size="small" class="text-foreground-subtle" />
         <span class="min-w-0 truncate text-ui-base text-foreground">{title()}</span>
@@ -106,9 +106,7 @@ export function TeamDrilldown(props: {
           <span>{t("team.drill.acceptance", { pass: String(passed()), total: String(totalAcceptances()) })}</span>
         </Show>
         <Show when={props.view.kind === "captain" && props.view.unassigned > 0}>
-          <span class="text-icon-warning-base">
-            {t("team.graph.unassigned", { count: String(props.view.unassigned) })}
-          </span>
+          <span class="text-warning-base">{t("team.graph.unassigned", { count: String(props.view.unassigned) })}</span>
         </Show>
       </div>
 

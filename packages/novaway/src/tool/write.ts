@@ -19,8 +19,10 @@ import { record as recordTempFile } from "@/session/temp-files"
 
 const MAX_PROJECT_DIAGNOSTICS_FILES = 5
 
-const permissionRoot = (instance: { directory: string; worktree: string }) =>
-  instance.worktree === "/" ? instance.directory : instance.worktree
+// 会话可能跑在自己的 worktree 里（团队/竞技场），权限 pattern 与标题都相对它，
+// 否则会把 worktree 内的文件当成 `../` 越界路径。
+const permissionRoot = (instance: { directory: string; worktree: string }, directory?: string) =>
+  directory ?? (instance.worktree === "/" ? instance.directory : instance.worktree)
 
 export const Parameters = Schema.Struct({
   content: Schema.String.annotate({ description: "The content to write to the file" }),
@@ -79,7 +81,7 @@ export const WriteTool = Tool.define(
           const diff = trimDiff(createTwoFilesPatch(filepath, filepath, contentOld, contentNew))
           yield* ctx.ask({
             permission: "edit",
-            patterns: [path.relative(permissionRoot(instance), filepath)],
+            patterns: [path.relative(permissionRoot(instance, ctx.directory), filepath)],
             always: ["*"],
             metadata: {
               filepath,
@@ -93,7 +95,7 @@ export const WriteTool = Tool.define(
             yield* Effect.promise(() =>
               recordTempFile({
                 sessionID: ctx.sessionID,
-                worktree: instance.worktree === "/" ? instance.directory : instance.worktree,
+                worktree: ctx.directory ?? (instance.worktree === "/" ? instance.directory : instance.worktree),
                 file: filepath,
                 tool: "write",
               }),
@@ -136,7 +138,7 @@ export const WriteTool = Tool.define(
           }
 
           return {
-            title: path.relative(permissionRoot(instance), filepath),
+            title: path.relative(permissionRoot(instance, ctx.directory), filepath),
             metadata: {
               diagnostics,
               filepath,

@@ -59,7 +59,7 @@ const AgentSchema = Schema.StructWithRest(
       description: "Session-scoped hooks registered while this agent runs.",
     }),
     permissionMode: Schema.optional(
-      Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]),
+      Schema.Literals(["default", "acceptEdits", "plan", "auto", "bypassPermissions", "unattended"]),
     ).annotate({
       description: "Permission mode applied to this agent's session.",
     }),

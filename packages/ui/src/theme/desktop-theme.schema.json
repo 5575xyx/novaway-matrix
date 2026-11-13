@@ -36,8 +36,8 @@
     },
     "ColorValue": {
       "type": "string",
-      "pattern": "^(#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|var\\(--[a-z0-9-]+\\))$",
-      "description": "Either a hex color value (#rgb/#rgba/#rrggbb/#rrggbbaa) or a CSS variable reference"
+      "pattern": "^(#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|var\\(--[a-z0-9-]+\\)|color-mix\\(in oklab, .+\\)|rgba\\(.+\\))$",
+      "description": "A hex color, CSS variable reference, or CSS color-mix()/rgba() value emitted by the theme resolver"
     },
     "ThemeSeedColors": {
       "type": "object",

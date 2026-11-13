@@ -28,7 +28,7 @@ describe("memory evolution event refresh keys", () => {
       { type: "memory.review.updated" },
     )
 
-    expect(count).toBe(2)
+    expect(count).toBe(3)
     expect(calls).toEqual(memoryReviewQueryKeys.map((queryKey) => ({ queryKey })))
   })
 

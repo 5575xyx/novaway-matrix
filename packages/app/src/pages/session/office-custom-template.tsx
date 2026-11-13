@@ -39,7 +39,7 @@ export function openCustomPptTemplateDialog(input: {
   void input.dialog.show(() => (
     <Dialog title="自定义 PPT 模板" class="w-full max-w-[680px] mx-auto">
       <div class="flex flex-col gap-4 px-6 pb-5">
-        <div class="rounded-[8px] border border-[color-mix(in_srgb,var(--icon-info-base)_20%,transparent)] bg-[color-mix(in_srgb,var(--icon-info-base)_6%,transparent)] p-3">
+        <div class="rounded-[8px] border border-info-base/20 bg-surface-info-weak p-3">
           <div class="text-13-medium text-foreground">模板设计提示词</div>
           <div class="mt-1 text-12-regular leading-relaxed text-foreground-subtle">
             请描述你想要的 PPT 风格、主题、配色、行业气质和页面感觉，例如“科技蓝、赛博霓虹、适合 AI 产品发布”。
@@ -48,7 +48,7 @@ export function openCustomPptTemplateDialog(input: {
         <textarea
           value={draft()}
           onInput={(event) => setDraft(event.currentTarget.value)}
-          class="min-h-[128px] w-full resize-y rounded-[8px] border border-border bg-background p-3 text-13-regular leading-relaxed text-foreground outline-none transition-colors focus:border-icon-blue/60 focus:ring-2 focus:ring-icon-blue/20"
+          class="min-h-[128px] w-full resize-y rounded-[8px] border border-border bg-background p-3 text-13-regular leading-relaxed text-foreground outline-none transition-colors focus:border-interactive-focus/60 focus:ring-2 focus:ring-border-interactive-focus/20"
         />
         <div class="grid gap-3 rounded-[8px] border border-border bg-surface/70 p-3">
           <div class="flex items-center justify-between gap-3">
@@ -78,7 +78,7 @@ export function openCustomPptTemplateDialog(input: {
           </Button>
           <button
             type="button"
-            class="rounded-[8px] border border-icon-blue/40 bg-icon-blue px-4 py-2 text-13-medium text-text-on-interactive-base shadow-[0_10px_26px_color-mix(in_srgb,var(--icon-interactive-base)_18%,transparent)] transition-all hover:-translate-y-px hover:bg-icon-blue/80 active:translate-y-0 active:scale-[0.98]"
+            class="rounded-[8px] border border-interactive-base/40 bg-surface-interactive-base px-4 py-2 text-13-medium text-text-on-interactive-base shadow-[0_10px_26px_color-mix(in_srgb,var(--surface-interactive-base)_18%,transparent)] transition-all hover:-translate-y-px hover:bg-surface-interactive-hover active:translate-y-0 active:scale-[0.98]"
             onClick={apply}
           >
             生成并使用

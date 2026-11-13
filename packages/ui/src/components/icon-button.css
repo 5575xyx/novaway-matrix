@@ -25,22 +25,22 @@
   }
 
   &:focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--primary) 55%, transparent);
+    outline: 2px solid var(--border-interactive-focus);
     outline-offset: 2px;
   }
 
   &[data-variant="primary"] {
-    background-color: var(--primary);
+    background-color: var(--surface-interactive-base);
 
     [data-slot="icon-svg"] {
-      color: var(--primary-foreground);
+      color: var(--text-on-interactive-base);
     }
 
     &:hover:not(:disabled) {
-      background-color: color-mix(in oklab, var(--primary) 80%, transparent);
+      background-color: var(--surface-interactive-hover);
     }
     &:active:not(:disabled) {
-      background-color: color-mix(in oklab, var(--primary) 70%, transparent);
+      background-color: var(--surface-interactive-base);
     }
     &:disabled {
       background-color: var(--foreground-subtlest);

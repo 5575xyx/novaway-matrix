@@ -113,10 +113,19 @@ function PluginSurfaceViewRoute() {
   return (
     <Show
       when={contribution()}
-      fallback={<div class="size-full flex items-center justify-center text-14-regular text-foreground-subtle">插件视图不可用</div>}
+      fallback={
+        <div class="size-full flex items-center justify-center text-14-regular text-foreground-subtle">
+          插件视图不可用
+        </div>
+      }
     >
       {(item) => (
-        <main data-component="plugin-surface-view" data-plugin-id={item().pluginID} data-view-id={params.viewId} class="size-full p-6">
+        <main
+          data-component="plugin-surface-view"
+          data-plugin-id={item().pluginID}
+          data-view-id={params.viewId}
+          class="size-full p-6"
+        >
           <h1 class="text-20-medium text-foreground">{item().title}</h1>
           <p class="mt-2 text-14-regular text-foreground-subtle">插件视图：{params.viewId}</p>
         </main>
@@ -274,7 +283,7 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
             <ErrorBoundary
               fallback={(error) => {
                 Sentry.captureException(error)
-                return <ErrorPage error={error} />
+                return <ErrorPage error={error} restart={() => window.location.reload()} />
               }}
             >
               <QueryProvider>

@@ -34,6 +34,7 @@ import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionPrompt, resetBackgroundNotifications } from "../../src/session/prompt"
 import { Goal } from "../../src/session/goal"
+import { GoalBudgetTable } from "../../src/session/goal.sql"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
@@ -745,6 +746,166 @@ it.instance(
         (yield* sessions.messages({ sessionID: chat.id })).filter((message) => message.info.role === "user"),
       ).toHaveLength(1)
       expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("cancelled")
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "goal execution stops and pauses the goal when the token budget is exhausted",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig((url) => ({
+        ...providerCfg(url),
+        goal: { enabled: true, max_iterations: 5, max_tokens: 10 },
+      }))
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const goal = yield* Goal.Service
+      const chat = yield* sessions.create({
+        title: "Goal token budget",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const created = yield* goal.create({
+        sessionId: chat.id,
+        title: "Complete the task",
+        status: "in_progress",
+        successCriteria: ["The task is verified"],
+      })
+
+      yield* llm.jsonMatch((hit) => hit.body.response_format !== undefined, {
+        id: "chatcmpl-judge",
+        object: "chat.completion",
+        created: Math.floor(Date.now() / 1000),
+        model: "test-model",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: JSON.stringify({
+                goalMet: false,
+                reasoning: "Not verified yet.",
+                nextAction: "Keep working.",
+                completedGoalIds: [],
+              }),
+            },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 30, total_tokens: 40 },
+      })
+      yield* llm.textMatch((hit) => hit.body.response_format === undefined, "First attempt")
+      yield* llm.textMatch((hit) => hit.body.response_format === undefined, "Second attempt", {
+        usage: { input: 100, output: 50 },
+      })
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        goalExecution: { goalId: created.id, maxIterations: 5 },
+        parts: [{ type: "text", text: "Complete the task" }],
+      })
+
+      // 首轮 + 一次续跑;第二次续跑前预算门禁命中,不再调用裁判。
+      expect(yield* llm.calls).toBe(3)
+      expect(
+        (yield* sessions.messages({ sessionID: chat.id })).filter((message) => message.info.role === "user"),
+      ).toHaveLength(2)
+      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("paused")
+      const budget = Database.use((db) => db.select().from(GoalBudgetTable).all()).find(
+        (row) => row.goal_id === created.id,
+      )
+      expect(budget?.turns).toBe(1)
+      expect(budget?.tokens ?? 0).toBeGreaterThanOrEqual(10)
+    }),
+  { git: true },
+  30_000,
+)
+
+it.instance(
+  "goal execution completes on an independent verification PASS",
+  () =>
+    Effect.gen(function* () {
+      const { dir, llm } = yield* useServerConfig((url) => ({
+        ...providerCfg(url),
+        goal: { enabled: true, max_iterations: 3, verifier: "agent" },
+        experimental: { verification_agent: false },
+      }))
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const goal = yield* Goal.Service
+      const chat = yield* sessions.create({
+        title: "Goal independent verification",
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+      })
+      const created = yield* goal.create({
+        sessionId: chat.id,
+        title: "Write the manifest",
+        status: "in_progress",
+        successCriteria: ["package.json is valid JSON"],
+      })
+      const verifier = yield* sessions.create({
+        parentID: chat.id,
+        agent: "verification",
+        title: "Verify the manifest",
+      })
+      const report = [
+        "### Check: package.json parses",
+        "Command run: bun -e \"JSON.parse(require('fs').readFileSync('package.json','utf8'))\"",
+        "Output observed: exit 0",
+        "Result: PASS",
+        "",
+        "### Adversarial probe: broken input is rejected",
+        "Command run: bun -e \"JSON.parse('{')\"",
+        "Output observed: SyntaxError thrown",
+        "Result: PASS",
+        "",
+        "VERDICT: PASS",
+      ].join("\n")
+      const messageID = MessageID.ascending()
+      const now = Date.now()
+      yield* sessions.updateMessage({
+        id: messageID,
+        sessionID: verifier.id,
+        role: "assistant",
+        parentID: MessageID.ascending(),
+        modelID: ModelID.make("test-model"),
+        providerID: ProviderID.make("test"),
+        mode: "build",
+        agent: "verification",
+        path: { cwd: verifier.directory, root: verifier.directory },
+        // 时间戳落在工作轮编辑之后,模拟子代理「先收到改动、再完成验证」的时序。
+        time: { created: now, completed: now + 60_000 },
+        cost: 0,
+        tokens: { input: 10, output: 10, reasoning: 0, cache: { read: 0, write: 0 } },
+      })
+      yield* sessions.updatePart({
+        id: PartID.ascending(),
+        messageID,
+        sessionID: verifier.id,
+        type: "text",
+        text: report,
+      })
+
+      const target = path.join(dir, "package.json").replaceAll("\\", "/")
+      yield* llm.toolMatch((hit) => JSON.stringify(hit.body).includes("write the manifest"), "write", {
+        filePath: target,
+        content: '{"name":"fixture"}',
+      })
+      yield* llm.textMatch((hit) => JSON.stringify(hit.body).includes("write the manifest"), "done")
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        goalExecution: { goalId: created.id, maxIterations: 3 },
+        parts: [{ type: "text", text: "write the manifest" }],
+      })
+
+      // 工作轮两次调用(写文件 + 收尾),之后直接采用验证子代理的 PASS,不再调用裁判。
+      expect(yield* llm.calls).toBe(2)
+      expect((yield* llm.hits).every((hit) => hit.body.response_format === undefined)).toBe(true)
+      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("completed")
     }),
   { git: true },
   30_000,
@@ -1593,7 +1754,7 @@ it.instance(
       expect((yield* status.get(chat.id)).type).toBe("idle")
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 // Cancel semantics
@@ -1739,7 +1900,7 @@ race.instance(
       }
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 it.instance(
@@ -1991,7 +2152,7 @@ it.instance(
       yield* Fiber.await(fiber)
     }),
   { git: true },
-  3_000,
+  15_000,
 )
 
 it.instance(

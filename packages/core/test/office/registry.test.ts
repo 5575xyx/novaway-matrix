@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { defaultExtension, engineFor, kindOfPath, officeFormatOf, registerOfficeEngine } from "../../src/office/engine/registry"
+import {
+  defaultExtension,
+  engineFor,
+  kindOfPath,
+  officeFormatOf,
+  registerOfficeEngine,
+} from "../../src/office/engine/registry"
 
 describe("格式识别", () => {
   test("带宏 / 模板的 OOXML 变体映射到同一个引擎", () => {

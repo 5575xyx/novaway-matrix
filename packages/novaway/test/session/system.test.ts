@@ -54,7 +54,8 @@ const it = testEffect(
           get: (name) => Effect.succeed(skills.find((skill) => skill.name === name)),
           all: () => Effect.succeed(skills),
           dirs: () => Effect.succeed([]),
-          available: () => Effect.succeed(skills),
+          // 生产路径里 available() 已按使用频率排序（同分按名字），fmt 不再自行排序。
+          available: () => Effect.succeed(Skill.rankByUsage(skills, {})),
           reload: () => Effect.succeed(skills),
           createComposition: () => Effect.succeed({} as any),
           listCompositions: () => Effect.succeed([]),
@@ -131,6 +132,31 @@ describe("session.system", () => {
         expect(first).toEqual(second)
         expect(first.join("\n")).toContain("You are powered by the model named claude-opus-4-8")
         expect(first.join("\n")).toContain("The exact model ID is anthropic/claude-opus-4-8")
+      }),
+      InstanceRef,
+      {
+        directory: "/tmp/project",
+        worktree: "/tmp/project",
+        project: { vcs: "git", id: "project-id" },
+      } as any,
+    ),
+  )
+
+  it.effect("environment reports the session directory instead of the instance root", () =>
+    Effect.provideService(
+      Effect.gen(function* () {
+        const prompt = yield* SystemPrompt.Service
+        const text = (yield* prompt.environment(model, {
+          directory: "/worktrees/arena-alpha",
+          worktree: "/worktrees/arena-alpha",
+          project: { vcs: "git", id: "project-id" },
+        } as any)).join("\n")
+
+        // 团队/竞技场会话跑在 worktree 里：模型被告知的 cwd 必须跟着会话走，
+        // 否则它会把绝对主检出路径写进产物，隔离只是名义上的。
+        expect(text).toContain("Working directory: /worktrees/arena-alpha")
+        expect(text).toContain("Workspace root folder: /worktrees/arena-alpha")
+        expect(text).not.toContain("Working directory: /tmp/project")
       }),
       InstanceRef,
       {

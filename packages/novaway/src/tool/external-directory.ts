@@ -3,7 +3,7 @@ import { Effect } from "effect"
 import * as EffectLogger from "@novaway/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
 import type * as Tool from "./tool"
-import { containsPath } from "../project/instance-context"
+import { containsSessionPath } from "../project/instance-context"
 import { AppFileSystem } from "@novaway/core/filesystem"
 
 type Kind = "file" | "directory"
@@ -24,7 +24,7 @@ export const assertExternalDirectoryEffect = Effect.fn("Tool.assertExternalDirec
 
   const ins = yield* InstanceState.context
   const full = process.platform === "win32" ? AppFileSystem.normalizePath(target) : target
-  if (containsPath(full, ins)) return
+  if (containsSessionPath(full, ins, ctx.directory)) return
 
   const kind = options?.kind ?? "file"
   const dir = kind === "directory" ? full : path.dirname(full)

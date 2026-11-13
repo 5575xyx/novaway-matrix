@@ -1,10 +1,10 @@
 import { expect, test } from "./office-test"
 import type { Page } from "@playwright/test"
-import { createDocument } from "@novaway/core/office/create"
-import { docxEngine } from "@novaway/core/office/engine/docx"
-import { createPdf, pdfEngine, readPdfText } from "@novaway/core/office/pdf/engine"
-import { buildZip } from "@novaway/core/office/pptx-edit"
-import { encodeText, decodeText, type TextFormat } from "@novaway/core/office/text/format"
+import { createDocument } from "../../core/src/office/create"
+import { docxEngine } from "../../core/src/office/engine/docx"
+import { createPdf, pdfEngine, readPdfText } from "../../core/src/office/pdf/engine"
+import { buildZip } from "../../core/src/office/pptx-edit"
+import { encodeText, decodeText, type TextFormat } from "../../core/src/office/text/format"
 import { readFile, unlink, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import JSZip from "jszip"
@@ -76,8 +76,8 @@ async function openSession(page: Page) {
 }
 
 async function openFile(page: Page, fileName = FILE_NAME) {
-  const input = page.getByPlaceholder(/Search files|搜索文件/).first()
-  const files = page.getByRole("menuitem", { name: /^(Files|文件)$/ }).first()
+  const input = page.getByPlaceholder(/Search (?:workspace )?files|搜索(?:工作区)?文件/).first()
+  const files = page.getByRole("menuitem", { name: /^(Workspace files|工作区文件)$/ }).first()
   await expect(async () => {
     if (await input.isVisible()) return
     if (!(await files.isVisible()))
@@ -89,19 +89,42 @@ async function openFile(page: Page, fileName = FILE_NAME) {
     await expect(input).toBeVisible({ timeout: 2000 })
   }).toPass({ timeout: 15_000 })
   await input.fill(fileName)
-  const row = page.locator('[data-component="list"] button[data-slot="list-item"]').filter({ hasText: fileName })
-  await expect(async () => {
-    if (!(await row.first().isVisible().catch(() => false))) {
-      // The backend performs its first workspace scan lazily. Re-issue the search
-      // after that scan instead of accepting a permanently stuck Loading result.
-      await input.fill("")
-      await input.fill(fileName)
-    }
-    await expect(row.first()).toBeVisible({ timeout: 2_000 })
-  }).toPass({ timeout: 30_000 })
+  const row = page.getByRole("treeitem").filter({ hasText: fileName })
+  await expect(row.first()).toBeVisible({ timeout: 30_000 })
   await row.first().click()
   await expect(input).toBeHidden()
   await expect(page.locator('[data-component="file-preview-header"]')).toBeVisible()
+}
+
+async function verifyOfficeEditorThemeSwitch(page: Page) {
+  const host = page.locator("[data-office-editor-host]")
+  const header = page.locator('[data-component="file-preview-header"]')
+  const themeToggle = page.getByRole("button", { name: /^(Dark mode|Light mode)$/ }).first()
+  await expect(host).toBeVisible()
+  await expect(themeToggle).toBeVisible()
+  if ((await page.locator("html").getAttribute("data-color-scheme")) !== "light") {
+    await themeToggle.click()
+    await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "light")
+  }
+  const readHeaderPaint = () =>
+    header.evaluate((element) => {
+      const style = getComputedStyle(element)
+      const control = element.querySelector("button")
+      return {
+        background: style.backgroundColor,
+        foreground: control ? getComputedStyle(control).color : style.color,
+        border: style.borderColor,
+      }
+    })
+  const light = await readHeaderPaint()
+  expect(light.foreground).not.toBe("")
+  await themeToggle.click()
+  await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
+  await page.waitForTimeout(3_500)
+  const dark = await readHeaderPaint()
+  expect(dark.foreground).not.toBe(light.foreground)
+  expect(dark.border).not.toBe(light.border)
+  await expect(host).toBeVisible()
 }
 
 test.beforeAll(async () => {
@@ -165,6 +188,7 @@ for (const { extension, family, contentType } of NATIVE_VARIANTS) {
     page.on("console", (message) => console.log("BROWSER", message.type(), message.text()))
     await openSession(page)
     await openFile(page, macroName(extension))
+    await verifyOfficeEditorThemeSwitch(page)
     const originalBytes = new Uint8Array(await readFile(macroPath(extension)))
     const host = page.locator("[data-office-editor-host]")
     if (family === "docx") {
@@ -235,7 +259,7 @@ for (const { extension, family, contentType } of NATIVE_VARIANTS) {
         { timeout: 30_000 },
       )
       .toContain("Native panel saved value")
-    await expect(save).toBeDisabled({ timeout: 30_000 })
+    await expect(save).toBeHidden({ timeout: 30_000 })
     const zip = await JSZip.loadAsync(await readFile(macroPath(extension)))
     if (contentType) expect(await zip.file("[Content_Types].xml")!.async("string")).toContain(contentType)
     const xml = (await Promise.all(parts(zip).map((part) => zip.file(part)!.async("string")))).join("\n")
@@ -286,7 +310,7 @@ for (const sample of MACRO_PARTS) {
       const save = header.getByRole("button", { name: /Save|保存/ })
       await expect(save).toBeEnabled()
       await save.click()
-      await expect(save).toBeDisabled({ timeout: 30_000 })
+      await expect(save).toBeHidden({ timeout: 30_000 })
     } else if (sample.extension === "xlsm") {
       await expect(host).toContainText("此文件包含宏", { timeout: 60_000 })
       await expect(header.getByRole("button", { name: /Save|保存/ })).toBeDisabled({ timeout: 30_000 })
@@ -299,7 +323,7 @@ for (const sample of MACRO_PARTS) {
       const save = header.getByRole("button", { name: /Save|保存/ })
       await expect(save).toBeEnabled()
       await save.click()
-      await expect(save).toBeDisabled({ timeout: 30_000 })
+      await expect(save).toBeHidden({ timeout: 30_000 })
     }
     const savedBytes = new Uint8Array(await readFile(macroPath(sample.extension)))
     const zip = await JSZip.loadAsync(savedBytes)
@@ -530,7 +554,10 @@ test("PDF Lexora 脏状态阻止切换兼容页面工具", async ({ page }) => {
   await expect(save).toBeEnabled()
 
   await save.click()
-  await expect(save).toBeDisabled({ timeout: 30_000 })
+  await expect(save).toBeHidden({ timeout: 30_000 })
+  await expect
+    .poll(async () => (await readFile(PDF_FILE_PATH)).toString("base64"), { timeout: 30_000 })
+    .not.toBe(Buffer.from(before).toString("base64"))
   const saved = new Uint8Array(await readFile(PDF_FILE_PATH))
   expect(saved).not.toEqual(before)
   expect((await readPdfText(saved)).map((page) => page.text).join("\n")).toContain("PDF host save verification")
@@ -584,7 +611,7 @@ test("真实文件面板完成 DOCX 编辑、保存、冲突保护与关闭重�
   await expect(confirm).toContainText("文件已被外部修改")
   await confirm.getByRole("button", { name: "仍然覆盖" }).click()
   await expect(confirm).toBeHidden({ timeout: 5_000 })
-  await expect(saveButton).toBeDisabled({ timeout: 30_000 })
+  await expect(saveButton).toBeHidden({ timeout: 30_000 })
   const savedBytes = new Uint8Array(await readFile(FILE_PATH))
   const saved = await docxEngine.open(savedBytes)
   expect(saved.ok).toBe(true)

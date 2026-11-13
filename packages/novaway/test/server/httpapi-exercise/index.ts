@@ -64,21 +64,27 @@ const scenarios: Scenario[] = [
       "status",
     ),
   http.protected.get("/global/config", "global.config.get").global().json(),
-  http.protected.get("/plugin", "plugin.list").json(200, (body) => {
-    object(body)
-    check(typeof body.generation === "number", "plugin list should expose a generation")
-    array(body.instances)
-    array(body.cycles)
-  }, "status"),
+  http.protected.get("/plugin", "plugin.list").json(
+    200,
+    (body) => {
+      object(body)
+      check(typeof body.generation === "number", "plugin list should expose a generation")
+      array(body.instances)
+      array(body.cycles)
+    },
+    "status",
+  ),
   http.protected.get("/plugin/contributions", "plugin.contributions").json(200, array, "status"),
   http.protected.get("/plugin/diagnostics", "plugin.diagnostics").json(200, array, "status"),
   http.protected
     .get("/plugin/events", "plugin.events")
     .streamHeaders()
-    .status(200, (_ctx, result) =>
-      Effect.sync(() => {
-        check(result.contentType.includes("text/event-stream"), "plugin events should be an SSE stream")
-      }),
+    .status(
+      200,
+      (_ctx, result) =>
+        Effect.sync(() => {
+          check(result.contentType.includes("text/event-stream"), "plugin events should be an SSE stream")
+        }),
       "status",
     ),
   http.protected
@@ -96,7 +102,9 @@ const scenarios: Scenario[] = [
             apiVersion: 2,
             kind: "declarative",
             contributes: {
-              tools: [{ id: "hello", description: "toggle fixture", parameters: { type: "object" }, entry: "hello.mjs" }],
+              tools: [
+                { id: "hello", description: "toggle fixture", parameters: { type: "object" }, entry: "hello.mjs" },
+              ],
             },
           }),
         )
@@ -112,12 +120,16 @@ const scenarios: Scenario[] = [
       headers: ctx.headers(),
       body: { enabled: true, scope: "project" },
     }))
-    .json(200, (body, ctx) => {
-      object(body)
-      check(body.pluginID === ctx.state.id, "plugin toggle should return the target plugin")
-      check(body.enabled === true, "plugin toggle should persist the enabled state")
-      check(typeof body.generation === "number" && body.generation > 0, "plugin toggle should advance generation")
-    }, "status"),
+    .json(
+      200,
+      (body, ctx) => {
+        object(body)
+        check(body.pluginID === ctx.state.id, "plugin toggle should return the target plugin")
+        check(body.enabled === true, "plugin toggle should persist the enabled state")
+        check(typeof body.generation === "number" && body.generation > 0, "plugin toggle should advance generation")
+      },
+      "status",
+    ),
   http.protected
     .patch("/global/config", "global.config.update")
     .global()
@@ -749,7 +761,10 @@ const scenarios: Scenario[] = [
         check(body === true, "auth set should return true")
         const auth = yield* Effect.promise(() => Bun.file(path.join(exerciseDataDirectory, "auth.json")).json())
         object(auth)
-        check(Array.isArray(auth.test) && isRecord(auth.test[0]) && auth.test[0].key === "test-key", "auth set should write isolated auth file")
+        check(
+          Array.isArray(auth.test) && isRecord(auth.test[0]) && auth.test[0].key === "test-key",
+          "auth set should write isolated auth file",
+        )
       }),
     ),
   http.protected
@@ -1680,6 +1695,12 @@ const scenarios: Scenario[] = [
     .probe({ path: "/global/upgrade", body: { target: 1 } })
     .at(() => ({ path: "/global/upgrade", body: { target: 1 } }))
     .status(400),
+  http.protected.get("/arena/runs", "arena.list").inProject({ git: false }).json(200, array),
+  http.protected
+    .get("/arena/runs/{runID}", "arena.detail.missing")
+    .inProject({ git: false })
+    .at((ctx) => ({ path: "/arena/runs/arena_missing_run", headers: ctx.headers() }))
+    .status(404),
 ]
 
 /**
@@ -1694,10 +1715,13 @@ function inventoryScenario(key: string): Scenario {
   const separator = key.indexOf(" ")
   const method = key.slice(0, separator) as Method
   const template = key.slice(separator + 1)
-  const path = template.replace(/\{([^}]+)\}|:([^/]+)/g, (_match, brace: string | undefined, colon: string | undefined) => {
-    const name = brace ?? colon ?? "id"
-    return /(?:index|limit|count|start|page|offset)/i.test(name) ? "0" : `httpapi_${name}`
-  })
+  const path = template.replace(
+    /\{([^}]+)\}|:([^/]+)/g,
+    (_match, brace: string | undefined, colon: string | undefined) => {
+      const name = brace ?? colon ?? "id"
+      return /(?:index|limit|count|start|page|offset)/i.test(name) ? "0" : `httpapi_${name}`
+    },
+  )
   const global = template.startsWith("/global/") || template === "/log" || template.startsWith("/auth/")
   const sessionParam = /\/session\/\{(sessionID|sessionId)\}/.exec(template)?.[1]
   const hasBody = method !== "GET" && method !== "DELETE"
@@ -1722,7 +1746,8 @@ function inventoryScenario(key: string): Scenario {
     authProbe: undefined,
     expect: (_ctx, _state, result) =>
       Effect.sync(() => {
-        if (result.timedOut || result.status === 0) throw new Error("route smoke request did not produce an HTTP response")
+        if (result.timedOut || result.status === 0)
+          throw new Error("route smoke request did not produce an HTTP response")
         if (result.status >= 500) throw new Error(`route smoke returned server error ${result.status}: ${result.text}`)
       }),
     compare: "status",

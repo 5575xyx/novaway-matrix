@@ -1,6 +1,7 @@
 export const memoryReviewQueryKeys = [
   ["settings", "memory", "review-status"],
   ["settings", "memory", "review-candidates"],
+  ["settings", "memory", "learning-history"],
 ] as const
 
 export const evolutionQueryKeys = [

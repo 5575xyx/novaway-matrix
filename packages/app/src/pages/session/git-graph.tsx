@@ -36,8 +36,8 @@ const lanePath = (from: number, to: number) =>
   ROW_HEIGHT
 
 function refStyle(kind: ReturnType<typeof classifyRef>["kind"]) {
-  if (kind === "head") return "border-primary/40 bg-primary/10 text-text-interactive-base"
-  if (kind === "tag") return "border-warning/40 bg-warning/10 text-icon-warning-base"
+  if (kind === "head") return "border-interactive-selected/40 bg-surface-interactive-weak text-text-interactive-base"
+  if (kind === "tag") return "border-warning-base/40 bg-surface-warning-weak text-warning-base"
   return "border-border bg-surface text-foreground-subtle"
 }
 

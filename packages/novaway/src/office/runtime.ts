@@ -16,9 +16,12 @@ export function runtimeOfficeFormatOf(filepath: string, registry?: RuntimeOffice
   const builtIn = officeFormatOf(filepath)
   if (registry === undefined || builtIn !== "text" || extensionOfPath(filepath) === "txt") return builtIn
   const extension = extensionOfPath(filepath)
-  return registry.list().find((item) =>
-    item.extensions.some((candidate) => candidate.replace(/^\./, "").toLowerCase() === extension),
-  )?.format ?? builtIn
+  return (
+    registry
+      .list()
+      .find((item) => item.extensions.some((candidate) => candidate.replace(/^\./, "").toLowerCase() === extension))
+      ?.format ?? builtIn
+  )
 }
 
 export function runtimeEngineFor(

@@ -43940,16 +43940,14 @@ var Rr = (function (t) {
       paragraphProperties: { hanging: { v: 21 }, indentStart: { v: 21 * n } },
     })),
   Qpe = (t, e) =>
-    new Array(9)
-      .fill(0)
-      .map((n, r) => ({
-        glyphFormat: ` %${r + 1}`,
-        glyphSymbol: t,
-        bulletAlignment: 1,
-        textStyle: { fs: 16 },
-        startNumber: 0,
-        paragraphProperties: { hanging: { v: 21 }, indentStart: { v: 21 * r }, textStyle: e },
-      })),
+    new Array(9).fill(0).map((n, r) => ({
+      glyphFormat: ` %${r + 1}`,
+      glyphSymbol: t,
+      bulletAlignment: 1,
+      textStyle: { fs: 16 },
+      startNumber: 0,
+      paragraphProperties: { hanging: { v: 21 }, indentStart: { v: 21 * r }, textStyle: e },
+    })),
   om = {
     BULLET_LIST: { listType: "BULLET_LIST", nestingLevel: rb(["\u25CF", "\u25CB", "\u25A0"]) },
     BULLET_LIST_1: { listType: "BULLET_LIST", nestingLevel: rb(["\u2756", "\u27A2", "\u25A0"]) },
@@ -136000,23 +135998,21 @@ function AJe(t, e, n) {
   let r = n.get(yo),
     i = n.get(Bu),
     o = "office.operation.reference",
-    s = n
-      .get(hr)
-      .register("OfficeReferenceIcon", () =>
-        (0, Gse.createElement)(
-          "svg",
-          {
-            width: "1em",
-            height: "1em",
-            viewBox: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            strokeWidth: 1.6,
-            "aria-hidden": !0,
-          },
-          (0, Gse.createElement)("path", { d: "M10 7H4v6h6V7Zm10 0h-6v6h6V7ZM10 13c0 3-2 5-5 5m15-5c0 3-2 5-5 5" }),
-        ),
+    s = n.get(hr).register("OfficeReferenceIcon", () =>
+      (0, Gse.createElement)(
+        "svg",
+        {
+          width: "1em",
+          height: "1em",
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: "currentColor",
+          strokeWidth: 1.6,
+          "aria-hidden": !0,
+        },
+        (0, Gse.createElement)("path", { d: "M10 7H4v6h6V7Zm10 0h-6v6h6V7ZM10 13c0 3-2 5-5 5m15-5c0 3-2 5-5 5" }),
       ),
+    ),
     a,
     l = !1,
     u = () => {},
@@ -186257,24 +186253,22 @@ function El(t, e, n = !0) {
 function Hp(t, e, n) {
   let r = null
   return (
-    n
-      .getMatrixWithMergedCells(t, e, t, e)
-      .forValue(
-        (i, o, s) => (
-          (r = {
-            actualRow: i,
-            actualColumn: o,
-            startRow: i,
-            startColumn: o,
-            isMerged: s.rowSpan !== void 0 || s.colSpan !== void 0,
-            isMergedMainCell: s.rowSpan !== void 0 && s.colSpan !== void 0,
-            endRow: i + (s.rowSpan !== void 0 ? s.rowSpan - 1 : 0),
-            endColumn: o + (s.colSpan !== void 0 ? s.colSpan - 1 : 0),
-            rangeType: ze.NORMAL,
-          }),
-          !1
-        ),
+    n.getMatrixWithMergedCells(t, e, t, e).forValue(
+      (i, o, s) => (
+        (r = {
+          actualRow: i,
+          actualColumn: o,
+          startRow: i,
+          startColumn: o,
+          isMerged: s.rowSpan !== void 0 || s.colSpan !== void 0,
+          isMergedMainCell: s.rowSpan !== void 0 && s.colSpan !== void 0,
+          endRow: i + (s.rowSpan !== void 0 ? s.rowSpan - 1 : 0),
+          endColumn: o + (s.colSpan !== void 0 ? s.colSpan - 1 : 0),
+          rangeType: ze.NORMAL,
+        }),
+        !1
       ),
+    ),
     r || {
       actualColumn: e,
       actualRow: t,
@@ -187320,13 +187314,11 @@ var Bst = "sheet.command.delete-range-move-left",
         let b = s.afterCommandExecute({ id: Aq, params: { range: a } })
         return (
           In(b.redos, h),
-          t
-            .get(en)
-            .pushUndoRedo({
-              unitID: l,
-              undoMutations: [...((p = m.preUndos) !== null && p !== void 0 ? p : []), ...d, ...m.undos, ...b.undos],
-              redoMutations: [...((g = m.preRedos) !== null && g !== void 0 ? g : []), ...f, ...m.redos, ...b.redos],
-            }),
+          t.get(en).pushUndoRedo({
+            unitID: l,
+            undoMutations: [...((p = m.preUndos) !== null && p !== void 0 ? p : []), ...d, ...m.undos, ...b.undos],
+            redoMutations: [...((g = m.preRedos) !== null && g !== void 0 ? g : []), ...f, ...m.redos, ...b.redos],
+          }),
           !0
         )
       }
@@ -187386,24 +187378,22 @@ var Bst = "sheet.command.delete-range-move-left",
         let b = s.afterCommandExecute({ id: Iq, params: { range: a } })
         return (
           In(b.redos, h),
-          t
-            .get(en)
-            .pushUndoRedo({
-              unitID: l,
-              undoMutations: [
-                ...((p = m.preUndos) !== null && p !== void 0 ? p : []),
-                { id: ma.id, params: d },
-                { id: Yt.id, params: f },
-                ...m.undos,
-                ...b.undos,
-              ],
-              redoMutations: [
-                ...((g = m.preRedos) !== null && g !== void 0 ? g : []),
-                { id: Zs.id, params: c },
-                ...m.redos,
-                ...b.redos,
-              ],
-            }),
+          t.get(en).pushUndoRedo({
+            unitID: l,
+            undoMutations: [
+              ...((p = m.preUndos) !== null && p !== void 0 ? p : []),
+              { id: ma.id, params: d },
+              { id: Yt.id, params: f },
+              ...m.undos,
+              ...b.undos,
+            ],
+            redoMutations: [
+              ...((g = m.preRedos) !== null && g !== void 0 ? g : []),
+              { id: Zs.id, params: c },
+              ...m.redos,
+              ...b.redos,
+            ],
+          }),
           !0
         )
       }
@@ -187596,13 +187586,11 @@ var Yst = "sheet.command.reorder-range",
         _ = d.afterCommandExecute({ id: jp.id, params: e })
       return p.result
         ? (In([..._.redos, ...C], l),
-          t
-            .get(en)
-            .pushUndoRedo({
-              unitID: o,
-              undoMutations: [...h, ..._.undos, ...y],
-              redoMutations: [...m, ..._.redos, ...C],
-            }),
+          t.get(en).pushUndoRedo({
+            unitID: o,
+            undoMutations: [...h, ..._.undos, ...y],
+            redoMutations: [...m, ..._.redos, ...C],
+          }),
           !0)
         : !1
     },
@@ -192211,24 +192199,22 @@ var Spn = (t) => {
         let y = o.afterCommandExecute({ id: x6.id, params: e })
         return (
           In(y.redos, s),
-          t
-            .get(en)
-            .pushUndoRedo({
-              unitID: n,
-              undoMutations: [
-                { id: Th.id, params: d },
-                { id: jn.id, params: f },
-                ...((g = h.undos) !== null && g !== void 0 ? g : []),
-                ...y.undos,
-              ],
-              redoMutations: [
-                ...((b = h.preRedos) !== null && b !== void 0 ? b : []),
-                { id: Mh.id, params: u },
-                { id: jn.id, params: c },
-                ...h.redos,
-                ...y.redos,
-              ],
-            }),
+          t.get(en).pushUndoRedo({
+            unitID: n,
+            undoMutations: [
+              { id: Th.id, params: d },
+              { id: jn.id, params: f },
+              ...((g = h.undos) !== null && g !== void 0 ? g : []),
+              ...y.undos,
+            ],
+            redoMutations: [
+              ...((b = h.preRedos) !== null && b !== void 0 ? b : []),
+              { id: Mh.id, params: u },
+              { id: jn.id, params: c },
+              ...h.redos,
+              ...y.redos,
+            ],
+          }),
           !0
         )
       }
@@ -192297,24 +192283,22 @@ var Spn = (t) => {
         let x = o.afterCommandExecute({ id: Bf.id, params: m })
         return (
           In(x.redos, a),
-          t
-            .get(en)
-            .pushUndoRedo({
-              unitID: d,
-              undoMutations: [
-                { id: Mh.id, params: p },
-                { id: jn.id, params: g },
-                ...((_ = y.undos) !== null && _ !== void 0 ? _ : []),
-                ...x.undos,
-              ],
-              redoMutations: [
-                ...((w = y.preRedos) !== null && w !== void 0 ? w : []),
-                { id: Th.id, params: m },
-                { id: jn.id, params: h },
-                ...y.redos,
-                ...x.redos,
-              ],
-            }),
+          t.get(en).pushUndoRedo({
+            unitID: d,
+            undoMutations: [
+              { id: Mh.id, params: p },
+              { id: jn.id, params: g },
+              ...((_ = y.undos) !== null && _ !== void 0 ? _ : []),
+              ...x.undos,
+            ],
+            redoMutations: [
+              ...((w = y.preRedos) !== null && w !== void 0 ? w : []),
+              { id: Th.id, params: m },
+              { id: jn.id, params: h },
+              ...y.redos,
+              ...x.redos,
+            ],
+          }),
           !0
         )
       }
@@ -197610,24 +197594,22 @@ var Cat = (t, e, n, r = 1, i = !0, o = !0) => {
 function Eq(t, e, n) {
   let r = null
   return (
-    n
-      .getMatrixWithMergedCells(t, e, t, e)
-      .forValue(
-        (i, o, s) => (
-          (r = {
-            actualRow: i,
-            actualColumn: o,
-            startRow: i,
-            startColumn: o,
-            isMerged: s.rowSpan !== void 0 || s.colSpan !== void 0,
-            isMergedMainCell: s.rowSpan !== void 0 && s.colSpan !== void 0,
-            endRow: i + (s.rowSpan !== void 0 ? s.rowSpan - 1 : 0),
-            endColumn: o + (s.colSpan !== void 0 ? s.colSpan - 1 : 0),
-            rangeType: ze.NORMAL,
-          }),
-          !1
-        ),
+    n.getMatrixWithMergedCells(t, e, t, e).forValue(
+      (i, o, s) => (
+        (r = {
+          actualRow: i,
+          actualColumn: o,
+          startRow: i,
+          startColumn: o,
+          isMerged: s.rowSpan !== void 0 || s.colSpan !== void 0,
+          isMergedMainCell: s.rowSpan !== void 0 && s.colSpan !== void 0,
+          endRow: i + (s.rowSpan !== void 0 ? s.rowSpan - 1 : 0),
+          endColumn: o + (s.colSpan !== void 0 ? s.colSpan - 1 : 0),
+          rangeType: ze.NORMAL,
+        }),
+        !1
       ),
+    ),
     r || {
       actualColumn: e,
       actualRow: t,
@@ -202646,12 +202628,10 @@ var __ = class extends Ee {
     id: "doc.command.horizontal-line",
     type: le.COMMAND,
     handler: (t, e) =>
-      t
-        .get(ne)
-        .syncExecuteCommand(EI.id, {
-          horizontalLine: { padding: 5, color: { rgb: "#CDD0D8" }, width: 1, dashStyle: zw.SOLID },
-          textRange: e?.insertRange,
-        }),
+      t.get(ne).syncExecuteCommand(EI.id, {
+        horizontalLine: { padding: 5, color: { rgb: "#CDD0D8" }, width: 1, dashStyle: zw.SOLID },
+        textRange: e?.insertRange,
+      }),
   },
   hI = {
     id: "doc.command.insert-horizontal-line-bellow",
@@ -203769,14 +203749,12 @@ function fbn(t, e, n, r, i) {
   })
   if (!o) return !1
   let s = Hn.getInstance()
-  return !!t
-    .get(ne)
-    .syncExecuteCommand(xr.id, {
-      actions: s.editOp(o.serialize(), Do(e)),
-      isEditing: !1,
-      textRanges: [{ startOffset: r, endOffset: r, collapsed: !0 }],
-      unitId: e.getUnitId(),
-    })
+  return !!t.get(ne).syncExecuteCommand(xr.id, {
+    actions: s.editOp(o.serialize(), Do(e)),
+    isEditing: !1,
+    textRanges: [{ startOffset: r, endOffset: r, collapsed: !0 }],
+    unitId: e.getUnitId(),
+  })
 }
 var vlt = {
     id: "doc.command.quick-heading",
@@ -236740,16 +236718,14 @@ var I6e = (function (t) {
           },
         },
       ]
-      return t
-        .get(ne)
-        .executeCommand(jn.id, {
-          unitId: r.getUnitId(),
-          subUnitId: i.getSheetId(),
-          selections: p,
-          type: rl.MOVE_END,
-          extra: l,
-          reveal: !0,
-        })
+      return t.get(ne).executeCommand(jn.id, {
+        unitId: r.getUnitId(),
+        subUnitId: i.getSheetId(),
+        selections: p,
+        type: rl.MOVE_END,
+        extra: l,
+        reveal: !0,
+      })
     },
   },
   u8 = {
@@ -236839,16 +236815,14 @@ var I6e = (function (t) {
         }
       }
       B ? ((c[d].primary = null), (c[p] = A), s.setSelections(g, b, [], rl.MOVE_END)) : (c[d] = A)
-      let H = t
-          .get(ne)
-          .executeCommand(jn.id, {
-            unitId: g,
-            subUnitId: b,
-            type: rl.MOVE_END,
-            selections: c,
-            reveal: !0,
-            extra: e.extra,
-          }),
+      let H = t.get(ne).executeCommand(jn.id, {
+          unitId: g,
+          subUnitId: b,
+          type: rl.MOVE_END,
+          selections: c,
+          reveal: !0,
+          extra: e.extra,
+        }),
         U = (n = t.get(Nt).getRenderById(g)) === null || n === void 0 ? void 0 : n.with(As)
       return (U?.refreshSelectionMoveEnd(), H)
     },
@@ -236886,16 +236860,14 @@ var I6e = (function (t) {
         (f.rangeType = s.range.rangeType),
         Je.equals(f, c)
           ? !1
-          : t
-              .get(ne)
-              .syncExecuteCommand(jn.id, {
-                unitId: i,
-                subUnitId: o,
-                type: rl.MOVE_END,
-                selections: [{ range: f, primary: d }],
-                extra: u,
-                reveal: !0,
-              })
+          : t.get(ne).syncExecuteCommand(jn.id, {
+              unitId: i,
+              subUnitId: o,
+              type: rl.MOVE_END,
+              selections: [{ range: f, primary: d }],
+              extra: u,
+              reveal: !0,
+            })
       )
     },
   },
@@ -237411,17 +237383,15 @@ var c8 = {
       let { sheetViewStartRow: u, sheetViewStartColumn: c, offsetX: d, offsetY: f, duration: m } = e,
         { sheetViewStartColumn: h, sheetViewStartRow: p, offsetX: g, offsetY: b } = l || {},
         { xSplit: y, ySplit: C } = i.worksheet.getConfig().freeze
-      return t
-        .get(ne)
-        .syncExecuteCommand(c8.id, {
-          unitId: o.getUnitId(),
-          sheetId: s.getSheetId(),
-          sheetViewStartRow: u ?? p ?? 0 + C,
-          sheetViewStartColumn: c ?? h ?? 0 + y,
-          offsetX: d ?? g,
-          offsetY: f ?? b,
-          duration: m,
-        })
+      return t.get(ne).syncExecuteCommand(c8.id, {
+        unitId: o.getUnitId(),
+        sheetId: s.getSheetId(),
+        sheetViewStartRow: u ?? p ?? 0 + C,
+        sheetViewStartColumn: c ?? h ?? 0 + y,
+        offsetX: d ?? g,
+        offsetY: f ?? b,
+        duration: m,
+      })
     },
   },
   vT = {
@@ -265801,13 +265771,11 @@ var xZ,
       })
     }
     getUsedThemeStyle() {
-      return this._injector
-        .get(Vk)
-        .getAppliedRangeThemeStyle({
-          unitId: this._workbook.getUnitId(),
-          subUnitId: this._worksheet.getSheetId(),
-          range: this._range,
-        })
+      return this._injector.get(Vk).getAppliedRangeThemeStyle({
+        unitId: this._workbook.getUnitId(),
+        subUnitId: this._worksheet.getSheetId(),
+        range: this._range,
+      })
     }
     clear(e) {
       return e && e.contentsOnly && !e.formatOnly
@@ -268199,13 +268167,11 @@ var UMn = class extends pS {
     return nt(this._injector.get(s4).endCell$.subscribe(t))
   }
   onCellRender(t, e = Ui.Style, n = Hk.DATA_VALIDATION) {
-    return this._injector
-      .get(On)
-      .intercept(Rs.CELL_CONTENT, {
-        effect: e,
-        handler: (r, i, o) => (r && !r.customRender && t && (r.customRender = [...t]), o(r)),
-        priority: n,
-      })
+    return this._injector.get(On).intercept(Rs.CELL_CONTENT, {
+      effect: e,
+      handler: (r, i, o) => (r && !r.customRender && t && (r.customRender = [...t]), o(r)),
+      priority: n,
+    })
   }
   onBeforeCellEdit(t) {
     return this._injector.get(ne).beforeCommandExecuted((e) => {
@@ -293351,16 +293317,14 @@ ${De.text}`
         continue
       }
       let _t = wt.getNotes().find((Rn) => Rn.row === ht.row && Rn.col === ht.col)
-      ;(wt
-        .getRange(ht.row, ht.col)
-        .createOrUpdateNote({
-          id: _t?.id ?? crypto.randomUUID(),
-          row: ht.row,
-          col: ht.col,
-          width: _t?.width ?? 220,
-          height: _t?.height ?? 90,
-          note: ht.text,
-        }),
+      ;(wt.getRange(ht.row, ht.col).createOrUpdateNote({
+        id: _t?.id ?? crypto.randomUUID(),
+        row: ht.row,
+        col: ht.col,
+        width: _t?.width ?? 220,
+        height: _t?.height ?? 90,
+        note: ht.text,
+      }),
         B.delete(je))
     }
     let Oe = pe(),

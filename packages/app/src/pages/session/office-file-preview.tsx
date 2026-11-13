@@ -61,6 +61,8 @@ export type OfficeFilePreviewProps = {
   /** 切换 Lexora 与兼容 PDF 工具前由面板检查 dirty 状态。 */
   onTogglePdfTools?: (open: boolean) => boolean
   onPdfPage?: (page: number) => void
+  /** 关闭守卫/保活回收对齐的标签路径（旧格式转换编辑时是原始文件路径）。 */
+  closeGuardPath?: string
 }
 
 /**
@@ -104,6 +106,7 @@ export const OfficeFilePreview: Component<OfficeFilePreviewProps> = (props) => {
                 onDirty={props.onDirty}
                 beforeSave={props.beforeOfficeSave}
                 writeBytes={props.writeOfficeBytes}
+                closeGuardPath={props.closeGuardPath ?? props.path}
               />
             }
           >
@@ -137,6 +140,7 @@ export const OfficeFilePreview: Component<OfficeFilePreviewProps> = (props) => {
               onDirty={props.onDirty}
               beforeSave={props.beforeOfficeSave}
               writeBytes={props.writeOfficeBytes}
+              closeGuardPath={props.closeGuardPath ?? props.path}
             />
           )}
         </Show>
@@ -151,6 +155,7 @@ export const OfficeFilePreview: Component<OfficeFilePreviewProps> = (props) => {
           onDirty={props.onDirty}
           beforeSave={props.beforeOfficeSave}
           writeBytes={props.writeOfficeBytes}
+          closeGuardPath={props.closeGuardPath ?? props.path}
         />
       </Match>
     </Switch>
@@ -168,6 +173,7 @@ const LegacyEditorFrame: Component<{
   onDirty?: (dirty: boolean) => void
   beforeSave?: (baselineBytes: Uint8Array, targetPath?: string) => Promise<string | false>
   writeBytes?: (bytes: Uint8Array, expectedBaselineSha256?: string, targetPath?: string) => Promise<void>
+  closeGuardPath?: string
 }> = (props) => {
   const [prepared, setPrepared] = createSignal<{ path: string; bytes: Uint8Array }>()
   const [error, setError] = createSignal<string>()
@@ -199,7 +205,7 @@ const LegacyEditorFrame: Component<{
             </div>
           }
         >
-          {(message) => <div class="p-6 text-12-regular text-icon-critical-base">{message()}</div>}
+          {(message) => <div class="p-6 text-12-regular text-critical-base">{message()}</div>}
         </Show>
       }
     >
@@ -218,6 +224,7 @@ const LegacyEditorFrame: Component<{
               writeBytes={
                 props.writeBytes ? (bytes, expected) => props.writeBytes!(bytes, expected, document().path) : undefined
               }
+              closeGuardPath={props.closeGuardPath ?? props.path}
             />
           </div>
         </div>

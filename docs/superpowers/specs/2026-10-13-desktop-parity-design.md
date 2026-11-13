@@ -69,17 +69,17 @@ NovaWay 桌面端（`packages/desktop` + `packages/app` + `packages/ui`）此前
 
 ### 4.1 Token 映射（Round 1 只用这些）
 
-| 参照产品                                         | NovaWay                                            | 说明                                                                                                                                                              |
-| ------------------------------------------------ | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bg-background`（面板/页面）                     | `bg-background-base`                               | 帧表面                                                                                                                                                            |
-| `bg-background-win-alt`（窗口根，Win/Linux/Web） | `bg-background-weak`                               | 明暗两套里都恰好是「比 base 更远离文字」的一档（浅色更暗 / 深色更亮）                                                                                             |
+| 参照产品                                         | NovaWay                                            | 说明                                                                                                                                                                |
+| ------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bg-background`（面板/页面）                     | `bg-background-base`                               | 帧表面                                                                                                                                                              |
+| `bg-background-win-alt`（窗口根，Win/Linux/Web） | `bg-background-weak`                               | 明暗两套里都恰好是「比 base 更远离文字」的一档（浅色更暗 / 深色更亮）                                                                                               |
 | `bg-background-alt`（窗口根，macOS）             | `bg-background-weak`                               | **偏离**：参照产品用半透明是为了让 macOS vibrancy 透出；NovaWay Electron 不开 vibrancy（`backgroundColor` 不透明），半透明会混出灰块。统一用 `weak`，在代码注释标注 |
-| `border-border`（帧/分隔线）                     | `border-border-base`                               | `--border-base`                                                                                                                                                   |
-| `border-border/50`（Header 分隔线）              | `border-border-weaker-base`                        | 现有最弱一档，避免新增 `color-mix` 工具类                                                                                                                         |
-| `text-foreground-subtlest`（拖拽指示线）         | `text-text-weaker`                                 | 现有第三层文字色                                                                                                                                                  |
-| `bg-hover` / `bg-selected`                       | `bg-surface-base-hover` / `bg-surface-base-active` | 已有一一对应                                                                                                                                                      |
-| `text-ui-*` 字阶                                 | `text-ui-*`                                        | **已对齐**，无需改动                                                                                                                                              |
-| `--radius-xl/2xl`                                | 不引入                                             | Round 1 用内联平台圆角变量，见 §4.2                                                                                                                               |
+| `border-border`（帧/分隔线）                     | `border-border-base`                               | `--border-base`                                                                                                                                                     |
+| `border-border/50`（Header 分隔线）              | `border-border-weaker-base`                        | 现有最弱一档，避免新增 `color-mix` 工具类                                                                                                                           |
+| `text-foreground-subtlest`（拖拽指示线）         | `text-text-weaker`                                 | 现有第三层文字色                                                                                                                                                    |
+| `bg-hover` / `bg-selected`                       | `bg-surface-base-hover` / `bg-surface-base-active` | 已有一一对应                                                                                                                                                        |
+| `text-ui-*` 字阶                                 | `text-ui-*`                                        | **已对齐**，无需改动                                                                                                                                                |
+| `--radius-xl/2xl`                                | 不引入                                             | Round 1 用内联平台圆角变量，见 §4.2                                                                                                                                 |
 
 > 不新增 token、不改 `script/tailwind.ts` 生成物。
 
@@ -147,13 +147,13 @@ export function workspacePanelRadiusPx(os: Platform["os"]): number {
 
 **决策：入口落点**
 
-| 入口                 | 落点                                    | 理由                                               |
-| -------------------- | --------------------------------------- | -------------------------------------------------- |
+| 入口                 | 落点                                    | 理由                                                 |
+| -------------------- | --------------------------------------- | ---------------------------------------------------- |
 | 首页（Logo）         | 侧栏拖拽带左端                          | 参照产品的 `WindowsTopLeftLogo` 先例；不新增独立入口 |
 | 模式切换             | 侧栏 footer 首行                        | 参照产品无对应物，属 NovaWay 自有能力，放全局入口区  |
-| 命令中心（搜索）     | 侧栏第二行整宽行                        | 对齐参照产品                                       |
-| 导航前进/后退        | 不进 UI，保留 `mod+[` / `mod+]` command | 参照产品无全局 nav                                 |
-| 主题 / 数据库 / 设置 | 侧栏 footer                             | 取代原顶部竖排菜单卡片                             |
+| 命令中心（搜索）     | 侧栏第二行整宽行                        | 对齐参照产品                                         |
+| 导航前进/后退        | 不进 UI，保留 `mod+[` / `mod+]` command | 参照产品无全局 nav                                   |
+| 主题 / 数据库 / 设置 | 侧栏 footer                             | 取代原顶部竖排菜单卡片                               |
 
 ### 4.6 Header
 

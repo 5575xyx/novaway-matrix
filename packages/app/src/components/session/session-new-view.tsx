@@ -23,6 +23,7 @@ interface NewSessionViewProps {
   inputRef: (el: HTMLDivElement) => void
   autoSubmitKey?: string
   onNewSessionWorktreeReset: () => void
+  onNewSessionWorktreeSelect?: (directory: string) => void
   onSubmit: () => void
 }
 
@@ -105,9 +106,9 @@ export function NewSessionView(props: NewSessionViewProps) {
                       class="flex-1 flex items-start gap-4 px-5 py-4 rounded-xl border text-left transition-all"
                       classList={{
                         "border-border bg-background/50 hover:border-border-hover hover:bg-hover": !active(),
-                        "border-[var(--icon-agent-plan-base)]/40 bg-[var(--icon-agent-plan-base)]/10":
+                        "border-[var(--border-agent-plan-base)] bg-surface-agent-plan-base":
                           active() && agent.name === "plan",
-                        "border-[var(--icon-agent-build-base)]/40 bg-[var(--icon-agent-build-base)]/10":
+                        "border-[var(--border-agent-build-base)] bg-surface-agent-build-base":
                           active() && agent.name === "build",
                       }}
                       onClick={() => {
@@ -138,6 +139,7 @@ export function NewSessionView(props: NewSessionViewProps) {
                 newSessionWorktree={props.worktree}
                 autoSubmitKey={props.autoSubmitKey}
                 onNewSessionWorktreeReset={props.onNewSessionWorktreeReset}
+                onNewSessionWorktreeSelect={props.onNewSessionWorktreeSelect}
                 onSubmit={props.onSubmit}
               />
               <Show when={veiling()}>

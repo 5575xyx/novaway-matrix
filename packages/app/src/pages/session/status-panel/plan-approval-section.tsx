@@ -152,7 +152,7 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
             )}
           </For>
           <Show when={store.error}>
-            <div class="px-2 text-ui-xs text-icon-critical-base">{store.error}</div>
+            <div class="px-2 text-ui-xs text-critical-base">{store.error}</div>
           </Show>
         </div>
       ),

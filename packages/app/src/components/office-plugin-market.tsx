@@ -120,9 +120,7 @@ export const OfficePluginMarket: Component<{ directory?: string }> = (props) => 
         </button>
       </div>
 
-      <Show when={store.error}>
-        {(message) => <div class="text-11-regular text-icon-warning-base">{message()}</div>}
-      </Show>
+      <Show when={store.error}>{(message) => <div class="text-11-regular text-warning-base">{message()}</div>}</Show>
 
       <Show when={!props.directory}>
         <div class="text-11-regular text-foreground-subtle">{language.t("office.plugin.market.needProject")}</div>
@@ -153,7 +151,7 @@ export const OfficePluginMarket: Component<{ directory?: string }> = (props) => 
                   </div>
                 </Show>
                 <Show when={phaseOf(entry.name) === "error"}>
-                  <div class="truncate text-11-regular text-icon-warning-base" title={pending()?.message}>
+                  <div class="truncate text-11-regular text-warning-base" title={pending()?.message}>
                     {language.t("office.plugin.market.failed", { message: pending()?.message ?? "" })}
                   </div>
                 </Show>

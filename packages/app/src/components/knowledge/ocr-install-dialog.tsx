@@ -109,8 +109,8 @@ export const OcrInstallDialog: Component<{
           <span
             class="grid size-9 shrink-0 place-items-center rounded-lg"
             style={{
-              color: "var(--icon-success-base)",
-              background: "color-mix(in srgb, var(--icon-success-base) 16%, transparent)",
+              color: "var(--icon-interactive-base)",
+              background: "var(--surface-interactive-weak)",
             }}
           >
             <Icon name="eye" size="normal" />
@@ -145,12 +145,12 @@ export const OcrInstallDialog: Component<{
                         <span
                           class="grid size-4 shrink-0 place-items-center rounded-full border"
                           classList={{
-                            "border-[var(--icon-blue)]": active(),
+                            "border-interactive-selected": active(),
                             "border-border": !active(),
                           }}
                         >
                           <Show when={active()}>
-                            <span class="size-1.5 novaway-breathe-dot rounded-full bg-[var(--icon-blue)]" />
+                            <span class="size-1.5 novaway-breathe-dot rounded-full bg-surface-interactive-base" />
                           </Show>
                         </span>
                       }
@@ -178,7 +178,7 @@ export const OcrInstallDialog: Component<{
               {(value) => <span class="text-12-regular text-foreground">{value()}</span>}
             </Show>
             <Show when={job()?.error}>
-              {(value) => <span class="text-12-regular text-icon-critical-base">{value()}</span>}
+              {(value) => <span class="text-12-regular text-critical-base">{value()}</span>}
             </Show>
             <Show when={job()?.hint}>
               {(value) => <span class="text-11-regular leading-5 text-foreground-subtle">{value()}</span>}

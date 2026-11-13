@@ -96,7 +96,7 @@ export function WorkspaceHeader() {
         onClick={layout.mobileSidebar.toggle}
       />
       <Show when={working()}>
-        <span class="size-2 rounded-full bg-[var(--icon-success-base)] novaway-breathe-dot shrink-0" />
+        <span class="size-2 rounded-full bg-[var(--surface-success-base)] novaway-breathe-dot shrink-0" />
       </Show>
       {/* 子智能体会话的面包屑：`父会话标题 › 本会话标题`。
           子会话从父会话派生而来，只给标题看不出它是谁的子任务
@@ -141,7 +141,7 @@ export function WorkspaceHeader() {
           disabled={!workspaceAvailable()}
           aria-expanded={sessionLayout.view().terminal.opened()}
           onClick={() => sessionLayout.view().terminal.toggle()}
-          class={sessionLayout.view().terminal.opened() ? "text-icon-blue" : ""}
+          class={sessionLayout.view().terminal.opened() ? "text-interactive-base" : ""}
         />
       </Show>
       {/* 搜索、连接状态、在编辑器中打开、Side Pane 开关原先被 Portal 塞进全局标题栏，

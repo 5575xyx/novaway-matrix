@@ -31,6 +31,11 @@ export type Screenshot = {
   /** 截图方式：整屏 / 指定窗口（PrintWindow 可在后台截，不需要切前台）。 */
   mode?: "screen" | "print-window" | "screen-region" | "window"
   window?: { title: string; width?: number; height?: number }
+  /**
+   * 窗口截图时窗口左上角在屏幕上的坐标。窗口截图的像素是窗口内的相对坐标，
+   * 点击需要加上这个原点才是绝对屏幕坐标。
+   */
+  origin?: { x: number; y: number }
 }
 export type WindowInfo = { title: string; id?: string; pid?: number }
 export type MouseButton = "left" | "right" | "middle"
@@ -302,14 +307,14 @@ async function windowsScreenshotWindow(title: string): Promise<Screenshot> {
     '$bmp.Save("' + escapedFile + '", [System.Drawing.Imaging.ImageFormat]::Png)',
     "$g.Dispose()",
     "$bmp.Dispose()",
-    'Write-Output ("NOVA_WINDOW_OK|" + $mode + "|" + $w + "|" + $ht)',
+    'Write-Output ("NOVA_WINDOW_OK|" + $mode + "|" + $w + "|" + $ht + "|" + $r.Left + "|" + $r.Top)',
   ].join(nl)
   const output = await powershell(script)
   if (output.includes("NOVA_WINDOW_NOT_FOUND")) throw new Error('No window matching "' + title + '"')
   if (output.includes("NOVA_WINDOW_HANDLE_MISSING")) throw new Error('Window matching "' + title + '" has no handle')
   if (output.includes("NOVA_WINDOW_RECT_EMPTY"))
     throw new Error('Window matching "' + title + '" has no visible bounds')
-  const match = output.match(/NOVA_WINDOW_OK\|([^|]+)\|(\d+)\|(\d+)/)
+  const match = output.match(/NOVA_WINDOW_OK\|([^|]+)\|(-?\d+)\|(-?\d+)\|(-?\d+)\|(-?\d+)/)
   const buffer = await fs.readFile(file)
   await fs.rm(file, { force: true })
   return {
@@ -322,6 +327,7 @@ async function windowsScreenshotWindow(title: string): Promise<Screenshot> {
       width: match ? Number(match[2]) : undefined,
       height: match ? Number(match[3]) : undefined,
     },
+    ...(match ? { origin: { x: Number(match[4]), y: Number(match[5]) } } : {}),
   }
 }
 
@@ -423,7 +429,15 @@ async function macScreenshotWindow(title: string): Promise<Screenshot> {
   await exec("screencapture", ["-x", "-o", "-R" + bounds, file], { timeout: TIMEOUT })
   const buffer = await fs.readFile(file)
   await fs.rm(file, { force: true })
-  return { path: file, base64: buffer.toString("base64"), mime: "image/png", mode: "screen-region", window: { title } }
+  const [x, y, width, height] = bounds.split(",").map(Number)
+  return {
+    path: file,
+    base64: buffer.toString("base64"),
+    mime: "image/png",
+    mode: "screen-region",
+    window: { title, ...(Number.isFinite(width) ? { width } : {}), ...(Number.isFinite(height) ? { height } : {}) },
+    ...(Number.isFinite(x) && Number.isFinite(y) ? { origin: { x, y } } : {}),
+  }
 }
 
 async function macWindows(): Promise<WindowInfo[]> {
@@ -462,10 +476,23 @@ async function linuxScreenshotWindow(title: string): Promise<Screenshot> {
   const ids = (await xdotool(["search", "--name", title]).catch(() => "")).split(/\s+/).filter(Boolean)
   if (ids.length === 0) throw new Error('No window matching "' + title + '"')
   if (!(await which("import"))) throw new Error("Window screenshots on Linux require ImageMagick (import)")
-  await exec("import", ["-window", ids[ids.length - 1], file], { timeout: TIMEOUT })
+  const id = ids[ids.length - 1]!
+  await exec("import", ["-window", id, file], { timeout: TIMEOUT })
+  const geometry = await xdotool(["getwindowgeometry", "--shell", id]).catch(() => "")
   const buffer = await fs.readFile(file)
   await fs.rm(file, { force: true })
-  return { path: file, base64: buffer.toString("base64"), mime: "image/png", mode: "window", window: { title } }
+  const x = Number(/^X=(-?\d+)$/m.exec(geometry)?.[1])
+  const y = Number(/^Y=(-?\d+)$/m.exec(geometry)?.[1])
+  const width = Number(/^WIDTH=(\d+)$/m.exec(geometry)?.[1])
+  const height = Number(/^HEIGHT=(\d+)$/m.exec(geometry)?.[1])
+  return {
+    path: file,
+    base64: buffer.toString("base64"),
+    mime: "image/png",
+    mode: "window",
+    window: { title, ...(Number.isFinite(width) ? { width } : {}), ...(Number.isFinite(height) ? { height } : {}) },
+    ...(Number.isFinite(x) && Number.isFinite(y) ? { origin: { x, y } } : {}),
+  }
 }
 
 // ---------------------------------------------------------------------------

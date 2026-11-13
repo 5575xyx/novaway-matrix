@@ -170,7 +170,7 @@ function TemplateCard(props: {
             />
           </Show>
           <Show when={props.selected}>
-            <span class="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-success text-text-on-success-base shadow">
+            <span class="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-surface-success-base text-text-on-success-base shadow">
               <Icon name="check-small" size="small" />
             </span>
           </Show>

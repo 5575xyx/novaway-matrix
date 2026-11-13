@@ -1,8 +1,12 @@
 import { expect, test, type Page } from "@playwright/test"
 import { resolve } from "node:path"
 
-const workspaceRootSlug = () => Buffer.from(resolve(process.cwd(), "..", ".."), "utf8")
-  .toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+const workspaceRootSlug = () =>
+  Buffer.from(resolve(process.cwd(), "..", ".."), "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 
 async function openPublishDialog(page: Page) {
   await page.addInitScript(() => {

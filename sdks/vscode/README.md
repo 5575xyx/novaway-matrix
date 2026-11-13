@@ -12,6 +12,7 @@ This extension requires the [novaway CLI](https://novaway.ai) to be installed on
 - **New Session**: Use `Cmd+Shift+Esc` (Mac) or `Ctrl+Shift+Esc` (Windows/Linux) to start a new novaway terminal session, even if one is already open. You can also click the novaway button in the UI.
 - **Context Awareness**: Automatically share your current selection or tab with novaway.
 - **File Reference Shortcuts**: Use `Cmd+Option+K` (Mac) or `Alt+Ctrl+K` (Linux/Windows) to insert file references. For example, `@File#L37-42`.
+- **ACP Session**: Run `NovaWay: Open ACP Session` to talk to `novaway acp` directly over the Agent Client Protocol, without a terminal. Permission requests surface as Allow/Deny prompts; `NovaWay: Stop ACP Session` closes it. The executable is taken from the `novaway.executable` setting (default `novaway`).
 
 ## Support
 

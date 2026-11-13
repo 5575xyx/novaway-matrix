@@ -129,7 +129,7 @@ export function DialogEditProject(props: { project: LocalProject }) {
                 <div
                   class="relative size-16 rounded-md transition-colors cursor-pointer"
                   classList={{
-                    "border-icon-blue bg-surface/20": store.dragOver,
+                    "border-interactive-base bg-surface/20": store.dragOver,
                     "border-border hover:border-border-hover": !store.dragOver,
                     "overflow-hidden": !!store.iconOverride,
                   }}
@@ -176,7 +176,7 @@ export function DialogEditProject(props: { project: LocalProject }) {
                     "opacity-0": !(store.iconHover && !store.iconOverride),
                   }}
                 >
-                  <Icon name="cloud-upload" size="large" class="text-primary-foreground drop-shadow-sm" />
+                  <Icon name="cloud-upload" size="large" class="text-icon-interactive-base drop-shadow-sm" />
                 </div>
                 <div
                   class="absolute inset-0 size-16 bg-popover/90 rounded-[6px] z-10 pointer-events-none flex items-center justify-center transition-opacity"
@@ -185,7 +185,7 @@ export function DialogEditProject(props: { project: LocalProject }) {
                     "opacity-0": !(store.iconHover && !!store.iconOverride),
                   }}
                 >
-                  <Icon name="trash" size="large" class="text-primary-foreground drop-shadow-sm" />
+                  <Icon name="trash" size="large" class="text-icon-critical-base drop-shadow-sm" />
                 </div>
               </div>
               <input

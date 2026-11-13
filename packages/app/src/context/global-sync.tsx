@@ -425,10 +425,14 @@ function createGlobalSync() {
         void queryClient.fetchQuery(queryOptionsApi.agents(key)).then((data) => setStore("agent", data))
       },
       loadCommands: () => {
-        void sdkFor(directory).command.list().then((response) => setStore("command", response.data ?? []))
+        void sdkFor(directory)
+          .command.list()
+          .then((response) => setStore("command", response.data ?? []))
       },
       loadContributions: () => {
-        void queryClient.fetchQuery(queryOptionsApi.contributions(key)).then((data) => setStore("plugin_contributions", data))
+        void queryClient
+          .fetchQuery(queryOptionsApi.contributions(key))
+          .then((data) => setStore("plugin_contributions", data))
       },
       loadProviders: () => {
         // 目录级事件里说的"目录变了"其实来自全局模型目录（免费模型 live 发现），

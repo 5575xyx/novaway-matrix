@@ -79,20 +79,50 @@ test.describe("文件预览头部", () => {
 
   test("正在编辑用主题强调色，不写死 emerald", async ({ page }) => {
     const toggle = page.locator('[data-e2e="editing"] [data-action="file-preview-toggle-edit"]')
-    // ThemeProvider 挂载后才把 token 写进 <html>，先等它落地再读计算值。
+    // ThemeProvider 挂载后才把语义 token 写进 <html>，先等它落地再读计算值。
     await expect
       .poll(async () =>
-        page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--icon-blue").trim()),
+        page.evaluate(() =>
+          getComputedStyle(document.documentElement).getPropertyValue("--text-interactive-base").trim(),
+        ),
       )
       .not.toBe("")
     const style = await toggle.evaluate((el) => {
       const cs = getComputedStyle(el)
-      return { color: cs.color, token: cs.getPropertyValue("--color-icon-blue").trim(), class: el.className }
+      return {
+        color: cs.color,
+        token: getComputedStyle(document.documentElement).getPropertyValue("--text-interactive-base").trim(),
+        class: el.className,
+      }
     })
+    expect(style.class).toContain("text-interactive-base")
     expect(style.class).not.toContain("emerald")
     expect(style.token, "theme token missing").not.toBe("")
-    // 强调色落在蓝色系：主题里 --icon-blue 是同一个值，浅色/深色都成立。
+    // 强调色来自交互文字角色，不依赖蓝色分类色；浅色、深色主题均应提供该角色。
     expect(style.color).not.toBe("")
+  })
+
+  test("编辑入口文字色在浅色和深色模式下都跟随主题", async ({ page }) => {
+    const readPaint = async () => {
+      const toggle = page.locator('[data-e2e="editing"] [data-action="file-preview-toggle-edit"]')
+      return toggle.evaluate((element) => ({
+        color: getComputedStyle(element).color,
+        token: getComputedStyle(document.documentElement).getPropertyValue("--text-interactive-base").trim(),
+      }))
+    }
+    const light = await readPaint()
+    expect(light.token).not.toBe("")
+    expect(light.color).not.toBe("")
+
+    await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "dark"))
+    await page.reload()
+    await expect(page.locator('[data-e2e="editing"] button[aria-label*="撤销"]')).toBeVisible()
+    await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
+    const dark = await readPaint()
+    expect(dark.token).not.toBe("")
+    expect(dark.color).not.toBe("")
+    expect(dark.token).not.toBe(light.token)
+    expect(dark.color).not.toBe(light.color)
   })
 
   test("视图切换单独成下拉，不必展开⋯", async ({ page }) => {

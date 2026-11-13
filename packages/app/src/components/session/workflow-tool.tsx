@@ -50,7 +50,7 @@ export function WorkflowToolComponent(props: {
           <div class="flex items-center gap-2">
             <div class="h-1 flex-1 overflow-hidden rounded-full bg-border">
               <div
-                class="h-full rounded-full bg-[color-mix(in_srgb,var(--icon-agent-plan-base)_75%,transparent)] transition-[width] duration-300"
+                class="h-full rounded-full bg-[color-mix(in_srgb,var(--indicator-interactive-base)_75%,transparent)] transition-[width] duration-300"
                 style={{ width: `${card().percent}%` }}
                 data-component="workflow-progress"
               />
@@ -73,9 +73,7 @@ export function WorkflowToolComponent(props: {
             <span>{language.t("workflow.tool.cached", { count: card().cached })}</span>
           </Show>
           <Show when={card().failed > 0}>
-            <span class="text-[color-mix(in_srgb,var(--icon-critical-base)_85%,var(--foreground))]">
-              {language.t("workflow.tool.failed", { count: card().failed })}
-            </span>
+            <span class="text-critical-base">{language.t("workflow.tool.failed", { count: card().failed })}</span>
           </Show>
         </div>
 

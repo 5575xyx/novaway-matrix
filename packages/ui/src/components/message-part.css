@@ -641,7 +641,7 @@
   max-width: 100%;
   font: inherit;
   line-height: inherit;
-  color: var(--icon-blue);
+  color: var(--icon-interactive-base);
   text-decoration: underline;
   text-underline-offset: 2px;
   overflow: hidden;
@@ -649,11 +649,11 @@
   white-space: nowrap;
 
   &:hover {
-    color: var(--icon-blue);
+    color: var(--icon-interactive-base);
   }
 
   &:visited {
-    color: var(--icon-blue);
+    color: var(--icon-interactive-base);
   }
 }
 
@@ -742,8 +742,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 8px 12px;
-  background-color: var(--destructive);
-  border-top: 1px solid var(--destructive);
+  background-color: var(--surface-critical-base);
+  border-top: 1px solid var(--border-critical-base);
 
   [data-slot="diagnostic"] {
     display: flex;
@@ -755,7 +755,7 @@
   }
 
   [data-slot="diagnostic-label"] {
-    color: var(--destructive-foreground);
+    color: var(--text-on-critical-base);
     font-weight: var(--font-weight-medium);
     text-transform: uppercase;
     letter-spacing: -0.5px;
@@ -763,12 +763,12 @@
   }
 
   [data-slot="diagnostic-location"] {
-    color: var(--destructive-foreground);
+    color: var(--text-on-critical-base);
     flex-shrink: 0;
   }
 
   [data-slot="diagnostic-message"] {
-    color: var(--destructive-foreground);
+    color: var(--text-on-critical-base);
     word-break: break-word;
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -976,7 +976,7 @@
     }
 
     &[data-answered="true"]::after {
-      background-color: var(--icon-blue);
+      background-color: var(--surface-interactive-base);
     }
 
     &:disabled {
@@ -1099,19 +1099,19 @@
     }
 
     &[data-picked="true"] {
-      border-color: var(--icon-blue);
+      border-color: var(--border-interactive-base);
 
       [data-component="icon"] {
         opacity: 1;
-        color: var(--foreground-inverse);
+        color: var(--text-on-interactive-base);
       }
 
       &[data-type="checkbox"] {
-        background-color: var(--icon-blue);
+        background-color: var(--surface-interactive-base);
       }
 
       &[data-type="radio"] {
-        background-color: var(--icon-blue);
+        background-color: var(--surface-interactive-base);
         [data-slot="question-option-radio-dot"] {
           opacity: 1;
         }
@@ -1180,7 +1180,7 @@
     }
 
     &:focus-visible {
-      outline: 1px solid var(--primary);
+      outline: 1px solid var(--border-interactive-focus);
       outline-offset: 2px;
       border-radius: var(--radius-xs);
     }

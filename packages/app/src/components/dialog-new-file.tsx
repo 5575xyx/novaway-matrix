@@ -92,7 +92,7 @@ export function DialogNewFile(props: { onCreate: (path: string) => void }) {
                         class={[
                           "rounded-md border px-2 py-1 text-12-regular transition-colors",
                           format().id === item.id
-                            ? "border-primary bg-surface text-foreground"
+                            ? "border-interactive-selected bg-surface text-foreground"
                             : "border-border text-foreground-subtle hover:bg-hover hover:text-foreground",
                         ].join(" ")}
                         onClick={() => setFormat(item)}
@@ -113,7 +113,7 @@ export function DialogNewFile(props: { onCreate: (path: string) => void }) {
         <div class="flex flex-col gap-2">
           <label class="text-14-medium text-foreground">文件路径</label>
           <input
-            class="flex h-10 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground placeholder:text-foreground-subtle outline-none focus:border-primary"
+            class="flex h-10 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground placeholder:text-foreground-subtle outline-none focus:border-interactive-focus"
             type="text"
             data-action="new-file-name"
             value={name()}
@@ -131,7 +131,7 @@ export function DialogNewFile(props: { onCreate: (path: string) => void }) {
             <span class="text-11-regular text-foreground-subtlest">将创建：{finalPath()}</span>
           </Show>
           <Show when={error()}>
-            <span class="text-12-regular text-icon-critical-base">{error()}</span>
+            <span class="text-12-regular text-critical-base">{error()}</span>
           </Show>
         </div>
 

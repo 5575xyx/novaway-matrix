@@ -1,4 +1,5 @@
 import { MemorySchema } from "@/memory/schema"
+import { InfoSchema as BackgroundJobInfoSchema } from "@/background/job"
 import { Schema, Struct } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { described } from "./metadata"
@@ -43,6 +44,7 @@ export const RelationListQuery = Schema.Struct({
 export const MemoryPaths = {
   list: root,
   status: `${root}/status`,
+  learningHistory: `${root}/learning/history`,
   review: `${root}/review`,
   reviewStatus: `${root}/review/status`,
   reviewCandidate: `${root}/review/candidate`,
@@ -147,6 +149,11 @@ export const MemoryApi = HttpApi.make("memory").add(
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         payload: AddPayload,
         success: MemorySchema.Info,
+        error: HttpApiError.BadRequest,
+      }),
+      HttpApiEndpoint.get("learningHistory", MemoryPaths.learningHistory, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: Schema.Array(BackgroundJobInfoSchema),
         error: HttpApiError.BadRequest,
       }),
       HttpApiEndpoint.get("reviewStatus", MemoryPaths.reviewStatus, {

@@ -117,7 +117,7 @@ export function OfficeRibbonBar() {
                 class={[
                   TAB_BUTTON,
                   current()?.id === tab.id
-                    ? "border-b-2 border-primary bg-background text-foreground"
+                    ? "border-b-2 border-interactive-selected bg-background text-foreground"
                     : "border-b-2 border-transparent",
                 ].join(" ")}
                 onClick={() => context.setActive(tab.id)}
@@ -129,7 +129,9 @@ export function OfficeRibbonBar() {
         </div>
         {/* 内边距与行高由编辑器自己的 <RibbonRow> 提供，宿主只保底一个高度，避免双层 padding 叠出来。 */}
         <div class="min-h-9" data-action="office-ribbon-commands">
-          <Show when={current()} keyed>{(tab) => tab.render()}</Show>
+          <Show when={current()} keyed>
+            {(tab) => tab.render()}
+          </Show>
         </div>
       </div>
     </Show>
@@ -145,7 +147,8 @@ export const RIBBON_BUTTON =
  * 「开着的命令 / 正在编辑」这一种状态在整个右栏只有一种画法：用主题的强调色。
  * 之前各处写死 emerald-100/300，浅色主题下浅字压浅底直接看不见。
  */
-export const PREVIEW_ACTIVE_CLASS = "border-icon-blue/40 bg-icon-blue/10 text-icon-blue hover:bg-icon-blue/20"
+export const PREVIEW_ACTIVE_CLASS =
+  "border-interactive-base/40 bg-surface-interactive-weak text-interactive-base hover:bg-surface-interactive-weak-hover"
 
 /** 开关按钮：开着的命令给一层底色，和编辑器里的工具栏保持一致。 */
 export function ribbonToggleClass(active: boolean | undefined) {

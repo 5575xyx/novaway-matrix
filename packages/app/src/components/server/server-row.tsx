@@ -118,8 +118,8 @@ export function ServerHealthIndicator(props: { health?: ServerHealth }) {
     <div
       classList={{
         "size-1.5 rounded-full shrink-0": true,
-        "bg-success": props.health?.healthy === true,
-        "bg-destructive": props.health?.healthy === false,
+        "bg-surface-success-base": props.health?.healthy === true,
+        "bg-surface-critical-base": props.health?.healthy === false,
         "bg-border": props.health === undefined,
       }}
     />

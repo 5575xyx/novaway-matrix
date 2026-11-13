@@ -110,7 +110,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         value={tab()}
         onChange={changeTab}
         class="h-full settings-drawer"
-        style={{ "--settings-accent": "var(--icon-blue)" }}
+        style={{ "--settings-accent": "var(--icon-interactive-base)" }}
       >
         <Tabs.List>
           <div class="flex flex-col justify-between h-full w-full">
@@ -133,8 +133,8 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                 <span
                   class="size-1.5 rounded-full"
                   classList={{
-                    "animate-pulse bg-[var(--icon-blue)]": saveState() === "saving",
-                    "bg-success": saveState() === "saved",
+                    "animate-pulse bg-surface-interactive-base": saveState() === "saving",
+                    "bg-surface-success-base": saveState() === "saved",
                   }}
                 />
                 <span class="text-foreground-subtle">

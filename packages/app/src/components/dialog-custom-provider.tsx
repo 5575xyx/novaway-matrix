@@ -295,8 +295,7 @@ export function DialogCustomProvider(props: Props) {
               type="button"
               class="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-12-medium transition-colors"
               classList={{
-                "bg-[color-mix(in_srgb,var(--icon-blue)_12%,var(--background))] text-[var(--icon-blue)]":
-                  step() === item.id,
+                "bg-surface-interactive-weak text-interactive-base": step() === item.id,
                 "text-foreground-subtle hover:text-foreground": step() !== item.id,
               }}
               aria-current={step() === item.id ? "step" : undefined}
@@ -526,7 +525,7 @@ export function DialogCustomProvider(props: Props) {
                   )}
                 </For>
                 <Show when={form.err.models}>
-                  <span class="text-12-regular text-icon-critical-base">{form.err.models}</span>
+                  <span class="text-12-regular text-critical-base">{form.err.models}</span>
                 </Show>
               </div>
             </div>

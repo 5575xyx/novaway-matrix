@@ -329,7 +329,7 @@ describe("tool.read env file permissions", () => {
             const asked = yield* provideInstance(dir)(
               Effect.gen(function* () {
                 const agent = yield* Agent.Service
-                const info = (yield* agent.get(agentName))
+                const info = yield* agent.get(agentName)
                 if (!info) throw new Error(`agent "${agentName}" is not available`)
                 let asked = false
                 const next = {

@@ -132,9 +132,13 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
       return state.value
     })
 
-    const publishChanged = Effect.fn("PluginHttpApi.publishChanged")(function* (pluginID?: string) {
+    const publishChanged = Effect.fn("PluginHttpApi.publishChanged")(function* (pluginID?: string, enabled?: boolean) {
       const value = yield* nextGeneration()
-      yield* bus.publish(PluginEvent.Changed, { ...(pluginID === undefined ? {} : { pluginID }), generation: value })
+      yield* bus.publish(PluginEvent.Changed, {
+        ...(pluginID === undefined ? {} : { pluginID }),
+        ...(enabled === undefined ? {} : { enabled }),
+        generation: value,
+      })
       return value
     })
 
@@ -250,7 +254,12 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
               }
             }),
             ...(host.registries.publish?.list() ?? []).map((entry) => {
-              const owner = ownerFor("publish", entry.id)
+              const pluginID = (entry as typeof entry & { pluginID?: string }).pluginID
+              const owner =
+                result.instances.find(
+                  (instance) =>
+                    instance.id === pluginID && (instance.status === "installed" || instance.status === "active"),
+                ) ?? ownerFor("publish", entry.id)
               return {
                 ...runtimeMeta(owner),
                 kind: "publish-driver" as const,
@@ -273,12 +282,12 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
                 localName: item.id,
                 slot: item.slot,
                 ...("title" in item && item.title !== undefined ? { title: item.title } : {}),
-                ...( "description" in item && item.description !== undefined ? { description: item.description } : {}),
-                ...( "icon" in item && item.icon !== undefined ? { icon: item.icon } : {}),
-                ...( "action" in item && item.action !== undefined ? { action: item.action } : {}),
-                ...( "view" in item && item.view !== undefined ? { view: item.view } : {}),
-                ...( "match" in item && item.match !== undefined ? { match: item.match } : {}),
-                ...( "renderer" in item && item.renderer !== undefined ? { renderer: item.renderer } : {}),
+                ...("description" in item && item.description !== undefined ? { description: item.description } : {}),
+                ...("icon" in item && item.icon !== undefined ? { icon: item.icon } : {}),
+                ...("action" in item && item.action !== undefined ? { action: item.action } : {}),
+                ...("view" in item && item.view !== undefined ? { view: item.view } : {}),
+                ...("match" in item && item.match !== undefined ? { match: item.match } : {}),
+                ...("renderer" in item && item.renderer !== undefined ? { renderer: item.renderer } : {}),
               }
             }),
             ...(host.registries.previewers?.list() ?? []).map((entry) => ({
@@ -304,7 +313,10 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
               ...tui,
             ]).filter(
               (item) =>
-                !(item.kind === "previewer" || (item.scope === "builtin" && ["surface", "office-engine", "publish-driver"].includes(item.kind))),
+                !(
+                  item.kind === "previewer" ||
+                  (item.scope === "builtin" && ["surface", "office-engine", "publish-driver"].includes(item.kind))
+                ),
             ),
             ...runtimeContributions,
           ]
@@ -466,7 +478,7 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
             if (item.adapter === "legacy-extension") yield* extensions.setEnabled(item.id, ctx.payload.enabled)
           }
           if (Option.isSome(provider)) yield* provider.value.reload()
-          const value = yield* publishChanged(item.id)
+          const value = yield* publishChanged(item.id, ctx.payload.enabled)
           return { pluginID: item.id, enabled: ctx.payload.enabled, generation: value }
         }),
       )

@@ -95,10 +95,12 @@ const playDemoSound = (id: string | undefined) => {
 
 /** 是否显示「音效」设置。当前没有可用音效资源，默认关闭。 */
 const SHOW_SOUND_SETTINGS = false
+const COLOR_THEME_IDS = ["novaway", "parchment", "osaka-jade", "gruvbox", "lucent-orng"] as const
 
 export const SettingsGeneral: Component = () => {
   const language = useLanguage()
   const theme = useTheme()
+  const [themePresets] = createResource(() => theme.loadThemes())
   const platform = usePlatform()
   const navigate = useNavigate()
   const layout = useLayout()
@@ -210,19 +212,29 @@ export const SettingsGeneral: Component = () => {
   ])
 
   const colorThemeOptions = createMemo(() =>
-    (
-      [
-        { value: "novaway", swatch: "#3b82f6" },
-        { value: "everforest", swatch: "#8da101" },
-        { value: "osaka-jade", swatch: "#1faa90" },
-        { value: "gruvbox", swatch: "#d79921" },
-        { value: "lucent-orng", swatch: "#ec5b2b" },
-      ] as const
-    ).map((option) => ({
-      ...option,
-      label: language.t(`settings.general.appearance.theme.${option.value}` as never),
-    })),
+    COLOR_THEME_IDS.map((value) => {
+      const variant = themePresets()?.[value]?.light
+      const swatch = variant?.palette?.primary ?? variant?.seeds?.primary ?? "var(--interactive-base)"
+      return {
+        value,
+        swatch,
+        label: language.t(`settings.general.appearance.theme.${value}` as never),
+        mood: language.t(`settings.general.appearance.theme.mood.${value}` as never),
+      }
+    }),
   )
+  let customColorInput: HTMLInputElement | undefined
+  const customThemeSwatch = createMemo(
+    () =>
+      theme.customInteractive() ??
+      colorThemeOptions().find((option) => option.value === theme.themeId())?.swatch ??
+      colorThemeOptions()[0]?.swatch ??
+      "var(--interactive-base)",
+  )
+  const openCustomColorPicker = () => {
+    if (!customColorInput) return
+    customColorInput.click()
+  }
 
   const languageOptions = createMemo(() =>
     language.locales.map((locale) => ({
@@ -519,11 +531,6 @@ export const SettingsGeneral: Component = () => {
               value={(o) => o.value}
               label={(o) => o.label}
               onSelect={(option) => option && theme.setColorScheme(option.value)}
-              onHighlight={(option) => {
-                if (!option) return
-                theme.previewColorScheme(option.value)
-                return () => theme.cancelPreview()
-              }}
               variant="secondary"
               size="small"
               triggerVariant="settings"
@@ -532,22 +539,21 @@ export const SettingsGeneral: Component = () => {
           </div>
           <div
             data-action="settings-color-theme"
-            class="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+            class="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
           >
             <For each={colorThemeOptions()}>
               {(option) => (
                 <button
                   type="button"
-                  aria-pressed={theme.themeId() === option.value}
-                  class="rounded-lg border border-border bg-background p-1.5 text-left transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-icon-blue/40"
+                  data-theme-preset={option.value}
+                  aria-pressed={theme.customInteractive() === null && theme.themeId() === option.value}
+                  title={option.mood}
+                  class="rounded-lg border border-border bg-background p-1.5 text-left transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus/40"
                   classList={{
-                    "border-icon-blue/60 bg-icon-blue/5": theme.themeId() === option.value,
+                    "border-interactive-base/60 bg-surface-interactive-weak":
+                      theme.customInteractive() === null && theme.themeId() === option.value,
                   }}
                   style={{ "--theme-swatch": option.swatch }}
-                  onMouseEnter={() => theme.previewTheme(option.value)}
-                  onMouseLeave={() => theme.cancelPreview()}
-                  onFocus={() => theme.previewTheme(option.value)}
-                  onBlur={() => theme.cancelPreview()}
                   onClick={() => theme.setTheme(option.value)}
                 >
                   <div class="h-[96px] rounded-md border border-border/70 bg-surface p-2.5">
@@ -570,6 +576,42 @@ export const SettingsGeneral: Component = () => {
                 </button>
               )}
             </For>
+            <button
+              type="button"
+              data-theme-custom
+              aria-pressed={theme.customInteractive() !== null}
+              aria-label={language.t("settings.general.appearance.theme.custom")}
+              title={language.t("settings.general.appearance.theme.custom.description")}
+              class="rounded-lg border border-dashed border-border bg-background p-1.5 text-left transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus/40"
+              classList={{
+                "border-interactive-base/60 bg-surface-interactive-weak": theme.customInteractive() !== null,
+              }}
+              style={{ "--theme-swatch": customThemeSwatch() }}
+              onClick={openCustomColorPicker}
+            >
+              <div class="flex h-[96px] flex-col items-center justify-center gap-3 rounded-md border border-border/70 bg-surface">
+                <span
+                  class="size-9 rounded-full border-4 border-background shadow-sm"
+                  style={{ background: "var(--theme-swatch)" }}
+                />
+                <span class="text-10-medium text-foreground-subtle">
+                  {language.t("settings.general.appearance.theme.custom")}
+                </span>
+              </div>
+              <span class="mt-1 block truncate text-center text-10-medium text-foreground-subtle">
+                {theme.customInteractive() ?? language.t("settings.general.appearance.theme.custom")}
+              </span>
+            </button>
+            <input
+              ref={customColorInput}
+              type="color"
+              tabindex={-1}
+              aria-label={language.t("settings.general.appearance.theme.custom")}
+              value={customThemeSwatch()}
+              class="sr-only"
+              onInput={(event) => theme.setCustomInteractive(event.currentTarget.value)}
+              onChange={(event) => theme.setCustomInteractive(event.currentTarget.value)}
+            />
           </div>
         </div>
 

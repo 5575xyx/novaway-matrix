@@ -50,9 +50,7 @@ export const layer = Layer.effect(
       yield* plugin.init()
       const cfg = yield* config.get()
       const persisted = PluginStorage.listForInstance(ctx.directory)
-      const enabled = persisted
-        .filter((item) => item.enabled === 1)
-        .map((item) => `${item.scope}:${item.plugin_id}`)
+      const enabled = persisted.filter((item) => item.enabled === 1).map((item) => `${item.scope}:${item.plugin_id}`)
       const disabled = [
         ...(cfg.plugins?.disabled ?? []),
         ...persisted.filter((item) => item.enabled === 0).map((item) => `${item.scope}:${item.plugin_id}`),
@@ -77,10 +75,7 @@ export const layer = Layer.effect(
       yield* Effect.forEach(
         enabledInstances,
         (item) =>
-          (item.scope === "builtin"
-            ? pluginRuntime.activateBuiltin(item)
-            : pluginRuntime.setEnabled(item, true)
-          ).pipe(
+          (item.scope === "builtin" ? pluginRuntime.activateBuiltin(item) : pluginRuntime.setEnabled(item, true)).pipe(
             Effect.catchCause((cause) =>
               Effect.logWarning("persisted plugin activation failed", { pluginID: item.id, scope: item.scope, cause }),
             ),

@@ -499,9 +499,10 @@ export const layer = Layer.effect(
         // but that must not make an existing document disappear from Open Files.
         // Re-scan only the narrow Office suffix set with ignore rules disabled;
         // the exclusions keep dependency/build/vendor trees out of the workspace index.
-        const officeFiles = yield* rg
-          .files({ cwd: ctx.directory, glob: OFFICE_FILE_GLOBS, noIgnore: true })
-          .pipe(Stream.runCollect, Effect.map((chunk) => [...chunk]))
+        const officeFiles = yield* rg.files({ cwd: ctx.directory, glob: OFFICE_FILE_GLOBS, noIgnore: true }).pipe(
+          Stream.runCollect,
+          Effect.map((chunk) => [...chunk]),
+        )
         const allFiles = [...new Set([...files, ...officeFiles])]
         const seen = new Set<string>()
         for (const file of allFiles) {
@@ -870,7 +871,8 @@ export const layer = Layer.effect(
         return sortHiddenLast(cache.dirs.toSorted(), preferHidden).slice(0, limit)
       }
 
-      const searchItems = () => (kind === "file" ? cache.files : kind === "directory" ? cache.dirs : [...cache.files, ...cache.dirs])
+      const searchItems = () =>
+        kind === "file" ? cache.files : kind === "directory" ? cache.dirs : [...cache.files, ...cache.dirs]
       const searchLimit = kind === "directory" && !preferHidden ? limit * 20 : limit
       const runSearch = () => fuzzysort.go(query, searchItems(), { limit: searchLimit }).map((item) => item.target)
       let sorted = runSearch()

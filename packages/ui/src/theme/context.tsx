@@ -5,18 +5,40 @@ import { createSimpleContext } from "../context/helper"
 import novawayClassicThemeJson from "./themes/novaway-classic.json"
 import novawayThemeJson from "./themes/novaway.json"
 import { resolveThemeVariant, themeToCss } from "./resolve"
-import type { DesktopTheme } from "./types"
+import type { DesktopTheme, ThemeVariant } from "./types"
 
 export type ColorScheme = "light" | "dark" | "system"
 
 const STORAGE_KEYS = {
   THEME_ID: "novaway-theme-id",
   COLOR_SCHEME: "novaway-color-scheme",
+  CUSTOM_INTERACTIVE: "novaway-theme-custom-interactive",
   THEME_CSS_LIGHT: "novaway-theme-css-light",
   THEME_CSS_DARK: "novaway-theme-css-dark",
 } as const
 
 const THEME_STYLE_ID = "novaway-theme"
+const CUSTOM_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+const customInteractive = (value: string | null | undefined) =>
+  value && CUSTOM_COLOR_PATTERN.test(value) ? value.toLowerCase() : null
+
+/** Override only the interactive seed; brand, status, diff, and syntax roles stay independent. */
+function withCustomInteractive(variant: ThemeVariant, colorValue: string): ThemeVariant {
+  const color = colorValue as `#${string}`
+  if (variant.palette) {
+    return { ...variant, palette: { ...variant.palette, interactive: color } }
+  }
+  return { ...variant, seeds: { ...variant.seeds, interactive: color } }
+}
+
+function withCustomThemeInteractive(theme: DesktopTheme, color: string): DesktopTheme {
+  return {
+    ...theme,
+    light: withCustomInteractive(theme.light, color),
+    dark: withCustomInteractive(theme.dark, color),
+  }
+}
+
 let files: Record<string, () => Promise<{ default: DesktopTheme }>> | undefined
 let ids: string[] | undefined
 let known: Set<string> | undefined
@@ -53,7 +75,7 @@ const names: Record<string, string> = {
   cobalt2: "Cobalt2",
   cursor: "Cursor",
   dracula: "Dracula",
-  everforest: "Everforest",
+  parchment: "Parchment",
   flexoki: "Flexoki",
   github: "GitHub",
   gruvbox: "Gruvbox",
@@ -82,6 +104,11 @@ const names: Record<string, string> = {
 }
 const novawayClassicTheme = novawayClassicThemeJson as DesktopTheme
 const novawayTheme = novawayThemeJson as DesktopTheme
+
+// 森林绿已下架：旧选中值无缝落到接替它的羊皮纸，避免加载不到主题。
+function migrateThemeId(id: string) {
+  return id === "everforest" ? "parchment" : id
+}
 
 function read(key: string) {
   if (typeof localStorage !== "object") return null
@@ -125,9 +152,10 @@ function getSystemMode(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
-function applyThemeCss(theme: DesktopTheme, themeId: string, mode: "light" | "dark") {
+function applyThemeCss(theme: DesktopTheme, themeId: string, mode: "light" | "dark", custom: string | null = null) {
   const isDark = mode === "dark"
-  const variant = isDark ? theme.dark : theme.light
+  const activeTheme = custom ? withCustomThemeInteractive(theme, custom) : theme
+  const variant = isDark ? activeTheme.dark : activeTheme.light
   const tokens = resolveThemeVariant(variant, isDark)
   const css = themeToCss(tokens)
 
@@ -159,11 +187,12 @@ function applyThemeCss(theme: DesktopTheme, themeId: string, mode: "light" | "da
   if (meta && themeColor) meta.setAttribute("content", themeColor)
 }
 
-function cacheThemeVariants(theme: DesktopTheme, themeId: string) {
+function cacheThemeVariants(theme: DesktopTheme, themeId: string, custom: string | null = null) {
   if (themeId === "novaway-classic") return
+  const activeTheme = custom ? withCustomThemeInteractive(theme, custom) : theme
   for (const mode of ["light", "dark"] as const) {
     const isDark = mode === "dark"
-    const variant = isDark ? theme.dark : theme.light
+    const variant = isDark ? activeTheme.dark : activeTheme.light
     const tokens = resolveThemeVariant(variant, isDark)
     const css = themeToCss(tokens)
     write(isDark ? STORAGE_KEYS.THEME_CSS_DARK : STORAGE_KEYS.THEME_CSS_LIGHT, css)
@@ -173,7 +202,7 @@ function cacheThemeVariants(theme: DesktopTheme, themeId: string) {
 export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
   name: "Theme",
   init: (props: { defaultTheme?: string; onThemeApplied?: (theme: DesktopTheme, mode: "light" | "dark") => void }) => {
-    const themeId = read(STORAGE_KEYS.THEME_ID) ?? props.defaultTheme ?? "novaway"
+    const themeId = migrateThemeId(read(STORAGE_KEYS.THEME_ID) ?? props.defaultTheme ?? "novaway")
     // 默认主题是浅色（产品设定）：只有用户手动选过「跟随系统」才走系统偏好。
     const colorScheme = (read(STORAGE_KEYS.COLOR_SCHEME) as ColorScheme | null) ?? "light"
     const mode = colorScheme === "system" ? getSystemMode() : colorScheme
@@ -185,8 +214,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       themeId,
       colorScheme,
       mode,
-      previewThemeId: null as string | null,
-      previewScheme: null as ColorScheme | null,
+      customInteractive: customInteractive(read(STORAGE_KEYS.CUSTOM_INTERACTIVE)),
     })
 
     const loads = new Map<string, Promise<DesktopTheme | undefined>>()
@@ -213,8 +241,13 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       return task
     }
 
-    const applyTheme = (theme: DesktopTheme, themeId: string, mode: "light" | "dark") => {
-      applyThemeCss(theme, themeId, mode)
+    const applyTheme = (
+      theme: DesktopTheme,
+      themeId: string,
+      mode: "light" | "dark",
+      custom = store.customInteractive,
+    ) => {
+      applyThemeCss(theme, themeId, mode, custom)
       props.onThemeApplied?.(theme, mode)
     }
 
@@ -241,8 +274,14 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         }
         void load(next).then((theme) => {
           if (!theme || store.themeId !== next) return
-          cacheThemeVariants(theme, next)
+          cacheThemeVariants(theme, next, store.customInteractive)
         })
+      }
+      if (e.key === STORAGE_KEYS.CUSTOM_INTERACTIVE) {
+        const next = customInteractive(e.newValue)
+        setStore("customInteractive", next)
+        const activeTheme = store.themes[store.themeId]
+        if (activeTheme) cacheThemeVariants(activeTheme, store.themeId, next)
       }
       if (e.key === STORAGE_KEYS.COLOR_SCHEME && e.newValue) {
         setStore("colorScheme", e.newValue as ColorScheme)
@@ -261,7 +300,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       makeEventListener(mediaQuery, "change", onMedia)
 
       const rawTheme = read(STORAGE_KEYS.THEME_ID)
-      const savedTheme = rawTheme ?? props.defaultTheme ?? "novaway"
+      const savedTheme = migrateThemeId(rawTheme ?? props.defaultTheme ?? "novaway")
       const savedScheme = (read(STORAGE_KEYS.COLOR_SCHEME) as ColorScheme | null) ?? "light"
       if (rawTheme && rawTheme !== savedTheme) {
         write(STORAGE_KEYS.THEME_ID, savedTheme)
@@ -276,7 +315,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       setStore("mode", savedScheme === "system" ? getSystemMode() : savedScheme)
       void load(savedTheme).then((theme) => {
         if (!theme || store.themeId !== savedTheme) return
-        cacheThemeVariants(theme, savedTheme)
+        cacheThemeVariants(theme, savedTheme, store.customInteractive)
       })
     })
 
@@ -296,6 +335,8 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         console.warn(`Theme "${id}" not found`)
         return
       }
+      setStore("customInteractive", null)
+      drop(STORAGE_KEYS.CUSTOM_INTERACTIVE)
       setStore("themeId", next)
       if (next === "novaway-classic") {
         write(STORAGE_KEYS.THEME_ID, next)
@@ -304,9 +345,19 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       }
       void load(next).then((theme) => {
         if (!theme || store.themeId !== next) return
-        cacheThemeVariants(theme, next)
+        cacheThemeVariants(theme, next, store.customInteractive)
         write(STORAGE_KEYS.THEME_ID, next)
       })
+    }
+
+    const setCustomInteractive = (value: string | null) => {
+      const next = customInteractive(value)
+      if (value !== null && !next) return
+      setStore("customInteractive", next)
+      if (next) write(STORAGE_KEYS.CUSTOM_INTERACTIVE, next)
+      else drop(STORAGE_KEYS.CUSTOM_INTERACTIVE)
+      const activeTheme = store.themes[store.themeId]
+      if (activeTheme) cacheThemeVariants(activeTheme, store.themeId, next)
     }
 
     const setColorScheme = (scheme: ColorScheme) => {
@@ -319,57 +370,15 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       themeId: () => store.themeId,
       colorScheme: () => store.colorScheme,
       mode: () => store.mode,
+      customInteractive: () => store.customInteractive,
       ids,
       name: (id: string) => store.themes[id]?.name ?? names[id] ?? id,
       loadThemes,
       themes: () => store.themes,
       setTheme,
+      setCustomInteractive,
       setColorScheme,
       registerTheme: (theme: DesktopTheme) => setStore("themes", theme.id, theme),
-      previewTheme: (id: string) => {
-        const next = id
-        if (!next) return
-        if (next !== "novaway-classic" && !knownThemes().has(next) && !store.themes[next]) return
-        setStore("previewThemeId", next)
-        void load(next).then((theme) => {
-          if (!theme || store.previewThemeId !== next) return
-          const mode = store.previewScheme
-            ? store.previewScheme === "system"
-              ? getSystemMode()
-              : store.previewScheme
-            : store.mode
-          applyTheme(theme, next, mode)
-        })
-      },
-      previewColorScheme: (scheme: ColorScheme) => {
-        setStore("previewScheme", scheme)
-        const mode = scheme === "system" ? getSystemMode() : scheme
-        const id = store.previewThemeId ?? store.themeId
-        void load(id).then((theme) => {
-          if (!theme) return
-          if ((store.previewThemeId ?? store.themeId) !== id) return
-          if (store.previewScheme !== scheme) return
-          applyTheme(theme, id, mode)
-        })
-      },
-      commitPreview: () => {
-        if (store.previewThemeId) {
-          setTheme(store.previewThemeId)
-        }
-        if (store.previewScheme) {
-          setColorScheme(store.previewScheme)
-        }
-        setStore("previewThemeId", null)
-        setStore("previewScheme", null)
-      },
-      cancelPreview: () => {
-        setStore("previewThemeId", null)
-        setStore("previewScheme", null)
-        void load(store.themeId).then((theme) => {
-          if (!theme) return
-          applyTheme(theme, store.themeId, store.mode)
-        })
-      },
     }
   },
 })

@@ -43,6 +43,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Memory } from "@/memory/service"
 import { Config } from "@/config/config"
 import { Service as HookService } from "@/hook/service"
+import { forgetAsyncResults } from "@/hook/exec"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigEvolution } from "@/config/evolution"
 import { Evolution } from "@/evolution/service"
@@ -822,9 +823,7 @@ const rawLayer: Layer.Layer<
         // ProjectID.chat is the reserved owner for those private directories.
         const global = [...listByProject({ ...base, scope: "global" })]
         const isolated = [...listByProject({ ...base, scope: "project" })]
-        return [...global, ...isolated]
-          .sort((a, b) => b.time.updated - a.time.updated)
-          .slice(0, input?.limit ?? 100)
+        return [...global, ...isolated].sort((a, b) => b.time.updated - a.time.updated).slice(0, input?.limit ?? 100)
       }
       return Array.from(
         listByProject({
@@ -847,6 +846,7 @@ const rawLayer: Layer.Layer<
 
     const remove: Interface["remove"] = Effect.fnUntraced(function* (sessionID: SessionID) {
       const session = yield* get(sessionID)
+      forgetAsyncResults(sessionID)
       try {
         // `remove` needs to work in all cases, such as broken sessions that
         // run cleanup without instance state.
@@ -863,6 +863,7 @@ const rawLayer: Layer.Layer<
         }
 
         if (hooks._tag === "Some") {
+          yield* hooks.value.trigger({ event: "SessionDelete", sessionID, cwd: session.directory }).pipe(Effect.ignore)
           yield* hooks.value.trigger({ event: "SessionEnd", sessionID, cwd: session.directory }).pipe(Effect.ignore)
         }
         yield* sync.run(Event.Deleted, { sessionID, info: session }, { publish: hasInstance })

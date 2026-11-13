@@ -2101,7 +2101,8 @@ function fromModelsDevModel(provider: ModelsDev.Provider, model: ModelsDev.Model
 
 function fromPluginModel(provider: ProviderAdapter, modelID: string, model: ModelInfo): Model {
   const id = model.id ?? modelID
-  const npm = model.provider?.npm ??
+  const npm =
+    model.provider?.npm ??
     (typeof provider.sdk === "string" ? provider.sdk : provider.sdk?.package) ??
     "@ai-sdk/openai-compatible"
   const baseURL = model.provider?.api ?? provider.options?.baseURL ?? ""
@@ -2656,9 +2657,12 @@ export const layer = Layer.effect(
             const configured = providers[providerID]
             const stored = yield* auth.get(providerID).pipe(Effect.orDie)
             const envValues = yield* env.all()
-            const apiKey = configured?.key ??
+            const apiKey =
+              configured?.key ??
               (stored?.type === "api" ? stored.key : undefined) ??
-              (adapter.auth?.type === "env" ? adapter.auth.key?.map((key) => envValues[key]).find(Boolean) : undefined) ??
+              (adapter.auth?.type === "env"
+                ? adapter.auth.key?.map((key) => envValues[key]).find(Boolean)
+                : undefined) ??
               ""
             const baseURL = adapter.options?.baseURL ?? ""
             let declared: Record<string, ModelInfo>
@@ -3007,7 +3011,8 @@ export const layer = Layer.effect(
 
         const factoryName = s.sdkFactories[model.providerID]
         const fn = mod[factoryName ?? Object.keys(mod).find((key) => key.startsWith("create"))!]
-        if (typeof fn !== "function") throw new Error(`Provider package ${model.api.npm} has no factory ${factoryName ?? "create*"}`)
+        if (typeof fn !== "function")
+          throw new Error(`Provider package ${model.api.npm} has no factory ${factoryName ?? "create*"}`)
         const loaded = fn({
           name: model.providerID,
           ...options,

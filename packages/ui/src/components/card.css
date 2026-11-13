@@ -28,7 +28,28 @@
   --card-indent: 0px;
   --card-line-pad: 12px;
 
-  --card-accent: var(--primary);
+  --card-accent: var(--accent-interactive-base);
+  --card-icon-color: var(--icon-interactive-base);
+
+  &[data-variant="success"] {
+    --card-accent: var(--accent-success-base);
+    --card-icon-color: var(--icon-success-base);
+  }
+
+  &[data-variant="warning"] {
+    --card-accent: var(--accent-warning-base);
+    --card-icon-color: var(--icon-warning-base);
+  }
+
+  &[data-variant="error"] {
+    --card-accent: var(--accent-critical-base);
+    --card-icon-color: var(--icon-critical-base);
+  }
+
+  &[data-variant="info"] {
+    --card-accent: var(--accent-info-base);
+    --card-icon-color: var(--icon-info-base);
+  }
 
   &:hover {
     border-color: var(--border);
@@ -51,7 +72,11 @@
     bottom: var(--card-line-pad);
     width: 4px;
     border-radius: 0 4px 4px 0;
-    background: linear-gradient(180deg, var(--primary) 0%, var(--accent) 100%);
+    background: linear-gradient(
+      180deg,
+      var(--card-accent) 0%,
+      color-mix(in oklab, var(--card-accent) 72%, var(--surface)) 100%
+    );
   }
 
   :where([data-card="title"], [data-slot="card-title"]) {
@@ -66,7 +91,7 @@
   }
 
   :where([data-slot="card-title"]) [data-component="icon"] {
-    color: var(--card-accent);
+    color: var(--card-icon-color);
   }
 
   :where([data-slot="card-title-icon"]) {

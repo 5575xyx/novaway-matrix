@@ -593,19 +593,19 @@
         &:has([data-selected]) {
           background-color: var(
             --settings-nav-active,
-            color-mix(in oklab, var(--settings-accent, var(--icon-blue)) 10%, var(--panel))
+            color-mix(in oklab, var(--settings-accent, var(--surface-interactive-base)) 10%, var(--panel))
           );
-          border-color: color-mix(in oklab, var(--settings-accent, var(--icon-blue)) 18%, transparent);
+          border-color: color-mix(in oklab, var(--settings-accent, var(--border-interactive-base)) 18%, transparent);
           color: var(--settings-nav-text-active, var(--foreground));
 
           [data-component="icon"] {
-            color: var(--settings-accent, var(--icon-blue));
+            color: var(--settings-accent, var(--icon-interactive-base));
           }
 
           &:hover:not(:disabled) {
             background-color: var(
               --settings-nav-active,
-              color-mix(in oklab, var(--settings-accent, var(--icon-blue)) 10%, var(--panel))
+              color-mix(in oklab, var(--settings-accent, var(--surface-interactive-base)) 10%, var(--panel))
             );
           }
         }

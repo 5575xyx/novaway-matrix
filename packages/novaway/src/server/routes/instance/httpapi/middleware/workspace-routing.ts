@@ -221,9 +221,7 @@ function routeHttpApiWorkspace<E>(
     // instance. Once the session ID is known, route all session-scoped APIs to
     // that private directory rather than falling back to the shared global host.
     const plan =
-      session?.scope === "project" &&
-      session.projectID === "global-chat" &&
-      requestedDirectory === "global-chat"
+      session?.scope === "project" && session.projectID === "global-chat" && requestedDirectory === "global-chat"
         ? RequestPlan.Local({ directory: session.directory })
         : yield* planRequest(request, session?.scope === "global" ? undefined : session?.workspaceID)
     if (session?.scope === "global" && (queryParam(url, "workspace") || request.headers["x-novaway-workspace"])) {

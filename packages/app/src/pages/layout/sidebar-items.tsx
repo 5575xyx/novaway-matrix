@@ -171,7 +171,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
         data-session-id={props.session.id}
         classList={{
           "group/session relative w-full flex flex-col rounded-lg border-solid transition-colors hover:bg-hover py-2": true,
-          "border-2 border-primary": selected(),
+          "border-2 border-interactive-selected": selected(),
           "border border-border": !selected(),
           "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:rounded-full before:bg-[var(--novaway-mode-color,var(--border-hover))]":
             selected(),
@@ -196,23 +196,23 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             <Show when={isWorking() || hasPermissions() || hasError() || unseenCount() > 0}>
               <div
                 class="shrink-0 size-6 flex items-center justify-center"
-                style={{ color: tint() ?? "var(--icon-blue)" }}
+                style={{ color: tint() ?? "var(--icon-interactive-base)" }}
               >
                 <Switch>
                   <Match when={isWorking()}>
                     <div class="relative size-[15px] flex items-center justify-center">
-                      <div class="absolute inset-0 rounded-full border-[1.5px] border-icon-blue animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                      <div class="size-1.5 rounded-full bg-icon-blue" />
+                      <div class="absolute inset-0 rounded-full border-[1.5px] border-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
+                      <div class="size-1.5 rounded-full bg-surface-interactive-base" />
                     </div>
                   </Match>
                   <Match when={hasPermissions()}>
-                    <div class="size-1.5 rounded-full bg-warning" />
+                    <div class="size-1.5 rounded-full bg-surface-warning-base" />
                   </Match>
                   <Match when={hasError()}>
-                    <div class="size-1.5 rounded-full bg-diff-removed" />
+                    <div class="size-1.5 rounded-full bg-surface-critical-base" />
                   </Match>
                   <Match when={unseenCount() > 0}>
-                    <div class="size-1.5 rounded-full bg-icon-blue" />
+                    <div class="size-1.5 rounded-full bg-surface-interactive-base" />
                   </Match>
                 </Switch>
               </div>
@@ -229,7 +229,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                 value={draft()}
                 disabled={saving()}
                 placeholder="Enter 保存"
-                class="text-14-medium text-foreground min-w-0 flex-1 rounded-[6px] px-1 -ml-1 border border-icon-blue outline-none bg-background placeholder:text-foreground-subtle"
+                class="text-14-medium text-foreground min-w-0 flex-1 rounded-[6px] px-1 -ml-1 border border-interactive-base outline-none bg-background placeholder:text-foreground-subtle"
                 onInput={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   event.stopPropagation()

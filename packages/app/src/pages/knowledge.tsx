@@ -309,8 +309,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                   type="button"
                   class="rounded-md border px-2 py-1 text-11-regular transition-colors"
                   classList={{
-                    "border-[color-mix(in_srgb,var(--success)_45%,var(--border))] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-foreground":
-                      !template(),
+                    "border-interactive-base/45 bg-surface-interactive-weak text-foreground": !template(),
                     "border-border bg-surface text-foreground-subtle hover:bg-hover": !!template(),
                   }}
                   onClick={() => applyTemplate(undefined)}
@@ -323,7 +322,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                       type="button"
                       class="max-w-40 truncate rounded-md border px-2 py-1 text-11-regular transition-colors"
                       classList={{
-                        "border-[color-mix(in_srgb,var(--success)_45%,var(--border))] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-foreground":
+                        "border-interactive-base/45 bg-surface-interactive-weak text-foreground":
                           template() === item.id,
                         "border-border bg-surface text-foreground-subtle hover:bg-hover": template() !== item.id,
                       }}
@@ -467,7 +466,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
             </Button>
             <Button
               variant="secondary"
-              class="text-icon-critical-base"
+              class="text-critical-base"
               onClick={() => {
                 setBusy(true)
                 void input
@@ -1805,8 +1804,8 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
         <span
           class="grid size-8 shrink-0 place-items-center rounded-lg"
           style={{
-            color: "var(--icon-success-base)",
-            background: "color-mix(in srgb, var(--icon-success-base) 16%, transparent)",
+            color: "var(--icon-interactive-base)",
+            background: "var(--surface-interactive-weak)",
           }}
         >
           <Icon name="review" size="normal" />
@@ -1822,7 +1821,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
               type="button"
               class="flex h-7 items-center gap-1.5 rounded-md border px-2 text-11-regular transition-colors"
               classList={{
-                "border-[color-mix(in_srgb,var(--warning)_35%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] text-icon-warning-base hover:bg-[color-mix(in_srgb,var(--warning)_16%,transparent)]":
+                "border-warning-base/35 bg-surface-warning-weak text-warning-base hover:bg-surface-warning-base/16":
                   status().kind === "none",
                 "border-border bg-surface text-foreground-subtle hover:bg-hover": status().kind !== "none",
               }}
@@ -1905,8 +1904,8 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
 
       <Show when={runningImport()}>
         {(job) => (
-          <div class="flex items-center gap-2 border-b border-border bg-[color-mix(in_srgb,var(--icon-info-base)_8%,transparent)] px-3 py-1.5">
-            <span class="size-3 shrink-0 animate-spin rounded-full border-2 border-[var(--icon-blue)] border-t-transparent" />
+          <div class="flex items-center gap-2 border-b border-border bg-surface-info-weak px-3 py-1.5">
+            <span class="size-3 shrink-0 animate-spin rounded-full border-2 border-interactive-base border-t-transparent" />
             <span class="min-w-0 flex-1 truncate text-11-regular text-foreground">
               {language.t("knowledge.import.running", {
                 processed: num(job().progress.processed),
@@ -1921,11 +1920,11 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                 when={num(job().progress.processed) > 0}
                 fallback={
                   /* 第一个文件还在解析：宽度未知，用流动动画表示「在做事」。 */
-                  <div class="knowledge-import-indeterminate h-full w-1/3 rounded-full bg-[var(--icon-blue)]" />
+                  <div class="knowledge-import-indeterminate h-full w-1/3 rounded-full bg-surface-interactive-base" />
                 }
               >
                 <div
-                  class="h-full rounded-full bg-[var(--icon-blue)] transition-[width] duration-300"
+                  class="h-full rounded-full bg-surface-interactive-base transition-[width] duration-300"
                   style={{
                     width:
                       Math.round((num(job().progress.processed) / Math.max(num(job().progress.total), 1)) * 100) + "%",
@@ -1985,8 +1984,8 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                         <span
                           class="grid size-6 shrink-0 place-items-center rounded-md"
                           style={{
-                            color: "var(--icon-success-base)",
-                            background: "color-mix(in srgb, var(--icon-success-base) 14%, transparent)",
+                            color: "var(--icon-interactive-base)",
+                            background: "var(--surface-interactive-weak)",
                           }}
                         >
                           <Icon name="review" size="small" />
@@ -1998,12 +1997,12 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                               {num(collection.documentCount)} {language.t("knowledge.documentsShort")}
                             </span>
                             <Show when={mounted().includes(collection.id)}>
-                              <span class="rounded bg-[color-mix(in_srgb,var(--success)_16%,transparent)] px-1 text-[10px] text-icon-success-base">
+                              <span class="rounded bg-surface-success-weak px-1 text-[10px] text-success-base">
                                 {language.t("knowledge.mounted")}
                               </span>
                             </Show>
                             <Show when={collection.scope === "project"}>
-                              <span class="rounded bg-[color-mix(in_srgb,var(--icon-info-base)_16%,transparent)] px-1 text-[10px] text-[var(--icon-info-base)]">
+                              <span class="rounded bg-surface-info-weak px-1 text-[10px] text-info-base">
                                 {language.t("knowledge.scope.project")}
                               </span>
                             </Show>
@@ -2059,7 +2058,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
         </aside>
 
         <main
-          class="min-w-0 flex-1 overflow-y-auto transition-colors data-[dragging=true]:bg-primary/5"
+          class="min-w-0 flex-1 overflow-y-auto transition-colors data-[dragging=true]:bg-surface-interactive-weak"
           onDragOver={(event) => {
             if (!current()) return
             event.preventDefault()
@@ -2135,8 +2134,8 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                         <span
                           class="grid size-10 shrink-0 place-items-center rounded-xl"
                           style={{
-                            color: "var(--icon-success-base)",
-                            background: "color-mix(in srgb, var(--icon-success-base) 16%, transparent)",
+                            color: "var(--icon-interactive-base)",
+                            background: "var(--surface-interactive-weak)",
                           }}
                         >
                           <Icon name="review" size="normal" />
@@ -2145,7 +2144,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                           <div class="flex min-w-0 items-center gap-2">
                             <span class="truncate text-15-medium text-foreground">{collection().name}</span>
                             <Show when={mounted().includes(collection().id)}>
-                              <span class="shrink-0 rounded bg-[color-mix(in_srgb,var(--success)_16%,transparent)] px-1.5 py-0.5 text-11-regular text-icon-success-base">
+                              <span class="shrink-0 rounded bg-surface-success-weak px-1.5 py-0.5 text-11-regular text-success-base">
                                 {language.t("knowledge.mount.current")}
                               </span>
                             </Show>
@@ -2338,7 +2337,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                             size="small"
                             variant="ghost"
                             icon="trash"
-                            class="text-icon-critical-base"
+                            class="text-critical-base"
                             disabled={busy()}
                             onClick={bulkRemove}
                           >
@@ -2374,12 +2373,12 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                               <span
                                 class="grid size-3.5 place-items-center rounded border"
                                 classList={{
-                                  "border-[var(--icon-blue)] bg-[var(--icon-blue)]": allSelected(),
+                                  "border-interactive-selected bg-surface-interactive-base": allSelected(),
                                   "border-border": !allSelected(),
                                 }}
                               >
                                 <Show when={allSelected()}>
-                                  <Icon name="check-small" size="small" class="text-background" />
+                                  <Icon name="check-small" size="small" class="text-text-on-interactive-base" />
                                 </Show>
                               </span>
                               {language.t("knowledge.documents.selectAll")}
@@ -2392,7 +2391,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                                   type="button"
                                   class="grid size-4 shrink-0 place-items-center rounded border"
                                   classList={{
-                                    "border-[var(--icon-blue)] bg-[var(--icon-blue)]": selectedDocs().includes(
+                                    "border-interactive-selected bg-surface-interactive-base": selectedDocs().includes(
                                       document.id,
                                     ),
                                     "border-border": !selectedDocs().includes(document.id),
@@ -2401,7 +2400,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                                   onClick={() => toggleSelected(document.id)}
                                 >
                                   <Show when={selectedDocs().includes(document.id)}>
-                                    <Icon name="check-small" size="small" class="text-background" />
+                                    <Icon name="check-small" size="small" class="text-text-on-interactive-base" />
                                   </Show>
                                 </button>
                                 <button
@@ -2519,7 +2518,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                             <For each={highlight(hit.title, query())}>
                               {(part) => (
                                 <Show when={part.hit} fallback={<>{part.text}</>}>
-                                  <mark class="rounded bg-[color-mix(in_srgb,var(--warning)_30%,transparent)] px-0.5 text-foreground">
+                                  <mark class="rounded bg-surface-warning-weak px-0.5 text-foreground">
                                     {part.text}
                                   </mark>
                                 </Show>
@@ -2534,9 +2533,7 @@ export const KnowledgePage: Component<{ onBack: () => void }> = (props) => {
                           <For each={highlight(hit.snippet, query())}>
                             {(part) => (
                               <Show when={part.hit} fallback={<>{part.text}</>}>
-                                <mark class="rounded bg-[color-mix(in_srgb,var(--warning)_28%,transparent)] px-0.5 text-foreground">
-                                  {part.text}
-                                </mark>
+                                <mark class="rounded bg-surface-warning-weak px-0.5 text-foreground">{part.text}</mark>
                               </Show>
                             )}
                           </For>
@@ -2623,7 +2620,7 @@ function KnowledgeGraphView(props: { graph: KnowledgeGraph; onSelect?: (label: s
                   cx={node.x}
                   cy={node.y}
                   r={Math.min(7 + Math.log2(num(node.weight) + 1) * 1.6, 15)}
-                  fill={hover() === node.id ? "var(--success-strong)" : "var(--success)"}
+                  fill={hover() === node.id ? "var(--surface-success-strong)" : "var(--surface-success-base)"}
                   fill-opacity={0.85}
                   stroke="var(--background)"
                   stroke-width={1.5}

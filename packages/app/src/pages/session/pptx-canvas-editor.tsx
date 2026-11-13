@@ -94,7 +94,7 @@ export const PptxShapeFrame: Component<{
     <div
       ref={frame}
       data-component="pptx-shape-frame"
-      class="absolute z-20 cursor-move border-2 border-icon-blue select-none"
+      class="absolute z-20 cursor-move border-2 border-interactive-base select-none"
       classList={{ "pointer-events-none": !props.movable }}
       style={{
         left: `${props.box.x * props.scale}px`,
@@ -108,7 +108,7 @@ export const PptxShapeFrame: Component<{
       <Show when={props.movable}>
         <span
           data-handle="rotate"
-          class="absolute left-1/2 -top-6 size-3 -translate-x-1/2 cursor-grab rounded-full border border-icon-blue bg-background"
+          class="absolute left-1/2 -top-6 size-3 -translate-x-1/2 cursor-grab rounded-full border border-interactive-base bg-background"
           onPointerDown={(event) => {
             event.preventDefault()
             event.stopPropagation()
@@ -122,7 +122,7 @@ export const PptxShapeFrame: Component<{
           {(handle) => (
             <span
               data-handle={handle.id}
-              class="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-[1px] border border-icon-blue bg-background"
+              class="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-[1px] border border-interactive-base bg-background"
               style={{
                 left: `${handle.left * 100}%`,
                 top: `${handle.top * 100}%`,
@@ -162,7 +162,7 @@ export const PptxTextEditor: Component<{
   return (
     <div
       data-component="pptx-inline-editor"
-      class="absolute z-30 flex flex-col overflow-hidden rounded-[2px] bg-transparent outline outline-1 outline-icon-blue/60"
+      class="absolute z-30 flex flex-col overflow-hidden rounded-[2px] bg-transparent outline outline-1 outline-border-interactive-selected/60"
       style={{
         left: `${props.box.x * props.scale}px`,
         top: `${props.box.y * props.scale}px`,
@@ -231,6 +231,7 @@ function paragraphStyle(style: PptxTextStyle | undefined, scale: number) {
     "font-weight": value.bold ? 700 : 400,
     "font-style": value.italic ? "italic" : "normal",
     "text-decoration": value.underline ? "underline" : "none",
+    // PPT 文本颜色属于文档内容；未指定颜色时使用文档画布默认墨色，而非 App 主题文字色。
     color: value.color ? `#${value.color}` : "#111827",
     "text-align": alignCss(value.align),
     "font-family": value.font ? `"${value.font}"` : undefined,
@@ -313,7 +314,7 @@ export const PptxFormatBar: Component<{
               data-action="pptx-format-color"
               title={`#${color}`}
               class="size-4 rounded-[2px] border border-border transition-transform hover:scale-110"
-              classList={{ "ring-2 ring-icon-blue": props.style.color === color }}
+              classList={{ "ring-2 ring-border-interactive-selected": props.style.color === color }}
               style={{ "background-color": `#${color}` }}
               disabled={props.disabled}
               onClick={() => props.onChange({ color })}

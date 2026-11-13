@@ -1,0 +1,31 @@
+{
+  "$schema": "https://novaway.ai/schemas/acp-bridge.json",
+  "name": "NovaWay",
+  "description": "Run NovaWay as an ACP agent inside a JetBrains IDE console or external-tool session.",
+  "transport": {
+    "kind": "stdio",
+    "command": "novaway",
+    "args": ["acp"],
+    "cwd": "${projectBasePath}"
+  },
+  "protocol": {
+    "name": "agent-client-protocol",
+    "version": 1
+  },
+  "clientCapabilities": {
+    "fs": {
+      "readTextFile": false,
+      "writeTextFile": false
+    }
+  },
+  "methods": {
+    "initialize": "required",
+    "session/new": "required",
+    "session/prompt": "required",
+    "session/update": "notification",
+    "session/request_permission": "request"
+  },
+  "environment": {
+    "NOVAWAY_SERVER_PASSWORD": "optional; only needed when the bridge talks to a secured server"
+  }
+}

@@ -237,11 +237,12 @@ const MemoryViewTabs: Component<{ value: MemoryView; onChange: (value: MemoryVie
   </div>
 )
 
+// Relation graph node kinds use the visualization palette rather than status or Agent identity hues.
 function relationNodeColor(type?: string) {
-  if (type === "person") return "var(--icon-info-base)"
-  if (type === "product") return "var(--icon-agent-plan-base)"
-  if (type === "organization" || type === "company") return "var(--icon-warning-base)"
-  if (type === "place") return "var(--icon-success-base)"
+  if (type === "person") return "var(--graph-lane-0)"
+  if (type === "product") return "var(--graph-lane-1)"
+  if (type === "organization" || type === "company") return "var(--graph-lane-2)"
+  if (type === "place") return "var(--graph-lane-3)"
   return "var(--icon-weak-base)"
 }
 

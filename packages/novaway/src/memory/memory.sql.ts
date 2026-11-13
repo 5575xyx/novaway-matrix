@@ -4,6 +4,8 @@ import { SessionTable } from "@/session/session.sql"
 import type { ProjectID } from "@/project/schema"
 import type { SessionID, MessageID } from "@/session/schema"
 import type {
+  ConsolidationOp,
+  ConsolidationState,
   Domain,
   MemoryID,
   MemoryOperation,
@@ -113,6 +115,34 @@ export const MemoryReviewStateTable = sqliteTable(
     ...Timestamps,
   },
   (table) => [index("memory_review_state_project_idx").on(table.project_id)],
+)
+
+export const MemoryConsolidationTable = sqliteTable(
+  "memory_consolidation",
+  {
+    id: text().primaryKey(),
+    project_id: text()
+      .$type<ProjectID>()
+      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+    session_id: text()
+      .$type<SessionID>()
+      .references(() => SessionTable.id, { onDelete: "set null" }),
+    op: text().$type<ConsolidationOp>().notNull(),
+    memory_id: text().$type<MemoryID>(),
+    before: text(),
+    after: text(),
+    source: text().notNull().default("dream"),
+    state: text().$type<ConsolidationState>().notNull().default("prepared"),
+    note: text(),
+    run_at: integer().notNull(),
+    ...Timestamps,
+  },
+  (table) => [
+    index("memory_consolidation_project_idx").on(table.project_id),
+    index("memory_consolidation_session_idx").on(table.session_id),
+    index("memory_consolidation_state_idx").on(table.state),
+    index("memory_consolidation_run_idx").on(table.run_at),
+  ],
 )
 
 export const MemoryRelationTable = sqliteTable(

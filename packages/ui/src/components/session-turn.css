@@ -118,7 +118,7 @@
   }
 
   [data-slot="session-turn-diffs-toggle"] {
-    color: var(--icon-blue);
+    color: var(--icon-interactive-base);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-ui-base);
     font-weight: var(--font-weight-regular);
@@ -148,7 +148,7 @@
     transition: color 0.15s ease;
 
     &:hover {
-      color: var(--icon-blue);
+      color: var(--icon-interactive-base);
     }
   }
 

@@ -629,11 +629,7 @@ it.instance("tracks global and local plugin metadata in merged tui config", () =
 
       const config = yield* getTuiConfig(test.directory)
       const origins = yield* getTuiPluginOrigins(test.directory)
-      expect(config.plugin).toEqual([
-        "global-plugin@1.0.0",
-        ...seededDefaultPluginSpecs,
-        "local-plugin@2.0.0",
-      ])
+      expect(config.plugin).toEqual(["global-plugin@1.0.0", ...seededDefaultPluginSpecs, "local-plugin@2.0.0"])
       expect(origins).toEqual([
         {
           spec: "global-plugin@1.0.0",

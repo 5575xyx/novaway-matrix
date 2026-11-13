@@ -711,6 +711,7 @@ export const PptxFilePreview: Component<{
 
   // 插入形状：预设几何（rect / ellipse / arrow …），PowerPoint 里可以继续拖动、改色、加动画。
   const [shapeKind, setShapeKind] = createSignal<PptxShapeKind>("rect")
+  // 形状填充是写入 PPT 的文档内容默认值，不跟随 App UI 主题。
   const [shapeFill, setShapeFill] = createSignal("#4472C4")
   const addShape = async () => {
     if (!props.path || saving()) return
@@ -1282,7 +1283,7 @@ export const PptxFilePreview: Component<{
                       type="button"
                       data-action="pptx-inline-save"
                       disabled={saving()}
-                      class="rounded-lg border border-icon-blue/40 bg-icon-blue/10 px-3 py-1.5 text-12-medium text-icon-blue transition-colors hover:bg-icon-blue/20 disabled:opacity-50"
+                      class="rounded-lg border border-interactive-base/40 bg-surface-interactive-weak px-3 py-1.5 text-12-medium text-interactive-base transition-colors hover:bg-surface-interactive-weak-hover disabled:opacity-50"
                       onClick={() => void saveInlineEdit()}
                     >
                       {saving() ? "保存中…" : "保存"}
@@ -1352,7 +1353,7 @@ export const PptxFilePreview: Component<{
                         type="button"
                         data-action="pptx-delete-shape"
                         title="从这一页删掉选中的形状"
-                        class="rounded-lg px-2.5 py-1.5 text-12-medium text-icon-critical-base transition-colors hover:bg-surface-critical-weak"
+                        class="rounded-lg px-2.5 py-1.5 text-12-medium text-critical-base transition-colors hover:bg-surface-critical-weak"
                         onClick={() => void deleteShape(anchor().shapeId!)}
                       >
                         删除形状
@@ -1368,7 +1369,7 @@ export const PptxFilePreview: Component<{
                     <button
                       type="button"
                       data-action="pptx-pick-add"
-                      class="rounded-lg border border-icon-blue/40 bg-icon-blue/10 px-3 py-1.5 text-12-medium text-icon-blue transition-colors hover:bg-icon-blue/20"
+                      class="rounded-lg border border-interactive-base/40 bg-surface-interactive-weak px-3 py-1.5 text-12-medium text-interactive-base transition-colors hover:bg-surface-interactive-weak-hover"
                       onClick={addCommentToConversation}
                     >
                       添加到对话
@@ -1440,7 +1441,7 @@ export const PptxFilePreview: Component<{
           />
           {/* 放映：整屏只读呈现当前页；方向键 / 空格翻页，Esc 退出。 */}
           <Show when={showing()}>
-            <div class="fixed inset-0 z-50 flex flex-col bg-black" data-action="pptx-showcase">
+            <div class="fixed inset-0 z-50 flex flex-col bg-surface-presentation-stage" data-action="pptx-showcase">
               <div class="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
                 <Show when={showBox()}>
                   {(box) => (
@@ -1461,17 +1462,17 @@ export const PptxFilePreview: Component<{
                   )}
                 </Show>
               </div>
-              <div class="flex h-10 shrink-0 items-center justify-center gap-4 text-12-regular text-white/70">
-                <button type="button" class="px-2 hover:text-white" onClick={() => stepShowcase(-1)}>
+              <div class="flex h-10 shrink-0 items-center justify-center gap-4 text-12-regular text-on-presentation-stage-muted">
+                <button type="button" class="px-2 hover:text-on-presentation-stage" onClick={() => stepShowcase(-1)}>
                   ‹ 上一页
                 </button>
                 <span class="tabular-nums">
                   {showPage() + 1} / {pageCount()}
                 </span>
-                <button type="button" class="px-2 hover:text-white" onClick={() => stepShowcase(1)}>
+                <button type="button" class="px-2 hover:text-on-presentation-stage" onClick={() => stepShowcase(1)}>
                   下一页 ›
                 </button>
-                <button type="button" class="px-2 hover:text-white" onClick={closeShowcase}>
+                <button type="button" class="px-2 hover:text-on-presentation-stage" onClick={closeShowcase}>
                   退出（Esc）
                 </button>
               </div>

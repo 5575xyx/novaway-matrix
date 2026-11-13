@@ -376,7 +376,7 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
               </div>
             </Show>
             <Show when={errorText()}>
-              <div class="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/5 px-2.5 py-2 text-ui-caption leading-5 text-foreground-subtle">
+              <div class="rounded-md border border-critical-base/40 bg-surface-critical-weak px-2.5 py-2 text-ui-caption leading-5 text-foreground-subtle">
                 {errorText()}
               </div>
             </Show>

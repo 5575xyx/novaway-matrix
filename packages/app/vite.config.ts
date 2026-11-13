@@ -21,6 +21,12 @@ const sentry =
 
 export default defineConfig({
   plugins: [desktopPlugin, sentry] as any,
+  optimizeDeps: {
+    // CJS packages used by worker/editor code need Vite's interop wrapper; keep workspace TSX
+    // packages out of esbuild so vite-plugin-solid transforms them instead of assuming React JSX.
+    include: ["lru_map", "pako", "fuzzysort", "jszip"],
+    exclude: ["@novaway/core", "@novaway/sdk", "@novaway/ui"],
+  },
   server: {
     host: "0.0.0.0",
     allowedHosts: true,

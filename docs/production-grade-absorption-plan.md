@@ -82,7 +82,7 @@
 | 子 Agent | task / task_status / task_stop / team / mailbox；后台任务与 worktree 隔离                                                                                            | `packages/novaway/src/tool/agent_task.ts`、`team/*`                                       |
 | 对外接口 | HttpApi 300+ 端点 / 42 组；ACP；headless server；JS SDK                                                                                                              | `server/routes/instance/httpapi/groups/*`、`acp/*`、`cli/cmd/serve.ts`、`packages/sdk/js` |
 | 桌面端   | SolidJS + Vite；会话时间线、Side Pane、状态面板、Composer、Git、终端、Office 预览                                                                                    | `packages/app/src/pages/session/*`                                                        |
-| 设计系统 | `text-ui-*` 字号、语义色、A1 卡片、参照产品风格圆角与面板                                                                                                              | `packages/app/src/index.css`、`utils/workspace-chrome.ts`、`packages/ui`                  |
+| 设计系统 | `text-ui-*` 字号、语义色、A1 卡片、参照产品风格圆角与面板                                                                                                            | `packages/app/src/index.css`、`utils/workspace-chrome.ts`、`packages/ui`                  |
 | 测试     | 后端 366 文件；前端 124 文件；Playwright e2e                                                                                                                         | `packages/novaway/test`、`packages/app`                                                   |
 
 ### 2.2 cc 内核的强项

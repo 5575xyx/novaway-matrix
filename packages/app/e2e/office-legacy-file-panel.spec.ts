@@ -168,7 +168,8 @@ function pptSample(): Uint8Array {
 test.use({ channel: "chrome", video: "off", trace: "off" })
 test.beforeAll(async () => {
   if (samples) {
-    for (const ext of ["doc", "xls", "ppt"]) await writeFile(path(ext), await readFile(resolve(samples, `sample.${ext}`)))
+    for (const ext of ["doc", "xls", "ppt"])
+      await writeFile(path(ext), await readFile(resolve(samples, `sample.${ext}`)))
   } else {
     await writeFile(path("doc"), docSample())
     await writeFile(path("xls"), xlsSample())
@@ -228,7 +229,12 @@ for (const { extension, target } of variants) {
     // Re-issue the query once after the initial cache has been populated instead
     // of treating the first empty result as a missing legacy file.
     await expect(async () => {
-      if (!(await row.first().isVisible().catch(() => false))) {
+      if (
+        !(await row
+          .first()
+          .isVisible()
+          .catch(() => false))
+      ) {
         await search.fill("")
         await search.fill(name(extension))
       }

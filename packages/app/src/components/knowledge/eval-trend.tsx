@@ -100,14 +100,14 @@ export const EvalTrendChart: Component<{ history: () => KnowledgeEvalHistoryEntr
           <path
             d={path(points(), (point) => point.hitRate)}
             fill="none"
-            stroke="var(--icon-blue)"
+            stroke="var(--graph-lane-0)"
             stroke-width="2"
             stroke-linecap="round"
           />
           <path
             d={path(points(), (point) => point.mrr)}
             fill="none"
-            stroke="var(--diff-added)"
+            stroke="var(--graph-lane-1)"
             stroke-width="2"
             stroke-dasharray="4 3"
             stroke-linecap="round"
@@ -121,7 +121,7 @@ export const EvalTrendChart: Component<{ history: () => KnowledgeEvalHistoryEntr
                   cx={x}
                   cy={HEIGHT - point.hitRate * HEIGHT}
                   r={index() === points().length - 1 ? 3.5 : 2}
-                  fill="var(--icon-blue)"
+                  fill="var(--graph-lane-0)"
                 />
               )
             }}
@@ -131,12 +131,12 @@ export const EvalTrendChart: Component<{ history: () => KnowledgeEvalHistoryEntr
 
       <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11-regular text-foreground-subtlest">
         <span class="flex items-center gap-1">
-          <span class="inline-block size-2 rounded-full bg-[var(--icon-blue)]" />
+          <span class="inline-block size-2 rounded-full" style={{ background: "var(--graph-lane-0)" }} />
           {language.t("knowledge.eval.hitRateLabel")}
           <Show when={delta((point) => point.hitRate)}>{(value) => <Delta value={value()} />}</Show>
         </span>
         <span class="flex items-center gap-1">
-          <span class="inline-block size-2 rounded-full bg-[var(--diff-added)]" />
+          <span class="inline-block size-2 rounded-full" style={{ background: "var(--graph-lane-1)" }} />
           {language.t("knowledge.eval.mrrLabel")}
           <Show when={delta((point) => point.mrr)}>{(value) => <Delta value={value()} />}</Show>
         </span>
@@ -160,8 +160,8 @@ const Delta: Component<{ value: number }> = (props) => {
     <span
       class="tabular-nums"
       classList={{
-        "text-icon-success-base": positive() && !neutral(),
-        "text-[var(--icon-critical-base)]": !positive() && !neutral(),
+        "text-success-base": positive() && !neutral(),
+        "text-critical-base": !positive() && !neutral(),
         "text-foreground-subtlest": neutral(),
       }}
     >

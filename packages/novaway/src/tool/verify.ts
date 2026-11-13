@@ -3,6 +3,8 @@ import * as Tool from "./tool"
 import { InstanceState } from "@/effect/instance-state"
 import { detect } from "@/verify/detect"
 import { run } from "@/verify/runner"
+import { Config } from "@/config/config"
+import { ConfigSandbox } from "@/config/sandbox"
 
 const Parameters = Schema.Struct({
   action: Schema.Literals(["list", "run"]),
@@ -32,9 +34,10 @@ type Metadata = {
   command?: string
 }
 
-export const VerifyTool = Tool.define<typeof Parameters, Metadata, never>(
+export const VerifyTool = Tool.define<typeof Parameters, Metadata, Config.Service>(
   "run_verification",
   Effect.gen(function* () {
+    const config = yield* Config.Service
     return {
       description: [
         "Run the project's own verification commands (tests, e2e, typecheck, lint, build).",
@@ -89,12 +92,19 @@ export const VerifyTool = Tool.define<typeof Parameters, Metadata, never>(
             metadata: { description: target.label, command: target.command },
           })
 
+          const sandbox = ConfigSandbox.resolve((yield* config.get()).sandbox)
+          if (sandbox.enabled && process.platform === "win32") {
+            yield* Effect.logWarning(
+              "sandbox is enabled on Windows: OS-level isolation is unavailable, verification runs unconfined",
+            )
+          }
           const result = yield* Effect.promise(() =>
             run({
               command: target.command,
               cwd: instance.directory,
               timeoutMs: params.timeout_ms,
               signal: ctx.abort,
+              sandbox,
             }),
           )
 

@@ -70,8 +70,7 @@ const hooks: Hooks = {
 }
 ;(window as unknown as { __header: Hooks }).__header = hooks
 
-// 主题 token（--icon-blue 等）由 ThemeProvider 挂载后写进 <html>；没有它，text-icon-blue
-// 这类工具类算不出颜色，样式断言就只能看 class 字符串。
+// 交互状态色来自 ThemeProvider 提供的语义 token；没有它，text-interactive-base 工具类无法解析颜色。
 render(
   () => (
     <PlatformProvider value={platform}>

@@ -48,18 +48,28 @@ import { Git } from "@/git"
 import { ConfigMemory } from "@/config/memory"
 import { ConfigEvolution } from "@/config/evolution"
 import { Service as CronService, defaultLayer as CronDefaultLayer } from "@/cron/service"
+import { Service as ChannelService, defaultLayer as ChannelDefaultLayer } from "@/channel/service"
 import { ConfigGoal } from "@/config/goal"
 import { ConfigCheckpoint } from "@/config/checkpoint"
 import { ConfigDream } from "@/config/dream"
+import * as DreamState from "./dream-state"
 import { ConfigMarkdown } from "@/config/markdown"
 import { SessionSummary } from "./summary"
 import { SessionMemoryNotes } from "./memory-notes"
-import { collectEdits, evaluateVerificationGate, parseVerificationReport } from "./verify-gate"
+import {
+  collectEdits,
+  evaluateVerificationGate,
+  isNonTrivial,
+  parseVerificationReport,
+  type VerificationObservation,
+} from "./verify-gate"
+import { GoalBudget } from "./goal-budget"
 import { NamedError } from "@novaway/core/util/error"
 import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
 import { ToolOp } from "./tool-op"
 import { Service as HookServiceService, defaultLayer as HookServiceLayer } from "@/hook/service"
+import { takeAsyncResults } from "@/hook/exec"
 import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import * as TeamOpLog from "@/team/op-log"
@@ -77,7 +87,10 @@ import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { LLM } from "./llm"
 import { Memory } from "@/memory/service"
+import { applyRelevanceKeep, summarizeMemory } from "@/util/memory-listing"
+import type { Info as MemoryInfo } from "@/memory/schema"
 import { injectMemoryContext } from "@/memory/context"
+import { Learning } from "./learning"
 import { ProjectContext } from "@/context/project-context"
 import { Evolution } from "@/evolution/service"
 import { Shell } from "@/shell/shell"
@@ -476,6 +489,7 @@ const MemoryReviewCandidateDraft = Schema.Struct({
   ),
   entities: Schema.optional(Schema.Array(Schema.Struct({ name: Schema.String, type: Schema.optional(Schema.String) }))),
   content: Schema.String,
+  evidence: Schema.Array(Schema.Struct({ messageID: Schema.String, quote: Schema.String })),
   summary: Schema.optional(Schema.String),
   tags: Schema.optional(Schema.Array(Schema.String)),
   importance: Schema.optional(Schema.Number),
@@ -489,6 +503,10 @@ const MemoryReviewResult = Schema.Struct({
   candidates: Schema.Array(MemoryReviewCandidateDraft),
 })
 
+const MemoryRelevanceResult = Schema.Struct({
+  keep: Schema.Array(Schema.Number),
+})
+
 type MemoryReviewCandidateDraft = Schema.Schema.Type<typeof MemoryReviewCandidateDraft>
 
 const EvolutionReviewCandidateDraft = Schema.Struct({
@@ -500,6 +518,7 @@ const EvolutionReviewCandidateDraft = Schema.Struct({
   reason: Schema.String,
   tags: Schema.optional(Schema.Array(Schema.String)),
   expectedOutcomes: Schema.optional(Schema.Array(Schema.String)),
+  evidence: Schema.Array(Schema.Struct({ messageID: Schema.String, quote: Schema.String })),
 })
 
 const EvolutionReviewResult = Schema.Struct({
@@ -519,7 +538,9 @@ const GoalJudgeResult = Schema.Struct({
   completedGoalIds: Schema.Array(Schema.String),
 })
 
-type EvolutionReviewCandidateDraft = Schema.Schema.Type<typeof EvolutionReviewCandidateDraft>
+type EvolutionReviewCandidateDraft = Schema.Schema.Type<typeof EvolutionReviewCandidateDraft> & {
+  evidence: readonly { messageID: string; quote: string }[]
+}
 
 function textFromParts(parts: MessageV2.Part[]) {
   return parts
@@ -529,14 +550,7 @@ function textFromParts(parts: MessageV2.Part[]) {
     .join("\n\n")
 }
 
-// dream 反思的进程内轮次计数:按会话累加,turn % interval === 0 时触发。重启后归零,属软节流可接受。
-const dreamTurns = new Map<string, number>()
-function dreamDue(sessionID: string, interval: number) {
-  if (interval <= 0) return false
-  const next = (dreamTurns.get(sessionID) ?? 0) + 1
-  dreamTurns.set(sessionID, next)
-  return next % interval === 0
-}
+// dream 反思的轮次计数与互斥状态持久化在 dream_state 表里：重启后节流仍成立，跨进程也不会并发整合。
 
 type ReferencePromptMetadata = {
   name: string
@@ -1110,6 +1124,20 @@ export const layer = Layer.effect(
       // next request so the model can act on them, mirroring Claude Code's
       // `hook_blocking_error` / `hook_additional_context` attachments.
       const hookNotes = takeHookNotes(input.session.id)
+      const asyncHookNotes = takeAsyncResults(input.session.id)
+      const display =
+        input.session.scope !== "global" && hooks
+          ? yield* hooks
+              .trigger({
+                event: "MessageDisplay",
+                sessionID: input.session.id,
+                cwd: input.session.directory,
+                metadata: { message: userMessage.info, parts: userMessage.parts },
+              })
+              .pipe(Effect.catch(() => Effect.succeed(EMPTY_HOOK)))
+          : EMPTY_HOOK
+      if (display.additionalContext) asyncHookNotes.push({ tool: "MessageDisplay", text: display.additionalContext })
+      for (const note of asyncHookNotes) hookNotes.push(note)
       if (hookNotes.length > 0) {
         const part = yield* sessions.updatePart({
           id: PartID.ascending(),
@@ -2892,7 +2920,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           "从本轮对话中提取最多 3 条值得长期保留的通用记忆候选，例如情景、事实、偏好、目标、决策、关系、经验教训或可复用流程。",
           "不要提取临时任务、普通闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。",
           "候选必须是未来对话可能复用的稳定信息，并尽量简洁。",
-          "每条候选必须包含 kind(episodic/semantic/preference/goal/decision/relationship/lesson/procedure)、factKey、operation(add/update/archive/confirm)、domain(general/coding/office/personal/research/ops) 和 confidence(0-1)。",
+          "每条候选必须返回 evidence 引文数组，含原始 messageID 和逐字 quote；不得猜测或编造引用。",
+          "每条候选必须包含 kind(episodic/semantic/preference/goal/decision/relationship/lesson/procedure)、factKey、operation(add/update/archive/confirm)、domain(general/coding/office/personal/research/ops)、confidence(0-1) 与 evidence 引文数组。引文需给出原始 messageID 和至少 4 字的逐字 quote。",
           "如果记忆涉及人物、组织、地点、产品或主题，填写 entities 数组，每项包含 name 和可选 type。",
           "若候选修正已知事实，使用 operation=update 并复用同一个 factKey。",
           "只输出 JSON 对象本身，不要包 markdown 代码块，也不要加任何解释。",
@@ -2992,13 +3021,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           "候选只能是可长期改进系统能力或用户工作方式的建议，例如技能补充、Agent 行为调整、工作流固化、提示词改进、可执行工具、行为策略、个人习惯流程、知识模板或项目规则沉淀。",
           "不要提取临时任务、普通闲聊、一次性命令、工具输出噪音、凭据、密钥或敏感信息。",
           "候选必须具体说明目标、改进内容和原因；当前步骤只生成候选，不会自动改写任何文件。",
-          "候选必须提供 expectedOutcomes，即写盘后可通过内容检查验证的预期结果（2-5 条短句，必须出现在最终文件中）。",
+          "每条候选必须返回 evidence 引文数组，含原始 messageID 和逐字 quote；不得猜测或编造引用。",
+          "候选可提供 expectedOutcomes 作为后续人工/行为评估目标；不得把它们当成文本包含检查，也不代表写盘后已验证有效。",
           "kind 可以是 skill、agent、workflow、prompt、tool、project、strategy、habit、knowledge；后三类分别用于通用行为策略、个人流程和知识模板。",
           "scope 必须是 global 或 project：global 表示该候选是跨项目通用的能力（如通用技能、可复用工作流、全局提示词/工具），应写入全局配置；project 表示仅与当前项目相关（如项目规则、特定 Agent 行为、项目专属流程）。",
           "当 kind=tool 时，content 优先给出可运行的 TypeScript 工具模块（export default tool({ description, args, execute })，可 import { tool } from @novaway/plugin）；若暂时只能给自然语言，也要写清工具用途、输入输出与执行步骤。",
           "当 kind=workflow 或 prompt 时，content 应是可直接作为命令模板使用的 Markdown 流程/提示词。",
           '当 kind=project 时，content 必须是目标文件的完整新内容或 unified diff，不要写"把 A 改成 B"这类操作说明；target 用相对路径（不含 .novaway 前缀）。',
-          "expectedOutcomes 里的每一条都必须逐字出现在 content 中，否则写盘后的回归校验会判定失败并回滚。",
           "只输出 JSON 对象本身，不要包 markdown 代码块，也不要加任何解释。",
         ].join("\n"),
       ]
@@ -3131,6 +3160,55 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return result as Schema.Schema.Type<typeof GoalJudgeResult>
     })
 
+    // 召回相关性筛选:候选过多时用一次小模型挑出与当前请求相关的记忆,失败由调用方回退。
+    const inferMemoryRelevance = Effect.fn("SessionPrompt.inferMemoryRelevance")(function* (input: {
+      model: Provider.Model
+      query: string
+      items: MemoryInfo[]
+    }) {
+      const messages = [
+        {
+          role: "system",
+          content: [
+            "你在为一次编码请求筛选相关记忆。",
+            "只保留能帮助完成当前请求的条目:同一项目/技术的约定、偏好、已知事实或踩坑经验。",
+            "与请求无关、过于宽泛、或只描述别的项目的内容不要保留。",
+            "keep 填写要保留条目的下标(整数),按相关性从高到低排列;全部无关时返回空数组。",
+          ].join("\n"),
+        } satisfies ModelMessage,
+        {
+          role: "user",
+          content: [
+            "<query>",
+            input.query,
+            "</query>",
+            "",
+            "<memories>",
+            ...input.items.map(
+              (item, index) => `${index}. (${item.scope}/${item.target}) ${summarizeMemory(item, 160)}`,
+            ),
+            "</memories>",
+          ].join("\n"),
+        } satisfies ModelMessage,
+      ]
+
+      const params = {
+        model: yield* provider.getLanguage(input.model),
+        temperature: 0,
+        maxOutputTokens: 256,
+        messages,
+        schema: Object.assign(
+          Schema.toStandardSchemaV1(MemoryRelevanceResult),
+          Schema.toStandardJSONSchemaV1(MemoryRelevanceResult),
+        ),
+      } satisfies Parameters<typeof generateObject>[0]
+
+      const result = yield* Effect.tryPromise(() =>
+        generateObject(params).then((response) => response.object as Schema.Schema.Type<typeof MemoryRelevanceResult>),
+      )
+      return applyRelevanceKeep(input.items, result.keep)
+    })
+
     const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, Image.Error, never> = Effect.fn(
       "SessionPrompt.prompt",
     )(function* (input: PromptInput) {
@@ -3176,6 +3254,18 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         )
         .map((part) => part.text)
         .join(String.fromCharCode(10))
+      const expansion =
+        session.scope !== "global" && hooks
+          ? yield* hooks
+              .trigger({
+                event: "UserPromptExpansion",
+                sessionID: input.sessionID,
+                cwd: session.directory,
+                prompt: promptText,
+                metadata: { expanded: promptInput.parts },
+              })
+              .pipe(Effect.catch(() => Effect.succeed(EMPTY_HOOK)))
+          : EMPTY_HOOK
       const submitted =
         session.scope !== "global" && hooks
           ? yield* hooks
@@ -3187,15 +3277,19 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               })
               .pipe(Effect.catch(() => Effect.succeed(EMPTY_HOOK)))
           : EMPTY_HOOK
-      if (submitted.blocked) {
-        return yield* Effect.die(new Error("Prompt blocked by a UserPromptSubmit hook."))
+      if (submitted.blocked || expansion.blocked) {
+        return yield* Effect.die(new Error("Prompt blocked by a prompt hook."))
       }
       const message = yield* createUserMessage(promptInput, session)
       // Hook-provided context (SessionStart at the start of the session,
       // UserPromptSubmit per message) is only useful if the model sees it, so
       // attach it to this user message as a synthetic part.
       const startContext = Session.takeStartContext(input.sessionID)
-      for (const text of [session.scope === "global" ? undefined : startContext, submitted.additionalContext]) {
+      for (const text of [
+        session.scope === "global" ? undefined : startContext,
+        expansion.additionalContext,
+        submitted.additionalContext,
+      ]) {
         if (!text) continue
         const part = yield* sessions.updatePart({
           id: PartID.ascending(),
@@ -3221,7 +3315,11 @@ ${text}
       }
 
       if (input.noReply === true) return message
-      return yield* loop({ sessionID: input.sessionID, goalExecution: input.goalExecution })
+      return yield* loop({
+        sessionID: input.sessionID,
+        goalExecution: input.goalExecution,
+        goalContinuation: input.goalContinuation,
+      })
     })
 
     const lastAssistant = Effect.fnUntraced(function* (sessionID: SessionID) {
@@ -3329,12 +3427,14 @@ ${text}
      * 并按 assistant 消息 id 去重，避免恢复会话时重复执行。
      */
     const finishedTurns = new Set<string>()
+    const scheduleLearning = yield* Learning.makeScheduler
     const runTurnLearning = Effect.fn("SessionPrompt.runTurnLearning")(function* (input: {
       session: Session.Info
       lastUser: MessageV2.User
       userParts: MessageV2.Part[]
       assistant: MessageV2.Assistant
       assistantParts: MessageV2.Part[]
+      history: MessageV2.WithParts[]
       model: Provider.Model
       agentName: string
     }) {
@@ -3344,6 +3444,7 @@ ${text}
 
       const memory = Option.getOrUndefined(yield* Effect.serviceOption(Memory.Service))
       const evolution = Option.getOrUndefined(yield* Effect.serviceOption(Evolution.Service))
+      const background = Option.getOrUndefined(yield* Effect.serviceOption(BackgroundJob.Service))
       const checkpoint = SessionCheckpoint
         ? Option.getOrUndefined(yield* Effect.serviceOption(SessionCheckpoint.Service))
         : undefined
@@ -3352,17 +3453,23 @@ ${text}
       const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
       const memoryEnabled = memoryCfg.enabled
       const memoryReviewEnabled = memoryEnabled && memoryCfg.review_enabled && memoryCfg.review_interval > 0
+      const skillExtractEnabled = evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.auto_skill
       const evolutionReviewEnabled = evolutionCfg.enabled && evolutionCfg.review_llm && evolutionCfg.review_interval > 0
       const userContent = textFromParts(input.userParts)
       const assistantContent = textFromParts(input.assistantParts)
       const session = input.session
       const sessionID = input.assistant.sessionID
       const lastUser = input.lastUser
+      const turnToolCalls = input.assistantParts.filter((part) => part.type === "tool").length
+      const learningWindow: Learning.Window = {
+        ...Learning.window(input.history, lastUser.id),
+        toolCallCount: turnToolCalls,
+      }
       const model = input.model
       const agentName = input.agentName
 
       // 全自动学习：显式抽取先做（纯本地、很快）。
-      if (memoryEnabled && memory && memoryCfg.auto_extract) {
+      if (!learningWindow.optedOut && !learningWindow.sensitive && memoryEnabled && memory && memoryCfg.auto_extract) {
         yield* memory
           .syncTurn({
             userContent,
@@ -3371,6 +3478,7 @@ ${text}
             sessionID,
             originMessageID: lastUser.id,
             agent: agentName,
+            optedOut: learningWindow.optedOut,
           })
           .pipe(Effect.ignore)
       }
@@ -3381,100 +3489,198 @@ ${text}
        * 进化审查就一直排在后面，看起来像"进化从未触发"。
        * `reviewDue` 是纯 DB 操作，先各自判定，再并发跑生成。
        */
+      // 证据窗过大时，记忆/进化审查会整段重放对话，收益低且拖慢后台。
+      // 跳过本轮但不推进游标：压缩把历史缩短后自然重试。
+      const reviewTokens = Token.estimate(learningWindow.transcript)
+      const learningPressure = reviewTokens >= SessionMemoryNotes.INIT_MIN_TOKENS * 4
+      if (learningPressure)
+        log.info("learning review skipped: evidence window over budget", { sessionID, reviewTokens })
+      const learningEligible = !learningWindow.optedOut && !learningWindow.sensitive && !learningPressure
+      const memoryPeriodDue =
+        learningEligible && memoryReviewEnabled && memory
+          ? yield* memory.reviewDue({
+              userContent,
+              projectID: session.projectID,
+              sessionID,
+              sourceMessageID: lastUser.id,
+              reviewInterval: memoryCfg.review_interval,
+            })
+          : false
+      const evolutionPeriodDue =
+        learningEligible && evolutionReviewEnabled && evolution
+          ? yield* evolution.reviewDue({
+              projectID: session.projectID,
+              sessionID,
+              sourceMessageID: lastUser.id,
+              reviewInterval: evolutionCfg.review_interval,
+            })
+          : false
+      const memoryTrigger = Learning.trigger({
+        enabled: memoryEnabled,
+        review: memoryReviewEnabled,
+        interval: memoryCfg.review_interval,
+        window: learningWindow,
+        dreamInterval: ConfigDream.resolve(cfg.dream).interval,
+      })
+      const evolutionTrigger = Learning.trigger({
+        enabled: evolutionCfg.enabled,
+        review: evolutionReviewEnabled || skillExtractEnabled,
+        interval: evolutionCfg.review_interval,
+        window: learningWindow,
+        toolThreshold: evolutionCfg.auto_skill ? evolutionCfg.auto_skill_threshold : undefined,
+      })
+      const skillFocus = evolutionTrigger.reason === "tool-activity"
+      // No new user text means nothing durable to learn from; skip the LLM calls.
+      const hasUserEvidence = learningWindow.entries.some(
+        (entry) => entry.role === "user" && entry.text.trim().length > 0,
+      )
       const memoryDue =
-        memoryReviewEnabled && memory
-          ? yield* memory
-              .reviewDue({
-                userContent,
-                projectID: session.projectID,
-                sessionID,
-                sourceMessageID: lastUser.id,
-                agent: agentName,
-                reviewInterval: memoryCfg.review_interval,
-              })
-              .pipe(Effect.catch(() => Effect.succeed(false)))
+        memoryReviewEnabled && memory && learningEligible && hasUserEvidence
+          ? memoryTrigger.reason === "interval" || memoryTrigger.reason === "dream"
+            ? memoryPeriodDue
+            : memoryTrigger.due
           : false
       const evolutionDue =
-        evolutionReviewEnabled && evolution
-          ? yield* evolution
-              .reviewDue({
-                projectID: session.projectID,
-                sessionID,
-                sourceMessageID: lastUser.id,
-                reviewInterval: evolutionCfg.review_interval,
-              })
-              .pipe(Effect.catch(() => Effect.succeed(false)))
+        evolution && learningEligible && hasUserEvidence
+          ? evolutionTrigger.reason === "interval"
+            ? evolutionPeriodDue
+            : evolutionTrigger.reason === "tool-activity"
+              ? skillExtractEnabled
+              : evolutionReviewEnabled && evolutionTrigger.due
           : false
 
       const memoryJob =
         !memoryDue || !memory
           ? Effect.void
-          : Effect.gen(function* () {
-              const candidates = yield* inferMemoryReviewCandidates({
-                model,
-                userContent,
-                assistantContent,
-              }).pipe(Effect.catch(() => Effect.succeed([])))
-              const reviewed = yield* memory!
-                .review({
-                  userContent,
-                  assistantContent,
-                  projectID: session.projectID,
-                  sessionID,
-                  sourceMessageID: lastUser.id,
-                  agent: agentName,
-                  candidates,
-                  skipReviewState: true,
+          : scheduleLearning(background, {
+              type: "learning.memory",
+              projectID: session.projectID,
+              sessionID,
+              sourceMessageID: lastUser.id,
+              trigger: memoryTrigger.reason,
+              run: Effect.gen(function* () {
+                const candidates = yield* Learning.stage(
+                  "memory-inference",
+                  inferMemoryReviewCandidates({
+                    model,
+                    userContent: learningWindow.transcript,
+                    assistantContent,
+                  }),
+                )
+                const grounded = candidates.flatMap((candidate) => {
+                  const evidence = Learning.cited(candidate, learningWindow)
+                  return evidence.some((entry) => entry.role === "user")
+                    ? [{ ...candidate, tags: [...(candidate.tags ?? []), "grounded"] }]
+                    : []
                 })
-                .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-              // 自动写入：候选直接进长期记忆，越用越聪明无需点通过。
-              if (memoryCfg.auto_apply && reviewed.length) {
-                for (const item of reviewed) {
-                  if (item.status !== "pending") continue
-                  yield* memory!.applyReviewCandidate(item.id).pipe(Effect.ignore)
+                if (!grounded.length) return Learning.output("empty", "no-grounded-evidence")
+                const reviewed = yield* Learning.stage(
+                  "memory-persist",
+                  memory!.review({
+                    userContent,
+                    assistantContent,
+                    projectID: session.projectID,
+                    sessionID,
+                    sourceMessageID: lastUser.id,
+                    agent: agentName,
+                    candidates: grounded,
+                    skipReviewState: true,
+                  }),
+                )
+                if (!reviewed.length) return Learning.output("empty", "no-memory-candidates")
+                let appliedCount = 0
+                if (memoryCfg.auto_apply && reviewed.length) {
+                  const existing = yield* memory!.list({
+                    projectID: session.projectID,
+                    includeGlobal: true,
+                    limit: 500,
+                  })
+                  const known = existing.map((item) => ({ id: item.id, factKey: item.factKey, content: item.content }))
+                  for (const item of reviewed) {
+                    const source = grounded.find((candidate) => candidate.content.trim() === item.content.trim())
+                    const draft: Learning.MemoryDraft = {
+                      content: item.content,
+                      factKey: item.factKey,
+                      operation: item.operation,
+                      confidence: item.confidence,
+                      basis: item.tags.includes("explicit") ? "explicit" : "inferred",
+                      evidence: source?.evidence ?? [],
+                    }
+                    if (item.status !== "pending" || !Learning.autoApply(draft, learningWindow, known)) continue
+                    const applied = yield* memory!.applyReviewCandidate(item.id, undefined, { auto: true })
+                    if (applied) {
+                      appliedCount++
+                      known.push({ id: applied.id, factKey: applied.factKey, content: applied.content })
+                    }
+                  }
                 }
-              }
-            }).pipe(Effect.ignore)
+                return Learning.output(
+                  appliedCount ? "applied" : "candidates",
+                  appliedCount ? "high-confidence-explicit" : "awaiting-review",
+                  reviewed.length,
+                  appliedCount,
+                )
+              }),
+            })
 
       const evolutionJob =
         !evolutionDue || !evolution
           ? Effect.void
-          : Effect.gen(function* () {
-              const proposals = yield* inferEvolutionReviewCandidates({
-                model,
-                userContent,
-                assistantContent,
-              }).pipe(Effect.catch(() => Effect.succeed([])))
-              if (!proposals.length) return
-              const instanceCtx = yield* InstanceState.context
-              const reviewed = yield* evolution!
-                .review({
-                  proposals,
-                  projectID: session.projectID,
-                  sessionID,
-                  sourceMessageID: lastUser.id,
-                })
-                .pipe(Effect.catch(() => Effect.succeed([] as never[])))
-              // 自动写入磁盘：开启后进化候选无需人工确认直接落地到 .novaway 文件。
-              if (evolutionCfg.auto_apply_file && reviewed.length) {
-                for (const item of reviewed) {
-                  if (item.status !== "pending") continue
-                  yield* evolution!
-                    .applyToDisk(item.id, {
-                      directory: instanceCtx.directory,
-                      worktree: instanceCtx.worktree,
-                    })
-                    .pipe(
-                      Effect.ignoreCause({
-                        log: true,
-                        message: `evolution auto-apply to disk failed: ${item.id}`,
-                      }),
-                    )
-                }
-              }
-            }).pipe(Effect.ignore)
+          : scheduleLearning(background, {
+              type: "learning.evolution",
+              projectID: session.projectID,
+              sessionID,
+              sourceMessageID: lastUser.id,
+              trigger: evolutionTrigger.reason,
+              run: Effect.gen(function* () {
+                const inferred = yield* Learning.stage(
+                  "evolution-inference",
+                  inferEvolutionReviewCandidates({
+                    model,
+                    userContent: learningWindow.transcript,
+                    assistantContent,
+                  }),
+                )
+                // Tool-activity turns are skill-extraction: bias toward reusable
+                // skills and tag them so they are write-once across sessions.
+                const proposals = skillFocus
+                  ? inferred.map((proposal) => ({
+                      ...proposal,
+                      kind: "skill" as const,
+                      tags: [...(proposal.tags ?? []), "auto-skill"],
+                    }))
+                  : inferred
+                const grounded = proposals.filter((proposal) =>
+                  Learning.evolutionEvidence(
+                    {
+                      content: proposal.content,
+                      expectedOutcomes: proposal.expectedOutcomes,
+                      confidence: 0.85,
+                      basis: "inferred",
+                      evidence: proposal.evidence,
+                    },
+                    learningWindow,
+                  ),
+                )
+                if (!grounded.length) return Learning.output("empty", "no-grounded-evidence")
+                const reviewed = yield* Learning.stage(
+                  "evolution-persist",
+                  evolution!.review({
+                    proposals: grounded,
+                    projectID: session.projectID,
+                    sessionID,
+                    sourceMessageID: lastUser.id,
+                  }),
+                )
+                return Learning.output(
+                  reviewed.length ? "candidates" : "empty",
+                  reviewed.length ? "awaiting-user-approval" : "no-evolution-candidates",
+                  reviewed.length,
+                )
+              }),
+            })
 
-      yield* Effect.all([memoryJob, evolutionJob], { concurrency: 2 })
+      yield* Effect.all([memoryJob, evolutionJob], { concurrency: 2 }).pipe(Effect.ignore)
       // 自动检查点：在压缩/剪枝之前按间隔捕获会话消息 + 文件快照，便于回滚。默认关闭。
       if (checkpoint) {
         const checkpointCfg = ConfigCheckpoint.resolve(cfg.checkpoint)
@@ -3496,7 +3702,17 @@ ${text}
       sessionID: SessionID,
       resume?: { reason?: string },
     ) {
-      const ctx = yield* InstanceState.context
+      const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+      // 会话自己的工作目录可能不在实例根目录下（团队/竞技场 worktree，或用户改过 cwd）。
+      // 提示词里的 cwd、项目上下文、输出风格和消息 path 都以它为准；否则模型会以为
+      // 自己在主检出目录里干活，把文件写到 worktree 之外。
+      const instance = yield* InstanceState.context
+      const ctx =
+        AppFileSystem.normalizePath(session.directory) === AppFileSystem.normalizePath(instance.directory)
+          ? instance
+          : // worktree 也收敛到会话目录：worktree 本身就是这个会话的根，主检出
+            // 不在它的工作区内，`containsPath` 才不会把主检出当成"项目内"。
+            { ...instance, directory: session.directory, worktree: session.directory }
       const slog = elog.with({ sessionID })
       let structured: unknown
       let step = 0
@@ -3504,7 +3720,7 @@ ${text}
       let lengthContinuations = 0
       let stopHookBlocks = 0
       let verificationBlocks = 0
-      const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+      let lastToolBatchMessageID: string | undefined
       let loopModel: Provider.Model | undefined = undefined
       // 「继续任务」：上一轮请求失败/被意外切断后，用户点继续时不能把上一条 assistant
       // 的 finish/error 当成"这一轮已经结束"，必须再发一次请求把剩下的活干完。
@@ -3566,8 +3782,36 @@ ${text}
         // Keep the loop running so tool results can be sent back to the model.
         // Skip provider-executed tool parts — those were fully handled within the
         // provider's stream (e.g. DWS Agent Platform) and don't need a re-loop.
-        const hasToolCalls =
-          lastAssistantMsg?.parts.some((part) => part.type === "tool" && !part.metadata?.providerExecuted) ?? false
+        const toolCalls =
+          lastAssistantMsg?.parts.filter(
+            (part): part is MessageV2.ToolPart => part.type === "tool" && !part.metadata?.providerExecuted,
+          ) ?? []
+        const hasToolCalls = toolCalls.length > 0
+        if (
+          session.scope !== "global" &&
+          hooks &&
+          toolCalls.length > 0 &&
+          lastToolBatchMessageID !== lastAssistant?.id
+        ) {
+          lastToolBatchMessageID = lastAssistant?.id
+          yield* hooks
+            .trigger({
+              event: "PostToolBatch",
+              sessionID,
+              cwd: session.directory,
+              metadata: {
+                messageID: lastAssistant?.id,
+                tools: toolCalls.map((part) => ({
+                  tool: part.tool,
+                  status: part.state.status,
+                  input: part.state.input,
+                  result: part.state.status === "completed" ? part.state.output : undefined,
+                  error: part.state.status === "error" ? part.state.error : undefined,
+                })),
+              },
+            })
+            .pipe(Effect.ignore)
+        }
 
         // Session notes (CC `SessionMemory`): once a response is on record and
         // the context has grown enough, refresh the 10-section markdown file in
@@ -3661,6 +3905,7 @@ ${text}
               userParts: msgs.findLast((m) => m.info.role === "user" && m.info.id === lastUser.id)?.parts ?? [],
               assistant: lastAssistant,
               assistantParts: lastAssistantMsg?.parts ?? [],
+              history: msgs,
               model: finishedModel,
               agentName: lastUser.agent,
             }).pipe(Effect.ignore)
@@ -4156,7 +4401,7 @@ ${text}
                 return paths.length > 0 ? paths : undefined
               })(),
             ),
-            sys.environment(model),
+            sys.environment(model, ctx),
             session.scope === "global"
               ? Effect.succeed({ always: [], triggered: [], paths: [], urls: [] })
               : instruction.system({ prompt: textFromParts(lastUserMsg?.parts ?? []) }).pipe(Effect.orDie),
@@ -4186,15 +4431,24 @@ ${text}
           const evolutionCfg = ConfigEvolution.resolve(cfg.evolution)
           const memoryEnabled = memoryCfg.enabled
           const activeMemory = Option.getOrUndefined(yield* Effect.serviceOption(Memory.Service))
+          const memoryQuery = textFromParts(lastUserMsg?.parts ?? [])
           const memoryContext =
             session.scope !== "global" && memoryEnabled && activeMemory
               ? yield* activeMemory
                   .prefetch({
-                    query: textFromParts(lastUserMsg?.parts ?? []),
+                    query: memoryQuery,
                     projectID: session.projectID,
                     sessionID,
                     limit: memoryCfg.prefetch_limit,
                     maxChars: memoryCfg.prefetch_budget_chars,
+                    // 默认关闭:额外的 LLM 调用会增加首字延迟,由 memory.prefetch_llm 显式开启。
+                    ...(memoryCfg.prefetch_llm && memoryQuery.trim()
+                      ? {
+                          relevanceFilter: (items: MemoryInfo[]) =>
+                            inferMemoryRelevance({ model, query: memoryQuery, items }),
+                        }
+                      : {}),
+                    hasLiveToolSchema: Object.keys(tools).length > 0,
                   })
                   .pipe(Effect.catch(() => Effect.succeed("")))
               : ""
@@ -4307,6 +4561,7 @@ ${text}
               userParts: lastUserMsg?.parts ?? [],
               assistant: handle.message,
               assistantParts: Option.isSome(assistantMsg) ? assistantMsg.value.parts : [],
+              history: msgs,
               model,
               agentName: agent.name,
             }).pipe(Effect.ignore)
@@ -4332,25 +4587,54 @@ ${text}
 
       yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
 
-      // Dream/Distill 自我改进集成:默认关闭,开启后按 interval 轮用 LLM 反思会话并蒸馏进长期记忆。
+      // Dream/Distill 自我改进集成:默认关闭。开启后按持久化轮次节流,跨会话整合带锁且经审核管线/审计清单。
       {
         const dreamCfg = ConfigDream.resolve((yield* config.get()).dream)
-        if (
-          session.scope !== "global" &&
-          dreamCfg.enabled &&
-          dreamCfg.interval > 0 &&
-          dreamDue(sessionID, dreamCfg.interval)
-        ) {
-          const capturedModel = loopModel
-          if (capturedModel) {
+        const capturedModel = loopModel
+        const dreamEnabled = dreamCfg.enabled || dreamCfg.consolidation_enabled
+        if (session.scope !== "global" && dreamEnabled && capturedModel) {
+          const now = Date.now()
+          const projectID = session.projectID
+          if (DreamState.due({ projectID, interval: dreamCfg.interval, now })) {
             yield* Effect.gen(function* () {
               const dreamModule = yield* Effect.tryPromise(() => import("./dream"))
-              const distillModule = yield* Effect.tryPromise(() => import("./distill"))
               const dream = yield* dreamModule.Service
+
+              if (
+                dreamCfg.consolidation_enabled &&
+                DreamState.ready({ projectID, minHours: dreamCfg.min_hours, now })
+              ) {
+                const owner = DreamState.tryLock({ projectID, now })
+                if (!owner) return
+                const outcome = yield* dream
+                  .consolidate({
+                    model: capturedModel!,
+                    projectID,
+                    sessionID,
+                    minSessions: dreamCfg.min_sessions,
+                    userScope: dreamCfg.user_scope_enabled,
+                  })
+                  .pipe(
+                    Effect.match({
+                      onSuccess: (report) => ({ ok: true as const, report }),
+                      onFailure: (error) => ({ ok: false as const, error }),
+                    }),
+                  )
+                if (outcome.ok) {
+                  const done = Date.now()
+                  DreamState.finish({ projectID, owner, now: done, cursorAt: done })
+                } else DreamState.release({ projectID, owner, now: Date.now() })
+                return
+              }
+
+              // 只开了跨会话整合时，未到间隔就不该再跑单会话反思；两者是独立的开关。
+              if (!dreamCfg.enabled) return
+
+              const analysis = yield* dream.analyzeSession(sessionID, capturedModel!)
+              const distillModule = yield* Effect.tryPromise(() => import("./distill"))
               const distill = yield* distillModule.Service
-              const analysis = yield* dream.analyzeSession(sessionID, capturedModel)
               const distillResult = yield* distill.fromAnalysis(analysis)
-              yield* distill.applyMemories(distillResult)
+              yield* distill.applyMemories({ projectID, sessionID, result: distillResult })
             }).pipe(
               Effect.catch(() => Effect.void),
               Effect.forkIn(scope),
@@ -4368,9 +4652,11 @@ ${text}
       // session is guaranteed to pass through, so it doubles as the trigger.
       // `start` is idempotent and only forks on the first call.
       const cron = Option.getOrUndefined(yield* Effect.serviceOption(CronService))
-      if (cron) {
+      const channels = Option.getOrUndefined(yield* Effect.serviceOption(ChannelService))
+      if (cron || channels) {
         const instance = yield* InstanceState.context
-        yield* cron.start({ directory: instance.directory }).pipe(Effect.ignore)
+        if (cron) yield* cron.start({ directory: instance.directory }).pipe(Effect.ignore)
+        if (channels) yield* channels.start({ directory: instance.directory }).pipe(Effect.ignore)
       }
 
       let result = yield* state.ensureRunning(
@@ -4388,6 +4674,8 @@ ${text}
       const goalCfg = ConfigGoal.resolve(cfg.goal)
       const goalExecution = input.goalExecution
       if (!goalExecution && (!goalCfg.enabled || goalCfg.max_iterations <= 0)) return result
+      // 目标循环自己发起的续跑不再嵌套一层目标循环,否则内层会重复裁判和计数。
+      if (input.goalContinuation) return result
       const goalService = yield* getGoalService()
       if (!goalService) return result
       if (goalExecution) {
@@ -4396,6 +4684,27 @@ ${text}
       }
 
       const maxIterations = Math.min(100, Math.max(1, goalExecution?.maxIterations ?? goalCfg.max_iterations))
+      // 预算默认不启用;只有配置了上限才会产生额外的持久化读写。
+      const budgetLimits = { maxTokens: goalCfg.max_tokens, maxActiveMs: goalCfg.max_active_ms }
+      const budgetEnabled = budgetLimits.maxTokens !== undefined || budgetLimits.maxActiveMs !== undefined
+      const readSessionTokens = () =>
+        Effect.sync(() => {
+          const row = Database.use((db) =>
+            db
+              .select({
+                input: SessionTable.tokens_input,
+                output: SessionTable.tokens_output,
+                reasoning: SessionTable.tokens_reasoning,
+                cacheRead: SessionTable.tokens_cache_read,
+                cacheWrite: SessionTable.tokens_cache_write,
+              })
+              .from(SessionTable)
+              .where(eq(SessionTable.id, input.sessionID))
+              .get(),
+          )
+          return row ? row.input + row.output + row.reasoning + row.cacheRead + row.cacheWrite : 0
+        }).pipe(Effect.catch(() => Effect.succeed(0)))
+      let tokensSeen = budgetEnabled ? yield* readSessionTokens() : 0
       let iterations = 0
       while (iterations < maxIterations) {
         if (
@@ -4412,6 +4721,31 @@ ${text}
             : g.status === "in_progress" || g.status === "pending" || g.status === "paused",
         )
         if (active.length === 0) break
+        // 预算按最早的活动目标归属,并从目标创建时刻起算;跨进程重启沿用同一行。
+        const budgetOwner = active[0]
+        if (budgetEnabled) {
+          const budget = yield* goalService
+            .budget({ goalId: budgetOwner.id, sessionId: input.sessionID, startedAt: Number(budgetOwner.createdAt) })
+            .pipe(Effect.catch(() => Effect.succeed(undefined)))
+          const permit = budget
+            ? GoalBudget.allowGoalContinuation({ budget, limits: budgetLimits, now: Date.now() })
+            : { allowed: true as const }
+          if (!permit.allowed) {
+            yield* bus.publish(Session.Event.Error, {
+              sessionID: input.sessionID,
+              error: new NamedError.Unknown({
+                message: `目标预算已用尽(${permit.reason}):${permit.detail}。已停止追加轮次并暂停目标;恢复前请先调高预算或缩小目标。`,
+              }).toObject(),
+            })
+            for (const goal of active) {
+              if (goal.status !== "in_progress") continue
+              yield* goalService
+                .update({ goalId: goal.id, sessionId: input.sessionID, status: "paused" })
+                .pipe(Effect.catch(() => Effect.void))
+            }
+            break
+          }
+        }
         if (
           yield* state.assertNotBusy(input.sessionID).pipe(
             Effect.as(false),
@@ -4428,47 +4762,124 @@ ${text}
         if (!lastAssistantMsg || lastAssistantMsg.info.role !== "assistant") break
         if (lastAssistantMsg.info.error) break
 
-        // 裁判模型:优先配置 judge_model("provider/model"),否则复用当轮 assistant 模型。
-        const judgeRef = (() => {
-          if (goalCfg.judge_model && goalCfg.judge_model.includes("/")) {
-            const [providerID, ...rest] = goalCfg.judge_model.split("/")
-            return { providerID: ProviderID.make(providerID), modelID: rest.join("/") as ModelID }
+        // 独立验证(verifier=agent):非平凡改动必须有只读 verification 子代理在最后
+        // 一次编辑之后给出的 PASS 证据,才允许判定目标完成。低于阈值时仍交给裁判模型。
+        // 多目标会话里只有显式 goalExecution 才走验证子代理,避免用一份报告给多个目标背书。
+        const verifierGoalId = goalExecution?.goalId ?? (active.length === 1 ? active[0].id : undefined)
+        let verdict: Schema.Schema.Type<typeof GoalJudgeResult> | null = null
+        if (goalCfg.verifier === "agent" && verifierGoalId) {
+          const since = Number(budgetOwner.createdAt)
+          const edits = collectEdits(msgs, { since, cwd: activeSession.directory })
+          if (isNonTrivial(edits)) {
+            const verifications: VerificationObservation[] = []
+            for (const child of yield* sessions.children(input.sessionID)) {
+              if (child.agent !== "verification" || child.time.created < since) continue
+              const history = yield* MessageV2.filterCompactedEffect(child.id).pipe(
+                Effect.catchCause(() => Effect.succeed([] as MessageV2.WithParts[])),
+              )
+              const completed = history.filter(
+                (message) => message.info.role === "assistant" && message.info.time.completed !== undefined,
+              )
+              const last = completed.at(-1)
+              if (!last) {
+                const running = (yield* status.get(child.id)).type !== "idle"
+                verifications.push({
+                  verdict: "UNVERIFIED",
+                  completedAt: running ? 0 : Date.now(),
+                  running,
+                  summary: running ? "verification is still running" : "verification produced no final report",
+                })
+                continue
+              }
+              const text = completed
+                .flatMap((message) => message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])))
+                .join("\n")
+              const report = parseVerificationReport(text)
+              const bytes = new TextEncoder().encode(text).length
+              const enough = bytes >= goalCfg.evidence_min_bytes
+              const info = last.info
+              verifications.push({
+                verdict: enough ? report.verdict : "UNVERIFIED",
+                completedAt: info.role === "assistant" ? (info.time.completed ?? info.time.created) : info.time.created,
+                summary: enough
+                  ? report.violations.length > 0
+                    ? report.violations.join("; ")
+                    : `evidence ${bytes} bytes`
+                  : `verification report is ${bytes} bytes, below the required ${goalCfg.evidence_min_bytes}`,
+              })
+            }
+            const decision = evaluateVerificationGate({
+              edits,
+              verifications,
+              userText: textFromParts(lastUserMsg?.parts ?? []),
+            })
+            if (decision.action === "satisfied") {
+              verdict =
+                decision.verdict === "PASS"
+                  ? {
+                      goalMet: true,
+                      reasoning: "独立 verification 子代理在最后一次编辑之后给出 VERDICT: PASS。",
+                      completedGoalIds: [verifierGoalId],
+                    }
+                  : {
+                      goalMet: false,
+                      reasoning: "独立 verification 子代理只给出 PARTIAL。",
+                      completedGoalIds: [],
+                      nextAction: "独立验证只给出 PARTIAL:先补齐未能验证的部分,再重新验证并给出 VERDICT: PASS。",
+                    }
+            } else if (decision.action === "require") {
+              verdict = {
+                goalMet: false,
+                reasoning: `独立验证未通过(${decision.reason})。`,
+                completedGoalIds: [],
+                nextAction: decision.message,
+              }
+            }
           }
-          return {
-            providerID: lastAssistantMsg.info.providerID as ProviderID,
-            modelID: lastAssistantMsg.info.modelID as ModelID,
-          }
-        })()
-        const judgeModel = yield* provider
-          .getModel(judgeRef.providerID, judgeRef.modelID)
-          .pipe(Effect.catch(() => Effect.succeed(undefined)))
-        if (!judgeModel) break
+        }
+        if (!verdict) {
+          // 裁判模型:优先配置 judge_model("provider/model"),否则复用当轮 assistant 模型。
+          const judgeRef = (() => {
+            if (goalCfg.judge_model && goalCfg.judge_model.includes("/")) {
+              const [providerID, ...rest] = goalCfg.judge_model.split("/")
+              return { providerID: ProviderID.make(providerID), modelID: rest.join("/") as ModelID }
+            }
+            return {
+              providerID: lastAssistantMsg.info.providerID as ProviderID,
+              modelID: lastAssistantMsg.info.modelID as ModelID,
+            }
+          })()
+          const judgeModel = yield* provider
+            .getModel(judgeRef.providerID, judgeRef.modelID)
+            .pipe(Effect.catch(() => Effect.succeed(undefined)))
+          if (!judgeModel) break
 
-        const goalsText = active
-          .map((g: any) => {
-            const criteria =
-              Array.isArray(g.successCriteria) && g.successCriteria.length
-                ? `\n  成功标准: ${g.successCriteria.join("; ")}`
-                : "\n  成功标准: 用户原始目标要求可验证地完成"
-            return `- ID: ${g.id}\n  标题: ${g.title}${criteria}`
-          })
-          .join("\n")
-        const evidence = [
-          `用户请求: ${textFromParts(lastUserMsg?.parts ?? [])}`,
-          `助手本轮总结: ${textFromParts(lastAssistantMsg.parts)}`,
-          ...msgs.flatMap((message) =>
-            message.parts.flatMap((part) => {
-              if (part.type !== "tool") return []
-              const state = part.state
-              const output = state.status === "completed" ? state.output : undefined
-              return [`工具 ${part.tool}: 状态 ${state.status}${output ? `; 输出: ${output}` : ""}`]
-            }),
-          ),
-        ].join("\n")
+          const goalsText = active
+            .map((g: any) => {
+              const criteria =
+                Array.isArray(g.successCriteria) && g.successCriteria.length
+                  ? `\n  成功标准: ${g.successCriteria.join("; ")}`
+                  : "\n  成功标准: 用户原始目标要求可验证地完成"
+              return `- ID: ${g.id}\n  标题: ${g.title}${criteria}`
+            })
+            .join("\n")
+          const evidence = [
+            `用户请求: ${textFromParts(lastUserMsg?.parts ?? [])}`,
+            `助手本轮总结: ${textFromParts(lastAssistantMsg.parts)}`,
+            ...msgs.flatMap((message) =>
+              message.parts.flatMap((part) => {
+                if (part.type !== "tool") return []
+                const state = part.state
+                const output = state.status === "completed" ? state.output : undefined
+                return [`工具 ${part.tool}: 状态 ${state.status}${output ? `; 输出: ${output}` : ""}`]
+              }),
+            ),
+          ].join("\n")
 
-        const verdict = yield* inferGoalJudge({ model: judgeModel, goalsText, evidence }).pipe(
-          Effect.catch(() => Effect.succeed(null)),
-        )
+          verdict = yield* inferGoalJudge({ model: judgeModel, goalsText, evidence }).pipe(
+            Effect.catch(() => Effect.succeed(null)),
+          )
+        }
         if (!verdict) break
         if (goalExecution) {
           const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
@@ -4516,8 +4927,18 @@ ${text}
           sessionID: input.sessionID,
           agent: user?.agent,
           model: user?.model ? { providerID: user.model.providerID, modelID: user.model.modelID } : undefined,
+          goalContinuation: true,
           parts: [{ type: "text", text: nextText }],
         })
+        if (budgetEnabled) {
+          // session 行由 step-finish 投影累计,跨重启单调;这里只记本轮增量。
+          const tokensNow = yield* readSessionTokens()
+          const spent = Math.max(0, tokensNow - tokensSeen)
+          tokensSeen = tokensNow
+          yield* goalService
+            .chargeBudget({ goalId: budgetOwner.id, sessionId: input.sessionID, tokens: spent })
+            .pipe(Effect.catch(() => Effect.void))
+        }
         if (goalExecution) {
           const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
           if (!currentGoal || currentGoal.status !== "in_progress") break
@@ -4684,6 +5105,7 @@ export const defaultLayer = Layer.suspend(() =>
         MCP.defaultLayer,
         LSP.defaultLayer,
         CronDefaultLayer,
+        ChannelDefaultLayer,
       ),
     ),
     Layer.provide(ToolRegistry.defaultLayer),
@@ -4725,6 +5147,8 @@ const ModelRef = Schema.Struct({
 export const PromptInput = Schema.Struct({
   sessionID: SessionID,
   goalExecution: Schema.optional(GoalExecutionInput),
+  /** 目标循环内部续跑:只跑一轮对话,不再进入目标驱动循环。 */
+  goalContinuation: Schema.optional(Schema.Boolean),
   messageID: Schema.optional(MessageID),
   model: Schema.optional(ModelRef),
   agent: Schema.optional(Schema.String),
@@ -4751,6 +5175,7 @@ export type PromptInput = Schema.Schema.Type<typeof PromptInput>
 export class LoopInput extends Schema.Class<LoopInput>("SessionPrompt.LoopInput")({
   sessionID: SessionID,
   goalExecution: Schema.optional(GoalExecutionInput),
+  goalContinuation: Schema.optional(Schema.Boolean),
   /** 中断后续跑：忽略上一条 assistant 的 finish/error，再发一次请求把这一轮做完。 */
   resume: Schema.optional(Schema.Boolean),
   /** 续跑原因（写进 system 提示，让模型知道为什么会再次请求）。 */

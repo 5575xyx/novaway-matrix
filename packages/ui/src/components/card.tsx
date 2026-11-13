@@ -28,30 +28,15 @@ function pick(variant: Variant) {
   return
 }
 
-function mix(style: ComponentProps<"div">["style"], value?: string) {
-  if (!value) return style
-  if (!style) return { "--card-accent": value }
-  if (typeof style === "string") return `${style};--card-accent:${value};`
-  return { ...(style as Record<string, string | number>), "--card-accent": value }
-}
-
 export function Card(props: CardProps) {
   const [split, rest] = splitProps(props, ["variant", "style", "class", "classList"])
   const variant = () => split.variant ?? "normal"
-  const accent = () => {
-    const v = variant()
-    if (v === "error") return "var(--icon-critical-base)"
-    if (v === "warning") return "var(--icon-warning-base)"
-    if (v === "success") return "var(--icon-success-base)"
-    if (v === "info") return "var(--icon-info-base)"
-    return
-  }
   return (
     <div
       {...rest}
       data-component="card"
       data-variant={variant()}
-      style={mix(split.style, accent())}
+      style={split.style}
       classList={{
         ...split.classList,
         [split.class ?? ""]: !!split.class,

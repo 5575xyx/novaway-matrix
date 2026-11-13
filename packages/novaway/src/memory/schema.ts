@@ -304,4 +304,26 @@ export const ReviewStatus = Schema.Struct({
 }).annotate({ identifier: "MemoryReviewStatus" })
 export type ReviewStatus = Schema.Schema.Type<typeof ReviewStatus>
 
+/** 整合 job 对单条记忆做的操作。 */
+export const ConsolidationOp = Schema.Literals(["add", "update", "archive", "dedupe", "split"])
+export type ConsolidationOp = Schema.Schema.Type<typeof ConsolidationOp>
+
+export const ConsolidationState = Schema.Literals(["prepared", "applied", "failed", "rolled_back"])
+export type ConsolidationState = Schema.Schema.Type<typeof ConsolidationState>
+
+export const ConsolidationAudit = Schema.Struct({
+  id: Schema.String,
+  projectID: Schema.optional(ProjectID),
+  sessionID: Schema.optional(SessionID),
+  op: ConsolidationOp,
+  memoryID: Schema.optional(MemoryID),
+  before: Schema.optional(Schema.String),
+  after: Schema.optional(Schema.String),
+  source: Schema.String,
+  state: ConsolidationState,
+  note: Schema.optional(Schema.String),
+  runAt: Schema.Number,
+})
+export type ConsolidationAudit = Schema.Schema.Type<typeof ConsolidationAudit>
+
 export * as MemorySchema from "./schema"

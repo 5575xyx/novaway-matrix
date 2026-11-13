@@ -7,6 +7,19 @@ import { makeRuntime } from "../../src/effect/run-service"
 import { InstanceRef } from "../../src/effect/instance-ref"
 import { LLM } from "../../src/session/llm"
 import type { InstanceContext } from "../../src/project/instance-context"
+import {
+  Service as PluginRuntimeServiceTag,
+  type Interface as PluginRuntimeServiceInterface,
+} from "@/plugin/runtime/tag"
+import { createHost, type HostRegistries } from "@/plugin/runtime/host"
+import {
+  createAgentRegistry,
+  createCommandRegistry,
+  createSkillRegistry,
+  createToolRegistry,
+} from "@/plugin/contributions"
+import { createInterceptorRuntime } from "@/plugin/runtime/hooks"
+import type { Manifest } from "@novaway/plugin-api"
 import { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
 import { ModelsDev } from "@novaway/core/models-dev"
@@ -28,9 +41,10 @@ async function getModel(providerID: ProviderID, modelID: ModelID, ctx: InstanceC
 
 const llm = makeRuntime(LLM.Service, LLM.defaultLayer)
 
-async function drain(input: LLM.StreamInput, ctx: InstanceContext) {
+async function drain(input: LLM.StreamInput, ctx: InstanceContext, runtime?: PluginRuntimeServiceInterface) {
   return llm.runPromise((svc) => {
-    const effect = svc.stream(input).pipe(Stream.runDrain)
+    let effect = svc.stream(input).pipe(Stream.runDrain)
+    if (runtime) effect = effect.pipe(Effect.provideService(PluginRuntimeServiceTag, runtime))
     return effect.pipe(Effect.provideService(InstanceRef, ctx))
   })
 }
@@ -383,18 +397,59 @@ describe("session.llm.stream", () => {
           model: { providerID: ProviderID.make(providerID), modelID: resolved.id, variant: "high" },
         } satisfies MessageV2.User
 
-        await drain(
-          {
-            user,
-            sessionID,
-            model: resolved,
-            agent,
-            system: ["You are a helpful assistant."],
-            messages: [{ role: "user", content: "Hello" }],
-            tools: {},
+        const hostRegistries: HostRegistries = {
+          tools: createToolRegistry(),
+          agents: createAgentRegistry(),
+          skills: createSkillRegistry(),
+          commands: createCommandRegistry(),
+          interceptors: createInterceptorRuntime(),
+        }
+        const host = createHost(hostRegistries)
+        let interceptorCalls = 0
+        await host.activate({
+          id: "runtime-chat-params",
+          scope: "project",
+          root: tmp.path,
+          manifest: { name: "runtime-chat-params", apiVersion: 2, contributes: { tools: [] } } satisfies Manifest,
+          async activate({ registries }) {
+            for (let index = 0; index < 10; index++) {
+              registries.interceptors.register(
+                { pluginID: "runtime-chat-params", scope: "project" },
+                {
+                  id: `params-${index}`,
+                  hook: "chat.params",
+                  handler: (_input, output) => {
+                    interceptorCalls++
+                    ;(output as { topP: number }).topP += 0.01
+                  },
+                },
+              )
+            }
           },
-          ctx,
-        )
+        })
+        const runtime = {
+          get: Effect.succeed(host),
+          invalidate: Effect.void,
+          setEnabled: () => Effect.void,
+          activateBuiltin: () => Effect.void,
+        } satisfies PluginRuntimeServiceInterface
+        try {
+          await drain(
+            {
+              user,
+              sessionID,
+              model: resolved,
+              agent,
+              system: ["You are a helpful assistant."],
+              messages: [{ role: "user", content: "Hello" }],
+              tools: {},
+            },
+            ctx,
+            runtime,
+          )
+        } finally {
+          host.dispose()
+        }
 
         const capture = await request
         const body = capture.body
@@ -407,7 +462,8 @@ describe("session.llm.stream", () => {
 
         expect(body.model).toBe(resolved.api.id)
         expect(body.temperature).toBe(0.4)
-        expect(body.top_p).toBe(0.8)
+        expect(body.top_p).toBeCloseTo(0.9)
+        expect(interceptorCalls).toBe(10)
         expect(body.stream).toBe(true)
 
         const maxTokens = (body.max_tokens as number | undefined) ?? (body.max_output_tokens as number | undefined)
@@ -938,7 +994,7 @@ describe("session.llm.stream", () => {
         }
       },
     })
-  })
+  }, 120_000)
 
   test("sends messages API payload for Anthropic Compatible models", async () => {
     const server = state.server

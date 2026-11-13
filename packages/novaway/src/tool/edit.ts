@@ -35,8 +35,9 @@ function convertToLineEnding(text: string, ending: "\n" | "\r\n"): string {
 
 const locks = new Map<string, Semaphore.Semaphore>()
 
-const permissionRoot = (instance: { directory: string; worktree: string }) =>
-  instance.worktree === "/" ? instance.directory : instance.worktree
+// 会话可能跑在自己的 worktree 里（团队/竞技场），权限 pattern 与标题都相对它。
+const permissionRoot = (instance: { directory: string; worktree: string }, directory?: string) =>
+  directory ?? (instance.worktree === "/" ? instance.directory : instance.worktree)
 
 function lock(filePath: string) {
   const resolvedFilePath = AppFileSystem.resolve(filePath)
@@ -134,7 +135,7 @@ export const EditTool = Tool.define(
                 diff = trimDiff(createTwoFilesPatch(filePath, filePath, contentOld, contentNew))
                 yield* ctx.ask({
                   permission: "edit",
-                  patterns: [path.relative(permissionRoot(instance), filePath)],
+                  patterns: [path.relative(permissionRoot(instance, ctx.directory), filePath)],
                   always: ["*"],
                   metadata: {
                     filepath: filePath,
@@ -179,7 +180,7 @@ export const EditTool = Tool.define(
               )
               yield* ctx.ask({
                 permission: "edit",
-                patterns: [path.relative(permissionRoot(instance), filePath)],
+                patterns: [path.relative(permissionRoot(instance, ctx.directory), filePath)],
                 always: ["*"],
                 metadata: {
                   filepath: filePath,
@@ -242,7 +243,7 @@ export const EditTool = Tool.define(
               diff,
               filediff,
             },
-            title: `${path.relative(permissionRoot(instance), filePath)}`,
+            title: `${path.relative(permissionRoot(instance, ctx.directory), filePath)}`,
             output,
           }
         }),

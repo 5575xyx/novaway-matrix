@@ -16,10 +16,18 @@ import { Deferred, Effect, Layer, Option, Schema, Context } from "effect"
 import os from "os"
 import { evaluate as evalRule } from "./evaluate"
 import { PermissionID } from "./schema"
+import { classify as classifyAuto, denialAction as autoDenialAction } from "./auto"
 
 const log = Log.create({ service: "permission" })
 
-export const Mode = Schema.Literals(["default", "acceptEdits", "plan", "bypassPermissions", "unattended"]).annotate({
+export const Mode = Schema.Literals([
+  "default",
+  "acceptEdits",
+  "plan",
+  "auto",
+  "bypassPermissions",
+  "unattended",
+]).annotate({
   identifier: "PermissionMode",
 })
 export type Mode = Schema.Schema.Type<typeof Mode>
@@ -137,6 +145,8 @@ interface PendingEntry {
 interface State {
   pending: Map<PermissionID, PendingEntry>
   approved: Ruleset
+  /** auto 模式分类器连续拒绝次数,按会话计数。 */
+  autoDenials: Map<string, number>
 }
 
 export function evaluate(permission: string, pattern: string, ...rulesets: Ruleset[]): Rule {
@@ -156,9 +166,10 @@ export const layer = Layer.effect(
         const row = Database.use((db) =>
           db.select().from(PermissionTable).where(eq(PermissionTable.project_id, ctx.project.id)).get(),
         )
-        const state = {
+        const state: State = {
           pending: new Map<PermissionID, PendingEntry>(),
           approved: row?.data ?? [],
+          autoDenials: new Map<string, number>(),
         }
 
         yield* Effect.addFinalizer(() =>
@@ -175,7 +186,7 @@ export const layer = Layer.effect(
     )
 
     const ask = Effect.fn("Permission.ask")(function* (input: AskInput) {
-      const { approved, pending } = yield* InstanceState.get(state)
+      const { approved, pending, autoDenials } = yield* InstanceState.get(state)
       const { ruleset, mode: requested, ...request } = input
 
       const cfg = yield* Effect.serviceOption(Config.Service)
@@ -222,6 +233,55 @@ export const layer = Layer.effect(
       }
 
       if (!needsAsk) return
+
+      // auto 模式:让安全分类器先判断,把「明显安全」从询问里摘掉。
+      // 分类器不可用/解析失败一律退回询问用户 —— 绝不因为调用失败而放行。
+      if (mode === "auto") {
+        const auto = cfg._tag === "Some" ? ((yield* cfg.value.get()).permission_auto ?? {}) : {}
+        if (auto.classifier) {
+          const limit = auto.denial_limit ?? 3
+          const previous = autoDenials.get(request.sessionID) ?? 0
+          // 连续拒绝达到上限后不再自动拒绝,把决定交回用户,避免分类器把会话锁死。
+          if (previous < limit) {
+            const ctx = yield* InstanceState.context
+            const decision = yield* classifyAuto({
+              permission: request.permission,
+              patterns: request.patterns,
+              metadata: request.metadata,
+              cwd: ctx.directory,
+            })
+            const action = autoDenialAction({ previous, limit, decision })
+            if (action === "allow") {
+              autoDenials.delete(request.sessionID)
+              return
+            }
+            if (action === "deny" || (action === "ask" && decision?.action === "deny")) {
+              const next = previous + 1
+              autoDenials.set(request.sessionID, next)
+              log.info("auto classifier denied", { sessionID: request.sessionID, count: next, limit })
+              if (decision?.action === "deny" && hooks) {
+                yield* hooks
+                  .trigger({
+                    event: "PermissionDenied",
+                    sessionID: request.sessionID,
+                    tool: request.permission,
+                    args: request.metadata,
+                    error: `denied by auto classifier: ${decision.reason}`,
+                  })
+                  .pipe(Effect.ignore)
+              }
+              if (next < limit && decision?.action === "deny") {
+                return yield* Effect.fail(
+                  new CorrectedError({
+                    feedback: `自动安全分类器拒绝了这次调用:${decision.reason || "未说明原因"}。请改用更安全的方式,或请用户手动确认。`,
+                  }),
+                )
+              }
+              log.warn("auto classifier denial limit reached; falling back to user", { limit })
+            }
+          }
+        }
+      }
 
       if (hooks) {
         yield* hooks

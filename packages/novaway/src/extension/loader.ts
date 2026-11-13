@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import { existsSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { parse as parseJsonc, printParseErrorCode } from "jsonc-parser"
@@ -135,12 +136,14 @@ export type Roots = {
   builtin?: string
 }
 
-export function builtinRoot() {
-  // This directory is shipped with the NovaWay server package. It is deliberately
-  // separate from user/project roots: a discovered package can only become
-  // `scope=builtin` through this trusted release location, never by declaring a
-  // label in its manifest or by living under a project directory.
-  return process.env.NOVAWAY_BUILTIN_PLUGINS ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../builtin-plugins")
+export function builtinRoot(executablePath = process.execPath) {
+  // Compiled single-file releases keep builtin manifests/entries beside the
+  // platform binary. Source/dev runs retain the package-relative lookup below.
+  // Never infer builtin trust from a project/config directory.
+  if (process.env.NOVAWAY_BUILTIN_PLUGINS !== undefined) return process.env.NOVAWAY_BUILTIN_PLUGINS
+  const releaseSidecar = path.resolve(path.dirname(executablePath), "../builtin-plugins")
+  if (existsSync(releaseSidecar)) return releaseSidecar
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../builtin-plugins")
 }
 
 export function roots(input: Roots) {

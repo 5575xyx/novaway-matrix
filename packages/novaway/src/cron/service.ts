@@ -12,10 +12,13 @@
 // 循环任务触发 7 天后自动过期（再触发最后一次后删除），避免会话变成永动机。
 
 import { Context, Effect, Layer, Option } from "effect"
+import * as Log from "@novaway/core/util/log"
 import type { SessionID } from "@/session/schema"
 import { SessionStatus } from "@/session/status"
 import * as Cron from "./cron"
 import * as Tasks from "./tasks"
+
+const log = Log.create({ service: "cron" })
 
 /** 调度器的最小精度。cron 只到分钟，15 秒一轮足够且不会明显空转。 */
 const TICK_MS = 15_000
@@ -32,7 +35,7 @@ export interface Interface {
   readonly remove: (input: { id: string; directory: string }) => Effect.Effect<boolean>
   readonly list: (input: { sessionID?: string; directory: string }) => Effect.Effect<Tasks.Task[]>
   /** 跑一轮调度；返回本轮真正投递出去的任务。 */
-  readonly tick: (input?: { now?: number }) => Effect.Effect<Tasks.Task[]>
+  readonly tick: (input?: { now?: number; directory?: string }) => Effect.Effect<Tasks.Task[]>
   /** 启动后台调度循环（重复调用无副作用）。 */
   readonly start: (input: { directory: string }) => Effect.Effect<void>
 }
@@ -71,11 +74,62 @@ export const layer = Layer.effect(
           .pipe(Effect.ignore)
       })
 
-    const tick = Effect.fn("Cron.tick")(function* (input?: { now?: number }) {
+    /**
+     * 技能生命周期巡检：复用常驻的 tick，不额外起进程或会话。
+     *
+     * 只在 `evolution.curator_enabled` 打开且有技能服务时工作；每周最多一次，
+     * 判定与归档都是「标记/移动」，失败只记日志，不影响定时任务投递。
+     */
+    const curatorTick = Effect.fn("Cron.curator")(function* (input: { directory: string; now: number }) {
+      const configModules = yield* Effect.promise(() =>
+        Promise.all([import("@/config/config"), import("@/config/evolution")]),
+      ).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      if (!configModules) return
+      const [configModule, evolutionModule] = configModules
+      const config = Option.getOrUndefined(yield* Effect.serviceOption(configModule.Config.Service))
+      if (!config) return
+      const cfg = evolutionModule.ConfigEvolution.resolve(
+        (yield* config.get().pipe(Effect.catch(() => Effect.succeed({} as { evolution?: never })))).evolution,
+      )
+      // 默认关闭：未启用时连技能服务都不必加载。
+      if (!cfg.curator_enabled) return
+      const modules = yield* Effect.promise(() =>
+        Promise.all([import("@/skill"), import("@/skill/curator"), import("@/skill/usage")]),
+      ).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      if (!modules) return
+      const [skillModule, curatorModule, usageModule] = modules
+      const skill = Option.getOrUndefined(yield* Effect.serviceOption(skillModule.Skill.Service))
+      if (!skill) return
+      if (!(yield* Effect.promise(() => curatorModule.due(input.directory, input.now)))) return
+      const available = yield* skill.all()
+      const ledger = yield* Effect.promise(() => usageModule.read(input.directory))
+      const decisions = yield* Effect.promise(() =>
+        curatorModule.run({
+          directory: input.directory,
+          skills: available.map((item) => ({
+            name: item.name,
+            location: item.location,
+            builtIn: item.builtIn,
+            lastActivity: 0,
+          })),
+          ledger,
+          now: input.now,
+          staleDays: cfg.curator_stale_days,
+          archiveDays: cfg.curator_archive_days,
+        }),
+      )
+      if (decisions.length) log.info("skill curator finished", { directory: input.directory, decisions })
+      // 归档/标记后让运行时技能列表立刻反映变化。
+      if (decisions.some((item) => item.action === "archive")) yield* skill.reload().pipe(Effect.ignore)
+    })
+
+    const tick = Effect.fn("Cron.tick")(function* (input?: { now?: number; directory?: string }) {
       const now = input?.now ?? Date.now()
       const status = Option.getOrUndefined(yield* Effect.serviceOption(SessionStatus.Service))
       const prompt = yield* promptService
       const fired: Tasks.Task[] = []
+
+      if (input?.directory) yield* curatorTick({ directory: input.directory, now }).pipe(Effect.ignore)
 
       for (const task of Tasks.all()) {
         if (Tasks.expired(task, now)) {
@@ -116,7 +170,7 @@ export const layer = Layer.effect(
       if (loop.running) return
       loop.running = true
       yield* Effect.sleep(`${TICK_MS} millis`).pipe(
-        Effect.andThen(tick()),
+        Effect.andThen(tick({ directory: input.directory })),
         Effect.ignore,
         Effect.forever,
         Effect.forkDetach,

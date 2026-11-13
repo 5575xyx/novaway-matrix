@@ -458,11 +458,11 @@
 
 /* NovaWay - Gradients */
 .gradient-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  background: linear-gradient(135deg, var(--surface-interactive-base) 0%, var(--surface-interactive-hover) 100%);
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  background: linear-gradient(135deg, var(--surface-interactive-base) 0%, var(--surface-interactive-hover) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -472,11 +472,11 @@
   0%,
   100% {
     transform: scale(1);
-    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--icon-interactive-base) 20%, transparent));
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--surface-interactive-base) 20%, transparent));
   }
   50% {
     transform: scale(1.03);
-    filter: drop-shadow(0 0 16px color-mix(in srgb, var(--icon-interactive-base) 40%, transparent));
+    filter: drop-shadow(0 0 16px color-mix(in srgb, var(--surface-interactive-base) 40%, transparent));
   }
 }
 
@@ -526,7 +526,7 @@
     border-radius: inherit;
     background: radial-gradient(
       circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
-      color-mix(in oklab, var(--primary) 26%, transparent) 0%,
+      color-mix(in oklab, var(--surface-interactive-base) 26%, transparent) 0%,
       transparent 60%
     );
     opacity: 0;

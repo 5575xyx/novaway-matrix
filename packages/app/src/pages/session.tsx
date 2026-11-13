@@ -492,6 +492,8 @@ export default function Page() {
     messageId: undefined as string | undefined,
     mobileTab: "session" as "session" | "changes",
     changes: "git" as ChangeMode,
+    reviewMessageID: undefined as string | undefined,
+    reviewSessionID: undefined as string | undefined,
     newSessionWorktree: "main",
     deferRender: false,
   })
@@ -689,7 +691,11 @@ export default function Page() {
     if (store.changes === "git" || store.changes === "branch")
       // avoids suspense
       return vcsQuery.isFetched ? (vcsQuery.data ?? []) : []
-    return turnDiffs()
+    const selected =
+      store.reviewSessionID === params.id
+        ? userMessages().find((message) => message.id === store.reviewMessageID)
+        : undefined
+    return selected ? list(selected.summary?.diffs) : turnDiffs()
   }
   const reviewCount = () => reviewDiffs().length
   const hasReview = () => reviewCount() > 0
@@ -735,12 +741,7 @@ export default function Page() {
     return reviewDiffs().find((item) => (item.file ?? "") === path)
   }
 
-  const newSessionWorktree = createMemo(() => {
-    if (store.newSessionWorktree === "create") return "create"
-    const project = sync.project
-    if (project && sdk.directory !== project.worktree) return sdk.directory
-    return "main"
-  })
+  const newSessionWorktree = createMemo(() => store.newSessionWorktree)
 
   const setActiveMessage = (message: UserMessage | undefined) => {
     messageMark = scrollMark
@@ -2237,6 +2238,7 @@ export default function Page() {
       autoSubmitKey={autoSubmitKey()}
       newSessionWorktree={newSessionWorktree()}
       onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
+      onNewSessionWorktreeSelect={(directory) => setStore("newSessionWorktree", directory)}
       onSubmit={() => {
         comments.clear()
         resumeScroll()
@@ -2259,6 +2261,12 @@ export default function Page() {
                 void sendFollowup(params.id!, id, { manual: true })
               },
               onEdit: editFollowup,
+              onDelete: (id) => {
+                const sessionID = params.id
+                if (!sessionID || followupBusy(sessionID)) return
+                setFollowup("items", sessionID, (items) => (items ?? []).filter((item) => item.id !== id))
+                setFollowup("failed", sessionID, (value) => (value === id ? undefined : value))
+              },
               onEditLoaded: clearFollowupEdit,
             }
           : undefined
@@ -2315,7 +2323,7 @@ export default function Page() {
 
           {/* Session panel */}
           <div
-            class="@container relative flex-1 min-h-0 flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-background overflow-hidden"
+            class="@container relative flex-1 min-h-0 flex flex-col rounded-[var(--workspace-panel-radius)] border border-border bg-panel overflow-hidden"
             data-component="conv-frame"
           >
             <WorkspaceHeader />
@@ -2352,6 +2360,12 @@ export default function Page() {
                         <Show when={timelineReady()} fallback={<MessageTimelineSkeleton />}>
                           <MessageTimeline
                             actions={actions}
+                            onReviewTurn={(messageID, files) => {
+                              setStore({ changes: "turn", reviewMessageID: messageID, reviewSessionID: params.id })
+                              view().review.setOpen(files)
+                              if (isDesktop()) openReviewPanel()
+                              else setStore("mobileTab", "changes")
+                            }}
                             scroll={ui.scroll}
                             onResumeScroll={resumeScroll}
                             setScrollRef={setScrollRef}
@@ -2395,6 +2409,7 @@ export default function Page() {
                           }}
                           autoSubmitKey={autoSubmitKey()}
                           onNewSessionWorktreeReset={() => setStore("newSessionWorktree", "main")}
+                          onNewSessionWorktreeSelect={(directory) => setStore("newSessionWorktree", directory)}
                           onSubmit={() => {
                             comments.clear()
                             resumeScroll()

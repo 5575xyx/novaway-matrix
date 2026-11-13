@@ -24,20 +24,20 @@ import "./team-graph.css"
 const truncate = (value: string, max: number) => (value.length > max ? value.slice(0, max - 1) + "…" : value)
 
 const NODE_TONE: Record<string, string> = {
-  active: "stroke-primary fill-primary/8",
-  done: "stroke-success fill-success/8",
+  active: "stroke-icon-interactive-base fill-surface-interactive-weak",
+  done: "stroke-icon-success-base fill-surface-success-weak",
   idle: "stroke-border fill-surface",
   pending: "stroke-border fill-surface",
-  in_progress: "stroke-primary fill-primary/8",
-  completed: "stroke-success fill-success/8",
-  failed: "stroke-destructive fill-destructive/8",
+  in_progress: "stroke-icon-interactive-base fill-surface-interactive-weak",
+  completed: "stroke-icon-success-base fill-surface-success-weak",
+  failed: "stroke-icon-critical-base fill-surface-critical-weak",
   cancelled: "stroke-border fill-surface",
 }
 
 const EDGE_TONE: Record<GraphEdge["kind"], string> = {
   assign: "stroke-border",
-  work: "stroke-primary/60",
-  deliver: "stroke-success/70",
+  work: "stroke-icon-interactive-base/60",
+  deliver: "stroke-icon-success-base/70",
 }
 
 /**
@@ -47,16 +47,21 @@ const EDGE_TONE: Record<GraphEdge["kind"], string> = {
  * 走完的交付回边转成功色，其余走完的边退成低对比，图才不吵。
  */
 const flowTone = (edge: GraphEdge) =>
-  edge.active ? "stroke-primary" : edge.kind === "deliver" ? "stroke-success" : "stroke-foreground-subtlest"
+  edge.active
+    ? "stroke-icon-interactive-base"
+    : edge.kind === "deliver"
+      ? "stroke-icon-success-base"
+      : "stroke-foreground-subtlest"
 
 const ROUND_TONE = [
-  "text-text-interactive-base border-primary/40 bg-primary/10",
-  "text-icon-warning-base border-warning/40 bg-warning/10",
-  "text-icon-success-base border-success/40 bg-success/10",
+  "text-text-interactive-base border-interactive-selected/40 bg-surface-interactive-weak",
+  "text-warning-base border-warning-base/40 bg-surface-warning-weak",
+  "text-success-base border-success-base/40 bg-surface-success-weak",
 ]
 
 const nodeTone = (node: GraphNode) => {
-  if (node.kind === "captain") return node.status === "active" ? NODE_TONE.active : "stroke-primary/50 fill-primary/5"
+  if (node.kind === "captain")
+    return node.status === "active" ? NODE_TONE.active : "stroke-icon-interactive-base/50 fill-icon-interactive-base/5"
   return NODE_TONE[node.status] ?? NODE_TONE.idle
 }
 
@@ -121,7 +126,7 @@ export function TeamGraph(props: {
                     })}
               </span>
               <Show when={item.lane.unassigned > 0}>
-                <span class="text-icon-warning-base">
+                <span class="text-warning-base">
                   {t("team.graph.unassigned", { count: String(item.lane.unassigned) })}
                 </span>
               </Show>
@@ -248,7 +253,7 @@ function LaneGraph(props: { lane: GraphLane; selected?: string; onSelect?: (node
                 rx="11"
                 fill="none"
                 stroke-width="1.5"
-                class="stroke-primary team-node-halo"
+                class="stroke-icon-interactive-base team-node-halo"
               />
             </Show>
             <Show when={props.selected === node.id}>

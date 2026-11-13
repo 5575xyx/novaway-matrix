@@ -15,6 +15,33 @@ interface Handle {
   dispose: () => void
 }
 
+test("PPTX 编辑器控件跟随 Host 浅／深色方案", async ({ page }) => {
+  await page.goto("/e2e/fixtures/lexora-slides-editor.html")
+  const status = page.locator('[data-slot="status"]')
+  await expect(status).toHaveAttribute("data-mounted", "true", { timeout: 90_000 })
+  const readEditorPaint = () =>
+    page.locator("#editor").evaluate((root) =>
+      Array.from(root.querySelectorAll<HTMLElement>("*"))
+        .filter((element) => {
+          const rect = element.getBoundingClientRect()
+          return rect.width > 0 && rect.height > 0
+        })
+        .map((element) => {
+          const style = getComputedStyle(element)
+          return `${style.color}|${style.backgroundColor}|${style.borderColor}`
+        })
+        .sort(),
+    )
+  const light = await readEditorPaint()
+  expect(light.length).toBeGreaterThan(0)
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.colorScheme = "dark"
+    document.documentElement.classList.add("dark")
+  })
+  await expect(status).toHaveAttribute("data-color-scheme", "dark")
+  await expect.poll(readEditorPaint).not.toEqual(light)
+})
 test("PPTM 无编辑保存后保留原始 VBA package part 字节", async ({ page }) => {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(String(error)))

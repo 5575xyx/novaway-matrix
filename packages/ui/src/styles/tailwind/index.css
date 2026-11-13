@@ -2,6 +2,9 @@
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source("../../../../");
+/* The shared stylesheet's source root is packages/, but App TSX is sometimes outside
+   Tailwind's inferred scan set in the workspace Vite build. Keep App utilities explicit. */
+@source "../../../../app/src";
 @import "./utilities.css";
 
 @import "../index.css";
