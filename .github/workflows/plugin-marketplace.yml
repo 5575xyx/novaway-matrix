@@ -12,7 +12,9 @@ permissions:
 jobs:
   sdk-and-browser:
     name: SDK regeneration and marketplace browser gate
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Keep the acceptance gate runnable independently of the repository's optional
+    # Blacksmith pool; this workflow is also the external evidence source.
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
