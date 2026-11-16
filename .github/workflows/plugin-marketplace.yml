@@ -31,7 +31,9 @@ jobs:
       # Reinstall after generation so a clean Bun workspace cannot retain a stale
       # copied @novaway/sdk tree in packages/app/node_modules.
       - name: Regenerate SDK from the current HTTP API
-        run: bun packages/sdk/js/script/build.ts
+        run: |
+          set -o pipefail
+          bun packages/sdk/js/script/build.ts 2>&1 | tee "$RUNNER_TEMP/sdk-generation.log"
 
       - name: Relink workspace SDK after generation
         run: bun install --frozen-lockfile
@@ -62,4 +64,5 @@ jobs:
           path: |
             packages/app/e2e/test-results
             packages/app/e2e/playwright-report
+            ${{ runner.temp }}/sdk-generation.log
             docs/plugin-marketplace-browser-evidence-2026-11-16.json
