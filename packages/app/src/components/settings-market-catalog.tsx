@@ -35,6 +35,7 @@ type CatalogEntry = {
   capabilities?: string[]
   permissions?: string[]
   releaseNotes?: string
+  verifiedStatus?: "verified" | "community" | "unverified"
   compatibility?: {
     minNovaWayApi?: string
     maxNovaWayApi?: string
@@ -129,9 +130,27 @@ type MarketplaceOperation = {
   operationType: "install" | "update" | "rollback" | "enable" | "disable" | "uninstall" | "migrate"
   packageId: string
   version?: string
-  phase: "queued" | "downloading" | "staging" | "validating" | "replacing" | "activating" | "draining" | "cleanup-pending" | "completed" | "failed"
+  phase:
+    | "queued"
+    | "downloading"
+    | "staging"
+    | "validating"
+    | "replacing"
+    | "activating"
+    | "draining"
+    | "cleanup-pending"
+    | "completed"
+    | "failed"
   installationStatus: "absent" | "staging" | "validating" | "installed" | "updating" | "uninstalling" | "failed"
-  activationStatus: "disabled" | "activating" | "active" | "draining" | "deactivating" | "disabled-pending-restart" | "failed" | "cleanup-pending"
+  activationStatus:
+    | "disabled"
+    | "activating"
+    | "active"
+    | "draining"
+    | "deactivating"
+    | "disabled-pending-restart"
+    | "failed"
+    | "cleanup-pending"
   consumerStatus: "undiscovered" | "discovered" | "registered" | "partially-registered" | "usable" | "unavailable"
   cleanupStatus: "not-required" | "pending" | "completed" | "failed"
   disposeStatus: "not-required" | "pending" | "completed" | "failed"
@@ -233,6 +252,8 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   const [sourceBusy, setSourceBusy] = createSignal("")
   const [search, setSearch] = createSignal("")
   const [category, setCategory] = createSignal("all")
+  const [sourceFilter, setSourceFilter] = createSignal("all")
+  const [sort, setSort] = createSignal<"featured" | "name" | "updated">("featured")
   const [details, setDetails] = createSignal<string>()
 
   const loadOperations = () =>
@@ -258,6 +279,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         if (!data) return
         const official = ((data as unknown as { novaway?: ServerNativeEntry[] }).novaway ?? []).map((entry) => ({
           ...entry,
+          sourceId: entry.sourceId ?? "novaway-official",
           kind: entry.kind ?? (entry.runtimeTargets?.includes("legacy-extension") ? "git" : "zip"),
         }))
         const fallback: CatalogEntry[] = NOVAWAY_MARKETPLACE_ENTRIES.map((entry) => ({
@@ -423,20 +445,29 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .finally(() => setStore("pending", ""))
   }
 
-
   const installedNames = createMemo(() => new Set(store.installed.map((item) => item.name)))
   const entryIdentity = (entry: CatalogEntry) => entry.packageId ?? entry.name
   const entries = createMemo(() =>
     tab() === "zcode" ? store.zcode : tab() === "claude" ? store.claude : store.novaway,
   )
-  const categories = createMemo(() => [
+  const categories = createMemo(() => ["all", ...new Set(entries().flatMap((entry) => entry.categories ?? []))])
+  const sourceOptions = createMemo(() => [
     "all",
-    ...new Set(entries().flatMap((entry) => entry.categories ?? [])),
+    ...new Set(
+      entries()
+        .map((entry) => entry.sourceId)
+        .filter((value): value is string => Boolean(value)),
+    ),
   ])
+  // Keep these helpers above visibleEntries: createMemo may evaluate immediately,
+  // so sorting must not close over a const that is still in its TDZ.
+  const updateOf = (entry: CatalogEntry) => store.updates.find((item) => item.name === entryIdentity(entry))
+  const outdated = (entry: CatalogEntry) => updateOf(entry)?.state === "outdated"
   const visibleEntries = createMemo(() => {
     const needle = search().trim().toLocaleLowerCase()
     const selectedCategory = category()
-    return entries().filter((entry) => {
+    const selectedSource = sourceFilter()
+    const filtered = entries().filter((entry) => {
       const haystack = [
         entry.name,
         entry.packageId,
@@ -448,8 +479,16 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         .filter(Boolean)
         .join(" ")
         .toLocaleLowerCase()
-      return (!needle || haystack.includes(needle)) &&
-        (selectedCategory === "all" || entry.categories?.includes(selectedCategory))
+      return (
+        (!needle || haystack.includes(needle)) &&
+        (selectedCategory === "all" || entry.categories?.includes(selectedCategory)) &&
+        (selectedSource === "all" || entry.sourceId === selectedSource)
+      )
+    })
+    return [...filtered].sort((left, right) => {
+      if (sort() === "name") return left.name.localeCompare(right.name)
+      if (sort() === "updated") return Number(outdated(right)) - Number(outdated(left))
+      return Number(outdated(right)) - Number(outdated(left)) || left.name.localeCompare(right.name)
     })
   })
   const TABS = ["novaway", "claude", "zcode"] as const
@@ -457,9 +496,20 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
     id === "zcode" ? store.zcode.length : id === "claude" ? store.claude.length : store.novaway.length
   const descriptionOf = (entry: CatalogEntry) =>
     entry.descriptionKey ? language.t(entry.descriptionKey as never) : entry.description
+  const sourceOf = (entry: CatalogEntry) => store.sources.find((source) => source.id === entry.sourceId)
+  const sourceNameOf = (entry: CatalogEntry) =>
+    sourceOf(entry)?.name ?? entry.sourceId ?? language.t("settings.market.source.unknown")
+  const trustOf = (entry: CatalogEntry): NonNullable<CatalogEntry["verifiedStatus"]> =>
+    entry.verifiedStatus ??
+    (sourceOf(entry)?.trust === "official" || entry.sourceId === "novaway-official" ? "verified" : "community")
+  const trustLabel = (entry: CatalogEntry) => language.t(`settings.market.trust.${trustOf(entry)}` as never)
+  const trustClass = (entry: CatalogEntry) =>
+    trustOf(entry) === "verified"
+      ? "border-success-base/30 bg-success-base/10 text-success-base"
+      : trustOf(entry) === "community"
+        ? "border-accent-base/30 bg-accent-base/10 text-accent-base"
+        : "border-warning-base/30 bg-warning-base/10 text-warning-base"
   // 官方仓库有新提交时（后端比对提交哈希 / 归档 ETag）在条目上标出来。
-  const updateOf = (entry: CatalogEntry) => store.updates.find((item) => item.name === entryIdentity(entry))
-  const outdated = (entry: CatalogEntry) => updateOf(entry)?.state === "outdated"
 
   const install = (entry: CatalogEntry) => {
     const identity = entryIdentity(entry)
@@ -574,14 +624,39 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
 
   return (
     <SettingsGroup>
-      <div class="flex items-center gap-2 border-b border-border px-4 py-2">
-        <div class="min-w-0 flex-1">
-          <div class="text-13-medium text-foreground">{language.t("settings.market.title")}</div>
-          <div class="mt-0.5 text-12-regular text-foreground-subtle">{language.t("settings.market.hint")}</div>
+      <div
+        data-component="marketplace-hero"
+        class="flex items-start gap-3 border-b border-border bg-gradient-to-br from-panel to-background px-4 py-4"
+      >
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent-base">
+          <Icon name="archive" size="medium" />
         </div>
-        <Button variant="ghost" size="small" disabled={store.loading} onClick={load}>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="text-15-medium text-foreground">{language.t("settings.market.title")}</div>
+          </div>
+          <div class="mt-1 max-w-2xl text-12-regular text-foreground-subtle">{language.t("settings.market.hint")}</div>
+          <div class="mt-2 flex flex-wrap gap-1.5 text-11-regular text-foreground-subtlest">
+            <span>{entries().length} packages</span>
+            <span>·</span>
+            <span>{store.sources.filter((source) => source.enabled).length} active sources</span>
+            <Show when={store.updates.some((update) => update.state === "outdated")}>
+              <span>·</span>
+              <span class="text-warning-base">
+                {store.updates.filter((update) => update.state === "outdated").length} updates
+              </span>
+            </Show>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="small"
+          disabled={store.loading}
+          onClick={load}
+          title={language.t("settings.market.refresh")}
+        >
           <Icon name="refresh" size="small" />
-          {language.t("settings.market.refresh")}
+          <span class="hidden sm:inline">{language.t("settings.market.refresh")}</span>
         </Button>
       </div>
 
@@ -636,7 +711,10 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         <div class="flex flex-col gap-1.5">
           <For each={store.sources}>
             {(source) => (
-              <div data-source-id={source.id} class="flex flex-col gap-1 rounded-md border border-border/70 px-2.5 py-2 sm:flex-row sm:items-center">
+              <div
+                data-source-id={source.id}
+                class="flex flex-col gap-1 rounded-md border border-border/70 px-2.5 py-2 sm:flex-row sm:items-center"
+              >
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-center gap-1.5">
                     <span class="truncate text-ui-xs font-medium text-foreground">{source.name}</span>
@@ -755,9 +833,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
 
       <Show when={store.errors.length > 0}>
         <div class="border-b border-border px-4 py-2" data-component="market-catalog-errors">
-          <For each={store.errors}>
-            {(error) => <div class="text-11-regular text-warning-base">{error}</div>}
-          </For>
+          <For each={store.errors}>{(error) => <div class="text-11-regular text-warning-base">{error}</div>}</For>
         </div>
       </Show>
 
@@ -783,24 +859,58 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </span>
       </div>
 
-      <div class="flex flex-col gap-2 border-b border-border px-4 py-2 sm:flex-row">
-        <input
-          class="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-ui-xs text-foreground outline-none focus:border-border-focus"
-          value={search()}
-          onInput={(event) => setSearch(event.currentTarget.value)}
-          placeholder={language.t("settings.market.search")}
-          aria-label={language.t("settings.market.search")}
-          spellcheck={false}
-        />
+      <div
+        data-component="marketplace-filters"
+        class="flex flex-col gap-2 border-b border-border bg-background px-4 py-3 sm:flex-row"
+      >
+        <div class="relative min-w-0 flex-1">
+          <input
+            class="w-full rounded-lg border border-border bg-panel px-3 py-2 text-ui-xs text-foreground outline-none transition-colors placeholder:text-foreground-subtlest focus:border-border-focus"
+            value={search()}
+            onInput={(event) => setSearch(event.currentTarget.value)}
+            placeholder={language.t("settings.market.search")}
+            aria-label={language.t("settings.market.search")}
+            spellcheck={false}
+          />
+        </div>
         <select
-          class="rounded-md border border-border bg-background px-2.5 py-1.5 text-ui-xs text-foreground outline-none focus:border-border-focus"
+          class="rounded-lg border border-border bg-panel px-3 py-2 text-ui-xs text-foreground outline-none focus:border-border-focus"
           value={category()}
           onChange={(event) => setCategory(event.currentTarget.value)}
           aria-label={language.t("settings.market.category")}
         >
           <For each={categories()}>
-            {(value) => <option value={value}>{value === "all" ? language.t("settings.market.categoryAll") : value}</option>}
+            {(value) => (
+              <option value={value}>{value === "all" ? language.t("settings.market.categoryAll") : value}</option>
+            )}
           </For>
+        </select>
+        <select
+          class="rounded-lg border border-border bg-panel px-3 py-2 text-ui-xs text-foreground outline-none focus:border-border-focus"
+          value={sourceFilter()}
+          onChange={(event) => setSourceFilter(event.currentTarget.value)}
+          aria-label={language.t("settings.market.source.filter")}
+        >
+          <option value="all">{language.t("settings.market.source.all")}</option>
+          <For each={sourceOptions().slice(1)}>
+            {(value) => (
+              <option value={value}>
+                {language.t("settings.market.source.filterOption", {
+                  name: store.sources.find((source) => source.id === value)?.name ?? value,
+                })}
+              </option>
+            )}
+          </For>
+        </select>
+        <select
+          class="rounded-lg border border-border bg-panel px-3 py-2 text-ui-xs text-foreground outline-none focus:border-border-focus"
+          value={sort()}
+          onChange={(event) => setSort(event.currentTarget.value as "featured" | "name" | "updated")}
+          aria-label={language.t("settings.market.sort")}
+        >
+          <option value="featured">{language.t("settings.market.sortFeatured")}</option>
+          <option value="updated">{language.t("settings.market.sortUpdated")}</option>
+          <option value="name">{language.t("settings.market.sortName")}</option>
         </select>
       </div>
 
@@ -822,12 +932,14 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                     <span class="ml-auto text-foreground-subtlest">{operation.progress}%</span>
                   </div>
                   <div class="mt-1 text-foreground-subtlest">
-                    install={operation.installationStatus} · activation={operation.activationStatus} · consumer={operation.consumerStatus} · cleanup={operation.cleanupStatus} · dispose={operation.disposeStatus}
+                    install={operation.installationStatus} · activation={operation.activationStatus} · consumer=
+                    {operation.consumerStatus} · cleanup={operation.cleanupStatus} · dispose={operation.disposeStatus}
                     {operation.requiresRestart ? " · restart required" : ""}
                   </div>
                   <Show when={operation.errorCode || operation.recoveryHint}>
                     <div class="mt-1 text-warning-base">
-                      {operation.errorCode ?? "failed"}{operation.recoveryHint ? ` · ${operation.recoveryHint}` : ""}
+                      {operation.errorCode ?? "failed"}
+                      {operation.recoveryHint ? ` · ${operation.recoveryHint}` : ""}
                     </div>
                   </Show>
                 </div>
@@ -837,11 +949,16 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </div>
       </Show>
 
-      <div class="flex max-h-[calc(100vh-280px)] flex-col gap-2 overflow-y-auto p-2">
+      <div
+        class="grid max-h-[calc(100vh-280px)] grid-cols-1 gap-3 overflow-y-auto bg-background/40 p-3 sm:grid-cols-2 xl:grid-cols-3"
+        data-component="marketplace-results"
+      >
         <For
           each={visibleEntries()}
           fallback={
-            <div class="px-2 py-3 text-ui-xs text-foreground-subtle">{language.t("settings.market.empty")}</div>
+            <div class="col-span-full rounded-xl border border-dashed border-border px-3 py-8 text-center text-ui-xs text-foreground-subtle">
+              {language.t("settings.market.empty")}
+            </div>
           }
         >
           {(entry) => {
@@ -849,21 +966,55 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
             const installed = () => installedNames().has(identity)
             const installedEntry = () => store.installed.find((item) => item.name === identity)
             return (
-              <div
+              <article
                 data-component="market-entry"
-                class="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-panel px-3 py-2.5 transition-colors hover:border-border-hover hover:bg-hover/40"
+                data-market-source={entry.sourceId ?? "unknown"}
+                data-market-trust={trustOf(entry)}
+                class="group flex min-w-0 flex-col rounded-xl border border-border bg-panel p-3 transition-all hover:-translate-y-px hover:border-border-hover hover:bg-hover/40 hover:shadow-sm"
               >
-                <AppIcon seed={entry.name} fallback="mcp" class="mt-0.5" />
-                <div class="min-w-0 flex-1">
-                  <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <span class="min-w-0 truncate text-ui-base font-medium text-foreground">{entry.name}</span>
-                    <Show when={entry.version}>
-                      <Tag>{entry.version}</Tag>
-                    </Show>
-                    <Show when={installed()}>
-                      <Tag>{language.t("settings.market.installedTag")}</Tag>
-                    </Show>
-                    <Show when={installed() && outdated(entry)}>
+                <div class="flex min-w-0 items-start gap-2.5">
+                  <AppIcon seed={entry.name} fallback="mcp" class="shrink-0" />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 items-start justify-between gap-2">
+                      <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span class="min-w-0 break-words text-ui-base font-medium text-foreground">{entry.name}</span>
+                        <Show when={entry.version}>
+                          <Tag>{entry.version}</Tag>
+                        </Show>
+                      </div>
+                      <Show when={trustOf(entry) === "verified"}>
+                        <span class="shrink-0 text-success-base" title={trustLabel(entry)} aria-label={trustLabel(entry)}>
+                          <Icon name="shield" size="small" />
+                        </span>
+                      </Show>
+                    </div>
+                    <div class="mt-1 flex min-w-0 items-center gap-1 text-11-regular text-foreground-subtlest">
+                      <span class="truncate" title={sourceNameOf(entry)}>
+                        {language.t("settings.market.source.filterOption", { name: sourceNameOf(entry) })}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span class={`shrink-0 rounded-full border px-1.5 py-0.5 ${trustClass(entry)}`}>
+                        {trustLabel(entry)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-3 flex min-h-[2.5rem] flex-col gap-1.5">
+                  <Show when={descriptionOf(entry)}>
+                    <div class="line-clamp-2 text-ui-xs leading-5 text-foreground-subtle">{descriptionOf(entry)}</div>
+                  </Show>
+                  <Show when={entry.categories?.length}>
+                    <div class="flex flex-wrap gap-1">
+                      <For each={entry.categories?.slice(0, 3)}>{(item) => <Tag>{item}</Tag>}</For>
+                    </div>
+                  </Show>
+                </div>
+
+                <Show when={installed()}>
+                  <div class="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2">
+                    <Tag>{language.t("settings.market.installedTag")}</Tag>
+                    <Show when={outdated(entry)}>
                       <Tag title={updateOf(entry)?.available}>{language.t("settings.market.updateNote")}</Tag>
                     </Show>
                     <Show when={installedEntry()}>
@@ -879,32 +1030,54 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                       )}
                     </Show>
                   </div>
-                  <Show when={descriptionOf(entry)}>
-                    <div class="mt-0.5 line-clamp-2 text-ui-xs leading-5 text-foreground-subtle">
-                      {descriptionOf(entry)}
-                    </div>
-                  </Show>
-                  <Show when={details() === identity}>
-                    <div class="mt-2 break-words rounded-md border border-border/70 bg-background/60 px-2.5 py-2 text-11-regular text-foreground-subtle" data-component="market-entry-details">
-                      <Show when={entry.longDescription} fallback={descriptionOf(entry)}>
-                        <div>{entry.longDescription}</div>
+                </Show>
+
+                <Show when={details() === identity}>
+                  <div
+                    class="mt-3 break-words rounded-lg border border-border/70 bg-background/60 px-2.5 py-2 text-11-regular text-foreground-subtle"
+                    data-component="market-entry-details"
+                  >
+                    <Show when={entry.longDescription} fallback={descriptionOf(entry)}>
+                      <div>{entry.longDescription}</div>
+                    </Show>
+                    <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                      <Show when={entry.author}>
+                        <span>author={entry.author}</span>
                       </Show>
-                      <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                        <Show when={entry.author}><span>author={entry.author}</span></Show>
-                        <Show when={entry.license}><span>license={entry.license}</span></Show>
-                        <Show when={entry.categories?.length}><span>category={entry.categories?.join(", ")}</span></Show>
-                        <Show when={entry.runtimeTargets?.length}><span>runtime={entry.runtimeTargets?.join(", ")}</span></Show>
+                      <Show when={entry.license}>
+                        <span>license={entry.license}</span>
+                      </Show>
+                      <Show when={entry.categories?.length}>
+                        <span>category={entry.categories?.join(", ")}</span>
+                      </Show>
+                      <Show when={entry.runtimeTargets?.length}>
+                        <span>runtime={entry.runtimeTargets?.join(", ")}</span>
+                      </Show>
+                    </div>
+                    <Show when={entry.capabilities?.length}>
+                      <div class="mt-1">capabilities={entry.capabilities?.join(", ")}</div>
+                    </Show>
+                    <Show when={entry.permissions?.length}>
+                      <div class="mt-1">
+                        {language.t("settings.market.permissions")}: {entry.permissions?.join(", ")}
                       </div>
-                      <Show when={entry.permissions?.length}>
-                        <div class="mt-1">{language.t("settings.market.permissions")}: {entry.permissions?.join(", ")}</div>
-                      </Show>
-                      <Show when={entry.sha256}>
-                        <div class="mt-1 break-all font-mono">sha256={entry.sha256}</div>
-                      </Show>
-                    </div>
-                  </Show>
-                </div>
-                <div class="flex shrink-0 items-center gap-1">
+                    </Show>
+                    <Show when={entry.compatibility}>
+                      <div class="mt-1">
+                        compatibility={entry.compatibility?.minNovaWayApi ?? "any"}
+                        {entry.compatibility?.maxNovaWayApi ? `–${entry.compatibility.maxNovaWayApi}` : ""}
+                      </div>
+                    </Show>
+                    <Show when={entry.releaseNotes}>
+                      <div class="mt-1">release notes={entry.releaseNotes}</div>
+                    </Show>
+                    <Show when={entry.sha256}>
+                      <div class="mt-1 break-all font-mono">sha256={entry.sha256}</div>
+                    </Show>
+                  </div>
+                </Show>
+
+                <div class="mt-auto flex flex-wrap items-center gap-1.5 pt-3">
                   <Button
                     variant="ghost"
                     size="small"
@@ -933,14 +1106,16 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                     </Button>
                   </Show>
                   <Button
+                    class="ml-auto"
                     variant={installed() ? "ghost" : "secondary"}
                     size="small"
+                    disabled={store.pending === identity}
                     onClick={() => (installed() ? uninstall(installedEntry()!) : install(entry))}
                   >
                     {installed() ? language.t("settings.market.remove") : language.t("settings.market.install")}
                   </Button>
                 </div>
-              </div>
+              </article>
             )
           }}
         </For>

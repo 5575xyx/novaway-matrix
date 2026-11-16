@@ -1,6 +1,8 @@
 name: plugin marketplace acceptance
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

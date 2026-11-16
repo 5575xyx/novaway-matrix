@@ -259,6 +259,13 @@ test("marketplace browser lifecycle covers discovery, source management, install
   await openMarketplace(page)
   await expect(page.getByText(sourceName, { exact: true })).toBeVisible()
   await expect(page.getByText(entry.name, { exact: true })).toBeVisible()
+  await expect(page.locator('[data-component="marketplace-hero"]')).toBeVisible()
+  await expect(page.locator('[data-component="marketplace-filters"]')).toBeVisible()
+  const initialCard = page.locator('[data-component="market-entry"]').filter({ hasText: entry.name })
+  await expect(initialCard).toHaveAttribute("data-market-trust", "verified")
+  await page.getByRole("combobox", { name: /^(Source|来源)$/ }).selectOption("novaway-official")
+  await expect(page.locator('[data-component="market-entry"][data-market-source="novaway-official"]')).toHaveCount(2)
+  await page.getByRole("combobox", { name: /^(Source|来源)$/ }).selectOption("all")
 
   const sourceNameInput = page.getByRole("textbox", { name: /Source name|名称/i }).first()
   const smokeEntry = page.locator('[data-component="market-entry"]').filter({ hasText: entry.name })
