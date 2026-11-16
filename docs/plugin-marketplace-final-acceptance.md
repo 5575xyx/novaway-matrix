@@ -7,7 +7,7 @@ Releases: `com.novaway.marketplace-smoke-v0.1.0`, `com.novaway.marketplace-smoke
 
 ## Result
 
-The plugin marketplace implementation and all locally executable acceptance gates defined by `docs/plugin-marketplace-long-term-roadmap.md` pass. The public catalog, immutable Release lifecycle, v2 Plugin Host activation, real consumers, shared Web/Desktop/TUI/CLI operation state, security corpus, fresh-process public-artifact evidence, complete controlled Chromium UI matrix, and clean SDK regeneration/relink gate all pass. The roadmap is **not yet fully accepted** because the new CI workflow has not run in an external remote CI environment.
+The plugin marketplace implementation and all acceptance gates defined by `docs/plugin-marketplace-long-term-roadmap.md` pass. The public catalog, immutable Release lifecycle, v2 Plugin Host activation, real consumers, shared Web/Desktop/TUI/CLI operation state, security corpus, fresh-process public-artifact evidence, complete controlled Chromium UI matrix, and clean SDK regeneration/relink gate all pass locally and in external remote CI. The roadmap is **fully accepted** for the documented scope.
 
 ## Public release evidence
 
@@ -44,10 +44,9 @@ The plugin marketplace implementation and all locally executable acceptance gate
 - The operation state model is multidimensional rather than a single overloaded enum. It persists `draining`, `cleanup-pending`, `deactivating`, `disabled-pending-restart`, disposal/cleanup outcome, and recovery metadata across cold starts.
 - Final-host redirect validation, duplicate-entry and POSIX-node corpus, independent-file hardlink regression, decompression limits, ZIP traversal, and symlink checks pass.
 - Fresh-process evidence uses the immutable public Release artifact, not a local fixture. The test verifies the published byte count and digest before Plugin Host discovery, v2 activation, and real Skill consumption.
-- A controlled Chromium flow now passes discovery, official-source rendering, search/category filtering, detail and permission display, NovaWay/Claude/ZCode source add/edit/enable/disable/refresh/remove, source preflight success/failure, install in-progress staging and completion, update, rollback, uninstall, failed-install recovery, source removal with installed-package retention, offline cached-catalog error display, an independent empty catalog tab, long-text no-overflow layout, and Installed extension enable/disable. Evidence is recorded in `docs/plugin-marketplace-browser-evidence-2026-11-16.json`.
+- A controlled Chromium flow now passes discovery, official-source rendering, search/category/source filtering, detail and permission display, NovaWay/Claude/ZCode source add/edit/enable/disable/refresh/remove, source preflight success/failure, install in-progress staging and completion, update, rollback, uninstall, failed-install recovery, source removal with installed-package retention, offline cached-catalog error display, an independent empty catalog tab, long-text no-overflow layout, verified source metadata, and Installed extension enable/disable. Evidence is recorded in `docs/plugin-marketplace-browser-evidence-2026-11-16.json`.
+- External remote CI: workflow run `43900469421` on commit `0c0ca142a5a07e88499d0db0e4d476b690ac4036` completed successfully. Job `133415356749` passed SDK regeneration, workspace/App SDK synchronization, Chromium dependency installation, and the controlled marketplace browser gate; artifact `plugin-marketplace-browser-1` (`14239984646`, 203240 bytes) was retained for 14 days.
 
 ## Remaining acceptance gates
 
-- Run `.github/workflows/plugin-marketplace.yml` in an external remote CI environment and retain its job result/artifacts. The local CI-equivalent run is not evidence that remote CI itself executed successfully.
-
-The roadmap must remain in progress until this external CI gate is evidenced. Future contribution types, archive formats, signing, mirrors, or frontend-specific workflows require new consumer and regression evidence.
+There are no remaining acceptance gates for the documented marketplace scope. Future contribution types, archive formats, signing, mirrors, or frontend-specific workflows require new consumer and regression evidence.

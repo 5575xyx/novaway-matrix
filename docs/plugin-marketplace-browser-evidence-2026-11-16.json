@@ -10,12 +10,29 @@
   "ci_equivalent_result": "passed",
   "ui_refactor_command": "cd packages/app && PLAYWRIGHT_PORT=3228 bunx playwright test e2e/marketplace-lifecycle.spec.ts --project=chromium --workers=1",
   "ui_refactor_result": "passed",
-  "ui_refactor_scope": [
-    "responsive marketplace hero and card grid",
-    "source and trust metadata on catalog cards",
-    "source filtering with official source attribution",
-    "details expansion with lifecycle metadata"
-  ],
+  "remote_ci": {
+    "workflow": ".github/workflows/plugin-marketplace.yml",
+    "run_id": 43900469421,
+    "run_attempt": 1,
+    "head_sha": "0c0ca142a5a07e88499d0db0e4d476b690ac4036",
+    "status": "completed",
+    "conclusion": "success",
+    "run_url": "https://github.com/5575xyx/novaway-matrix/actions/runs/43900469421",
+    "job_id": 133415356749,
+    "job_url": "https://github.com/5575xyx/novaway-matrix/actions/runs/43900469421/job/133415356749",
+    "artifact": {
+      "id": 14239984646,
+      "name": "plugin-marketplace-browser-1",
+      "size_bytes": 203240,
+      "expired": false
+    },
+    "gates": [
+      "SDK regeneration from current HTTP API",
+      "workspace SDK relink and App generated API assertion",
+      "Chromium dependency installation",
+      "controlled marketplace browser lifecycle"
+    ]
+  },
   "flows": [
     "directory discovery and official source rendering",
     "responsive marketplace hero and card grid",
@@ -36,6 +53,6 @@
     "long-text details layout without horizontal overflow",
     "Installed extensions enable-disable toggle"
   ],
-  "not_yet_covered": ["external remote CI execution of .github/workflows/plugin-marketplace.yml"],
-  "acceptance": "local gates passed; external remote CI gate pending"
+  "not_yet_covered": [],
+  "acceptance": "local and external remote CI gates passed"
 }

@@ -1737,9 +1737,9 @@ consumerCapabilityVersion
 
 核心内核、安装事务、Plugin Host、真实 Skill consumer、跨客户端 durable operation、归档安全回归、官方 immutable Release 冷启动证据以及完整受控 Chromium UI 矩阵已经完成并通过对应测试。浏览器流程覆盖目录发现、官方源渲染、搜索/分类、详情/权限、NovaWay/Claude/ZCode 源添加、自定义源编辑/启停/刷新/删除、源预检成功/失败、安装中/安装成功、失败重试恢复、更新、回滚、卸载、删除源保留已安装包、离线缓存错误展示、独立空分类态、长文本不溢出以及 Installed 扩展启停。
 
-SDK 生成和 workspace relink 也已按 `.github/workflows/plugin-marketplace.yml` 的顺序在本地 CI-equivalent gate 中验证通过：`bun packages/sdk/js/script/build.ts` → `bun install --frozen-lockfile` → App 生成 SDK 包含 `marketplaceOperations` → Chromium 门禁。路线第 20 节定义的市场源、原生插件、兼容层、消费者、Office 和 UI 验收项均已具备代码及测试证据；但该 CI job 尚未在外部远程 CI 环境运行，因此路线仍保持“本地完成、远程 CI 待验收”，不能标记为 fully stable。
+SDK 生成和 workspace relink 已按 `.github/workflows/plugin-marketplace.yml` 的顺序在本地 CI-equivalent gate 中验证通过：`bun packages/sdk/js/script/build.ts` → `bun install --frozen-lockfile` → App 生成 SDK 包含 `marketplaceOperations` → Chromium 门禁。随后，外部 GitHub Actions workflow run `43900469421` 在 commit `0c0ca142a5a07e88499d0db0e4d476b690ac4036` 上成功完成同一组门禁：SDK regeneration、workspace/App SDK synchronization、Chromium dependencies 和 controlled marketplace browser gate 均为 success，job `133415356749` 与 artifact `plugin-marketplace-browser-1` 已保留在远端。路线第 20 节定义的市场源、原生插件、兼容层、消费者、Office 和 UI 验收项均已具备代码及测试证据，当前 documented scope 标记为 fully stable/accepted。
 
-验收报告见 `docs/plugin-marketplace-final-acceptance.md`。在外部远程 CI job 成功运行并保存可复核结果前，不得将本路线或市场标记为 fully stable，也不得声称没有剩余 acceptance gates。
+验收报告见 `docs/plugin-marketplace-final-acceptance.md`。外部 job/artifact 结果已记录在 `docs/plugin-marketplace-browser-evidence-2026-11-16.json`，因此 documented scope 的 acceptance gates 已全部关闭。
 
 ## 22. 结论
 
