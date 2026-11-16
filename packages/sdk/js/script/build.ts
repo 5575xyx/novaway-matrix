@@ -11,7 +11,7 @@ import { createClient } from "@hey-api/openapi-ts"
 
 const novaway = path.resolve(dir, "../../novaway")
 
-await $`bun dev generate > ${dir}/openapi.json`.cwd(novaway)
+await $`bun run --conditions=browser ./src/index.ts generate > ${dir}/openapi.json`.cwd(novaway)
 
 await createClient({
   input: "./openapi.json",
