@@ -14,7 +14,7 @@ jobs:
     name: SDK regeneration and marketplace browser gate
     # Keep the acceptance gate runnable independently of the repository's optional
     # Blacksmith pool; this workflow is also the external evidence source.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
