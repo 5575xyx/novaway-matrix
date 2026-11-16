@@ -46,6 +46,7 @@ import { useConnected } from "./component/use-connected"
 import { DialogMcp } from "./component/dialog-mcp"
 import { DialogWorkbench } from "./component/dialog-workbench"
 import { DialogStatus } from "./component/dialog-status"
+import { DialogMarketplace } from "./component/dialog-marketplace"
 import { DialogDebug } from "./component/dialog-debug"
 import { DialogThemeList } from "./component/dialog-theme-list"
 import { DialogHelp } from "./ui/dialog-help"
@@ -128,6 +129,7 @@ const appBindingCommands = [
   "variant.list",
   "provider.connect",
   "novaway.status",
+  "novaway.marketplace",
   "novaway.debug",
   "workbench.open",
   "theme.switch",
@@ -852,6 +854,15 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         slashName: "status",
         run: () => {
           dialog.replace(() => <DialogStatus />)
+        },
+        category: "系统",
+      },
+      {
+        name: "novaway.marketplace",
+        title: "查看插件市场操作",
+        slashName: "marketplace",
+        run: () => {
+          dialog.replace(() => <DialogMarketplace />)
         },
         category: "系统",
       },

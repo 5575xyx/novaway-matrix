@@ -1,0 +1,31 @@
+{
+  "test": "packages/novaway/test/server/marketplace-cold-start.test.ts",
+  "result": "passed",
+  "passes": 1,
+  "failures": 0,
+  "expectations": 12,
+  "catalog": "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
+  "packageId": "com.novaway.marketplace-smoke",
+  "manifestId": "marketplace-smoke",
+  "version": "0.1.1",
+  "releaseTag": "com.novaway.marketplace-smoke-v0.1.1",
+  "artifact": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-smoke-v0.1.1/com.novaway.marketplace-smoke-0.1.1.zip",
+  "size": 1878,
+  "sha256": "b003d4f13d09048d37b3460ceb91531fffbc06ae2023b8bc696924919e66c547",
+  "isolatedPaths": true,
+  "freshProcess": true,
+  "checks": [
+    "public artifact download",
+    "size and SHA-256 verification",
+    "isolated XDG marketplace installation",
+    "fresh NovaWay server process",
+    "Plugin Host discovery",
+    "v2 activation",
+    "real Skill consumer"
+  ],
+  "observed": {
+    "pluginStatus": "installed",
+    "skillConsumed": true
+  },
+  "recordedAt": "2026-11-16"
+}

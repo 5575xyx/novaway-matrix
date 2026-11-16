@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-16",
+  "test": "packages/app/e2e/marketplace-lifecycle.spec.ts",
+  "command": "cd packages/app && PLAYWRIGHT_PORT=3219 bunx playwright test e2e/marketplace-lifecycle.spec.ts --project=chromium --workers=1",
+  "result": "passed",
+  "passes": 1,
+  "failures": 0,
+  "browser": "chromium",
+  "ci_equivalent_command": "bun packages/sdk/js/script/build.ts && bun install --frozen-lockfile && test -f packages/app/node_modules/@novaway/sdk/src/v2/gen/sdk.gen.ts && grep -q marketplaceOperations packages/app/node_modules/@novaway/sdk/src/v2/gen/sdk.gen.ts && cd packages/app && PLAYWRIGHT_PORT=3220 bunx playwright test e2e/marketplace-lifecycle.spec.ts --project=chromium --workers=1",
+  "ci_equivalent_result": "passed",
+  "flows": [
+    "directory discovery and official source rendering",
+    "search filtering and category filtering",
+    "detail, runtime, SHA-256 and permission display",
+    "NovaWay, Claude and ZCode source add",
+    "source edit, disable, enable, refresh and remove",
+    "source preflight success and failure diagnostics",
+    "install, operation history and installed state",
+    "install in-progress staging state and completion",
+    "update and rollback",
+    "uninstall",
+    "failed install operation and retry recovery",
+    "source removal preserves the installed package",
+    "empty search state and offline cached catalog error",
+    "independent empty catalog tab",
+    "long-text details layout without horizontal overflow",
+    "Installed extensions enable-disable toggle"
+  ],
+  "not_yet_covered": [
+    "external remote CI execution of .github/workflows/plugin-marketplace.yml"
+  ],
+  "acceptance": "local gates passed; external remote CI gate pending"
+}

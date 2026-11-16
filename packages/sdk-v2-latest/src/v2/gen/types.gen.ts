@@ -1233,6 +1233,7 @@ export type AgentConfig = {
     | "default"
     | "acceptEdits"
     | "plan"
+    | "auto"
     | "bypassPermissions"
     | "unattended"
     | "worktree"
@@ -1372,6 +1373,11 @@ export type McpRemoteConfig = {
  */
 export type LayoutConfig = "auto" | "stretch"
 
+export type PermissionAutoConfig = {
+  classifier?: boolean
+  denial_limit?: number
+}
+
 export type ImageAttachmentConfig = {
   auto_resize?: boolean
   max_width?: number
@@ -1418,6 +1424,10 @@ export type Config = {
     paths?: Array<string>
     urls?: Array<string>
     disabled?: Array<string>
+    /**
+     * Fraction of the available prompt budget used for listing skills.
+     */
+    listing_budget_fraction?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
   reference?: ReferenceConfig
   watcher?: {
@@ -1434,7 +1444,6 @@ export type Config = {
       ]
   >
   plugins?: {
-    mode?: "legacy" | "shadow" | "v2"
     disabled?: Array<string>
     config?: {
       [key: string]: {
@@ -1488,6 +1497,8 @@ export type Config = {
   }
   memory?: {
     enabled?: boolean
+    global_enabled?: boolean
+    project_enabled?: boolean
     prefetch_limit?: number
     prefetch_budget_chars?: number
     auto_extract?: boolean
@@ -1495,6 +1506,8 @@ export type Config = {
     review_llm?: boolean
     review_interval?: number
     auto_apply?: boolean
+    prefetch_llm?: boolean
+    staleness_reminders?: boolean
     embedding_mode?: "auto" | "local" | "provider" | "ollama" | "off"
     embedding_provider?: string
     embedding_model?: string
@@ -1505,6 +1518,7 @@ export type Config = {
   }
   browser?: {
     enabled?: boolean
+    open_in_app?: boolean
   }
   evolution?: {
     enabled?: boolean
@@ -1512,11 +1526,20 @@ export type Config = {
     review_interval?: number
     auto_apply?: boolean
     auto_apply_file?: boolean
+    auto_skill?: boolean
+    auto_skill_threshold?: number
+    curator_enabled?: boolean
+    curator_stale_days?: number
+    curator_archive_days?: number
   }
   goal?: {
     enabled?: boolean
     max_iterations?: number
     judge_model?: string
+    max_tokens?: number
+    max_active_ms?: number
+    verifier?: "judge" | "agent"
+    evidence_min_bytes?: number
   }
   checkpoint?: {
     auto_enabled?: boolean
@@ -1525,6 +1548,10 @@ export type Config = {
   dream?: {
     enabled?: boolean
     interval?: number
+    consolidation_enabled?: boolean
+    min_hours?: number
+    min_sessions?: number
+    user_scope_enabled?: boolean
   }
   /**
    * Enable or configure formatters. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.
@@ -1566,6 +1593,58 @@ export type Config = {
   instructions?: Array<string>
   layout?: LayoutConfig
   permission?: PermissionConfig
+  permission_auto?: PermissionAutoConfig
+  computer?: {
+    enabled?: boolean
+    max_steps?: number
+  }
+  sandbox?: {
+    enabled?: boolean
+    backend?: "auto" | "bwrap" | "landlock" | "seatbelt" | "docker" | "podman"
+    docker_image?: string
+    network?: boolean
+    allow_paths?: Array<string>
+  }
+  arena?: {
+    enabled?: boolean
+    concurrency?: number
+    max_contenders?: number
+    models?: Array<string>
+    keep_worktrees?: boolean
+  }
+  channels?: {
+    enabled?: boolean
+    /**
+     * Restart attempts before a channel is marked failed (default: 3).
+     */
+    max_restarts?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    channels?: Array<{
+      /**
+       * Channel instance name, used in the routing map.
+       */
+      name: string
+      kind: "feishu" | "telegram" | "dingtalk" | "wecom" | "slack"
+      enabled?: boolean
+      user_id?: string
+      secret_name?: string
+      host?: string
+      /**
+       * Webhook bind port for DingTalk/WeCom/Slack inbound. Omit to disable the inbound listener.
+       */
+      port?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      path?: string
+      app_id?: string
+      app_secret?: string
+      bot_token?: string
+      webhook?: string
+      sign_secret?: string
+      corp_id?: string
+      corp_secret?: string
+      agent_id?: string
+      callback_token?: string
+      aes_key?: string
+    }>
+  }
   permission_mode?: "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
   tools?: {
     [key: string]: boolean
@@ -1906,6 +1985,30 @@ export type EvolutionCandidateProposal = {
 }
 
 export type EvolutionCandidate = {
+  lifecycle?: {
+    approvedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    applications: Array<{
+      id: string
+      root: string
+      path: string
+      before: string
+      after: string
+      time: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      state: "prepared" | "applied" | "failed" | "rolled_back"
+      structure: "pending" | "passed" | "failed"
+      activation: "pending" | "succeeded" | "failed" | "unavailable" | "not_applicable"
+      behavior: "pending" | "reported_success" | "reported_failure" | "mixed"
+      note: string
+      rolledBackAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      feedback: Array<{
+        success: boolean
+        note: string
+        source?: string
+        sessionID?: string
+        time: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }>
+    }>
+  }
   id: string
   projectID?: string
   sessionID?: string
@@ -1919,6 +2022,8 @@ export type EvolutionCandidate = {
   tags: Array<string>
   expectedOutcomes?: Array<string>
   sourceMessageID?: string
+  origin?: "auto-skill" | "learned" | "manual"
+  contentHash?: string
   status: "pending" | "applied" | "dismissed"
   validationStatus: "pending" | "validated" | "failed"
   validationNote?: string
@@ -1994,6 +2099,7 @@ export type ExtensionInfo = {
   error?: string
   issues?: Array<ExtensionIssue>
   status?: "added" | "removed" | "upgraded" | "downgraded" | "changed" | "unchanged"
+  operationId?: string
 }
 
 export type ExtensionContribution = {
@@ -2004,6 +2110,32 @@ export type ExtensionContribution = {
   path?: string
 }
 
+export type MarketplaceSource = {
+  id: string
+  name: string
+  type: "novaway" | "claude" | "zcode" | "auto"
+  url: string
+  enabled: boolean
+  trust: "official" | "unverified"
+  builtin?: boolean
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  lastRefreshAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  lastError?: string
+}
+
+export type MarketplaceLegacyMigration = {
+  migrationId: string
+  name: string
+  version?: string
+  legacyRoot: string
+  managedRoot: string
+  backupRoot: string
+  migratedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  state: "migrated" | "rolledback"
+  operationId?: string
+}
+
 export type MarketplaceInstalled = {
   name: string
   kind: "zip" | "git"
@@ -2012,10 +2144,17 @@ export type MarketplaceInstalled = {
   ref?: string
   subdir?: string
   sha256?: string
+  sourceId?: string
+  permissions?: Array<string>
+  dependencies?: {
+    [key: string]: string
+  }
+  conflicts?: Array<string>
   installedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   root: string
   files: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  operationId?: string
   previous?: {
     version?: string
     source: string
@@ -2025,15 +2164,43 @@ export type MarketplaceInstalled = {
   }
 }
 
+export type MarketplaceLegacyInstalled = {
+  name: string
+  version?: string
+  root: string
+  runtime: "legacy"
+  source: "legacy-extension"
+  preserved: true
+  conflict?: "marketplace-id"
+}
+
 export type MarketplaceEntry = {
   name: string
+  packageId?: string
+  sourceId?: string
   version?: string
   description?: string
   url: string
+  kind?: "zip" | "git"
   sha256?: string
   ref?: string
   subdir?: string
   keywords?: Array<string>
+  repository?: string
+  runtimeTargets?: Array<string>
+  capabilities?: Array<string>
+  permissions?: Array<string>
+  dependencies?: {
+    [key: string]: string
+  }
+  conflicts?: Array<string>
+  releaseNotes?: string
+  compatibility?: {
+    minNovaWayApi?: string
+    maxNovaWayApi?: string
+    manifestVersion?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    requiresRestart?: boolean
+  }
 }
 
 export type MarketplaceUpdate = {
@@ -2050,10 +2217,71 @@ export type MarketplaceUpdate = {
 
 export type MarketplaceCatalog = {
   installed: Array<MarketplaceInstalled>
+  legacy: Array<MarketplaceLegacyInstalled>
+  sources: Array<MarketplaceSource>
+  novaway: Array<MarketplaceEntry>
   zcode: Array<MarketplaceEntry>
   claude: Array<MarketplaceEntry>
   updates?: Array<MarketplaceUpdate>
   errors: Array<string>
+}
+
+export type MarketplaceOperation = {
+  operationId: string
+  operationType: "install" | "update" | "rollback" | "enable" | "disable" | "uninstall" | "migrate"
+  packageId: string
+  version?: string
+  runtime?: string
+  scope?: "global" | "project" | "session"
+  phase:
+    | "queued"
+    | "downloading"
+    | "staging"
+    | "validating"
+    | "replacing"
+    | "activating"
+    | "draining"
+    | "cleanup-pending"
+    | "completed"
+    | "failed"
+  installationStatus: "absent" | "staging" | "validating" | "installed" | "updating" | "uninstalling" | "failed"
+  activationStatus:
+    | "disabled"
+    | "activating"
+    | "active"
+    | "draining"
+    | "deactivating"
+    | "disabled-pending-restart"
+    | "failed"
+    | "cleanup-pending"
+  consumerStatus: "undiscovered" | "discovered" | "registered" | "partially-registered" | "usable" | "unavailable"
+  cleanupStatus: "not-required" | "pending" | "completed" | "failed"
+  disposeStatus: "not-required" | "pending" | "completed" | "failed"
+  requiresRestart: boolean
+  startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  finishedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  progress: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  errorCode?: string
+  recoveryHint?: string
+}
+
+export type MarketplaceUpdatePreview = {
+  currentVersion?: string
+  targetVersion?: string
+  sourceChanged: boolean
+  currentSourceId?: string
+  targetSourceId?: string
+  sourceUrlChanged: boolean
+  permissionsAdded: Array<string>
+  permissionsRemoved: Array<string>
+  dependenciesAdded: {
+    [key: string]: string
+  }
+  dependenciesRemoved: Array<string>
+  conflictsAdded: Array<string>
+  conflictsRemoved: Array<string>
+  digestChanged: boolean
+  requiresConfirmation: boolean
 }
 
 export type ExtensionIntegrity = {
@@ -3016,6 +3244,13 @@ export type MemoryReviewCandidate = {
   }
 }
 
+export type OfficeError = {
+  name: "OfficeError"
+  data: {
+    message: string
+  }
+}
+
 export type ProjectDirectory = {
   directory: string
   strategy?: string
@@ -3169,6 +3404,8 @@ export type SessionExport = {
 export type SessionImportPayload = {
   data: SessionExport
 }
+
+export type SessionSuggestions = Array<string>
 
 export type TextPartInput = {
   id?: string
@@ -3495,6 +3732,12 @@ export type VideoGenerateResponse = {
   status: string
 }
 
+export type PluginTransitionError = {
+  pluginID: string
+  code: string
+  message: string
+}
+
 export type EventTuiPromptAppend2 = {
   type: "tui.prompt.append"
   properties: {
@@ -3642,6 +3885,60 @@ export type DynamicWorkflowEvent = {
   type: string
   payload: unknown
   timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ArenaRunInput = {
+  task: string
+  concurrency?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  keepWorktrees?: boolean
+}
+
+export type ArenaRunView = {
+  id: string
+  task: string
+  status: string
+  winner?: string
+  verified: boolean
+  note?: string
+  createdAt: string
+  contenders: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ArenaFileView = {
+  path: string
+  added: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  removed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  binary: boolean
+}
+
+export type ArenaDiffView = {
+  baseSHA: string
+  head: string
+  files: Array<ArenaFileView>
+  untracked: Array<string>
+  truncated: boolean
+}
+
+export type ArenaContenderView = {
+  id: string
+  status: "completed" | "failed" | "skipped"
+  sessionID?: string
+  directory?: string
+  text?: string
+  diff?: ArenaDiffView
+  usage?: {
+    cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    tokens: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  error?: string
+  durationMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  verdict?: "pass" | "fail"
+  score?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ArenaRunDetailView = {
+  run: ArenaRunView
+  results: Array<ArenaContenderView>
 }
 
 export type TeamView = {
@@ -4864,6 +5161,7 @@ export type EventPluginChanged = {
   type: "plugin.changed"
   properties: {
     pluginID?: string
+    enabled?: boolean
     generation: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   }
 }
@@ -6283,6 +6581,7 @@ export type EventPluginChanged1 = {
   type: "plugin.changed"
   properties: {
     pluginID?: string
+    enabled?: boolean
     generation: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
@@ -6894,10 +7193,13 @@ export type CheckpointRestoreCheckpointData = {
 
 export type CheckpointRestoreCheckpointErrors = {
   /**
-   * Error
+   * Not found
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type CheckpointRestoreCheckpointError =
+  CheckpointRestoreCheckpointErrors[keyof CheckpointRestoreCheckpointErrors]
 
 export type CheckpointRestoreCheckpointResponses = {
   /**
@@ -7560,6 +7862,265 @@ export type ExtensionContributionsResponses = {
 
 export type ExtensionContributionsResponse = ExtensionContributionsResponses[keyof ExtensionContributionsResponses]
 
+export type ExtensionMarketplaceSourcesData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/sources"
+}
+
+export type ExtensionMarketplaceSourcesResponses = {
+  /**
+   * Configured marketplace sources
+   */
+  200: Array<MarketplaceSource>
+}
+
+export type ExtensionMarketplaceSourcesResponse =
+  ExtensionMarketplaceSourcesResponses[keyof ExtensionMarketplaceSourcesResponses]
+
+export type ExtensionMarketplaceSourceAddData = {
+  body?: {
+    name: string
+    type: "novaway" | "claude" | "zcode" | "auto"
+    url: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/sources"
+}
+
+export type ExtensionMarketplaceSourceAddErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExtensionMarketplaceSourceAddError =
+  ExtensionMarketplaceSourceAddErrors[keyof ExtensionMarketplaceSourceAddErrors]
+
+export type ExtensionMarketplaceSourceAddResponses = {
+  /**
+   * Added marketplace source
+   */
+  200: MarketplaceSource
+}
+
+export type ExtensionMarketplaceSourceAddResponse =
+  ExtensionMarketplaceSourceAddResponses[keyof ExtensionMarketplaceSourceAddResponses]
+
+export type ExtensionMarketplaceSourceRemoveData = {
+  body?: never
+  path: {
+    sourceId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/sources/{sourceId}"
+}
+
+export type ExtensionMarketplaceSourceRemoveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceSourceRemoveError =
+  ExtensionMarketplaceSourceRemoveErrors[keyof ExtensionMarketplaceSourceRemoveErrors]
+
+export type ExtensionMarketplaceSourceRemoveResponses = {
+  /**
+   * Source removed
+   */
+  200: boolean
+}
+
+export type ExtensionMarketplaceSourceRemoveResponse =
+  ExtensionMarketplaceSourceRemoveResponses[keyof ExtensionMarketplaceSourceRemoveResponses]
+
+export type ExtensionMarketplaceSourceUpdateData = {
+  body?: {
+    name?: string
+    type?: "novaway" | "claude" | "zcode" | "auto"
+    url?: string
+    enabled?: boolean
+  }
+  path: {
+    sourceId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/sources/{sourceId}"
+}
+
+export type ExtensionMarketplaceSourceUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceSourceUpdateError =
+  ExtensionMarketplaceSourceUpdateErrors[keyof ExtensionMarketplaceSourceUpdateErrors]
+
+export type ExtensionMarketplaceSourceUpdateResponses = {
+  /**
+   * Updated marketplace source
+   */
+  200: MarketplaceSource
+}
+
+export type ExtensionMarketplaceSourceUpdateResponse =
+  ExtensionMarketplaceSourceUpdateResponses[keyof ExtensionMarketplaceSourceUpdateResponses]
+
+export type ExtensionMarketplaceSourceRefreshData = {
+  body?: never
+  path: {
+    sourceId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/sources/{sourceId}/refresh"
+}
+
+export type ExtensionMarketplaceSourceRefreshErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceSourceRefreshError =
+  ExtensionMarketplaceSourceRefreshErrors[keyof ExtensionMarketplaceSourceRefreshErrors]
+
+export type ExtensionMarketplaceSourceRefreshResponses = {
+  /**
+   * Refreshed marketplace source
+   */
+  200: MarketplaceSource
+}
+
+export type ExtensionMarketplaceSourceRefreshResponse =
+  ExtensionMarketplaceSourceRefreshResponses[keyof ExtensionMarketplaceSourceRefreshResponses]
+
+export type ExtensionMarketplaceLegacyMigrationsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/legacy/migrations"
+}
+
+export type ExtensionMarketplaceLegacyMigrationsResponses = {
+  /**
+   * Legacy migrations
+   */
+  200: Array<MarketplaceLegacyMigration>
+}
+
+export type ExtensionMarketplaceLegacyMigrationsResponse =
+  ExtensionMarketplaceLegacyMigrationsResponses[keyof ExtensionMarketplaceLegacyMigrationsResponses]
+
+export type ExtensionMarketplaceLegacyMigrateData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/legacy/{name}/migrate"
+}
+
+export type ExtensionMarketplaceLegacyMigrateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceLegacyMigrateError =
+  ExtensionMarketplaceLegacyMigrateErrors[keyof ExtensionMarketplaceLegacyMigrateErrors]
+
+export type ExtensionMarketplaceLegacyMigrateResponses = {
+  /**
+   * Migrated legacy package
+   */
+  200: MarketplaceLegacyMigration
+}
+
+export type ExtensionMarketplaceLegacyMigrateResponse =
+  ExtensionMarketplaceLegacyMigrateResponses[keyof ExtensionMarketplaceLegacyMigrateResponses]
+
+export type ExtensionMarketplaceLegacyRollbackData = {
+  body?: never
+  path: {
+    migrationId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/legacy/migrations/{migrationId}/rollback"
+}
+
+export type ExtensionMarketplaceLegacyRollbackErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceLegacyRollbackError =
+  ExtensionMarketplaceLegacyRollbackErrors[keyof ExtensionMarketplaceLegacyRollbackErrors]
+
+export type ExtensionMarketplaceLegacyRollbackResponses = {
+  /**
+   * Rolled back legacy migration
+   */
+  200: MarketplaceLegacyMigration
+}
+
+export type ExtensionMarketplaceLegacyRollbackResponse =
+  ExtensionMarketplaceLegacyRollbackResponses[keyof ExtensionMarketplaceLegacyRollbackResponses]
+
 export type ExtensionMarketplaceCatalogData = {
   body?: never
   path?: never
@@ -7580,6 +8141,58 @@ export type ExtensionMarketplaceCatalogResponses = {
 export type ExtensionMarketplaceCatalogResponse =
   ExtensionMarketplaceCatalogResponses[keyof ExtensionMarketplaceCatalogResponses]
 
+export type ExtensionMarketplaceOperationsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/operations"
+}
+
+export type ExtensionMarketplaceOperationsResponses = {
+  /**
+   * Marketplace operation history
+   */
+  200: Array<MarketplaceOperation>
+}
+
+export type ExtensionMarketplaceOperationsResponse =
+  ExtensionMarketplaceOperationsResponses[keyof ExtensionMarketplaceOperationsResponses]
+
+export type ExtensionMarketplaceOperationData = {
+  body?: never
+  path: {
+    operationId: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/operations/{operationId}"
+}
+
+export type ExtensionMarketplaceOperationErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceOperationError =
+  ExtensionMarketplaceOperationErrors[keyof ExtensionMarketplaceOperationErrors]
+
+export type ExtensionMarketplaceOperationResponses = {
+  /**
+   * Marketplace operation status
+   */
+  200: MarketplaceOperation
+}
+
+export type ExtensionMarketplaceOperationResponse =
+  ExtensionMarketplaceOperationResponses[keyof ExtensionMarketplaceOperationResponses]
+
 export type ExtensionMarketplaceInstallData = {
   body?: {
     kind: "zip" | "git"
@@ -7587,6 +8200,12 @@ export type ExtensionMarketplaceInstallData = {
     url: string
     version?: string
     sha256?: string
+    sourceId?: string
+    permissions?: Array<string>
+    dependencies?: {
+      [key: string]: string
+    }
+    conflicts?: Array<string>
     ref?: string
     subdir?: string
   }
@@ -7617,6 +8236,113 @@ export type ExtensionMarketplaceInstallResponses = {
 
 export type ExtensionMarketplaceInstallResponse =
   ExtensionMarketplaceInstallResponses[keyof ExtensionMarketplaceInstallResponses]
+
+export type ExtensionMarketplaceRollbackData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/{name}/rollback"
+}
+
+export type ExtensionMarketplaceRollbackErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceRollbackError =
+  ExtensionMarketplaceRollbackErrors[keyof ExtensionMarketplaceRollbackErrors]
+
+export type ExtensionMarketplaceRollbackResponses = {
+  /**
+   * Rolled back marketplace package
+   */
+  200: MarketplaceInstalled
+}
+
+export type ExtensionMarketplaceRollbackResponse =
+  ExtensionMarketplaceRollbackResponses[keyof ExtensionMarketplaceRollbackResponses]
+
+export type ExtensionMarketplaceUpdatePreviewData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/{name}/update/preview"
+}
+
+export type ExtensionMarketplaceUpdatePreviewErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceUpdatePreviewError =
+  ExtensionMarketplaceUpdatePreviewErrors[keyof ExtensionMarketplaceUpdatePreviewErrors]
+
+export type ExtensionMarketplaceUpdatePreviewResponses = {
+  /**
+   * Marketplace update preview
+   */
+  200: MarketplaceUpdatePreview
+}
+
+export type ExtensionMarketplaceUpdatePreviewResponse =
+  ExtensionMarketplaceUpdatePreviewResponses[keyof ExtensionMarketplaceUpdatePreviewResponses]
+
+export type ExtensionMarketplaceUpdateData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/extension/marketplace/{name}/update"
+}
+
+export type ExtensionMarketplaceUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExtensionMarketplaceUpdateError = ExtensionMarketplaceUpdateErrors[keyof ExtensionMarketplaceUpdateErrors]
+
+export type ExtensionMarketplaceUpdateResponses = {
+  /**
+   * Updated marketplace package
+   */
+  200: MarketplaceInstalled
+}
+
+export type ExtensionMarketplaceUpdateResponse =
+  ExtensionMarketplaceUpdateResponses[keyof ExtensionMarketplaceUpdateResponses]
 
 export type ExtensionMarketplaceUninstallData = {
   body?: never
@@ -10911,6 +11637,7 @@ export type AppSkillsResponses = {
     disableModelInvocation?: boolean
     argumentHint?: string
     whenToUse?: string
+    source?: string
   }>
 }
 
@@ -11344,6 +12071,34 @@ export type MemoryStatusResponses = {
 }
 
 export type MemoryStatusResponse = MemoryStatusResponses[keyof MemoryStatusResponses]
+
+export type MemoryLearningHistoryData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/memory/learning/history"
+}
+
+export type MemoryLearningHistoryErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type MemoryLearningHistoryError = MemoryLearningHistoryErrors[keyof MemoryLearningHistoryErrors]
+
+export type MemoryLearningHistoryResponses = {
+  /**
+   * Success
+   */
+  200: Array<BackgroundJobInfo>
+}
+
+export type MemoryLearningHistoryResponse = MemoryLearningHistoryResponses[keyof MemoryLearningHistoryResponses]
 
 export type MemoryReviewStatusData = {
   body?: never
@@ -12124,6 +12879,46 @@ export type OfficeDocumentEditResponses = {
 
 export type OfficeDocumentEditResponse = OfficeDocumentEditResponses[keyof OfficeDocumentEditResponses]
 
+export type OfficeDocumentSaveData = {
+  body?: {
+    path: string
+    contentBase64: string
+    password?: string
+    expectedBaselineSha256?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/office/document-save"
+}
+
+export type OfficeDocumentSaveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeDocumentSaveError = OfficeDocumentSaveErrors[keyof OfficeDocumentSaveErrors]
+
+export type OfficeDocumentSaveResponses = {
+  /**
+   * Saved document bytes
+   */
+  200: {
+    path: string
+    bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    canUndo: boolean
+    canRedo: boolean
+    undoLabel?: string
+    redoLabel?: string
+  }
+}
+
+export type OfficeDocumentSaveResponse = OfficeDocumentSaveResponses[keyof OfficeDocumentSaveResponses]
+
 export type OfficeDocumentExportData = {
   body?: {
     path: string
@@ -12142,9 +12937,9 @@ export type OfficeDocumentExportData = {
 
 export type OfficeDocumentExportErrors = {
   /**
-   * Bad request
+   * OfficeError
    */
-  400: BadRequestError
+  400: OfficeError
 }
 
 export type OfficeDocumentExportError = OfficeDocumentExportErrors[keyof OfficeDocumentExportErrors]
@@ -14909,6 +15704,7 @@ export type SessionPromptData = {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
+    goalContinuation?: boolean
     messageID?: string
     model?: {
       providerID: string
@@ -15601,6 +16397,40 @@ export type SessionShareResponses = {
 
 export type SessionShareResponse = SessionShareResponses[keyof SessionShareResponses]
 
+export type SessionSuggestionsData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/suggestions"
+}
+
+export type SessionSuggestionsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionSuggestionsError = SessionSuggestionsErrors[keyof SessionSuggestionsErrors]
+
+export type SessionSuggestionsResponses = {
+  /**
+   * Contextual next-question suggestions
+   */
+  200: SessionSuggestions
+}
+
+export type SessionSuggestionsResponse = SessionSuggestionsResponses[keyof SessionSuggestionsResponses]
+
 export type SessionSummarizeData = {
   body?: {
     providerID: string
@@ -15646,6 +16476,7 @@ export type SessionPromptAsyncData = {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     }
+    goalContinuation?: boolean
     messageID?: string
     model?: {
       providerID: string
@@ -17196,7 +18027,6 @@ export type PluginListResponses = {
    * Discovered plugins, their states and diagnostics
    */
   200: {
-    mode: "legacy" | "shadow" | "v2"
     generation: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     instances: Array<{
       id: string
@@ -17212,6 +18042,7 @@ export type PluginListResponses = {
         | "disabled"
         | "uninstalled"
         | "overridden"
+      runtimeStatus?: "installed" | "activating" | "active" | "failed" | "disabled"
       scope: "builtin" | "global" | "project" | "session"
       origin: "extension" | "config-plugin" | "tui"
       adapter: "v2" | "legacy-extension" | "legacy-config-plugin" | "legacy-tui"
@@ -17264,6 +18095,14 @@ export type PluginContributionsData = {
       | "worker-type"
       | "watchdog-policy"
       | "channel"
+      | "agent-runtime"
+      | "super-agent-strategy"
+      | "task-kind"
+      | "verifier"
+      | "repair-strategy"
+      | "agent-template"
+      | "super-agent-policy"
+      | "super-agent-surface"
     slot?: string
   }
   url: "/plugin/contributions"
@@ -17307,6 +18146,14 @@ export type PluginContributionsResponses = {
       | "worker-type"
       | "watchdog-policy"
       | "channel"
+      | "agent-runtime"
+      | "super-agent-strategy"
+      | "task-kind"
+      | "verifier"
+      | "repair-strategy"
+      | "agent-template"
+      | "super-agent-policy"
+      | "super-agent-surface"
     name: string
     localName: string
     scope: "builtin" | "global" | "project" | "session"
@@ -17326,11 +18173,206 @@ export type PluginContributionsResponses = {
       | "overridden"
     path?: string
     slot?: string
+    order?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
     title?: string
+    description?: string
+    icon?: string
+    extensions?: Array<string>
+    hosts?: Array<string>
+    supports?: Array<string>
+    urls?: {
+      [key: string]: string
+    }
+    account?: unknown
+    action?: unknown
+    view?: unknown
+    render?:
+      | {
+          type: "builtin"
+          component: string
+        }
+      | {
+          type: "iframe"
+          url: string
+        }
+    ui?: unknown
+    match?: {
+      tool?: string
+      partType?: string
+      extension?: string | Array<string>
+      format?: string | Array<string>
+      mime?: string | Array<string>
+    }
+    renderer?:
+      | {
+          type: "builtin"
+          id: string
+        }
+      | {
+          type: "iframe"
+          url: string
+        }
+    viewId?: string
+    priority?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    readOnly?: boolean
   }>
 }
 
 export type PluginContributionsResponse = PluginContributionsResponses[keyof PluginContributionsResponses]
+
+export type PluginPublishAccountsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/accounts"
+}
+
+export type PluginPublishAccountsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type PluginPublishAccountsError = PluginPublishAccountsErrors[keyof PluginPublishAccountsErrors]
+
+export type PluginPublishAccountsResponses = {
+  /**
+   * Instance-scoped publish accounts
+   */
+  200: Array<{
+    id: string
+    driverID: string
+    label: string
+    profile: {
+      [key: string]: unknown
+    }
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type PluginPublishAccountsResponse = PluginPublishAccountsResponses[keyof PluginPublishAccountsResponses]
+
+export type PluginPublishAccountData = {
+  body?: {
+    driverID: string
+    profile?: {
+      [key: string]: unknown
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/accounts"
+}
+
+export type PluginPublishAccountErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PluginPublishAccountError = PluginPublishAccountErrors[keyof PluginPublishAccountErrors]
+
+export type PluginPublishAccountResponses = {
+  /**
+   * Stored publish account
+   */
+  200: {
+    id: string
+    driverID: string
+    label: string
+    profile: {
+      [key: string]: unknown
+    }
+    createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type PluginPublishAccountResponse = PluginPublishAccountResponses[keyof PluginPublishAccountResponses]
+
+export type PluginPublishAccountDeleteData = {
+  body?: never
+  path: {
+    driverID: string
+    accountID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/accounts/{driverID}/{accountID}"
+}
+
+export type PluginPublishAccountDeleteErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PluginPublishAccountDeleteError = PluginPublishAccountDeleteErrors[keyof PluginPublishAccountDeleteErrors]
+
+export type PluginPublishAccountDeleteResponses = {
+  /**
+   * Account removed
+   */
+  200: boolean
+}
+
+export type PluginPublishAccountDeleteResponse =
+  PluginPublishAccountDeleteResponses[keyof PluginPublishAccountDeleteResponses]
+
+export type PluginPublishExecuteData = {
+  body?: {
+    driverID: string
+    accountID: string
+    kind: "video" | "image_text" | "article"
+    payload: {
+      [key: string]: unknown
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/plugin/publish/execute"
+}
+
+export type PluginPublishExecuteErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PluginPublishExecuteError = PluginPublishExecuteErrors[keyof PluginPublishExecuteErrors]
+
+export type PluginPublishExecuteResponses = {
+  /**
+   * Publish driver result
+   */
+  200: {
+    [key: string]: unknown
+  }
+}
+
+export type PluginPublishExecuteResponse = PluginPublishExecuteResponses[keyof PluginPublishExecuteResponses]
 
 export type PluginDiagnosticsData = {
   body?: never
@@ -17378,6 +18420,14 @@ export type PluginDiagnosticsResponses = {
         | "worker-type"
         | "watchdog-policy"
         | "channel"
+        | "agent-runtime"
+        | "super-agent-strategy"
+        | "task-kind"
+        | "verifier"
+        | "repair-strategy"
+        | "agent-template"
+        | "super-agent-policy"
+        | "super-agent-surface"
       name: string
       localName: string
       status:
@@ -17401,6 +18451,7 @@ export type PluginDiagnosticsResponse = PluginDiagnosticsResponses[keyof PluginD
 export type PluginToggleData = {
   body?: {
     enabled: boolean
+    scope?: "builtin" | "global" | "project" | "session"
   }
   path: {
     id: string
@@ -17421,6 +18472,10 @@ export type PluginToggleErrors = {
    * Not found
    */
   404: NotFoundError
+  /**
+   * PluginTransitionError
+   */
+  409: PluginTransitionError
 }
 
 export type PluginToggleError = PluginToggleErrors[keyof PluginToggleErrors]
@@ -18063,7 +19118,7 @@ export type GoalUpdateGoalData = {
   body?: {
     title?: string
     description?: string
-    status?: "pending" | "in_progress" | "completed" | "cancelled"
+    status?: "pending" | "in_progress" | "paused" | "completed" | "cancelled"
     priority?: "high" | "medium" | "low"
     successCriteria?: Array<string>
     deadline?: string
@@ -18246,10 +19301,12 @@ export type WorkflowUpdateWorkflowData = {
 
 export type WorkflowUpdateWorkflowErrors = {
   /**
-   * Error
+   * Not found
    */
-  500: unknown
+  404: NotFoundError
 }
+
+export type WorkflowUpdateWorkflowError = WorkflowUpdateWorkflowErrors[keyof WorkflowUpdateWorkflowErrors]
 
 export type WorkflowUpdateWorkflowResponses = {
   /**
@@ -18677,6 +19734,918 @@ export type OrchestratorExecuteOrchestratorPlanResponses = {
    */
   200: unknown
 }
+
+export type SuperAgentListSuperAgentRunsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/super-agent/runs"
+}
+
+export type SuperAgentListSuperAgentRunsErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type SuperAgentListSuperAgentRunsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type SuperAgentListSuperAgentRunsResponse =
+  SuperAgentListSuperAgentRunsResponses[keyof SuperAgentListSuperAgentRunsResponses]
+
+export type SuperAgentCreateSuperAgentRunData = {
+  body?: {
+    goal: {
+      text: string
+      constraints?: Array<string>
+      acceptanceCriteria?: Array<{
+        id: string
+        text: string
+        required?: boolean
+      }>
+      requestedBy?: string
+      source?: "user" | "trigger" | "plugin" | "api" | "agent"
+    }
+    budget?: {
+      [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+  path?: never
+  query?: never
+  url: "/super-agent/runs"
+}
+
+export type SuperAgentCreateSuperAgentRunErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type SuperAgentCreateSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentGetSuperAgentRunData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}"
+}
+
+export type SuperAgentGetSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentGetSuperAgentRunError = SuperAgentGetSuperAgentRunErrors[keyof SuperAgentGetSuperAgentRunErrors]
+
+export type SuperAgentGetSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentListSuperAgentEventsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    after?: string
+    limit?: string
+  }
+  url: "/super-agent/runs/{runID}/events"
+}
+
+export type SuperAgentListSuperAgentEventsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentListSuperAgentEventsError =
+  SuperAgentListSuperAgentEventsErrors[keyof SuperAgentListSuperAgentEventsErrors]
+
+export type SuperAgentListSuperAgentEventsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type SuperAgentListSuperAgentEventsResponse =
+  SuperAgentListSuperAgentEventsResponses[keyof SuperAgentListSuperAgentEventsResponses]
+
+export type SuperAgentStartSuperAgentRunData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/start"
+}
+
+export type SuperAgentStartSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentStartSuperAgentRunError =
+  SuperAgentStartSuperAgentRunErrors[keyof SuperAgentStartSuperAgentRunErrors]
+
+export type SuperAgentStartSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentPauseSuperAgentRunData = {
+  body?: {
+    reason?: string
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/pause"
+}
+
+export type SuperAgentPauseSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentPauseSuperAgentRunError =
+  SuperAgentPauseSuperAgentRunErrors[keyof SuperAgentPauseSuperAgentRunErrors]
+
+export type SuperAgentPauseSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentResumeSuperAgentRunData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/resume"
+}
+
+export type SuperAgentResumeSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentResumeSuperAgentRunError =
+  SuperAgentResumeSuperAgentRunErrors[keyof SuperAgentResumeSuperAgentRunErrors]
+
+export type SuperAgentResumeSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentCancelSuperAgentRunData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/cancel"
+}
+
+export type SuperAgentCancelSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentCancelSuperAgentRunError =
+  SuperAgentCancelSuperAgentRunErrors[keyof SuperAgentCancelSuperAgentRunErrors]
+
+export type SuperAgentCancelSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentGetSuperAgentGraphData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/graph"
+}
+
+export type SuperAgentGetSuperAgentGraphErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentGetSuperAgentGraphError =
+  SuperAgentGetSuperAgentGraphErrors[keyof SuperAgentGetSuperAgentGraphErrors]
+
+export type SuperAgentGetSuperAgentGraphResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentUpdateSuperAgentGraphData = {
+  body?: {
+    expectedVersion: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    graph: unknown
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/graph"
+}
+
+export type SuperAgentUpdateSuperAgentGraphErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentUpdateSuperAgentGraphError =
+  SuperAgentUpdateSuperAgentGraphErrors[keyof SuperAgentUpdateSuperAgentGraphErrors]
+
+export type SuperAgentUpdateSuperAgentGraphResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentApproveSuperAgentRequestData = {
+  body?: {
+    requestID: string
+    status: "approved" | "rejected"
+    decidedBy: string
+    reason?: string
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/approve"
+}
+
+export type SuperAgentApproveSuperAgentRequestErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentApproveSuperAgentRequestError =
+  SuperAgentApproveSuperAgentRequestErrors[keyof SuperAgentApproveSuperAgentRequestErrors]
+
+export type SuperAgentApproveSuperAgentRequestResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentAnswerSuperAgentInputData = {
+  body?: {
+    requestID: string
+    answer: string
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/input"
+}
+
+export type SuperAgentAnswerSuperAgentInputErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentAnswerSuperAgentInputError =
+  SuperAgentAnswerSuperAgentInputErrors[keyof SuperAgentAnswerSuperAgentInputErrors]
+
+export type SuperAgentAnswerSuperAgentInputResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentListSuperAgentApprovalsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/approvals"
+}
+
+export type SuperAgentListSuperAgentApprovalsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentListSuperAgentApprovalsError =
+  SuperAgentListSuperAgentApprovalsErrors[keyof SuperAgentListSuperAgentApprovalsErrors]
+
+export type SuperAgentListSuperAgentApprovalsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type SuperAgentListSuperAgentApprovalsResponse =
+  SuperAgentListSuperAgentApprovalsResponses[keyof SuperAgentListSuperAgentApprovalsResponses]
+
+export type SuperAgentCreateSuperAgentApprovalData = {
+  body?: {
+    id: string
+    taskID: string
+    reason: string
+    scope: string
+    expiresAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/approvals"
+}
+
+export type SuperAgentCreateSuperAgentApprovalErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentCreateSuperAgentApprovalError =
+  SuperAgentCreateSuperAgentApprovalErrors[keyof SuperAgentCreateSuperAgentApprovalErrors]
+
+export type SuperAgentCreateSuperAgentApprovalResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentListSuperAgentInputsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/inputs"
+}
+
+export type SuperAgentListSuperAgentInputsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentListSuperAgentInputsError =
+  SuperAgentListSuperAgentInputsErrors[keyof SuperAgentListSuperAgentInputsErrors]
+
+export type SuperAgentListSuperAgentInputsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type SuperAgentListSuperAgentInputsResponse =
+  SuperAgentListSuperAgentInputsResponses[keyof SuperAgentListSuperAgentInputsResponses]
+
+export type SuperAgentListSuperAgentEvidenceData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/evidence"
+}
+
+export type SuperAgentListSuperAgentEvidenceErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentListSuperAgentEvidenceError =
+  SuperAgentListSuperAgentEvidenceErrors[keyof SuperAgentListSuperAgentEvidenceErrors]
+
+export type SuperAgentListSuperAgentEvidenceResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type SuperAgentListSuperAgentEvidenceResponse =
+  SuperAgentListSuperAgentEvidenceResponses[keyof SuperAgentListSuperAgentEvidenceResponses]
+
+export type SuperAgentRecordSuperAgentEvidenceData = {
+  body?: {
+    id: string
+    taskID: string
+    kind: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
+    source: string
+    contentHash?: string
+    measured?: string
+    expiresAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/evidence"
+}
+
+export type SuperAgentRecordSuperAgentEvidenceErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentRecordSuperAgentEvidenceError =
+  SuperAgentRecordSuperAgentEvidenceErrors[keyof SuperAgentRecordSuperAgentEvidenceErrors]
+
+export type SuperAgentRecordSuperAgentEvidenceResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentListSuperAgentVerificationsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/verifications"
+}
+
+export type SuperAgentListSuperAgentVerificationsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentListSuperAgentVerificationsError =
+  SuperAgentListSuperAgentVerificationsErrors[keyof SuperAgentListSuperAgentVerificationsErrors]
+
+export type SuperAgentListSuperAgentVerificationsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type SuperAgentListSuperAgentVerificationsResponse =
+  SuperAgentListSuperAgentVerificationsResponses[keyof SuperAgentListSuperAgentVerificationsResponses]
+
+export type SuperAgentRecordSuperAgentVerificationData = {
+  body?: {
+    id: string
+    taskID?: string
+    acceptanceID: string
+    verifierID: string
+    verifierVersion: string
+    outcome: "pass" | "fail" | "unverified" | "stale" | "needs_review"
+    measured?: string
+    evidenceIDs: Array<string>
+    reason: string
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/verifications"
+}
+
+export type SuperAgentRecordSuperAgentVerificationErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentRecordSuperAgentVerificationError =
+  SuperAgentRecordSuperAgentVerificationErrors[keyof SuperAgentRecordSuperAgentVerificationErrors]
+
+export type SuperAgentRecordSuperAgentVerificationResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentExecuteSuperAgentToolData = {
+  body?: {
+    taskID: string
+    tool: string
+    input: unknown
+    sessionID: string
+    messageID: string
+    agent?: string
+    instructionID?: string
+    idempotencyKey?: string
+    evidenceKind?: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
+    timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    leaseMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/execute-tool"
+}
+
+export type SuperAgentExecuteSuperAgentToolErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentExecuteSuperAgentToolError =
+  SuperAgentExecuteSuperAgentToolErrors[keyof SuperAgentExecuteSuperAgentToolErrors]
+
+export type SuperAgentExecuteSuperAgentToolResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentRecoverSuperAgentRunData = {
+  body?: {
+    at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/recover"
+}
+
+export type SuperAgentRecoverSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentRecoverSuperAgentRunError =
+  SuperAgentRecoverSuperAgentRunErrors[keyof SuperAgentRecoverSuperAgentRunErrors]
+
+export type SuperAgentRecoverSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentDelegateSuperAgentAgentsData = {
+  body?: {
+    taskID: string
+    runtimeType: string
+    agentID?: string
+    instruction?: string
+    calls?: Array<{
+      agentID: string
+      instruction: string
+    }>
+    timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    childBudget?: {
+      [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/delegate"
+}
+
+export type SuperAgentDelegateSuperAgentAgentsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentDelegateSuperAgentAgentsError =
+  SuperAgentDelegateSuperAgentAgentsErrors[keyof SuperAgentDelegateSuperAgentAgentsErrors]
+
+export type SuperAgentDelegateSuperAgentAgentsResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentCreateSuperAgentRepairTaskData = {
+  body?: {
+    sourceTaskID?: string
+    failedVerificationIDs: Array<string>
+    strategyID: string
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/repair"
+}
+
+export type SuperAgentCreateSuperAgentRepairTaskErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentCreateSuperAgentRepairTaskError =
+  SuperAgentCreateSuperAgentRepairTaskErrors[keyof SuperAgentCreateSuperAgentRepairTaskErrors]
+
+export type SuperAgentCreateSuperAgentRepairTaskResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentListSuperAgentTaskMutationsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    taskID?: string
+    limit?: string
+  }
+  url: "/super-agent/runs/{runID}/task-mutations"
+}
+
+export type SuperAgentListSuperAgentTaskMutationsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentListSuperAgentTaskMutationsError =
+  SuperAgentListSuperAgentTaskMutationsErrors[keyof SuperAgentListSuperAgentTaskMutationsErrors]
+
+export type SuperAgentListSuperAgentTaskMutationsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type SuperAgentListSuperAgentTaskMutationsResponse =
+  SuperAgentListSuperAgentTaskMutationsResponses[keyof SuperAgentListSuperAgentTaskMutationsResponses]
+
+export type SuperAgentExecuteSuperAgentRepairTaskData = {
+  body?: {
+    taskID: string
+    sessionID: string
+    messageID: string
+    agent?: string
+    evidenceKind?: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
+    timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    leaseMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    verifyAfter?: boolean
+    verifierID?: string
+    summary?: string
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/repair/execute"
+}
+
+export type SuperAgentExecuteSuperAgentRepairTaskErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentExecuteSuperAgentRepairTaskError =
+  SuperAgentExecuteSuperAgentRepairTaskErrors[keyof SuperAgentExecuteSuperAgentRepairTaskErrors]
+
+export type SuperAgentExecuteSuperAgentRepairTaskResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentVerifyAndFinishSuperAgentRunData = {
+  body?: {
+    verifierID: string
+    summary: string
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/verify-finish"
+}
+
+export type SuperAgentVerifyAndFinishSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentVerifyAndFinishSuperAgentRunError =
+  SuperAgentVerifyAndFinishSuperAgentRunErrors[keyof SuperAgentVerifyAndFinishSuperAgentRunErrors]
+
+export type SuperAgentVerifyAndFinishSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type SuperAgentTransitionSuperAgentRunData = {
+  body?: {
+    status:
+      | "draft"
+      | "planning"
+      | "ready"
+      | "running"
+      | "waiting_approval"
+      | "waiting_input"
+      | "waiting_external"
+      | "paused"
+      | "needs_review"
+      | "verifying"
+      | "cancelling"
+      | "cancelled"
+      | "failed"
+      | "completed"
+  }
+  path: {
+    runID: string
+  }
+  query?: never
+  url: "/super-agent/runs/{runID}/transition"
+}
+
+export type SuperAgentTransitionSuperAgentRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SuperAgentTransitionSuperAgentRunError =
+  SuperAgentTransitionSuperAgentRunErrors[keyof SuperAgentTransitionSuperAgentRunErrors]
+
+export type SuperAgentTransitionSuperAgentRunResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type ArenaListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/arena/runs"
+}
+
+export type ArenaListResponses = {
+  /**
+   * Arena runs
+   */
+  200: Array<ArenaRunView>
+}
+
+export type ArenaListResponse = ArenaListResponses[keyof ArenaListResponses]
+
+export type ArenaRunData = {
+  body?: ArenaRunInput
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/arena/runs"
+}
+
+export type ArenaRunErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * InternalServerError
+   */
+  500: EffectHttpApiErrorInternalServerError
+}
+
+export type ArenaRunError = ArenaRunErrors[keyof ArenaRunErrors]
+
+export type ArenaRunResponses = {
+  /**
+   * Arena run result
+   */
+  200: ArenaRunDetailView
+}
+
+export type ArenaRunResponse = ArenaRunResponses[keyof ArenaRunResponses]
+
+export type ArenaDetailData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/arena/runs/{runID}"
+}
+
+export type ArenaDetailErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ArenaDetailError = ArenaDetailErrors[keyof ArenaDetailErrors]
+
+export type ArenaDetailResponses = {
+  /**
+   * Arena run detail
+   */
+  200: ArenaRunDetailView
+}
+
+export type ArenaDetailResponse = ArenaDetailResponses[keyof ArenaDetailResponses]
 
 export type TeamOverviewData = {
   body?: never

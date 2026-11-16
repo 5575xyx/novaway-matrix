@@ -91,21 +91,25 @@ export const SkillTool = Tool.define(
             }
           }
 
-          // 内置技能（带独立目录的那种）的 location 就是目录本身，普通技能是
-          // SKILL.md 的文件路径 —— 直接 dirname 会把前者的基准目录抬到 prompt/，
-          // 模型按 `references/xxx.md` 拼路径就会指到别人家的目录里。
-          const dir = info.location.replace(/\/+$/, "").endsWith("SKILL.md")
-            ? path.dirname(info.location)
-            : info.location
-          const base = pathToFileURL(dir).href
+          // Built-in skills without an extracted resource directory intentionally use
+          // the sentinel `<built-in>`. It is provenance, not a filesystem cwd.
+          const resourceRoot =
+            info.location === "<built-in>" || info.location.startsWith("plugin://")
+              ? undefined
+              : info.location.replace(/\/+$/, "").endsWith("SKILL.md")
+                ? path.dirname(info.location)
+                : info.location
+          const base = resourceRoot ? pathToFileURL(resourceRoot).href : "<built-in>"
           // 带 Python 脚本的技能：把准备好的解释器交给模型，别让它猜 python3。
-          const python = yield* Effect.promise(async () => {
-            const status = await SkillPython.status(info.name)
-            if (status.state !== "idle") return SkillPython.pythonEnvNote(status)
-            const found = await SkillPython.findRequirements(dir)
-            if (!found) return undefined
-            return SkillPython.missingEnvNote(found.name, found.file)
-          })
+          const python = resourceRoot
+            ? yield* Effect.promise(async () => {
+                const status = await SkillPython.status(info.name)
+                if (status.state !== "idle") return SkillPython.pythonEnvNote(status)
+                const found = await SkillPython.findRequirements(resourceRoot)
+                if (!found) return undefined
+                return SkillPython.missingEnvNote(found.name, found.file)
+              })
+            : undefined
           // 办公模式的 PPT：选哪条渲染链由环境决定，不让模型猜。
           const engine =
             info.name === "office-ppt"
@@ -133,13 +137,15 @@ export const SkillTool = Tool.define(
                 })
               : undefined
           const limit = 10
-          const files = yield* rg.files({ cwd: dir, follow: false, hidden: true, signal: ctx.abort }).pipe(
-            Stream.filter((file) => !file.includes("SKILL.md")),
-            Stream.map((file) => path.resolve(dir, file)),
-            Stream.take(limit),
-            Stream.runCollect,
-            Effect.map((chunk) => [...chunk].map((file) => `<file>${file}</file>`).join("\n")),
-          )
+          const files = resourceRoot
+            ? yield* rg.files({ cwd: resourceRoot, follow: false, hidden: true, signal: ctx.abort }).pipe(
+                Stream.filter((file) => !file.includes("SKILL.md")),
+                Stream.map((file) => path.resolve(resourceRoot, file)),
+                Stream.take(limit),
+                Stream.runCollect,
+                Effect.map((chunk) => [...chunk].map((file) => `<file>${file}</file>`).join("\n")),
+              )
+            : ""
 
           return {
             title: `Loaded skill: ${info.name}`,
@@ -160,7 +166,7 @@ export const SkillTool = Tool.define(
               ...(engine ? ["", "<ppt_engine>", engine, "</ppt_engine>"] : []),
               "</skill_content>",
             ].join("\n"),
-            metadata: { name: info.name, dir } satisfies Metadata,
+            metadata: { name: info.name, ...(resourceRoot ? { dir: resourceRoot } : {}) } satisfies Metadata,
           }
         }).pipe(Effect.orDie),
     }

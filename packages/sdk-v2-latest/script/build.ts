@@ -91,11 +91,10 @@ if (/export type SessionNext\w+1 =/.test(generatedTypes)) {
 // the codegen config (which must stay on the generic instance name, otherwise
 // `bun dev generate` cannot import this package before its own output exists).
 const generatedSdk = await Bun.file("./src/v2/gen/sdk.gen.ts").text()
-const brandedSdk = generatedSdk.replaceAll("NovawayClient", "NovawayClient")
-if (brandedSdk === generatedSdk) {
+if (!generatedSdk.includes("NovawayClient")) {
   throw new Error("Client branding patch did not apply; @hey-api/openapi-ts output may have changed")
 }
-await Bun.write("./src/v2/gen/sdk.gen.ts", brandedSdk)
+await Bun.write("./src/v2/gen/sdk.gen.ts", generatedSdk)
 // Patch a @hey-api/openapi-ts codegen bug: SseFn incorrectly passes the
 // endpoint's TError into the second generic of ServerSentEventsResult, which
 // is the AsyncGenerator's TReturn slot. Iterator return values have nothing

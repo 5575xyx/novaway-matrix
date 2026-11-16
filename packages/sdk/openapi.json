@@ -2457,6 +2457,556 @@
         ]
       }
     },
+    "/extension/marketplace/sources": {
+      "get": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceSources",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configured marketplace sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MarketplaceSource"
+                  },
+                  "description": "Configured marketplace sources"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List marketplace sources",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceSources({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceSource.add",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Added marketplace source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Add marketplace source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["novaway", "claude", "zcode", "auto"]
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type", "url"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceSource.add({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/sources/{sourceId}": {
+      "patch": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceSource.update",
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated marketplace source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update marketplace source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["novaway", "claude", "zcode", "auto"]
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceSource.update({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceSource.remove",
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Source removed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Remove marketplace source",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceSource.remove({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/sources/{sourceId}/refresh": {
+      "post": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceSource.refresh",
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refreshed marketplace source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Refresh marketplace source",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceSource.refresh({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/legacy/migrations": {
+      "get": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceLegacyMigrations",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Legacy migrations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MarketplaceLegacyMigration"
+                  },
+                  "description": "Legacy migrations"
+                }
+              }
+            }
+          }
+        },
+        "description": "List explicit legacy-to-managed migrations and their rollback records.",
+        "summary": "List legacy migrations",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceLegacyMigrations({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/legacy/{name}/migrate": {
+      "post": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceLegacyMigrate",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Migrated legacy package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceLegacyMigration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Explicitly move a legacy package into the managed marketplace with a physical rollback copy.",
+        "summary": "Migrate a legacy package",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceLegacyMigrate({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/legacy/migrations/{migrationId}/rollback": {
+      "post": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceLegacyRollback",
+        "parameters": [
+          {
+            "name": "migrationId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rolled back legacy migration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceLegacyMigration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Restore the original legacy directory and remove its managed copy.",
+        "summary": "Roll back a legacy migration",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceLegacyRollback({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/extension/marketplace": {
       "get": {
         "tags": ["extension"],
@@ -2497,6 +3047,116 @@
           {
             "lang": "js",
             "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceCatalog({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/operations": {
+      "get": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceOperations",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marketplace operation history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MarketplaceOperation"
+                  },
+                  "description": "Marketplace operation history"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read durable lifecycle operations shared by Web, Desktop, TUI and CLI clients.",
+        "summary": "List marketplace operations",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceOperations({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/operations/{operationId}": {
+      "get": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceOperation",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marketplace operation status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceOperation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read the durable phase and recovery metadata for a marketplace change operation.",
+        "summary": "Get marketplace operation status",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceOperation({\n  ...\n})"
           }
         ]
       }
@@ -2569,6 +3229,27 @@
                   "sha256": {
                     "type": "string"
                   },
+                  "sourceId": {
+                    "type": "string"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "dependencies": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "conflicts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "ref": {
                     "type": "string"
                   },
@@ -2586,6 +3267,222 @@
           {
             "lang": "js",
             "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceInstall({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/{name}/rollback": {
+      "post": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceRollback",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rolled back marketplace package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceInstalled"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Restore the latest retained physical revision and retain the current version for another rollback.",
+        "summary": "Roll back a marketplace package",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceRollback({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/{name}/update/preview": {
+      "post": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceUpdatePreview",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marketplace update preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceUpdatePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Compare the installed package with the current catalog target before downloading or replacing files.",
+        "summary": "Preview marketplace update changes",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceUpdatePreview({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/extension/marketplace/{name}/update": {
+      "post": {
+        "tags": ["extension"],
+        "operationId": "extension.marketplaceUpdate",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated marketplace package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceInstalled"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Reinstall an installed package from its recorded source with an atomic backup and recovery path.",
+        "summary": "Update a marketplace package",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.extension.marketplaceUpdate({\n  ...\n})"
           }
         ]
       }
@@ -31905,7 +32802,15 @@
                 "routing-policy",
                 "worker-type",
                 "watchdog-policy",
-                "channel"
+                "channel",
+                "agent-runtime",
+                "super-agent-strategy",
+                "task-kind",
+                "verifier",
+                "repair-strategy",
+                "agent-template",
+                "super-agent-policy",
+                "super-agent-surface"
               ]
             },
             "required": false
@@ -31956,7 +32861,15 @@
                           "routing-policy",
                           "worker-type",
                           "watchdog-policy",
-                          "channel"
+                          "channel",
+                          "agent-runtime",
+                          "super-agent-strategy",
+                          "task-kind",
+                          "verifier",
+                          "repair-strategy",
+                          "agent-template",
+                          "super-agent-policy",
+                          "super-agent-surface"
                         ]
                       },
                       "name": {
@@ -31999,6 +32912,29 @@
                       "slot": {
                         "type": "string"
                       },
+                      "order": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
                       "title": {
                         "type": "string"
                       },
@@ -32033,9 +32969,41 @@
                         }
                       },
                       "account": {},
-                      "ui": {},
                       "action": {},
                       "view": {},
+                      "render": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": ["builtin"]
+                              },
+                              "component": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["type", "component"],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": ["iframe"]
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["type", "url"],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "ui": {},
                       "match": {
                         "type": "object",
                         "properties": {
@@ -32635,7 +33603,15 @@
                               "routing-policy",
                               "worker-type",
                               "watchdog-policy",
-                              "channel"
+                              "channel",
+                              "agent-runtime",
+                              "super-agent-strategy",
+                              "task-kind",
+                              "verifier",
+                              "repair-strategy",
+                              "agent-template",
+                              "super-agent-policy",
+                              "super-agent-surface"
                             ]
                           },
                           "name": {
@@ -35563,6 +36539,1853 @@
           {
             "lang": "js",
             "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.orchestrator.executeOrchestratorPlan({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.createSuperAgentRun",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "goal": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "constraints": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "acceptanceCriteria": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "required": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["id", "text"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "requestedBy": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": ["user", "trigger", "plugin", "api", "agent"]
+                      }
+                    },
+                    "required": ["text"],
+                    "additionalProperties": false
+                  },
+                  "budget": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["goal"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.createSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      },
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.listSuperAgentRuns",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.listSuperAgentRuns({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}": {
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.getSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.getSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/events": {
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.listSuperAgentEvents",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.listSuperAgentEvents({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/start": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.startSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.startSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/pause": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.pauseSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.pauseSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/resume": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.resumeSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.resumeSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/cancel": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.cancelSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.cancelSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/graph": {
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.getSuperAgentGraph",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.getSuperAgentGraph({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.updateSuperAgentGraph",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "graph": {}
+                },
+                "required": ["expectedVersion", "graph"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.updateSuperAgentGraph({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/approve": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.approveSuperAgentRequest",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "requestID": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["approved", "rejected"]
+                  },
+                  "decidedBy": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["requestID", "status", "decidedBy"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.approveSuperAgentRequest({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/input": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.answerSuperAgentInput",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "requestID": {
+                    "type": "string"
+                  },
+                  "answer": {
+                    "type": "string"
+                  }
+                },
+                "required": ["requestID", "answer"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.answerSuperAgentInput({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/approvals": {
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.listSuperAgentApprovals",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.listSuperAgentApprovals({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.createSuperAgentApproval",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "taskID": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  }
+                },
+                "required": ["id", "taskID", "reason", "scope"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.createSuperAgentApproval({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/inputs": {
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.listSuperAgentInputs",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.listSuperAgentInputs({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/evidence": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.recordSuperAgentEvidence",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "taskID": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["test", "file", "http", "screenshot", "log", "artifact", "human", "external"]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "contentHash": {
+                    "type": "string"
+                  },
+                  "measured": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  }
+                },
+                "required": ["id", "taskID", "kind", "source"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.recordSuperAgentEvidence({\n  ...\n})"
+          }
+        ]
+      },
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.listSuperAgentEvidence",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.listSuperAgentEvidence({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/verifications": {
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.listSuperAgentVerifications",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.listSuperAgentVerifications({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.recordSuperAgentVerification",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "taskID": {
+                    "type": "string"
+                  },
+                  "acceptanceID": {
+                    "type": "string"
+                  },
+                  "verifierID": {
+                    "type": "string"
+                  },
+                  "verifierVersion": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": ["pass", "fail", "unverified", "stale", "needs_review"]
+                  },
+                  "measured": {
+                    "type": "string"
+                  },
+                  "evidenceIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "acceptanceID", "verifierID", "verifierVersion", "outcome", "evidenceIDs", "reason"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.recordSuperAgentVerification({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/execute-tool": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.executeSuperAgentTool",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskID": {
+                    "type": "string"
+                  },
+                  "tool": {
+                    "type": "string"
+                  },
+                  "input": {},
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "messageID": {
+                    "type": "string"
+                  },
+                  "agent": {
+                    "type": "string"
+                  },
+                  "instructionID": {
+                    "type": "string"
+                  },
+                  "idempotencyKey": {
+                    "type": "string"
+                  },
+                  "evidenceKind": {
+                    "type": "string",
+                    "enum": ["test", "file", "http", "screenshot", "log", "artifact", "human", "external"]
+                  },
+                  "timeoutMs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "leaseMs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  }
+                },
+                "required": ["taskID", "tool", "input", "sessionID", "messageID"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.executeSuperAgentTool({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/recover": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.recoverSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.recoverSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/delegate": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.delegateSuperAgentAgents",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskID": {
+                    "type": "string"
+                  },
+                  "runtimeType": {
+                    "type": "string"
+                  },
+                  "agentID": {
+                    "type": "string"
+                  },
+                  "instruction": {
+                    "type": "string"
+                  },
+                  "calls": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "agentID": {
+                          "type": "string"
+                        },
+                        "instruction": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["agentID", "instruction"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "timeoutMs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "childBudget": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["taskID", "runtimeType"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.delegateSuperAgentAgents({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/repair": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.createSuperAgentRepairTask",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sourceTaskID": {
+                    "type": "string"
+                  },
+                  "failedVerificationIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "strategyID": {
+                    "type": "string"
+                  }
+                },
+                "required": ["failedVerificationIDs", "strategyID"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.createSuperAgentRepairTask({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/task-mutations": {
+      "get": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.listSuperAgentTaskMutations",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "taskID",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.listSuperAgentTaskMutations({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/repair/execute": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.executeSuperAgentRepairTask",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskID": {
+                    "type": "string"
+                  },
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "messageID": {
+                    "type": "string"
+                  },
+                  "agent": {
+                    "type": "string"
+                  },
+                  "evidenceKind": {
+                    "type": "string",
+                    "enum": ["test", "file", "http", "screenshot", "log", "artifact", "human", "external"]
+                  },
+                  "timeoutMs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "leaseMs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "verifyAfter": {
+                    "type": "boolean"
+                  },
+                  "verifierID": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                },
+                "required": ["taskID", "sessionID", "messageID"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.executeSuperAgentRepairTask({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/verify-finish": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.verifyAndFinishSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "verifierID": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                },
+                "required": ["verifierID", "summary"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.verifyAndFinishSuperAgentRun({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/super-agent/runs/{runID}/transition": {
+      "post": {
+        "tags": ["super-agent"],
+        "operationId": "super-agent.transitionSuperAgentRun",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "planning",
+                      "ready",
+                      "running",
+                      "waiting_approval",
+                      "waiting_input",
+                      "waiting_external",
+                      "paused",
+                      "needs_review",
+                      "verifying",
+                      "cancelling",
+                      "cancelled",
+                      "failed",
+                      "completed"
+                    ]
+                  }
+                },
+                "required": ["status"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.super-agent.transitionSuperAgentRun({\n  ...\n})"
           }
         ]
       }
@@ -46492,6 +49315,9 @@
           "status": {
             "type": "string",
             "enum": ["added", "removed", "upgraded", "downgraded", "changed", "unchanged"]
+          },
+          "operationId": {
+            "type": "string"
           }
         },
         "required": ["name", "root", "source", "enabled"],
@@ -46520,6 +49346,163 @@
         "required": ["extension", "root", "kind"],
         "additionalProperties": false
       },
+      "MarketplaceSource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["novaway", "claude", "zcode", "auto"]
+          },
+          "url": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "trust": {
+            "type": "string",
+            "enum": ["official", "unverified"]
+          },
+          "builtin": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "lastRefreshAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "lastError": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "type", "url", "enabled", "trust", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      },
+      "MarketplaceLegacyMigration": {
+        "type": "object",
+        "properties": {
+          "migrationId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "legacyRoot": {
+            "type": "string"
+          },
+          "managedRoot": {
+            "type": "string"
+          },
+          "backupRoot": {
+            "type": "string"
+          },
+          "migratedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["migrated", "rolledback"]
+          },
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "required": ["migrationId", "name", "legacyRoot", "managedRoot", "backupRoot", "migratedAt", "state"],
+        "additionalProperties": false
+      },
       "MarketplaceInstalled": {
         "type": "object",
         "properties": {
@@ -46544,6 +49527,27 @@
           },
           "sha256": {
             "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dependencies": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "installedAt": {
             "anyOf": [
@@ -46616,6 +49620,9 @@
                 "enum": ["Infinity", "-Infinity", "NaN"]
               }
             ]
+          },
+          "operationId": {
+            "type": "string"
           },
           "previous": {
             "type": "object",
@@ -46703,10 +49710,48 @@
         "required": ["name", "kind", "source", "installedAt", "root", "files", "bytes"],
         "additionalProperties": false
       },
+      "MarketplaceLegacyInstalled": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string",
+            "enum": ["legacy"]
+          },
+          "source": {
+            "type": "string",
+            "enum": ["legacy-extension"]
+          },
+          "preserved": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "conflict": {
+            "type": "string",
+            "enum": ["marketplace-id"]
+          }
+        },
+        "required": ["name", "root", "runtime", "source", "preserved"],
+        "additionalProperties": false
+      },
       "MarketplaceEntry": {
         "type": "object",
         "properties": {
           "name": {
+            "type": "string"
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "sourceId": {
             "type": "string"
           },
           "version": {
@@ -46717,6 +49762,10 @@
           },
           "url": {
             "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["zip", "git"]
           },
           "sha256": {
             "type": "string"
@@ -46732,6 +49781,80 @@
             "items": {
               "type": "string"
             }
+          },
+          "repository": {
+            "type": "string"
+          },
+          "runtimeTargets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dependencies": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "releaseNotes": {
+            "type": "string"
+          },
+          "compatibility": {
+            "type": "object",
+            "properties": {
+              "minNovaWayApi": {
+                "type": "string"
+              },
+              "maxNovaWayApi": {
+                "type": "string"
+              },
+              "manifestVersion": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "requiresRestart": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": ["name", "url"],
@@ -46802,6 +49925,24 @@
               "$ref": "#/components/schemas/MarketplaceInstalled"
             }
           },
+          "legacy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceLegacyInstalled"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceSource"
+            }
+          },
+          "novaway": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketplaceEntry"
+            }
+          },
           "zcode": {
             "type": "array",
             "items": {
@@ -46827,7 +49968,247 @@
             }
           }
         },
-        "required": ["installed", "zcode", "claude", "errors"],
+        "required": ["installed", "legacy", "sources", "novaway", "zcode", "claude", "errors"],
+        "additionalProperties": false
+      },
+      "MarketplaceOperation": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string"
+          },
+          "operationType": {
+            "type": "string",
+            "enum": ["install", "update", "rollback", "enable", "disable", "uninstall", "migrate"]
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["global", "project", "session"]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "downloading",
+              "staging",
+              "validating",
+              "replacing",
+              "activating",
+              "draining",
+              "cleanup-pending",
+              "completed",
+              "failed"
+            ]
+          },
+          "installationStatus": {
+            "type": "string",
+            "enum": ["absent", "staging", "validating", "installed", "updating", "uninstalling", "failed"]
+          },
+          "activationStatus": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "activating",
+              "active",
+              "draining",
+              "deactivating",
+              "disabled-pending-restart",
+              "failed",
+              "cleanup-pending"
+            ]
+          },
+          "consumerStatus": {
+            "type": "string",
+            "enum": ["undiscovered", "discovered", "registered", "partially-registered", "usable", "unavailable"]
+          },
+          "cleanupStatus": {
+            "type": "string",
+            "enum": ["not-required", "pending", "completed", "failed"]
+          },
+          "disposeStatus": {
+            "type": "string",
+            "enum": ["not-required", "pending", "completed", "failed"]
+          },
+          "requiresRestart": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "recoveryHint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "operationType",
+          "packageId",
+          "phase",
+          "installationStatus",
+          "activationStatus",
+          "consumerStatus",
+          "cleanupStatus",
+          "disposeStatus",
+          "requiresRestart",
+          "startedAt",
+          "progress"
+        ],
+        "additionalProperties": false
+      },
+      "MarketplaceUpdatePreview": {
+        "type": "object",
+        "properties": {
+          "currentVersion": {
+            "type": "string"
+          },
+          "targetVersion": {
+            "type": "string"
+          },
+          "sourceChanged": {
+            "type": "boolean"
+          },
+          "currentSourceId": {
+            "type": "string"
+          },
+          "targetSourceId": {
+            "type": "string"
+          },
+          "sourceUrlChanged": {
+            "type": "boolean"
+          },
+          "permissionsAdded": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissionsRemoved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dependenciesAdded": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "dependenciesRemoved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "conflictsAdded": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "conflictsRemoved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "digestChanged": {
+            "type": "boolean"
+          },
+          "requiresConfirmation": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sourceChanged",
+          "sourceUrlChanged",
+          "permissionsAdded",
+          "permissionsRemoved",
+          "dependenciesAdded",
+          "dependenciesRemoved",
+          "conflictsAdded",
+          "conflictsRemoved",
+          "digestChanged",
+          "requiresConfirmation"
+        ],
         "additionalProperties": false
       },
       "ExtensionIntegrity": {
@@ -68198,6 +71579,9 @@
     },
     {
       "name": "orchestrator"
+    },
+    {
+      "name": "super-agent"
     },
     {
       "name": "arena"

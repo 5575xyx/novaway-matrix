@@ -11,6 +11,7 @@ import type {
   PluginContext,
   ProviderAdapter,
   PublishDriverContribution,
+  SkillContribution,
   ToolContribution,
   ToolDeclaration,
 } from "@novaway/plugin-api"
@@ -51,6 +52,15 @@ export function createDiscoveredPlugin(input: {
         "publishDrivers",
         "surfaces",
         "previewers",
+        "storage",
+        "agentRuntimes",
+        "superAgentStrategies",
+        "taskKinds",
+        "verifiers",
+        "repairStrategies",
+        "agentTemplates",
+        "superAgentPolicies",
+        "superAgentSurfaces",
       ].includes(key),
   )
   if (unsupported.length > 0) {
@@ -85,12 +95,21 @@ export function createDiscoveredPlugin(input: {
               key !== "officeEngines" &&
               key !== "publishDrivers" &&
               key !== "surfaces" &&
-              key !== "previewers",
+              key !== "previewers" &&
+              key !== "storage" &&
+              key !== "agentRuntimes" &&
+              key !== "superAgentStrategies" &&
+              key !== "taskKinds" &&
+              key !== "verifiers" &&
+              key !== "repairStrategies" &&
+              key !== "agentTemplates" &&
+              key !== "superAgentPolicies" &&
+              key !== "superAgentSurfaces",
           )
         ) {
           throw pluginError(
             "capability_denied",
-            "内置 Provider/Office/Publish/UI 插件只能声明 providers、officeEngines、publishDrivers、surfaces 或 previewers",
+            "内置 Provider/Office/Publish/UI 插件只能声明 providers、officeEngines、publishDrivers、surfaces、previewers 或 storage",
             { pluginID: instance.id },
           )
         }
@@ -99,7 +118,8 @@ export function createDiscoveredPlugin(input: {
           !registries.office &&
           !registries.publish &&
           !registries.surfaces &&
-          !registries.previewers
+          !registries.previewers &&
+          !registries.superAgent
         ) {
           throw pluginError("capability_denied", "当前 Host 未提供 Provider/Office 注册表", { pluginID: instance.id })
         }
@@ -142,20 +162,39 @@ export function createDiscoveredPlugin(input: {
           if (!registries.surfaces) {
             throw pluginError("capability_denied", "当前 Host 未提供 Surface 注册表", { pluginID: instance.id })
           }
-          resources.push(registries.surfaces.register(surface))
+          const source = {
+            pluginID: instance.id,
+            scope: instance.scope,
+            ownerID: `${instance.scope}:${instance.id}`,
+            priority: instance.manifest.priority,
+            installOrder: instance.installOrder,
+            overrides: instance.manifest.overrides,
+          }
+          const disposable =
+            "kind" in registries.surfaces
+              ? registries.surfaces.register(source, surface)
+              : registries.surfaces.register(surface)
+          resources.push(disposable)
         }
+        await registerSuperAgentContributions({ instance, registries, resources, signal })
         registerPreviewers({ instance, registries, resources, signal })
         return
       }
       const context = createPluginContext({ ...activationInput, registries, signal, resources })
+      const marketplaceOffice =
+        instance.location.kind === "directory" &&
+        instance.location.label === "plugin" &&
+        instance.manifest.capabilities?.ui?.includes("office-engine")
       if (
-        (instance.manifest.contributes.officeEngines?.length ?? 0) > 0 ||
-        (instance.manifest.contributes.publishDrivers?.length ?? 0) > 0 ||
-        (instance.manifest.contributes.surfaces?.length ?? 0) > 0
+        (instance.manifest.contributes.officeEngines?.length ?? 0) > 0 &&
+        !marketplaceOffice
       ) {
-        throw pluginError("capability_denied", "Office 引擎、Publish driver 和 Surface 贡献当前只对内置插件开放", {
+        throw pluginError("capability_denied", "Office 引擎必须声明 ui.office-engine 能力；未声明时只允许内置插件", {
           pluginID: instance.id,
         })
+      }
+      if ((instance.manifest.contributes.publishDrivers?.length ?? 0) > 0) {
+        throw pluginError("capability_denied", "Publish driver 贡献当前只对内置插件开放", { pluginID: instance.id })
       }
       const tools = shouldDeferTools(instance.manifest)
         ? createLazyToolEntries({ root, declarations: instance.manifest.contributes.tools ?? [], context })
@@ -173,20 +212,12 @@ export function createDiscoveredPlugin(input: {
             : await readContributionFile(root, declaration.prompt.file, instance.id, declaration.id)
         context.agents.register({ ...declaration, prompt })
       }
-      for (const declaration of instance.manifest.contributes.skills ?? []) {
-        if (typeof declaration === "string") {
-          throw pluginError("contribution_invalid", `Skill 贡献必须是对象声明：${declaration}`, {
-            pluginID: instance.id,
-          })
-        }
-        const source =
-          "text" in declaration.source
-            ? declaration.source
-            : {
-                ...declaration.source,
-                text: await readContributionFile(root, declaration.source.file, instance.id, declaration.id),
-              }
-        context.skills.register({ ...declaration, source })
+      for (const declaration of await loadSkillEntries({
+        root,
+        declarations: instance.manifest.contributes.skills ?? [],
+        pluginID: instance.id,
+      })) {
+        context.skills.register(declaration)
       }
       for (const declaration of instance.manifest.contributes.commands ?? []) {
         if (typeof declaration === "string") {
@@ -207,8 +238,134 @@ export function createDiscoveredPlugin(input: {
         }
         context.providers.register(provider)
       }
+      for (const office of await loadOfficeEntries({
+        root,
+        entries: instance.manifest.contributes.officeEngines ?? [],
+        pluginID: instance.id,
+      })) {
+        if (!registries.office) {
+          throw pluginError("capability_denied", "当前 Host 未提供 Office 注册表", { pluginID: instance.id })
+        }
+        resources.push(registries.office.register(office))
+      }
+      const surfaces = instance.manifest.contributes.surfaces ?? []
+      if (surfaces.length > 0) {
+        if (!registries.surfaces) {
+          throw pluginError("capability_denied", "当前 Host 未提供 Surface 注册表", { pluginID: instance.id })
+        }
+        for (const surface of surfaces) {
+          signal.throwIfAborted()
+          const source = {
+            pluginID: instance.id,
+            scope: instance.scope,
+            ownerID: `${instance.scope}:${instance.id}`,
+            priority: instance.manifest.priority,
+            installOrder: instance.installOrder,
+            overrides: instance.manifest.overrides,
+          }
+          const disposable =
+            "kind" in registries.surfaces
+              ? registries.surfaces.register(source, surface)
+              : registries.surfaces.register(surface)
+          resources.push(disposable)
+        }
+      }
+      await registerSuperAgentContributions({ instance, registries, resources, signal })
       registerPreviewers({ instance, registries, resources, signal })
     },
+  }
+}
+
+async function loadSuperAgentContribution(input: {
+  root: string
+  pluginID: string
+  kind: string
+  declaration: Record<string, unknown>
+}) {
+  const entry = input.declaration.entry
+  if (typeof entry !== "string" || entry.length === 0) return input.declaration
+  const root = await fs.realpath(input.root)
+  const requested = path.resolve(root, entry)
+  const requestedRelative = path.relative(root, requested)
+  if (requestedRelative === ".." || requestedRelative.startsWith(`..${path.sep}`) || path.isAbsolute(requestedRelative)) {
+    throw pluginError("capability_denied", `Super-Agent ${input.kind} entry 路径越界：${entry}`, {
+      pluginID: input.pluginID,
+      contributionID: String(input.declaration.id ?? entry),
+    })
+  }
+  let resolved: string
+  try {
+    resolved = await fs.realpath(requested)
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return input.declaration
+    throw error
+  }
+  const relative = path.relative(root, resolved)
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw pluginError("capability_denied", `Super-Agent ${input.kind} entry 路径越界：${entry}`, {
+      pluginID: input.pluginID,
+      contributionID: String(input.declaration.id ?? entry),
+    })
+  }
+  const module = await import(pathToFileURL(resolved).href)
+  const candidate = module.default ?? module.contribution ?? module[input.kind]
+  if (candidate !== undefined && (typeof candidate !== "object" || candidate === null)) {
+    throw pluginError("contribution_invalid", `Super-Agent ${input.kind} entry 必须导出对象：${entry}`, {
+      pluginID: input.pluginID,
+      contributionID: String(input.declaration.id ?? entry),
+    })
+  }
+  const merged = { ...input.declaration, ...(candidate as Record<string, unknown> | undefined) }
+  if (typeof merged.id !== "string" || merged.id.length === 0 || typeof merged.version !== "string") {
+    throw pluginError("contribution_invalid", `Super-Agent ${input.kind} entry 缺少 id/version：${entry}`, {
+      pluginID: input.pluginID,
+      contributionID: String(input.declaration.id ?? entry),
+    })
+  }
+  if (typeof candidate === "object" && candidate !== null && ("id" in candidate || "version" in candidate)) {
+    if (candidate.id !== input.declaration.id || candidate.version !== input.declaration.version) {
+      throw pluginError("contribution_invalid", `Super-Agent ${input.kind} entry metadata 与 manifest 不一致：${entry}`, {
+        pluginID: input.pluginID,
+        contributionID: String(input.declaration.id),
+      })
+    }
+  }
+  return merged
+}
+
+async function registerSuperAgentContributions(input: {
+  instance: DiscoveredPlugin
+  registries: Parameters<RuntimePlugin["activate"]>[0]["registries"]
+  resources: ReturnType<typeof createStack>
+  signal: AbortSignal
+}) {
+  const contributions = input.instance.manifest.contributes
+  const registry = input.registries.superAgent
+  const declarations = [
+    ...(contributions.agentRuntimes ?? []).map((item) => ["agentRuntimes", item] as const),
+    ...(contributions.superAgentStrategies ?? []).map((item) => ["strategies", item] as const),
+    ...(contributions.taskKinds ?? []).map((item) => ["taskKinds", item] as const),
+    ...(contributions.verifiers ?? []).map((item) => ["verifiers", item] as const),
+    ...(contributions.repairStrategies ?? []).map((item) => ["repairStrategies", item] as const),
+    ...(contributions.agentTemplates ?? []).map((item) => ["agentTemplates", item] as const),
+    ...(contributions.superAgentPolicies ?? []).map((item) => ["policies", item] as const),
+    ...(contributions.superAgentSurfaces ?? []).map((item) => ["surfaces", item] as const),
+  ]
+  if (declarations.length === 0) return
+  if (!registry) {
+    throw pluginError("capability_denied", "当前 Host 未提供 Super-Agent 注册表", { pluginID: input.instance.id })
+  }
+  for (const [kind, declaration] of declarations) {
+    input.signal.throwIfAborted()
+    const target = registry[kind as keyof typeof registry] as { register(item: never): { dispose(): void } }
+    const loaded = await loadSuperAgentContribution({
+      root: input.instance.location.kind === "directory" ? input.instance.location.root : "",
+      pluginID: input.instance.id,
+      kind,
+      declaration: declaration as Record<string, unknown>,
+    })
+    input.signal.throwIfAborted()
+    input.resources.push(target.register(loaded as never))
   }
 }
 
@@ -235,16 +392,22 @@ function registerPreviewers(input: {
       ["extension", "format", "mime"].some(
         (key) => key in match && isStringOrStrings((match as Record<string, unknown>)[key]),
       )
+    const render = declaration.render as { type?: unknown; url?: unknown; component?: unknown } | undefined
+    const validRender =
+      render === undefined ||
+      (render.type === "iframe" && typeof render.url === "string" && render.url.length > 0) ||
+      (render.type === "builtin" && typeof render.component === "string" && render.component.length > 0)
     if (
       typeof declaration.id !== "string" ||
       declaration.id.length === 0 ||
-      typeof declaration.viewId !== "string" ||
-      declaration.viewId.length === 0 ||
+      (typeof declaration.viewId !== "string" && declaration.render === undefined) ||
+      (typeof declaration.viewId === "string" && declaration.viewId.length === 0) ||
       !validMatch ||
+      !validRender ||
       (declaration.priority !== undefined && !Number.isFinite(declaration.priority)) ||
       (declaration.readOnly !== undefined && typeof declaration.readOnly !== "boolean")
     ) {
-      throw pluginError("contribution_invalid", "Previewer 必须声明 id、match 和 viewId", {
+      throw pluginError("contribution_invalid", "Previewer 必须声明 id、match，以及 viewId 或合法 render", {
         pluginID: input.instance.id,
         contributionID: declaration.id,
       })
@@ -378,6 +541,81 @@ export async function loadProviderEntries(input: {
   return providers
 }
 
+async function loadSkillEntries(input: {
+  root: string
+  declarations: readonly (string | SkillContribution)[]
+  pluginID: string
+}): Promise<SkillContribution[]> {
+  const result: SkillContribution[] = []
+  const realRoot = await fs.realpath(input.root)
+  const assertInside = async (entry: string) => {
+    const resolved = await fs.realpath(path.resolve(realRoot, entry))
+    const relative = path.relative(realRoot, resolved)
+    if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw pluginError("capability_denied", `Skill entry 路径越界：${entry}`, {
+        pluginID: input.pluginID,
+        contributionID: entry,
+      })
+    }
+    return resolved
+  }
+  const readSkillFile = async (file: string, fallbackID: string): Promise<SkillContribution> => {
+    const text = await fs.readFile(file, "utf8")
+    const frontmatter = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? ""
+    const field = (name: string) => {
+      const value = frontmatter.match(new RegExp(`^${name}\\s*:\\s*(.+)$`, "m"))?.[1]?.trim()
+      return value?.replace(/^(["'])(.*)\\1$/, "$2")
+    }
+    const id = field("name") || fallbackID
+    if (!id) {
+      throw pluginError("contribution_invalid", `Skill 缺少 name：${file}`, {
+        pluginID: input.pluginID,
+        contributionID: file,
+      })
+    }
+    return {
+      id,
+      description: field("description") || `Skill ${id}`,
+      source: { text },
+    }
+  }
+  const walk = async (directory: string): Promise<string[]> => {
+    const entries = await fs.readdir(directory, { withFileTypes: true })
+    const files: string[] = []
+    for (const entry of entries) {
+      const child = path.join(directory, entry.name)
+      if (entry.isDirectory()) files.push(...(await walk(child)))
+      else if (entry.isFile() && entry.name.toLowerCase() === "skill.md") files.push(child)
+    }
+    return files
+  }
+  for (const declaration of input.declarations) {
+    if (typeof declaration !== "string") {
+      const source =
+        "text" in declaration.source
+          ? declaration.source
+          : {
+              ...declaration.source,
+              text: await readContributionFile(realRoot, declaration.source.file, input.pluginID, declaration.id),
+            }
+      result.push({ ...declaration, source })
+      continue
+    }
+    const resolved = await assertInside(declaration)
+    const stat = await fs.stat(resolved)
+    const files = stat.isDirectory() ? await walk(resolved) : [resolved]
+    if (files.length === 0) {
+      throw pluginError("contribution_invalid", `Skill 目录没有 SKILL.md：${declaration}`, {
+        pluginID: input.pluginID,
+        contributionID: declaration,
+      })
+    }
+    for (const file of files) {
+      result.push(await readSkillFile(file, path.basename(path.dirname(file))))
+    }
+  }
+  return result
+}
 async function readContributionFile(root: string, file: string, pluginID: string, contributionID: string) {
   const realRoot = await fs.realpath(root)
   const absolute = await fs.realpath(path.resolve(realRoot, file))

@@ -1,0 +1,61 @@
+name: plugin marketplace acceptance
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-and-browser:
+    name: SDK regeneration and marketplace browser gate
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    defaults:
+      run:
+        shell: bash
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun and install workspace
+        uses: ./.github/actions/setup-bun
+
+      # The generated SDK is part of the workspace package consumed by App.
+      # Reinstall after generation so a clean Bun workspace cannot retain a stale
+      # copied @novaway/sdk tree in packages/app/node_modules.
+      - name: Regenerate SDK from the current HTTP API
+        run: bun packages/sdk/js/script/build.ts
+
+      - name: Relink workspace SDK after generation
+        run: bun install --frozen-lockfile
+
+      - name: Assert App sees the generated marketplace API
+        run: |
+          test -f packages/app/node_modules/@novaway/sdk/src/v2/gen/sdk.gen.ts
+          grep -q 'marketplaceOperations' packages/app/node_modules/@novaway/sdk/src/v2/gen/sdk.gen.ts
+
+      - name: Install Chromium dependencies
+        working-directory: packages/app
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run controlled marketplace browser gate
+        working-directory: packages/app
+        run: bunx playwright test e2e/marketplace-lifecycle.spec.ts --project=chromium --workers=1
+        env:
+          CI: true
+          PLAYWRIGHT_PORT: 3210
+
+      - name: Upload marketplace browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: plugin-marketplace-browser-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            packages/app/e2e/test-results
+            packages/app/e2e/playwright-report
+            docs/plugin-marketplace-browser-evidence-2026-11-16.json

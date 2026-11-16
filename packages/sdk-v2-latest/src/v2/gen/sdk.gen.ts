@@ -8,6 +8,12 @@ import type {
   AppLogErrors,
   AppLogResponses,
   AppSkillsResponses,
+  ArenaDetailErrors,
+  ArenaDetailResponses,
+  ArenaListResponses,
+  ArenaRunErrors,
+  ArenaRunInput,
+  ArenaRunResponses,
   Auth as Auth3,
   AuthAddEntryErrors,
   AuthAddEntryResponses,
@@ -122,8 +128,31 @@ import type {
   ExtensionMarketplaceCatalogResponses,
   ExtensionMarketplaceInstallErrors,
   ExtensionMarketplaceInstallResponses,
+  ExtensionMarketplaceLegacyMigrateErrors,
+  ExtensionMarketplaceLegacyMigrateResponses,
+  ExtensionMarketplaceLegacyMigrationsResponses,
+  ExtensionMarketplaceLegacyRollbackErrors,
+  ExtensionMarketplaceLegacyRollbackResponses,
+  ExtensionMarketplaceOperationErrors,
+  ExtensionMarketplaceOperationResponses,
+  ExtensionMarketplaceOperationsResponses,
+  ExtensionMarketplaceRollbackErrors,
+  ExtensionMarketplaceRollbackResponses,
+  ExtensionMarketplaceSourceAddErrors,
+  ExtensionMarketplaceSourceAddResponses,
+  ExtensionMarketplaceSourceRefreshErrors,
+  ExtensionMarketplaceSourceRefreshResponses,
+  ExtensionMarketplaceSourceRemoveErrors,
+  ExtensionMarketplaceSourceRemoveResponses,
+  ExtensionMarketplaceSourcesResponses,
+  ExtensionMarketplaceSourceUpdateErrors,
+  ExtensionMarketplaceSourceUpdateResponses,
   ExtensionMarketplaceUninstallErrors,
   ExtensionMarketplaceUninstallResponses,
+  ExtensionMarketplaceUpdateErrors,
+  ExtensionMarketplaceUpdatePreviewErrors,
+  ExtensionMarketplaceUpdatePreviewResponses,
+  ExtensionMarketplaceUpdateResponses,
   ExtensionReloadResponses,
   ExtensionToggleErrors,
   ExtensionToggleResponses,
@@ -314,6 +343,8 @@ import type {
   MemoryEmbeddingSetupLocalResponses,
   MemoryEmbeddingStatusErrors,
   MemoryEmbeddingStatusResponses,
+  MemoryLearningHistoryErrors,
+  MemoryLearningHistoryResponses,
   MemoryListErrors,
   MemoryListRelationsErrors,
   MemoryListRelationsResponses,
@@ -359,6 +390,8 @@ import type {
   OfficeDocumentExportResponses,
   OfficeDocumentRedoErrors,
   OfficeDocumentRedoResponses,
+  OfficeDocumentSaveErrors,
+  OfficeDocumentSaveResponses,
   OfficeDocumentStateErrors,
   OfficeDocumentStateResponses,
   OfficeDocumentUndoErrors,
@@ -449,6 +482,14 @@ import type {
   PluginDiagnosticsResponses,
   PluginEventsResponses,
   PluginListResponses,
+  PluginPublishAccountDeleteErrors,
+  PluginPublishAccountDeleteResponses,
+  PluginPublishAccountErrors,
+  PluginPublishAccountResponses,
+  PluginPublishAccountsErrors,
+  PluginPublishAccountsResponses,
+  PluginPublishExecuteErrors,
+  PluginPublishExecuteResponses,
   PluginToggleErrors,
   PluginToggleResponses,
   ProfileCreateErrors,
@@ -591,6 +632,8 @@ import type {
   SessionShellResponses,
   SessionStatusErrors,
   SessionStatusResponses,
+  SessionSuggestionsErrors,
+  SessionSuggestionsResponses,
   SessionSummarizeErrors,
   SessionSummarizeResponses,
   SessionTempFilesCleanErrors,
@@ -629,6 +672,60 @@ import type {
   SettingsSkillSaveResponses,
   StatsGetResponses,
   SubtaskPartInput,
+  SuperAgentAnswerSuperAgentInputErrors,
+  SuperAgentAnswerSuperAgentInputResponses,
+  SuperAgentApproveSuperAgentRequestErrors,
+  SuperAgentApproveSuperAgentRequestResponses,
+  SuperAgentCancelSuperAgentRunErrors,
+  SuperAgentCancelSuperAgentRunResponses,
+  SuperAgentCreateSuperAgentApprovalErrors,
+  SuperAgentCreateSuperAgentApprovalResponses,
+  SuperAgentCreateSuperAgentRepairTaskErrors,
+  SuperAgentCreateSuperAgentRepairTaskResponses,
+  SuperAgentCreateSuperAgentRunErrors,
+  SuperAgentCreateSuperAgentRunResponses,
+  SuperAgentDelegateSuperAgentAgentsErrors,
+  SuperAgentDelegateSuperAgentAgentsResponses,
+  SuperAgentExecuteSuperAgentRepairTaskErrors,
+  SuperAgentExecuteSuperAgentRepairTaskResponses,
+  SuperAgentExecuteSuperAgentToolErrors,
+  SuperAgentExecuteSuperAgentToolResponses,
+  SuperAgentGetSuperAgentGraphErrors,
+  SuperAgentGetSuperAgentGraphResponses,
+  SuperAgentGetSuperAgentRunErrors,
+  SuperAgentGetSuperAgentRunResponses,
+  SuperAgentListSuperAgentApprovalsErrors,
+  SuperAgentListSuperAgentApprovalsResponses,
+  SuperAgentListSuperAgentEventsErrors,
+  SuperAgentListSuperAgentEventsResponses,
+  SuperAgentListSuperAgentEvidenceErrors,
+  SuperAgentListSuperAgentEvidenceResponses,
+  SuperAgentListSuperAgentInputsErrors,
+  SuperAgentListSuperAgentInputsResponses,
+  SuperAgentListSuperAgentRunsErrors,
+  SuperAgentListSuperAgentRunsResponses,
+  SuperAgentListSuperAgentTaskMutationsErrors,
+  SuperAgentListSuperAgentTaskMutationsResponses,
+  SuperAgentListSuperAgentVerificationsErrors,
+  SuperAgentListSuperAgentVerificationsResponses,
+  SuperAgentPauseSuperAgentRunErrors,
+  SuperAgentPauseSuperAgentRunResponses,
+  SuperAgentRecordSuperAgentEvidenceErrors,
+  SuperAgentRecordSuperAgentEvidenceResponses,
+  SuperAgentRecordSuperAgentVerificationErrors,
+  SuperAgentRecordSuperAgentVerificationResponses,
+  SuperAgentRecoverSuperAgentRunErrors,
+  SuperAgentRecoverSuperAgentRunResponses,
+  SuperAgentResumeSuperAgentRunErrors,
+  SuperAgentResumeSuperAgentRunResponses,
+  SuperAgentStartSuperAgentRunErrors,
+  SuperAgentStartSuperAgentRunResponses,
+  SuperAgentTransitionSuperAgentRunErrors,
+  SuperAgentTransitionSuperAgentRunResponses,
+  SuperAgentUpdateSuperAgentGraphErrors,
+  SuperAgentUpdateSuperAgentGraphResponses,
+  SuperAgentVerifyAndFinishSuperAgentRunErrors,
+  SuperAgentVerifyAndFinishSuperAgentRunResponses,
   SyncHistoryListErrors,
   SyncHistoryListResponses,
   SyncReplayErrors,
@@ -2313,6 +2410,166 @@ export class Evolution extends HeyApiClient {
   }
 }
 
+export class MarketplaceSource extends HeyApiClient {
+  /**
+   * Add marketplace source
+   */
+  public add<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      type?: "novaway" | "claude" | "zcode" | "auto"
+      url?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "type" },
+            { in: "body", key: "url" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceSourceAddResponses,
+      ExtensionMarketplaceSourceAddErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/sources",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Remove marketplace source
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      sourceId: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sourceId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      ExtensionMarketplaceSourceRemoveResponses,
+      ExtensionMarketplaceSourceRemoveErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/sources/{sourceId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update marketplace source
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      sourceId: string
+      directory?: string
+      workspace?: string
+      name?: string
+      type?: "novaway" | "claude" | "zcode" | "auto"
+      url?: string
+      enabled?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sourceId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "type" },
+            { in: "body", key: "url" },
+            { in: "body", key: "enabled" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      ExtensionMarketplaceSourceUpdateResponses,
+      ExtensionMarketplaceSourceUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/sources/{sourceId}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Refresh marketplace source
+   */
+  public refresh<ThrowOnError extends boolean = false>(
+    parameters: {
+      sourceId: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sourceId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceSourceRefreshResponses,
+      ExtensionMarketplaceSourceRefreshErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/sources/{sourceId}/refresh",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Extension extends HeyApiClient {
   /**
    * List extensions
@@ -2375,6 +2632,136 @@ export class Extension extends HeyApiClient {
   }
 
   /**
+   * List marketplace sources
+   */
+  public marketplaceSources<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExtensionMarketplaceSourcesResponses, unknown, ThrowOnError>({
+      url: "/extension/marketplace/sources",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List legacy migrations
+   *
+   * List explicit legacy-to-managed migrations and their rollback records.
+   */
+  public marketplaceLegacyMigrations<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExtensionMarketplaceLegacyMigrationsResponses, unknown, ThrowOnError>({
+      url: "/extension/marketplace/legacy/migrations",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Migrate a legacy package
+   *
+   * Explicitly move a legacy package into the managed marketplace with a physical rollback copy.
+   */
+  public marketplaceLegacyMigrate<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceLegacyMigrateResponses,
+      ExtensionMarketplaceLegacyMigrateErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/legacy/{name}/migrate",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Roll back a legacy migration
+   *
+   * Restore the original legacy directory and remove its managed copy.
+   */
+  public marketplaceLegacyRollback<ThrowOnError extends boolean = false>(
+    parameters: {
+      migrationId: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "migrationId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceLegacyRollbackResponses,
+      ExtensionMarketplaceLegacyRollbackErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/legacy/migrations/{migrationId}/rollback",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * List marketplace packages
    *
    * Return installed marketplace packages plus the remote ZCode and Claude catalogs.
@@ -2405,6 +2792,72 @@ export class Extension extends HeyApiClient {
   }
 
   /**
+   * List marketplace operations
+   *
+   * Read durable lifecycle operations shared by Web, Desktop, TUI and CLI clients.
+   */
+  public marketplaceOperations<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExtensionMarketplaceOperationsResponses, unknown, ThrowOnError>({
+      url: "/extension/marketplace/operations",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get marketplace operation status
+   *
+   * Read the durable phase and recovery metadata for a marketplace change operation.
+   */
+  public marketplaceOperation<ThrowOnError extends boolean = false>(
+    parameters: {
+      operationId: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "operationId" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      ExtensionMarketplaceOperationResponses,
+      ExtensionMarketplaceOperationErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/operations/{operationId}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Install a marketplace package
    *
    * Download and extract a zip package, or shallow-clone a git package, then register it with the extension loader.
@@ -2418,6 +2871,12 @@ export class Extension extends HeyApiClient {
       url?: string
       version?: string
       sha256?: string
+      sourceId?: string
+      permissions?: Array<string>
+      dependencies?: {
+        [key: string]: string
+      }
+      conflicts?: Array<string>
       ref?: string
       subdir?: string
     },
@@ -2435,6 +2894,10 @@ export class Extension extends HeyApiClient {
             { in: "body", key: "url" },
             { in: "body", key: "version" },
             { in: "body", key: "sha256" },
+            { in: "body", key: "sourceId" },
+            { in: "body", key: "permissions" },
+            { in: "body", key: "dependencies" },
+            { in: "body", key: "conflicts" },
             { in: "body", key: "ref" },
             { in: "body", key: "subdir" },
           ],
@@ -2454,6 +2917,114 @@ export class Extension extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Roll back a marketplace package
+   *
+   * Restore the latest retained physical revision and retain the current version for another rollback.
+   */
+  public marketplaceRollback<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceRollbackResponses,
+      ExtensionMarketplaceRollbackErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/{name}/rollback",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Preview marketplace update changes
+   *
+   * Compare the installed package with the current catalog target before downloading or replacing files.
+   */
+  public marketplaceUpdatePreview<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceUpdatePreviewResponses,
+      ExtensionMarketplaceUpdatePreviewErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/{name}/update/preview",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update a marketplace package
+   *
+   * Reinstall an installed package from its recorded source with an atomic backup and recovery path.
+   */
+  public marketplaceUpdate<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExtensionMarketplaceUpdateResponses,
+      ExtensionMarketplaceUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/extension/marketplace/{name}/update",
+      ...options,
+      ...params,
     })
   }
 
@@ -2592,6 +3163,11 @@ export class Extension extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+
+  private _marketplaceSource?: MarketplaceSource
+  get marketplaceSource(): MarketplaceSource {
+    return (this._marketplaceSource ??= new MarketplaceSource({ client: this.client }))
   }
 }
 
@@ -6232,6 +6808,35 @@ export class Memory extends HeyApiClient {
     })
   }
 
+  public learningHistory<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      MemoryLearningHistoryResponses,
+      MemoryLearningHistoryErrors,
+      ThrowOnError
+    >({
+      url: "/memory/learning/history",
+      ...options,
+      ...params,
+    })
+  }
+
   public reviewStatus<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string
@@ -7021,6 +7626,49 @@ export class Document extends HeyApiClient {
     )
     return (options?.client ?? this.client).post<OfficeDocumentEditResponses, OfficeDocumentEditErrors, ThrowOnError>({
       url: "/office/document-edit",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Save whole document bytes back to the file
+   *
+   * Write the editor-produced bytes of a DOCX / XLSX / PPTX / PDF back to the original path. Optional expectedBaselineSha256 enables a server-side compare-and-swap check before the write. The write is recorded on the host undo stack and atomically swapped (temp file + rename). Used by the in-browser office editor host; the op-level editDocument remains the surgical path.
+   */
+  public save<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      contentBase64?: string
+      password?: string
+      expectedBaselineSha256?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "contentBase64" },
+            { in: "body", key: "password" },
+            { in: "body", key: "expectedBaselineSha256" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeDocumentSaveResponses, OfficeDocumentSaveErrors, ThrowOnError>({
+      url: "/office/document-save",
       ...options,
       ...params,
       headers: {
@@ -10309,6 +10957,7 @@ export class Session3 extends HeyApiClient {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
+      goalContinuation?: boolean
       messageID?: string
       model?: {
         providerID: string
@@ -10336,6 +10985,7 @@ export class Session3 extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "goalExecution" },
+            { in: "body", key: "goalContinuation" },
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
@@ -10773,6 +11423,38 @@ export class Session3 extends HeyApiClient {
   }
 
   /**
+   * Generate contextual follow-up questions
+   *
+   * Generate next-question suggestions from the most recently completed user and assistant turn.
+   */
+  public suggestions<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionSuggestionsResponses, SessionSuggestionsErrors, ThrowOnError>({
+      url: "/session/{sessionID}/suggestions",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Summarize session
    *
    * Generate a concise summary of the session using AI compaction to preserve key information.
@@ -10831,6 +11513,7 @@ export class Session3 extends HeyApiClient {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
       }
+      goalContinuation?: boolean
       messageID?: string
       model?: {
         providerID: string
@@ -10858,6 +11541,7 @@ export class Session3 extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "goalExecution" },
+            { in: "body", key: "goalContinuation" },
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
@@ -12783,6 +13467,173 @@ export class Videos extends HeyApiClient {
   }
 }
 
+export class Account extends HeyApiClient {
+  /**
+   * Remove a publish account
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      driverID: string
+      accountID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "driverID" },
+            { in: "path", key: "accountID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      PluginPublishAccountDeleteResponses,
+      PluginPublishAccountDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/accounts/{driverID}/{accountID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Publish extends HeyApiClient {
+  /**
+   * List publish accounts
+   */
+  public accounts<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      PluginPublishAccountsResponses,
+      PluginPublishAccountsErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/accounts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Add a publish account
+   */
+  public account<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      driverID?: string
+      profile?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "driverID" },
+            { in: "body", key: "profile" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      PluginPublishAccountResponses,
+      PluginPublishAccountErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/accounts",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Execute a publish driver
+   */
+  public execute<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      driverID?: string
+      accountID?: string
+      kind?: "video" | "image_text" | "article"
+      payload?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "driverID" },
+            { in: "body", key: "accountID" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "payload" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      PluginPublishExecuteResponses,
+      PluginPublishExecuteErrors,
+      ThrowOnError
+    >({
+      url: "/plugin/publish/execute",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _account?: Account
+  get account2(): Account {
+    return (this._account ??= new Account({ client: this.client }))
+  }
+}
+
 export class Plugin extends HeyApiClient {
   /**
    * List plugins
@@ -12842,6 +13693,14 @@ export class Plugin extends HeyApiClient {
         | "worker-type"
         | "watchdog-policy"
         | "channel"
+        | "agent-runtime"
+        | "super-agent-strategy"
+        | "task-kind"
+        | "verifier"
+        | "repair-strategy"
+        | "agent-template"
+        | "super-agent-policy"
+        | "super-agent-surface"
       slot?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -12903,6 +13762,7 @@ export class Plugin extends HeyApiClient {
       directory?: string
       workspace?: string
       enabled?: boolean
+      scope?: "builtin" | "global" | "project" | "session"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -12915,6 +13775,7 @@ export class Plugin extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "enabled" },
+            { in: "body", key: "scope" },
           ],
         },
       ],
@@ -12957,6 +13818,11 @@ export class Plugin extends HeyApiClient {
       ...options,
       ...params,
     })
+  }
+
+  private _publish?: Publish
+  get publish(): Publish {
+    return (this._publish ??= new Publish({ client: this.client }))
   }
 }
 
@@ -13522,7 +14388,7 @@ export class Goal extends HeyApiClient {
       goalId: string
       title?: string
       description?: string
-      status?: "pending" | "in_progress" | "completed" | "cancelled"
+      status?: "pending" | "in_progress" | "paused" | "completed" | "cancelled"
       priority?: "high" | "medium" | "low"
       successCriteria?: Array<string>
       deadline?: string
@@ -14116,6 +14982,984 @@ export class Orchestrator extends HeyApiClient {
       ThrowOnError
     >({
       url: "/orchestrator/plans/{planId}/execute",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class SuperAgent extends HeyApiClient {
+  public listSuperAgentRuns<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<
+      SuperAgentListSuperAgentRunsResponses,
+      SuperAgentListSuperAgentRunsErrors,
+      ThrowOnError
+    >({ url: "/super-agent/runs", ...options })
+  }
+
+  public createSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters?: {
+      goal?: {
+        text: string
+        constraints?: Array<string>
+        acceptanceCriteria?: Array<{
+          id: string
+          text: string
+          required?: boolean
+        }>
+        requestedBy?: string
+        source?: "user" | "trigger" | "plugin" | "api" | "agent"
+      }
+      budget?: {
+        [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "goal" },
+            { in: "body", key: "budget" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentCreateSuperAgentRunResponses,
+      SuperAgentCreateSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public getSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<
+      SuperAgentGetSuperAgentRunResponses,
+      SuperAgentGetSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listSuperAgentEvents<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      after?: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "after" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      SuperAgentListSuperAgentEventsResponses,
+      SuperAgentListSuperAgentEventsErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/events",
+      ...options,
+      ...params,
+    })
+  }
+
+  public startSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).post<
+      SuperAgentStartSuperAgentRunResponses,
+      SuperAgentStartSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/start",
+      ...options,
+      ...params,
+    })
+  }
+
+  public pauseSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentPauseSuperAgentRunResponses,
+      SuperAgentPauseSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/pause",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public resumeSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).post<
+      SuperAgentResumeSuperAgentRunResponses,
+      SuperAgentResumeSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/resume",
+      ...options,
+      ...params,
+    })
+  }
+
+  public cancelSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).post<
+      SuperAgentCancelSuperAgentRunResponses,
+      SuperAgentCancelSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/cancel",
+      ...options,
+      ...params,
+    })
+  }
+
+  public getSuperAgentGraph<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<
+      SuperAgentGetSuperAgentGraphResponses,
+      SuperAgentGetSuperAgentGraphErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/graph",
+      ...options,
+      ...params,
+    })
+  }
+
+  public updateSuperAgentGraph<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      expectedVersion?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      graph?: unknown
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "expectedVersion" },
+            { in: "body", key: "graph" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      SuperAgentUpdateSuperAgentGraphResponses,
+      SuperAgentUpdateSuperAgentGraphErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/graph",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public approveSuperAgentRequest<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      requestID?: string
+      status?: "approved" | "rejected"
+      decidedBy?: string
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "requestID" },
+            { in: "body", key: "status" },
+            { in: "body", key: "decidedBy" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentApproveSuperAgentRequestResponses,
+      SuperAgentApproveSuperAgentRequestErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/approve",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public answerSuperAgentInput<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      requestID?: string
+      answer?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "requestID" },
+            { in: "body", key: "answer" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentAnswerSuperAgentInputResponses,
+      SuperAgentAnswerSuperAgentInputErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/input",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public listSuperAgentApprovals<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<
+      SuperAgentListSuperAgentApprovalsResponses,
+      SuperAgentListSuperAgentApprovalsErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/approvals",
+      ...options,
+      ...params,
+    })
+  }
+
+  public createSuperAgentApproval<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      id?: string
+      taskID?: string
+      reason?: string
+      scope?: string
+      expiresAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "id" },
+            { in: "body", key: "taskID" },
+            { in: "body", key: "reason" },
+            { in: "body", key: "scope" },
+            { in: "body", key: "expiresAt" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentCreateSuperAgentApprovalResponses,
+      SuperAgentCreateSuperAgentApprovalErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/approvals",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public listSuperAgentInputs<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<
+      SuperAgentListSuperAgentInputsResponses,
+      SuperAgentListSuperAgentInputsErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/inputs",
+      ...options,
+      ...params,
+    })
+  }
+
+  public listSuperAgentEvidence<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<
+      SuperAgentListSuperAgentEvidenceResponses,
+      SuperAgentListSuperAgentEvidenceErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/evidence",
+      ...options,
+      ...params,
+    })
+  }
+
+  public recordSuperAgentEvidence<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      id?: string
+      taskID?: string
+      kind?: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
+      source?: string
+      contentHash?: string
+      measured?: string
+      expiresAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "id" },
+            { in: "body", key: "taskID" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "source" },
+            { in: "body", key: "contentHash" },
+            { in: "body", key: "measured" },
+            { in: "body", key: "expiresAt" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentRecordSuperAgentEvidenceResponses,
+      SuperAgentRecordSuperAgentEvidenceErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/evidence",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public listSuperAgentVerifications<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "runID" }] }])
+    return (options?.client ?? this.client).get<
+      SuperAgentListSuperAgentVerificationsResponses,
+      SuperAgentListSuperAgentVerificationsErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/verifications",
+      ...options,
+      ...params,
+    })
+  }
+
+  public recordSuperAgentVerification<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      id?: string
+      taskID?: string
+      acceptanceID?: string
+      verifierID?: string
+      verifierVersion?: string
+      outcome?: "pass" | "fail" | "unverified" | "stale" | "needs_review"
+      measured?: string
+      evidenceIDs?: Array<string>
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "id" },
+            { in: "body", key: "taskID" },
+            { in: "body", key: "acceptanceID" },
+            { in: "body", key: "verifierID" },
+            { in: "body", key: "verifierVersion" },
+            { in: "body", key: "outcome" },
+            { in: "body", key: "measured" },
+            { in: "body", key: "evidenceIDs" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentRecordSuperAgentVerificationResponses,
+      SuperAgentRecordSuperAgentVerificationErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/verifications",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public executeSuperAgentTool<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      taskID?: string
+      tool?: string
+      input?: unknown
+      sessionID?: string
+      messageID?: string
+      agent?: string
+      instructionID?: string
+      idempotencyKey?: string
+      evidenceKind?: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
+      timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      leaseMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "taskID" },
+            { in: "body", key: "tool" },
+            { in: "body", key: "input" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "messageID" },
+            { in: "body", key: "agent" },
+            { in: "body", key: "instructionID" },
+            { in: "body", key: "idempotencyKey" },
+            { in: "body", key: "evidenceKind" },
+            { in: "body", key: "timeoutMs" },
+            { in: "body", key: "leaseMs" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentExecuteSuperAgentToolResponses,
+      SuperAgentExecuteSuperAgentToolErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/execute-tool",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public recoverSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "at" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentRecoverSuperAgentRunResponses,
+      SuperAgentRecoverSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/recover",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public delegateSuperAgentAgents<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      taskID?: string
+      runtimeType?: string
+      agentID?: string
+      instruction?: string
+      calls?: Array<{
+        agentID: string
+        instruction: string
+      }>
+      timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      childBudget?: {
+        [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "taskID" },
+            { in: "body", key: "runtimeType" },
+            { in: "body", key: "agentID" },
+            { in: "body", key: "instruction" },
+            { in: "body", key: "calls" },
+            { in: "body", key: "timeoutMs" },
+            { in: "body", key: "childBudget" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentDelegateSuperAgentAgentsResponses,
+      SuperAgentDelegateSuperAgentAgentsErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/delegate",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public createSuperAgentRepairTask<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      sourceTaskID?: string
+      failedVerificationIDs?: Array<string>
+      strategyID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "sourceTaskID" },
+            { in: "body", key: "failedVerificationIDs" },
+            { in: "body", key: "strategyID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentCreateSuperAgentRepairTaskResponses,
+      SuperAgentCreateSuperAgentRepairTaskErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/repair",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public listSuperAgentTaskMutations<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      taskID?: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "taskID" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      SuperAgentListSuperAgentTaskMutationsResponses,
+      SuperAgentListSuperAgentTaskMutationsErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/task-mutations",
+      ...options,
+      ...params,
+    })
+  }
+
+  public executeSuperAgentRepairTask<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      taskID?: string
+      sessionID?: string
+      messageID?: string
+      agent?: string
+      evidenceKind?: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
+      timeoutMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      leaseMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      verifyAfter?: boolean
+      verifierID?: string
+      summary?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "taskID" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "messageID" },
+            { in: "body", key: "agent" },
+            { in: "body", key: "evidenceKind" },
+            { in: "body", key: "timeoutMs" },
+            { in: "body", key: "leaseMs" },
+            { in: "body", key: "verifyAfter" },
+            { in: "body", key: "verifierID" },
+            { in: "body", key: "summary" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentExecuteSuperAgentRepairTaskResponses,
+      SuperAgentExecuteSuperAgentRepairTaskErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/repair/execute",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public verifyAndFinishSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      verifierID?: string
+      summary?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "verifierID" },
+            { in: "body", key: "summary" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentVerifyAndFinishSuperAgentRunResponses,
+      SuperAgentVerifyAndFinishSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/verify-finish",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public transitionSuperAgentRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      status?:
+        | "draft"
+        | "planning"
+        | "ready"
+        | "running"
+        | "waiting_approval"
+        | "waiting_input"
+        | "waiting_external"
+        | "paused"
+        | "needs_review"
+        | "verifying"
+        | "cancelling"
+        | "cancelled"
+        | "failed"
+        | "completed"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "body", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SuperAgentTransitionSuperAgentRunResponses,
+      SuperAgentTransitionSuperAgentRunErrors,
+      ThrowOnError
+    >({
+      url: "/super-agent/runs/{runID}/transition",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Arena extends HeyApiClient {
+  /**
+   * List arena runs
+   *
+   * Recent arena runs in this workspace, newest first. Runs are recorded by `arena_run` and `novaway arena`.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ArenaListResponses, unknown, ThrowOnError>({
+      url: "/arena/runs",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run arena task
+   *
+   * Run the configured arena models in isolated worktrees and return the completed comparison.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      arenaRunInput?: ArenaRunInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "arenaRunInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ArenaRunResponses, ArenaRunErrors, ThrowOnError>({
+      url: "/arena/runs",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Arena run detail
+   *
+   * One arena run with every contender's diff, verdict and usage.
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ArenaDetailResponses, ArenaDetailErrors, ThrowOnError>({
+      url: "/arena/runs/{runID}",
       ...options,
       ...params,
     })
@@ -16121,6 +17965,16 @@ export class NovawayClient extends HeyApiClient {
   private _orchestrator?: Orchestrator
   get orchestrator(): Orchestrator {
     return (this._orchestrator ??= new Orchestrator({ client: this.client }))
+  }
+
+  private _superAgent?: SuperAgent
+  get superAgent(): SuperAgent {
+    return (this._superAgent ??= new SuperAgent({ client: this.client }))
+  }
+
+  private _arena?: Arena
+  get arena(): Arena {
+    return (this._arena ??= new Arena({ client: this.client }))
   }
 
   private _team?: Team

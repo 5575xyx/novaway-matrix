@@ -93,6 +93,29 @@ Use this skill.
     ),
   )
 
+  it.live("内置无资源 Skill 不把 <built-in> 当作 cwd", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const registry = yield* ToolRegistry.Service
+          const agent = { name: "build", mode: "primary" as const, permission: [], options: {} }
+          const tool = (yield* registry.tools({
+            providerID: "builtin" as any,
+            modelID: "gpt-5" as any,
+            agent,
+          })).find((tool) => tool.id === SkillTool.id)
+          if (!tool) throw new Error("Skill tool not found")
+
+          const result = yield* tool.execute({ name: "office-document" }, { ...baseCtx, ask: () => Effect.void })
+          expect(result.metadata.dir).toBeUndefined()
+          expect(result.output).toContain('<skill_content name="office-document">')
+          expect(result.output).toContain("Base directory for this skill: <built-in>")
+          expect(result.output).toContain("<skill_files>\n\n</skill_files>")
+        }),
+      { git: true },
+    ),
+  )
+
   it.live("内置运营技能能被 skill 工具真正加载，并列出 references/ 参考资料", () =>
     provideTmpdirInstance(
       () =>
