@@ -44,7 +44,11 @@ jobs:
           echo "::error title=SDK generation output::$diagnostic"
 
       - name: Relink workspace SDK after generation
-        run: bun install --frozen-lockfile
+        run: |
+          # Bun may retain a copied workspace package after generation. Remove only
+          # the App SDK copy, then relink it from the newly generated workspace tree.
+          rm -rf packages/app/node_modules/@novaway/sdk
+          bun install --frozen-lockfile
 
       - name: Assert App sees the generated marketplace API
         run: |
