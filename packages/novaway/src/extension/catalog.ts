@@ -1,5 +1,146 @@
 import type { GitEntry, ZipEntry } from "./marketplace"
 
+/** NovaWay 官方 catalog 中归一化后的条目。 */
+export type NovaWayEntry = {
+  packageId: string
+  sourceId?: string
+  name: string
+  version: string
+  description?: string
+  url: string
+  sha256: string
+  kind: "zip" | "git"
+  ref?: string
+  subdir?: string
+  keywords?: string[]
+  repository?: string
+  runtimeTargets: string[]
+  capabilities: string[]
+  permissions?: string[]
+  dependencies?: Record<string, string>
+  conflicts?: string[]
+  releaseNotes?: string
+  compatibility?: {
+    minNovaWayApi?: string
+    maxNovaWayApi?: string
+    manifestVersion?: number
+    requiresRestart?: boolean
+  }
+}
+
+export const NOVAWAY_MARKETPLACE_REPOSITORY = "https://github.com/NovaWay-AI/novaway-plugins"
+export const NOVAWAY_MARKETPLACE_URLS = [
+  "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
+] as const
+
+/**
+ * NovaWay 官方目录只接受 HTTPS artifact 和完整 SHA-256。
+ * 目录是远端不可信输入，不能因为字段看起来像合法条目就放宽校验。
+ */
+function officialEntries(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== "object" || value === null) return []
+  const entries = (value as { entries?: unknown }).entries
+  return Array.isArray(entries) ? entries : []
+}
+
+/**
+ * 将 NovaWay 原生目录映射为旧 Extension 安装器可消费的形状，同时保留
+ * runtime、capability 和权限信息，供后续统一市场 DTO 迁移使用。
+ */
+export function parseNovaWay(value: unknown): NovaWayEntry[] {
+  const result: NovaWayEntry[] = []
+  const seen = new Set<string>()
+  for (const item of officialEntries(value)) {
+    if (typeof item !== "object" || item === null) continue
+    const raw = item as Record<string, unknown>
+    const packageId = text(raw.packageId)
+    const name = text(raw.name) ?? packageId
+    const version = text(raw.version)
+    const runtimeTargets = strings(raw.runtimeTargets)
+    const capabilities = strings(raw.capabilities)
+    if (!packageId || !name || !version || runtimeTargets.length === 0 || capabilities.length === 0) continue
+    if (!/^[a-z0-9]+([.-][a-z0-9]+)*$/.test(packageId)) continue
+    const artifacts = Array.isArray(raw.artifacts) ? raw.artifacts : []
+    const artifact = artifacts.find((candidate) => {
+      if (typeof candidate !== "object" || candidate === null) return false
+      const entry = candidate as Record<string, unknown>
+      return (
+        (entry.type === "github-release" || entry.type === "archive" || entry.type === "git") &&
+        typeof entry.url === "string" &&
+        /^https:\/\//i.test(entry.url) &&
+        typeof entry.sha256 === "string" &&
+        /^[a-f0-9]{64}$/i.test(entry.sha256)
+      )
+    }) as Record<string, unknown> | undefined
+    if (!artifact) continue
+    const identity = `${packageId}@${version}`
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    const keywords = uniqueStrings([...(strings(raw.categories) ?? []), ...(strings(raw.tags) ?? [])])
+    const compatibility = record(raw.compatibility)
+    result.push({
+      packageId,
+      name,
+      version,
+      url: artifact.url as string,
+      sha256: (artifact.sha256 as string).toLowerCase(),
+      kind: artifact.type === "git" ? "git" : "zip",
+      ...(text(raw.description) ? { description: text(raw.description) } : {}),
+      ...(text(artifact.ref) ? { ref: text(artifact.ref) } : {}),
+      ...(text(artifact.subdir) ? { subdir: text(artifact.subdir) } : {}),
+      ...(keywords.length > 0 ? { keywords } : {}),
+      ...(text(raw.repository) ? { repository: text(raw.repository) } : {}),
+      runtimeTargets,
+      capabilities,
+      ...(strings(raw.permissions).length > 0 ? { permissions: strings(raw.permissions) } : {}),
+      ...(stringRecord(raw.dependencies) ? { dependencies: stringRecord(raw.dependencies) } : {}),
+      ...(strings(raw.conflicts).length > 0 ? { conflicts: strings(raw.conflicts) } : {}),
+      ...(text(raw.releaseNotes) ? { releaseNotes: text(raw.releaseNotes) } : {}),
+      ...(compatibility
+        ? {
+            compatibility: {
+              ...(text(compatibility.minNovaWayApi) ? { minNovaWayApi: text(compatibility.minNovaWayApi) } : {}),
+              ...(text(compatibility.maxNovaWayApi) ? { maxNovaWayApi: text(compatibility.maxNovaWayApi) } : {}),
+              ...(typeof compatibility.manifestVersion === "number"
+                ? { manifestVersion: compatibility.manifestVersion }
+                : {}),
+              ...(typeof compatibility.requiresRestart === "boolean"
+                ? { requiresRestart: compatibility.requiresRestart }
+                : {}),
+            },
+          }
+        : {}),
+    })
+  }
+  return result
+}
+
+function strings(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim())
+}
+
+function stringRecord(value: unknown): Record<string, string> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined
+  const result: Record<string, string> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== "string" || item.trim() === "") return undefined
+    result[key] = item.trim()
+  }
+  return result
+}
+
+function uniqueStrings(value: string[]) {
+  return [...new Set(value)]
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined
+}
+
 /**
  * Marketplace catalogs.
  *
