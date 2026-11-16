@@ -35,6 +35,14 @@ jobs:
           set -o pipefail
           bun packages/sdk/js/script/build.ts 2>&1 | tee "$RUNNER_TEMP/sdk-generation.log"
 
+      - name: Expose SDK generation diagnostics
+        if: failure()
+        run: |
+          echo "SDK generation log:"
+          cat "$RUNNER_TEMP/sdk-generation.log" || true
+          diagnostic=$(tail -c 6000 "$RUNNER_TEMP/sdk-generation.log" 2>/dev/null | tr '\n' ' ' | tr '\r' ' ')
+          echo "::error title=SDK generation output::$diagnostic"
+
       - name: Relink workspace SDK after generation
         run: bun install --frozen-lockfile
 
