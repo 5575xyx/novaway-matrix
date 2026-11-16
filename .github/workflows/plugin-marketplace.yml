@@ -49,6 +49,11 @@ jobs:
           # the App SDK copy, then relink it from the newly generated workspace tree.
           rm -rf packages/app/node_modules/@novaway/sdk
           bun install --frozen-lockfile
+          test -f packages/sdk/js/src/v2/gen/sdk.gen.ts
+          grep -q 'marketplaceOperations' packages/sdk/js/src/v2/gen/sdk.gen.ts
+          rm -rf packages/app/node_modules/@novaway/sdk/src/v2/gen
+          mkdir -p packages/app/node_modules/@novaway/sdk/src/v2/gen
+          cp -R packages/sdk/js/src/v2/gen/. packages/app/node_modules/@novaway/sdk/src/v2/gen/
 
       - name: Assert App sees the generated marketplace API
         run: |
