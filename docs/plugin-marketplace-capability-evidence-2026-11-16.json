@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-16",
+  "test": "packages/novaway/test/server/marketplace-capability-public.test.ts",
+  "command": "cd packages/novaway && NOVAWAY_PUBLIC_MARKETPLACE_E2E=1 bun test test/server/marketplace-capability-public.test.ts",
+  "result": "passed",
+  "passes": 1,
+  "failures": 0,
+  "expectations": 20,
+  "catalog": "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
+  "packageId": "com.novaway.marketplace-capability-smoke",
+  "version": "0.1.0",
+  "release": "https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.1.0",
+  "artifact": {
+    "url": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.1.0/com.novaway.marketplace-capability-smoke-0.1.0.zip",
+    "size": 3409,
+    "sha256": "1cd7fe9fcaab1764bd8983f6f1b5894adcd9f326d30f5f0888dc9d55497c9967"
+  },
+  "workflow": {
+    "name": "Publish capability smoke plugin",
+    "runId": 43911650406,
+    "conclusion": "success",
+    "commit": "f74439a21ca90cec0ea284ec3ba505a72487b479"
+  },
+  "gates": [
+    "public catalog exposes agents, skills, tools and commands capabilities",
+    "HTTPS artifact URL and SHA-256 validation",
+    "real Marketplace.installZip staging and atomic installation",
+    "Plugin Host v2 discovery with no diagnostics",
+    "v2 activation and registration in Agent, Skill, Tool and Command registries",
+    "Agent prompt file loading within package root",
+    "Skill SKILL.md discovery and source loading",
+    "real executable Tool entry import and execution",
+    "Command consumer registry visibility",
+    "deactivation releases every contribution"
+  ],
+  "consumed": [
+    "marketplace-capability-smoke_capability-reviewer",
+    "marketplace-capability-smoke_marketplace-capability-smoke-skill",
+    "marketplace-capability-smoke_capability-echo",
+    "marketplace-capability-smoke_capability-plan"
+  ]
+}

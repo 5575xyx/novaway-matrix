@@ -2,8 +2,8 @@
 
 Date: 2026-11-16
 Repository: https://github.com/NovaWay-AI/novaway-plugins
-Commit: `fa2a8ff` (`xiaoming <626@example.com>`)
-Releases: `com.novaway.marketplace-smoke-v0.1.0`, `com.novaway.marketplace-smoke-v0.1.1`
+Commit: `f97c621` (`xiaoming <626@example.com>`)
+Releases: `com.novaway.marketplace-smoke-v0.1.0`, `com.novaway.marketplace-smoke-v0.1.1`, `com.novaway.marketplace-capability-smoke-v0.1.0`
 
 ## Result
 
@@ -17,10 +17,12 @@ The plugin marketplace implementation and all acceptance gates defined by `docs/
 - Release 0.1.1 size: `1878` bytes
 - Release 0.1.1 SHA-256: `b003d4f13d09048d37b3460ceb91531fffbc06ae2023b8bc696924919e66c547`
 - Release 0.1.0 remains available for downgrade/rollback testing.
+- Capability Release: `https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.1.0`.
+- Capability artifact: `3409` bytes, SHA-256 `1cd7fe9fcaab1764bd8983f6f1b5894adcd9f326d30f5f0888dc9d55497c9967`.
 
 ## Passed evidence
 
-- Local catalog validation: `Validated 1 stable catalog entries`
+- Local catalog validation: `Validated 2 stable catalog entries`
 - Local artifact build and digest validation.
 - Public catalog fetch and NovaWay catalog parsing.
 - Public Release asset download during the public lifecycle run.
@@ -34,9 +36,11 @@ The plugin marketplace implementation and all acceptance gates defined by `docs/
 - Durable HTTP lifecycle operations now expose a shared multidimensional state matrix: installation status, activation status, consumer status, cleanup status, `requiresRestart`, phase, progress, error code, recovery hint, and one durable operation ID.
 - The Web/Desktop shared marketplace UI polls and renders operation history; the TUI exposes the same history through `/marketplace`; the CLI exposes `novaway marketplace operations --json`. All three use the generated operation-history API rather than local lifecycle state.
 - Marketplace v2 activation accepts Claude/NovaWay directory Skill declarations such as `contributes.skills: ["./skills"]`, safely expands `SKILL.md` files, and is covered by the immutable public Release test.
+- The official capability fixture covers the complete public artifact path for Agent, Skill, Tool and Command contributions, including Agent prompt-file loading, executable Tool entry import/execution, consumer registry visibility, and deactivation cleanup.
 - Artifact security tests cover HTTPS/private-DNS checks, bounded manual redirects, final response-host validation, decompressed-byte limits, central-directory duplicate-entry rejection, unsupported POSIX node types, independent duplicate-content extraction (no hardlinks), path traversal, and ZIP symlink rejection.
 - The immutable public Release cold-start test downloads Release `com.novaway.marketplace-smoke-v0.1.1`, verifies size `1878` and SHA-256 `b003d4f13d09048d37b3460ceb91531fffbc06ae2023b8bc696924919e66c547`, installs it into an isolated XDG marketplace, starts a fresh NovaWay process, discovers and enables `marketplace-smoke`, and consumes its real Skill: `1 pass`, `12 expect() calls`.
 - The immutable public Release cold-start evidence is recorded in `docs/plugin-marketplace-public-cold-start-evidence-2026-11-16.json`.
+- The immutable capability Release evidence is recorded in `docs/plugin-marketplace-capability-evidence-2026-11-16.json`; it installs the public artifact through `Marketplace.installZip`, discovers and activates the v2 plugin, consumes its Agent, Skill, Tool and Command, and verifies lifecycle release.
 
 ## Acceptance gates closed
 
@@ -49,4 +53,4 @@ The plugin marketplace implementation and all acceptance gates defined by `docs/
 
 ## Remaining acceptance gates
 
-There are no remaining acceptance gates for the documented marketplace scope. Future contribution types, archive formats, signing, mirrors, or frontend-specific workflows require new consumer and regression evidence.
+The documented Agent, Skill, Tool and Command marketplace capability gate is closed by the public capability fixture. Future contribution types, archive formats, signing, mirrors, or frontend-specific workflows still require their own consumer and regression evidence.
