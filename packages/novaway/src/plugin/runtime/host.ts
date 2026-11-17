@@ -15,6 +15,8 @@ import type {
 } from "@novaway/plugin-api"
 import { pluginError } from "@novaway/plugin-api"
 import type { ContributionRegistry } from "../contributions/registry"
+import type { SuperAgentContributionRegistries } from "@/super-agent/plugin-contributions"
+import type { DeclarativeRegistries } from "./declarative"
 import type { Registries } from "./context"
 import type { InterceptorRuntime } from "./hooks"
 import { createAgentRegistry, createCommandRegistry, createSkillRegistry, createToolRegistry } from "../contributions"
@@ -33,6 +35,8 @@ export type HostRegistries = Omit<Registries, "tools" | "agents" | "skills" | "c
   surfaces?: Registries["surfaces"]
   schedulers?: Registries["schedulers"]
   eventSources?: Registries["eventSources"]
+  superAgent?: SuperAgentContributionRegistries
+  declarative?: DeclarativeRegistries
   interceptors: InterceptorRuntime
 }
 
@@ -172,14 +176,50 @@ export function createHost(hostRegistries: HostRegistries): Host {
     const surfaces =
       hostRegistries.surfaces === undefined
         ? undefined
-        : {
-            ...hostRegistries.surfaces,
-            register(item: SurfaceContribution) {
-              signal.throwIfAborted()
-              const disposable = hostRegistries.surfaces!.register(item)
-              return resources.push(disposable)
-            },
-          }
+        : (() => {
+            const registry = hostRegistries.surfaces!
+            if ("kind" in registry) return bind(registry)
+            return {
+              ...registry,
+              register(item: SurfaceContribution) {
+                signal.throwIfAborted()
+                return resources.push(registry.register(item))
+              },
+            }
+          })()
+    const wrapSuperAgent = <T extends { id: string }>(registry: {
+      register(item: T, ownerID?: string): { dispose(): void }
+      resolve(id: string): T | undefined
+      list(): readonly T[]
+      release(ownerID: string): void
+    }) => ({
+      ...registry,
+      register(item: T) {
+        signal.throwIfAborted()
+        return resources.push(registry.register(item, ownerID))
+      },
+      release() {
+        signal.throwIfAborted()
+        registry.release(ownerID)
+      },
+    })
+    const superAgent = hostRegistries.superAgent
+      ? {
+          agentRuntimes: wrapSuperAgent(hostRegistries.superAgent.agentRuntimes),
+          strategies: wrapSuperAgent(hostRegistries.superAgent.strategies),
+          taskKinds: wrapSuperAgent(hostRegistries.superAgent.taskKinds),
+          verifiers: wrapSuperAgent(hostRegistries.superAgent.verifiers),
+          repairStrategies: wrapSuperAgent(hostRegistries.superAgent.repairStrategies),
+          agentTemplates: wrapSuperAgent(hostRegistries.superAgent.agentTemplates),
+          policies: wrapSuperAgent(hostRegistries.superAgent.policies),
+          surfaces: wrapSuperAgent(hostRegistries.superAgent.surfaces),
+        }
+      : undefined
+    const declarative = hostRegistries.declarative
+      ? (Object.fromEntries(
+          Object.entries(hostRegistries.declarative).map(([key, registry]) => [key, bind(registry)]),
+        ) as unknown as DeclarativeRegistries)
+      : undefined
     return {
       ...hostRegistries,
       tools: {
@@ -208,6 +248,8 @@ export function createHost(hostRegistries: HostRegistries): Host {
       ...(previewers === undefined ? {} : { previewers }),
       ...(publish === undefined ? {} : { publish }),
       ...(surfaces === undefined ? {} : { surfaces }),
+      ...(superAgent === undefined ? {} : { superAgent }),
+      ...(declarative === undefined ? {} : { declarative }),
       interceptors,
     }
   }
@@ -218,6 +260,12 @@ export function createHost(hostRegistries: HostRegistries): Host {
     hostRegistries.skills.release(ownerID)
     hostRegistries.commands.release(ownerID)
     hostRegistries.previewers?.release(ownerID)
+    if (hostRegistries.superAgent) {
+      for (const registry of Object.values(hostRegistries.superAgent)) registry.release(ownerID)
+    }
+    if (hostRegistries.declarative) {
+      for (const registry of Object.values(hostRegistries.declarative)) registry.release(ownerID)
+    }
     hostRegistries.interceptors.release(ownerID, ownerID)
   }
 

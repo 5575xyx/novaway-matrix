@@ -18,16 +18,17 @@ import { createInterceptorRuntime } from "@/plugin/runtime/hooks"
 import { createDiscoveredPlugin } from "@/plugin/runtime/activation"
 import { createHost, type HostRegistries } from "@/plugin/runtime/host"
 import { bindExecutableSuperAgentContributions, createSuperAgentContributionRegistries } from "@/super-agent/plugin-contributions"
+import { createDeclarativeRegistries } from "@/plugin/runtime/declarative"
 import * as Marketplace from "../../src/extension/marketplace"
 import * as ExtensionCatalog from "../../src/extension/catalog"
 
 const enabled = process.env.NOVAWAY_PUBLIC_MARKETPLACE_E2E === "1"
 const run = enabled ? test : test.skip
-const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/af24fcfc248603ac602c00d83e1cb84a6a7543f0/catalog/index.json"
+const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/7feb49e94f4543aea0a5b140869c9c9fd58b0ed8/catalog/index.json"
 const artifactUrl =
-  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.3.2/com.novaway.marketplace-capability-smoke-0.3.2.zip"
-const artifactSha256 = "5018d125b779190723137f26f934ee6840cb9a5a1057456f5e53984490ecf692"
-const artifactSize = 10261
+  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.4.0/com.novaway.marketplace-capability-smoke-0.4.0.zip"
+const artifactSha256 = "b2a29e4e3ce148076372a65083647bea58d33e2066563fe618c92cceede74cc0"
+const artifactSize = 14576
 
 let base = ""
 
@@ -107,10 +108,10 @@ describe("public marketplace capability consumer", () => {
 
       const catalogEntries = ExtensionCatalog.parseNovaWay(JSON.parse(await downloadPublicText(catalogUrl)))
       const catalogEntry = catalogEntries.find(
-        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.3.2",
+        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.4.0",
       )
       expect(catalogEntry).toMatchObject({
-        version: "0.3.2",
+        version: "0.4.0",
         capabilities: [
           "agents",
           "skills",
@@ -129,6 +130,18 @@ describe("public marketplace capability consumer", () => {
           "repair-strategies",
           "agent-templates",
           "policies",
+          "mcp",
+          "output-styles",
+          "lsp",
+          "http-routes",
+          "triggers",
+          "fast-path",
+          "routing-policies",
+          "worker-types",
+          "watchdog-policies",
+          "channels",
+          "lifecycle-hooks",
+          "storage",
         ],
         runtimeTargets: ["novaway-v2"],
         sha256: artifactSha256,
@@ -144,7 +157,7 @@ describe("public marketplace capability consumer", () => {
         try {
           installed = await Marketplace.installZip({
             name: "com.novaway.marketplace-capability-smoke",
-            version: "0.3.2",
+            version: "0.4.0",
             url: artifactUrl,
             sha256: artifactSha256,
             config,
@@ -156,7 +169,7 @@ describe("public marketplace capability consumer", () => {
         }
       }
       if (!installed) throw installError
-      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.3.2")
+      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.4.0")
       const packageRoot = installed.root
 
       const discovered = await PluginHost.inspect({
@@ -184,6 +197,7 @@ describe("public marketplace capability consumer", () => {
         previewers: createPreviewerRegistry(),
         surfaces: createSurfaceRegistry(),
         superAgent: createSuperAgentContributionRegistries(),
+        declarative: createDeclarativeRegistries(),
       }
       const host = createHost(registries)
       try {
@@ -248,6 +262,41 @@ describe("public marketplace capability consumer", () => {
           executableSuperAgent.dispose()
         }
 
+        const declarative = registries.declarative
+        expect(declarative?.mcpServers.list().map((entry) => entry.item.id)).toEqual(["capability-mcp"])
+        expect(declarative?.outputStyles.list().map((entry) => entry.item.id)).toEqual(["capability-output-style"])
+        expect(declarative?.lspServers.list().map((entry) => entry.item.id)).toEqual(["capability-lsp"])
+        expect(declarative?.lifecycleHooks.list().map((entry) => entry.item.id)).toEqual(["capability-lifecycle"])
+        expect(declarative?.httpRoutes.list().map((entry) => entry.item.id)).toEqual(["capability-route"])
+        expect(declarative?.triggers.list().map((entry) => entry.item.id)).toEqual(["capability-trigger"])
+        expect(declarative?.fastPath.list().map((entry) => entry.item.id)).toEqual(["capability-fast-path"])
+        expect(declarative?.routingPolicies.list().map((entry) => entry.item.id)).toEqual(["capability-routing"])
+        expect(declarative?.workerTypes.list().map((entry) => entry.item.id)).toEqual(["capability-worker"])
+        expect(declarative?.watchdogPolicies.list().map((entry) => entry.item.id)).toEqual(["capability-watchdog"])
+        expect(declarative?.channels.list().map((entry) => entry.item.id)).toEqual(["capability-channel"])
+        const route = declarative?.httpRoutes.list()[0]?.item as unknown as { handler(): Promise<unknown> }
+        expect(await route.handler()).toMatchObject({ status: 200 })
+        const trigger = declarative?.triggers.list()[0]?.item as unknown as {
+          match(input: unknown): Promise<boolean>
+          normalize(input: unknown): unknown
+        }
+        expect(await trigger.match({ type: "capability" })).toBe(true)
+        expect(trigger.normalize({ type: "capability" })).toMatchObject({ triggerID: "capability-trigger" })
+        const fastPath = declarative?.fastPath.list()[0]?.item as unknown as {
+          when(input: unknown): Promise<boolean>
+          handle(input: unknown, context: { record(summary: string): Promise<void> }): Promise<unknown>
+        }
+        expect(await fastPath.when({})).toBe(true)
+        expect(await fastPath.handle({}, { record: async () => {} })).toMatchObject({ handled: true })
+        const routing = declarative?.routingPolicies.list()[0]?.item as unknown as { decide(): Promise<unknown> }
+        expect(await routing.decide()).toMatchObject({ act: true })
+        const worker = declarative?.workerTypes.list()[0]?.item as unknown as { start(): Promise<{ next(): Promise<unknown> }> }
+        expect(await (await worker.start()).next()).toMatchObject({ kind: "done" })
+        const watchdog = declarative?.watchdogPolicies.list()[0]?.item as unknown as { evaluate(): string }
+        expect(watchdog.evaluate()).toBe("healthy")
+        const channel = declarative?.channels.list()[0]?.item as unknown as { publish(message: unknown): Promise<unknown> }
+        expect(await channel.publish({ text: "installed" })).toMatchObject({ text: "installed" })
+
         const tool = registries.tools.list().find((entry) => entry.name === "marketplace-capability-smoke_capability-echo")
         expect(tool).toBeDefined()
         const result = await tool!.item.execute(
@@ -275,6 +324,7 @@ describe("public marketplace capability consumer", () => {
       expect(registries.superAgent?.agentTemplates.list()).toEqual([])
       expect(registries.superAgent?.policies.list()).toEqual([])
       expect(registries.superAgent?.surfaces.list()).toEqual([])
+      for (const registry of Object.values(registries.declarative ?? {})) expect(registry.list()).toEqual([])
     },
     120_000,
   )

@@ -19,6 +19,8 @@ import {
   createToolRegistry,
 } from "../contributions"
 import { createDiscoveredPlugin } from "./activation"
+import { createSuperAgentContributionRegistries } from "@/super-agent/plugin-contributions"
+import { createDeclarativeRegistries } from "./declarative"
 import { createInterceptorRuntime } from "./hooks"
 import { createHost, type Host, type Plugin as RuntimePlugin } from "./host"
 import { createSecretStore } from "./secrets"
@@ -45,6 +47,8 @@ export const layer: Layer.Layer<Service> = Layer.effect(
           publish: createPublishRegistry(),
           surfaces: createSurfaceRegistry(),
           previewers: createPreviewerRegistry(),
+          superAgent: createSuperAgentContributionRegistries(),
+          declarative: createDeclarativeRegistries(),
           interceptors: createInterceptorRuntime(),
         })
         const lock = Semaphore.makeUnsafe(1)
@@ -143,6 +147,7 @@ export const layer: Layer.Layer<Service> = Layer.effect(
           setEnabled: (instance: DiscoveredPlugin, enabled: boolean) =>
             lock.withPermits(1)(transition(instance, enabled)),
           activateBuiltin: (instance: DiscoveredPlugin) => lock.withPermits(1)(transition(instance, true, false)),
+          activateOnDemand: (instance: DiscoveredPlugin) => lock.withPermits(1)(transition(instance, true, false)),
         }
       }),
     )
@@ -152,6 +157,7 @@ export const layer: Layer.Layer<Service> = Layer.effect(
       setEnabled: (instance, enabled) =>
         InstanceState.useEffect(state, (current) => current.setEnabled(instance, enabled)),
       activateBuiltin: (instance) => InstanceState.useEffect(state, (current) => current.activateBuiltin(instance)),
+      activateOnDemand: (instance) => InstanceState.useEffect(state, (current) => current.activateOnDemand(instance)),
     })
   }),
 )

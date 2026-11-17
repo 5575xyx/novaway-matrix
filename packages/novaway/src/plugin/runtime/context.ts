@@ -26,6 +26,7 @@ import type {
 import { pluginError } from "@novaway/plugin-api"
 import type { ContributionRegistry, Entry, Source } from "../contributions/registry"
 import type { SuperAgentContributionRegistries } from "@/super-agent/plugin-contributions"
+import type { DeclarativeRegistries } from "./declarative"
 import { PluginStorage } from "../storage"
 import { checkTool, createFiles, createHttp, createSecrets, type Roots } from "./capabilities"
 import type { InterceptorRuntime } from "./hooks"
@@ -78,6 +79,7 @@ export type LaterRegistries = {
   schedulers?: Registry<SchedulerContribution>
   eventSources?: Registry<EventSourceContribution>
   superAgent?: SuperAgentContributionRegistries
+  declarative?: DeclarativeRegistries
 }
 
 /** 第一方专属的宿主能力；第三方 ctx 根本不读它。 */

@@ -21,6 +21,7 @@ import type { Instance as DiscoveredPlugin } from "../host"
 import { createKernelApi, createPluginContext, type Input, type KernelInput } from "./context"
 import type { Plugin as RuntimePlugin } from "./host"
 import { createStack } from "./disposable"
+import type { DeclarativeContributionKey } from "./declarative"
 
 export function createActivation(input: Omit<Input, "signal" | "resources">) {
   return createOwner((signal, resources) => createPluginContext({ ...input, signal, resources }))
@@ -63,6 +64,17 @@ export function createDiscoveredPlugin(input: {
         "agentTemplates",
         "superAgentPolicies",
         "superAgentSurfaces",
+        "mcpServers",
+        "outputStyles",
+        "lspServers",
+        "httpRoutes",
+        "triggers",
+        "fastPath",
+        "routingPolicies",
+        "workerTypes",
+        "watchdogPolicies",
+        "channels",
+        "lifecycleHooks",
       ].includes(key),
   )
   if (unsupported.length > 0) {
@@ -179,6 +191,7 @@ export function createDiscoveredPlugin(input: {
           resources.push(disposable)
         }
         await registerSuperAgentContributions({ instance, registries, resources, signal })
+        await registerDeclarativeContributions({ instance, registries, resources, signal })
         registerPreviewers({ instance, registries, resources, signal })
         return
       }
@@ -283,6 +296,7 @@ export function createDiscoveredPlugin(input: {
         }
       }
       await registerSuperAgentContributions({ instance, registries, resources, signal })
+      await registerDeclarativeContributions({ instance, registries, resources, signal })
       registerPreviewers({ instance, registries, resources, signal })
     },
   }
@@ -380,6 +394,116 @@ async function registerSuperAgentContributions(input: {
     input.resources.push(target.register(loaded as never))
   }
 }
+
+async function registerDeclarativeContributions(input: {
+  instance: DiscoveredPlugin
+  registries: Parameters<RuntimePlugin["activate"]>[0]["registries"]
+  resources: ReturnType<typeof createStack>
+  signal: AbortSignal
+}) {
+  const declarations = input.instance.manifest.contributes
+  const registries = input.registries.declarative
+  const root = input.instance.location.kind === "directory" ? input.instance.location.root : ""
+  const source = {
+    pluginID: input.instance.id,
+    scope: input.instance.scope,
+    ownerID: `${input.instance.scope}:${input.instance.id}`,
+    priority: input.instance.manifest.priority,
+    installOrder: input.instance.installOrder,
+    overrides: input.instance.manifest.overrides,
+  }
+  const register = (kind: DeclarativeContributionKey, item: Record<string, unknown>) => {
+    const registry = registries?.[kind]
+    if (!registry) {
+      throw pluginError("capability_denied", `当前 Host 未提供 ${kind} 注册表`, {
+        pluginID: input.instance.id,
+        contributionID: String(item.id),
+      })
+    }
+    input.signal.throwIfAborted()
+    input.resources.push(registry.register(source, item as never))
+  }
+  const arrays: Array<[DeclarativeContributionKey, unknown[] | undefined]> = [
+    ["httpRoutes", declarations.httpRoutes],
+    ["triggers", declarations.triggers],
+    ["fastPath", declarations.fastPath],
+    ["routingPolicies", declarations.routingPolicies],
+    ["workerTypes", declarations.workerTypes],
+    ["watchdogPolicies", declarations.watchdogPolicies],
+    ["channels", declarations.channels],
+  ]
+  for (const [kind, values] of arrays) {
+    for (const value of values ?? []) {
+      const item = await loadDeclarativeEntry({ root, value, kind, pluginID: input.instance.id })
+      register(kind, item)
+    }
+  }
+  for (const [id, value] of Object.entries(declarations.mcpServers ?? {})) {
+    register("mcpServers", { id, ...value })
+  }
+  for (const [kind, declaration] of [
+    ["outputStyles", declarations.outputStyles],
+    ["lspServers", declarations.lspServers],
+    ["lifecycleHooks", declarations.lifecycleHooks],
+  ] as const) {
+    if (typeof declaration !== "string") continue
+    for (const value of await loadDeclarativeModule({ root, declaration, kind, pluginID: input.instance.id })) {
+      register(kind, value)
+    }
+  }
+}
+
+async function loadDeclarativeModule(input: {
+  root: string
+  declaration: string
+  kind: DeclarativeContributionKey
+  pluginID: string
+}): Promise<Record<string, unknown>[]> {
+  const realRoot = await fs.realpath(input.root)
+  const requested = path.resolve(realRoot, input.declaration)
+  const resolved = await fs.realpath(requested)
+  const relative = path.relative(realRoot, resolved)
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw pluginError("capability_denied", `${input.kind} entry 路径越界：${input.declaration}`, {
+      pluginID: input.pluginID,
+      contributionID: input.declaration,
+    })
+  }
+  const module = await import(pathToFileURL(resolved).href)
+  const exported = module.default ?? module.contributions ?? module[input.kind]
+  const values = Array.isArray(exported) ? exported : exported === undefined ? [] : [exported]
+  return values.map((value) => {
+    if (value === null || typeof value !== "object" || typeof value.id !== "string") {
+      throw pluginError("contribution_invalid", `${input.kind} entry 必须导出带 id 的对象：${input.declaration}`, {
+        pluginID: input.pluginID,
+        contributionID: input.declaration,
+      })
+    }
+    return value as Record<string, unknown>
+  })
+}
+
+async function loadDeclarativeEntry(input: {
+  root: string
+  value: unknown
+  kind: DeclarativeContributionKey
+  pluginID: string
+}): Promise<Record<string, unknown>> {
+  if (input.value === null || typeof input.value !== "object") {
+    throw pluginError("contribution_invalid", `${input.kind} 必须是对象声明`, {
+      pluginID: input.pluginID,
+      contributionID: String(input.value),
+    })
+  }
+  const declaration = input.value as Record<string, unknown>
+  const entry = declaration.entry
+  if (typeof entry !== "string") return declaration
+  const values = await loadDeclarativeModule({ root: input.root, declaration: entry, kind: input.kind, pluginID: input.pluginID })
+  const candidate = values[0]
+  if (candidate === undefined) return declaration
+  return { ...declaration, ...candidate }
+}
+
 
 function registerPreviewers(input: {
   instance: DiscoveredPlugin
