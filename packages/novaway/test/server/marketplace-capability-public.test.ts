@@ -10,6 +10,7 @@ import {
   createOfficeRegistry,
   createPreviewerRegistry,
   createProviderRegistry,
+  createPublishRegistry,
   createSkillRegistry,
   createSurfaceRegistry,
   createToolRegistry,
@@ -24,11 +25,11 @@ import * as ExtensionCatalog from "../../src/extension/catalog"
 
 const enabled = process.env.NOVAWAY_PUBLIC_MARKETPLACE_E2E === "1"
 const run = enabled ? test : test.skip
-const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/7feb49e94f4543aea0a5b140869c9c9fd58b0ed8/catalog/index.json"
+const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/bcd6d43d5d77a829c560560a1665f43d8aa49223/catalog/index.json"
 const artifactUrl =
-  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.4.0/com.novaway.marketplace-capability-smoke-0.4.0.zip"
-const artifactSha256 = "b2a29e4e3ce148076372a65083647bea58d33e2066563fe618c92cceede74cc0"
-const artifactSize = 14576
+  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.4.3/com.novaway.marketplace-capability-smoke-0.4.3.zip"
+const artifactSha256 = "7f9cc00cd13b076dd6bcce0651ac82c5d62592c68eb3fe7cba6b286fcdd9ba30"
+const artifactSize = 16106
 
 let base = ""
 
@@ -108,10 +109,10 @@ describe("public marketplace capability consumer", () => {
 
       const catalogEntries = ExtensionCatalog.parseNovaWay(JSON.parse(await downloadPublicText(catalogUrl)))
       const catalogEntry = catalogEntries.find(
-        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.4.0",
+        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.4.3",
       )
       expect(catalogEntry).toMatchObject({
-        version: "0.4.0",
+        version: "0.4.3",
         capabilities: [
           "agents",
           "skills",
@@ -142,6 +143,9 @@ describe("public marketplace capability consumer", () => {
           "channels",
           "lifecycle-hooks",
           "storage",
+          "publish-drivers",
+          "schedulers",
+          "event-sources",
         ],
         runtimeTargets: ["novaway-v2"],
         sha256: artifactSha256,
@@ -157,7 +161,7 @@ describe("public marketplace capability consumer", () => {
         try {
           installed = await Marketplace.installZip({
             name: "com.novaway.marketplace-capability-smoke",
-            version: "0.4.0",
+            version: "0.4.3",
             url: artifactUrl,
             sha256: artifactSha256,
             config,
@@ -169,7 +173,7 @@ describe("public marketplace capability consumer", () => {
         }
       }
       if (!installed) throw installError
-      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.4.0")
+      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.4.3")
       const packageRoot = installed.root
 
       const discovered = await PluginHost.inspect({
@@ -193,6 +197,7 @@ describe("public marketplace capability consumer", () => {
         commands: createCommandRegistry(),
         interceptors: createInterceptorRuntime(),
         providers: createProviderRegistry(),
+        publish: createPublishRegistry(),
         office: createOfficeRegistry(),
         previewers: createPreviewerRegistry(),
         surfaces: createSurfaceRegistry(),
@@ -221,7 +226,15 @@ describe("public marketplace capability consumer", () => {
         ])
         expect(registries.commands.list()[0]?.item.template).toContain("$ARGUMENTS")
         expect(registries.providers?.list().map((entry) => entry.id)).toEqual(["capability-provider"])
+        expect(registries.publish?.list().map((entry) => entry.id)).toEqual(["capability-publisher"])
+        const publisher = registries.publish?.list()[0]
         expect(registries.office?.list().map((entry) => entry.format)).toEqual(["novaway-capability"])
+        const publishRuntime = publisher?.runtime
+        const account = await publishRuntime?.login?.({})
+        expect(account).toMatchObject({ id: "capability-account" })
+        expect(
+          await publishRuntime?.publish?.({ account: account!, kind: "article", payload: { installed: true } }),
+        ).toMatchObject({ published: true })
         expect(registries.surfaces?.list().map((entry) => ("name" in entry ? entry.name : entry.id))).toEqual([
           "marketplace-capability-smoke_capability-home",
         ])
@@ -281,6 +294,19 @@ describe("public marketplace capability consumer", () => {
           run(): Promise<unknown>
         }
         expect(await lifecycle.run()).toMatchObject({ ok: true })
+        expect(declarative?.schedulers.list().map((entry) => entry.item.id)).toEqual(["capability-scheduler"])
+        const scheduler = declarative?.schedulers.list()[0]?.item as unknown as { run(): Promise<unknown> }
+        expect(await scheduler.run()).toMatchObject({ ran: true })
+        expect(declarative?.eventSources.list().map((entry) => entry.item.id)).toEqual(["capability-events"])
+        const eventSource = declarative?.eventSources.list()[0]?.item as unknown as {
+          start(emit: (event: unknown) => void): Promise<{ dispose(): void }>
+        }
+        let emittedEvent: unknown
+        const eventSubscription = await eventSource.start((event) => {
+          emittedEvent = event
+        })
+        expect(emittedEvent).toMatchObject({ type: "capability" })
+        eventSubscription.dispose()
         const trigger = declarative?.triggers.list()[0]?.item as unknown as {
           match(input: unknown): Promise<boolean>
           normalize(input: unknown): unknown
@@ -317,6 +343,7 @@ describe("public marketplace capability consumer", () => {
       expect(registries.tools.list()).toEqual([])
       expect(registries.commands.list()).toEqual([])
       expect(registries.providers?.list()).toEqual([])
+      expect(registries.publish?.list()).toEqual([])
       expect(registries.office?.list()).toEqual([])
       expect(registries.surfaces?.list()).toEqual([])
       expect(registries.previewers?.list()).toEqual([])

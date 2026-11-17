@@ -74,6 +74,8 @@ export function createDiscoveredPlugin(input: {
         "workerTypes",
         "watchdogPolicies",
         "channels",
+        "schedulers",
+        "eventSources",
         "lifecycleHooks",
       ].includes(key),
   )
@@ -218,8 +220,14 @@ export function createDiscoveredPlugin(input: {
           pluginID: instance.id,
         })
       }
-      if ((instance.manifest.contributes.publishDrivers?.length ?? 0) > 0) {
-        throw pluginError("capability_denied", "Publish driver 贡献当前只对内置插件开放", { pluginID: instance.id })
+      const marketplacePublish =
+        instance.location.kind === "directory" &&
+        instance.location.label === "plugin" &&
+        (instance.manifest.capabilities?.publishDrivers?.length ?? 0) > 0
+      if ((instance.manifest.contributes.publishDrivers?.length ?? 0) > 0 && !marketplacePublish) {
+        throw pluginError("capability_denied", "Publish driver 必须声明 publishDrivers 能力；未声明时只允许内置插件", {
+          pluginID: instance.id,
+        })
       }
       const tools = shouldDeferTools(instance.manifest)
         ? createLazyToolEntries({ root, declarations: instance.manifest.contributes.tools ?? [], context })
@@ -262,6 +270,24 @@ export function createDiscoveredPlugin(input: {
           throw pluginError("capability_denied", "当前 Host 未提供 Provider 注册表", { pluginID: instance.id })
         }
         context.providers.register(provider)
+      }
+      const publishDrivers = await loadPublishEntries({
+        root,
+        entries: instance.manifest.contributes.publishDrivers ?? [],
+        pluginID: instance.id,
+      })
+      for (const driver of publishDrivers) {
+        const allowed = new Set(instance.manifest.capabilities?.publishDrivers ?? [])
+        if (!allowed.has("*") && !allowed.has(driver.id)) {
+          throw pluginError("capability_denied", `publishDrivers：未声明 driver ${driver.id}`, {
+            pluginID: instance.id,
+            contributionID: driver.id,
+          })
+        }
+        if (!registries.publish) {
+          throw pluginError("capability_denied", "当前 Host 未提供 Publish 注册表", { pluginID: instance.id })
+        }
+        resources.push(registries.publish.register(driver))
       }
       for (const office of await loadOfficeEntries({
         root,
@@ -431,6 +457,8 @@ async function registerDeclarativeContributions(input: {
     ["workerTypes", declarations.workerTypes],
     ["watchdogPolicies", declarations.watchdogPolicies],
     ["channels", declarations.channels],
+    ["schedulers", declarations.schedulers],
+    ["eventSources", declarations.eventSources],
   ]
   for (const [kind, values] of arrays) {
     for (const value of values ?? []) {

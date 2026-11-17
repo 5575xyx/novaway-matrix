@@ -25,6 +25,14 @@ export const contributionKinds = [
   "worker-type",
   "watchdog-policy",
   "channel",
+  "agent-runtime",
+  "super-agent-strategy",
+  "task-kind",
+  "verifier",
+  "repair-strategy",
+  "agent-template",
+  "super-agent-policy",
+  "super-agent-surface",
 ] as const
 
 export type ContributionKind = (typeof contributionKinds)[number]
@@ -50,6 +58,16 @@ export const contributionDeclarationKinds = [
   "worker-type",
   "watchdog-policy",
   "channel",
+  "scheduler",
+  "event-source",
+  "agent-runtime",
+  "super-agent-strategy",
+  "task-kind",
+  "verifier",
+  "repair-strategy",
+  "agent-template",
+  "super-agent-policy",
+  "super-agent-surface",
 ] as const satisfies readonly ContributionKind[]
 
 export const contributionDeclarationKeys = [
@@ -73,11 +91,21 @@ export const contributionDeclarationKeys = [
   "workerTypes",
   "watchdogPolicies",
   "channels",
+  "schedulers",
+  "eventSources",
+  "agentRuntimes",
+  "superAgentStrategies",
+  "taskKinds",
+  "verifiers",
+  "repairStrategies",
+  "agentTemplates",
+  "superAgentPolicies",
+  "superAgentSurfaces",
 ] as const satisfies readonly ContributesKey[]
 
 export const contributionSettingKeys = ["lifecycleHooks", "storage"] as const satisfies readonly ContributesKey[]
 
-export const runtimeOnlyContributionKinds = ["scheduler", "event-source"] as const satisfies readonly ContributionKind[]
+export const runtimeOnlyContributionKinds = [] as const satisfies readonly ContributionKind[]
 
 if (
   contributesKeys.length !== contributionDeclarationKeys.length + contributionSettingKeys.length ||

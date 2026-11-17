@@ -619,6 +619,8 @@ function readContributes(raw: Record<string, unknown>, issues: Issue[], pluginNa
     "workerTypes",
     "watchdogPolicies",
     "channels",
+    "schedulers",
+    "eventSources",
     "agentRuntimes",
     "superAgentStrategies",
     "taskKinds",
@@ -780,7 +782,7 @@ function readCapabilities(value: unknown, issues: Issue[]) {
       }
     }
   }
-  for (const key of ["network", "secrets", "tools", "providers", "ui"] as const) {
+  for (const key of ["network", "secrets", "tools", "providers", "publishDrivers", "ui"] as const) {
     const list = strings(value[key])
     if (list !== undefined) out[key] = list
     else if (value[key] !== undefined)
@@ -792,7 +794,7 @@ function readCapabilities(value: unknown, issues: Issue[]) {
   const process = strings(value.process)
   if (process !== undefined) out.process = process.filter((item) => item === "spawn")
   for (const key of Object.keys(value)) {
-    if (["fs", "network", "secrets", "tools", "providers", "ui", "shell", "process"].includes(key)) continue
+    if (["fs", "network", "secrets", "tools", "providers", "publishDrivers", "ui", "shell", "process"].includes(key)) continue
     issues.push(warning("capability_unknown", `capabilities.${key} 不是已知权限，已丢弃`, `capabilities.${key}`))
   }
   return out

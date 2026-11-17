@@ -14,6 +14,8 @@ export const declarativeContributionKeys = [
   "workerTypes",
   "watchdogPolicies",
   "channels",
+  "schedulers",
+  "eventSources",
   "lifecycleHooks",
 ] as const
 
@@ -47,6 +49,8 @@ function kindFor(key: DeclarativeContributionKey): ContributionKind {
     workerTypes: "worker-type",
     watchdogPolicies: "watchdog-policy",
     channels: "channel",
+    schedulers: "scheduler",
+    eventSources: "event-source",
   }
   return kinds[key]
 }

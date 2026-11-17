@@ -8,6 +8,8 @@ import type {
   SkillContribution,
   SurfaceContribution,
   ToolContribution,
+  SchedulerContribution,
+  EventSourceContribution,
 } from "./contributions"
 import type {
   ChannelContribution,
@@ -50,6 +52,7 @@ export type PluginCapabilities = {
   secrets?: string[]
   tools?: string[]
   providers?: string[]
+  publishDrivers?: string[]
   ui?: string[]
 }
 
@@ -65,6 +68,8 @@ export type FastPathDeclaration = Pick<FastPathRule, "id"> & { entry: string }
 export type RoutingPolicyDeclaration = Pick<RoutingPolicyContribution, "id"> & { entry: string }
 export type WorkerTypeDeclaration = Pick<WorkerTypeContribution, "id"> & { entry: string }
 export type WatchdogPolicyDeclaration = Pick<WatchdogPolicyContribution, "id"> & { entry: string }
+export type SchedulerDeclaration = Omit<SchedulerContribution, "run"> & { entry: string }
+export type EventSourceDeclaration = Omit<EventSourceContribution, "start"> & { entry: string }
 export type ChannelDeclaration = Pick<ChannelContribution, "id" | "kind"> & { entry: string }
 export type AgentRuntimeDeclaration = Omit<AgentRuntimeContribution, "entry"> & { entry: string }
 export type SuperAgentStrategyDeclaration = Omit<SuperAgentStrategyContribution, "entry"> & { entry: string }
@@ -98,6 +103,8 @@ export type Contributes = {
   workerTypes?: WorkerTypeDeclaration[]
   watchdogPolicies?: WatchdogPolicyDeclaration[]
   channels?: ChannelDeclaration[]
+  schedulers?: SchedulerDeclaration[]
+  eventSources?: EventSourceDeclaration[]
   agentRuntimes?: AgentRuntimeDeclaration[]
   superAgentStrategies?: SuperAgentStrategyDeclaration[]
   taskKinds?: TaskKindDeclaration[]
@@ -135,6 +142,8 @@ export const contributesKeys = [
   "workerTypes",
   "watchdogPolicies",
   "channels",
+  "schedulers",
+  "eventSources",
   "agentRuntimes",
   "superAgentStrategies",
   "taskKinds",
