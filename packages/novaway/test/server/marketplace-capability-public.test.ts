@@ -264,6 +264,7 @@ describe("public marketplace capability consumer", () => {
 
         const declarative = registries.declarative
         expect(declarative?.mcpServers.list().map((entry) => entry.item.id)).toEqual(["capability-mcp"])
+        expect(declarative?.mcpServers.list()[0]?.item.url).toBe("https://novaway.ai/mcp/capability")
         expect(declarative?.outputStyles.list().map((entry) => entry.item.id)).toEqual(["capability-output-style"])
         expect(declarative?.lspServers.list().map((entry) => entry.item.id)).toEqual(["capability-lsp"])
         expect(declarative?.lifecycleHooks.list().map((entry) => entry.item.id)).toEqual(["capability-lifecycle"])
@@ -276,6 +277,10 @@ describe("public marketplace capability consumer", () => {
         expect(declarative?.channels.list().map((entry) => entry.item.id)).toEqual(["capability-channel"])
         const route = declarative?.httpRoutes.list()[0]?.item as unknown as { handler(): Promise<unknown> }
         expect(await route.handler()).toMatchObject({ status: 200 })
+        const lifecycle = declarative?.lifecycleHooks.list()[0]?.item as unknown as {
+          run(): Promise<unknown>
+        }
+        expect(await lifecycle.run()).toMatchObject({ ok: true })
         const trigger = declarative?.triggers.list()[0]?.item as unknown as {
           match(input: unknown): Promise<boolean>
           normalize(input: unknown): unknown

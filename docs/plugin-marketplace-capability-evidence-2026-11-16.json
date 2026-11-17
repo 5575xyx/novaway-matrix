@@ -5,7 +5,7 @@
   "result": "passed",
   "passes": 1,
   "failures": 0,
-  "expectations": 81,
+  "expectations": 83,
   "catalog": "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/7feb49e94f4543aea0a5b140869c9c9fd58b0ed8/catalog/index.json",
   "packageId": "com.novaway.marketplace-capability-smoke",
   "version": "0.4.0",
