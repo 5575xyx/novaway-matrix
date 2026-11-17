@@ -3,11 +3,11 @@
 Date: 2026-11-17
 Repository: https://github.com/NovaWay-AI/novaway-plugins
 Commit: `working tree after local expanded-capability acceptance` (`xiaoming <626@example.com>`)
-Releases: `com.novaway.marketplace-smoke-v0.1.0`, `com.novaway.marketplace-smoke-v0.1.1`, `com.novaway.marketplace-capability-smoke-v0.1.0`, `com.novaway.marketplace-capability-smoke-v0.2.2`, `com.novaway.marketplace-capability-smoke-v0.2.3`
+Releases: `com.novaway.marketplace-smoke-v0.1.0`, `com.novaway.marketplace-smoke-v0.1.1`, `com.novaway.marketplace-capability-smoke-v0.1.0`, `com.novaway.marketplace-capability-smoke-v0.2.2`, `com.novaway.marketplace-capability-smoke-v0.2.3`, `com.novaway.marketplace-capability-smoke-v0.3.2`
 
 ## Result
 
-The core marketplace lifecycle and the expanded local and remote public-artifact capability gate pass. The v0.2.3 artifact is published, its catalog digest matches, and a real NovaWay install/discovery/activation test consumes Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface and Previewer contributions and verifies cleanup. This report does **not** mark the whole roadmap complete: additional contribution types such as Super-Agent still require independent public artifacts and consumer evidence.
+The core marketplace lifecycle and the expanded local and remote public-artifact capability gate pass. The v0.3.2 artifact is published, its catalog digest matches, and a real NovaWay install/discovery/activation test consumes Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface, Previewer and Super-Agent contributions and verifies cleanup. This report does **not** mark the whole roadmap complete: legacy/host-integrated contribution families such as MCP, Output Styles, LSP, HTTP Routes, Lifecycle Hooks and additional automation/channel contributions still require independent official artifacts and consumer evidence.
 
 ## Public release evidence
 
@@ -17,8 +17,8 @@ The core marketplace lifecycle and the expanded local and remote public-artifact
 - Release 0.1.1 size: `1878` bytes
 - Release 0.1.1 SHA-256: `b003d4f13d09048d37b3460ceb91531fffbc06ae2023b8bc696924919e66c547`
 - Release 0.1.0 remains available for downgrade/rollback testing.
-- Capability Release v0.2.3: `https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.2.3`.
-- Capability v0.2.3 artifact: `5389` bytes, SHA-256 `47d398295a91d2e7f25ceafd8072f4eda829ee24e353451125b7ddc99e0a3093`.
+- Capability Release v0.3.2: `https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.3.2`.
+- Capability v0.3.2 artifact: `10261` bytes, SHA-256 `5018d125b779190723137f26f934ee6840cb9a5a1057456f5e53984490ecf692`.
 
 ## Passed evidence
 
@@ -36,11 +36,11 @@ The core marketplace lifecycle and the expanded local and remote public-artifact
 - Durable HTTP lifecycle operations now expose a shared multidimensional state matrix: installation status, activation status, consumer status, cleanup status, `requiresRestart`, phase, progress, error code, recovery hint, and one durable operation ID.
 - The Web/Desktop shared marketplace UI polls and renders operation history; the TUI exposes the same history through `/marketplace`; the CLI exposes `novaway marketplace operations --json`. All three use the generated operation-history API rather than local lifecycle state.
 - Marketplace v2 activation accepts Claude/NovaWay directory Skill declarations such as `contributes.skills: ["./skills"]`, safely expands `SKILL.md` files, and is covered by the immutable public Release test.
-- Public expanded capability acceptance: `1 pass`, `0 fail`, `30 expect() calls`; the test downloads the immutable v0.2.3 artifact, verifies catalog metadata and digest, installs it through `Marketplace.installZip`, discovers/activates it with Plugin Host v2, consumes all nine published fixture contribution types, and verifies deactivation cleanup.
+- Public expanded capability acceptance: `1 pass`, `0 fail`, `50 expect() calls`; the test downloads the immutable v0.3.2 artifact, verifies catalog metadata and digest, installs it through `Marketplace.installZip`, discovers/activates it with Plugin Host v2, consumes all published Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface, Previewer and Super-Agent fixture contributions, executes representative Super-Agent runtime/verifier/repair consumers, and verifies deactivation cleanup.
 - Artifact security tests cover HTTPS/private-DNS checks, bounded manual redirects, final response-host validation, decompressed-byte limits, central-directory duplicate-entry rejection, unsupported POSIX node types, independent duplicate-content extraction (no hardlinks), path traversal, and ZIP symlink rejection.
 - The immutable public Release cold-start test downloads Release `com.novaway.marketplace-smoke-v0.1.1`, verifies size `1878` and SHA-256 `b003d4f13d09048d37b3460ceb91531fffbc06ae2023b8bc696924919e66c547`, installs it into an isolated XDG marketplace, starts a fresh NovaWay process, discovers and enables `marketplace-smoke`, and consumes its real Skill: `1 pass`, `12 expect() calls`.
 - The immutable public Release cold-start evidence is recorded in `docs/plugin-marketplace-public-cold-start-evidence-2026-11-16.json`.
-- The expanded immutable capability evidence is recorded in `docs/plugin-marketplace-capability-evidence-2026-11-16.json`; it covers the v0.2.3 Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface and Previewer registration, real Tool/interceptor execution, lifecycle release, and successful remote publish verification (`43992163638`).
+- The expanded immutable capability evidence is recorded in `docs/plugin-marketplace-capability-evidence-2026-11-16.json`; it covers the v0.3.2 Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface, Previewer and Super-Agent registration, executable runtime/verifier/repair consumers, lifecycle release, and successful remote publish verification (`43996375235`).
 
 ## Acceptance gates closed
 
@@ -53,6 +53,6 @@ The core marketplace lifecycle and the expanded local and remote public-artifact
 
 ## Remaining acceptance gates
 
-- The v0.2.3 official publish workflow passed: run `43992163638` on commit `277ea8d` verified the immutable asset and catalog digest.
-- Add an official artifact, real consumer, activation/disable/cleanup and cold-start evidence for Super-Agent and every other contribution type that the marketplace advertises as publishable.
+- The v0.3.2 official publish workflow passed: run `43996375235` on commit `af24fcfc248603ac602c00d83e1cb84a6a7543f0` verified the immutable Super-Agent asset and catalog digest.
+- Add official artifacts, real consumers, activation/disable/cleanup and cold-start evidence for MCP, Output Styles, LSP, HTTP Routes, Lifecycle Hooks, Triggers, Fast Paths, Routing Policies, Worker Types, Watchdog Policies, Channels, and any other contribution type advertised as publishable.
 - Future archive formats, signing, mirrors, or frontend-specific workflows still require their own consumer and regression evidence.

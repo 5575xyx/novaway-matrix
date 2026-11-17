@@ -5,12 +5,12 @@
   "result": "passed",
   "passes": 1,
   "failures": 0,
-  "expectations": 30,
-  "catalog": "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
+  "expectations": 50,
+  "catalog": "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/af24fcfc248603ac602c00d83e1cb84a6a7543f0/catalog/index.json",
   "packageId": "com.novaway.marketplace-capability-smoke",
-  "version": "0.2.3",
+  "version": "0.3.2",
   "stable": true,
-  "note": "The official v0.2.3 publish workflow completed successfully and verified the immutable artifact against the catalog.",
+  "note": "The official v0.3.2 publish workflow completed successfully and verified the immutable Super-Agent artifact against the catalog.",
   "capabilities": [
     "agents",
     "skills",
@@ -20,27 +20,35 @@
     "providers",
     "office",
     "surfaces",
-    "previewers"
+    "previewers",
+    "super-agent",
+    "agent-runtimes",
+    "strategies",
+    "task-kinds",
+    "verifiers",
+    "repair-strategies",
+    "agent-templates",
+    "policies"
   ],
-  "release": "https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.2.3",
+  "release": "https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.3.2",
   "artifact": {
-    "url": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.3/com.novaway.marketplace-capability-smoke-0.2.3.zip",
-    "size": 5389,
-    "sha256": "47d398295a91d2e7f25ceafd8072f4eda829ee24e353451125b7ddc99e0a3093"
+    "url": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.3.2/com.novaway.marketplace-capability-smoke-0.3.2.zip",
+    "size": 10261,
+    "sha256": "5018d125b779190723137f26f934ee6840cb9a5a1057456f5e53984490ecf692"
   },
   "workflow": {
     "name": "Publish capability smoke plugin",
-    "runId": 43992163638,
+    "runId": 43996375235,
     "conclusion": "success",
-    "commit": "277ea8d",
-    "url": "https://github.com/NovaWay-AI/novaway-plugins/actions/runs/43992163638"
+    "commit": "af24fcfc248603ac602c00d83e1cb84a6a7543f0",
+    "url": "https://github.com/NovaWay-AI/novaway-plugins/actions/runs/43996375235"
   },
   "gates": [
-    "public catalog exposes all nine published fixture capabilities",
+    "public catalog exposes all published fixture capabilities",
     "HTTPS artifact URL and SHA-256 validation",
     "real Marketplace.installZip staging and atomic installation",
     "Plugin Host v2 discovery with no diagnostics",
-    "v2 activation and registration in Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface and Previewer registries",
+    "v2 activation and registration in Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface, Previewer and Super-Agent registries",
     "Agent prompt file loading within package root",
     "Skill SKILL.md discovery and source loading",
     "real executable Tool entry import and execution",
@@ -48,6 +56,7 @@
     "Interceptor chain execution",
     "Provider capability-gated registration",
     "Office, Surface and Previewer consumer visibility",
+    "Super-Agent runtime discovery and executable verifier/repair consumers",
     "deactivation releases every contribution"
   ],
   "consumed": [
@@ -59,6 +68,14 @@
     "novaway-capability",
     "marketplace-capability-smoke_capability-home",
     "marketplace-capability-smoke_capability-preview",
-    "marketplace-capability-smoke_capability-trace"
+    "marketplace-capability-smoke_capability-trace",
+    "capability-runtime",
+    "capability-strategy",
+    "capability-task",
+    "capability-verifier",
+    "capability-repair",
+    "capability-template",
+    "capability-policy",
+    "capability-super-agent-surface"
   ]
 }

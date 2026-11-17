@@ -17,16 +17,17 @@ import {
 import { createInterceptorRuntime } from "@/plugin/runtime/hooks"
 import { createDiscoveredPlugin } from "@/plugin/runtime/activation"
 import { createHost, type HostRegistries } from "@/plugin/runtime/host"
+import { bindExecutableSuperAgentContributions, createSuperAgentContributionRegistries } from "@/super-agent/plugin-contributions"
 import * as Marketplace from "../../src/extension/marketplace"
 import * as ExtensionCatalog from "../../src/extension/catalog"
 
 const enabled = process.env.NOVAWAY_PUBLIC_MARKETPLACE_E2E === "1"
 const run = enabled ? test : test.skip
-const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json"
+const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/af24fcfc248603ac602c00d83e1cb84a6a7543f0/catalog/index.json"
 const artifactUrl =
-  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.3/com.novaway.marketplace-capability-smoke-0.2.3.zip"
-const artifactSha256 = "47d398295a91d2e7f25ceafd8072f4eda829ee24e353451125b7ddc99e0a3093"
-const artifactSize = 5389
+  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.3.2/com.novaway.marketplace-capability-smoke-0.3.2.zip"
+const artifactSha256 = "5018d125b779190723137f26f934ee6840cb9a5a1057456f5e53984490ecf692"
+const artifactSize = 10261
 
 let base = ""
 
@@ -106,10 +107,10 @@ describe("public marketplace capability consumer", () => {
 
       const catalogEntries = ExtensionCatalog.parseNovaWay(JSON.parse(await downloadPublicText(catalogUrl)))
       const catalogEntry = catalogEntries.find(
-        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.2.3",
+        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.3.2",
       )
       expect(catalogEntry).toMatchObject({
-        version: "0.2.3",
+        version: "0.3.2",
         capabilities: [
           "agents",
           "skills",
@@ -120,6 +121,14 @@ describe("public marketplace capability consumer", () => {
           "office",
           "surfaces",
           "previewers",
+          "super-agent",
+          "agent-runtimes",
+          "strategies",
+          "task-kinds",
+          "verifiers",
+          "repair-strategies",
+          "agent-templates",
+          "policies",
         ],
         runtimeTargets: ["novaway-v2"],
         sha256: artifactSha256,
@@ -135,7 +144,7 @@ describe("public marketplace capability consumer", () => {
         try {
           installed = await Marketplace.installZip({
             name: "com.novaway.marketplace-capability-smoke",
-            version: "0.2.3",
+            version: "0.3.2",
             url: artifactUrl,
             sha256: artifactSha256,
             config,
@@ -147,7 +156,7 @@ describe("public marketplace capability consumer", () => {
         }
       }
       if (!installed) throw installError
-      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.2.3")
+      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.3.2")
       const packageRoot = installed.root
 
       const discovered = await PluginHost.inspect({
@@ -174,6 +183,7 @@ describe("public marketplace capability consumer", () => {
         office: createOfficeRegistry(),
         previewers: createPreviewerRegistry(),
         surfaces: createSurfaceRegistry(),
+        superAgent: createSuperAgentContributionRegistries(),
       }
       const host = createHost(registries)
       try {
@@ -211,6 +221,33 @@ describe("public marketplace capability consumer", () => {
         await registries.interceptors.trigger("chat.params", params, params)
         expect(params.marketplaceCapabilitySmoke).toBe(true)
 
+        expect(registries.superAgent?.agentRuntimes.list().map((entry) => entry.id)).toEqual(["capability-runtime"])
+        expect(registries.superAgent?.strategies.list().map((entry) => entry.id)).toEqual(["capability-strategy"])
+        expect(registries.superAgent?.taskKinds.list().map((entry) => entry.id)).toEqual(["capability-task"])
+        expect(registries.superAgent?.verifiers.list().map((entry) => entry.id)).toEqual(["capability-verifier"])
+        expect(registries.superAgent?.repairStrategies.list().map((entry) => entry.id)).toEqual(["capability-repair"])
+        expect(registries.superAgent?.agentTemplates.list().map((entry) => entry.id)).toEqual(["capability-template"])
+        expect(registries.superAgent?.policies.list().map((entry) => entry.id)).toEqual(["capability-policy"])
+        expect(registries.superAgent?.surfaces.list().map((entry) => entry.id)).toEqual([
+          "capability-super-agent-surface",
+        ])
+
+        const executableSuperAgent = bindExecutableSuperAgentContributions(registries.superAgent)
+        try {
+          const runtime = executableSuperAgent.runtimes.list()[0]
+          expect(runtime?.type).toBe("marketplace-smoke")
+          expect(await runtime?.discover()).toMatchObject([{ id: "capability-runtime", available: true }])
+          const verifier = executableSuperAgent.verifiers.list()[0]
+          expect(
+            await verifier?.verify({ runID: "fixture", criterion: {} as never, evidence: [] }),
+          ).toMatchObject({ outcome: "pass" })
+          const repair = executableSuperAgent.repairStrategies.list()[0]
+          const repairTask = repair?.create({ runID: "fixture", failed: [], sourceTask: {} as never })
+          expect(repairTask).toMatchObject({ kind: "repair", status: "pending" })
+        } finally {
+          executableSuperAgent.dispose()
+        }
+
         const tool = registries.tools.list().find((entry) => entry.name === "marketplace-capability-smoke_capability-echo")
         expect(tool).toBeDefined()
         const result = await tool!.item.execute(
@@ -230,6 +267,14 @@ describe("public marketplace capability consumer", () => {
       expect(registries.surfaces?.list()).toEqual([])
       expect(registries.previewers?.list()).toEqual([])
       expect(registries.interceptors.list()).toEqual([])
+      expect(registries.superAgent?.agentRuntimes.list()).toEqual([])
+      expect(registries.superAgent?.strategies.list()).toEqual([])
+      expect(registries.superAgent?.taskKinds.list()).toEqual([])
+      expect(registries.superAgent?.verifiers.list()).toEqual([])
+      expect(registries.superAgent?.repairStrategies.list()).toEqual([])
+      expect(registries.superAgent?.agentTemplates.list()).toEqual([])
+      expect(registries.superAgent?.policies.list()).toEqual([])
+      expect(registries.superAgent?.surfaces.list()).toEqual([])
     },
     120_000,
   )
