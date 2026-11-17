@@ -1,42 +1,64 @@
 {
-  "date": "2026-11-16",
+  "date": "2026-11-17",
   "test": "packages/novaway/test/server/marketplace-capability-public.test.ts",
   "command": "cd packages/novaway && NOVAWAY_PUBLIC_MARKETPLACE_E2E=1 bun test test/server/marketplace-capability-public.test.ts",
   "result": "passed",
   "passes": 1,
   "failures": 0,
-  "expectations": 20,
+  "expectations": 30,
   "catalog": "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
   "packageId": "com.novaway.marketplace-capability-smoke",
-  "version": "0.1.0",
-  "release": "https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.1.0",
+  "version": "0.2.2",
+  "stable": false,
+  "note": "Local public-artifact acceptance passed for all published fixture contributions in this test, but the official v0.2.2 publish workflow is recorded separately as failed; this is not a stable-release claim.",
+  "capabilities": [
+    "agents",
+    "skills",
+    "tools",
+    "commands",
+    "interceptors",
+    "providers",
+    "office",
+    "surfaces",
+    "previewers"
+  ],
+  "release": "https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.2.2",
   "artifact": {
-    "url": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.1.0/com.novaway.marketplace-capability-smoke-0.1.0.zip",
-    "size": 3409,
-    "sha256": "1cd7fe9fcaab1764bd8983f6f1b5894adcd9f326d30f5f0888dc9d55497c9967"
+    "url": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.2/com.novaway.marketplace-capability-smoke-0.2.2.zip",
+    "size": 5389,
+    "sha256": "ab46555e6a7eddf731054a594c97b145b8afbf65f49ea1f7f779b408afcbfc4f"
   },
   "workflow": {
     "name": "Publish capability smoke plugin",
-    "runId": 43911650406,
-    "conclusion": "success",
-    "commit": "f74439a21ca90cec0ea284ec3ba505a72487b479"
+    "runId": 43926294965,
+    "conclusion": "failure",
+    "commit": "370d7060c31c4baf83c12e63b5b0e9bdae691405",
+    "url": "https://github.com/NovaWay-AI/novaway-plugins/actions/runs/43926294965"
   },
   "gates": [
-    "public catalog exposes agents, skills, tools and commands capabilities",
+    "public catalog exposes all nine published fixture capabilities",
     "HTTPS artifact URL and SHA-256 validation",
     "real Marketplace.installZip staging and atomic installation",
     "Plugin Host v2 discovery with no diagnostics",
-    "v2 activation and registration in Agent, Skill, Tool and Command registries",
+    "v2 activation and registration in Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface and Previewer registries",
     "Agent prompt file loading within package root",
     "Skill SKILL.md discovery and source loading",
     "real executable Tool entry import and execution",
     "Command consumer registry visibility",
+    "Interceptor chain execution",
+    "Provider capability-gated registration",
+    "Office, Surface and Previewer consumer visibility",
     "deactivation releases every contribution"
   ],
   "consumed": [
     "marketplace-capability-smoke_capability-reviewer",
     "marketplace-capability-smoke_marketplace-capability-smoke-skill",
     "marketplace-capability-smoke_capability-echo",
-    "marketplace-capability-smoke_capability-plan"
+    "marketplace-capability-smoke_capability-plan",
+    "capability-provider",
+    "novaway-capability",
+    "marketplace-capability-smoke_capability-home",
+    "marketplace-capability-smoke_capability-preview",
+    "marketplace-capability-smoke_capability-trace"
   ]
 }

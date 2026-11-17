@@ -12,6 +12,14 @@ import type {
 import type {
   ChannelContribution,
   FastPathRule,
+  AgentRuntimeContribution,
+  SuperAgentStrategyContribution,
+  TaskKindContribution,
+  VerifierContribution,
+  RepairStrategyContribution,
+  AgentTemplateContribution,
+  SuperAgentPolicyContribution,
+  SuperAgentSurfaceContribution,
   RoutingPolicyContribution,
   ThreadTriggerBinding,
   TriggerContribution,
@@ -41,6 +49,7 @@ export type PluginCapabilities = {
   process?: Array<"spawn">
   secrets?: string[]
   tools?: string[]
+  providers?: string[]
   ui?: string[]
 }
 
@@ -57,6 +66,14 @@ export type RoutingPolicyDeclaration = Pick<RoutingPolicyContribution, "id"> & {
 export type WorkerTypeDeclaration = Pick<WorkerTypeContribution, "id"> & { entry: string }
 export type WatchdogPolicyDeclaration = Pick<WatchdogPolicyContribution, "id"> & { entry: string }
 export type ChannelDeclaration = Pick<ChannelContribution, "id" | "kind"> & { entry: string }
+export type AgentRuntimeDeclaration = Omit<AgentRuntimeContribution, "entry"> & { entry: string }
+export type SuperAgentStrategyDeclaration = Omit<SuperAgentStrategyContribution, "entry"> & { entry: string }
+export type TaskKindDeclaration = Omit<TaskKindContribution, "entry"> & { entry: string }
+export type VerifierDeclaration = Omit<VerifierContribution, "entry"> & { entry: string }
+export type RepairStrategyDeclaration = Omit<RepairStrategyContribution, "entry"> & { entry: string }
+export type AgentTemplateDeclaration = AgentTemplateContribution
+export type SuperAgentPolicyDeclaration = Omit<SuperAgentPolicyContribution, "entry"> & { entry: string }
+export type SuperAgentSurfaceDeclaration = SuperAgentSurfaceContribution
 
 export type Contributes = {
   tools?: ToolDeclaration[]
@@ -81,6 +98,14 @@ export type Contributes = {
   workerTypes?: WorkerTypeDeclaration[]
   watchdogPolicies?: WatchdogPolicyDeclaration[]
   channels?: ChannelDeclaration[]
+  agentRuntimes?: AgentRuntimeDeclaration[]
+  superAgentStrategies?: SuperAgentStrategyDeclaration[]
+  taskKinds?: TaskKindDeclaration[]
+  verifiers?: VerifierDeclaration[]
+  repairStrategies?: RepairStrategyDeclaration[]
+  agentTemplates?: AgentTemplateDeclaration[]
+  superAgentPolicies?: SuperAgentPolicyDeclaration[]
+  superAgentSurfaces?: SuperAgentSurfaceDeclaration[]
 }
 
 /**
@@ -110,6 +135,14 @@ export const contributesKeys = [
   "workerTypes",
   "watchdogPolicies",
   "channels",
+  "agentRuntimes",
+  "superAgentStrategies",
+  "taskKinds",
+  "verifiers",
+  "repairStrategies",
+  "agentTemplates",
+  "superAgentPolicies",
+  "superAgentSurfaces",
 ] as const satisfies readonly (keyof Contributes)[]
 
 export type ContributesKey = (typeof contributesKeys)[number]
@@ -128,6 +161,8 @@ export type Manifest = {
   activationEvents?: ActivationEvent[]
   /** 插件 id → 版本范围；硬依赖，拓扑激活，有环则环上全部 `blocked`（§4.9）。 */
   dependencies?: Record<string, string>
+  /** Plugin ids that cannot be active together with this plugin. */
+  conflicts?: string[]
   capabilities?: PluginCapabilities
   contributes: Contributes
   /** 覆盖优先级，默认 0（§4.9）。 */

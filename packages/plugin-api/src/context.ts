@@ -118,7 +118,8 @@ export interface PluginContext {
   readonly log: Logger
   readonly signal: AbortSignal
 
-  readonly providers: RestrictedRegistry<ProviderAdapter>
+  /** Provider registration is capability-gated by the host and manifest. */
+  readonly providers: Registry<ProviderAdapter>
   readonly surfaces: RestrictedRegistry<SurfaceContribution>
 }
 

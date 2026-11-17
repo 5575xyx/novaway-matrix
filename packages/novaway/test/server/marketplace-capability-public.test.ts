@@ -7,7 +7,11 @@ import { PluginHost } from "@/plugin/host"
 import {
   createAgentRegistry,
   createCommandRegistry,
+  createOfficeRegistry,
+  createPreviewerRegistry,
+  createProviderRegistry,
   createSkillRegistry,
+  createSurfaceRegistry,
   createToolRegistry,
 } from "@/plugin/contributions"
 import { createInterceptorRuntime } from "@/plugin/runtime/hooks"
@@ -18,12 +22,36 @@ import * as ExtensionCatalog from "../../src/extension/catalog"
 
 const enabled = process.env.NOVAWAY_PUBLIC_MARKETPLACE_E2E === "1"
 const run = enabled ? test : test.skip
+const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json"
 const artifactUrl =
-  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.1.0/com.novaway.marketplace-capability-smoke-0.1.0.zip"
-const artifactSha256 = "1cd7fe9fcaab1764bd8983f6f1b5894adcd9f326d30f5f0888dc9d55497c9967"
-const artifactSize = 3409
+  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.2/com.novaway.marketplace-capability-smoke-0.2.2.zip"
+const artifactSha256 = "ab46555e6a7eddf731054a594c97b145b8afbf65f49ea1f7f779b408afcbfc4f"
+const artifactSize = 5389
 
 let base = ""
+
+async function downloadPublicText(url: string) {
+  const args = ["-L", "--fail", "--silent", "--show-error", "-A", "novaway-marketplace-capability-test", url]
+  let lastError: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (const command of ["curl.exe", "curl"]) {
+      try {
+        const child = Bun.spawn([command, ...args], { stdout: "pipe", stderr: "pipe" })
+        const [exitCode, text, errorText] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ])
+        if (exitCode === 0) return text
+        lastError = new Error(`${command} exited with ${exitCode}: ${errorText}`)
+      } catch (error) {
+        lastError = error
+      }
+    }
+    await Bun.sleep(1_000 * (attempt + 1))
+  }
+  throw lastError
+}
 
 async function downloadArtifact() {
   await Marketplace.validateArtifactUrl(artifactUrl)
@@ -76,15 +104,23 @@ describe("public marketplace capability consumer", () => {
       await fs.mkdir(home, { recursive: true })
       await fs.mkdir(workspace, { recursive: true })
 
-      const catalogResponse = await fetch(
-        "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
+      const catalogEntries = ExtensionCatalog.parseNovaWay(JSON.parse(await downloadPublicText(catalogUrl)))
+      const catalogEntry = catalogEntries.find(
+        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.2.2",
       )
-      expect(catalogResponse.ok).toBe(true)
-      const catalogEntries = ExtensionCatalog.parseNovaWay(await catalogResponse.json())
-      const catalogEntry = catalogEntries.find((entry) => entry.packageId === "com.novaway.marketplace-capability-smoke")
       expect(catalogEntry).toMatchObject({
-        version: "0.1.0",
-        capabilities: ["agents", "skills", "tools", "commands"],
+        version: "0.2.2",
+        capabilities: [
+          "agents",
+          "skills",
+          "tools",
+          "commands",
+          "interceptors",
+          "providers",
+          "office",
+          "surfaces",
+          "previewers",
+        ],
         runtimeTargets: ["novaway-v2"],
         sha256: artifactSha256,
       })
@@ -93,14 +129,25 @@ describe("public marketplace capability consumer", () => {
       expect(artifact.byteLength).toBe(artifactSize)
       expect(Marketplace.digest(artifact)).toBe(artifactSha256)
 
-      const installed = await Marketplace.installZip({
-        name: "com.novaway.marketplace-capability-smoke",
-        version: "0.1.0",
-        url: artifactUrl,
-        sha256: artifactSha256,
-        config,
-      })
-      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.1.0")
+      let installed: Awaited<ReturnType<typeof Marketplace.installZip>> | undefined
+      let installError: unknown
+      for (let attempt = 0; attempt < 3 && !installed; attempt += 1) {
+        try {
+          installed = await Marketplace.installZip({
+            name: "com.novaway.marketplace-capability-smoke",
+            version: "0.2.2",
+            url: artifactUrl,
+            sha256: artifactSha256,
+            config,
+            signal: AbortSignal.timeout(60_000),
+          })
+        } catch (error) {
+          installError = error
+          await Bun.sleep(1_000 * (attempt + 1))
+        }
+      }
+      if (!installed) throw installError
+      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.2.2")
       const packageRoot = installed.root
 
       const discovered = await PluginHost.inspect({
@@ -123,6 +170,10 @@ describe("public marketplace capability consumer", () => {
         skills: createSkillRegistry(),
         commands: createCommandRegistry(),
         interceptors: createInterceptorRuntime(),
+        providers: createProviderRegistry(),
+        office: createOfficeRegistry(),
+        previewers: createPreviewerRegistry(),
+        surfaces: createSurfaceRegistry(),
       }
       const host = createHost(registries)
       try {
@@ -145,6 +196,20 @@ describe("public marketplace capability consumer", () => {
           "marketplace-capability-smoke_capability-plan",
         ])
         expect(registries.commands.list()[0]?.item.template).toContain("$ARGUMENTS")
+        expect(registries.providers?.list().map((entry) => entry.id)).toEqual(["capability-provider"])
+        expect(registries.office?.list().map((entry) => entry.format)).toEqual(["novaway-capability"])
+        expect(registries.surfaces?.list().map((entry) => ("name" in entry ? entry.name : entry.id))).toEqual([
+          "marketplace-capability-smoke_capability-home",
+        ])
+        expect(registries.previewers?.list().map((entry) => entry.name)).toEqual([
+          "marketplace-capability-smoke_capability-preview",
+        ])
+        expect(registries.interceptors.chain("chat.params")).toEqual([
+          { pluginID: "marketplace-capability-smoke", name: "marketplace-capability-smoke_capability-trace" },
+        ])
+        const params = {} as Record<string, unknown>
+        await registries.interceptors.trigger("chat.params", params, params)
+        expect(params.marketplaceCapabilitySmoke).toBe(true)
 
         const tool = registries.tools.list().find((entry) => entry.name === "marketplace-capability-smoke_capability-echo")
         expect(tool).toBeDefined()
@@ -160,6 +225,11 @@ describe("public marketplace capability consumer", () => {
       expect(registries.skills.list()).toEqual([])
       expect(registries.tools.list()).toEqual([])
       expect(registries.commands.list()).toEqual([])
+      expect(registries.providers?.list()).toEqual([])
+      expect(registries.office?.list()).toEqual([])
+      expect(registries.surfaces?.list()).toEqual([])
+      expect(registries.previewers?.list()).toEqual([])
+      expect(registries.interceptors.list()).toEqual([])
     },
     120_000,
   )

@@ -5,6 +5,10 @@ import type {
   Manifest,
   McpServerContribution,
   PluginCapabilities,
+  PreviewContribution,
+  SurfaceAction,
+  SurfaceContribution,
+  ViewRender,
   PluginKind,
   ToolDeclaration,
 } from "@novaway/plugin-api"
@@ -231,6 +235,8 @@ function parseLegacy(raw: Record<string, unknown>, source: "extension" | "claude
   if (typeof engines?.novaway === "string") manifest.engines = { novaway: engines.novaway }
   const dependencies = isRecord(raw.dependencies) ? raw.dependencies : undefined
   if (dependencies) manifest.dependencies = toStringRecord(dependencies, issues, "dependencies")
+  const conflicts = strings(raw.conflicts)
+  if (conflicts !== undefined) manifest.conflicts = conflicts
   if (capabilities !== undefined) manifest.capabilities = capabilities
   if (keywords !== undefined && keywords.length > 0) manifest.categories = keywords
   if (typeof raw.license === "string") manifest.license = raw.license
@@ -359,6 +365,166 @@ function readKind(raw: Record<string, unknown>, issues: Issue[]): PluginKind | u
   return undefined
 }
 
+const SURFACE_SLOTS = new Set([
+  "sidebar.item",
+  "sidebar.footer",
+  "settings.section",
+  "session.panel",
+  "message.part.renderer",
+  "composer.action",
+  "statusbar.item",
+  "home.card",
+  "notification.item",
+])
+
+function webUrl(value: unknown) {
+  if (typeof value !== "string") return undefined
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function renderDeclaration(value: unknown, issues: Issue[], field: string): ViewRender | undefined {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    issues.push(error("contribution_incomplete", `${field} 必须声明 type 和 render 配置`, field))
+    return undefined
+  }
+  if (value.type === "builtin" && typeof value.component === "string" && value.component.length > 0) {
+    return { type: "builtin", component: value.component }
+  }
+  if (value.type === "iframe") {
+    const url = webUrl(value.url)
+    if (url !== undefined) return { type: "iframe", url }
+    issues.push(error("contribution_incomplete", `${field}.url 只允许 http(s) URL`, `${field}.url`))
+    return undefined
+  }
+  issues.push(error("contribution_incomplete", `${field}.type 只能是 builtin 或 iframe`, `${field}.type`))
+  return undefined
+}
+
+function actionDeclaration(value: unknown, issues: Issue[], field: string): SurfaceAction | undefined {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    issues.push(error("contribution_incomplete", `${field} 必须声明 type`, field))
+    return undefined
+  }
+  if (value.type === "view" && typeof value.viewId === "string" && value.viewId.length > 0) {
+    const render = value.render === undefined ? undefined : renderDeclaration(value.render, issues, `${field}.render`)
+    if (value.render !== undefined && render === undefined) return undefined
+    return { type: "view", viewId: value.viewId, ...(render === undefined ? {} : { render }) }
+  }
+  if (value.type === "command" && typeof value.command === "string" && value.command.length > 0) {
+    if (/^(settings|session|plugin)\./.test(value.command)) {
+      issues.push(
+        error("contribution_incomplete", `${field}.command 不能引用宿主命令：${value.command}`, `${field}.command`),
+      )
+      return undefined
+    }
+    return { type: "command", command: value.command }
+  }
+  if (value.type === "url") {
+    const url = webUrl(value.url)
+    if (url !== undefined) return { type: "url", url }
+  }
+  issues.push(error("contribution_incomplete", `${field} 不是合法的 view、command 或 http(s) url action`, field))
+  return undefined
+}
+
+function surfaceDeclaration(value: unknown, issues: Issue[], index: number): SurfaceContribution[] {
+  const field = `surfaces[${index}]`
+  if (!isRecord(value)) {
+    issues.push(error("contribution_incomplete", `${field} 必须是对象`, field))
+    return []
+  }
+  const slot = value.slot
+  const id = typeof value.id === "string" && value.id.length > 0 ? value.id : undefined
+  if (typeof slot !== "string" || !SURFACE_SLOTS.has(slot)) {
+    issues.push(error("contribution_incomplete", `${field}.slot 不是受支持的 Surface slot`, `${field}.slot`))
+    return []
+  }
+  if (id === undefined) {
+    issues.push(error("contribution_incomplete", `${field}.id 缺失`, `${field}.id`))
+    return []
+  }
+  if (value.order !== undefined && (typeof value.order !== "number" || !Number.isFinite(value.order))) {
+    issues.push(error("contribution_incomplete", `${field}.order 必须是有限数字`, `${field}.order`))
+    return []
+  }
+  if (slot === "message.part.renderer") {
+    const match = isRecord(value.match) ? value.match : undefined
+    const renderer = isRecord(value.renderer) ? value.renderer : undefined
+    if (!match || (!("tool" in match) && !("partType" in match)) || !renderer) {
+      issues.push(error("contribution_incomplete", `${field} 必须同时声明 match 与 renderer`, field))
+      return []
+    }
+    if (renderer.type === "iframe") {
+      const parsed = renderDeclaration(renderer, issues, `${field}.renderer`)
+      if (parsed?.type !== "iframe") return []
+    } else if (renderer.type !== "builtin" || typeof renderer.id !== "string" || renderer.id.length === 0) {
+      issues.push(error("contribution_incomplete", `${field}.renderer 不是合法 renderer`, `${field}.renderer`))
+      return []
+    }
+    return [value as SurfaceContribution]
+  }
+  if (slot === "settings.section") {
+    if (typeof value.title !== "string" || !isRecord(value.view)) {
+      issues.push(error("contribution_incomplete", `${field} 必须声明 title 与 view`, field))
+      return []
+    }
+    const view = value.view
+    if (view.type === "declarative" && Array.isArray(view.fields)) return [value as SurfaceContribution]
+    if (view.type === "iframe" || view.type === "view") {
+      if (view.type === "view" && (typeof view.viewId !== "string" || view.viewId.length === 0)) {
+        issues.push(error("contribution_incomplete", `${field}.view.viewId 缺失`, `${field}.view.viewId`))
+        return []
+      }
+      if (view.type === "iframe" && renderDeclaration(view, issues, `${field}.view`) === undefined) return []
+      if (
+        view.type === "view" &&
+        view.render !== undefined &&
+        renderDeclaration(view.render, issues, `${field}.view.render`) === undefined
+      )
+        return []
+      return [value as SurfaceContribution]
+    }
+    issues.push(error("contribution_incomplete", `${field}.view 不是合法 view`, `${field}.view`))
+    return []
+  }
+  if (typeof value.title !== "string") {
+    issues.push(error("contribution_incomplete", `${field}.title 缺失`, `${field}.title`))
+    return []
+  }
+  const action = actionDeclaration(value.action, issues, `${field}.action`)
+  if (action === undefined) return []
+  return [value as SurfaceContribution]
+}
+
+function previewerDeclaration(value: unknown, issues: Issue[], index: number): PreviewContribution[] {
+  const field = `previewers[${index}]`
+  if (!isRecord(value) || typeof value.id !== "string" || value.id.length === 0 || !isRecord(value.match)) {
+    issues.push(error("contribution_incomplete", `${field} 必须声明 id 与 match`, field))
+    return []
+  }
+  const render = value.render === undefined ? undefined : renderDeclaration(value.render, issues, `${field}.render`)
+  if (value.render !== undefined && render === undefined) return []
+  const viewId = typeof value.viewId === "string" && value.viewId.length > 0 ? value.viewId : undefined
+  if (viewId === undefined && render === undefined) {
+    issues.push(error("contribution_incomplete", `${field} 必须声明 viewId 或 render`, field))
+    return []
+  }
+  if (value.priority !== undefined && (typeof value.priority !== "number" || !Number.isFinite(value.priority))) {
+    issues.push(error("contribution_incomplete", `${field}.priority 必须是有限数字`, `${field}.priority`))
+    return []
+  }
+  if (value.order !== undefined && (typeof value.order !== "number" || !Number.isFinite(value.order))) {
+    issues.push(error("contribution_incomplete", `${field}.order 必须是有限数字`, `${field}.order`))
+    return []
+  }
+  return [value as PreviewContribution]
+}
+
 function readContributes(raw: Record<string, unknown>, issues: Issue[], pluginName: string): Contributes {
   const value = isRecord(raw.contributes) ? raw.contributes : {}
   if (raw.contributes !== undefined && !isRecord(raw.contributes)) {
@@ -428,11 +594,23 @@ function readContributes(raw: Record<string, unknown>, issues: Issue[], pluginNa
       )
     }
   }
+  if (value.surfaces !== undefined) {
+    if (!Array.isArray(value.surfaces)) {
+      issues.push(warning("unmapped_field", "contributes.surfaces 不是数组，已忽略", "surfaces"))
+    } else {
+      out.surfaces = value.surfaces.flatMap((item, index) => surfaceDeclaration(item, issues, index))
+    }
+  }
+  if (value.previewers !== undefined) {
+    if (!Array.isArray(value.previewers)) {
+      issues.push(warning("unmapped_field", "contributes.previewers 不是数组，已忽略", "previewers"))
+    } else {
+      out.previewers = value.previewers.flatMap((item, index) => previewerDeclaration(item, issues, index))
+    }
+  }
   const listKeys = [
     "providers",
     "publishDrivers",
-    "surfaces",
-    "previewers",
     "httpRoutes",
     "officeEngines",
     "triggers",
@@ -441,6 +619,14 @@ function readContributes(raw: Record<string, unknown>, issues: Issue[], pluginNa
     "workerTypes",
     "watchdogPolicies",
     "channels",
+    "agentRuntimes",
+    "superAgentStrategies",
+    "taskKinds",
+    "verifiers",
+    "repairStrategies",
+    "agentTemplates",
+    "superAgentPolicies",
+    "superAgentSurfaces",
   ] as const
   for (const key of listKeys) {
     const declared = value[key]
@@ -594,7 +780,7 @@ function readCapabilities(value: unknown, issues: Issue[]) {
       }
     }
   }
-  for (const key of ["network", "secrets", "tools", "ui"] as const) {
+  for (const key of ["network", "secrets", "tools", "providers", "ui"] as const) {
     const list = strings(value[key])
     if (list !== undefined) out[key] = list
     else if (value[key] !== undefined)
@@ -606,7 +792,7 @@ function readCapabilities(value: unknown, issues: Issue[]) {
   const process = strings(value.process)
   if (process !== undefined) out.process = process.filter((item) => item === "spawn")
   for (const key of Object.keys(value)) {
-    if (["fs", "network", "secrets", "tools", "ui", "shell", "process"].includes(key)) continue
+    if (["fs", "network", "secrets", "tools", "providers", "ui", "shell", "process"].includes(key)) continue
     issues.push(warning("capability_unknown", `capabilities.${key} 不是已知权限，已丢弃`, `capabilities.${key}`))
   }
   return out

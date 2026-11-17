@@ -25,6 +25,7 @@ import type {
 } from "@novaway/plugin-api"
 import { pluginError } from "@novaway/plugin-api"
 import type { ContributionRegistry, Entry, Source } from "../contributions/registry"
+import type { SuperAgentContributionRegistries } from "@/super-agent/plugin-contributions"
 import { PluginStorage } from "../storage"
 import { checkTool, createFiles, createHttp, createSecrets, type Roots } from "./capabilities"
 import type { InterceptorRuntime } from "./hooks"
@@ -46,6 +47,8 @@ import type { Stack } from "./disposable"
  */
 
 /** M0 落地的五个注册表：四个贡献点（§14.3 第 5 步）+ 拦截器运行时（第 6 步）。 */
+export type SurfaceRegistry = Registry<SurfaceContribution> | ContributionRegistry<SurfaceContribution>
+
 export type Registries = {
   tools: ContributionRegistry<ToolContribution>
   agents: ContributionRegistry<AgentContribution>
@@ -57,7 +60,7 @@ export type Registries = {
   office?: Registry<OfficeEngineContribution>
   previewers?: ContributionRegistry<PreviewContribution>
   publish?: Registry<PublishDriverContribution>
-  surfaces?: Registry<SurfaceContribution>
+  surfaces?: SurfaceRegistry
   schedulers?: Registry<SchedulerContribution>
   eventSources?: Registry<EventSourceContribution>
 }
@@ -71,9 +74,10 @@ export type LaterRegistries = {
   office?: Registry<OfficeEngineContribution>
   previewers?: ContributionRegistry<PreviewContribution>
   publish?: Registry<PublishDriverContribution>
-  surfaces?: Registry<SurfaceContribution>
+  surfaces?: SurfaceRegistry
   schedulers?: Registry<SchedulerContribution>
   eventSources?: Registry<EventSourceContribution>
+  superAgent?: SuperAgentContributionRegistries
 }
 
 /** 第一方专属的宿主能力；第三方 ctx 根本不读它。 */
@@ -133,7 +137,14 @@ export function createKernelApi(input: KernelInput): KernelApi {
       later.publish ?? locked<PublishDriverContribution>("publish", input.pluginID, LATER, undefined),
       input,
     ),
-    surfaces: own(later.surfaces ?? locked<SurfaceContribution>("surfaces", input.pluginID, LATER, undefined), input),
+    surfaces: own(
+      later.surfaces
+        ? isContributionRegistry(later.surfaces)
+          ? contributionRegistryView(later.surfaces, input)
+          : later.surfaces
+        : locked<SurfaceContribution>("surfaces", input.pluginID, LATER, undefined),
+      input,
+    ),
     schedulers: own(
       later.schedulers ?? locked<SchedulerContribution>("schedulers", input.pluginID, LATER, undefined),
       input,
@@ -206,8 +217,17 @@ export function createPluginContext(input: Input): PluginContext {
       ...common(input),
       scope,
       // §5.3：读取可用（能列出内置提供了哪些 provider），写入抛错。
-      providers: locked("providers", input.pluginID, BUILTIN_ONLY, input.registries.providers),
-      surfaces: locked("surfaces", input.pluginID, BUILTIN_ONLY, input.registries.surfaces),
+      providers: providerRegistry(input),
+      surfaces: locked(
+        "surfaces",
+        input.pluginID,
+        BUILTIN_ONLY,
+        input.registries.surfaces
+          ? isContributionRegistry(input.registries.surfaces)
+            ? contributionRegistryView(input.registries.surfaces, input)
+            : input.registries.surfaces
+          : undefined,
+      ),
     },
     input.pluginID,
   )
@@ -249,6 +269,42 @@ function own<T>(registry: Registry<T>, input: Input): Registry<T> {
     resolve: (id) => registry.resolve(id),
     list: () => registry.list(),
     onDidChange: (fn) => track(() => registry.onDidChange(fn)),
+  }
+}
+
+function isContributionRegistry(registry: SurfaceRegistry): registry is ContributionRegistry<SurfaceContribution> {
+  return "kind" in registry
+}
+
+function contributionRegistryView<T extends { id: string }>(
+  registry: ContributionRegistry<T>,
+  input: Input,
+): Registry<T> {
+  const source: Source = {
+    pluginID: input.pluginID,
+    scope: input.scope,
+    ownerID: input.ownerID,
+    priority: input.manifest.priority,
+    installOrder: input.installOrder,
+    overrides: input.manifest.overrides,
+  }
+  return {
+    register(item) {
+      input.signal.throwIfAborted()
+      const disposable = registry.register(source, item)
+      return input.resources?.push(disposable) ?? disposable
+    },
+    resolve(id) {
+      return registry.resolve(id)?.item
+    },
+    list() {
+      return registry.list().map((entry) => entry.item)
+    },
+    onDidChange(fn) {
+      input.signal.throwIfAborted()
+      const disposable = registry.onDidChange(fn)
+      return input.resources?.push(disposable) ?? disposable
+    },
   }
 }
 
@@ -311,6 +367,31 @@ function bind<T extends { id: string }>(registry: Bindable<T>, source: Source, i
  */
 function named<T extends { id: string }>(entry: Entry<T>): T {
   return { ...entry.item, id: entry.name }
+}
+
+function providerRegistry(input: Input): Registry<ProviderAdapter> | RestrictedRegistry<ProviderAdapter> {
+  const registry = input.registries.providers
+  const allowed = new Set(input.manifest.capabilities?.providers ?? [])
+  if (!registry || allowed.size === 0) return locked("providers", input.pluginID, BUILTIN_ONLY, registry)
+  const track = (create: () => Disposable) => {
+    input.signal.throwIfAborted()
+    const disposable = create()
+    return input.resources?.push(disposable) ?? disposable
+  }
+  return {
+    register(item) {
+      if (!allowed.has("*") && !allowed.has(item.id)) {
+        throw pluginError("capability_denied", `providers：未声明 provider ${item.id}`, {
+          pluginID: input.pluginID,
+          contributionID: item.id,
+        })
+      }
+      return track(() => registry.register(item))
+    },
+    resolve: (id) => registry.resolve(id),
+    list: () => registry.list(),
+    onDidChange: (fn) => track(() => registry.onDidChange(fn)),
+  }
 }
 
 /** 只读注册表：`register` 抛 `capability_denied`，读取转发给底层（没有底层就是空集）。 */

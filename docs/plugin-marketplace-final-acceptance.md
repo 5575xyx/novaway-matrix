@@ -1,13 +1,13 @@
 # NovaWay Plugin Marketplace Acceptance Report
 
-Date: 2026-11-16
+Date: 2026-11-17
 Repository: https://github.com/NovaWay-AI/novaway-plugins
-Commit: `f97c621` (`xiaoming <626@example.com>`)
-Releases: `com.novaway.marketplace-smoke-v0.1.0`, `com.novaway.marketplace-smoke-v0.1.1`, `com.novaway.marketplace-capability-smoke-v0.1.0`
+Commit: `working tree after local expanded-capability acceptance` (`xiaoming <626@example.com>`)
+Releases: `com.novaway.marketplace-smoke-v0.1.0`, `com.novaway.marketplace-smoke-v0.1.1`, `com.novaway.marketplace-capability-smoke-v0.1.0`, `com.novaway.marketplace-capability-smoke-v0.2.2`
 
 ## Result
 
-The plugin marketplace implementation and all acceptance gates defined by `docs/plugin-marketplace-long-term-roadmap.md` pass. The public catalog, immutable Release lifecycle, v2 Plugin Host activation, real consumers, shared Web/Desktop/TUI/CLI operation state, security corpus, fresh-process public-artifact evidence, complete controlled Chromium UI matrix, and clean SDK regeneration/relink gate all pass locally and in external remote CI. The roadmap is **fully accepted** for the documented scope.
+The core marketplace lifecycle and the expanded local public-artifact capability gate pass. The v0.2.2 artifact is downloadable, its catalog digest matches, and a real NovaWay install/discovery/activation test consumes Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface and Previewer contributions and verifies cleanup. This report does **not** mark the expanded capability release stable: the official v0.2.2 publish workflow is currently failed, and additional contribution types such as Super-Agent still require independent public artifacts and consumer evidence.
 
 ## Public release evidence
 
@@ -17,8 +17,8 @@ The plugin marketplace implementation and all acceptance gates defined by `docs/
 - Release 0.1.1 size: `1878` bytes
 - Release 0.1.1 SHA-256: `b003d4f13d09048d37b3460ceb91531fffbc06ae2023b8bc696924919e66c547`
 - Release 0.1.0 remains available for downgrade/rollback testing.
-- Capability Release: `https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.1.0`.
-- Capability artifact: `3409` bytes, SHA-256 `1cd7fe9fcaab1764bd8983f6f1b5894adcd9f326d30f5f0888dc9d55497c9967`.
+- Capability Release v0.2.2: `https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.2.2`.
+- Capability v0.2.2 artifact: `5389` bytes, SHA-256 `ab46555e6a7eddf731054a594c97b145b8afbf65f49ea1f7f779b408afcbfc4f`.
 
 ## Passed evidence
 
@@ -36,11 +36,11 @@ The plugin marketplace implementation and all acceptance gates defined by `docs/
 - Durable HTTP lifecycle operations now expose a shared multidimensional state matrix: installation status, activation status, consumer status, cleanup status, `requiresRestart`, phase, progress, error code, recovery hint, and one durable operation ID.
 - The Web/Desktop shared marketplace UI polls and renders operation history; the TUI exposes the same history through `/marketplace`; the CLI exposes `novaway marketplace operations --json`. All three use the generated operation-history API rather than local lifecycle state.
 - Marketplace v2 activation accepts Claude/NovaWay directory Skill declarations such as `contributes.skills: ["./skills"]`, safely expands `SKILL.md` files, and is covered by the immutable public Release test.
-- The official capability fixture covers the complete public artifact path for Agent, Skill, Tool and Command contributions, including Agent prompt-file loading, executable Tool entry import/execution, consumer registry visibility, and deactivation cleanup.
+- Local public expanded capability acceptance: `1 pass`, `0 fail`, `30 expect() calls`; the test downloads the immutable v0.2.2 artifact, verifies catalog metadata and digest, installs it through `Marketplace.installZip`, discovers/activates it with Plugin Host v2, consumes all nine published fixture contribution types, and verifies deactivation cleanup.
 - Artifact security tests cover HTTPS/private-DNS checks, bounded manual redirects, final response-host validation, decompressed-byte limits, central-directory duplicate-entry rejection, unsupported POSIX node types, independent duplicate-content extraction (no hardlinks), path traversal, and ZIP symlink rejection.
 - The immutable public Release cold-start test downloads Release `com.novaway.marketplace-smoke-v0.1.1`, verifies size `1878` and SHA-256 `b003d4f13d09048d37b3460ceb91531fffbc06ae2023b8bc696924919e66c547`, installs it into an isolated XDG marketplace, starts a fresh NovaWay process, discovers and enables `marketplace-smoke`, and consumes its real Skill: `1 pass`, `12 expect() calls`.
 - The immutable public Release cold-start evidence is recorded in `docs/plugin-marketplace-public-cold-start-evidence-2026-11-16.json`.
-- The immutable capability Release evidence is recorded in `docs/plugin-marketplace-capability-evidence-2026-11-16.json`; it installs the public artifact through `Marketplace.installZip`, discovers and activates the v2 plugin, consumes its Agent, Skill, Tool and Command, and verifies lifecycle release.
+- The expanded immutable capability evidence is recorded in `docs/plugin-marketplace-capability-evidence-2026-11-16.json`; it covers v0.2.2 Agent, Skill, Tool, Command, Interceptor, Provider, Office, Surface and Previewer registration, real Tool/interceptor execution, and lifecycle release. The evidence records the official v0.2.2 publish workflow as failed, so it is not a stable-release claim.
 
 ## Acceptance gates closed
 
@@ -53,4 +53,7 @@ The plugin marketplace implementation and all acceptance gates defined by `docs/
 
 ## Remaining acceptance gates
 
-The documented Agent, Skill, Tool and Command marketplace capability gate is closed by the public capability fixture. Future contribution types, archive formats, signing, mirrors, or frontend-specific workflows still require their own consumer and regression evidence.
+- Repair and rerun the official `Publish capability smoke plugin` workflow for v0.2.2; run `43926294965` on commit `370d7060c31c4baf83c12e63b5b0e9bdae691405` concluded `failure`.
+- Publish stable evidence only after the remote workflow verifies the immutable v0.2.2 asset and catalog digest.
+- Add an official artifact, real consumer, activation/disable/cleanup and cold-start evidence for Super-Agent and every other contribution type that the marketplace advertises as publishable.
+- Future archive formats, signing, mirrors, or frontend-specific workflows still require their own consumer and regression evidence.

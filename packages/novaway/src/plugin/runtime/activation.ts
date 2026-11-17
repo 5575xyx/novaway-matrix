@@ -6,6 +6,7 @@ import type {
   Manifest,
   OfficeEngineContribution,
   OfficeEngineDeclaration,
+  InterceptorRegistration,
   PreviewContribution,
   PluginActivation,
   PluginContext,
@@ -47,6 +48,7 @@ export function createDiscoveredPlugin(input: {
         "agents",
         "skills",
         "commands",
+        "interceptors",
         "providers",
         "officeEngines",
         "publishDrivers",
@@ -181,6 +183,16 @@ export function createDiscoveredPlugin(input: {
         return
       }
       const context = createPluginContext({ ...activationInput, registries, signal, resources })
+      if (typeof instance.manifest.contributes.interceptors === "string") {
+        for (const interceptor of await loadInterceptorEntries({
+          root,
+          declaration: instance.manifest.contributes.interceptors,
+          pluginID: instance.id,
+          context,
+        })) {
+          context.interceptors.register(interceptor)
+        }
+      }
       const marketplaceOffice =
         instance.location.kind === "directory" &&
         instance.location.label === "plugin" &&
@@ -539,6 +551,48 @@ export async function loadProviderEntries(input: {
     providers.push(candidate as ProviderAdapter)
   }
   return providers
+}
+
+async function loadInterceptorEntries(input: {
+  root: string
+  declaration: string
+  pluginID: string
+  context: PluginContext
+}): Promise<InterceptorRegistration[]> {
+  const realRoot = await fs.realpath(input.root)
+  const requested = path.resolve(realRoot, input.declaration)
+  const resolved = await fs.realpath(requested)
+  const relative = path.relative(realRoot, resolved)
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw pluginError("capability_denied", `Interceptor entry 路径越界：${input.declaration}`, {
+      pluginID: input.pluginID,
+      contributionID: input.declaration,
+    })
+  }
+  const module = await import(pathToFileURL(resolved).href)
+  const exported = module.default ?? module.interceptors
+  const value =
+    typeof exported === "function"
+      ? await exported(input.context)
+      : exported
+  if (value === undefined) return []
+  const entries = Array.isArray(value) ? value : [value]
+  return entries.map((entry) => {
+    if (
+      entry === null ||
+      typeof entry !== "object" ||
+      typeof entry.id !== "string" ||
+      entry.id.length === 0 ||
+      typeof entry.hook !== "string" ||
+      typeof entry.handler !== "function"
+    ) {
+      throw pluginError("contribution_invalid", `Interceptor entry 必须导出 id、hook 和 handler：${input.declaration}`, {
+        pluginID: input.pluginID,
+        contributionID: input.declaration,
+      })
+    }
+    return entry as InterceptorRegistration
+  })
 }
 
 async function loadSkillEntries(input: {
