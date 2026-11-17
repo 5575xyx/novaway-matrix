@@ -8,9 +8,9 @@
   "expectations": 30,
   "catalog": "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
   "packageId": "com.novaway.marketplace-capability-smoke",
-  "version": "0.2.2",
-  "stable": false,
-  "note": "Local public-artifact acceptance passed for all published fixture contributions in this test, but the official v0.2.2 publish workflow is recorded separately as failed; this is not a stable-release claim.",
+  "version": "0.2.3",
+  "stable": true,
+  "note": "The official v0.2.3 publish workflow completed successfully and verified the immutable artifact against the catalog.",
   "capabilities": [
     "agents",
     "skills",
@@ -22,18 +22,18 @@
     "surfaces",
     "previewers"
   ],
-  "release": "https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.2.2",
+  "release": "https://github.com/NovaWay-AI/novaway-plugins/releases/tag/com.novaway.marketplace-capability-smoke-v0.2.3",
   "artifact": {
-    "url": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.2/com.novaway.marketplace-capability-smoke-0.2.2.zip",
+    "url": "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.3/com.novaway.marketplace-capability-smoke-0.2.3.zip",
     "size": 5389,
-    "sha256": "ab46555e6a7eddf731054a594c97b145b8afbf65f49ea1f7f779b408afcbfc4f"
+    "sha256": "47d398295a91d2e7f25ceafd8072f4eda829ee24e353451125b7ddc99e0a3093"
   },
   "workflow": {
     "name": "Publish capability smoke plugin",
-    "runId": 43926294965,
-    "conclusion": "failure",
-    "commit": "370d7060c31c4baf83c12e63b5b0e9bdae691405",
-    "url": "https://github.com/NovaWay-AI/novaway-plugins/actions/runs/43926294965"
+    "runId": 43992163638,
+    "conclusion": "success",
+    "commit": "277ea8d",
+    "url": "https://github.com/NovaWay-AI/novaway-plugins/actions/runs/43992163638"
   },
   "gates": [
     "public catalog exposes all nine published fixture capabilities",

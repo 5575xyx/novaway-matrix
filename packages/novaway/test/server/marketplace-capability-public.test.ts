@@ -24,8 +24,8 @@ const enabled = process.env.NOVAWAY_PUBLIC_MARKETPLACE_E2E === "1"
 const run = enabled ? test : test.skip
 const catalogUrl = "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json"
 const artifactUrl =
-  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.2/com.novaway.marketplace-capability-smoke-0.2.2.zip"
-const artifactSha256 = "ab46555e6a7eddf731054a594c97b145b8afbf65f49ea1f7f779b408afcbfc4f"
+  "https://github.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.marketplace-capability-smoke-v0.2.3/com.novaway.marketplace-capability-smoke-0.2.3.zip"
+const artifactSha256 = "47d398295a91d2e7f25ceafd8072f4eda829ee24e353451125b7ddc99e0a3093"
 const artifactSize = 5389
 
 let base = ""
@@ -94,7 +94,7 @@ describe("public marketplace capability consumer", () => {
   })
 
   run(
-    "installs the immutable public artifact and consumes Agent, Skill, Tool and Command",
+    "installs the immutable public artifact and consumes all published capability contributions",
     async () => {
       base = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-marketplace-capability-"))
       const config = path.join(base, "config")
@@ -106,10 +106,10 @@ describe("public marketplace capability consumer", () => {
 
       const catalogEntries = ExtensionCatalog.parseNovaWay(JSON.parse(await downloadPublicText(catalogUrl)))
       const catalogEntry = catalogEntries.find(
-        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.2.2",
+        (entry) => entry.packageId === "com.novaway.marketplace-capability-smoke" && entry.version === "0.2.3",
       )
       expect(catalogEntry).toMatchObject({
-        version: "0.2.2",
+        version: "0.2.3",
         capabilities: [
           "agents",
           "skills",
@@ -135,7 +135,7 @@ describe("public marketplace capability consumer", () => {
         try {
           installed = await Marketplace.installZip({
             name: "com.novaway.marketplace-capability-smoke",
-            version: "0.2.2",
+            version: "0.2.3",
             url: artifactUrl,
             sha256: artifactSha256,
             config,
@@ -147,7 +147,7 @@ describe("public marketplace capability consumer", () => {
         }
       }
       if (!installed) throw installError
-      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.2.2")
+      expect(installed.root).toContain("com.novaway.marketplace-capability-smoke@0.2.3")
       const packageRoot = installed.root
 
       const discovered = await PluginHost.inspect({
