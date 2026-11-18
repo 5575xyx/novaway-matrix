@@ -7,6 +7,8 @@ export type NovaWayEntry = {
   name: string
   displayName?: string
   displayNameI18n?: Record<string, string>
+  icon?: string
+  screenshots?: string[]
   version: string
   description?: string
   longDescription?: string
@@ -35,9 +37,9 @@ export type NovaWayEntry = {
   }
 }
 
-export const NOVAWAY_MARKETPLACE_REPOSITORY = "https://github.com/NovaWay-AI/novaway-plugins"
+export const NOVAWAY_MARKETPLACE_REPOSITORY = "https://gitee.com/NovaWay-AI/novaway-plugins"
 export const NOVAWAY_MARKETPLACE_URLS = [
-  "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
+  "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/catalog/index.json",
 ] as const
 
 /**
@@ -91,6 +93,8 @@ export function parseNovaWay(value: unknown): NovaWayEntry[] {
       name,
       ...(text(raw.displayName) ? { displayName: text(raw.displayName) } : {}),
       ...(stringRecord(raw.displayNameI18n) ? { displayNameI18n: stringRecord(raw.displayNameI18n) } : {}),
+      ...(remoteAsset(raw.icon) ? { icon: remoteAsset(raw.icon) } : {}),
+      ...(remoteAssets(raw.screenshots).length > 0 ? { screenshots: remoteAssets(raw.screenshots) } : {}),
       version,
       url: artifact.url as string,
       sha256: (artifact.sha256 as string).toLowerCase(),
@@ -178,6 +182,21 @@ export const CLAUDE_MARKETPLACE_REPO = "https://github.com/anthropics/claude-plu
 
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined)
 
+/** Only remote HTTPS assets may cross from a catalog into the UI. */
+function remoteAsset(value: unknown): string | undefined {
+  const candidate = text(value)
+  if (!candidate) return undefined
+  try {
+    return new URL(candidate).protocol === "https:" ? candidate : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function remoteAssets(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(remoteAsset).filter((item): item is string => Boolean(item)) : []
+}
+
 function i18n(value: unknown) {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined
 }
@@ -206,12 +225,37 @@ export function parseZcode(value: unknown): ZipEntry[] {
     const descriptions = i18n(raw.description_i18n)
     const author =
       typeof raw.author === "object" && raw.author !== null ? (raw.author as Record<string, unknown>) : undefined
+    const categories = strings(raw.category ? [raw.category] : raw.categories)
+    const componentTypes = uniqueStrings(
+      strings(raw.componentTypes).map((value) => {
+        const normalized = value.toLowerCase()
+        return (
+          {
+            skill: "skills",
+            agent: "agents",
+            command: "commands",
+            tool: "tools",
+            connector: "mcp",
+            surface: "theme",
+            previewer: "theme",
+            ui: "theme",
+          }[normalized] ?? value
+        )
+      }),
+    )
     result.push({
       name,
+      ...(text(raw.displayName) ? { displayName: text(raw.displayName) } : {}),
+      ...(stringRecord(names) ? { displayNameI18n: stringRecord(names) } : {}),
       version: text(raw.version) ?? "0.0.0",
       description:
         text(descriptions?.["zh-CN"]) ?? text(descriptions?.en) ?? text(raw.description) ?? text(raw.displayName) ?? "",
       url,
+      ...(text(author?.name) ? { author: text(author?.name) } : {}),
+      ...(remoteAsset(raw.icon) ? { icon: remoteAsset(raw.icon) } : {}),
+      ...(remoteAssets(raw.screenshots).length > 0 ? { screenshots: remoteAssets(raw.screenshots) } : {}),
+      ...(categories.length > 0 ? { categories } : {}),
+      ...(componentTypes.length > 0 ? { marketTypes: componentTypes } : {}),
       ...(text((source as Record<string, unknown>).sha256)
         ? { sha256: text((source as Record<string, unknown>).sha256) }
         : {}),
@@ -257,11 +301,21 @@ export function parseClaude(value: unknown): GitEntry[] {
     seen.add(name)
 
     const descriptions = i18n(raw.description_i18n)
+    const names = i18n(raw.displayName_i18n ?? raw.display_name_i18n)
+    const author =
+      typeof raw.author === "object" && raw.author !== null ? (raw.author as Record<string, unknown>) : undefined
+    const categories = strings(raw.category ? [raw.category] : raw.categories)
     result.push({
       name,
+      ...(text(raw.displayName) ? { displayName: text(raw.displayName) } : {}),
+      ...(stringRecord(names) ? { displayNameI18n: stringRecord(names) } : {}),
       ...(text(raw.version) ? { version: text(raw.version) } : {}),
       description: text(descriptions?.["zh-CN"]) ?? text(descriptions?.en) ?? text(raw.description) ?? "",
       url,
+      ...(text(author?.name) ? { author: text(author?.name) } : {}),
+      ...(remoteAsset(raw.icon) ? { icon: remoteAsset(raw.icon) } : {}),
+      ...(remoteAssets(raw.screenshots).length > 0 ? { screenshots: remoteAssets(raw.screenshots) } : {}),
+      ...(categories.length > 0 ? { categories } : {}),
       ...(ref ? { ref } : {}),
       ...(subdir ? { subdir } : {}),
     })

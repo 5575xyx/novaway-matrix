@@ -11,11 +11,15 @@ import { Command } from "@/command"
 import { Skill } from "@/skill"
 import { ProviderID, ModelID } from "@/provider/schema"
 import type * as Tool from "@/tool/tool"
+import JSZip from "jszip"
 import path from "path"
 import { pathToFileURL } from "node:url"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { PluginStorage } from "../../src/plugin/storage"
 import { Global } from "@novaway/core/global"
+import { digest, remove as removeMarketplace } from "../../src/extension/marketplace"
+import * as MarketplaceSources from "../../src/extension/sources"
+import * as MarketplaceOperations from "../../src/extension/operations"
 const PluginPaths = {
   list: "/plugin",
   contributions: "/plugin/contributions",
@@ -230,6 +234,366 @@ afterEach(async () => {
 })
 
 describe("plugin HttpApi", () => {
+  test("manages marketplace sources through the HTTP API", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: () => Response.json({ schemaVersion: 1, entries: [] }),
+    })
+    await using tmp = await tmpdir()
+    const url = `${server.url}catalog.json`
+    let sourceID: string | undefined
+    try {
+      const listed = await request("/extension/marketplace/sources", tmp.path)
+      expect(listed.status).toBe(200)
+      expect(await listed.json()).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: "novaway-official", trust: "official", builtin: true })]),
+      )
+
+      const added = await request("/extension/marketplace/sources", tmp.path, {
+        method: "POST",
+        body: JSON.stringify({ name: "HTTP Fixture", type: "auto", url }),
+      })
+      expect(added.status).toBe(200)
+      const created = await added.json()
+      sourceID = created.id
+      expect(created).toMatchObject({ name: "HTTP Fixture", type: "auto", trust: "unverified", enabled: true })
+
+      const disabled = await request(`/extension/marketplace/sources/${sourceID}`, tmp.path, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: false, name: "HTTP Fixture Updated" }),
+      })
+      expect(disabled.status).toBe(200)
+      expect(await disabled.json()).toMatchObject({ name: "HTTP Fixture Updated", enabled: false })
+
+      const enabled = await request(`/extension/marketplace/sources/${sourceID}`, tmp.path, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: true }),
+      })
+      expect(enabled.status).toBe(200)
+
+      const refreshed = await request(`/extension/marketplace/sources/${sourceID}/refresh`, tmp.path, {
+        method: "POST",
+      })
+      expect(refreshed.status).toBe(200)
+      expect(await refreshed.json()).toMatchObject({ id: sourceID, lastRefreshAt: expect.any(Number) })
+
+      const removed = await request(`/extension/marketplace/sources/${sourceID}`, tmp.path, {
+        method: "DELETE",
+      })
+      expect(removed.status).toBe(200)
+      expect(await removed.json()).toBe(true)
+      expect((await request(`/extension/marketplace/sources/${sourceID}`, tmp.path, { method: "DELETE" })).status).toBe(
+        404,
+      )
+      expect(
+        (
+          await request("/extension/marketplace/sources/novaway-official", tmp.path, {
+            method: "DELETE",
+          })
+        ).status,
+      ).toBe(400)
+    } finally {
+      if (sourceID) await MarketplaceSources.remove(sourceID).catch(() => undefined)
+      void server.stop(true)
+    }
+  })
+
+  test("installs and activates a v2 marketplace package when packageId differs from manifest name", async () => {
+    await using tmp = await tmpdir({ config: { mcp: disabledMcp } })
+    const packageId = "com.novaway.http-marketplace-smoke"
+    const pluginName = "http-marketplace-skill"
+    const zip = new JSZip()
+    zip.file(
+      "plugin.json",
+      JSON.stringify({
+        name: pluginName,
+        version: "0.1.0",
+        apiVersion: 2,
+        kind: "declarative",
+        capabilities: { ui: ["office-engine"] },
+        contributes: {
+          skills: [
+            {
+              id: "smoke",
+              description: "HTTP marketplace smoke skill",
+              source: { text: "Marketplace skill is active." },
+            },
+          ],
+          officeEngines: [
+            { format: "marketplace-text", kind: "plaintext", extensions: ["mkt"], entry: "office.mjs" },
+          ],
+        },
+      }),
+    )
+    zip.file(
+      "office.mjs",
+      `export default {
+        format: "marketplace-text",
+        async open(bytes) { return { ok: true, data: { text: new TextDecoder().decode(bytes) } } },
+        async apply(state, _ops, bytes) { return { ok: true, data: { state, bytes, changed: [], applied: [] } } },
+      }`,
+    )
+    let archive = Buffer.from(await zip.generateAsync({ type: "nodebuffer" }))
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      if (String(input).includes("gitee.com/NovaWay-AI/novaway-plugins/raw/main/catalog/index.json")) {
+        return new Response(
+          JSON.stringify({
+            schemaVersion: 1,
+            entries: [
+              {
+                packageId,
+                name: packageId,
+                version: "0.2.0",
+                runtimeTargets: ["novaway-v2"],
+                capabilities: ["skills"],
+                permissions: ["read_workspace", "write_workspace"],
+                artifacts: [
+                  {
+                    type: "github-release",
+                    url: "https://example.com/http-marketplace-smoke.zip",
+                    sha256: digest(archive),
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200 },
+        )
+      }
+      return new Response(new Uint8Array(archive), {
+        status: 200,
+        headers: { "content-length": String(archive.byteLength) },
+      })
+    }) as unknown as typeof fetch
+    const events = await request(PluginPaths.events, tmp.path)
+    expect(events.status).toBe(200)
+    if (!events.body) throw new Error("missing plugin event stream")
+    const eventReader = events.body.getReader()
+    let installedRoot: string | undefined
+    try {
+      const response = await request("/extension/marketplace/install", tmp.path, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "zip",
+          name: packageId,
+          url: "https://example.com/http-marketplace-smoke.zip",
+          version: "0.1.0",
+          sha256: digest(archive),
+          sourceId: "novaway-official",
+          permissions: ["read_workspace"],
+        }),
+      })
+      expect(response.status).toBe(200)
+      const installed = await response.json()
+      installedRoot = installed.root
+      expect(installed).toMatchObject({ name: packageId, version: "0.1.0" })
+      expect(await readEvent(eventReader)).toMatchObject({
+        type: "plugin.changed",
+        properties: { pluginID: packageId, enabled: true, generation: 1 },
+      })
+      expect(installed.operationId).toBeString()
+      const operation = await request(`/extension/marketplace/operations/${installed.operationId}`, tmp.path)
+      expect(operation.status).toBe(200)
+      expect(await operation.json()).toMatchObject({
+        operationId: installed.operationId,
+        operationType: "install",
+        phase: "completed",
+        progress: 100,
+        installationStatus: "installed",
+        activationStatus: "active",
+        consumerStatus: "usable",
+        cleanupStatus: "completed",
+        requiresRestart: false,
+      })
+      const operationHistory = await request("/extension/marketplace/operations", tmp.path)
+      expect(operationHistory.status).toBe(200)
+      expect(await operationHistory.json()).toContainEqual(expect.objectContaining({ operationId: installed.operationId }))
+      const preview = await request(`/extension/marketplace/${packageId}/update/preview`, tmp.path, { method: "POST" })
+      expect(preview.status).toBe(200)
+      expect(await preview.json()).toMatchObject({
+        currentVersion: "0.1.0",
+        targetVersion: "0.2.0",
+        sourceChanged: false,
+        permissionsAdded: ["write_workspace"],
+        permissionsRemoved: [],
+        requiresConfirmation: true,
+      })
+      const replay = await request(`/extension/marketplace/${packageId}/update`, tmp.path, { method: "POST" })
+      expect(replay.status).toBe(200)
+      expect((await replay.json()).operationId).toBeString()
+      expect(await readEvent(eventReader)).toMatchObject({
+        type: "plugin.changed",
+        properties: { pluginID: packageId, enabled: true, generation: 2 },
+      })
+
+      expect(PluginStorage.listForInstance(tmp.path)).toContainEqual(
+        expect.objectContaining({ plugin_id: pluginName, enabled: 1, status: "active" }),
+      )
+      const skill = (await runtimeSkills(tmp.path)).find((item) => item.name === `${pluginName}_smoke`)
+      expect(skill).toMatchObject({ content: "Marketplace skill is active." })
+      const skillTool = (await runtimeTools(tmp.path)).find((item) => item.id === "skill")
+      expect(skillTool).toBeDefined()
+      expect(
+        await inInstance(tmp.path, skillTool!.execute({ name: `${pluginName}_smoke` }, toolContext(tmp.path))),
+      ).toMatchObject({
+        output: expect.stringContaining("Marketplace skill is active."),
+      })
+
+      const office = (
+        (await runtimeHost(tmp.path) as { registries: { office?: { resolve: (id: string) => unknown } } }).registries.office?.resolve(
+          "marketplace-text",
+        ) as
+          | {
+              format: string
+              kind: string
+              extensions: string[]
+              engine: { open: (bytes: Uint8Array) => Promise<unknown> }
+            }
+          | undefined
+      )
+      expect(office).toMatchObject({ format: "marketplace-text", kind: "plaintext", extensions: ["mkt"] })
+      const opened = await office!.engine.open(new TextEncoder().encode("marketplace office"))
+      expect(opened).toMatchObject({ ok: true, data: { text: "marketplace office" } })
+
+      const newer = new JSZip()
+      newer.file(
+        "plugin.json",
+        JSON.stringify({
+          name: pluginName,
+          version: "0.2.0",
+          apiVersion: 2,
+          kind: "declarative",
+          contributes: {
+            skills: [{ id: "smoke", description: "HTTP marketplace smoke skill", source: { text: "Updated skill." } }],
+          },
+        }),
+      )
+      archive = Buffer.from(await newer.generateAsync({ type: "nodebuffer" }))
+      const update = await request("/extension/marketplace/install", tmp.path, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "zip",
+          name: packageId,
+          url: "https://example.com/http-marketplace-smoke.zip",
+          version: "0.2.0",
+          sha256: digest(archive),
+        }),
+      })
+      expect(update.status).toBe(200)
+      expect(await readEvent(eventReader)).toMatchObject({
+        type: "plugin.changed",
+        properties: { pluginID: packageId, enabled: true, generation: 3 },
+      })
+      const rollback = await request(`/extension/marketplace/${packageId}/rollback`, tmp.path, { method: "POST" })
+      expect(rollback.status).toBe(200)
+      expect(await rollback.json()).toMatchObject({
+        name: packageId,
+        version: "0.1.0",
+        operationId: expect.any(String),
+      })
+      expect(await readEvent(eventReader)).toMatchObject({
+        type: "plugin.changed",
+        properties: { pluginID: packageId, enabled: true, generation: 4 },
+      })
+
+      const disabled = await request(`/extension/${pluginName}`, tmp.path, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: false }),
+      })
+      expect(disabled.status).toBe(200)
+      const disabledBody = await disabled.json()
+      expect(disabledBody).toMatchObject({ enabled: false, operationId: expect.any(String) })
+      expect(await readEvent(eventReader)).toMatchObject({
+        type: "plugin.changed",
+        properties: { pluginID: pluginName, enabled: false, generation: 5 },
+      })
+      const disabledOperation = (await MarketplaceOperations.list()).find(
+        (item) => item.packageId === pluginName && item.operationType === "disable",
+      )
+      expect(disabledOperation).toMatchObject({ phase: "completed", progress: 100 })
+
+      const enabled = await request(`/extension/${pluginName}`, tmp.path, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: true }),
+      })
+      expect(enabled.status).toBe(200)
+      const enabledBody = await enabled.json()
+      expect(enabledBody).toMatchObject({ enabled: true, operationId: expect.any(String) })
+      expect(await readEvent(eventReader)).toMatchObject({
+        type: "plugin.changed",
+        properties: { pluginID: pluginName, enabled: true, generation: 6 },
+      })
+      expect(
+        (await MarketplaceOperations.list()).find(
+          (item) => item.packageId === pluginName && item.operationType === "enable",
+        ),
+      ).toMatchObject({ phase: "completed", progress: 100 })
+
+      const removed = await request(`/extension/marketplace/${packageId}`, tmp.path, { method: "DELETE" })
+      expect(removed.status).toBe(200)
+      expect(await removed.json()).toBe(true)
+      expect(await readEvent(eventReader)).toMatchObject({
+        type: "plugin.changed",
+        properties: { pluginID: packageId, enabled: false, generation: 7 },
+      })
+      expect(await MarketplaceOperations.list()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ packageId, operationType: "uninstall", phase: "completed" }),
+        ]),
+      )
+    } finally {
+      await eventReader.cancel()
+      globalThis.fetch = originalFetch
+      if (installedRoot) await removeMarketplace(installedRoot).catch(() => undefined)
+    }
+  }, 60_000)
+
+  test("fails the install operation when a v2 package cannot activate", async () => {
+    await using tmp = await tmpdir({ config: { mcp: disabledMcp } })
+    const packageId = "com.novaway.http-activation-failure"
+    const zip = new JSZip()
+    zip.file(
+      "plugin.json",
+      JSON.stringify({
+        name: "http-activation-failure",
+        version: "0.1.0",
+        apiVersion: 2,
+        kind: "declarative",
+        contributes: {
+          skills: [{ id: "broken", description: "Missing resource", source: { file: "./missing/SKILL.md" } }],
+        },
+      }),
+    )
+    const archive = Buffer.from(await zip.generateAsync({ type: "nodebuffer" }))
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(new Uint8Array(archive), {
+        status: 200,
+        headers: { "content-length": String(archive.byteLength) },
+      })) as unknown as typeof fetch
+    try {
+      const response = await request("/extension/marketplace/install", tmp.path, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "zip",
+          name: packageId,
+          url: "https://example.com/http-activation-failure.zip",
+          version: "0.1.0",
+          sha256: digest(archive),
+          sourceId: "novaway-official",
+        }),
+      })
+      expect(response.status).toBe(400)
+      const operations = await MarketplaceOperations.list()
+      const operation = operations.find((item) => item.packageId === packageId && item.operationType === "install")
+      expect(operation).toMatchObject({ phase: "failed", errorCode: "PLUGIN_ACTIVATION_FAILED" })
+    } finally {
+      globalThis.fetch = originalFetch
+      await removeMarketplace(packageId).catch(() => undefined)
+    }
+  }, 60_000)
+
   test("lists static plugin declarations, contributions and diagnostics", async () => {
     await using tmp = await tmpdir()
     await Bun.write(
@@ -1385,6 +1749,54 @@ describe("plugin HttpApi", () => {
     expect(
       (await request("/plugin/sample", tmp.path, { method: "PATCH", body: JSON.stringify({ enabled: false }) })).status,
     ).toBe(200)
+  }, 30_000)
+
+  test("onView activation loads an installed plugin without persisting enabled state", async () => {
+    await using tmp = await tmpdir()
+    const root = path.join(tmp.path, ".novaway", "extensions", "on-view")
+    await Bun.write(
+      path.join(root, "plugin.json"),
+      JSON.stringify({
+        name: "on-view",
+        apiVersion: 2,
+        kind: "declarative",
+        activationEvents: ["onView:on-view.dashboard"],
+        contributes: {
+          surfaces: [
+            {
+              id: "dashboard",
+              slot: "sidebar.item",
+              title: "On view",
+              action: {
+                type: "view",
+                viewId: "on-view.dashboard",
+                render: { type: "iframe", url: "https://example.test/on-view.html" },
+              },
+            },
+          ],
+        },
+      }),
+    )
+
+    const before = await request(PluginPaths.list, tmp.path)
+    expect(before.status).toBe(200)
+    expect(projectInstance((await before.json()).instances, "on-view")).toMatchObject({
+      status: "installed",
+    })
+    expect(PluginStorage.get("on-view", "project", tmp.path)).toBeUndefined()
+
+    const contributions = await request(PluginPaths.contributions, tmp.path)
+    expect(contributions.status).toBe(200)
+    expect(await contributions.json()).toContainEqual(
+      expect.objectContaining({ pluginID: "on-view", localName: "dashboard", status: "active" }),
+    )
+
+    const after = await request(PluginPaths.list, tmp.path)
+    expect(projectInstance((await after.json()).instances, "on-view")).toMatchObject({
+      status: "installed",
+      runtimeStatus: "active",
+    })
+    expect(PluginStorage.get("on-view", "project", tmp.path)).toBeUndefined()
   }, 30_000)
 
   test("session plugin lifecycle remains in the Host and never writes plugin_state", async () => {
