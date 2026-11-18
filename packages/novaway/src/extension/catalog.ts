@@ -5,17 +5,24 @@ export type NovaWayEntry = {
   packageId: string
   sourceId?: string
   name: string
+  displayName?: string
+  displayNameI18n?: Record<string, string>
   version: string
   description?: string
+  longDescription?: string
+  author?: string
+  license?: string
   url: string
   sha256: string
   kind: "zip" | "git"
   ref?: string
   subdir?: string
   keywords?: string[]
+  categories?: string[]
   repository?: string
   runtimeTargets: string[]
   capabilities: string[]
+  marketTypes?: string[]
   permissions?: string[]
   dependencies?: Record<string, string>
   conflicts?: string[]
@@ -82,17 +89,24 @@ export function parseNovaWay(value: unknown): NovaWayEntry[] {
     result.push({
       packageId,
       name,
+      ...(text(raw.displayName) ? { displayName: text(raw.displayName) } : {}),
+      ...(stringRecord(raw.displayNameI18n) ? { displayNameI18n: stringRecord(raw.displayNameI18n) } : {}),
       version,
       url: artifact.url as string,
       sha256: (artifact.sha256 as string).toLowerCase(),
       kind: artifact.type === "git" ? "git" : "zip",
       ...(text(raw.description) ? { description: text(raw.description) } : {}),
+      ...(text(raw.longDescription) ? { longDescription: text(raw.longDescription) } : {}),
+      ...(text(raw.author) ? { author: text(raw.author) } : {}),
+      ...(text(raw.license) ? { license: text(raw.license) } : {}),
       ...(text(artifact.ref) ? { ref: text(artifact.ref) } : {}),
       ...(text(artifact.subdir) ? { subdir: text(artifact.subdir) } : {}),
       ...(keywords.length > 0 ? { keywords } : {}),
+      ...(strings(raw.categories).length > 0 ? { categories: uniqueStrings(strings(raw.categories)) } : {}),
       ...(text(raw.repository) ? { repository: text(raw.repository) } : {}),
       runtimeTargets,
       capabilities,
+      ...(strings(raw.marketTypes).length > 0 ? { marketTypes: uniqueStrings(strings(raw.marketTypes)) } : {}),
       ...(strings(raw.permissions).length > 0 ? { permissions: strings(raw.permissions) } : {}),
       ...(stringRecord(raw.dependencies) ? { dependencies: stringRecord(raw.dependencies) } : {}),
       ...(strings(raw.conflicts).length > 0 ? { conflicts: strings(raw.conflicts) } : {}),
