@@ -40,6 +40,7 @@ export type NovaWayEntry = {
 export const NOVAWAY_MARKETPLACE_REPOSITORY = "https://gitee.com/NovaWay-AI/novaway-plugins"
 export const NOVAWAY_MARKETPLACE_URLS = [
   "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/catalog/index.json",
+  "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
 ] as const
 
 /**

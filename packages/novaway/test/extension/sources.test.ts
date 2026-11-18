@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { add, get, list, official, remove, update } from "../../src/extension/sources"
+import { add, get, list, official, remove, update, urlsFor } from "../../src/extension/sources"
 
 const tmp = () => fs.mkdtemp(path.join(os.tmpdir(), "novaway-sources-"))
 
@@ -11,6 +11,16 @@ describe("marketplace sources", () => {
     const config = await tmp()
     expect((await list(config)).map((item) => item.id)).toEqual(["novaway-official", "claude-official", "zcode-official"])
     await expect(fs.access(path.join(config, "marketplace-sources.json"))).rejects.toThrow()
+  })
+
+  test("uses Gitee first and GitHub as the official catalog fallback", () => {
+    expect(urlsFor(official)).toEqual([
+      "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/catalog/index.json",
+      "https://raw.githubusercontent.com/NovaWay-AI/novaway-plugins/main/catalog/index.json",
+    ])
+    expect(urlsFor({ id: "custom", url: "https://example.com/catalog.json" })).toEqual([
+      "https://example.com/catalog.json",
+    ])
   })
 
   test("adds, updates and removes a custom source atomically", async () => {

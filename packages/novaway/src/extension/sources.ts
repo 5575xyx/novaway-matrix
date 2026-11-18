@@ -65,6 +65,10 @@ const builtinSources: Source[] = [
 ]
 const builtinIDs = new Set(builtinSources.map((item) => item.id))
 
+export function urlsFor(source: Pick<Source, "id" | "url">): readonly string[] {
+  return source.id === OFFICIAL_ID ? NOVAWAY_MARKETPLACE_URLS : [source.url]
+}
+
 function file(config = Global.Path.data) {
   return path.join(config, FILE)
 }

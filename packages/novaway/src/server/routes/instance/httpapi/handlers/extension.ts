@@ -1,7 +1,9 @@
 import path from "node:path"
+import fs from "node:fs/promises"
 import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { BackgroundJob } from "@/background/job"
+import { Bus } from "@/bus"
 import { Config } from "@/config/config"
 import { Global } from "@novaway/core/global"
 import { Identifier } from "@/id/id"
@@ -19,10 +21,12 @@ import * as Operations from "@/extension/operations"
 import * as Provision from "@/extension/provision"
 import * as Catalog from "@/extension/catalog"
 import * as Sources from "@/extension/sources"
+import { PluginEvent } from "@/plugin/event"
 import type { Loaded } from "@/extension/schema"
 import type { GitEntry, ZipEntry } from "@/extension/marketplace"
 
 type Change = "added" | "removed" | "upgraded" | "downgraded" | "changed" | "unchanged"
+type Generation = { value: number }
 
 const toInfo = (
   item: Loaded,
@@ -42,13 +46,48 @@ const toInfo = (
   ...(operationId ? { operationId } : {}),
 })
 
+/** 把下载字节进度映射到操作进度区间；串行写盘，避免并发 read-modify-write 丢更新。 */
+function downloadReporter(operationId: string, from: number, to: number, phase?: Operations.OperationPhase) {
+  let last = from
+  let chain: Promise<unknown> = Promise.resolve()
+  const onProgress = (received: number, total: number) => {
+    // 镜像/CDN 常以 chunked 下发、不带 content-length（total=0）。此时按已收字节
+    // 渐近逼近目标值，保证进度随真实下载推进而非卡在起点；完成时由阶段切换落到真值。
+    const percent =
+      total > 0
+        ? Math.min(to, from + Math.round((received / total) * (to - from)))
+        : Math.min(to - 1, from + Math.round((to - from) * (1 - Math.exp(-received / (256 * 1024)))))
+    if (percent === last) return
+    last = percent
+    chain = chain
+      .then(() => Operations.update(operationId, phase ? { phase, progress: percent } : { progress: percent }))
+      .catch(() => undefined)
+  }
+  return { onProgress, settle: () => chain }
+}
+
 export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extension", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const bus = yield* Bus.Service
     const runtime = yield* PluginRuntimeService.Service
     const extensions = yield* ExtensionService
     const jobs = yield* BackgroundJob.Service
     const skills = yield* SkillService
+    const generation = yield* InstanceState.make<Generation>(() => Effect.sync(() => ({ value: 0 })))
+
+    const publishChanged = Effect.fn("ExtensionHttpApi.publishChanged")(function* (
+      pluginID?: string,
+      enabled?: boolean,
+    ) {
+      const state = yield* InstanceState.get(generation)
+      state.value += 1
+      yield* bus.publish(PluginEvent.Changed, {
+        ...(pluginID === undefined ? {} : { pluginID }),
+        ...(enabled === undefined ? {} : { enabled }),
+        generation: state.value,
+      })
+    })
 
     /**
      * 扩展变了，技能列表也得跟着变。
@@ -213,7 +252,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
       Effect.gen(function* () {
         const source = yield* Effect.promise(() => Sources.get(sourceID))
         if (!source) return yield* Effect.fail(new HttpApiError.NotFound({}))
-        yield* Effect.promise(() => Marketplace.manifest([source.url])).pipe(
+        yield* Effect.promise(() => Marketplace.manifest(Sources.urlsFor(source))).pipe(
           Effect.tap(() => Effect.promise(() => Sources.recordRefresh(source.id, {}))),
           Effect.catchCause((cause) =>
             Effect.gen(function* () {
@@ -232,7 +271,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
         const zcode: Array<ZipEntry & { sourceId?: string }> = []
         const claude: Array<GitEntry & { sourceId?: string }> = []
         for (const source of sources.filter((item) => item.enabled)) {
-          const raw = yield* Effect.promise(() => Marketplace.manifest([source.url])).pipe(
+          const raw = yield* Effect.promise(() => Marketplace.manifest(Sources.urlsFor(source))).pipe(
             Effect.catchCause(() => Effect.succeed(undefined as unknown)),
           )
           if (raw === undefined) continue
@@ -414,7 +453,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           const zcode: ReturnType<typeof Catalog.parseZcode> = []
           const claude: ReturnType<typeof Catalog.parseClaude> = []
           const load = (source: Sources.Source) =>
-            Effect.promise(() => Marketplace.manifest([source.url])).pipe(
+            Effect.promise(() => Marketplace.manifest(Sources.urlsFor(source))).pipe(
               Effect.tap(() => Effect.promise(() => Sources.recordRefresh(source.id, {}))),
               Effect.catchCause((cause) => {
                 const message = String(cause).slice(0, 300)
@@ -466,6 +505,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
       )
       .handle("install", (ctx) => {
         let operationId: string | undefined
+        let activationFailure: string | undefined
         return Effect.gen(function* () {
           const input = ctx.payload
           const operation = yield* Effect.promise(() =>
@@ -477,6 +517,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           )
           operationId = operation.operationId
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "downloading", progress: 10 }))
+          const reporter = downloadReporter(operation.operationId, 10, 60, "downloading")
           const installed =
             input.kind === "zip"
               ? yield* Effect.promise(() =>
@@ -489,6 +530,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
                     permissions: input.permissions ? [...input.permissions] : undefined,
                     dependencies: input.dependencies ? { ...input.dependencies } : undefined,
                     conflicts: input.conflicts ? [...input.conflicts] : undefined,
+                    onProgress: reporter.onProgress,
                   }),
                 )
               : yield* Effect.promise(() =>
@@ -505,19 +547,38 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
                     conflicts: input.conflicts ? [...input.conflicts] : undefined,
                   }),
                 )
+          yield* Effect.promise(() => reporter.settle())
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "replacing", progress: 65 }))
           yield* refresh()
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "activating", progress: 80 }))
           // v2 目录型插件由 Plugin Host 重新发现并默认启用；旧 Extension 仍由兼容 loader 管理。
-          yield* activateInstalledPlugin(input.name, installed.root).pipe(
-            Effect.catchCause((cause) => Effect.logWarning("marketplace plugin activation failed", { cause })),
+          // v2 包激活失败必须让安装操作失败，不能把「装上了但用不了」报成完成。
+          const isV2 = yield* Effect.promise(() =>
+            fs
+              .readFile(path.join(installed.root, "plugin.json"), "utf8")
+              .then((text) => (JSON.parse(text) as { apiVersion?: number }).apiVersion === 2)
+              .catch(() => false),
           )
+          const activated = yield* activateInstalledPlugin(input.name, installed.root).pipe(
+            Effect.matchCause({
+              onFailure: (cause) => {
+                activationFailure = String(cause).slice(0, 300)
+                return false
+              },
+              onSuccess: (ok) => ok,
+            }),
+          )
+          if (isV2 && !activated) {
+            activationFailure ??= "插件已安装但未被 Plugin Host 发现或启用"
+            return yield* Effect.fail(new Error("plugin activation failed: " + activationFailure))
+          }
           // 手动装回来：清掉「用户卸载过」的标记，后台自动准备照常生效。
           yield* Effect.promise(() => Provision.undismiss(input.name))
           // 后台准备 Python 依赖（`jobs.start` 自己会 fork，不会卡住安装请求）；
           // 失败不影响「已安装」这个事实，模型运行时会看到原因。
           yield* preparePython(installed.root)
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "completed", progress: 100 }))
+          yield* publishChanged(input.name, true)
           return { ...installed, operationId }
         }).pipe(
           Effect.catchCause((cause) =>
@@ -527,8 +588,10 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
                   Operations.update(operationId!, {
                     phase: "failed",
                     progress: 100,
-                    errorCode: "MARKETPLACE_OPERATION_FAILED",
-                    recoveryHint: "检查网络、摘要和安装日志后重试；当前版本未被 staging 失败破坏。",
+                    errorCode: activationFailure ? "PLUGIN_ACTIVATION_FAILED" : "MARKETPLACE_OPERATION_FAILED",
+                    recoveryHint: activationFailure
+                      ? "文件已安装但激活失败：在已安装列表查看错误后重试启用，或卸载后重装。"
+                      : "检查网络、摘要和安装日志后重试；当前版本未被 staging 失败破坏。",
                   }),
                 )
               }
@@ -556,6 +619,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
             Effect.catchCause((cause) => Effect.logWarning("marketplace plugin reactivation failed", { cause })),
           )
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "completed", progress: 100 }))
+          yield* publishChanged(ctx.params.name, true)
           return { ...rolledBack, operationId }
         }).pipe(
           Effect.catchCause((cause) =>
@@ -644,6 +708,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           )
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "validating", progress: 40 }))
 
+          const reporter = downloadReporter(operation.operationId, 40, 59)
           const input = {
             name: targetName,
             url: target.url,
@@ -656,11 +721,13 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
             ...(target.conflicts ? { conflicts: target.conflicts } : {}),
             ...(("ref" in target && target.ref) ? { ref: target.ref } : {}),
             ...(("subdir" in target && target.subdir) ? { subdir: target.subdir } : {}),
+            onProgress: reporter.onProgress,
           }
           replacement =
             kind === "zip"
               ? yield* Effect.promise(() => Marketplace.installZip(input))
               : yield* Effect.promise(() => Marketplace.installGit(input))
+          yield* Effect.promise(() => reporter.settle())
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "cleanup-pending", progress: 60 }))
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "replacing", progress: 65 }))
           yield* refresh()
@@ -681,6 +748,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           yield* preparePython(replacement.root)
           yield* Effect.promise(() => Provision.undismiss(targetName))
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "completed", progress: 100 }))
+          yield* publishChanged(targetName, true)
           return { ...replacement, operationId }
         }).pipe(
           Effect.catchCause((cause) =>
@@ -764,6 +832,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "activating", progress: 80 }))
           yield* refresh()
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "completed", progress: 100 }))
+          yield* publishChanged(ctx.params.name, false)
           return true
         }).pipe(
           Effect.catchCause((cause) =>
@@ -825,6 +894,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
             )
             if (!handled) return yield* Effect.fail(new HttpApiError.NotFound({}))
             yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "completed", progress: 100 }))
+            yield* publishChanged(ctx.params.name, ctx.payload.enabled)
             return {
               name: ctx.params.name,
               root: "",
@@ -836,6 +906,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           const issues = yield* extensions.issues()
           const changes = yield* extensions.changes()
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "completed", progress: 100 }))
+          yield* publishChanged(ctx.params.name, ctx.payload.enabled)
           return toInfo(match, issues[match.name], changes[match.name], operationId)
         }).pipe(
           Effect.catchCause((cause) =>
