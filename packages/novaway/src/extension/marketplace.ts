@@ -24,8 +24,11 @@ const log = Log.create({ service: "extension.marketplace" })
 /** Metadata written next to an install so we can list/uninstall it later. */
 export const RECORD_FILE = ".novaway-install.json"
 
-export const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
-export const MAX_EXTRACT_FILES = 5_000
+export const MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024
+// Resource-heavy workbench packages (for example Office Suite with bundled PPT
+// Master assets) can be larger than a small skill archive. Keep the download
+// bound finite while leaving room for one complete signed marketplace artifact.
+export const MAX_EXTRACT_FILES = 20_000
 export const MAX_EXTRACT_BYTES = 256 * 1024 * 1024
 
 /** A superseded install, kept so "upgraded from v1.2" survives a reinstall. */
@@ -172,7 +175,11 @@ export async function validateArtifactUrl(value: string) {
     throw new Error("artifact URL resolves to a private address")
   return url.toString()
 }
-export async function download(url: string, signal?: AbortSignal): Promise<Buffer> {
+export async function download(
+  url: string,
+  signal?: AbortSignal,
+  onProgress?: (received: number, total: number) => void,
+): Promise<Buffer> {
   let current = await validateArtifactUrl(url)
   let response: Response
   for (let redirect = 0; ; redirect += 1) {
@@ -188,7 +195,29 @@ export async function download(url: string, signal?: AbortSignal): Promise<Buffe
   if (!response!.ok) throw new Error(`download failed: ${response!.status} ${response!.statusText}`)
   const length = Number(response!.headers.get("content-length") ?? 0)
   if (length > MAX_DOWNLOAD_BYTES) throw new Error(`download too large: ${length} bytes`)
-  const buffer = Buffer.from(await response!.arrayBuffer())
+  const body = response!.body
+  if (!body) {
+    const buffer = Buffer.from(await response!.arrayBuffer())
+    if (buffer.byteLength > MAX_DOWNLOAD_BYTES) throw new Error(`download too large: ${buffer.byteLength} bytes`)
+    onProgress?.(buffer.byteLength, length || buffer.byteLength)
+    return buffer
+  }
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+    received += value.byteLength
+    if (received > MAX_DOWNLOAD_BYTES) {
+      await reader.cancel().catch(() => undefined)
+      throw new Error(`download too large: ${received} bytes`)
+    }
+    chunks.push(value)
+    onProgress?.(received, length)
+  }
+  const buffer = Buffer.concat(chunks)
   if (buffer.byteLength > MAX_DOWNLOAD_BYTES) throw new Error(`download too large: ${buffer.byteLength} bytes`)
   return buffer
 }
@@ -523,6 +552,7 @@ export type InstallZipInput = {
   conflicts?: string[]
   signal?: AbortSignal
   config?: string
+  onProgress?: (received: number, total: number) => void
 }
 
 /** 同一目标目录同时只允许一个安装：后台自动安装和市场按钮可能撞在一起。 */
@@ -550,7 +580,7 @@ async function installZipUnlocked(input: InstallZipInput, target: string): Promi
   const config = input.config ?? Global.Path.config
   const name = safeSegment(input.name)
 
-  const buffer = await download(input.url, input.signal)
+  const buffer = await download(input.url, input.signal, input.onProgress)
   verify(buffer, input.sha256)
 
   const siblings = await sameNameInstalls(config, input.name, target)
