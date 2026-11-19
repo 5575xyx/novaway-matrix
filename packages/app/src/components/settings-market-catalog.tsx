@@ -315,6 +315,44 @@ function arrayValue<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : []
 }
 
+function objectArrayValue<T extends object>(value: unknown): T[] {
+  return arrayValue<unknown>(value).filter(
+    (item): item is T => item !== null && typeof item === "object",
+  )
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return arrayValue<unknown>(value).filter((item): item is string => typeof item === "string")
+}
+
+function recordValue(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => typeof item === "string"),
+  )
+}
+
+function updatePreviewValue(value: unknown): UpdatePreview | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const preview = value as Record<string, unknown>
+  return {
+    currentVersion: typeof preview.currentVersion === "string" ? preview.currentVersion : undefined,
+    targetVersion: typeof preview.targetVersion === "string" ? preview.targetVersion : undefined,
+    sourceChanged: preview.sourceChanged === true,
+    currentSourceId: typeof preview.currentSourceId === "string" ? preview.currentSourceId : undefined,
+    targetSourceId: typeof preview.targetSourceId === "string" ? preview.targetSourceId : undefined,
+    sourceUrlChanged: preview.sourceUrlChanged === true,
+    permissionsAdded: stringArrayValue(preview.permissionsAdded),
+    permissionsRemoved: stringArrayValue(preview.permissionsRemoved),
+    dependenciesAdded: recordValue(preview.dependenciesAdded),
+    dependenciesRemoved: stringArrayValue(preview.dependenciesRemoved),
+    conflictsAdded: stringArrayValue(preview.conflictsAdded),
+    conflictsRemoved: stringArrayValue(preview.conflictsRemoved),
+    digestChanged: preview.digestChanged === true,
+    requiresConfirmation: preview.requiresConfirmation === true,
+  }
+}
+
 /**
  * 市场目录与安装。
  *
@@ -482,18 +520,20 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   const loadOperations = () =>
     operationsRequest({ directory: props.directory })
       .then((result) => {
-        const operations = Array.isArray(result.data) ? (result.data as MarketplaceOperation[]) : []
+        const operations = objectArrayValue<MarketplaceOperation>(result.data)
         setStore("operations", operations)
         return operations
       })
       .catch(() => [] as MarketplaceOperation[])
 
   const activeOperations = createMemo(() =>
-    store.operations.filter((operation) => operation.phase !== "completed" && operation.phase !== "failed"),
+    objectArrayValue<MarketplaceOperation>(store.operations).filter(
+      (operation) => operation.phase !== "completed" && operation.phase !== "failed",
+    ),
   )
 
   const operationOf = (identity: string) =>
-    [...store.operations]
+    [...objectArrayValue<MarketplaceOperation>(store.operations)]
       .reverse()
       .find(
         (operation) =>
@@ -527,7 +567,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           updates?: unknown
           errors?: unknown
         }
-        const official = arrayValue<ServerNativeEntry>(catalog.novaway).map((entry) => ({
+        const official = objectArrayValue<ServerNativeEntry>(catalog.novaway).map((entry) => ({
           ...entry,
           sourceId: entry.sourceId ?? "novaway-official",
           kind:
@@ -552,23 +592,23 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         }
         const migrations = await legacyClient()
           .marketplaceLegacyMigrations({ directory: props.directory })
-          .then((response) => arrayValue<LegacyMigration>(response.data))
+          .then((response) => objectArrayValue<LegacyMigration>(response.data))
           .catch(() => [])
         setStore({
-          installed: arrayValue<InstalledEntry>(catalog.installed),
-          legacy: arrayValue<LegacyEntry>(catalog.legacy),
+          installed: objectArrayValue<InstalledEntry>(catalog.installed),
+          legacy: objectArrayValue<LegacyEntry>(catalog.legacy),
           migrations,
-          sources: arrayValue<MarketplaceSource>(catalog.sources),
+          sources: objectArrayValue<MarketplaceSource>(catalog.sources),
           novaway: [...merged.values()],
-          zcode: arrayValue<Omit<CatalogEntry, "kind">>(catalog.zcode).map((entry) => ({
+          zcode: objectArrayValue<Omit<CatalogEntry, "kind">>(catalog.zcode).map((entry) => ({
             ...entry,
             kind: "zip" as const,
           })),
-          claude: arrayValue<Omit<CatalogEntry, "kind">>(catalog.claude).map((entry) => ({
+          claude: objectArrayValue<Omit<CatalogEntry, "kind">>(catalog.claude).map((entry) => ({
             ...entry,
             kind: "git" as const,
           })),
-          updates: arrayValue<UpdateEntry>(catalog.updates),
+          updates: objectArrayValue<UpdateEntry>(catalog.updates),
           errors: arrayValue<unknown>(catalog.errors).filter((entry): entry is string => typeof entry === "string"),
         })
       })
@@ -710,9 +750,15 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .finally(() => setStore("pending", ""))
   }
 
-  const installedNames = createMemo(() => new Set(store.installed.map((item) => item.name)))
+  const installedNames = createMemo(() =>
+    new Set(objectArrayValue<InstalledEntry>(store.installed).map((item) => item.name)),
+  )
   const entryIdentity = (entry: CatalogEntry) => entry.packageId ?? entry.name
-  const entries = createMemo(() => [...store.novaway, ...store.claude, ...store.zcode])
+  const entries = createMemo(() => [
+    ...arrayValue<CatalogEntry>(store.novaway),
+    ...arrayValue<CatalogEntry>(store.claude),
+    ...arrayValue<CatalogEntry>(store.zcode),
+  ])
   const categories = createMemo(() => {
     const present = entries().flatMap((entry) => entry.categories ?? [])
     return ["all", ...new Set([...MARKET_CATEGORIES, ...present])]
@@ -743,8 +789,10 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   }
   // Keep these helpers above visibleEntries: createMemo may evaluate immediately,
   // so sorting must not close over a const that is still in its TDZ.
-  const updateOf = (entry: CatalogEntry) => store.updates.find((item) => item.name === entryIdentity(entry))
-  const installedOf = (entry: CatalogEntry) => store.installed.find((item) => item.name === entryIdentity(entry))
+  const updateOf = (entry: CatalogEntry) =>
+    arrayValue<UpdateEntry>(store.updates).find((item) => item.name === entryIdentity(entry))
+  const installedOf = (entry: CatalogEntry) =>
+    arrayValue<InstalledEntry>(store.installed).find((item) => item.name === entryIdentity(entry))
   const outdated = (entry: CatalogEntry) =>
     updateOf(entry)?.state === "outdated" || updateAvailable(installedOf(entry), entry.version)
   const visibleEntries = createMemo(() => {
@@ -780,7 +828,8 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   })
   const descriptionOf = (entry: CatalogEntry) =>
     entry.descriptionKey ? language.t(entry.descriptionKey as never) : entry.description
-  const sourceOf = (entry: CatalogEntry) => store.sources.find((source) => source.id === entry.sourceId)
+  const sourceOf = (entry: CatalogEntry) =>
+    arrayValue<MarketplaceSource>(store.sources).find((source) => source.id === entry.sourceId)
   const sourceLabelOf = (source: MarketplaceSource | undefined, fallback?: string) => {
     if (source?.trust === "official" && source.id === "novaway-official") return language.t("settings.market.source.official")
     if (source?.trust === "official" && source.type === "claude") return "Claude 官方"
@@ -875,7 +924,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         directory: props.directory,
         name: entry.name,
       })
-      const preview = previewResult.data as UpdatePreview | undefined
+      const preview = updatePreviewValue(previewResult.data)
       if (!preview) throw new Error(language.t("settings.market.preview.failed"))
       if (preview.requiresConfirmation) {
         const confirmed = await new Promise<boolean>((resolve) => {
@@ -1080,7 +1129,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
             </Button>
           </div>
           <div class="flex flex-col gap-1.5">
-            <For each={store.sources}>
+            <For each={arrayValue<MarketplaceSource>(store.sources)}>
               {(source) => (
                 <div
                   data-source-id={source.id}
@@ -1155,7 +1204,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </div>
       </Show>
 
-      <Show when={store.legacy.length > 0 || store.migrations.length > 0}>
+      <Show when={(arrayValue<LegacyEntry>(store.legacy).length > 0) || (arrayValue<LegacyMigration>(store.migrations).length > 0)}>
         <details class="mb-4 rounded-lg border border-border px-4 py-3">
           <summary class="cursor-pointer text-13-medium text-foreground">
             {language.t("settings.market.legacy.title")}
@@ -1164,7 +1213,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
             <div class="mb-2 text-13-medium text-foreground">{language.t("settings.market.legacy.title")}</div>
             <div class="mb-2 text-12-regular text-foreground-subtle">{language.t("settings.market.legacy.hint")}</div>
             <div class="flex flex-col gap-1.5">
-              <For each={store.legacy}>
+              <For each={arrayValue<LegacyEntry>(store.legacy)}>
                 {(entry) => (
                   <div class="flex items-center gap-2 rounded-md border border-border/70 px-2.5 py-2">
                     <div class="min-w-0 flex-1">
@@ -1185,7 +1234,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                   </div>
                 )}
               </For>
-              <For each={store.migrations}>
+              <For each={arrayValue<LegacyMigration>(store.migrations)}>
                 {(migration) => (
                   <div class="flex items-center gap-2 rounded-md border border-border/70 px-2.5 py-2">
                     <div class="min-w-0 flex-1">
@@ -1210,9 +1259,9 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </details>
       </Show>
 
-      <Show when={store.errors.length > 0}>
+      <Show when={arrayValue<string>(store.errors).length > 0}>
         <div class="border-b border-border px-4 py-2" data-component="market-catalog-errors">
-          <For each={store.errors}>{(error) => <div class="text-11-regular text-warning-base">{error}</div>}</For>
+          <For each={arrayValue<string>(store.errors)}>{(error) => <div class="text-11-regular text-warning-base">{error}</div>}</For>
         </div>
       </Show>
 
@@ -1273,7 +1322,10 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
             {(value) => (
               <option value={value}>
                 {language.t("settings.market.source.filterOption", {
-                  name: sourceLabelOf(store.sources.find((source) => source.id === value), value),
+                  name: sourceLabelOf(
+                    arrayValue<MarketplaceSource>(store.sources).find((source) => source.id === value),
+                    value,
+                  ),
                 })}
               </option>
             )}
@@ -1291,7 +1343,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </select>
       </div>
 
-      <Show when={store.operations.length > 0}>
+      <Show when={arrayValue<MarketplaceOperation>(store.operations).length > 0}>
         <details class="mb-4 rounded-lg border border-border px-4 py-3" data-component="market-operation-history">
           <summary class="cursor-pointer text-12-medium text-foreground-subtle">
             {language.t("settings.market.operationsDetails")}
@@ -1300,7 +1352,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
             </Show>
           </summary>
           <div class="flex flex-col gap-1.5">
-            <For each={store.operations.slice(-5).reverse()}>
+            <For each={arrayValue<MarketplaceOperation>(store.operations).slice(-5).reverse()}>
               {(operation) => (
                 <div
                   class="rounded-md border border-border/70 px-2.5 py-2 text-11-regular"
@@ -1359,7 +1411,8 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           {(entry, index) => {
             const identity = entryIdentity(entry)
             const installed = () => installedNames().has(identity)
-            const installedEntry = () => store.installed.find((item) => item.name === identity)
+            const installedEntry = () =>
+              arrayValue<InstalledEntry>(store.installed).find((item) => item.name === identity)
             const busy = () => store.pending === identity || operationOf(identity) !== undefined
             const busyText = () => busyLabel(identity, installed())
             const secondaryActionBusy = () =>
