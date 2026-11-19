@@ -568,6 +568,11 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
               onSuccess: (ok) => ok,
             }),
           )
+          // Plugin Host 注册贡献发生在 extension.reload 之后；再刷新一次 Skill
+          // 快照，确保当前会话立即看到刚安装的 PowersNexus 等技能，不需要重启。
+          if (activated) {
+            yield* skills.reload().pipe(Effect.catchCause(() => Effect.succeed([] as never[])))
+          }
           if (isV2 && !activated) {
             activationFailure ??= "插件已安装但未被 Plugin Host 发现或启用"
             return yield* Effect.fail(new Error("plugin activation failed: " + activationFailure))

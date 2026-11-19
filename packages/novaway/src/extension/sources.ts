@@ -3,7 +3,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { Global } from "@novaway/core/global"
 import { isRecord } from "@/util/record"
-import { NOVAWAY_MARKETPLACE_REPOSITORY, NOVAWAY_MARKETPLACE_URLS, CLAUDE_MARKETPLACE_URLS, ZCODE_MARKETPLACE_URLS } from "./catalog"
+import { NOVAWAY_MARKETPLACE_REPOSITORY, NOVAWAY_MARKETPLACE_URLS, CLAUDE_MARKETPLACE_URLS } from "./catalog"
 
 export type SourceType = "novaway" | "claude" | "zcode" | "auto"
 export type SourceTrust = "official" | "unverified"
@@ -45,17 +45,6 @@ const builtinSources: Source[] = [
     name: "Claude Official",
     type: "claude",
     url: CLAUDE_MARKETPLACE_URLS[0],
-    enabled: true,
-    trust: "official",
-    builtin: true,
-    createdAt: 0,
-    updatedAt: 0,
-  },
-  {
-    id: "zcode-official",
-    name: "ZCode Official",
-    type: "zcode",
-    url: ZCODE_MARKETPLACE_URLS[0],
     enabled: true,
     trust: "official",
     builtin: true,
@@ -149,7 +138,7 @@ async function write(sources: Source[], config = Global.Path.data) {
 export async function list(config = Global.Path.data): Promise<Source[]> {
   const stored = await read(config)
   const overrides = new Map(stored.filter((item) => builtinIDs.has(item.id)).map((item) => [item.id, item]))
-  const custom = stored.filter((item) => !builtinIDs.has(item.id))
+  const custom = stored.filter((item) => !builtinIDs.has(item.id) && item.id !== "zcode-official")
   return [
     ...builtinSources.map((item) => {
       const saved = overrides.get(item.id)

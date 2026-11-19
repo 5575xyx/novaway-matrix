@@ -169,6 +169,152 @@ type SourceClient = {
   remove(input: { directory: string; sourceId: string }): Promise<{ data?: unknown }>
 }
 
+type MarketplaceSourcesDialogProps = {
+  sources: () => MarketplaceSource[]
+  sourceName: () => string
+  sourceUrl: () => string
+  sourceType: () => MarketplaceSource["type"]
+  editingSource: () => string | undefined
+  sourceBusy: () => string
+  sourceLabelOf: (source: MarketplaceSource | undefined, fallback?: string) => string
+  onSourceName: (value: string) => void
+  onSourceUrl: (value: string) => void
+  onSourceType: (value: MarketplaceSource["type"]) => void
+  onSave: () => void
+  onCancelEdit: () => void
+  onToggle: (source: MarketplaceSource) => void
+  onRefresh: (source: MarketplaceSource) => void
+  onEdit: (source: MarketplaceSource) => void
+  onRemove: (source: MarketplaceSource) => void
+}
+
+const MarketplaceSourcesDialog: Component<MarketplaceSourcesDialogProps> = (props) => {
+  const language = useLanguage()
+  const dialog = useDialog()
+  return (
+    <Dialog title={language.t("settings.market.sources")} class="w-[min(calc(100vw-40px),860px)]">
+      <div class="flex max-h-[min(75vh,720px)] flex-col gap-4 overflow-y-auto">
+        <div>
+          <div class="text-14-medium text-foreground">{language.t("settings.market.sources")}</div>
+          <div class="mt-1 text-12-regular text-foreground-subtle">{language.t("settings.market.sourcesHint")}</div>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <input
+            class="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-2 text-ui-xs text-foreground outline-none focus:border-border-focus"
+            value={props.sourceName()}
+            onInput={(event) => props.onSourceName(event.currentTarget.value)}
+            placeholder={language.t("settings.market.source.name")}
+            aria-label={language.t("settings.market.source.name")}
+            disabled={props.sourceBusy() !== ""}
+          />
+          <select
+            class="rounded-md border border-border bg-background px-2.5 py-2 text-ui-xs text-foreground outline-none focus:border-border-focus"
+            value={props.sourceType()}
+            onChange={(event) => props.onSourceType(event.currentTarget.value as MarketplaceSource["type"])}
+            aria-label={language.t("settings.market.source.type")}
+            disabled={props.sourceBusy() !== ""}
+          >
+            <option value="auto">auto</option>
+            <option value="novaway">NovaWay</option>
+            <option value="claude">Claude</option>
+          </select>
+          <input
+            class="min-w-0 flex-[2] rounded-md border border-border bg-background px-2.5 py-2 text-ui-xs text-foreground outline-none focus:border-border-focus"
+            value={props.sourceUrl()}
+            onInput={(event) => props.onSourceUrl(event.currentTarget.value)}
+            placeholder="https://example.com/catalog.json"
+            aria-label="URL"
+            spellcheck={false}
+            autocapitalize="off"
+            autocomplete="off"
+            disabled={props.sourceBusy() !== ""}
+          />
+          <Button size="small" disabled={props.sourceBusy() !== ""} onClick={props.onSave}>
+            {props.editingSource() ? language.t("settings.market.source.save") : language.t("settings.market.source.add")}
+          </Button>
+        </div>
+        <Show when={props.editingSource()}>
+          <Button variant="ghost" size="small" class="self-start" onClick={props.onCancelEdit}>
+            {language.t("common.cancel")}
+          </Button>
+        </Show>
+        <div class="flex flex-col gap-2">
+          <For each={props.sources()}>
+            {(source) => (
+              <div
+                data-source-id={source.id}
+                class="rounded-xl border border-border/70 bg-background/50 px-3 py-3"
+              >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="truncate text-13-medium text-foreground">{props.sourceLabelOf(source)}</span>
+                      <Tag>
+                        {source.trust === "official"
+                          ? language.t("settings.market.source.official")
+                          : language.t("settings.market.source.custom")}
+                      </Tag>
+                      <Tag>{source.type}</Tag>
+                      <Show when={!source.enabled}>
+                        <Tag>{language.t("settings.market.source.disabled")}</Tag>
+                      </Show>
+                    </div>
+                    <div class="mt-1 break-all text-11-regular text-foreground-subtlest">{source.url}</div>
+                    <Show when={source.lastError}>
+                      <div class="mt-1 break-words text-11-regular text-warning-base">{source.lastError}</div>
+                    </Show>
+                  </div>
+                  <div class="flex shrink-0 flex-wrap items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      disabled={props.sourceBusy() !== ""}
+                      onClick={() => props.onToggle(source)}
+                    >
+                      {source.enabled
+                        ? language.t("settings.market.source.disable")
+                        : language.t("settings.market.source.enable")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      disabled={props.sourceBusy() !== ""}
+                      onClick={() => props.onRefresh(source)}
+                    >
+                      {language.t("settings.market.source.refresh")}
+                    </Button>
+                    <Show when={!source.builtin}>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        disabled={props.sourceBusy() !== ""}
+                        onClick={() => props.onEdit(source)}
+                      >
+                        {language.t("settings.market.source.edit")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        disabled={props.sourceBusy() !== ""}
+                        onClick={() => props.onRemove(source)}
+                      >
+                        {language.t("settings.market.source.remove")}
+                      </Button>
+                    </Show>
+                  </div>
+                </div>
+              </div>
+            )}
+          </For>
+        </div>
+        <div class="flex justify-end border-t border-border pt-3">
+          <Button variant="secondary" onClick={() => dialog.close()}>{language.t("common.close")}</Button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
 type MarketStore = {
   installed: InstalledEntry[]
   sources: MarketplaceSource[]
@@ -184,6 +330,19 @@ type MarketStore = {
   pending: string
   pendingAction: "" | "install" | "update" | "uninstall" | "rollback"
 }
+
+type CatalogSnapshot = Pick<
+  MarketStore,
+  "installed" | "sources" | "legacy" | "migrations" | "zcode" | "claude" | "novaway" | "updates" | "errors"
+>
+
+type CatalogCacheEntry = {
+  snapshot: CatalogSnapshot
+  fetchedAt: number
+}
+
+const MARKET_CATALOG_CACHE_TTL = 30 * 60 * 1000
+const marketplaceCache = new Map<string, CatalogCacheEntry>()
 
 type InstalledEntry = InstalledPackage
 
@@ -421,7 +580,6 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   const [sourceFilter, setSourceFilter] = createSignal("all")
   const [sort, setSort] = createSignal<"featured" | "name" | "updated">("featured")
   const dialog = useDialog()
-  const [view, setView] = createStore({ sources: false })
   const [updateConfirmation, setUpdateConfirmation] = createSignal<UpdateConfirmation>()
 
   const updatePreviewDescription = (preview: UpdatePreview): JSX.Element => {
@@ -559,9 +717,19 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
     return installed ? language.t("settings.market.uninstalling") : language.t("settings.market.installing")
   }
 
-  const load = () => {
+  const load = (options: { force?: boolean } = {}) => {
+    const cached = marketplaceCache.get(props.directory)
+    const cacheAge = cached ? Date.now() - cached.fetchedAt : Number.POSITIVE_INFINITY
+    if (cached) {
+      setStore(cached.snapshot)
+      if (!options.force && cacheAge < MARKET_CATALOG_CACHE_TTL) {
+        return
+      }
+    }
+
+    const silent = Boolean(cached && !options.force)
+    if (!silent) setStore("loading", true)
     void loadOperations()
-    setStore("loading", true)
     void sdk.client.extension
       .marketplaceCatalog({ directory: props.directory })
       .then(async (result) => {
@@ -613,7 +781,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           .marketplaceLegacyMigrations({ directory: props.directory })
           .then((response) => objectArrayValue<LegacyMigration>(response.data))
           .catch(() => [])
-        setStore({
+        const snapshot: CatalogSnapshot = {
           installed: objectArrayValue<InstalledEntry>(catalog.installed),
           legacy: objectArrayValue<LegacyEntry>(catalog.legacy),
           migrations,
@@ -629,10 +797,16 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           })),
           updates: objectArrayValue<UpdateEntry>(catalog.updates),
           errors: arrayValue<unknown>(catalog.errors).filter((entry): entry is string => typeof entry === "string"),
-        })
+        }
+        marketplaceCache.set(props.directory, { snapshot, fetchedAt: Date.now() })
+        setStore(snapshot)
       })
-      .catch((error: unknown) => setStore("errors", [text(error)]))
-      .finally(() => setStore("loading", false))
+      .catch((error: unknown) => {
+        if (!silent) setStore("errors", [text(error)])
+      })
+      .finally(() => {
+        if (!silent) setStore("loading", false)
+      })
   }
 
   onMount(() => {
@@ -640,7 +814,11 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
     const timer = setInterval(() => {
       if (activeOperations().length > 0 || store.pending !== "") void loadOperations()
     }, 120)
-    onCleanup(() => clearInterval(timer))
+    const cacheTimer = setInterval(() => load(), MARKET_CATALOG_CACHE_TTL)
+    onCleanup(() => {
+      clearInterval(timer)
+      clearInterval(cacheTimer)
+    })
   })
 
   onCleanup(() => {
@@ -680,7 +858,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         setSourceUrl("")
         setSourceType("auto")
         setEditingSource(undefined)
-        load()
+        load({ force: true })
         showToast({
           title: editing ? language.t("settings.market.source.updated") : language.t("settings.market.source.added"),
         })
@@ -709,7 +887,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .update({ directory: props.directory, sourceId: source.id, enabled: !source.enabled })
       .then((result) => {
         if (!result.data) throw new Error(language.t("settings.market.source.failed"))
-        load()
+        load({ force: true })
       })
       .catch((error: unknown) => showToast({ title: language.t("common.requestFailed"), description: text(error) }))
       .finally(() => setSourceBusy(""))
@@ -721,10 +899,10 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .refresh({ directory: props.directory, sourceId: source.id })
       .then((result) => {
         if (!result.data) throw new Error(language.t("settings.market.source.failed"))
-        load()
+        load({ force: true })
       })
       .catch((error: unknown) => {
-        void load()
+        void load({ force: true })
         showToast({ title: language.t("common.requestFailed"), description: text(error) })
       })
       .finally(() => setSourceBusy(""))
@@ -737,7 +915,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .remove({ directory: props.directory, sourceId: source.id })
       .then((result) => {
         if (!result.data) throw new Error(language.t("settings.market.source.failed"))
-        load()
+        load({ force: true })
       })
       .catch((error: unknown) => showToast({ title: language.t("common.requestFailed"), description: text(error) }))
       .finally(() => setSourceBusy(""))
@@ -750,7 +928,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .then((result) => {
         if (!result.data) throw new Error(language.t("settings.market.legacy.failed"))
         showToast({ title: language.t("settings.market.legacy.migrated", { name: entry.name }) })
-        load()
+        load({ force: true })
       })
       .catch((error: unknown) => showToast({ title: language.t("common.requestFailed"), description: text(error) }))
       .finally(() => setStore("pending", ""))
@@ -763,7 +941,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .then((result) => {
         if (!result.data) throw new Error(language.t("settings.market.legacy.failed"))
         showToast({ title: language.t("settings.market.legacy.rolledBack", { name: migration.name }) })
-        load()
+        load({ force: true })
       })
       .catch((error: unknown) => showToast({ title: language.t("common.requestFailed"), description: text(error) }))
       .finally(() => setStore("pending", ""))
@@ -921,11 +1099,11 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
     })
       .then(() => {
         showToast({ title: language.t("settings.market.installed", { name: displayNameOf(entry) }) })
-        load()
+        load({ force: true })
         props.onInstalled?.()
       })
       .catch((error: unknown) => {
-        void load()
+        void load({ force: true })
         showToast({ title: language.t("common.requestFailed"), description: text(error) })
       })
       .finally(() => {
@@ -970,11 +1148,11 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         subdir: target.subdir,
       })
       showToast({ title: language.t("settings.market.updated", { name: displayNameOf(entry) }) })
-      load()
+      load({ force: true })
       props.onInstalled?.()
     })()
       .catch((error: unknown) => {
-        void load()
+        void load({ force: true })
         showToast({ title: language.t("common.requestFailed"), description: text(error) })
       })
       .finally(() => {
@@ -991,11 +1169,11 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .marketplaceUninstall({ directory: props.directory, name: entry.root.split(/[/\\]/).pop() ?? entry.name })
       .then(() => {
         showToast({ title: language.t("settings.market.uninstalled", { name: displayNameOf(entry) }) })
-        load()
+        load({ force: true })
         props.onInstalled?.()
       })
       .catch((error: unknown) => {
-        void load()
+        void load({ force: true })
         showToast({ title: language.t("common.requestFailed"), description: text(error) })
       })
       .finally(() => {
@@ -1012,11 +1190,11 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .marketplaceRollback({ directory: props.directory, name: entry.name })
       .then(() => {
         showToast({ title: language.t("settings.market.rolledBack", { name: displayNameOf(entry) }) })
-        load()
+        load({ force: true })
         props.onInstalled?.()
       })
       .catch((error: unknown) => {
-        void load()
+        void load({ force: true })
         showToast({ title: language.t("common.requestFailed"), description: text(error) })
       })
       .finally(() => {
@@ -1067,9 +1245,32 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         <Button
           variant="secondary"
           size="small"
-          onClick={() => setView("sources", !view.sources)}
-          aria-expanded={view.sources}
-          aria-controls="market-source-panel"
+          onClick={() =>
+            dialog.show(() => (
+              <MarketplaceSourcesDialog
+                sources={() => arrayValue<MarketplaceSource>(store.sources)}
+                sourceName={sourceName}
+                sourceUrl={sourceUrl}
+                sourceType={sourceType}
+                editingSource={editingSource}
+                sourceBusy={sourceBusy}
+                sourceLabelOf={sourceLabelOf}
+                onSourceName={setSourceName}
+                onSourceUrl={setSourceUrl}
+                onSourceType={setSourceType}
+                onSave={saveSource}
+                onCancelEdit={cancelSourceEdit}
+                onToggle={toggleSource}
+                onRefresh={refreshSource}
+                onEdit={editSource}
+                onRemove={(source) => {
+                  if (window.confirm(language.t("settings.market.source.removeConfirm", { name: source.name }))) {
+                    removeSource(source)
+                  }
+                }}
+              />
+            ))
+          }
         >
           <Icon name="plus-small" size="small" />
           {language.t("settings.market.sources")}
@@ -1095,133 +1296,6 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           </div>
         </div>
       </div>
-
-      <Show when={view.sources}>
-        <div id="market-source-panel" class="mb-6 rounded-xl border border-border bg-surface p-5">
-          <div class="mb-2 flex items-center justify-between gap-2">
-            <div>
-              <div class="text-13-medium text-foreground">{language.t("settings.market.sources")}</div>
-              <div class="mt-0.5 text-12-regular text-foreground-subtle">
-                {language.t("settings.market.sourcesHint")}
-              </div>
-            </div>
-            <Show when={editingSource()}>
-              <Button variant="ghost" size="small" onClick={cancelSourceEdit}>
-                {language.t("common.cancel")}
-              </Button>
-            </Show>
-          </div>
-          <div class="mb-3 flex flex-col gap-2 sm:flex-row">
-            <input
-              class="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-ui-xs text-foreground outline-none focus:border-border-focus"
-              value={sourceName()}
-              onInput={(event) => setSourceName(event.currentTarget.value)}
-              placeholder={language.t("settings.market.source.name")}
-              aria-label={language.t("settings.market.source.name")}
-              disabled={sourceBusy() !== ""}
-            />
-            <select
-              class="rounded-md border border-border bg-background px-2.5 py-1.5 text-ui-xs text-foreground outline-none focus:border-border-focus"
-              value={sourceType()}
-              onChange={(event) => setSourceType(event.currentTarget.value as MarketplaceSource["type"])}
-              aria-label={language.t("settings.market.source.type")}
-              disabled={sourceBusy() !== ""}
-            >
-              <option value="auto">auto</option>
-              <option value="novaway">NovaWay</option>
-              <option value="claude">Claude</option>
-              <option value="zcode">ZCode</option>
-            </select>
-            <input
-              class="min-w-0 flex-[2] rounded-md border border-border bg-background px-2.5 py-1.5 text-ui-xs text-foreground outline-none focus:border-border-focus"
-              value={sourceUrl()}
-              onInput={(event) => setSourceUrl(event.currentTarget.value)}
-              placeholder="https://example.com/catalog.json"
-              aria-label="URL"
-              spellcheck={false}
-              autocapitalize="off"
-              autocomplete="off"
-              disabled={sourceBusy() !== ""}
-            />
-            <Button size="small" disabled={sourceBusy() !== ""} onClick={saveSource}>
-              {editingSource() ? language.t("settings.market.source.save") : language.t("settings.market.source.add")}
-            </Button>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <For each={arrayValue<MarketplaceSource>(store.sources)}>
-              {(source) => (
-                <div
-                  data-source-id={source.id}
-                  class="flex flex-col gap-1 rounded-md border border-border/70 px-2.5 py-2 sm:flex-row sm:items-center"
-                >
-                  <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-1.5">
-                      <span class="truncate text-ui-xs font-medium text-foreground">{sourceLabelOf(source)}</span>
-                      <Tag>
-                        {source.trust === "official"
-                          ? language.t("settings.market.source.official")
-                          : language.t("settings.market.source.custom")}
-                      </Tag>
-                      <Tag>{source.type}</Tag>
-                      <Show when={!source.enabled}>
-                        <Tag>{language.t("settings.market.source.disabled")}</Tag>
-                      </Show>
-                    </div>
-                    <div class="truncate text-11-regular text-foreground-subtlest">{source.url}</div>
-                    <Show when={source.lastError}>
-                      <div class="truncate text-11-regular text-warning-base">{source.lastError}</div>
-                    </Show>
-                  </div>
-                  <div class="flex shrink-0 items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      disabled={sourceBusy() !== ""}
-                      onClick={() => toggleSource(source)}
-                    >
-                      {source.enabled
-                        ? language.t("settings.market.source.disable")
-                        : language.t("settings.market.source.enable")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      disabled={sourceBusy() !== ""}
-                      onClick={() => refreshSource(source)}
-                    >
-                      {language.t("settings.market.source.refresh")}
-                    </Button>
-                    <Show when={!source.builtin}>
-                      <Button
-                        variant="ghost"
-                        size="small"
-                        disabled={sourceBusy() !== ""}
-                        onClick={() => editSource(source)}
-                      >
-                        {language.t("settings.market.source.edit")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="small"
-                        disabled={sourceBusy() !== ""}
-                        onClick={() => {
-                          if (
-                            window.confirm(language.t("settings.market.source.removeConfirm", { name: source.name }))
-                          ) {
-                            removeSource(source)
-                          }
-                        }}
-                      >
-                        {language.t("settings.market.source.remove")}
-                      </Button>
-                    </Show>
-                  </div>
-                </div>
-              )}
-            </For>
-          </div>
-        </div>
-      </Show>
 
       <Show when={(arrayValue<LegacyEntry>(store.legacy).length > 0) || (arrayValue<LegacyMigration>(store.migrations).length > 0)}>
         <details class="mb-4 rounded-lg border border-border px-4 py-3">

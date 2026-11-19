@@ -9,7 +9,7 @@ const tmp = () => fs.mkdtemp(path.join(os.tmpdir(), "novaway-sources-"))
 describe("marketplace sources", () => {
   test("lists the official source without writing it to user storage", async () => {
     const config = await tmp()
-    expect((await list(config)).map((item) => item.id)).toEqual(["novaway-official", "claude-official", "zcode-official"])
+    expect((await list(config)).map((item) => item.id)).toEqual(["novaway-official", "claude-official"])
     await expect(fs.access(path.join(config, "marketplace-sources.json"))).rejects.toThrow()
   })
 

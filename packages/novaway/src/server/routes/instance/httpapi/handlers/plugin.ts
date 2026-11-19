@@ -10,10 +10,11 @@ import * as ConfigParse from "@/config/parse"
 import * as ConfigPaths from "@/config/paths"
 import * as ConfigPlugin from "@/config/plugin"
 import { Service as ExtensionService } from "@/extension/registry"
+import { Service as SkillService } from "@/skill"
 import { InstanceState } from "@/effect/instance-state"
 import { isRecord } from "@/util/record"
 import { Filesystem } from "@/util/filesystem"
-import { isPluginError } from "@novaway/plugin-api"
+import { isPluginError, type SurfaceContribution } from "@novaway/plugin-api"
 import { PluginHost } from "@/plugin/host"
 import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { Provider } from "@/provider/provider"
@@ -41,6 +42,7 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
   Effect.gen(function* () {
     const config = yield* Config.Service
     const extensions = yield* ExtensionService
+    const skills = yield* SkillService
     const bus = yield* Bus.Service
     const files = yield* AppFileSystem.Service
     const runtime = yield* PluginRuntimeService.Service
@@ -214,6 +216,28 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
       .handle("contributions", (ctx) =>
         Effect.gen(function* () {
           const result = yield* inspect()
+          const onViewInstances = result.instances.filter((instance) => {
+            if (instance.status !== "installed") return false
+            const events = instance.manifest.activationEvents
+            if (!Array.isArray(events)) return false
+            const viewIDs = new Set(
+              (Array.isArray(instance.manifest.contributes.surfaces) ? instance.manifest.contributes.surfaces : []).flatMap(
+                (declaration) => {
+                  const raw = declaration as unknown
+                  if (!isRecord(raw) || !isRecord(raw.action)) return []
+                  return raw.action.type === "view" && typeof raw.action.viewId === "string"
+                    ? [raw.action.viewId]
+                    : []
+                },
+              ),
+            )
+            return [...viewIDs].some((viewID) => events.includes(`onView:${viewID}`))
+          })
+          yield* Effect.forEach(
+            onViewInstances,
+            (instance) => runtime.activateOnDemand(instance).pipe(Effect.catchCause(() => Effect.void)),
+            { concurrency: 1, discard: true },
+          )
           const legacy = yield* extensions.contributions().pipe(Effect.catchCause(() => Effect.succeed([])))
           const tui = yield* tuiContributionPaths(result.instances).pipe(Effect.catchCause(() => Effect.succeed([])))
           const host = yield* runtime.get
@@ -273,14 +297,22 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
                 ...(entry.ui === undefined ? {} : { ui: entry.ui }),
               }
             }),
-            ...(host.registries.surfaces?.list() ?? []).map((item) => {
-              const owner = ownerFor("surface", item.id)
+            ...(host.registries.surfaces?.list() ?? []).map((entry) => {
+              const registered = "item" in entry ? entry : undefined
+              const item = registered ? registered.item : (entry as SurfaceContribution)
+              const owner = result.instances.find(
+                (instance) =>
+                  instance.id === (registered?.pluginID ?? "") &&
+                  instance.scope === (registered?.scope ?? "builtin") &&
+                  (instance.status === "installed" || instance.status === "active"),
+              )
               return {
                 ...runtimeMeta(owner),
                 kind: "surface" as const,
-                name: item.id,
-                localName: item.id,
+                name: registered?.name ?? item.id,
+                localName: registered?.localName ?? item.id,
                 slot: item.slot,
+                ...("order" in item && item.order !== undefined ? { order: item.order } : {}),
                 ...("title" in item && item.title !== undefined ? { title: item.title } : {}),
                 ...("description" in item && item.description !== undefined ? { description: item.description } : {}),
                 ...("icon" in item && item.icon !== undefined ? { icon: item.icon } : {}),
@@ -300,13 +332,20 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
               name: entry.name,
               localName: entry.localName,
               match: entry.item.match,
-              viewId: entry.item.viewId,
+              ...(entry.item.viewId === undefined ? {} : { viewId: entry.item.viewId }),
+              ...(entry.item.render === undefined ? {} : { render: entry.item.render }),
               ...(entry.item.priority === undefined ? {} : { priority: entry.item.priority }),
+              ...(entry.item.order === undefined ? {} : { order: entry.item.order }),
               ...(entry.item.readOnly === undefined ? {} : { readOnly: entry.item.readOnly }),
             })),
           ]
             .filter((item) => ctx.query.kind === undefined || item.kind === ctx.query.kind)
             .filter((item) => ctx.query.slot === undefined || ("slot" in item && item.slot === ctx.query.slot))
+          const activeSurfaceKeys = new Set(
+            runtimeContributions
+              .filter((item) => item.kind === "surface")
+              .map((item) => `${item.pluginID}\0${item.scope}\0${item.localName}`),
+          )
           return [
             ...PluginCatalog.list(result.instances, { kind: ctx.query.kind, slot: ctx.query.slot }, [
               ...legacy,
@@ -315,7 +354,9 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
               (item) =>
                 !(
                   item.kind === "previewer" ||
-                  (item.scope === "builtin" && ["surface", "office-engine", "publish-driver"].includes(item.kind))
+                  (item.kind === "surface" &&
+                    activeSurfaceKeys.has(`${item.pluginID}\0${item.scope}\0${item.localName}`)) ||
+                  (item.scope === "builtin" && ["office-engine", "publish-driver"].includes(item.kind))
                 ),
             ),
             ...runtimeContributions,
@@ -477,6 +518,8 @@ export const pluginHandlers = HttpApiBuilder.group(InstanceHttpApi, "plugin", (h
             )
             if (item.adapter === "legacy-extension") yield* extensions.setEnabled(item.id, ctx.payload.enabled)
           }
+          // Runtime 注册贡献后刷新技能快照，切换插件无需重启当前会话。
+          yield* skills.reload().pipe(Effect.catchCause(() => Effect.succeed([] as never[])))
           if (Option.isSome(provider)) yield* provider.value.reload()
           const value = yield* publishChanged(item.id, ctx.payload.enabled)
           return { pluginID: item.id, enabled: ctx.payload.enabled, generation: value }
