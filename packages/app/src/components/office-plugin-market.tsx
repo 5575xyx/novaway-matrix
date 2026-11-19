@@ -25,6 +25,10 @@ type Pending = { name: string; phase: "progress" | "success" | "error"; message?
 
 const text = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+function arrayValue<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : []
+}
+
 /**
  * 插件选择器里的「市场」段 —— 从市场安装插件的三态。
  *
@@ -55,14 +59,14 @@ export const OfficePluginMarket: Component<{ directory?: string }> = (props) => 
         if (!data) return
         // 已安装的包不在这里重复列出 —— 它们属于「内核已加载的扩展」，
         // 在扩展页可以看详情和卸载；这个列表只回答「还能装什么」。
-        const names = new Set((data.installed as InstalledEntry[]).map((item) => item.name))
+        const names = new Set(arrayValue<InstalledEntry>(data.installed).map((item) => item.name))
         // 顺序：内置推荐 → ZCode（zip，官方插件主要来自这里）→ Claude（git）。
         // 同一条目只认第一个：内置条目和远程目录重名时以内置的安装方式为准。
         const seen = new Set<string>()
         const entries = [
           ...NOVAWAY_MARKETPLACE_ENTRIES.map((entry) => ({ ...entry })),
-          ...(data.zcode as Omit<CatalogEntry, "kind">[]).map((entry) => ({ ...entry, kind: "zip" as const })),
-          ...(data.claude as Omit<CatalogEntry, "kind">[]).map((entry) => ({ ...entry, kind: "git" as const })),
+          ...arrayValue<Omit<CatalogEntry, "kind">>(data.zcode).map((entry) => ({ ...entry, kind: "zip" as const })),
+          ...arrayValue<Omit<CatalogEntry, "kind">>(data.claude).map((entry) => ({ ...entry, kind: "git" as const })),
         ].filter((entry) => {
           if (names.has(entry.name) || seen.has(entry.name)) return false
           seen.add(entry.name)

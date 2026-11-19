@@ -306,6 +306,16 @@ type UpdateConfirmation = {
 const text = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /**
+ * Marketplace sources are external data. Older servers, failed catalog
+ * requests, and third-party source adapters may omit collection fields, so
+ * the UI must never trust an API array to exist before rendering `.length`,
+ * iterating it, or mapping it.
+ */
+function arrayValue<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : []
+}
+
+/**
  * 市场目录与安装。
  *
  * 下载、校验、解压、浅克隆都在内核里完成（`extension/marketplace.ts`），
@@ -472,7 +482,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   const loadOperations = () =>
     operationsRequest({ directory: props.directory })
       .then((result) => {
-        const operations = (result.data as MarketplaceOperation[] | undefined) ?? []
+        const operations = Array.isArray(result.data) ? (result.data as MarketplaceOperation[]) : []
         setStore("operations", operations)
         return operations
       })
@@ -507,10 +517,22 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .then(async (result) => {
         const data = result.data
         if (!data) return
-        const official = ((data as unknown as { novaway?: ServerNativeEntry[] }).novaway ?? []).map((entry) => ({
+        const catalog = data as unknown as {
+          installed?: unknown
+          legacy?: unknown
+          sources?: unknown
+          novaway?: unknown
+          zcode?: unknown
+          claude?: unknown
+          updates?: unknown
+          errors?: unknown
+        }
+        const official = arrayValue<ServerNativeEntry>(catalog.novaway).map((entry) => ({
           ...entry,
           sourceId: entry.sourceId ?? "novaway-official",
-          kind: entry.kind ?? (entry.runtimeTargets?.includes("legacy-extension") ? "git" : "zip"),
+          kind:
+            entry.kind ??
+            (Array.isArray(entry.runtimeTargets) && entry.runtimeTargets.includes("legacy-extension") ? "git" : "zip"),
         }))
         const fallback: CatalogEntry[] = NOVAWAY_MARKETPLACE_ENTRIES.map((entry) => ({
           name: entry.name,
@@ -530,28 +552,24 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         }
         const migrations = await legacyClient()
           .marketplaceLegacyMigrations({ directory: props.directory })
-          .then((response) => (response.data as LegacyMigration[] | undefined) ?? [])
+          .then((response) => arrayValue<LegacyMigration>(response.data))
           .catch(() => [])
         setStore({
-          installed: (Array.isArray(data.installed) ? data.installed : []) as InstalledEntry[],
-          legacy: (Array.isArray((data as unknown as { legacy?: unknown }).legacy)
-            ? (data as unknown as { legacy: LegacyEntry[] }).legacy
-            : []) as LegacyEntry[],
+          installed: arrayValue<InstalledEntry>(catalog.installed),
+          legacy: arrayValue<LegacyEntry>(catalog.legacy),
           migrations,
-          sources: (Array.isArray((data as unknown as { sources?: unknown }).sources)
-            ? (data as unknown as { sources: MarketplaceSource[] }).sources
-            : []) as MarketplaceSource[],
+          sources: arrayValue<MarketplaceSource>(catalog.sources),
           novaway: [...merged.values()],
-          zcode: ((Array.isArray(data.zcode) ? data.zcode : []) as Omit<CatalogEntry, "kind">[]).map((entry) => ({
+          zcode: arrayValue<Omit<CatalogEntry, "kind">>(catalog.zcode).map((entry) => ({
             ...entry,
             kind: "zip" as const,
           })),
-          claude: ((Array.isArray(data.claude) ? data.claude : []) as Omit<CatalogEntry, "kind">[]).map((entry) => ({
+          claude: arrayValue<Omit<CatalogEntry, "kind">>(catalog.claude).map((entry) => ({
             ...entry,
             kind: "git" as const,
           })),
-          updates: (Array.isArray(data.updates) ? data.updates : []) as UpdateEntry[],
-          errors: Array.isArray(data.errors) ? data.errors : [],
+          updates: arrayValue<UpdateEntry>(catalog.updates),
+          errors: arrayValue<unknown>(catalog.errors).filter((entry): entry is string => typeof entry === "string"),
         })
       })
       .catch((error: unknown) => setStore("errors", [text(error)]))
@@ -1137,7 +1155,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </div>
       </Show>
 
-      <Show when={(store.legacy?.length ?? 0) > 0 || (store.migrations?.length ?? 0) > 0}>
+      <Show when={store.legacy.length > 0 || store.migrations.length > 0}>
         <details class="mb-4 rounded-lg border border-border px-4 py-3">
           <summary class="cursor-pointer text-13-medium text-foreground">
             {language.t("settings.market.legacy.title")}
@@ -1192,7 +1210,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </details>
       </Show>
 
-      <Show when={(store.errors?.length ?? 0) > 0}>
+      <Show when={store.errors.length > 0}>
         <div class="border-b border-border px-4 py-2" data-component="market-catalog-errors">
           <For each={store.errors}>{(error) => <div class="text-11-regular text-warning-base">{error}</div>}</For>
         </div>
@@ -1273,7 +1291,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </select>
       </div>
 
-      <Show when={(store.operations?.length ?? 0) > 0}>
+      <Show when={store.operations.length > 0}>
         <details class="mb-4 rounded-lg border border-border px-4 py-3" data-component="market-operation-history">
           <summary class="cursor-pointer text-12-medium text-foreground-subtle">
             {language.t("settings.market.operationsDetails")}
