@@ -129,20 +129,22 @@ const MarketplaceDetailsDialog: Component<{
   )
 }
 
-const MarketplaceIcon: Component<{ src?: string; seed: string }> = (props) => {
-  const [failed, setFailed] = createSignal(false)
+const MarketplaceIcon: Component<{ src?: string; fallbackSrc?: string; seed: string }> = (props) => {
+  const [attempt, setAttempt] = createSignal(0)
+  const candidates = () => [props.src, props.fallbackSrc].filter((value): value is string => Boolean(value))
+  const source = () => candidates()[attempt()]
   return (
     <Show
-      when={props.src && !failed()}
+      when={source()}
       fallback={<AppIcon seed={props.seed} fallback="mcp" class="shrink-0" />}
     >
       <img
-        src={props.src}
+        src={source()}
         alt=""
         class="size-9 shrink-0 rounded-[10px] object-cover"
         loading="lazy"
         referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
+        onError={() => setAttempt((value) => value + 1)}
       />
     </Show>
   )
@@ -304,6 +306,14 @@ type UpdateConfirmation = {
 }
 
 const text = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+/** Gitee raw 重定向在部分桌面网络环境中无法加载时，改用同仓库 jsDelivr 镜像。 */
+function cdnMirrorOfIcon(url: string | undefined): string | undefined {
+  if (!url) return undefined
+  const match = url.match(/^https:\/\/gitee\.com\/([^/]+)\/([^/]+)\/raw\/([^/]+)\/(.+)$/)
+  if (!match) return undefined
+  return `https://cdn.jsdelivr.net/gh/${match[1]}/${match[2]}@${match[3]}/${match[4]}`
+}
 
 /**
  * Marketplace sources are external data. Older servers, failed catalog
@@ -579,6 +589,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           version: entry.version,
           description: entry.description,
           descriptionKey: entry.descriptionKey,
+          icon: entry.icon,
           url: entry.url,
           sourceId: "novaway-official",
           ref: entry.ref,
@@ -587,8 +598,16 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           keywords: entry.keywords,
         }))
         const merged = new Map<string, CatalogEntry>()
-        for (const entry of [...fallback, ...official]) {
-          merged.set(entry.packageId ?? entry.name, entry)
+        for (const entry of fallback) merged.set(entry.packageId ?? entry.name, entry)
+        for (const entry of official) {
+          const key = entry.packageId ?? entry.name
+          const previous = merged.get(key)
+          // 保留本地官方清单里的头像，兼容旧服务端尚未返回 icon 的情况。
+          merged.set(key, {
+            ...previous,
+            ...entry,
+            ...(entry.icon || !previous?.icon ? {} : { icon: previous.icon }),
+          })
         }
         const migrations = await legacyClient()
           .marketplaceLegacyMigrations({ directory: props.directory })
@@ -789,6 +808,15 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   }
   // Keep these helpers above visibleEntries: createMemo may evaluate immediately,
   // so sorting must not close over a const that is still in its TDZ.
+  const sourceOf = (entry: CatalogEntry) =>
+    arrayValue<MarketplaceSource>(store.sources).find((source) => source.id === entry.sourceId)
+  const sourceOrderOf = (entry: CatalogEntry) => {
+    const source = sourceOf(entry)
+    if (source?.id === "novaway-official") return 0
+    if (source?.type === "claude") return 1
+    if (source?.type === "zcode") return 2
+    return 3
+  }
   const updateOf = (entry: CatalogEntry) =>
     arrayValue<UpdateEntry>(store.updates).find((item) => item.name === entryIdentity(entry))
   const installedOf = (entry: CatalogEntry) =>
@@ -828,8 +856,6 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   })
   const descriptionOf = (entry: CatalogEntry) =>
     entry.descriptionKey ? language.t(entry.descriptionKey as never) : entry.description
-  const sourceOf = (entry: CatalogEntry) =>
-    arrayValue<MarketplaceSource>(store.sources).find((source) => source.id === entry.sourceId)
   const sourceLabelOf = (source: MarketplaceSource | undefined, fallback?: string) => {
     if (source?.trust === "official" && source.id === "novaway-official") return language.t("settings.market.source.official")
     if (source?.trust === "official" && source.type === "claude") return "Claude 官方"
@@ -855,13 +881,6 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
     if (source?.type === "claude") return "https://github.com/anthropics.png?size=80"
     if (source?.type === "zcode") return "https://z.ai/favicon.ico"
     return undefined
-  }
-  const sourceOrderOf = (entry: CatalogEntry) => {
-    const source = sourceOf(entry)
-    if (source?.id === "novaway-official") return 0
-    if (source?.type === "claude") return 1
-    if (source?.type === "zcode") return 2
-    return 3
   }
   const compatibilityLabelOf = (entry: CatalogEntry) => {
     const source = sourceOf(entry)
@@ -1440,7 +1459,11 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                 class="group grid min-w-0 grid-cols-[36px_minmax(0,1fr)_auto] content-start gap-x-3 rounded-xl px-3 py-5 transition-colors hover:bg-hover/40"
               >
                 <div class="col-span-2 flex min-w-0 items-start gap-3">
-                  <MarketplaceIcon src={avatarUrlOf(entry)} seed={displayNameOf(entry)} />
+                  <MarketplaceIcon
+                    src={avatarUrlOf(entry)}
+                    fallbackSrc={cdnMirrorOfIcon(avatarUrlOf(entry))}
+                    seed={displayNameOf(entry)}
+                  />
                   <div class="min-w-0 flex-1">
                     <div class="flex min-w-0 items-start justify-between gap-2">
                       <div class="flex min-w-0 flex-wrap items-center gap-1.5">

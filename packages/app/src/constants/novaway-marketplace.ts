@@ -18,6 +18,8 @@ export type BuiltinMarketEntry = {
   /** 兜底描述（远程/离线场景）；有 descriptionKey 时以 i18n 文案为准。 */
   description?: string
   descriptionKey?: string
+  /** 远程目录不可用时仍能展示官方插件头像。 */
+  icon?: string
   url: string
   ref?: string
   subdir?: string
@@ -27,11 +29,23 @@ export type BuiltinMarketEntry = {
   autoInstall: boolean
 }
 
+const OFFICIAL_PLUGIN_ICONS: Record<string, string> = {
+  "com.novaway.agency-agents":
+    "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.agency-agents/assets/icon.svg",
+  "com.novaway.mcp-suite":
+    "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.mcp-suite/assets/icon.svg",
+  "com.novaway.office-suite":
+    "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.office-suite/assets/icon.svg",
+  "com.novaway.powersnexus":
+    "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.powersnexus/assets/icon.svg",
+}
+
 export const NOVAWAY_MARKETPLACE_ENTRIES: BuiltinMarketEntry[] = BUILTIN_EXTENSIONS.map((entry) => ({
   name: entry.name,
   ...(entry.version ? { version: entry.version } : {}),
   description: entry.description,
   ...(entry.descriptionKey ? { descriptionKey: entry.descriptionKey } : {}),
+  ...(OFFICIAL_PLUGIN_ICONS[entry.name] ? { icon: OFFICIAL_PLUGIN_ICONS[entry.name] } : {}),
   url: entry.url,
   ...(entry.ref ? { ref: entry.ref } : {}),
   ...(entry.subdir ? { subdir: entry.subdir } : {}),
