@@ -1,3 +1,4 @@
+import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { dynamicTool, type Tool, jsonSchema, type JSONSchema7 } from "ai"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
@@ -235,6 +236,8 @@ interface State {
   status: Record<string, Status>
   clients: Record<string, MCPClient>
   defs: Record<string, MCPToolDef[]>
+  /** Servers added through the public MCP API, rather than a plugin registry. */
+  dynamic: Set<string>
 }
 
 export interface Interface {
@@ -540,6 +543,86 @@ export const layer = Layer.effect(
       return { mcpClient, status, defs: listed } satisfies CreateResult
     })
     const cfgSvc = yield* Config.Service
+    const pluginRuntime = yield* Effect.serviceOption(PluginRuntimeService.Service)
+
+    /**
+     * Declarative MCP contributions are registered by the v2 plugin host. MCP
+     * remains a kernel service, so fold the active registry into the effective
+     * config at read time instead of copying plugin values into novaway.json.
+     */
+    const contributedMcp = Effect.fnUntraced(function* () {
+      if (Option.isNone(pluginRuntime)) return {} as Record<string, ConfigMCP.Info>
+      const host = yield* pluginRuntime.value.get
+      const registry = host.registries.declarative?.mcpServers
+      if (!registry) return {} as Record<string, ConfigMCP.Info>
+
+      const expandEnv = (value: string) =>
+        value.replace(/\{env:([^}]+)\}/g, (_, name: string) => process.env[name] ?? "")
+      const expandHeaders = (headers: unknown) =>
+        headers && typeof headers === "object"
+          ? Object.fromEntries(
+              Object.entries(headers as Record<string, unknown>)
+                .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+                .map(([key, value]) => [key, expandEnv(value)]),
+            )
+          : undefined
+
+      const result: Record<string, ConfigMCP.Info> = {}
+      for (const entry of registry.list()) {
+        const item = entry.item
+        if (item.type === "local" && Array.isArray(item.command)) {
+          const command =
+            entry.localName === "browser" && process.env.PLAYWRIGHT_MCP_SERVER_PATH
+              ? [
+                  process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH ?? "node",
+                  process.env.PLAYWRIGHT_MCP_SERVER_PATH,
+                  ...(process.env.PLAYWRIGHT_MCP_BROWSER
+                    ? ["--browser", process.env.PLAYWRIGHT_MCP_BROWSER]
+                    : []),
+                  ...(process.env.PLAYWRIGHT_MCP_HEADLESS === "1" ? ["--headless"] : []),
+                ]
+              : item.command
+          const environment =
+            item.env && typeof item.env === "object"
+              ? Object.fromEntries(
+                  Object.entries(item.env as Record<string, unknown>)
+                    .filter((value): value is [string, string] => typeof value[1] === "string")
+                    .map(([key, value]) => [key, expandEnv(value)]),
+                )
+              : undefined
+          result[entry.name] = {
+            type: "local",
+            command,
+            ...(environment ? { environment } : {}),
+            enabled: item.enabled !== false,
+          }
+        }
+        if (item.type === "remote" && typeof item.url === "string") {
+          const headers = expandHeaders(item.headers)
+          result[entry.name] = {
+            type: "remote",
+            url: item.url,
+            ...(headers ? { headers } : {}),
+            ...(item.oauth !== undefined ? { oauth: item.oauth as false | ConfigMCP.OAuth } : {}),
+            enabled: item.enabled !== false,
+          }
+        }
+      }
+      return result
+    })
+
+    const effectiveMcp = Effect.fnUntraced(function* () {
+      const cfg = yield* cfgSvc.get()
+      return { ...(yield* contributedMcp()), ...(cfg.mcp ?? {}) }
+    })
+
+    const resolveMcpName = Effect.fnUntraced(function* (name: string) {
+      const config = yield* effectiveMcp()
+      if (isMcpConfigured(config[name])) return name
+      const local = sanitize(name)
+      const match = Object.keys(config).find((candidate) => candidate.endsWith(`_${local}`))
+      return match
+    })
 
     const descendants = Effect.fnUntraced(
       function* (pid: number) {
@@ -581,13 +664,13 @@ export const layer = Layer.effect(
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("MCP.state")(function* () {
-        const cfg = yield* cfgSvc.get()
         const bridge = yield* EffectBridge.make()
-        const config = cfg.mcp ?? {}
+        const config = yield* effectiveMcp()
         const s: State = {
           status: {},
           clients: {},
           defs: {},
+          dynamic: new Set(),
         }
 
         yield* Effect.forEach(
@@ -644,6 +727,16 @@ export const layer = Layer.effect(
       }),
     )
 
+    const pruneInactive = Effect.fnUntraced(function* (s: State) {
+      const config = yield* effectiveMcp()
+      for (const name of Object.keys(s.status)) {
+        if (s.dynamic.has(name) || name in config) continue
+        yield* closeClient(s, name)
+        delete s.clients[name]
+        delete s.status[name]
+      }
+    })
+
     function closeClient(s: State, name: string) {
       const client = s.clients[name]
       delete s.defs[name]
@@ -667,11 +760,20 @@ export const layer = Layer.effect(
       return s.status[name]
     })
 
+    const syncConfigured = Effect.fnUntraced(function* (s: State) {
+      const config = yield* effectiveMcp()
+      for (const [name, mcp] of Object.entries(config)) {
+        if (!isMcpConfigured(mcp) || name in s.status) continue
+        yield* createAndStore(name, mcp).pipe(Effect.catch(() => Effect.void))
+      }
+    })
+
     const status = Effect.fn("MCP.status")(function* () {
       const s = yield* InstanceState.get(state)
+      yield* pruneInactive(s)
+      yield* syncConfigured(s)
 
-      const cfg = yield* cfgSvc.get()
-      const config = cfg.mcp ?? {}
+      const config = yield* effectiveMcp()
       const result: Record<string, Status> = {}
 
       for (const [key, mcp] of Object.entries(config)) {
@@ -681,7 +783,7 @@ export const layer = Layer.effect(
 
       // 包含通过 add/connect 动态添加但未持久化到配置中的服务器
       for (const key of Object.keys(s.status)) {
-        if (!(key in result)) {
+        if (s.dynamic.has(key) && !(key in result)) {
           result[key] = s.status[key]
         }
       }
@@ -711,31 +813,37 @@ export const layer = Layer.effect(
     const add = Effect.fn("MCP.add")(function* (name: string, mcp: ConfigMCP.Info) {
       yield* createAndStore(name, mcp)
       const s = yield* InstanceState.get(state)
+      s.dynamic.add(name)
       return { status: s.status }
     })
 
     const connect = Effect.fn("MCP.connect")(function* (name: string) {
-      const mcp = yield* getMcpConfig(name)
-      if (!mcp) {
+      const resolvedName = yield* resolveMcpName(name)
+      if (!resolvedName) {
         log.error("MCP config not found or invalid", { name })
         return
       }
-      yield* createAndStore(name, { ...mcp, enabled: true })
+      const mcp = yield* getMcpConfig(resolvedName)
+      if (!mcp) return
+      yield* createAndStore(resolvedName, { ...mcp, enabled: true })
     })
 
     const disconnect = Effect.fn("MCP.disconnect")(function* (name: string) {
+      const resolvedName = (yield* resolveMcpName(name)) ?? name
       const s = yield* InstanceState.get(state)
-      yield* closeClient(s, name)
-      delete s.clients[name]
-      s.status[name] = { status: "disabled" }
+      yield* closeClient(s, resolvedName)
+      delete s.clients[resolvedName]
+      s.status[resolvedName] = { status: "disabled" }
     })
 
     const tools = Effect.fn("MCP.tools")(function* () {
       const result: Record<string, Tool> = {}
       const s = yield* InstanceState.get(state)
+      yield* pruneInactive(s)
+      yield* syncConfigured(s)
 
       const cfg = yield* cfgSvc.get()
-      const config = cfg.mcp ?? {}
+      const config = yield* effectiveMcp()
       const defaultTimeout = cfg.experimental?.mcp_timeout
 
       const connectedClients = Object.entries(s.clients).filter(
@@ -780,14 +888,17 @@ export const layer = Layer.effect(
 
     const callTool = Effect.fn("MCP.callTool")(function* (toolId: string, args: Record<string, unknown>) {
       const s = yield* InstanceState.get(state)
+      yield* pruneInactive(s)
+      yield* syncConfigured(s)
       const cfg = yield* cfgSvc.get()
+      const config = yield* effectiveMcp()
       const defaultTimeout = cfg.experimental?.mcp_timeout
 
       for (const [clientName, client] of Object.entries(s.clients)) {
         if (s.status[clientName]?.status !== "connected") continue
         const listed = s.defs[clientName]
         if (!listed) continue
-        const mcpConfig = cfg.mcp?.[clientName]
+        const mcpConfig = config[clientName]
         const entry = mcpConfig && isMcpConfigured(mcpConfig) ? mcpConfig : undefined
         const timeout = entry?.timeout ?? defaultTimeout
         for (const mcpTool of listed) {
@@ -853,8 +964,11 @@ export const layer = Layer.effect(
     })
 
     const getMcpConfig = Effect.fnUntraced(function* (mcpName: string) {
-      const cfg = yield* cfgSvc.get()
-      const mcpConfig = cfg.mcp?.[mcpName]
+      const config = yield* effectiveMcp()
+      const resolvedName = isMcpConfigured(config[mcpName])
+        ? mcpName
+        : Object.keys(config).find((candidate) => candidate.endsWith(`_${sanitize(mcpName)}`))
+      const mcpConfig = resolvedName ? config[resolvedName] : undefined
       if (!mcpConfig || !isMcpConfigured(mcpConfig)) return undefined
       return mcpConfig
     })
@@ -1056,6 +1170,7 @@ export const defaultLayer = layer.pipe(
   Layer.provide(Config.defaultLayer),
   Layer.provide(CrossSpawnSpawner.defaultLayer),
   Layer.provide(AppFileSystem.defaultLayer),
+  Layer.provide(PluginRuntimeService.defaultLayer),
 )
 
 export * as MCP from "."

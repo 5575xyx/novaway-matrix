@@ -23,6 +23,8 @@ export type SidebarRailItem = {
   active?: boolean
   /** 图标色相：与侧栏旧版菜单一致（数据库蓝、知识库绿…）。 */
   tone?: string
+  /** 待更新扩展数量；为 0 或未设置时不显示徽标。 */
+  badge?: number
   onClick: () => void
 }
 
@@ -45,6 +47,15 @@ export function SidebarRailButton(props: { item: SidebarRailItem }) {
           style={props.item.tone ? { color: props.item.tone } : undefined}
           class="transition-transform duration-150 group-hover:scale-105"
         />
+        <Show when={(props.item.badge ?? 0) > 0}>
+          <span
+            data-component="sidebar-rail-badge"
+            class="pointer-events-none absolute right-0.5 top-0.5 min-w-4 translate-x-1/4 -translate-y-1/4 rounded-full bg-surface-critical-base px-1 text-center text-[10px] font-semibold leading-4 text-text-on-critical-base shadow-sm"
+            aria-label={`${props.item.badge} 个扩展可更新`}
+          >
+            {(props.item.badge ?? 0) > 99 ? "99+" : props.item.badge}
+          </span>
+        </Show>
         {/* 选中指示条：rail 是竖排，用左侧短条比整块底色更轻。 */}
         <Show when={props.item.active}>
           {/* 位置贴按钮左沿：rail 外层是 overflow-hidden，再往外会被裁掉。 */}
@@ -62,8 +73,8 @@ export const SidebarRail: Component<{
   header?: JSX.Element
   /** 品牌区下、导航区上的额外入口（主题切换这类有自定义动效的按钮）。 */
   leading?: JSX.Element
-  /** 底部区上方（设置之上）的额外入口：主题切换现在落在这里。 */
-  footerLeading?: JSX.Element
+  /** 整条 rail 最底部（footer 之下的）自定义入口，例如带下拉框的设置按钮。 */
+  footerEnd?: JSX.Element
   /** 额外类名：macOS 桌面端要避开左上角的红绿灯。 */
   class?: string
 }> = (props) => {
@@ -84,8 +95,8 @@ export const SidebarRail: Component<{
       <Show when={props.leading}>{props.leading}</Show>
       <For each={props.items}>{(item) => <SidebarRailButton item={item} />}</For>
       <div class="min-h-2 flex-1" />
-      <Show when={props.footerLeading}>{props.footerLeading}</Show>
       <For each={props.footer ?? []}>{(item) => <SidebarRailButton item={item} />}</For>
+      <Show when={props.footerEnd}>{props.footerEnd}</Show>
     </div>
   )
 }

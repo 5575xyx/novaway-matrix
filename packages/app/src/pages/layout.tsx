@@ -15,7 +15,7 @@ import {
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject, sidePaneSideChatTabId } from "@/context/layout"
-import { FrameWindowControls } from "@/components/frame-window-controls"
+import { useSessionLayout } from "@/pages/session/session-layout"
 import { ElicitationDialog } from "@/components/elicitation-dialog"
 import { createMountTransition } from "@/utils/mount-transition"
 import { useGlobalSync } from "@/context/global-sync"
@@ -75,6 +75,7 @@ import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { DialogSettings, isSettingsTab, type SettingsTab } from "@/components/dialog-settings"
 import { DialogCreateProject } from "@/components/dialog-create-project"
+import { DialogAddWorkspace } from "@/components/dialog-add-workspace"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { applyPath, backPath, forwardPath, type TitlebarHistory } from "@/components/titlebar-history"
 import { DatabasePage } from "@/pages/database"
@@ -107,6 +108,7 @@ import { ProjectMenu, type ProjectSidebarContext } from "./layout/sidebar-projec
 import { ProjectGitInit } from "./layout/sidebar-project-git"
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
+import { SettingsRailMenu } from "@/components/settings-rail-menu"
 import {
   ProjectTaskList,
   TaskFilterBar,
@@ -134,6 +136,35 @@ type PluginSurfaceAction =
   | { type: "view"; viewId: string }
   | { type: "command"; command: string }
   | { type: "url"; url: string }
+
+type PluginContributionLike = {
+  kind?: string
+  pluginID?: string
+  localName?: string
+  name?: string
+  status?: string
+}
+
+function dispatchPluginCommand(
+  contribution: { pluginID: string },
+  command: string,
+  contributions: readonly PluginContributionLike[],
+) {
+  const declared = contributions.find(
+    (item) =>
+      item.kind === "command" &&
+      item.pluginID === contribution.pluginID &&
+      (item.status === "active" || item.status === "installed") &&
+      (item.localName === command || item.name === command),
+  )
+  if (!declared) return false
+  window.dispatchEvent(
+    new CustomEvent("novaway:plugin-command", {
+      detail: { pluginID: contribution.pluginID, command: declared.localName },
+    }),
+  )
+  return true
+}
 
 function parsePluginSurfaceAction(value: unknown): PluginSurfaceAction | undefined {
   if (!isRecord(value) || typeof value.type !== "string") return undefined
@@ -212,14 +243,34 @@ export default function Layout(props: ParentProps) {
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const layout = useLayout()
+  const sessionLayout = useSessionLayout()
   const layoutReady = createMemo(() => layout.ready())
   const platform = usePlatform()
+  const [appAppearance, setAppAppearance] = createStore<{ iconData?: string }>({})
   const settings = useSettings()
   const server = useServer()
   const notification = useNotification()
   const permission = usePermission()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // 整帧页面和会话聊天共用同一块主工作区。右侧面板展开时，覆盖页也要
+  // 让出相同的宽度，不能继续用 absolute right: 8px 把面板盖住。
+  const framePageRight = () => {
+    if (!layout.sidePane.opened()) return "8px"
+    const viewport = typeof window === "undefined" ? 1000 : window.innerWidth
+    const sidePane = Math.min(layout.sidePane.width(), Math.round(viewport * 0.6))
+    return `${sidePane + 8}px`
+  }
+
+  const framePageBottom = () => {
+    const view = sessionLayout.view()
+    const paneTerminal = layout.sidePane.opened() && layout.sidePane.activeTab() === "terminal"
+    if (!view.terminal.opened() || paneTerminal) return "8px"
+    const viewport = typeof window === "undefined" ? 1000 : window.visualViewport?.height ?? window.innerHeight
+    const terminal = Math.min(layout.terminal.height(), Math.round(viewport * 0.6))
+    return `${terminal + 8}px`
+  }
 
   const sendFeishuNotification = (
     title: string,
@@ -305,8 +356,28 @@ export default function Layout(props: ParentProps) {
   }
   const colorSchemeLabel = (scheme: ColorScheme) => language.t(colorSchemeKey[scheme])
   const currentDir = createMemo(() => route().dir)
+  const [extensionUpdateCount, setExtensionUpdateCount] = createSignal(0)
+  const refreshExtensionUpdates = () => {
+    const directory = currentDir()
+    if (!directory) {
+      setExtensionUpdateCount(0)
+      return
+    }
+    void globalSDK.client.extension
+      .marketplaceCatalog({ directory })
+      .then((result) => {
+        const updates = ((result.data as unknown as { updates?: Array<{ state?: string }> } | undefined)?.updates ?? [])
+        setExtensionUpdateCount(updates.filter((item) => item.state === "outdated").length)
+      })
+      .catch(() => undefined)
+  }
+  createEffect(on(currentDir, refreshExtensionUpdates, { defer: true }))
+  onMount(() => {
+    const timer = setInterval(refreshExtensionUpdates, 10 * 60 * 1000)
+    onCleanup(() => clearInterval(timer))
+  })
   const modeStyle = createMemo(() => {
-    const mode = layout.mode.all.find((item) => item.id === layout.mode.current())
+    const mode = layout.mode.all().find((item) => item.id === layout.mode.current())
     if (!mode) return {}
     return {
       "--novaway-mode-color": mode.color,
@@ -472,6 +543,9 @@ export default function Layout(props: ParentProps) {
   })
 
   onMount(() => {
+    void platform.getAppAppearance?.().then((appearance) => setAppAppearance("iconData", appearance.iconData))
+    const dispose = platform.onAppAppearanceChange?.((appearance) => setAppAppearance("iconData", appearance.iconData))
+    if (dispose) onCleanup(dispose)
     const stop = () => setState("sizing", false)
     makeEventListener(window, "pointerup", stop)
     makeEventListener(window, "pointercancel", stop)
@@ -2049,8 +2123,19 @@ export default function Layout(props: ParentProps) {
   }
 
   /**
+   * 侧栏「工作区」旁的 + 号：一个弹窗里给两条路 ——
+   * 选已有文件夹直接打开，或选保存位置后新建项目目录。
+   * 原生目录选择器不可用时（Web 端），「打开文件夹」会落到内置目录浏览弹窗。
+   */
+  function showAddWorkspaceDialog() {
+    void dialog.show(() => (
+      <DialogAddWorkspace onOpenFolder={() => void chooseProject()} onCreateProject={() => showCreateProjectDialog()} />
+    ))
+  }
+
+  /**
    * 新建项目：在选定的父目录里建一个文件夹，随后按普通项目打开。
-   * 与「打开项目」成对出现（侧栏 + 号菜单、任务中心），不再只有"打开已有目录"这一条路。
+   * 与「打开项目」成对出现（侧栏 + 号弹窗、任务中心），不再只有"打开已有目录"这一条路。
    */
   function showCreateProjectDialog() {
     void dialog.show(() => (
@@ -2455,7 +2540,7 @@ export default function Layout(props: ParentProps) {
   const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   // 当前模式色：图标条和会话面板都要用（rail 在面板外侧，得自己继承一份）。
   const modeAccent = createMemo(
-    () => layout.mode.all.find((mode) => mode.id === layout.mode.current())?.color ?? "var(--border-hover)",
+    () => layout.mode.all().find((mode) => mode.id === layout.mode.current())?.color ?? "var(--border-hover)",
   )
   // 会话面板内容宽度（下限 264px）。
   const panel = createMemo(() => Math.max(264, layout.sidebar.width()))
@@ -2710,7 +2795,12 @@ export default function Layout(props: ParentProps) {
               title={language.t("command.home.open")}
               aria-current={!layout.mode.hasSelected() ? "page" : undefined}
             >
-              <Mark class="size-5 shrink-0 text-foreground" />
+              <Show
+                when={platform.platform === "desktop" && appAppearance.iconData}
+                fallback={<Mark class="size-5 shrink-0 text-foreground" />}
+              >
+                {(src) => <img src={src()} alt="" class="size-5 shrink-0 object-contain" draggable={false} />}
+              </Show>
               {/* 品牌字标：`Nova` 用前景色、`Way` 用当前模式色。
                   比纯文本多一档识别度（用户要求"特殊格式"），同时顺带当作模式指示。 */}
               <span class="brand-wordmark text-ui-base truncate">
@@ -2834,6 +2924,25 @@ export default function Layout(props: ParentProps) {
           >
             {language.t("sidebar.newTask")}
           </Button>
+          <Button
+            variant="ghost"
+            size="large"
+            class="w-full justify-start gap-2 text-foreground"
+            aria-label={language.t("sidebar.extensionsMarket")}
+            onClick={openExtensionsPage}
+          >
+            <Icon name="dot-grid" size="small" class="shrink-0 text-icon-interactive-base" />
+            <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.extensionsMarket")}</span>
+            <Show when={extensionUpdateCount() > 0}>
+              <span
+                data-component="sidebar-extensions-badge"
+                class="min-w-5 rounded-full bg-surface-critical-base px-1.5 text-center text-[10px] font-semibold leading-5 text-text-on-critical-base"
+                aria-label={`${extensionUpdateCount()} 个扩展可更新`}
+              >
+                {extensionUpdateCount() > 99 ? "99+" : extensionUpdateCount()}
+              </span>
+            </Show>
+          </Button>
           {/* 自动化从图标条挪到这里：它是日常最常点的一个，和「新建任务」挨着比收进 rail 更好找。 */}
           <Button
             variant="ghost"
@@ -2859,10 +2968,210 @@ export default function Layout(props: ParentProps) {
               <Keybind class="shrink-0 text-ui-xs text-foreground-subtlest">{command.keybind("file.open")}</Keybind>
             </Button>
           </Show>
-          {/* 视图切换 + 打开项目：任务行上方那排胶囊分段与右侧操作。
-             分段用滑动指示器，不是两个各自变色的按钮。 */}
-          <div class="flex items-center gap-1 pt-1">
-            <div class="relative flex h-7 shrink-0 items-center rounded-full bg-surface p-0.5">
+          {/* 「工作区」标签单独占一行，右侧跟视图/新建入口；
+              任务/文件的分段切换放在它下面一行，不再和标签挤在同一行。 */}
+          <div class="flex flex-col gap-1.5 pt-1">
+            <div class="flex items-center gap-1">
+              <span class="min-w-0 truncate px-1 text-ui-caption font-medium text-foreground-subtle">
+                {language.t("sidebar.workspaces.title")}
+              </span>
+              {/* 「打开项目」保留；收起入口不在这里重复一份 —— 侧栏顶带已经有了，
+                  同屏两个「折叠工作区」是重复入口（用户反馈的正是这个）。
+                  入口改成菜单：「打开已有项目」之外再给「新建项目」，
+                  两条路都在同一个 + 号里，不用先去文件管理器建好目录。 */}
+              <div class="ml-auto flex shrink-0 items-center gap-0.5">
+                {/* 视图菜单：分组方式 / 排序方式 /
+                  工作区筛选 / 最近活动时间窗 / 恢复默认。
+                  偏好存在 layout 的持久化 store 里，刷新与切项目都不会丢。 */}
+                <DropdownMenu gutter={4} placement="bottom-end">
+                  <DropdownMenu.Trigger
+                    as={IconButton}
+                    icon="sliders"
+                    variant="ghost"
+                    size="small"
+                    aria-label={language.t("sidebar.view.menu")}
+                    title={language.t("sidebar.view.menu")}
+                  />
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content style={{ "min-width": "190px" }}>
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger>
+                          <span>{language.t("sidebar.view.groupBy")}</span>
+                          <span class="ml-auto text-ui-xs text-foreground-subtlest">
+                            {language.t(`sidebar.view.groupBy.${layout.taskList.groupBy()}`)}
+                          </span>
+                          <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
+                            <DropdownMenu.RadioGroup
+                              value={layout.taskList.groupBy()}
+                              onChange={(value) =>
+                                layout.taskList.setGroupBy(
+                                  value === "date" || value === "custom" || value === "none" ? value : "workspace",
+                                )
+                              }
+                            >
+                              <For each={["workspace", "date", "custom", "none"] as const}>
+                                {(mode) => (
+                                  <DropdownMenu.RadioItem
+                                    value={mode}
+                                    onSelect={() => layout.taskList.setGroupBy(mode)}
+                                  >
+                                    <DropdownMenu.ItemLabel>
+                                      {language.t(`sidebar.view.groupBy.${mode}`)}
+                                    </DropdownMenu.ItemLabel>
+                                    <DropdownMenu.ItemIndicator>
+                                      <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                    </DropdownMenu.ItemIndicator>
+                                  </DropdownMenu.RadioItem>
+                                )}
+                              </For>
+                            </DropdownMenu.RadioGroup>
+                            <DropdownMenu.Separator />
+                            <DropdownMenu.Item onSelect={() => dialog.show(() => <DialogTaskGroups />)}>
+                              <DropdownMenu.ItemLabel>{language.t("sidebar.task.group.manage")}</DropdownMenu.ItemLabel>
+                            </DropdownMenu.Item>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger>
+                          <span>{language.t("sidebar.view.sortBy")}</span>
+                          <span class="ml-auto text-ui-xs text-foreground-subtlest">
+                            {language.t(`sidebar.view.sortBy.${layout.taskList.sortBy()}`)}
+                          </span>
+                          <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
+                            <DropdownMenu.RadioGroup
+                              value={layout.taskList.sortBy()}
+                              onChange={(value) =>
+                                layout.taskList.setSortBy(value === "created" || value === "name" ? value : "recent")
+                              }
+                            >
+                              <For each={["recent", "created", "name"] as const}>
+                                {(order) => (
+                                  <DropdownMenu.RadioItem
+                                    value={order}
+                                    onSelect={() => layout.taskList.setSortBy(order)}
+                                  >
+                                    <DropdownMenu.ItemLabel>
+                                      {language.t(`sidebar.view.sortBy.${order}`)}
+                                    </DropdownMenu.ItemLabel>
+                                    <DropdownMenu.ItemIndicator>
+                                      <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                    </DropdownMenu.ItemIndicator>
+                                  </DropdownMenu.RadioItem>
+                                )}
+                              </For>
+                            </DropdownMenu.RadioGroup>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger>
+                          <span>{language.t("sidebar.view.workspace")}</span>
+                          <span class="ml-auto max-w-32 truncate text-ui-xs text-foreground-subtlest">
+                            {workspaceViewLabel()}
+                          </span>
+                          <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent class="max-h-96 overflow-y-auto" style={{ "min-width": "180px" }}>
+                            <DropdownMenu.RadioGroup
+                              value={layout.taskList.workspace()}
+                              onChange={(value) => layout.taskList.setWorkspace(String(value))}
+                            >
+                              <DropdownMenu.RadioItem value="all" onSelect={() => layout.taskList.setWorkspace("all")}>
+                                <DropdownMenu.ItemLabel>
+                                  {language.t("sidebar.view.workspace.all")}
+                                </DropdownMenu.ItemLabel>
+                                <DropdownMenu.ItemIndicator>
+                                  <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                </DropdownMenu.ItemIndicator>
+                              </DropdownMenu.RadioItem>
+                              <For each={projectList()}>
+                                {(project) => {
+                                  const key = pathKey(project.worktree)
+                                  return (
+                                    <DropdownMenu.RadioItem
+                                      value={key}
+                                      onSelect={() => layout.taskList.setWorkspace(key)}
+                                    >
+                                      <DropdownMenu.ItemLabel>
+                                        {project.name || getFilename(project.worktree)}
+                                      </DropdownMenu.ItemLabel>
+                                      <DropdownMenu.ItemIndicator>
+                                        <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                      </DropdownMenu.ItemIndicator>
+                                    </DropdownMenu.RadioItem>
+                                  )
+                                }}
+                              </For>
+                            </DropdownMenu.RadioGroup>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger>
+                          <span>{language.t("sidebar.view.recency")}</span>
+                          <span class="ml-auto text-ui-xs text-foreground-subtlest">
+                            {language.t(`sidebar.view.recency.${layout.taskList.recency()}`)}
+                          </span>
+                          <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
+                            <DropdownMenu.RadioGroup
+                              value={layout.taskList.recency()}
+                              onChange={(value) =>
+                                layout.taskList.setRecency(
+                                  value === "today" || value === "week" || value === "month" ? value : "all",
+                                )
+                              }
+                            >
+                              <For each={["all", "today", "week", "month"] as const}>
+                                {(window) => (
+                                  <DropdownMenu.RadioItem
+                                    value={window}
+                                    onSelect={() => layout.taskList.setRecency(window)}
+                                  >
+                                    <DropdownMenu.ItemLabel>
+                                      {language.t(`sidebar.view.recency.${window}`)}
+                                    </DropdownMenu.ItemLabel>
+                                    <DropdownMenu.ItemIndicator>
+                                      <Icon name="check-small" size="small" class="text-foreground-subtlest" />
+                                    </DropdownMenu.ItemIndicator>
+                                  </DropdownMenu.RadioItem>
+                                )}
+                              </For>
+                            </DropdownMenu.RadioGroup>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                      <DropdownMenu.Separator />
+                      <DropdownMenu.Item onSelect={() => layout.taskList.reset()}>
+                        <DropdownMenu.ItemLabel>{language.t("sidebar.view.reset")}</DropdownMenu.ItemLabel>
+                      </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu>
+                {/* 点 + 弹出「新建工作区」：可以选已有文件夹直接打开，也可以选保存位置新建项目。
+                  以前这里是一层下拉菜单，两个动作各占一条。 */}
+                <IconButton
+                  icon="folder-add-left"
+                  variant="ghost"
+                  size="small"
+                  aria-label={language.t("workspace.add.title")}
+                  title={language.t("workspace.add.title")}
+                  onClick={showAddWorkspaceDialog}
+                />
+              </div>
+            </div>
+            {/* 任务 / 文件分段切换：紧跟「工作区」行下方，用滑动指示器而不是两个各自变色的按钮。 */}
+            <div class="relative flex h-7 shrink-0 items-center self-start rounded-full bg-surface p-0.5">
               <span
                 aria-hidden="true"
                 class="pointer-events-none absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-background transition-transform duration-200 ease-out"
@@ -2893,214 +3202,6 @@ export default function Layout(props: ParentProps) {
                 {language.t("sidebar.view.files")}
               </button>
             </div>
-            <span class="min-w-0 truncate px-1 text-ui-caption font-medium text-foreground-subtle">
-              {language.t("sidebar.workspaces.title")}
-            </span>
-            {/* 「打开项目」保留；收起入口不在这里重复一份 —— 侧栏顶带已经有了，
-                同屏两个「折叠工作区」是重复入口（用户反馈的正是这个）。
-                入口改成菜单：「打开已有项目」之外再给「新建项目」，
-                两条路都在同一个 + 号里，不用先去文件管理器建好目录。 */}
-            <div class="ml-auto flex shrink-0 items-center gap-0.5">
-              {/* 视图菜单：分组方式 / 排序方式 /
-                  工作区筛选 / 最近活动时间窗 / 恢复默认。
-                  偏好存在 layout 的持久化 store 里，刷新与切项目都不会丢。 */}
-              <DropdownMenu gutter={4} placement="bottom-end">
-                <DropdownMenu.Trigger
-                  as={IconButton}
-                  icon="sliders"
-                  variant="ghost"
-                  size="small"
-                  aria-label={language.t("sidebar.view.menu")}
-                  title={language.t("sidebar.view.menu")}
-                />
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content style={{ "min-width": "190px" }}>
-                    <DropdownMenu.Sub>
-                      <DropdownMenu.SubTrigger>
-                        <span>{language.t("sidebar.view.groupBy")}</span>
-                        <span class="ml-auto text-ui-xs text-foreground-subtlest">
-                          {language.t(`sidebar.view.groupBy.${layout.taskList.groupBy()}`)}
-                        </span>
-                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
-                      </DropdownMenu.SubTrigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
-                          <DropdownMenu.RadioGroup
-                            value={layout.taskList.groupBy()}
-                            onChange={(value) =>
-                              layout.taskList.setGroupBy(
-                                value === "date" || value === "custom" || value === "none" ? value : "workspace",
-                              )
-                            }
-                          >
-                            <For each={["workspace", "date", "custom", "none"] as const}>
-                              {(mode) => (
-                                <DropdownMenu.RadioItem value={mode} onSelect={() => layout.taskList.setGroupBy(mode)}>
-                                  <DropdownMenu.ItemLabel>
-                                    {language.t(`sidebar.view.groupBy.${mode}`)}
-                                  </DropdownMenu.ItemLabel>
-                                  <DropdownMenu.ItemIndicator>
-                                    <Icon name="check-small" size="small" class="text-foreground-subtlest" />
-                                  </DropdownMenu.ItemIndicator>
-                                </DropdownMenu.RadioItem>
-                              )}
-                            </For>
-                          </DropdownMenu.RadioGroup>
-                          <DropdownMenu.Separator />
-                          <DropdownMenu.Item onSelect={() => dialog.show(() => <DialogTaskGroups />)}>
-                            <DropdownMenu.ItemLabel>{language.t("sidebar.task.group.manage")}</DropdownMenu.ItemLabel>
-                          </DropdownMenu.Item>
-                        </DropdownMenu.SubContent>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Sub>
-                    <DropdownMenu.Sub>
-                      <DropdownMenu.SubTrigger>
-                        <span>{language.t("sidebar.view.sortBy")}</span>
-                        <span class="ml-auto text-ui-xs text-foreground-subtlest">
-                          {language.t(`sidebar.view.sortBy.${layout.taskList.sortBy()}`)}
-                        </span>
-                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
-                      </DropdownMenu.SubTrigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
-                          <DropdownMenu.RadioGroup
-                            value={layout.taskList.sortBy()}
-                            onChange={(value) =>
-                              layout.taskList.setSortBy(value === "created" || value === "name" ? value : "recent")
-                            }
-                          >
-                            <For each={["recent", "created", "name"] as const}>
-                              {(order) => (
-                                <DropdownMenu.RadioItem value={order} onSelect={() => layout.taskList.setSortBy(order)}>
-                                  <DropdownMenu.ItemLabel>
-                                    {language.t(`sidebar.view.sortBy.${order}`)}
-                                  </DropdownMenu.ItemLabel>
-                                  <DropdownMenu.ItemIndicator>
-                                    <Icon name="check-small" size="small" class="text-foreground-subtlest" />
-                                  </DropdownMenu.ItemIndicator>
-                                </DropdownMenu.RadioItem>
-                              )}
-                            </For>
-                          </DropdownMenu.RadioGroup>
-                        </DropdownMenu.SubContent>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Sub>
-                    <DropdownMenu.Sub>
-                      <DropdownMenu.SubTrigger>
-                        <span>{language.t("sidebar.view.workspace")}</span>
-                        <span class="ml-auto max-w-32 truncate text-ui-xs text-foreground-subtlest">
-                          {workspaceViewLabel()}
-                        </span>
-                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
-                      </DropdownMenu.SubTrigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.SubContent class="max-h-96 overflow-y-auto" style={{ "min-width": "180px" }}>
-                          <DropdownMenu.RadioGroup
-                            value={layout.taskList.workspace()}
-                            onChange={(value) => layout.taskList.setWorkspace(String(value))}
-                          >
-                            <DropdownMenu.RadioItem value="all" onSelect={() => layout.taskList.setWorkspace("all")}>
-                              <DropdownMenu.ItemLabel>
-                                {language.t("sidebar.view.workspace.all")}
-                              </DropdownMenu.ItemLabel>
-                              <DropdownMenu.ItemIndicator>
-                                <Icon name="check-small" size="small" class="text-foreground-subtlest" />
-                              </DropdownMenu.ItemIndicator>
-                            </DropdownMenu.RadioItem>
-                            <For each={projectList()}>
-                              {(project) => {
-                                const key = pathKey(project.worktree)
-                                return (
-                                  <DropdownMenu.RadioItem
-                                    value={key}
-                                    onSelect={() => layout.taskList.setWorkspace(key)}
-                                  >
-                                    <DropdownMenu.ItemLabel>
-                                      {project.name || getFilename(project.worktree)}
-                                    </DropdownMenu.ItemLabel>
-                                    <DropdownMenu.ItemIndicator>
-                                      <Icon name="check-small" size="small" class="text-foreground-subtlest" />
-                                    </DropdownMenu.ItemIndicator>
-                                  </DropdownMenu.RadioItem>
-                                )
-                              }}
-                            </For>
-                          </DropdownMenu.RadioGroup>
-                        </DropdownMenu.SubContent>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Sub>
-                    <DropdownMenu.Sub>
-                      <DropdownMenu.SubTrigger>
-                        <span>{language.t("sidebar.view.recency")}</span>
-                        <span class="ml-auto text-ui-xs text-foreground-subtlest">
-                          {language.t(`sidebar.view.recency.${layout.taskList.recency()}`)}
-                        </span>
-                        <Icon name="chevron-right" size="small" class="text-foreground-subtlest" />
-                      </DropdownMenu.SubTrigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.SubContent style={{ "min-width": "150px" }}>
-                          <DropdownMenu.RadioGroup
-                            value={layout.taskList.recency()}
-                            onChange={(value) =>
-                              layout.taskList.setRecency(
-                                value === "today" || value === "week" || value === "month" ? value : "all",
-                              )
-                            }
-                          >
-                            <For each={["all", "today", "week", "month"] as const}>
-                              {(window) => (
-                                <DropdownMenu.RadioItem
-                                  value={window}
-                                  onSelect={() => layout.taskList.setRecency(window)}
-                                >
-                                  <DropdownMenu.ItemLabel>
-                                    {language.t(`sidebar.view.recency.${window}`)}
-                                  </DropdownMenu.ItemLabel>
-                                  <DropdownMenu.ItemIndicator>
-                                    <Icon name="check-small" size="small" class="text-foreground-subtlest" />
-                                  </DropdownMenu.ItemIndicator>
-                                </DropdownMenu.RadioItem>
-                              )}
-                            </For>
-                          </DropdownMenu.RadioGroup>
-                        </DropdownMenu.SubContent>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Sub>
-                    <DropdownMenu.Separator />
-                    <DropdownMenu.Item onSelect={() => layout.taskList.reset()}>
-                      <DropdownMenu.ItemLabel>{language.t("sidebar.view.reset")}</DropdownMenu.ItemLabel>
-                    </DropdownMenu.Item>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu>
-              <DropdownMenu gutter={4} placement="bottom-end">
-                <DropdownMenu.Trigger
-                  as={IconButton}
-                  icon="folder-add-left"
-                  variant="ghost"
-                  size="small"
-                  aria-label={language.t("command.project.open")}
-                  title={language.t("command.project.open")}
-                />
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content style={{ "min-width": "200px" }}>
-                    <DropdownMenu.Item onSelect={() => void chooseProject()}>
-                      <Icon name="folder" size="small" />
-                      <DropdownMenu.ItemLabel>{language.t("command.project.open")}</DropdownMenu.ItemLabel>
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item onSelect={() => showCreateProjectDialog()}>
-                      <Icon name="folder-add-left" size="small" />
-                      <DropdownMenu.ItemLabel>{language.t("command.project.create")}</DropdownMenu.ItemLabel>
-                    </DropdownMenu.Item>
-                    {/* 无工作区会话不依赖已打开项目，始终可从项目操作菜单进入。 */}
-                    <DropdownMenu.Item onSelect={() => navigateWithSidebarReset("/global-chat/session")}>
-                      <Icon name="comment" size="small" />
-                      <DropdownMenu.ItemLabel>{language.t("sidebar.globalChat.title")}</DropdownMenu.ItemLabel>
-                    </DropdownMenu.Item>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu>
-            </div>
           </div>
         </div>
         {/* 列表层与文件树层叠放：文件树是整层 slide-over，
@@ -3123,40 +3224,42 @@ export default function Layout(props: ParentProps) {
               }}
             />
 
-            <Show
-              when={visibleProjects().length > 0}
-              fallback={
-                <div class="flex-1 min-h-0 flex items-center justify-center px-6 pb-64 text-center">
-                  <Show
-                    when={projectList().length > 0}
-                    fallback={
-                      <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
-                        <div class="text-14-medium text-foreground">{language.t("sidebar.empty.title")}</div>
-                        <div class="text-14-regular text-foreground">{language.t("sidebar.empty.description")}</div>
-                        <Button size="large" icon="folder-add-left" onClick={chooseProject}>
-                          {language.t("command.project.open")}
+            {/* 工作区任务与「最近任务」共用同一个滚动容器：最近任务跟在已打开工作区
+                的任务下面随列表滚动，而不是钉在底部另起一块。 */}
+            <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 [overflow-anchor:none]">
+              <Show
+                when={visibleProjects().length > 0}
+                fallback={
+                  <div class="flex min-h-[45vh] items-center justify-center px-6 text-center">
+                    <Show
+                      when={projectList().length > 0}
+                      fallback={
+                        <div class="mt-8 flex max-w-60 flex-col items-center gap-4 text-center">
+                          <div class="text-14-medium text-foreground">{language.t("sidebar.empty.title")}</div>
+                          <div class="text-14-regular text-foreground">{language.t("sidebar.empty.description")}</div>
+                          <Button size="large" icon="folder-add-left" onClick={chooseProject}>
+                            {language.t("command.project.open")}
+                          </Button>
+                        </div>
+                      }
+                    >
+                      {/* 项目其实开着，只是被「视图 → 工作区」筛走了。
+                          不给一句说明的话这里看起来像侧栏坏了。 */}
+                      <div class="mt-8 flex max-w-60 flex-col items-center gap-3 text-center">
+                        <div class="text-14-regular text-foreground">{language.t("sidebar.view.workspaceEmpty")}</div>
+                        <Button
+                          size="large"
+                          variant="ghost"
+                          icon="folder"
+                          onClick={() => layout.taskList.setWorkspace("all")}
+                        >
+                          {language.t("sidebar.view.workspaceEmpty.action")}
                         </Button>
                       </div>
-                    }
-                  >
-                    {/* 项目其实开着，只是被「视图 → 工作区」筛走了。
-                        不给一句说明的话这里看起来像侧栏坏了。 */}
-                    <div class="mt-8 flex max-w-60 flex-col items-center gap-3 text-center">
-                      <div class="text-14-regular text-foreground">{language.t("sidebar.view.workspaceEmpty")}</div>
-                      <Button
-                        size="large"
-                        variant="ghost"
-                        icon="folder"
-                        onClick={() => layout.taskList.setWorkspace("all")}
-                      >
-                        {language.t("sidebar.view.workspaceEmpty.action")}
-                      </Button>
-                    </div>
-                  </Show>
-                </div>
-              }
-            >
-              <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 [overflow-anchor:none]">
+                    </Show>
+                  </div>
+                }
+              >
                 {/* 「视图 → 分组方式 = 不分组」：所有可见工作区的任务摊平成一张列表。
                     mergedProject 只是给 ProjectTaskList 喂目录集合，分组头不渲染。 */}
                 <Show when={layout.taskList.groupBy() === "none"}>
@@ -3351,12 +3454,12 @@ export default function Layout(props: ParentProps) {
                     </div>
                   </div>
                 </Show>
+              </Show>
+              {/* 无工作区会话跟在已打开工作区的任务下面，随列表一起滚动 ——
+                  固定在底部会让人以为它是独立面板，和工作区分组脱节。 */}
+              <div class="mt-1 pb-2">
+                <GlobalChatTasks />
               </div>
-            </Show>
-
-            {/* 无工作区会话作为独立的「最近任务」分组，样式与工作区分组头一致。 */}
-            <div class="shrink-0 px-2 pb-2 pt-1">
-              <GlobalChatTasks />
             </div>
             <div
               class="shrink-0 px-3 py-3"
@@ -3396,6 +3499,7 @@ export default function Layout(props: ParentProps) {
                   <For each={railItems()}>{(item) => <SidebarRailButton item={item} />}</For>
                   <span class="mx-0.5 h-5 w-px bg-border" />
                   <For each={railFooter()}>{(item) => <SidebarRailButton item={item} />}</For>
+                  <SidebarRailButton item={settingsRailItem()} />
                   <ThemeSchemeToggle variant="icon" />
                 </div>
               </div>
@@ -3527,6 +3631,7 @@ export default function Layout(props: ParentProps) {
         label: language.t("sidebar.extensionsMarket"),
         tone: "var(--icon-interactive-base)",
         active: state.extensionsPage.open,
+        badge: extensionUpdateCount(),
         onClick: openExtensionsPage,
       },
       {
@@ -3571,7 +3676,7 @@ export default function Layout(props: ParentProps) {
         active: viewPath !== undefined && location.pathname === viewPath,
         onClick: () => {
           if (action.type === "command") {
-            command.trigger(action.command)
+            dispatchPluginCommand(contribution, action.command, pluginContributions)
             return
           }
           if (action.type === "url") {
@@ -3585,6 +3690,16 @@ export default function Layout(props: ParentProps) {
     return items
   }
 
+  // 设置入口在桌面端是 rail 最底部带下拉框的按钮（SettingsRailMenu）；
+  // 移动端抽屉没有窄条，仍用这个 item 兜底。
+  const settingsRailItem = (): SidebarRailItem => ({
+    id: "settings",
+    icon: "settings-gear",
+    label: language.t("sidebar.settings"),
+    active: state.settings.open,
+    onClick: () => command.trigger("settings.open"),
+  })
+
   const railFooter = (): SidebarRailItem[] => {
     const items: SidebarRailItem[] = []
     if (params.id) {
@@ -3596,13 +3711,34 @@ export default function Layout(props: ParentProps) {
         onClick: openSideChatFromSidebar,
       })
     }
-    items.push({
-      id: "settings",
-      icon: "settings-gear",
-      label: language.t("sidebar.settings"),
-      active: state.settings.open,
-      onClick: () => command.trigger("settings.open"),
-    })
+    const directory = currentDir()
+    const directorySlug = params.dir
+    const pluginContributions = directory
+      ? globalSync.child(directory, { bootstrap: false })[0].plugin_contributions
+      : []
+    if (directory && directorySlug) {
+      for (const contribution of pluginContributions) {
+        if (
+          contribution.kind !== "surface" ||
+          contribution.slot !== "sidebar.footer" ||
+          contribution.status !== "active"
+        )
+          continue
+        if (!contribution.title) continue
+        const action = parsePluginSurfaceAction(contribution.action)
+        if (!action) continue
+        items.push({
+          id: `plugin-footer:${contribution.pluginID}:${contribution.localName}`,
+          icon: contribution.icon && isIconName(contribution.icon) ? contribution.icon : "dot-grid",
+          label: contribution.title,
+          onClick: () => {
+            if (action.type === "command") dispatchPluginCommand(contribution, action.command, pluginContributions)
+            else if (action.type === "url") openPluginSurfaceUrl(action.url)
+            else navigate(pluginSurfaceViewPath(directorySlug, contribution.pluginID, action.viewId))
+          },
+        })
+      }
+    }
     return items
   }
 
@@ -3627,26 +3763,12 @@ export default function Layout(props: ParentProps) {
       }}
       data-app-mode={layout.mode.current() ?? "none"}
       data-workspace-panel-radius={workspacePanelRadiusPx(platform.os)}
-      // 设置/数据库盖住主帧时，会话帧 Header 里那组窗控虽然被盖住，
-      // 但淡入淡出的 1s 里会和面板自带的那组叠在一起"重影"。
-      // 用这个标记把被盖住的那组藏掉（见 index.css）。
-      data-frame-overlay={
-        state.settings.open ||
-        state.databasePage.open ||
-        state.extensionsPage.open ||
-        state.automationPage.open ||
-        state.knowledgePage.open ||
-        state.kernelPage.open ||
-        state.teamPage.open ||
-        state.arenaPage.open ||
-        state.pulsePage.open
-          ? "true"
-          : undefined
-      }
+      // 所有整帧页面只覆盖主工作区的内容区域；主页面 Header（包括唯一一组窗控）始终保留。
+      // 页面自身从 Header 下方开始渲染，避免打开设置/扩展/数据库时再盖住主帧顶栏。
     >
       {autoselecting() ?? ""}
-      {/* 全局标题栏已移除：窗口顶部不再有独立 chrome，身份/导航/操作分别落在
-          侧栏顶带（品牌 + 收起）与会话帧内的 WorkspaceHeader（标题 + 操作）。 */}
+      {/* 主页面 Header 自己承载唯一的窗口控制按钮。打开设置、扩展市场、数据库等页面时，
+          只覆盖 Header 下方的内容区域，不再额外绘制或遮挡另一组窗控。 */}
       <div class="flex-1 min-h-0 min-w-0 flex">
         <div class="flex-1 min-h-0 relative">
           <div class="size-full relative overflow-x-hidden">
@@ -3687,16 +3809,27 @@ export default function Layout(props: ParentProps) {
                           aria-label={language.t("command.home.open")}
                           aria-current={!layout.mode.hasSelected() ? "page" : undefined}
                         >
-                          <Mark class="size-6 shrink-0 text-foreground" />
+                          <Show
+                            when={appAppearance.iconData}
+                            fallback={<Mark class="size-6 shrink-0 text-foreground" />}
+                          >
+                            {(src) => (
+                              <img src={src()} alt="" class="size-6 shrink-0 object-contain" draggable={false} />
+                            )}
+                          </Show>
                         </button>
                       </Tooltip>
                     }
-                    // 主题切换在**底部**、设置之上；
-                    // 它有圆形扩散的切换动效，不能塞进 SidebarRailItem 的纯 onClick 列表，
-                    // 所以走 footerLeading 槽。
-                    footerLeading={<ThemeSchemeToggle variant="icon" />}
+                    // 明暗切换不再单独占一个图标：它被收进最底部设置按钮弹出的「外观」
+                    // 子面板（圆形扩散过渡一并移过去），窄条底部只留辅助对话与设置。
                     items={railItems()}
                     footer={railFooter()}
+                    footerEnd={
+                      <SettingsRailMenu
+                        settingsOpen={state.settings.open}
+                        onOpenSettings={() => command.trigger("settings.open")}
+                      />
+                    }
                   />
                   {/* 面板容器负责折叠动画：宽度 0 ↔ panel()。收起时同时 inert，
                       键盘和读屏不会钻进不可见的面板里。 */}
@@ -3777,6 +3910,8 @@ export default function Layout(props: ParentProps) {
                 // 侧栏现在是 flush 的（左/上/下贴边，见上面 nav 的注释），4px 间隙由会话侧自己的
                 // `p-1` 提供，所以这里不能再加一次 4，否则间隙变成 8px。
                 "--main-left": showSidebar() ? `${side()}px` : "0px",
+                "--frame-page-right": framePageRight(),
+                "--frame-page-bottom": framePageBottom(),
                 "transition-duration": "var(--transition-panel-ms, 1000ms)",
                 "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
               }}
@@ -3790,23 +3925,17 @@ export default function Layout(props: ParentProps) {
                 </Show>
               </main>
 
-              {/* 设置 / 数据库是**主帧内的面板**，不是盖住整窗的接管层。
-                  之前它们挂在窗口根上（`absolute inset-0` 相对整个 `.flex-1` 行），
-                  一打开连左侧栏和窗口按钮一起盖掉，用户会觉得「进了设置就找不到主页面」，
-                  返回入口也只剩一条小路可走。放进主帧后：
-                  左栏与窗口顶带始终可见，四帧同心圆的 4px 留白/平台圆角也一并继承。 */}
+              {/* 内容页面只覆盖主工作区的内容区域；会话 Header 和唯一的窗口控制按钮始终保留。 */}
               <Show when={settingsTransition.mounted()}>
                 <section
                   data-panel-transition
                   data-state={settingsTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("command.settings.open")}
                   aria-hidden={settingsTransition.closing()}
                   inert={settingsTransition.closing()}
                 >
-                  {/* 这一层盖住了会话帧 Header（窗口按钮在那），不补一组自绘窗控的话
-                      窗口就不可拖、不可最小化/关闭了。 */}
-                  <FrameWindowControls />
+                  {/* 内容面板从会话 Header 下方开始，主 Header 和唯一的窗控始终可见。 */}
                   <DialogSettings
                     initialTab={state.settings.initialTab}
                     directory={state.settings.directory}
@@ -3818,12 +3947,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={knowledgeTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("sidebar.knowledge")}
                   aria-hidden={knowledgeTransition.closing()}
                   inert={knowledgeTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <div class="flex-1 min-h-0">
                     <KnowledgePage onBack={closeKnowledgePage} />
                   </div>
@@ -3833,12 +3961,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={automationTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("sidebar.automation")}
                   aria-hidden={automationTransition.closing()}
                   inert={automationTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <div class="flex-1 min-h-0">
                     <AutomationPage onBack={closeAutomationPage} />
                   </div>
@@ -3848,12 +3975,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={extensionsTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("sidebar.extensions")}
                   aria-hidden={extensionsTransition.closing()}
                   inert={extensionsTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <div class="flex-1 min-h-0">
                     <ExtensionsPage directory={currentDir()} onBack={closeExtensionsPage} />
                   </div>
@@ -3863,12 +3989,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={kernelTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("sidebar.kernel")}
                   aria-hidden={kernelTransition.closing()}
                   inert={kernelTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <div class="flex-1 min-h-0">
                     <KernelPage
                       directory={currentDir()}
@@ -3886,12 +4011,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={teamTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("sidebar.team")}
                   aria-hidden={teamTransition.closing()}
                   inert={teamTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <div class="flex-1 min-h-0">
                     <TeamPage
                       directory={currentDir()}
@@ -3909,12 +4033,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={arenaTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("arena.title")}
                   aria-hidden={arenaTransition.closing()}
                   inert={arenaTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <div class="flex-1 min-h-0">
                     <ArenaPage
                       directory={currentDir()}
@@ -3931,12 +4054,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={pulseTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("pulse.workspace.title")}
                   aria-hidden={pulseTransition.closing()}
                   inert={pulseTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <div class="flex-1 min-h-0">
                     <PulseWorkspace onBack={closePulsePage} />
                   </div>
@@ -3946,12 +4068,11 @@ export default function Layout(props: ParentProps) {
                 <section
                   data-panel-transition
                   data-state={databaseTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 right-2 top-1 bottom-2 z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
                   aria-label={language.t("command.database.open")}
                   aria-hidden={databaseTransition.closing()}
                   inert={databaseTransition.closing()}
                 >
-                  <FrameWindowControls />
                   <DatabasePage onBack={closeDatabasePage} />
                 </section>
               </Show>

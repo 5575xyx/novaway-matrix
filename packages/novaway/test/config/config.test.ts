@@ -154,24 +154,8 @@ test("loads config with defaults when no files exist", async () => {
   })
 })
 
-test("seeds built-in browser MCP by default", () => {
-  const browser = DEFAULT_MCP_SERVERS.browser
-  expect(browser).toMatchObject({ enabled: true, type: "local" })
-  if (browser?.type === "local") {
-    expect(browser.command.join(" ")).toContain("@playwright/mcp")
-  }
-})
-
-test("seeds built-in Tencent Docs remote MCP by default", () => {
-  expect(DEFAULT_MCP_SERVERS["tencent-docs"]).toMatchObject({
-    type: "remote",
-    url: "https://docs.qq.com/openapi/mcp",
-    enabled: true,
-    oauth: false,
-    headers: {
-      Authorization: "{env:TENCENT_DOCS_TOKEN}",
-    },
-  })
+test("does not seed MCP servers into global config", () => {
+  expect(DEFAULT_MCP_SERVERS).toEqual({})
 })
 
 test("creates global jsonc config with schema when no global configs exist", async () => {
@@ -190,9 +174,9 @@ test("creates global jsonc config with schema when no global configs exist", asy
 
     const content = await Filesystem.readText(path.join(tmp.path, "novaway.json"))
     expect(content).toContain('"$schema": "https://novaway.ai/config.json"')
-    expect(content).toContain('"tencent-docs"')
-    expect(content).toContain('"https://docs.qq.com/openapi/mcp"')
-    expect(content).toContain('"{env:TENCENT_DOCS_TOKEN}"')
+    expect(content).not.toContain('"tencent-docs"')
+    expect(content).not.toContain('"https://docs.qq.com/openapi/mcp"')
+    expect(content).not.toContain('"{env:TENCENT_DOCS_TOKEN}"')
   } finally {
     ;(Global.Path as { config: string }).config = prev
     await clear(true)

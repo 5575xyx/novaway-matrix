@@ -55,82 +55,22 @@ import { Npm } from "@novaway/core/npm"
 
 // Default plugins seeded into the global config the first time it's created.
 // Users can remove or override these entries in their own config file.
-// Primary source: Gitee mirror for better accessibility in China.
-// Fallback sources: FALLBACK_GLOBAL_PLUGINS, tried in order if primary fails.
-export const DEFAULT_GLOBAL_PLUGINS: string[] = ["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"]
+// First-party capabilities (Office, PPT Master, PowersNexus) now ship as
+// marketplace plugins and are no longer auto-seeded; install them from the market.
+export const DEFAULT_GLOBAL_PLUGINS: string[] = []
 
 // Fallback plugin sources keyed by plugin name (without version prefix).
 // When the primary source fails to install, these URLs are tried in order.
-export const FALLBACK_GLOBAL_PLUGINS: Record<string, string[]> = {
-  PowersNexus: ["git+https://gitee.com/nova-way/powersnexus.git"],
-}
+export const FALLBACK_GLOBAL_PLUGINS: Record<string, string[]> = {}
 
 function defaultGlobalPlugins() {
-  // PowersNexus 始终作为默认内置插件，从 Gitee 种子安装（不再走第一方独立工作流）。
   return DEFAULT_GLOBAL_PLUGINS
 }
 
-function browserMcpFlags() {
-  const flags = process.env.PLAYWRIGHT_MCP_BROWSER ? ["--browser", process.env.PLAYWRIGHT_MCP_BROWSER] : []
-  if (process.env.PLAYWRIGHT_MCP_HEADLESS === "1") flags.push("--headless")
-  return flags
-}
-
-// Default MCP servers seeded into the global config the first time it's created.
-// Users can remove or override these entries in their own config file.
-const browserCommand = process.env.PLAYWRIGHT_MCP_SERVER_PATH
-  ? [
-      process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH ?? "node",
-      process.env.PLAYWRIGHT_MCP_SERVER_PATH,
-      ...browserMcpFlags(),
-    ]
-  : process.platform === "win32"
-    ? ["cmd", "/c", "npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
-    : ["npx", "-y", "@playwright/mcp", ...browserMcpFlags()]
-/**
- * `npx -y <pkg>` 的平台写法。
- *
- * Windows 上 npx 是 `.cmd`，必须经 `cmd /c` 才能 spawn；macOS/Linux 上写成
- * `cmd /c` 反而会找不到 `cmd`（默认配置以前就是这么写的，非 Windows 用户
- * 一启动就会有一条 MCP 连接失败）。
- */
-const npxCommand = (pkg: string) =>
-  process.platform === "win32" ? ["cmd", "/c", "npx", "-y", pkg] : ["npx", "-y", pkg]
-
-export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {
-  browser: {
-    command: browserCommand,
-    enabled: true,
-    type: "local",
-  },
-  // 腾讯文档官方远程 MCP，Token 通过环境变量注入，避免密钥写入配置文件。
-  "tencent-docs": {
-    type: "remote",
-    url: "https://docs.qq.com/openapi/mcp",
-    headers: {
-      Authorization: "{env:TENCENT_DOCS_TOKEN}",
-    },
-    oauth: false,
-    enabled: true,
-  },
-  context7: {
-    command: npxCommand("@upstash/context7-mcp"),
-    enabled: true,
-    type: "local",
-  },
-  // 默认不再塞 `uvx mcp-server-fetch`：干净机器上没有 uv/Python 时它会直接失败，
-  // 而网页抓取已经由内置的 webfetch 工具覆盖。需要时用户可以自己加回配置。
-  memory: {
-    command: npxCommand("@modelcontextprotocol/server-memory"),
-    enabled: true,
-    type: "local",
-  },
-  "sequential-thinking": {
-    command: npxCommand("@modelcontextprotocol/server-sequential-thinking"),
-    enabled: true,
-    type: "local",
-  },
-}
+// MCP servers are contributed by declarative marketplace plugins. Keep this
+// empty compatibility export for integrations that used to import it; the host
+// never seeds or mutates MCP configuration from this module.
+export const DEFAULT_MCP_SERVERS: Record<string, ConfigMCP.Info> = {}
 
 const log = Log.create({ service: "config" })
 
@@ -281,7 +221,7 @@ export const Info = Schema.Struct({
   }),
   default_agent: Schema.optional(Schema.String).annotate({
     description:
-      "Default agent to use when none is specified. Must be a primary agent. Falls back to 'build' if not set or if the specified agent is invalid.",
+      "Default agent to use when none is specified. Must be a primary agent. Falls back to 'creova' if not set or if the specified agent is invalid.",
   }),
   username: Schema.optional(Schema.String).annotate({
     description: "Custom username to display in conversations instead of system username",
@@ -634,8 +574,6 @@ export const layer = Layer.effect(
           if (!Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS) {
             seed.plugin = defaultGlobalPlugins()
           }
-          // Add default MCP servers
-          seed.mcp = DEFAULT_MCP_SERVERS
           yield* fs.writeWithDirs(file, JSON.stringify(seed, null, 2)).pipe(Effect.catch(() => Effect.void))
         }
       }
@@ -646,7 +584,7 @@ export const layer = Layer.effect(
       if (!Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS) {
         const existing = result.plugin ?? []
         const defaults = defaultGlobalPlugins()
-        if (defaults.length > 0 && !existing.some((p) => typeof p === "string" && p.startsWith("PowersNexus@"))) {
+        if (defaults.length > 0 && defaults.some((d) => !existing.includes(d))) {
           result.plugin = [...existing, ...defaults]
           const file = path.join(Global.Path.config, "novaway.json")
           const text = yield* readConfigFile(file)
@@ -660,54 +598,6 @@ export const layer = Layer.effect(
                 JSON.stringify({ $schema: "https://novaway.ai/config.json", plugin: result.plugin }, null, 2),
               )
               .pipe(Effect.catch(() => Effect.void))
-          }
-        }
-      }
-
-      // Ensure default MCP servers are present
-      if (!Flag.NOVAWAY_DISABLE_DEFAULT_PLUGINS) {
-        const existingMcp = result.mcp ?? {}
-        const hasDefaultMcp = Object.keys(DEFAULT_MCP_SERVERS).every((key) => key in existingMcp)
-        if (!hasDefaultMcp) {
-          result.mcp = { ...DEFAULT_MCP_SERVERS, ...existingMcp }
-          const file = path.join(Global.Path.config, "novaway.json")
-          const text = yield* readConfigFile(file)
-          if (text) {
-            const patched = patchJsonc(text, result.mcp, ["mcp"])
-            yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
-          } else {
-            yield* fs
-              .writeWithDirs(
-                file,
-                JSON.stringify({ $schema: "https://novaway.ai/config.json", mcp: result.mcp }, null, 2),
-              )
-              .pipe(Effect.catch(() => Effect.void))
-          }
-        }
-
-        // 打包环境使用内置 Playwright MCP 服务器，检测到路径时覆盖旧 npx 命令。
-        const browserMcp = result.mcp?.browser
-        if (process.env.PLAYWRIGHT_MCP_SERVER_PATH && browserMcp && Schema.is(ConfigMCP.Local)(browserMcp)) {
-          const browserCommand = [
-            process.env.PLAYWRIGHT_MCP_NODE_PATH ?? process.env.NOVAWAY_NODE_PATH ?? "node",
-            process.env.PLAYWRIGHT_MCP_SERVER_PATH,
-            ...browserMcpFlags(),
-          ]
-          if (JSON.stringify(browserMcp.command) !== JSON.stringify(browserCommand)) {
-            result.mcp = {
-              ...result.mcp,
-              browser: {
-                ...browserMcp,
-                command: browserCommand,
-                type: "local",
-              },
-            }
-            const file = path.join(Global.Path.config, "novaway.json")
-            const text = yield* readConfigFile(file)
-            if (text) {
-              const patched = patchJsonc(text, result.mcp, ["mcp"])
-              yield* fs.writeFileString(file, patched).pipe(Effect.catch(() => Effect.void))
-            }
           }
         }
       }
@@ -1060,24 +950,6 @@ export const layer = Layer.effect(
         }
         if (Flag.NOVAWAY_DISABLE_PRUNE) {
           result.compaction = { ...result.compaction, prune: false }
-        }
-
-        // 腾讯文档官方鉴权固定 Authorization: Token，不用 Bearer。
-        // 这里覆盖旧版默认配置或用户手动配置中的错误 Header，避免 401。
-        const tencentDocs = result.mcp?.["tencent-docs"]
-        if (tencentDocs && Schema.is(ConfigMCP.Remote)(tencentDocs)) {
-          result.mcp = {
-            ...result.mcp,
-            "tencent-docs": {
-              ...tencentDocs,
-              type: "remote",
-              url: "https://docs.qq.com/openapi/mcp",
-              headers: {
-                Authorization: process.env.TENCENT_DOCS_TOKEN ?? "",
-              },
-              oauth: false,
-            },
-          }
         }
 
         return {

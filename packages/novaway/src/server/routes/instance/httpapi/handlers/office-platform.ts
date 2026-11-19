@@ -21,6 +21,13 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
     const platform = yield* OfficePlatform.Service
     const mcp = yield* MCP.Service
 
+    const mcpStatusFor = (statusMap: Record<string, { status: string }>, name: string) => {
+      if (statusMap[name]) return statusMap[name]
+      const local = name.replace(/[^a-zA-Z0-9_-]/g, "_")
+      const key = Object.keys(statusMap).find((candidate) => candidate.endsWith(`_${local}`))
+      return key ? statusMap[key] : undefined
+    }
+
     const browserToolID = Effect.fn("OfficePlatformHttpApi.browserToolID")(function* (name: string) {
       const tools = yield* mcp.tools()
       const id = Object.keys(tools).find((key) => key === `browser_${name}` || key.endsWith(`_${name}`))
@@ -51,7 +58,7 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
     const status = Effect.fn("OfficePlatformHttpApi.status")(function* () {
       const base = yield* platform.status()
       const statusMap = yield* mcp.status()
-      const browserInfo = statusMap.browser
+      const browserInfo = mcpStatusFor(statusMap, "browser")
       const browser: "configured" | "connected" | "failed" =
         browserInfo?.status === "connected" ? "connected" : browserInfo?.status === "failed" ? "failed" : "configured"
       return {
@@ -184,7 +191,7 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
       ] as const
 
       return builtins.map((item) => {
-        const info = item.id === "feishu" ? undefined : statusMap[item.id]
+        const info = item.id === "feishu" ? undefined : mcpStatusFor(statusMap, item.id)
         const configured =
           item.id === "feishu"
             ? Boolean(process.env.FEISHU_WEBHOOK_URL) ||
@@ -230,9 +237,13 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
       payload: typeof OfficeConnectorConfig.Type
     }) {
       const result = yield* platform.saveConnectorConfig(ctx.payload)
+      const currentStatus = yield* mcp.status()
+      const tencentName = Object.keys(currentStatus).find(
+        (name) => name === "tencent-docs" || name.endsWith("_tencent-docs"),
+      )
       if (result.tencentDocsToken) {
         yield* mcp
-          .add("tencent-docs", {
+          .add(tencentName ?? "tencent-docs", {
             type: "remote",
             url: "https://docs.qq.com/openapi/mcp",
             headers: {
@@ -243,7 +254,7 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
           })
           .pipe(Effect.ignore)
       } else {
-        yield* mcp.disconnect("tencent-docs").pipe(Effect.ignore)
+        yield* mcp.disconnect(tencentName ?? "tencent-docs").pipe(Effect.ignore)
       }
       return result
     })
@@ -331,7 +342,7 @@ export const officePlatformHandlers = HttpApiBuilder.group(InstanceHttpApi, "off
 
     const browserStatus = Effect.fn("OfficePlatformHttpApi.browserStatus")(function* () {
       const statusMap = yield* mcp.status()
-      const server = statusMap.browser
+      const server = mcpStatusFor(statusMap, "browser")
       const configured = Boolean(server && server.status !== "disabled")
       // 状态检查不主动打开浏览器，只有 Agent 真正调用浏览器工具时才启动。
       return { configured, active: false }
