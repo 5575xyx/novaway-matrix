@@ -533,15 +533,25 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           .then((response) => (response.data as LegacyMigration[] | undefined) ?? [])
           .catch(() => [])
         setStore({
-          installed: (data.installed ?? []) as InstalledEntry[],
-          legacy: ((data as unknown as { legacy?: LegacyEntry[] }).legacy ?? []) as LegacyEntry[],
+          installed: (Array.isArray(data.installed) ? data.installed : []) as InstalledEntry[],
+          legacy: (Array.isArray((data as unknown as { legacy?: unknown }).legacy)
+            ? (data as unknown as { legacy: LegacyEntry[] }).legacy
+            : []) as LegacyEntry[],
           migrations,
-          sources: ((data as unknown as { sources?: MarketplaceSource[] }).sources ?? []) as MarketplaceSource[],
+          sources: (Array.isArray((data as unknown as { sources?: unknown }).sources)
+            ? (data as unknown as { sources: MarketplaceSource[] }).sources
+            : []) as MarketplaceSource[],
           novaway: [...merged.values()],
-          zcode: ((data.zcode ?? []) as Omit<CatalogEntry, "kind">[]).map((entry) => ({ ...entry, kind: "zip" as const })),
-          claude: ((data.claude ?? []) as Omit<CatalogEntry, "kind">[]).map((entry) => ({ ...entry, kind: "git" as const })),
-          updates: (data.updates ?? []) as UpdateEntry[],
-          errors: data.errors ?? [],
+          zcode: ((Array.isArray(data.zcode) ? data.zcode : []) as Omit<CatalogEntry, "kind">[]).map((entry) => ({
+            ...entry,
+            kind: "zip" as const,
+          })),
+          claude: ((Array.isArray(data.claude) ? data.claude : []) as Omit<CatalogEntry, "kind">[]).map((entry) => ({
+            ...entry,
+            kind: "git" as const,
+          })),
+          updates: (Array.isArray(data.updates) ? data.updates : []) as UpdateEntry[],
+          errors: Array.isArray(data.errors) ? data.errors : [],
         })
       })
       .catch((error: unknown) => setStore("errors", [text(error)]))
@@ -1127,7 +1137,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </div>
       </Show>
 
-      <Show when={store.legacy.length > 0 || store.migrations.length > 0}>
+      <Show when={(store.legacy?.length ?? 0) > 0 || (store.migrations?.length ?? 0) > 0}>
         <details class="mb-4 rounded-lg border border-border px-4 py-3">
           <summary class="cursor-pointer text-13-medium text-foreground">
             {language.t("settings.market.legacy.title")}
@@ -1182,7 +1192,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </details>
       </Show>
 
-      <Show when={store.errors.length > 0}>
+      <Show when={(store.errors?.length ?? 0) > 0}>
         <div class="border-b border-border px-4 py-2" data-component="market-catalog-errors">
           <For each={store.errors}>{(error) => <div class="text-11-regular text-warning-base">{error}</div>}</For>
         </div>
@@ -1263,7 +1273,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </select>
       </div>
 
-      <Show when={store.operations.length > 0}>
+      <Show when={(store.operations?.length ?? 0) > 0}>
         <details class="mb-4 rounded-lg border border-border px-4 py-3" data-component="market-operation-history">
           <summary class="cursor-pointer text-12-medium text-foreground-subtle">
             {language.t("settings.market.operationsDetails")}
