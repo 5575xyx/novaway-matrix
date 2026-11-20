@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - "bun.lock"
       - "packages/novaway/**"
       - ".github/workflows/production-readiness.yml"
 
