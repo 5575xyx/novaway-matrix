@@ -14,7 +14,10 @@
 import { Context, Effect, Layer, Option } from "effect"
 import * as Log from "@novaway/core/util/log"
 import type { SessionID } from "@/session/schema"
+import { Session } from "@/session/session"
+import { Goal } from "@/session/goal"
 import { SessionStatus } from "@/session/status"
+import { SuperAgentStore } from "@/super-agent"
 import * as Cron from "./cron"
 import * as Tasks from "./tasks"
 
@@ -22,6 +25,7 @@ const log = Log.create({ service: "cron" })
 
 /** 调度器的最小精度。cron 只到分钟，15 秒一轮足够且不会明显空转。 */
 const TICK_MS = 15_000
+const runningDirectories = new Set<string>()
 
 export interface Interface {
   readonly create: (input: {
@@ -44,6 +48,20 @@ export class Service extends Context.Service<Service, Interface>()("@novaway/Cro
 
 type PromptService = {
   prompt: (input: { sessionID: SessionID; parts: { type: "text"; text: string }[] }) => Effect.Effect<unknown, unknown>
+  loop: (input: {
+    sessionID: SessionID
+    goalExecution: {
+      goalId: string
+      maxIterations: number
+      judgeModel?: string
+      maxTokens?: number
+      maxActiveMs?: number
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
+    }
+  }) => Effect.Effect<unknown, unknown>
 }
 
 /**
@@ -58,7 +76,10 @@ const promptService = Effect.gen(function* () {
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    let loop: { running: boolean } = { running: false }
+    const sessions = Option.getOrUndefined(yield* Effect.serviceOption(Session.Service))
+    const goals = Option.getOrUndefined(yield* Effect.serviceOption(Goal.Service))
+    const status = Option.getOrUndefined(yield* Effect.serviceOption(SessionStatus.Service))
+    const superAgent = Option.getOrUndefined(yield* Effect.serviceOption(SuperAgentStore))
 
     /**
      * Hand the prompt to the session and return immediately. The turn itself can
@@ -123,15 +144,111 @@ export const layer = Layer.effect(
       if (decisions.some((item) => item.action === "archive")) yield* skill.reload().pipe(Effect.ignore)
     })
 
+    const statusForSession = (sessionID: SessionID) =>
+      status
+        ? status.get(sessionID).pipe(Effect.catch(() => Effect.succeed({ type: "busy" as const })))
+        : Effect.succeed({ type: "idle" as const })
+
+    const goalTick = Effect.fn("Cron.goalTick")(function* (input: { directory: string; prompt: PromptService }) {
+      // Some embedders construct Cron before the rest of the instance services.
+      // Resolve them again at tick time so durable Goal reconciliation is not
+      // silently disabled by layer initialization order.
+      const sessionService = sessions ?? Option.getOrUndefined(yield* Effect.serviceOption(Session.Service))
+      const goalService = goals ?? Option.getOrUndefined(yield* Effect.serviceOption(Goal.Service))
+      const superAgentService = superAgent ?? Option.getOrUndefined(yield* Effect.serviceOption(SuperAgentStore))
+      if (!sessionService || !goalService) return
+      const listed = yield* sessionService
+        .list({ directory: input.directory, scope: "project", limit: 1_000 })
+        .pipe(Effect.catch(() => Effect.succeed([])))
+      for (const session of listed) {
+        const activeGoals = (yield* goalService.list(session.id).pipe(Effect.catch(() => Effect.succeed([] as any[]))))
+          .filter((goal) => goal.status === "in_progress" && goal.executionConfig)
+          // Durable goals may execute concurrently. Interactive prompts still
+          // share one Session stream, so only one is admitted below; priority
+          // and oldest-update ordering prevents a newer goal from starving an
+          // older one forever.
+          .sort((a, b) => {
+            const priority = { high: 0, medium: 1, low: 2 } as const
+            return (
+              (priority[a.priority as keyof typeof priority] ?? 1) -
+                (priority[b.priority as keyof typeof priority] ?? 1) ||
+              a.updatedAt.getTime() - b.updatedAt.getTime()
+            )
+          })
+        for (const active of activeGoals) {
+          if (active.executionConfig?.mode !== "durable") continue
+          const runID = active.executionConfig.superAgentRunId
+          if (superAgentService && runID) {
+            const run = yield* superAgentService.get(runID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (run?.status === "completed") {
+              yield* goalService
+                .update({ goalId: active.id, sessionId: session.id as SessionID, status: "completed" })
+                .pipe(Effect.ignore)
+            } else if (run?.status === "cancelled") {
+              yield* goalService
+                .update({ goalId: active.id, sessionId: session.id as SessionID, status: "cancelled" })
+                .pipe(Effect.ignore)
+            } else if (
+              run &&
+              ["paused", "waiting_approval", "waiting_input", "waiting_external", "needs_review"].includes(run.status)
+            ) {
+              yield* goalService
+                .update({ goalId: active.id, sessionId: session.id as SessionID, status: "paused" })
+                .pipe(Effect.ignore)
+            } else if (run?.status === "failed") {
+              yield* goalService
+                .update({ goalId: active.id, sessionId: session.id as SessionID, status: "paused" })
+                .pipe(Effect.ignore)
+            }
+          }
+        }
+
+        // A session has one ordered conversation stream. Admit at most one
+        // interactive Goal, while all durable runs above remain independently
+        // schedulable and no longer disappear behind the newest Goal.
+        const active = activeGoals.find((goal) => goal.executionConfig?.mode !== "durable")
+        if (!active?.executionConfig) continue
+        if (active.executionConfig.mode === "durable") continue
+        const state = yield* statusForSession(session.id)
+        if (state.type !== "idle") continue
+        const maxIterations = Number(active.executionConfig.maxIterations)
+        if (!Number.isFinite(maxIterations)) continue
+        // The goal row is durable. Re-enter the normal controller with the last
+        // completed assistant message; runLoop is idempotent and will not create
+        // a duplicate assistant turn when the session is already finished.
+        yield* input.prompt
+          .loop({
+            sessionID: session.id as SessionID,
+            goalExecution: {
+              goalId: active.id,
+              maxIterations,
+              judgeModel: active.executionConfig.judgeModel,
+              maxTokens: active.executionConfig.maxTokens,
+              maxActiveMs: active.executionConfig.maxActiveMs,
+              verifier: active.executionConfig.verifier,
+              evidenceMinBytes: active.executionConfig.evidenceMinBytes,
+              mode: active.executionConfig.mode,
+              superAgentRunId: active.executionConfig.superAgentRunId,
+            },
+          })
+          .pipe(
+            Effect.catchCause((cause) =>
+              Effect.sync(() => log.warn("durable goal resume failed", { sessionID: session.id, cause: String(cause) })),
+            ),
+            Effect.forkDetach,
+          )
+      }
+    })
+
     const tick = Effect.fn("Cron.tick")(function* (input?: { now?: number; directory?: string }) {
       const now = input?.now ?? Date.now()
-      const status = Option.getOrUndefined(yield* Effect.serviceOption(SessionStatus.Service))
       const prompt = yield* promptService
       const fired: Tasks.Task[] = []
 
       if (input?.directory) yield* curatorTick({ directory: input.directory, now }).pipe(Effect.ignore)
+      if (input?.directory && prompt) yield* goalTick({ directory: input.directory, prompt }).pipe(Effect.ignore)
 
-      for (const task of Tasks.all()) {
+      for (const task of Tasks.all().filter((item) => !input?.directory || item.directory === input.directory)) {
         if (Tasks.expired(task, now)) {
           Tasks.remove(task.id)
           if (task.durable) yield* Effect.promise(() => Tasks.persist(task.directory)).pipe(Effect.ignore)
@@ -167,8 +284,8 @@ export const layer = Layer.effect(
 
     const start = Effect.fn("Cron.start")(function* (input: { directory: string }) {
       yield* Effect.promise(() => Tasks.load(input.directory)).pipe(Effect.ignore)
-      if (loop.running) return
-      loop.running = true
+      if (runningDirectories.has(input.directory)) return
+      runningDirectories.add(input.directory)
       yield* Effect.sleep(`${TICK_MS} millis`).pipe(
         Effect.andThen(tick({ directory: input.directory })),
         Effect.ignore,

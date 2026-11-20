@@ -160,6 +160,31 @@ export const PermissionTable = sqliteTable("permission", {
   data: text({ mode: "json" }).notNull().$type<Permission.Ruleset>(),
 })
 
+/** Durable permission gates used by long-running Super-Agent operations. */
+export const PermissionRequestTable = sqliteTable(
+  "permission_request",
+  {
+    id: text().primaryKey(),
+    project_id: text()
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+    session_id: text().notNull(),
+    permission: text().notNull(),
+    patterns: text({ mode: "json" }).notNull().$type<string[]>(),
+    metadata: text({ mode: "json" }).notNull().$type<Record<string, unknown>>(),
+    always: text({ mode: "json" }).notNull().$type<string[]>(),
+    tool: text({ mode: "json" }).$type<{ messageID: MessageID; callID: string }>(),
+    status: text().notNull().default("pending").$type<"pending" | "approved" | "rejected">(),
+    reply: text(),
+    message: text(),
+    ...Timestamps,
+  },
+  (table) => [
+    index("permission_request_project_status_idx").on(table.project_id, table.status, table.time_updated),
+    index("permission_request_session_idx").on(table.session_id, table.time_updated),
+  ],
+)
+
 export * as SessionCheckpoint from "./checkpoint.sql"
 export * as Goal from "./goal.sql"
 export * as Workflow from "../workflow/workflow.sql"

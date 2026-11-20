@@ -52,6 +52,8 @@ export const Parameters = Schema.Struct({
 
 type Metadata = {
   todos: Todo.Info[]
+  /** The process lane subsequent work belongs to (used for parallel todo lanes). */
+  focusPosition?: number
 }
 
 export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Service>(
@@ -87,18 +89,24 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
           return {
             title: `${stored.filter((x) => x.status !== "completed").length} todos`,
             output: JSON.stringify(stored, null, 2),
-            metadata: {
-              todos: stored,
-            },
+            metadata: (() => {
+              const active = stored
+                .map((item, index) => (item.status === "in_progress" ? index : -1))
+                .filter((index) => index >= 0)
+              return {
+                ...(active.length === 1 ? { focusPosition: active[0] } : {}),
+                todos: stored,
+              }
+            })(),
           }
         }),
     } satisfies Tool.DefWithoutID<typeof Parameters, Metadata>
   }),
 )
 
-// 动作到状态值的映射。add/edit/remove 不改状态,显式给 undefined 让索引类型闭合。
+// 动作到状态值的映射。add/edit/focus/remove 不改状态,显式给 undefined 让索引类型闭合。
 const STATUS_BY_ACTION: Record<
-  "add" | "edit" | "complete" | "reopen" | "progress" | "cancel" | "remove",
+  "add" | "edit" | "complete" | "reopen" | "progress" | "focus" | "cancel" | "remove",
   string | undefined
 > = {
   add: undefined,
@@ -106,6 +114,7 @@ const STATUS_BY_ACTION: Record<
   complete: "completed",
   reopen: "pending",
   progress: "in_progress",
+  focus: undefined,
   cancel: "cancelled",
   remove: undefined,
 }
@@ -124,9 +133,10 @@ export const TodoEditParameters = Schema.Struct({
     Schema.Literal("complete"),
     Schema.Literal("reopen"),
     Schema.Literal("progress"),
+    Schema.Literal("focus"),
     Schema.Literal("cancel"),
     Schema.Literal("remove"),
-  ]).annotate({ description: "The single change to apply: add, edit, complete, reopen, progress, cancel or remove" }),
+  ]).annotate({ description: "The single change to apply: add, edit, complete, reopen, progress, focus, cancel or remove" }),
   position: Schema.optional(Schema.Number).annotate({
     description:
       "0-based index of the item to change, exactly as numbered in the current list. Required for every action except add.",
@@ -182,6 +192,7 @@ export const TodoEditTool = Tool.define<typeof TodoEditParameters, Metadata, Tod
           if ((params.action === "add" || params.action === "edit") && !params.content?.trim())
             return rejected(`action "${params.action}" needs non-empty content.`)
 
+          let focusedPosition: number | undefined
           if (params.action === "add") {
             yield* todo.add({
               sessionID: ctx.sessionID,
@@ -189,6 +200,12 @@ export const TodoEditTool = Tool.define<typeof TodoEditParameters, Metadata, Tod
               priority: params.priority,
               goalId: params.goalId,
             })
+          } else if (params.action === "focus") {
+            const focused = current[params.position!]
+            if (focused?.status !== "in_progress") {
+              return rejected(`item ${params.position} must be in_progress before it can receive tool output.`)
+            }
+            focusedPosition = params.position
           } else if (params.action === "remove") {
             // remove 不能走 updateSingle:那里只有一个字段可改,空 set 会让 drizzle 抛 "No values to set"。
             yield* todo.remove({ sessionID: ctx.sessionID, position: params.position! })
@@ -214,11 +231,25 @@ export const TodoEditTool = Tool.define<typeof TodoEditParameters, Metadata, Tod
               next.map((item, index) => `${index}. ${MARK[item.status] ?? "[ ]"} ${item.content}`).join("\n") ||
                 "(no todos)",
               `${done}/${next.length} completed`,
+              ...(focusedPosition === undefined
+                ? []
+                : [`Focused item ${focusedPosition}: ${next[focusedPosition]?.content ?? ""}`]),
               ...(allDone ? ["All items are complete; the checklist was cleared."] : []),
             ].join("\n"),
-            metadata: {
-              todos: allDone ? [] : next,
-            },
+            metadata: (() => {
+              const automaticFocus =
+                focusedPosition ??
+                (() => {
+                  const active = next
+                    .map((item, index) => (item.status === "in_progress" ? index : -1))
+                    .filter((index) => index >= 0)
+                  return active.length === 1 ? active[0] : undefined
+                })()
+              return {
+                ...(automaticFocus === undefined ? {} : { focusPosition: automaticFocus }),
+                todos: allDone ? [] : next,
+              }
+            })(),
           }
         }),
     } satisfies Tool.DefWithoutID<typeof TodoEditParameters, Metadata>

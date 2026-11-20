@@ -1,6 +1,8 @@
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
-import { WorkspaceRoutingQuery } from "../middleware/workspace-routing"
+import { Authorization } from "../middleware/authorization"
+import { InstanceContextMiddleware } from "../middleware/instance-context"
+import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware/workspace-routing"
 import { described } from "./metadata"
 
 const root = "/arena"
@@ -51,48 +53,51 @@ export const ArenaRunDetailView = Schema.Struct({
   results: Schema.Array(ArenaContenderView),
 }).annotate({ identifier: "ArenaRunDetailView" })
 
-// 与其它 group 的 payload 一致保持内联结构：SDK 生成器用 `paramsStructure: "flat"`
-// 把 body 字段平铺成 `run({ directory, task })`，加了 identifier 会退化成嵌套 `arenaRunInput`。
 export const ArenaRunInput = Schema.Struct({
   task: Schema.String,
   concurrency: Schema.optional(Schema.Number.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(16))),
   keepWorktrees: Schema.optional(Schema.Boolean),
-})
+}).annotate({ identifier: "ArenaRunInput" })
 
-export const ArenaApi = HttpApiGroup.make("arena").add(
-  HttpApiEndpoint.post("runArena", `${root}/runs`, {
-    query: WorkspaceRoutingQuery,
-    payload: ArenaRunInput,
-    success: described(ArenaRunDetailView, "Arena run result"),
-    error: [HttpApiError.BadRequest, HttpApiError.InternalServerError],
-  }).annotateMerge(
-    OpenApi.annotations({
-      identifier: "arena.run",
-      summary: "Run arena task",
-      description: "Run the configured arena models in isolated worktrees and return the completed comparison.",
-    }),
-  ),
-  HttpApiEndpoint.get("listArenaRuns", `${root}/runs`, {
-    query: WorkspaceRoutingQuery,
-    success: described(Schema.Array(ArenaRunView), "Arena runs"),
-  }).annotateMerge(
-    OpenApi.annotations({
-      identifier: "arena.list",
-      summary: "List arena runs",
-      description:
-        "Recent arena runs in this workspace, newest first. Runs are recorded by `arena_run` and `novaway arena`.",
-    }),
-  ),
-  HttpApiEndpoint.get("getArenaRun", `${root}/runs/:runID`, {
-    params: { runID: Schema.String },
-    query: WorkspaceRoutingQuery,
-    success: described(ArenaRunDetailView, "Arena run detail"),
-    error: [HttpApiError.NotFound],
-  }).annotateMerge(
-    OpenApi.annotations({
-      identifier: "arena.detail",
-      summary: "Arena run detail",
-      description: "One arena run with every contender's diff, verdict and usage.",
-    }),
-  ),
-)
+export const ArenaApi = HttpApiGroup.make("arena")
+  .add(
+    HttpApiEndpoint.post("runArena", `${root}/runs`, {
+      query: WorkspaceRoutingQuery,
+      payload: ArenaRunInput,
+      success: described(ArenaRunDetailView, "Arena run result"),
+      error: [HttpApiError.BadRequest, HttpApiError.InternalServerError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "arena.run",
+        summary: "Run arena task",
+        description: "Run the configured arena models in isolated worktrees and return the completed comparison.",
+      }),
+    ),
+    HttpApiEndpoint.get("listArenaRuns", `${root}/runs`, {
+      query: WorkspaceRoutingQuery,
+      success: described(Schema.Array(ArenaRunView), "Arena runs"),
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "arena.list",
+        summary: "List arena runs",
+        description:
+          "Recent arena runs in this workspace, newest first. Runs are recorded by `arena_run` and `novaway arena`.",
+      }),
+    ),
+    HttpApiEndpoint.get("getArenaRun", `${root}/runs/:runID`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(ArenaRunDetailView, "Arena run detail"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "arena.detail",
+        summary: "Arena run detail",
+        description: "One arena run with every contender's diff, verdict and usage.",
+      }),
+    ),
+  )
+  // 与其它 instance group 一致：路由需要实例上下文与工作区路由，并受认证保护。
+  .middleware(InstanceContextMiddleware)
+  .middleware(WorkspaceRoutingMiddleware)
+  .middleware(Authorization)

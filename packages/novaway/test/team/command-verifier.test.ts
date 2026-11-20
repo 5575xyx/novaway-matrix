@@ -1,8 +1,10 @@
 import { describe, expect, it } from "bun:test"
+import { Effect } from "effect"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, execute, interpret, normalize } from "@/team/command-verifier"
+import { pollWithTimeout } from "../lib/effect"
 
 /** 用当前的 bun 可执行文件构造一条跨平台命令，避免依赖 shell 里的 `true` / `exit`。 */
 const bun = (script: string) => '"' + process.execPath + '" -e "' + script + '"'
@@ -78,6 +80,41 @@ describe("command verifier: execution", () => {
     expect(interpret(fail).outcome).toBe("fail")
   })
 
+  it("does not execute unisolated when no sandbox backend is available", async () => {
+    const dir = await tmp()
+    const marker = path.join(dir, "must-not-exist")
+    const result = await execute({
+      directory: dir,
+      spec: {
+        kind: "command",
+        run: bun(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`),
+        timeoutMs: 10_000,
+      },
+      sandbox: { enabled: true, backend: "auto" },
+    })
+    expect(result.code).toBeUndefined()
+    expect(result.timedOut).toBe(false)
+    expect(await fs.access(marker).then(() => true, () => false)).toBe(false)
+  })
+
+  it("does not execute unisolated when the Windows sandbox backend is unavailable", async () => {
+    if (process.platform !== "win32") return
+    const dir = await tmp()
+    const marker = path.join(dir, "must-not-exist")
+    const result = await execute({
+      directory: dir,
+      spec: {
+        kind: "command",
+        run: bun(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`),
+        timeoutMs: 10_000,
+      },
+      sandbox: { enabled: true, backend: "auto" },
+    })
+    expect(result.code).toBeUndefined()
+    expect(result.timedOut).toBe(false)
+    expect(await fs.access(marker).then(() => true, () => false)).toBe(false)
+  })
+
   it("counts lines without keeping the text", async () => {
     const dir = await tmp()
     const result = await execute({
@@ -87,13 +124,46 @@ describe("command verifier: execution", () => {
     expect(interpret(result).measured).toContain("输出 2 行")
   })
 
-  it("stops a command that outlives its timeout and reports unverified", async () => {
-    const dir = await tmp()
-    const result = await execute({
-      directory: dir,
-      spec: { kind: "command", run: bun("setTimeout(() => {}, 30_000)"), timeoutMs: 300 },
-    })
-    expect(result.timedOut).toBe(true)
-    expect(interpret(result).outcome).toBe("unverified")
-  })
+  it(
+    "terminates child processes when a command times out",
+    async () => {
+      const dir = await tmp()
+      const started = path.join(dir, "child-started")
+      const child = path.join(dir, "child.js")
+      const parent = path.join(dir, "parent.js")
+      await fs.writeFile(
+        child,
+        `require('node:fs').writeFileSync(${JSON.stringify(started)}, String(process.pid)); setInterval(() => {}, 1000)`,
+      )
+      await fs.writeFile(
+        parent,
+        `require('node:child_process').spawn(process.execPath, [${JSON.stringify(child)}], { stdio: 'ignore' }); setInterval(() => {}, 1000)`,
+      )
+      const result = await execute({
+        directory: dir,
+        spec: { kind: "command", run: `"${process.execPath}" "${parent}"`, timeoutMs: 1500 },
+      })
+      expect(result.timedOut).toBe(true)
+      expect(interpret(result).outcome).toBe("unverified")
+      const childPID = await fs.readFile(started, "utf8").then(Number)
+      expect(Number.isInteger(childPID)).toBe(true)
+      const alive = () => {
+        try {
+          process.kill(childPID, 0)
+          return true
+        } catch {
+          return false
+        }
+      }
+      const stopped = await Effect.runPromise(
+        pollWithTimeout(
+          Effect.sync(() => (alive() ? undefined : true)),
+          "timed out verifier left its child running",
+          "5 seconds",
+        ),
+      )
+      expect(stopped).toBe(true)
+    },
+    10_000,
+  )
 })

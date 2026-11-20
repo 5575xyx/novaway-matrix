@@ -16,7 +16,7 @@ import PROMPT_VERIFICATION from "./prompt/verification.txt"
 import PROMPT_PULSE_ORCHESTRATOR from "./prompt/pulse-orchestrator.txt"
 import PROMPT_COORDINATOR from "./prompt/coordinator.txt"
 import { Permission } from "@/permission"
-import { mergeDeep, pipe, sortBy, values } from "remeda"
+import { filter, mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@novaway/core/global"
 import path from "path"
 import { Plugin } from "@/plugin"
@@ -28,7 +28,18 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { type DeepMutable } from "@novaway/core/schema"
-import { agencyAgents } from "./agency"
+
+export const DEFAULT_AGENT = "creova"
+
+/**
+ * Marketplace contributions are namespaced by the plugin registry. Keep old
+ * config values usable by resolving an unqualified local id to its unique
+ * namespaced contribution (for example agents-orchestrator ->
+ * agency-agents_agents-orchestrator).
+ */
+function agentNameMatches(candidate: string, requested: string) {
+  return candidate === requested || candidate.endsWith(`_${requested}`)
+}
 
 export const Info = Schema.Struct({
   name: Schema.String,
@@ -101,59 +112,6 @@ type State = Omit<Interface, "generate" | "reload">
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/Agent") {}
 
-const OFFICE_AGENT_BASE_PROMPT = [
-  "你是 NovaWay 办公模式的内置 AI 员工。",
-  "你只处理办公交付，不进入工程代码实现、调试、仓库重构或终端执行任务。",
-  "先理解用户目标、受众、资料来源和交付格式；信息不足时提出必要问题，但不要用冗长教程替代交付。",
-  "输出必须可直接复制到办公文档、演示文稿、知识库、数据分析报告或视觉物料中。",
-  "默认使用简体中文；除非用户明确要求，不要输出英文结构说明。",
-  "遇到附件或资料时，优先提炼可验证信息，明确区分事实、推断、待确认项。",
-  "正式交付时必须使用 Markdown，并以“# 办公产物”作为主标题；可沉淀的偏好、客户背景、术语口径或模板规则必须放在“# 可沉淀记忆/可进化建议”下，等待用户确认。",
-  "不要把操作说明、快捷键说明或内部 Agent/Skill 配置过程混入办公产物正文。",
-].join("\n")
-
-const officeAgentPrompt = (input: {
-  role: string
-  skill: string
-  workflow: string[]
-  output: string[]
-  checks: string[]
-}) =>
-  [
-    OFFICE_AGENT_BASE_PROMPT,
-    "",
-    `当前办公场景：${input.role}`,
-    `默认调用 Skill：${input.skill}`,
-    "",
-    "工作流程：",
-    ...input.workflow.map((item, index) => `${index + 1}. ${item}`),
-    "",
-    "交付格式重点：",
-    ...input.output.map((item) => `- ${item}`),
-    "",
-    "质量检查：",
-    ...input.checks.map((item) => `- ${item}`),
-  ].join("\n")
-
-const officeSkillPermission = (skillName: string, extra: string[] = []) =>
-  Permission.fromConfig({
-    question: "allow",
-    skill: {
-      "*": "deny",
-      [skillName]: "allow",
-      "office-knowledge": "allow",
-      "office-data": "allow",
-      ...Object.fromEntries(extra.map((name) => [name, "allow" as const])),
-    },
-  })
-
-const officeAgentOptions = (input: { displayName: string; scene: string; skill: string }) => ({
-  displayName: input.displayName,
-  category: "办公模式",
-  modeGroup: "office",
-  scene: input.scene,
-  defaultSkill: input.skill,
-})
 
 export const layer = Layer.effect(
   Service,
@@ -209,9 +167,9 @@ export const layer = Layer.effect(
         const user = Permission.fromConfig(cfg.permission ?? {})
 
         const agents: Record<string, Info> = {
-          build: {
-            name: "build",
-            description: "The default agent. Executes tools based on configured permissions.",
+          creova: {
+            name: "creova",
+            description: "NovaWay's default general-purpose agent. Follows the active session permission mode.",
             options: {
               category: "核心",
             },
@@ -220,32 +178,7 @@ export const layer = Layer.effect(
               Permission.fromConfig({
                 question: "allow",
                 plan_enter: "allow",
-              }),
-              user,
-            ),
-            mode: "primary",
-            native: true,
-          },
-          plan: {
-            name: "plan",
-            description:
-              "Read-only planning: may write plan markdown and run read-only commands, but cannot modify code.",
-            options: {
-              category: "核心",
-            },
-            permission: Permission.merge(
-              defaults,
-              Permission.fromConfig({
-                question: "allow",
                 plan_exit: "allow",
-                external_directory: {
-                  [path.join(Global.Path.data, "plans", "*")]: "allow",
-                },
-                edit: {
-                  "*": "deny",
-                  [path.join(".novaway", "plans", "*.md")]: "allow",
-                  [path.relative(ctx.worktree, path.join(Global.Path.data, path.join("plans", "*.md")))]: "allow",
-                },
               }),
               user,
             ),
@@ -353,207 +286,6 @@ export const layer = Layer.effect(
               category: "核心",
               displayName: "验证",
             },
-          },
-          "office-document": {
-            name: "office-document",
-            description: "办公模式 文档整理员工。用于写作、改写、审稿、方案、报告、周报、月报和结构化文档交付。",
-            prompt: officeAgentPrompt({
-              role: "文档整理",
-              skill: "office-document",
-              workflow: [
-                "确认文档目标、读者和使用场景",
-                "建立标题层级、结论和关键论据",
-                "生成可复制正文",
-                "标出资料缺口、待确认项和可沉淀记忆",
-              ],
-              output: ["结论先行", "结构清晰", "必要时使用表格和清单", "保留待确认事项"],
-              checks: ["是否能直接交付", "是否覆盖目标读者关心点", "是否区分事实和推断"],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-document"), user),
-            options: officeAgentOptions({ displayName: "文档整理", scene: "document", skill: "office-document" }),
-            mode: "primary",
-            native: true,
-            color: "success",
-          },
-          "office-ppt": {
-            name: "office-ppt",
-            description: "办公模式 PPT生成员工。用于汇报大纲、页级故事线、页面文案、图表建议和演讲备注。",
-            prompt: officeAgentPrompt({
-              role: "PPT生成",
-              skill: "office-ppt",
-              workflow: [
-                "确认受众、页数和汇报目标",
-                "调用 skill 工具加载 office-ppt；按输出里的 <ppt_engine> 段选择渲染链（装了 ppt-master 就用它，否则用内置 HTML → PPTX）",
-                "设计叙事主线和页面顺序",
-                "拆分每页核心观点、正文和图表建议",
-                "补充演讲备注和风险问题",
-                "交付前核对产物是原生可编辑形状与文本框，不是一个扁平化空壳",
-              ],
-              output: ["逐页标题", "每页一个核心观点", "页面正文可直接复制", "备注和视觉建议分开"],
-              checks: ["故事线是否连贯", "页数是否合理", "是否能支撑汇报目标", "PPTX 能否逐页编辑"],
-            }),
-            // ppt-master 是可插拔扩展：装了就用，没装也不影响内置链路。
-            permission: Permission.merge(defaults, officeSkillPermission("office-ppt", ["ppt-master"]), user),
-            options: officeAgentOptions({ displayName: "PPT生成", scene: "ppt", skill: "office-ppt" }),
-            mode: "primary",
-            native: true,
-            color: "info",
-          },
-          "office-data": {
-            name: "office-data",
-            description: "办公模式 表格分析员工。用于 CSV/Excel 数据清洗、透视、趋势归因、图表建议和分析报告。",
-            prompt: officeAgentPrompt({
-              role: "表格分析",
-              skill: "office-data",
-              workflow: [
-                "确认业务问题、数据范围和关键指标",
-                "识别空值、重复、异常和字段口径问题",
-                "按维度完成透视、趋势、对比和归因",
-                "生成可核验结论、图表建议和行动建议",
-              ],
-              output: ["结论先行", "关键数字可核验", "数据口径清晰", "图表建议可执行"],
-              checks: [
-                "结论是否回答业务问题",
-                "数字是否来自用户资料",
-                "事实和推断是否区分",
-                "图表建议是否说明类型和维度",
-              ],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-data"), user),
-            options: officeAgentOptions({ displayName: "表格分析", scene: "data", skill: "office-data" }),
-            mode: "primary",
-            native: true,
-            color: "primary",
-          },
-          "office-design": {
-            name: "office-design",
-            description: "办公模式 视觉设计员工。用于海报、封面、配图、品牌色板和视觉规范生成。",
-            prompt: officeAgentPrompt({
-              role: "视觉设计",
-              skill: "office-design",
-              workflow: [
-                "确认设计目标、受众、渠道和品牌约束",
-                "建立信息层级、构图和视觉基调",
-                "确定具体色彩、字体和配图策略",
-                "生成可执行的视觉规范和图片提示词",
-              ],
-              output: ["设计目标明确", "信息层级清晰", "色彩字体具体", "配图提示词可执行"],
-              checks: ["是否回应设计目标", "是否给出具体视觉值", "是否区分可用素材和生成素材"],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-design"), user),
-            options: officeAgentOptions({ displayName: "视觉设计", scene: "design", skill: "office-design" }),
-            mode: "primary",
-            native: true,
-            color: "secondary",
-          },
-          "office-web": {
-            name: "office-web",
-            description: "办公模式 网页看板员工。用于 HTML 数据看板、项目追踪页、客户工具页和演示站点。",
-            prompt: officeAgentPrompt({
-              role: "网页看板",
-              skill: "office-web",
-              workflow: [
-                "确认页面目标、数据来源和目标用户",
-                "设计信息架构、页面区块和交互",
-                "生成语义化 HTML 结构和说明",
-                "给出数据更新和迭代建议",
-              ],
-              output: ["语义化 HTML", "数据来源清晰", "页面区块完整", "交互说明可执行"],
-              checks: ["页面是否回答业务问题", "数据是否有来源", "HTML 是否可直接使用"],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-web"), user),
-            options: officeAgentOptions({ displayName: "网页看板", scene: "web", skill: "office-web" }),
-            mode: "primary",
-            native: true,
-            color: "warning",
-          },
-          "office-meeting": {
-            name: "office-meeting",
-            description: "办公模式 AI 会议员工。用于会议纪要、决议、行动项、负责人、截止时间、风险和会后跟进。",
-            prompt: officeAgentPrompt({
-              role: "AI 会议",
-              skill: "office-meeting",
-              workflow: [
-                "识别会议主题和参会角色",
-                "提取结论、决议、分歧和待确认事项",
-                "拆分行动项、负责人和时间",
-                "生成会后同步文本",
-              ],
-              output: ["会议摘要", "决议清单", "行动项表格", "会后邮件或群消息"],
-              checks: ["负责人是否明确", "截止时间是否明确", "分歧和结论是否分开"],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-meeting"), user),
-            options: officeAgentOptions({ displayName: "AI 会议", scene: "meeting", skill: "office-meeting" }),
-            mode: "primary",
-            native: true,
-            color: "accent",
-          },
-          "office-knowledge": {
-            name: "office-knowledge",
-            description: "办公模式 AI 资料库员工。用于资料摘要、多文档对比、知识索引、FAQ 和可复用项目知识沉淀。",
-            prompt: officeAgentPrompt({
-              role: "AI 资料库",
-              skill: "office-knowledge",
-              workflow: [
-                "确认资料范围和核心问题",
-                "提炼主题索引和关键观点",
-                "对比差异、来源和证据",
-                "生成 FAQ、追问线索和记忆建议",
-              ],
-              output: ["资料摘要", "主题索引", "来源线索", "可追问问题"],
-              checks: ["是否保留来源", "确定信息和推断是否区分", "索引是否便于后续检索"],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-knowledge"), user),
-            options: officeAgentOptions({ displayName: "AI 资料库", scene: "knowledge", skill: "office-knowledge" }),
-            mode: "primary",
-            native: true,
-            color: "primary",
-          },
-          "office-task": {
-            name: "office-task",
-            description: "办公模式 AI 任务员工。用于目标拆解、优先级、周计划、风险看板、依赖和执行节奏。",
-            prompt: officeAgentPrompt({
-              role: "AI 任务",
-              skill: "office-task",
-              workflow: [
-                "确认目标、边界和时间约束",
-                "拆解可执行任务",
-                "判断优先级、依赖和风险",
-                "生成执行节奏和跟进机制",
-              ],
-              output: ["任务清单", "P0/P1/P2 优先级", "负责人建议", "风险和依赖"],
-              checks: ["任务是否可执行", "依赖是否明确", "优先级理由是否充分"],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-task"), user),
-            options: officeAgentOptions({ displayName: "AI 任务", scene: "task", skill: "office-task" }),
-            mode: "primary",
-            native: true,
-            color: "warning",
-          },
-          "office-communication": {
-            name: "office-communication",
-            description: "办公模式 AI 沟通员工。用于邮件、回复、通知、商务表达、中英双语和语气改写。",
-            prompt: officeAgentPrompt({
-              role: "AI 沟通",
-              skill: "office-communication",
-              workflow: [
-                "确认沟通对象、关系和目标",
-                "判断语气、边界和禁用表达",
-                "生成推荐正文和备选版本",
-                "给出发送前检查",
-              ],
-              output: ["推荐正文", "正式版", "简短版", "发送前检查"],
-              checks: ["语气是否匹配对象", "行动请求是否明确", "是否避免过度承诺"],
-            }),
-            permission: Permission.merge(defaults, officeSkillPermission("office-communication"), user),
-            options: officeAgentOptions({
-              displayName: "AI 沟通",
-              scene: "communication",
-              skill: "office-communication",
-            }),
-            mode: "primary",
-            native: true,
-            color: "secondary",
           },
           explore: {
             name: "explore",
@@ -758,7 +490,6 @@ export const layer = Layer.effect(
             ),
             prompt: PROMPT_SUMMARY,
           },
-          ...agencyAgents({ defaults, user }),
         }
 
         for (const [key, value] of Object.entries(cfg.agent ?? {})) {
@@ -821,16 +552,20 @@ export const layer = Layer.effect(
         }
 
         const get = Effect.fnUntraced(function* (agent: string) {
+          if (agent === "build" || agent === "plan") agent = DEFAULT_AGENT
           return agents[agent]
         })
 
         const list = Effect.fnUntraced(function* () {
           const cfg = yield* config.get()
+          const defaultAgent =
+            cfg.default_agent === "build" || cfg.default_agent === "plan" ? DEFAULT_AGENT : cfg.default_agent
           return pipe(
             agents,
             values(),
+            filter((item) => item.name !== "build" && item.name !== "plan"),
             sortBy(
-              [(x) => (cfg.default_agent ? x.name === cfg.default_agent : x.name === "build"), "desc"],
+              [(x) => (defaultAgent ? x.name === defaultAgent : x.name === DEFAULT_AGENT), "desc"],
               [(x) => x.name, "asc"],
             ),
           )
@@ -838,13 +573,15 @@ export const layer = Layer.effect(
 
         const defaultInfo = Effect.fnUntraced(function* () {
           const c = yield* config.get()
-          if (c.default_agent) {
+          const configuredName =
+            c.default_agent === "build" || c.default_agent === "plan" ? DEFAULT_AGENT : c.default_agent
+          if (configuredName) {
             const agent =
-              agents[c.default_agent] ??
-              (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === c.default_agent)))
-            if (!agent) throw new Error(`default agent "${c.default_agent}" not found`)
-            if (agent.mode === "subagent") throw new Error(`default agent "${c.default_agent}" is a subagent`)
-            if (agent.hidden === true) throw new Error(`default agent "${c.default_agent}" is hidden`)
+              agents[configuredName] ??
+              (yield* Effect.map(pluginAgents, (items) => items.find((item) => agentNameMatches(item.name, configuredName))))
+            if (!agent) throw new Error(`default agent "${configuredName}" not found`)
+            if (agent.mode === "subagent") throw new Error(`default agent "${configuredName}" is a subagent`)
+            if (agent.hidden === true) throw new Error(`default agent "${configuredName}" is hidden`)
             return agent
           }
           const visible =
@@ -903,39 +640,63 @@ export const layer = Layer.effect(
       })
     })
 
+    /**
+     * Plugin activation happens during instance bootstrap, while Agent state can
+     * be materialized earlier by tool/prompt initialization.  Keep the skill
+     * permission allow-list live instead of freezing it at Agent.state time;
+     * otherwise a newly activated marketplace skill is present on disk but the
+     * current agent still denies it (and it is filtered out of the system
+     * prompt).
+     */
+    const withCurrentSkillPermissions = Effect.fn("Agent.withCurrentSkillPermissions")(function* (agent: Info) {
+      const current = yield* skill.all()
+      if (current.length === 0) return agent
+      const allowed = Permission.fromConfig({
+        skill: Object.fromEntries(current.map((item) => [item.name, "allow" as const])),
+      })
+      return { ...agent, permission: Permission.merge(agent.permission, allowed) }
+    })
+
     const runtimeList = (base: Info[]) =>
       Effect.gen(function* () {
         const configValue = yield* config.get()
         const plugins = yield* pluginAgents
         const combined = new Map(plugins.map((item) => [item.name, item]))
         for (const item of base) combined.set(item.name, item)
+        const permissioned = yield* Effect.forEach([...combined.values()], withCurrentSkillPermissions)
         return sortBy(
-          [...combined.values()],
-          [(x) => (configValue.default_agent ? x.name === configValue.default_agent : x.name === "build"), "desc"],
+          permissioned,
+          [(x) => (configValue.default_agent ? agentNameMatches(x.name, configValue.default_agent) : x.name === DEFAULT_AGENT), "desc"],
           [(x) => x.name, "asc"],
         )
       })
 
     const defaultInfo = Effect.fn("Agent.defaultInfo")(function* () {
       const cfg = yield* config.get()
-      if (!cfg.default_agent) return yield* InstanceState.useEffect(state, (s) => s.defaultInfo())
+      const configuredName =
+        cfg.default_agent === "build" || cfg.default_agent === "plan" ? DEFAULT_AGENT : cfg.default_agent
+      if (!configuredName)
+        return yield* InstanceState.useEffect(state, (s) => s.defaultInfo()).pipe(
+          Effect.flatMap(withCurrentSkillPermissions),
+        )
       const base = yield* InstanceState.useEffect(state, (s) => s.list())
       const selected =
-        base.find((item) => item.name === cfg.default_agent) ??
-        (yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === cfg.default_agent)))
+        base.find((item) => agentNameMatches(item.name, configuredName)) ??
+        (yield* Effect.map(pluginAgents, (items) => items.find((item) => agentNameMatches(item.name, configuredName))))
       if (!selected) throw new Error(`default agent "${cfg.default_agent}" not found`)
       if (selected.mode === "subagent") throw new Error(`default agent "${cfg.default_agent}" is a subagent`)
       if (selected.hidden === true) throw new Error(`default agent "${cfg.default_agent}" is hidden`)
-      return selected
+      return yield* withCurrentSkillPermissions(selected)
     })
 
     return Service.of({
       get: Effect.fn("Agent.get")(function* (agent: string) {
+        if (agent === "build" || agent === "plan") agent = DEFAULT_AGENT
         const fromBase = yield* InstanceState.useEffect(state, (s) => s.get(agent))
-        if (fromBase) return fromBase
-        const pluginAgent = yield* Effect.map(pluginAgents, (items) => items.find((item) => item.name === agent))
+        if (fromBase) return yield* withCurrentSkillPermissions(fromBase)
+        const pluginAgent = yield* Effect.map(pluginAgents, (items) => items.find((item) => agentNameMatches(item.name, agent)))
         if (!pluginAgent) return undefined
-        return pluginAgent
+        return yield* withCurrentSkillPermissions(pluginAgent)
       }),
       list: Effect.fn("Agent.list")(function* () {
         const base = yield* InstanceState.useEffect(state, (s) => s.list())

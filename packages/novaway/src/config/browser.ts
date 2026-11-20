@@ -12,4 +12,7 @@ export const Info = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean).annotate({
     description: "启用内置浏览器控制（打开网页、点击、输入、截图、导出 PDF）。默认开启。",
   }),
+  open_in_app: Schema.optional(Schema.Boolean).annotate({
+    description: "检测到任务中的本地服务或网页时，默认在桌面端右侧内置浏览器打开。默认开启。",
+  }),
 })

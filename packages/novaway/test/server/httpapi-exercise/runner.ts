@@ -186,11 +186,17 @@ function withContext<A, E>(
           llmWait: (count) => Effect.suspend(() => llm().wait(count)),
           tuiRequest: (request) => Effect.sync(() => modules.Tui.submitTuiRequest(request)),
         }
+        const disposeInstance = instance
+          ? modules.InstanceStore.Service.use((store) => store.dispose(instance)).pipe(
+              Effect.provide(appLayer),
+              Effect.ignore,
+            )
+          : Effect.void
         yield* trace(options, scenario, `${label} seed start`)
         const state = yield* scenario.seed(base)
         yield* trace(options, scenario, `${label} seed done`)
         yield* trace(options, scenario, `${label} use start`)
-        const result = yield* use({ ...base, state })
+        const result = yield* use({ ...base, state }).pipe(Effect.ensuring(disposeInstance))
         yield* trace(options, scenario, `${label} use done`)
         return result
       }).pipe(Effect.ensuring(context.llm ? context.llm.reset : Effect.void)),

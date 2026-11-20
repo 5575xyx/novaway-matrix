@@ -52,6 +52,7 @@ const migrations = await Promise.all(
 console.log(`Loaded ${migrations.length} migrations`)
 
 const singleFlag = process.argv.includes("--single")
+const muslFlag = process.argv.includes("--musl")
 const baselineFlag = process.argv.includes("--baseline")
 const skipInstall = process.argv.includes("--skip-install")
 const sourcemapsFlag = process.argv.includes("--sourcemaps")
@@ -62,7 +63,7 @@ const createEmbeddedWebUIBundle = async () => {
   console.log(`Building Web UI to embed in the binary`)
   const appDir = path.join(import.meta.dirname, "../../app")
   const dist = path.join(appDir, "dist")
-  await $`bun run --cwd ${appDir} build`
+  await $`bun run build`.cwd(appDir)
   const files = (await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: dist })))
     .map((file) => file.replaceAll("\\", "/"))
     .filter((file) => !file.endsWith(".map"))
@@ -120,11 +121,6 @@ const createEmbeddedSkillAssetsBundle = async () => {
   console.log(`Generating embedded skill assets bundle`)
   await buildPptxWorkerBundle()
   const SKILL_DIRS = [
-    {
-      name: "office-ppt",
-      dir: path.join(dir, "src/skill/prompt/office-ppt"),
-      extraFiles: [{ key: "pptx-worker/worker.mjs", absPath: pptxWorkerAssetPath }],
-    },
     { name: "xiaohongshu-ops", dir: path.join(dir, "src/skill/prompt/xiaohongshu-ops") },
     { name: "wxgzh-ops", dir: path.join(dir, "src/skill/prompt/wxgzh-ops") },
     // 运营类技能带 references/（平台手册、预检规则、热榜来源、数据口径），
@@ -134,25 +130,19 @@ const createEmbeddedSkillAssetsBundle = async () => {
     { name: "humanize-writing", dir: path.join(dir, "src/skill/prompt/humanize-writing") },
     { name: "account-review", dir: path.join(dir, "src/skill/prompt/account-review") },
   ]
-  const entries = []
-  let fileIdx = 0
-  for (const { name, dir: skillDir, extraFiles } of SKILL_DIRS) {
-    const extraEntries = []
-    for (const extra of extraFiles ?? []) {
-      const spec = path.relative(dir, extra.absPath).replaceAll("\\", "/")
-      extraEntries.push({
-        key: `${name}/${extra.key}`,
-        spec: spec.startsWith(".") ? spec : `./${spec}`,
-        idx: fileIdx++,
-      })
-    }
+  const entries = [{
+    key: "office-renderer/pptx-worker/worker.mjs",
+    spec: `./${path.relative(dir, pptxWorkerAssetPath).replaceAll("\\", "/")}`,
+    idx: 0,
+  }]
+  let fileIdx = 1
+  for (const { name, dir: skillDir } of SKILL_DIRS) {
     const exists = await fs.promises.stat(skillDir).then(
       () => true,
       () => false,
     )
     if (!exists) {
-      entries.push(...extraEntries)
-      console.log(`  ${name}: directory not found, ${extraFiles?.length ?? 0} extra files`)
+      console.log(`  ${name}: directory not found`)
       continue
     }
     const files = (await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: skillDir })))
@@ -164,8 +154,7 @@ const createEmbeddedSkillAssetsBundle = async () => {
       const spec = path.relative(dir, absPath).replaceAll("\\", "/")
       entries.push({ key: `${name}/${file}`, spec: spec.startsWith(".") ? spec : `./${spec}`, idx: fileIdx++ })
     }
-    entries.push(...extraEntries)
-    console.log(`  ${name}: ${files.length + (extraFiles?.length ?? 0)} files`)
+    console.log(`  ${name}: ${files.length} files`)
   }
   if (entries.length === 0) return null
   const imports = entries.map((e) => `import file_${e.idx} from ${JSON.stringify(e.spec)} with { type: "file" };`)
@@ -226,6 +215,17 @@ function locatePackageFile(name: string, file: string, roots: string[], store: s
     if (found) return found
   }
   throw new Error(`找不到 ${name}/${file}，已尝试：\n  - ${tried.join("\n  - ")}`)
+}
+
+function compileRuntimePath(item: { os: string; arch: "arm64" | "x64"; abi?: "musl" }): string | undefined {
+  const native = item.os === process.platform && item.arch === process.arch && item.abi === undefined
+  if (native) return undefined
+  const osName = item.os === "win32" ? "windows" : item.os
+  const bunArch = item.arch === "arm64" ? "aarch64" : item.arch
+  const suffix = item.abi ? `-${item.abi}` : ""
+  const packageName = `@oven/bun-${osName}-${bunArch}${suffix}`
+  const executable = item.os === "win32" ? "bin/bun.exe" : "bin/bun"
+  return locatePackageFile(packageName, executable, [dir], path.join(dir, "node_modules", ".bun"))
 }
 
 function otuiAssetEntries(parserWorker: string, item: { os: string; arch: string; abi?: "musl" }): OtuiAssetEntry[] {
@@ -328,6 +328,11 @@ const allTargets: {
   {
     os: "linux",
     arch: "x64",
+    abi: "musl",
+  },
+  {
+    os: "linux",
+    arch: "x64",
   },
   {
     os: "darwin",
@@ -343,26 +348,25 @@ const allTargets: {
   },
 ]
 
-const targets = singleFlag
-  ? allTargets.filter((item) => {
-      if (item.os !== process.platform || item.arch !== process.arch) {
-        return false
-      }
-
-      // When building for the current platform, prefer a single native binary by default.
-      // Baseline binaries require additional Bun artifacts and can be flaky to download.
-      if (item.avx2 === false) {
-        return baselineFlag
-      }
-
-      // also skip abi-specific builds for the same reason
-      if (item.abi !== undefined) {
-        return false
-      }
-
-      return true
-    })
-  : allTargets
+const targets = allTargets.filter((item) => {
+  if (muslFlag !== (item.abi === "musl")) return false
+  if (singleFlag && (item.os !== process.platform || item.arch !== process.arch)) {
+    return false
+  }
+  if (singleFlag && item.abi === undefined && item.avx2 === false) {
+    return baselineFlag
+  }
+  if (singleFlag && item.abi !== undefined && baselineFlag) {
+    return false
+  }
+  return true
+})
+if (targets.length === 0) {
+  throw new Error(
+    `No build target matches platform=${process.platform}, arch=${process.arch}, musl=${muslFlag}. ` +
+      "Run --musl only on a Linux x64 Runner.",
+  )
+}
 
 const binaries: Record<string, string> = {}
 if (!skipInstall) {
@@ -370,12 +374,12 @@ if (!skipInstall) {
   await $`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
 }
 for (const item of targets) {
-  // 平台包名 = `${MAIN_PACKAGE}-<os>-<arch>`，与主包同属一个 npm 账号。
+  // 平台包名 = `${MAIN_PACKAGE}-<os>-<arch>[-<abi>]`，与主包同属一个 npm 账号。
   // changing to win32 flags npm for some reason
   const osName = item.os === "win32" ? "windows" : item.os
-  const name = [MAIN_PACKAGE, osName, item.arch].join("-")
+  const name = [MAIN_PACKAGE, osName, item.arch, ...(item.abi ? [item.abi] : [])].join("-")
   // bun 编译 target 单独构造，避免把包名里的字段 replace 坏。
-  const bunTarget = ["bun", osName, item.arch].join("-")
+  const bunTarget = ["bun", osName, item.arch, ...(item.abi ? [item.abi] : [])].join("-")
   console.log(`building ${name}`)
   await $`mkdir -p dist/${name}/bin`
   // The compiled binary cannot scan BUNFS for directory trees. Ship the trusted
@@ -430,6 +434,11 @@ for (const item of targets) {
   // resolves correctly.
   const workerBunfsPath = bunfsRoot + workerPath.replace(/^\.\//, "").replace(/\.ts$/, ".js")
 
+  const compileExecutablePath = compileRuntimePath(item)
+  if (compileExecutablePath) {
+    console.log(`  bun runtime: ${path.relative(dir, compileExecutablePath)}`)
+  }
+
   await Bun.build({
     conditions: ["browser"],
     tsconfig: "./tsconfig.json",
@@ -445,6 +454,7 @@ for (const item of targets) {
       autoloadTsconfig: true,
       autoloadPackageJson: true,
       target: bunTarget as any,
+      ...(compileExecutablePath ? { executablePath: compileExecutablePath } : {}),
       outfile: `dist/${name}/bin/novaway`,
       execArgv: [`--user-agent=novaway/${Script.version}`, "--use-system-ca", "--"],
       windows: {},
@@ -489,7 +499,7 @@ for (const item of targets) {
   })
 
   // Smoke test: only run if binary is for current platform
-  if (item.os === process.platform && item.arch === process.arch && !item.abi) {
+  if (item.os === process.platform && item.arch === process.arch) {
     const binaryPath = `dist/${name}/bin/novaway`
     console.log(`Running smoke test: ${binaryPath} --version`)
     try {

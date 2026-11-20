@@ -9,7 +9,7 @@ import { Bus } from "../bus"
 import { InstanceState } from "@/effect/instance-state"
 import { FileWatcher } from "@/file/watcher"
 import { ShareNext } from "@/share/share-next"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Option } from "effect"
 import { Config } from "@/config/config"
 import { Global } from "@novaway/core/global"
 import { PluginHost } from "@/plugin/host"
@@ -17,6 +17,18 @@ import { PluginRuntimeService } from "@/plugin/runtime/service"
 import { PluginStorage } from "@/plugin/storage"
 import { Service } from "./bootstrap-service"
 import { Reference } from "@/reference/reference"
+import * as Marketplace from "@/extension/marketplace"
+import * as MarketplaceOperations from "@/extension/operations"
+import { Service as CronService } from "@/cron/service"
+import { SuperAgentStore } from "@/super-agent"
+import { ensureSuperAgentHost } from "@/super-agent/host-service"
+import { bindExecutableSuperAgentContributions } from "@/super-agent/plugin-contributions"
+import { Permission } from "@/permission"
+import { MCP } from "@/mcp"
+import { Provider } from "@/provider/provider"
+import { startSuperAgentRun } from "@/super-agent/launcher"
+import * as Session from "../session/session"
+import { Service as ToolRegistryService } from "@/tool/registry"
 
 export { Service } from "./bootstrap-service"
 export type { Interface } from "./bootstrap-service"
@@ -39,13 +51,32 @@ export const layer = Layer.effect(
     const shareNext = yield* ShareNext.Service
     const snapshot = yield* Snapshot.Service
     const vcs = yield* Vcs.Service
+    const cron = Option.getOrUndefined(yield* Effect.serviceOption(CronService))
+    const superAgentStore = Option.getOrUndefined(yield* Effect.serviceOption(SuperAgentStore))
+    const toolRegistry = Option.getOrUndefined(yield* Effect.serviceOption(ToolRegistryService))
+    const permission = Option.getOrUndefined(yield* Effect.serviceOption(Permission.Service))
+    const mcp = Option.getOrUndefined(yield* Effect.serviceOption(MCP.Service))
+    const provider = Option.getOrUndefined(yield* Effect.serviceOption(Provider.Service))
+    const sessions = Option.getOrUndefined(yield* Effect.serviceOption(Session.Service))
 
     const run = Effect.gen(function* () {
       const ctx = yield* InstanceState.context
       yield* Effect.logInfo("bootstrapping").pipe(Effect.annotateLogs("directory", ctx.directory))
       // everything depends on config so eager load it for nice traces
       yield* config.get()
+      // A process may leave staging directories or durable operations mid-flight.
+      // Recover them before PluginHost discovery so consumers never index partial trees.
+      yield* Effect.promise(() => Marketplace.recover()).pipe(
+        Effect.catchCause((cause) => Effect.logWarning("marketplace recovery failed", { cause })),
+      )
+      yield* Effect.promise(() => MarketplaceOperations.recover()).pipe(
+        Effect.catchCause((cause) => Effect.logWarning("marketplace operation recovery failed", { cause })),
+      )
       if (ctx.scope === "global") return
+      // Start the durable scheduler as part of instance bootstrap, not on the
+      // first user prompt. A restarted instance can therefore resume goals even
+      // while the UI is idle.
+      if (cron) yield* cron.start({ directory: ctx.directory }).pipe(Effect.ignore)
       // Plugin can mutate config so it has to be initialized before anything else.
       yield* plugin.init()
       const cfg = yield* config.get()
@@ -89,6 +120,25 @@ export const layer = Layer.effect(
         (s) => s.init().pipe(Effect.catchCause((cause) => Effect.logWarning("init failed", { cause }))),
         { concurrency: "unbounded", discard: true },
       ).pipe(Effect.withSpan("InstanceBootstrap.init"))
+      if (superAgentStore && toolRegistry && permission) {
+        const pluginHost = yield* pluginRuntime.get
+        const bindings = bindExecutableSuperAgentContributions(pluginHost.registries.superAgent)
+        ensureSuperAgentHost(ctx, superAgentStore, {
+          execution: {
+            registry: toolRegistry,
+            permission,
+            ...(mcp ? { mcp } : {}),
+            delegation: bindings.runtimes,
+            cleanup: bindings.dispose,
+            ...(provider && sessions
+              ? {
+                  recover: (runID: string) =>
+                    Effect.runPromise(startSuperAgentRun({ store: superAgentStore, sessions, provider, toolRegistry }, runID)),
+                }
+              : {}),
+          },
+        })
+      }
     }).pipe(Effect.withSpan("InstanceBootstrap"))
 
     return Service.of({ run })

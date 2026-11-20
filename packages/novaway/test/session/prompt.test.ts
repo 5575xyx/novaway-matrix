@@ -679,7 +679,7 @@ it.instance(
       expect(
         (yield* sessions.messages({ sessionID: chat.id })).filter((message) => message.info.role === "user"),
       ).toHaveLength(1)
-      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("in_progress")
+      expect((yield* goal.get({ goalId: created.id, sessionId: chat.id }))?.status).toBe("paused")
     }),
   { git: true },
   30_000,

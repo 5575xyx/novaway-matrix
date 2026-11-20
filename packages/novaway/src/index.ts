@@ -38,6 +38,7 @@ import { JsonMigration } from "@/storage/json-migration"
 import { Database } from "@/storage/db"
 import { errorMessage } from "./util/error"
 import { PluginCommand } from "./cli/cmd/plug"
+import { MarketplaceCommand } from "./cli/cmd/marketplace"
 import { Heap } from "./cli/heap"
 import { drizzle } from "drizzle-orm/bun-sqlite"
 import { ensureProcessMetadata } from "@novaway/core/util/novaway-process"
@@ -211,6 +212,7 @@ const cli = yargs(args)
   .command(CuratorCommand)
   .command(ArenaCommand)
   .command(PluginCommand)
+  .command(MarketplaceCommand)
   .command(DbCommand)
   .fail((msg, err) => {
     if (

@@ -189,6 +189,11 @@ export const layer = Layer.effect(
         ...shell.env,
         TERM: "xterm-256color",
         NOVAWAY_TERMINAL: "1",
+        // Skills launched from the terminal use this contract to decide whether
+        // a local preview should be handed back to NovaWay or opened by the OS.
+        // Missing config is intentionally treated as enabled for backwards
+        // compatibility with configurations created before this setting existed.
+        NOVAWAY_OPEN_IN_APP_BROWSER: cfg.browser?.open_in_app === false ? "0" : "1",
       } as Record<string, string>
 
       if (process.platform === "win32") {

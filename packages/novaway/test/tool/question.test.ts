@@ -82,6 +82,29 @@ describe("tool.question", () => {
     }),
   )
 
+  it.instance("supports open-ended questions with an empty options list", () =>
+    Effect.gen(function* () {
+      const question = yield* Question.Service
+      const toolInfo = yield* QuestionTool
+      const tool = yield* toolInfo.init()
+      const questions = [
+        {
+          question: "What should this tool help you accomplish?",
+          header: "Goal",
+          options: [],
+        },
+      ]
+
+      const fiber = yield* tool.execute({ questions }, ctx).pipe(Effect.forkScoped)
+      const item = yield* pending(question)
+      expect(item.questions[0]?.options).toEqual([])
+      yield* question.reply({ requestID: item.id, answers: [["Free-form answer"]] })
+
+      const result = yield* Fiber.join(fiber)
+      expect(result.output).toContain(`"What should this tool help you accomplish?"="Free-form answer"`)
+    }),
+  )
+
   it.instance("should now pass with a header longer than 12 but less than 30 chars", () =>
     Effect.gen(function* () {
       const question = yield* Question.Service

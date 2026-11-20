@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Layer } from "effect"
+import fs from "node:fs/promises"
+import path from "node:path"
 import type * as Scope from "effect/Scope"
 import { Config } from "@/config/config"
 import { Shell } from "@/shell/shell"
@@ -15,6 +17,7 @@ import { AppFileSystem } from "@novaway/core/filesystem"
 import { Plugin } from "@/plugin"
 import { testEffect } from "../lib/effect"
 import { Tool } from "@/tool/tool"
+import { TestInstance, withTmpdirInstance } from "../fixture/fixture"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
 const layer = Layer.mergeAll(
@@ -131,6 +134,30 @@ describe("tool.powershell", () => {
           expect(requests.some((req) => req.permission === "powershell")).toBe(true)
         }),
       ),
+    30_000,
+  )
+
+  it.live(
+    "refuses sandboxed Windows PowerShell without invoking the host shell",
+    () => {
+      if (process.platform !== "win32" || !available) return Effect.void
+      return withTmpdirInstance({ config: { sandbox: { enabled: true } } })(
+        Effect.gen(function* () {
+          const directory = (yield* TestInstance).directory
+          const marker = path.join(directory, `sandbox-bypass-${process.pid}.marker`)
+          const batch = path.join(directory, `sandbox-bypass-${process.pid}.cmd`)
+          yield* Effect.promise(() => fs.writeFile(batch, `@echo off\r\necho ran>"${marker}"\r\n`))
+          yield* runIn(
+            directory,
+            Effect.gen(function* () {
+              const result = yield* run({ command: batch, description: "sandbox bypass probe" })
+              expect(result.metadata.exit).not.toBe(0)
+            }),
+          )
+          expect(yield* Effect.promise(() => fs.access(marker).then(() => true, () => false))).toBe(false)
+        }),
+      )
+    },
     30_000,
   )
 

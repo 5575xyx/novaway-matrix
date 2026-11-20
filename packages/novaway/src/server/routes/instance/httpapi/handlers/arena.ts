@@ -145,7 +145,7 @@ export const arenaHandlers = HttpApiBuilder.group(InstanceHttpApi, "arena", (han
             agents,
             parentSessionID: root.id,
             defaultModel: fallback,
-            defaultAgent: root.agent ?? cfg.default_agent ?? "build",
+            defaultAgent: root.agent ?? cfg.default_agent ?? "creova",
           })
           const result = yield* Arena.run(
             {

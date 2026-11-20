@@ -273,6 +273,7 @@ export const TaskTool = Tool.define(
         ? yield* sessions.get(SessionID.make(taskID)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
       const parent = parentSession
+      const parentPermissionMode = yield* sessions.permissionModeOf(ctx.sessionID)
       const parentAgent = parent.agent
         ? yield* agent.get(parent.agent).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
@@ -298,7 +299,7 @@ export const TaskTool = Tool.define(
               title: params.description + ` (@${next.name} fork)`,
               agent: next.name,
               permission: parent.permission ?? [],
-              ...(parent.permissionMode ? { permissionMode: parent.permissionMode } : {}),
+              ...(parentPermissionMode ? { permissionMode: parentPermissionMode } : {}),
             })
             .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
@@ -343,8 +344,8 @@ export const TaskTool = Tool.define(
               : {}),
             // Agent declaration wins; otherwise inherit the parent's mode so a
             // plan-mode session cannot silently spawn an editing subagent.
-            ...(next.permissionMode || parent.permissionMode
-              ? { permissionMode: next.permissionMode ?? parent.permissionMode }
+            ...(next.permissionMode || parentPermissionMode
+              ? { permissionMode: next.permissionMode ?? parentPermissionMode }
               : {}),
             title: params.description + ` (@${next.name} subagent)`,
             permission: [

@@ -432,6 +432,7 @@ describe("session.llm.stream", () => {
           invalidate: Effect.void,
           setEnabled: () => Effect.void,
           activateBuiltin: () => Effect.void,
+          activateOnDemand: () => Effect.void,
         } satisfies PluginRuntimeServiceInterface
         try {
           await drain(
@@ -465,6 +466,17 @@ describe("session.llm.stream", () => {
         expect(body.top_p).toBeCloseTo(0.9)
         expect(interceptorCalls).toBe(10)
         expect(body.stream).toBe(true)
+        const messages = body.messages as Array<{ role?: string; content?: unknown }> | undefined
+        const systemText = (messages ?? [])
+          .filter((message) => message.role === "system")
+          .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+          .join("\n")
+        expect(systemText).toContain("<novaway-workflow-policy>")
+        expect(systemText).toContain("必须调用 question 工具")
+        expect(systemText).toContain("powersnexus_grill-me")
+        expect(systemText).toContain("需求清晰时零提问")
+        expect(systemText).toContain("最多一次 question")
+        expect(systemText).toContain("L2+ 加载 powersnexus_brainstorming")
 
         const maxTokens = (body.max_tokens as number | undefined) ?? (body.max_output_tokens as number | undefined)
         const expectedMaxTokens = ProviderTransform.maxOutputTokens(resolved)

@@ -50,11 +50,6 @@ const createEmbeddedSkillAssetsBundle = async () => {
   console.log(`Generating embedded skill assets bundle`)
   await buildPptxWorkerBundle()
   const SKILL_DIRS = [
-    {
-      name: "office-ppt",
-      dir: path.join(dir, "src/skill/prompt/office-ppt"),
-      extraFiles: [{ key: "pptx-worker/worker.mjs", absPath: pptxWorkerAssetPath }],
-    },
     { name: "xiaohongshu-ops", dir: path.join(dir, "src/skill/prompt/xiaohongshu-ops") },
     { name: "wxgzh-ops", dir: path.join(dir, "src/skill/prompt/wxgzh-ops") },
     // 运营类技能带 references/（平台手册、预检规则、热榜来源、数据口径），
@@ -64,25 +59,19 @@ const createEmbeddedSkillAssetsBundle = async () => {
     { name: "humanize-writing", dir: path.join(dir, "src/skill/prompt/humanize-writing") },
     { name: "account-review", dir: path.join(dir, "src/skill/prompt/account-review") },
   ]
-  const entries = []
-  let fileIdx = 0
-  for (const { name, dir: skillDir, extraFiles } of SKILL_DIRS) {
-    const extraEntries = []
-    for (const extra of extraFiles ?? []) {
-      const spec = path.relative(dir, extra.absPath).replaceAll("\\", "/")
-      extraEntries.push({
-        key: `${name}/${extra.key}`,
-        spec: spec.startsWith(".") ? spec : `./${spec}`,
-        idx: fileIdx++,
-      })
-    }
+  const entries = [{
+    key: "office-renderer/pptx-worker/worker.mjs",
+    spec: `./${path.relative(dir, pptxWorkerAssetPath).replaceAll("\\", "/")}`,
+    idx: 0,
+  }]
+  let fileIdx = 1
+  for (const { name, dir: skillDir } of SKILL_DIRS) {
     const exists = await fs.promises.stat(skillDir).then(
       () => true,
       () => false,
     )
     if (!exists) {
-      entries.push(...extraEntries)
-      console.log(`  ${name}: directory not found, ${extraFiles?.length ?? 0} extra files`)
+      console.log(`  ${name}: directory not found`)
       continue
     }
     const files = (await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: skillDir })))
@@ -94,8 +83,7 @@ const createEmbeddedSkillAssetsBundle = async () => {
       const spec = path.relative(dir, absPath).replaceAll("\\", "/")
       entries.push({ key: `${name}/${file}`, spec: spec.startsWith(".") ? spec : `./${spec}`, idx: fileIdx++ })
     }
-    entries.push(...extraEntries)
-    console.log(`  ${name}: ${files.length + (extraFiles?.length ?? 0)} files`)
+    console.log(`  ${name}: ${files.length} files`)
   }
   if (entries.length === 0) return "export default {}"
   const imports = entries.map((e) => `import file_${e.idx} from ${JSON.stringify(e.spec)} with { type: "file" };`)

@@ -343,7 +343,7 @@ const ask = Effect.fn("ShellTool.ask")(function* (ctx: Tool.Context, scan: Scan,
 })
 
 function cmd(shell: string, command: string, cwd: string, env: NodeJS.ProcessEnv, sandbox?: Sandbox.Config) {
-  if (process.platform === "win32" && Shell.ps(shell)) {
+  if (process.platform === "win32" && Shell.ps(shell) && !sandbox?.enabled) {
     return ChildProcess.make(shell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], {
       cwd,
       env,
@@ -352,10 +352,9 @@ function cmd(shell: string, command: string, cwd: string, env: NodeJS.ProcessEnv
     })
   }
 
-  // Sandboxing is opt-in. When enabled, the command string becomes an argv invocation
-  // (`shell -c <command>`) so bwrap/container/sandbox-exec can wrap it. Unsupported
-  // backends throw here instead of falling back to an unsandboxed run.
-  if (sandbox?.enabled && process.platform !== "win32") {
+  // Sandboxing is opt-in. When enabled, run the shell as an argv invocation so each
+  // platform backend can enforce its policy. Unsupported backends fail closed.
+  if (sandbox?.enabled) {
     const wrapped = Sandbox.wrapShell({ shell, command, cwd }, sandbox)
     return ChildProcess.make(wrapped.command, wrapped.args, {
       cwd: wrapped.cwd,
@@ -776,12 +775,6 @@ const definition = (kind: ShellKind) =>
 
               const env = yield* shellEnv(ctx, cwd)
               const sandbox = ConfigSandbox.resolve(cfg.sandbox)
-              if (sandbox.enabled && process.platform === "win32") {
-                log.warn(
-                  "sandbox enabled on Windows: no OS-level isolation is available, commands rely on permission rules",
-                  { sessionID: ctx.sessionID },
-                )
-              }
               const input = {
                 shell,
                 command: params.command,

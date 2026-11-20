@@ -213,9 +213,7 @@ export async function checkPluginCompatibility(target: string, NovaWayVersion: s
 // Plugin sources we want to fall back to when the primary git URL is unreachable.
 // Keys are the bare plugin name (matches npa.name from DEFAULT_GLOBAL_PLUGINS).
 // Order matters: each URL is tried until one succeeds.
-export const PLUGIN_FALLBACK_URLS: Record<string, string[]> = {
-  PowersNexus: ["git+https://gitee.com/nova-way/powersnexus.git"],
-}
+export const PLUGIN_FALLBACK_URLS: Record<string, string[]> = {}
 
 function extractPluginName(spec: string): string | undefined {
   const hit = parse(spec)

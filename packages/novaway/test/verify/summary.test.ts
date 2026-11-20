@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { parseSummary, summarize, tail } from "@/verify/summary"
+import { run } from "@/verify/runner"
 
 describe("verify.summary", () => {
   test("parses jest counts", () => {
@@ -44,6 +48,26 @@ describe("verify.summary", () => {
       ok: false,
       summary: "timed out",
     })
+  })
+
+  test("refuses to execute when an enabled sandbox has no backend", async () => {
+    if (process.platform === "linux" && Bun.which("bwrap")) return
+    if (process.platform === "darwin" && Bun.which("sandbox-exec")) return
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "novaway-verify-sandbox-"))
+    const marker = path.join(cwd, "must-not-exist")
+    try {
+      const result = await run({
+        command: `"${process.execPath}" -e "require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')"`,
+        cwd,
+        timeoutMs: 1000,
+        sandbox: { enabled: true },
+      })
+      expect(result.ok).toBe(false)
+      expect(result.exitCode).not.toBe(0)
+      expect(await fs.access(marker).then(() => true, () => false)).toBe(false)
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true })
+    }
   })
 
   test("tails long output", () => {

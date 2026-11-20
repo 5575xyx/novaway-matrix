@@ -6,6 +6,7 @@ Make one change to the current todo list instead of resending the whole list. Us
 - `complete` - mark one item `completed`. Needs `position`.
 - `reopen` - move one item back to `pending`. Needs `position`.
 - `progress` - move one item to `in_progress`. Needs `position`.
+- `focus` - select which `in_progress` item receives the next batch of tool work. Needs `position`; use this before each parallel lane so the timeline can classify its process correctly.
 - `cancel` - mark one item `cancelled`. Needs `position`.
 - `remove` - delete one item. Needs `position`.
 
@@ -14,6 +15,6 @@ Make one change to the current todo list instead of resending the whole list. Us
 - Positions shift after `add` (new item appended at the end) and `remove` (items after it move up). Re-read the last output before choosing a position.
 - Prefer this over `todowrite` for a single status change: resending all items wastes output tokens and risks dropping or rewording items you did not touch.
 - Finish each item as it happens: as soon as the work of the current item is done and verified, call `complete` for it in that same turn, before starting the next item. The tracker is what the user watches, so it must never show an earlier `in_progress` item while you are already working on a later one.
-- Keep the `todowrite` rules: at most one `in_progress` item while work remains, and never mark something `completed` on intent alone - only after the work is actually done and verified.
-- Switch items with `complete` + `progress` in the same turn as the switch. Work done for item N must not happen while item M is still `in_progress`: the timeline attributes every tool call to the in_progress item, so the tracker would credit all of that work to M.
+- Keep the `todowrite` rules: use one `in_progress` item for sequential work, or multiple only when the items are genuinely independent. When multiple items are active, call `focus` before each lane and never let one lane's tool output stand in for another. Never mark something `completed` on intent alone - only after the work is actually done and verified.
+- For sequential work, switch items with `complete` + `progress` in the same turn. For parallel work, keep independent items `in_progress`, call `focus` before each lane batch, and never issue a batch without an explicit lane focus: otherwise the timeline cannot distinguish the work.
 - If the list is large, use this tool repeatedly instead of rebuilding it; each call returns the full updated list.

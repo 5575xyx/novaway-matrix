@@ -44,7 +44,7 @@ run(
     const installed = realUrl
       ? await Marketplace.installZip({
           name: "com.novaway.office-suite",
-          version: "0.2.0",
+          version: "0.3.0",
           url: realUrl,
           sha256: realSha,
           config,
@@ -55,8 +55,8 @@ run(
           globalThis.fetch = Object.assign(async () => new Response(bytes), { preconnect: original.preconnect })
           return Marketplace.installZip({
             name: "com.novaway.office-suite",
-            version: "0.2.0",
-            url: "https://example.com/office-suite-0.2.0-test.zip",
+            version: "0.3.0",
+            url: "https://example.com/office-suite-0.3.0-test.zip",
             sha256: Marketplace.digest(Buffer.from(bytes)),
             config,
           }).finally(() => {
@@ -76,6 +76,10 @@ run(
     const instance = discovered.instances.find((item) => item.id === "office-suite")
     expect(instance).toMatchObject({ adapter: "v2", status: "installed", diagnostics: [] })
     if (!instance) throw new Error("Office package was not discovered")
+    const pptAgent = instance.manifest.contributes.agents?.find(
+      (agent) => typeof agent !== "string" && agent.id === "office-ppt",
+    )
+    expect(typeof pptAgent === "string" ? undefined : pptAgent?.tools).toBeUndefined()
     const registries = () => ({
       tools: createToolRegistry(),
       agents: createAgentRegistry(),
@@ -94,7 +98,7 @@ run(
       await host.load(plugin)
       expect(host.state(instance.id, instance.scope)?.status).toBe("active")
       expect(host.registries.agents.list()).toHaveLength(9)
-      expect(host.registries.skills.list()).toHaveLength(10)
+      expect(host.registries.skills.list()).toHaveLength(14)
       expect(host.registries.tools.list().map((entry) => entry.name)).toEqual(["office-suite_workbench-status"])
       expect(host.registries.commands.list().map((entry) => entry.name)).toEqual(["office-suite_office-workbench-check"])
       const layer = Layer.mergeAll(
@@ -121,6 +125,20 @@ run(
             expect(Permission.evaluate("edit", "report.docx", agent.permission).action).toBe("ask")
             const available = yield* skills.available(agent)
             expect(available.some((item) => item.name === name)).toBe(true)
+            const expectedOfficial = {
+              "office-suite_office-document": ["office-suite_anthropic-docx", "office-suite_anthropic-pdf"],
+              "office-suite_office-ppt": ["office-suite_anthropic-pptx", "office-suite_anthropic-pdf"],
+              "office-suite_office-data": ["office-suite_anthropic-xlsx", "office-suite_anthropic-pdf"],
+              "office-suite_office-knowledge": [
+                "office-suite_anthropic-docx",
+                "office-suite_anthropic-pdf",
+                "office-suite_anthropic-pptx",
+                "office-suite_anthropic-xlsx",
+              ],
+            } as Record<string, string[]>
+            for (const officialName of expectedOfficial[agent.name] ?? []) {
+              expect(available.some((item) => item.name === officialName)).toBe(true)
+            }
             const skill = yield* skills.get(name)
             expect(skill?.location.startsWith(installed.root)).toBe(true)
             const result = yield* tool.execute(
@@ -148,9 +166,9 @@ run(
           // Office contribution without requiring a workbench switch.
           const creova = yield* agents.get("creova")
           if (!creova) throw new Error("Missing Creova agent")
-          expect(Permission.evaluate("skill", "office-suite_ppt-master", creova.permission).action).toBe("allow")
+          expect(Permission.evaluate("skill", "office-suite_ppt-workflow", creova.permission).action).toBe("allow")
           expect(Permission.evaluate("workbench-status", "*", creova.permission).action).toBe("allow")
-          expect((yield* skills.available(creova)).some((item) => item.name === "office-suite_ppt-master")).toBe(true)
+          expect((yield* skills.available(creova)).some((item) => item.name === "office-suite_ppt-workflow")).toBe(true)
 
           const status = host.registries.tools.list()[0]
           if (!status) throw new Error("Missing Office Workbench status tool")
@@ -160,13 +178,17 @@ run(
           const statusPayload = JSON.parse(
             typeof statusResult === "string" ? statusResult : String(statusResult.output),
           ) as {
-            capabilities?: { pptMaster?: string }
+            capabilities?: {
+              pptMaster?: string
+              officialAnthropicOfficeSkills?: string[]
+            }
           }
           expect(statusPayload.capabilities?.pptMaster).toBe("bundled")
+          expect(statusPayload.capabilities?.officialAnthropicOfficeSkills).toEqual(["docx", "pdf", "pptx", "xlsx"])
 
           const ppt = yield* skills.get("office-suite_office-ppt")
           if (!ppt) throw new Error("Missing PPT Skill")
-          const bundledPptMaster = yield* skills.get("office-suite_ppt-master")
+          const bundledPptMaster = yield* skills.get("office-suite_ppt-workflow")
           if (!bundledPptMaster) throw new Error("Missing bundled PPT Master Skill")
           expect(bundledPptMaster.location.startsWith(installed.root)).toBe(true)
           expect(bundledPptMaster.content).toContain("PPT Master")
@@ -176,6 +198,19 @@ run(
           expect(catalog).toBeDefined()
           expect(ppt.content).not.toContain("packages/app/")
           expect(ppt.content).not.toContain("script/visual-benchmark")
+
+          for (const name of [
+            "office-suite_anthropic-docx",
+            "office-suite_anthropic-pdf",
+            "office-suite_anthropic-pptx",
+            "office-suite_anthropic-xlsx",
+          ]) {
+            const official = yield* skills.get(name)
+            if (!official) throw new Error(`Missing official Office skill: ${name}`)
+            expect(official.location.startsWith(installed.root)).toBe(true)
+            expect(official.content.length).toBeGreaterThan(200)
+            expect(yield* Effect.promise(() => Bun.file(path.join(official.location, "LICENSE.txt")).exists())).toBe(true)
+          }
           host.deactivate(instance.id, instance.scope)
           expect(yield* agents.get("office-suite_office-ppt")).toBeUndefined()
           expect(yield* skills.get("office-suite_office-ppt")).toBeUndefined()
@@ -190,7 +225,7 @@ run(
     try {
       await cold.load(createDiscoveredPlugin({ instance, runtime: runtime(cold) }))
       expect(cold.registries.agents.list()).toHaveLength(9)
-      expect(cold.registries.skills.list()).toHaveLength(10)
+      expect(cold.registries.skills.list()).toHaveLength(14)
       cold.deactivate(instance.id, instance.scope)
       const broken = {
         ...instance,
@@ -209,7 +244,7 @@ run(
     } finally {
       cold.dispose()
     }
-    expect(await Marketplace.remove("com.novaway.office-suite@0.2.0", config)).toBe(true)
+    expect(await Marketplace.remove("com.novaway.office-suite@0.3.0", config)).toBe(true)
     expect(await Marketplace.list(config)).toEqual([])
   },
   300_000,

@@ -390,6 +390,15 @@ describe("PluginHost.inspect", () => {
     expect(codes(one(safe.instances, "shared").find((item) => item.scope === "project"))).toContain("safe_mode")
   })
 
+  test("冲突插件不会进入 active", async () => {
+    await pack("base", { name: "base", version: "1.0.0" })
+    await pack("blocked-by-base", { name: "blocked-by-base", conflicts: ["base"] })
+
+    const result = await PluginHost.inspect(input())
+    const conflict = pick(result.instances, "blocked-by-base")
+    expect(conflict?.status).toBe("blocked")
+    expect(codes(conflict)).toContain("conflict")
+  })
   test("依赖成环：环上全部 blocked 且给出环路径", async () => {
     await pack("left", { name: "left", dependencies: { right: "" } })
     await pack("right", { name: "right", dependencies: { left: "" } })

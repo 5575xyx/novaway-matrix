@@ -93,11 +93,6 @@ export const VerifyTool = Tool.define<typeof Parameters, Metadata, Config.Servic
           })
 
           const sandbox = ConfigSandbox.resolve((yield* config.get()).sandbox)
-          if (sandbox.enabled && process.platform === "win32") {
-            yield* Effect.logWarning(
-              "sandbox is enabled on Windows: OS-level isolation is unavailable, verification runs unconfined",
-            )
-          }
           const result = yield* Effect.promise(() =>
             run({
               command: target.command,

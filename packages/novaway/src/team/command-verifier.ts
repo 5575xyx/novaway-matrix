@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { Shell } from "@/shell/shell"
+import { Shell, killTree as killProcessTree } from "@/shell/shell"
 import { Sandbox } from "@/sandbox/sandbox"
 
 /**
@@ -88,20 +88,6 @@ export function interpret(result: Result): Interpretation {
   }
 }
 
-/** 结束整个进程树：`shell: true` 下只杀 shell 会留下孤儿子进程。 */
-function killTree(pid: number | undefined) {
-  if (pid === undefined) return
-  if (process.platform === "win32") {
-    spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true }).on("error", () => {})
-    return
-  }
-  try {
-    process.kill(pid, "SIGKILL")
-  } catch {
-    // 进程已经退出：超时与退出竞争，谁先到都一样。
-  }
-}
-
 /**
  * 执行验收命令。
  *
@@ -128,19 +114,25 @@ export function execute(input: {
       const tail = pending.length > 0 ? 1 : 0
       resolve({ code, timedOut, durationMs: Date.now() - started, lines: lines + tail })
     }
-    const sandboxed =
-      input.sandbox?.enabled && process.platform !== "win32"
+    let sandboxed: ReturnType<typeof Sandbox.wrapShell> | undefined
+    try {
+      sandboxed = input.sandbox?.enabled
         ? Sandbox.wrapShell(
             { shell: Shell.acceptable(undefined), command: input.spec.run, cwd: input.directory },
             input.sandbox,
           )
         : undefined
+    } catch {
+      finish(undefined)
+      return
+    }
     const child = sandboxed
       ? spawn(sandboxed.command, sandboxed.args, {
           cwd: sandboxed.cwd,
           stdio: ["ignore", "pipe", "pipe"],
           env: process.env,
           windowsHide: true,
+          detached: process.platform !== "win32",
         })
       : spawn(input.spec.run, {
           cwd: input.directory,
@@ -148,6 +140,7 @@ export function execute(input: {
           stdio: ["ignore", "pipe", "pipe"],
           env: process.env,
           windowsHide: true,
+          detached: process.platform !== "win32",
         })
     const count = (chunk: Buffer) => {
       const text = chunk.toString()
@@ -163,9 +156,7 @@ export function execute(input: {
     child.on("close", (code) => finish(code ?? undefined))
     timer = setTimeout(() => {
       timedOut = true
-      killTree(child.pid)
-      // 子进程可能不响应：到点先给结论，别让看板一直转。
-      finish(undefined)
+      void killProcessTree(child, { exited: () => child.exitCode !== null }).then(() => finish(undefined))
     }, input.spec.timeoutMs)
   })
 }

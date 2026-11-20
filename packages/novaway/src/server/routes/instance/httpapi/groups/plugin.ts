@@ -22,6 +22,10 @@ const statuses = [
   "overridden",
 ] as const satisfies readonly PluginStatus[]
 const kinds = contributionKinds satisfies readonly ContributionKind[]
+const PluginRender = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("builtin"), component: Schema.String }),
+  Schema.Struct({ type: Schema.Literal("iframe"), url: Schema.String }),
+])
 
 export const PluginIssue = Schema.Struct({
   level: Schema.Literals(["error", "warning"]),
@@ -64,6 +68,7 @@ export const PluginContribution = Schema.Struct({
   status: Schema.Literals(statuses),
   path: Schema.optional(Schema.String),
   slot: Schema.optional(Schema.String),
+  order: Schema.optional(Schema.Number),
   title: Schema.optional(Schema.String),
   description: Schema.optional(Schema.String),
   icon: Schema.optional(Schema.String),
@@ -72,9 +77,10 @@ export const PluginContribution = Schema.Struct({
   supports: Schema.optional(Schema.Array(Schema.String)),
   urls: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   account: Schema.optional(Schema.Unknown),
-  ui: Schema.optional(Schema.Unknown),
   action: Schema.optional(Schema.Unknown),
   view: Schema.optional(Schema.Unknown),
+  render: Schema.optional(PluginRender),
+  ui: Schema.optional(Schema.Unknown),
   match: Schema.optional(
     Schema.Struct({
       tool: Schema.optional(Schema.String),

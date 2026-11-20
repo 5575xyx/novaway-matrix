@@ -174,6 +174,25 @@ const mustTruncate = (result: {
 }
 
 describe("tool.shell", () => {
+  if (process.platform === "win32") {
+    it.live("refuses sandboxed commands without running the host shell", () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped({ config: { sandbox: { enabled: true } } })
+        const marker = path.join(directory, `sandbox-bypass-${process.pid}.marker`)
+        const batch = path.join(directory, `sandbox-bypass-${process.pid}.cmd`)
+        yield* Effect.promise(() => Bun.write(batch, `@echo off\r\necho ran>"${marker}"\r\n`))
+        yield* runIn(
+          directory,
+          Effect.gen(function* () {
+            const result = yield* run({ command: batch, description: "sandbox bypass probe" })
+            expect(result.metadata.exit).not.toBe(0)
+          }),
+        )
+        expect(yield* Effect.promise(() => Bun.file(marker).exists())).toBe(false)
+      }),
+    )
+  }
+
   each("basic", () =>
     runIn(
       projectRoot,

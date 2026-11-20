@@ -23,14 +23,14 @@ const compose: WorkflowTemplate = {
       id: "plan",
       name: "规划",
       type: "agent",
-      config: { agent: "plan", prompt: "为以下目标制定分步执行计划：\n{{input}}" },
+      config: { agent: "creova", prompt: "为以下目标制定分步执行计划：\n{{input}}" },
       next: "execute",
     },
     {
       id: "execute",
       name: "执行",
       type: "agent",
-      config: { agent: "build", prompt: "按此计划执行并给出结果：\n{{plan}}" },
+      config: { agent: "creova", prompt: "按此计划执行并给出结果：\n{{plan}}" },
       next: "review",
     },
     {
@@ -147,7 +147,7 @@ const researchExperiment: WorkflowTemplate = {
       id: "run",
       name: "执行实验",
       type: "agent",
-      config: { agent: "build", prompt: "按方案执行实验并记录观测结果：\n{{design}}" },
+      config: { agent: "creova", prompt: "按方案执行实验并记录观测结果：\n{{design}}" },
       next: "conclude",
     },
     {

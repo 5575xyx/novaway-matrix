@@ -33,10 +33,17 @@ export const PlanExitTool = Tool.define(
           const instance = yield* InstanceState.context
           const info = yield* session.get(ctx.sessionID)
           const plan = path.relative(instance.worktree, Session.plan(info, instance))
-
+          const permissionMode = yield* session.permissionModeOf(ctx.sessionID)
+          if (permissionMode !== "plan" && permissionMode !== "unattended") {
+            return {
+              title: "Plan mode is not active",
+              output: "Plan mode is not active. Continue under the current permission mode.",
+              metadata: {},
+            }
+          }
           // 无人值守：没人来点"开始实施"。计划是模型自己写的，它调用 plan_exit
           // 就是它自己的决定 —— 直接当作通过，继续往下走。
-          if ((yield* session.permissionModeOf(ctx.sessionID)) === "unattended") {
+          if (permissionMode === "unattended") {
             // no-op: 跳过下面的交互式确认
           } else if (info.parentID) {
             const team = yield* teams.ofSession(ctx.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
@@ -66,12 +73,12 @@ export const PlanExitTool = Tool.define(
               sessionID: ctx.sessionID,
               questions: [
                 {
-                  question: `Plan at ${plan} is complete. Would you like to switch to the build agent and start implementing?`,
-                  header: "Build Agent",
+                  question: `Plan at ${plan} is complete. Would you like to leave plan mode and start implementing?`,
+                  header: "Plan Approval",
                   custom: false,
                   options: [
-                    { label: "Yes", description: "Switch to build agent and start implementing the plan" },
-                    { label: "No", description: "Stay with plan agent to continue refining the plan" },
+                    { label: "Yes", description: "Leave plan mode and start implementing the plan" },
+                    { label: "No", description: "Stay in plan mode and continue refining the plan" },
                   ],
                 },
               ],
@@ -79,6 +86,10 @@ export const PlanExitTool = Tool.define(
             })
 
             if (answers[0]?.[0] === "No") yield* new Question.RejectedError()
+          }
+
+          if (permissionMode === "plan") {
+            yield* session.setPermissionMode({ sessionID: ctx.sessionID, mode: undefined })
           }
 
           const messages = yield* session.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
@@ -95,7 +106,7 @@ export const PlanExitTool = Tool.define(
             sessionID: ctx.sessionID,
             role: "user",
             time: { created: Date.now() },
-            agent: "build",
+            agent: lastUser?.info.role === "user" ? lastUser.info.agent : "creova",
             model,
           }
           yield* session.updateMessage(msg)
@@ -104,13 +115,13 @@ export const PlanExitTool = Tool.define(
             messageID: msg.id,
             sessionID: ctx.sessionID,
             type: "text",
-            text: `The plan at ${plan} has been approved, you can now edit files. Execute the plan`,
+            text: `The plan at ${plan} has been approved. Continue implementing the plan.`,
             synthetic: true,
           } satisfies MessageV2.TextPart)
 
           return {
-            title: "Switching to build agent",
-            output: "User approved switching to build agent. Wait for further instructions.",
+            title: "Leaving plan mode",
+            output: "The plan was approved. Plan mode is off; continue using Creova.",
             metadata: {},
           }
         }).pipe(Effect.orDie),
@@ -121,9 +132,7 @@ export const PlanExitTool = Tool.define(
 export const EnterParameters = Schema.Struct({})
 
 /**
- * Enter plan mode (CC `EnterPlanMode`). Switching agents is done the same way
- * `plan_exit` leaves it: append a synthetic user message carrying the agent
- * name, so the next step of the loop resolves `plan` from `lastUser.agent`.
+ * Enter plan permission mode while retaining the current agent.
  */
 export const PlanEnterTool = Tool.define<typeof EnterParameters, { agent?: string }, Session.Service>(
   "plan_enter",
@@ -146,15 +155,16 @@ export const PlanEnterTool = Tool.define<typeof EnterParameters, { agent?: strin
             metadata: {},
           })
 
-          const messages = yield* session.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
-          const lastUser = messages.findLast((item) => item.info.role === "user" && item.info.model)
-          if (lastUser?.info.role === "user" && lastUser.info.agent === "plan") {
+          if ((yield* session.permissionModeOf(ctx.sessionID)) === "plan") {
             return {
               title: "Already in plan mode",
-              output: "This session is already running the plan agent. Explore read-only and write the plan file.",
-              metadata: { agent: "plan" },
+              output: "Plan mode is already active. Continue with read-only research and planning.",
+              metadata: {},
             }
           }
+
+          const messages = yield* session.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
+          const lastUser = messages.findLast((item) => item.info.role === "user" && item.info.model)
 
           const model =
             lastUser?.info.role === "user" && lastUser.info.model
@@ -162,12 +172,13 @@ export const PlanEnterTool = Tool.define<typeof EnterParameters, { agent?: strin
               : provider
                 ? yield* provider.defaultModel()
                 : yield* Effect.die(new Error("plan_enter requires a session model"))
+          yield* session.setPermissionMode({ sessionID: ctx.sessionID, mode: "plan" })
           const msg: MessageV2.User = {
             id: MessageID.ascending(),
             sessionID: ctx.sessionID,
             role: "user",
             time: { created: Date.now() },
-            agent: "plan",
+            agent: ctx.agent ?? "creova",
             model,
           }
           yield* session.updateMessage(msg)
@@ -176,15 +187,14 @@ export const PlanEnterTool = Tool.define<typeof EnterParameters, { agent?: strin
             messageID: msg.id,
             sessionID: ctx.sessionID,
             type: "text",
-            text: "Switched to plan mode. Explore the codebase read-only and write an implementation plan; do not modify project files until the plan is approved.",
+            text: "Plan permission mode is active. Explore read-only and write an implementation plan; do not modify project files until the permission mode changes.",
             synthetic: true,
           } satisfies MessageV2.TextPart)
 
           return {
             title: "Entered plan mode",
-            output:
-              "Entered plan mode. Explore the codebase, ask clarifying questions if needed, and write the plan to the plan file. Call plan_exit when the plan is ready for approval.",
-            metadata: { agent: "plan" },
+            output: "Plan permission mode is active. Continue with read-only research and planning.",
+            metadata: { agent: ctx.agent ?? "creova" },
           }
         }).pipe(Effect.orDie),
     }

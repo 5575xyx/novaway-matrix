@@ -62,14 +62,15 @@ type _Info = Schema.Schema.Type<typeof InputObject>
 export type Info = { -readonly [K in keyof _Info]: _Info[K] }
 
 /**
- * `permission_mode: "auto"` 下的安全分类器设置。
+ * 自主审批（`permission_mode: "acceptEdits"`，旧档位 "auto" 同义）下的安全分类器设置。
  *
- * 分类器默认关闭:开启后每次需要询问的调用都会多一次小模型判断,适合无人值守
- * 但又要拦住明显危险操作(删除仓库、外发凭据)的场景。
+ * 分类器不是独立权限档位,而是自主审批的辅助判定开关,默认关闭:开启后每次需要
+ * 询问的调用都会多一次小模型判断,适合无人盯着但又要拦住明显危险操作
+ * (删除仓库、外发凭据)的场景。
  */
 export const AutoInfo = Schema.Struct({
   classifier: Schema.optional(Schema.Boolean).annotate({
-    description: "auto 权限模式下用 LLM 安全分类器判定放行/拒绝。默认 false(仍然询问用户)。",
+    description: "自主审批权限模式下用 LLM 安全分类器判定放行/拒绝。默认 false(仍然询问用户)。",
   }),
   denial_limit: Schema.optional(Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))).annotate({
     description: "连续被分类器拒绝的次数上限。达到上限后停止自动拒绝,改为把决定交回用户,避免模型被锁死。默认 3。",

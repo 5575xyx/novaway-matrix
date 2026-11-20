@@ -48,6 +48,7 @@ import {
   loadProviderEntries,
   loadToolEntries,
 } from "@/plugin/runtime/activation"
+import { createSuperAgentContributionRegistries } from "@/super-agent/plugin-contributions"
 import { PluginStorage } from "@/plugin/storage"
 
 /**
@@ -324,6 +325,76 @@ describe("tool entry loading", () => {
 })
 
 describe("activation resource ownership", () => {
+  test("activates and disposes Super-Agent contributions through the production Host", async () => {
+    const superAgent = createSuperAgentContributionRegistries()
+    const h = harness({ registries: registries({ superAgent }) })
+    const plugin = createDiscoveredPlugin({
+      instance: {
+        id: "acme.super-agent",
+        status: "installed",
+        scope: "project",
+        origin: "extension",
+        adapter: "v2",
+        manifest: manifest("acme.super-agent", undefined, {
+          kind: "declarative",
+          contributes: {
+            verifiers: [{ id: "acme.verifier", version: "1", entry: "./verifier.mjs", kinds: ["test"] }],
+            superAgentSurfaces: [
+              { id: "acme.panel", slot: "session.panel", title: "Acme panel", render: { type: "builtin", id: "acme" } },
+            ],
+          },
+        }),
+        location: { kind: "directory", root: base, label: "project" },
+        issues: [],
+        diagnostics: [],
+        contributions: 2,
+      },
+      runtime: h.input,
+    })
+    const host = createHost(h.input.registries as never)
+    await host.activate(plugin)
+    expect(superAgent.verifiers.list()).toHaveLength(1)
+    expect(superAgent.surfaces.resolve("acme.panel")?.slot).toBe("session.panel")
+    host.deactivate("acme.super-agent", "project")
+    expect(superAgent.verifiers.list()).toEqual([])
+    expect(superAgent.surfaces.list()).toEqual([])
+    host.dispose()
+  })
+  test("loads an executable Super-Agent contribution inside the plugin root", async () => {
+    await fs.writeFile(
+      path.join(base, "verifier-entry.mjs"),
+      `export default { id: "acme.executable-verifier", version: "1", verify: async () => ({ outcome: "pass", evidenceIDs: [], reason: "fixture" }) }`,
+    )
+    const superAgent = createSuperAgentContributionRegistries()
+    const h = harness({ registries: registries({ superAgent }) })
+    const plugin = createDiscoveredPlugin({
+      instance: {
+        id: "acme.executable",
+        status: "installed",
+        scope: "project",
+        origin: "extension",
+        adapter: "v2",
+        manifest: manifest("acme.executable", undefined, {
+          kind: "declarative",
+          contributes: {
+            verifiers: [{ id: "acme.executable-verifier", version: "1", entry: "./verifier-entry.mjs", kinds: ["test"] }],
+          },
+        }),
+        location: { kind: "directory", root: base, label: "project" },
+        issues: [],
+        diagnostics: [],
+        contributions: 1,
+      },
+      runtime: h.input,
+    })
+    const host = createHost(h.input.registries as never)
+    await host.activate(plugin)
+    expect(superAgent.verifiers.resolve("acme.executable-verifier")).toMatchObject({ version: "1" })
+    expect(typeof (superAgent.verifiers.resolve("acme.executable-verifier") as { verify?: unknown })?.verify).toBe("function")
+    host.deactivate("acme.executable", "project")
+    expect(superAgent.verifiers.list()).toEqual([])
+    host.dispose()
+  })
   test("built-in provider entries register through the production Host and release on disable", async () => {
     const h = harness()
     h.input.registries.providers = createProviderRegistry()
@@ -454,7 +525,10 @@ describe("activation resource ownership", () => {
     })
     const host = createHost(h.input.registries as never)
     await host.activate(plugin)
-    expect(h.input.registries.surfaces?.resolve("foo")).toMatchObject({ id: "foo", slot: "sidebar.item" })
+    expect(h.input.registries.surfaces?.resolve("builtin_ui_foo")?.item).toMatchObject({
+      id: "foo",
+      slot: "sidebar.item",
+    })
     host.deactivate("builtin.ui", "builtin")
     expect(h.input.registries.surfaces?.list()).toEqual([])
     host.dispose()
@@ -658,6 +732,31 @@ describe("activation resource ownership", () => {
     await host.activate(plugin)
     expect(globals.__novawayEagerImports).toBe(1)
     host.dispose()
+  })
+
+  test("directory Skill contributions retain their own resource directory", async () => {
+    const h = harness()
+    await fs.mkdir(path.join(base, "skills", "slides"), { recursive: true })
+    await fs.writeFile(path.join(base, "skills", "slides", "SKILL.md"), "---\nname: slides\ndescription: Build slides\n---\nRead templates/catalog.json")
+    const plugin = createDiscoveredPlugin({
+      instance: {
+        id: "acme", status: "installed", scope: "project", origin: "extension", adapter: "v2",
+        manifest: manifest("acme", undefined, { kind: "declarative", contributes: { skills: ["./skills"] } }),
+        location: { kind: "directory", root: base, label: "project" },
+        issues: [], diagnostics: [], installOrder: 4, contributions: 1,
+      },
+      runtime: h.input,
+    })
+    const host = createHost(h.input.registries as never)
+    try {
+      await host.activate(plugin)
+      const entry = h.input.registries.skills.list()[0]
+      expect(entry?.name).toBe("acme_slides")
+      expect(entry?.item.source).toMatchObject({ file: "skills/slides/SKILL.md" })
+      expect(entry?.root).toBe(base)
+    } finally {
+      host.dispose()
+    }
   })
 
   test("discovered v2 Agent, Skill, and Command declarations register and release with Host lifecycle", async () => {

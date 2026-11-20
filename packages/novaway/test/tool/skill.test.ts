@@ -106,9 +106,9 @@ Use this skill.
           })).find((tool) => tool.id === SkillTool.id)
           if (!tool) throw new Error("Skill tool not found")
 
-          const result = yield* tool.execute({ name: "office-document" }, { ...baseCtx, ask: () => Effect.void })
+          const result = yield* tool.execute({ name: "customize-novaway" }, { ...baseCtx, ask: () => Effect.void })
           expect(result.metadata.dir).toBeUndefined()
-          expect(result.output).toContain('<skill_content name="office-document">')
+          expect(result.output).toContain('<skill_content name="customize-novaway">')
           expect(result.output).toContain("Base directory for this skill: <built-in>")
           expect(result.output).toContain("<skill_files>\n\n</skill_files>")
         }),

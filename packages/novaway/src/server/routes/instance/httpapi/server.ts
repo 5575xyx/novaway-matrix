@@ -57,7 +57,9 @@ import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
 import { Goal } from "@/session/goal"
 import { defaultLayer as WorkflowDefaultLayer } from "@/workflow/workflow"
+import { defaultLayer as WorkflowPolicyLayer } from "@/workflow/policy"
 import { defaultLayer as OrchestratorDefaultLayer } from "@/orchestrator/orchestrator"
+import { defaultLayer as SuperAgentStoreLayer } from "@/super-agent/store"
 import { defaultLayer as DreamDefaultLayer } from "@/session/dream"
 import { defaultLayer as DistillDefaultLayer } from "@/session/distill"
 import { SessionShare } from "@/share/session"
@@ -122,6 +124,7 @@ import { workflowHandlers } from "./handlers/workflow"
 import { dynamicWorkflowHandlers } from "./handlers/dynamic-workflow"
 import { arenaHandlers } from "./handlers/arena"
 import { orchestratorHandlers } from "./handlers/orchestrator"
+import { superAgentHandlers } from "./handlers/super-agent"
 import { runHandlers } from "./handlers/run"
 import { teamHandlers } from "./handlers/team"
 import { ExtensionLayer } from "@/extension"
@@ -231,6 +234,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     workflowHandlers,
     dynamicWorkflowHandlers,
     orchestratorHandlers,
+    superAgentHandlers,
     arenaHandlers,
     runHandlers,
     teamHandlers,
@@ -423,7 +427,9 @@ export function createRoutes(
       Todo.defaultLayer,
       Goal.defaultLayer,
       WorkflowDefaultLayer,
+      WorkflowPolicyLayer,
       OrchestratorDefaultLayer,
+      SuperAgentStoreLayer,
       TeamRunLayer,
       TeamMissionLayer,
       TeamVerificationLayer,

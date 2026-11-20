@@ -21,6 +21,11 @@ export const GoalTable = sqliteTable("goal", {
   deadline: integer("deadline", { mode: "timestamp_ms" }),
   progress: real("progress").notNull().default(0),
   tags: text({ mode: "json" }).$type<string[]>().default([]),
+  /** 目标循环的持久执行参数，跨进程恢复时继续使用同一套边界。 */
+  execution_config: text("execution_config"),
+  /** 跨进程目标执行租约；过期后其他实例才可接管。 */
+  run_owner: text("run_owner"),
+  run_lease_until: integer("run_lease_until", { mode: "timestamp_ms" }),
   created_at: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updated_at: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 })

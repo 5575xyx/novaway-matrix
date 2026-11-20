@@ -1,4 +1,4 @@
-Use this tool proactively when you are about to start a non-trivial implementation task and the approach is worth agreeing on before writing code. It switches the session to the plan agent, where you explore the codebase, design an approach, and get user approval before editing files.
+Use this tool proactively when you are about to start a non-trivial implementation task and the approach is worth agreeing on before writing code. It switches the session to plan permission mode while keeping the current agent, where you explore the codebase, design an approach, and get user approval before editing files.
 
 Call this tool when:
 - The task is a new feature with meaningful design choices (where it lives, how it fits existing patterns)

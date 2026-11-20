@@ -120,7 +120,27 @@ async function openDocument(bytes: Uint8Array) {
 }
 
 /** 把 PDF 的指定页画成 PNG。pages 省略时画全部；返回顺序与页码一致。 */
-export async function rasterizePdf(bytes: Uint8Array, options: RasterOptions = {}): Promise<RasterPage[]> {
+let rasterQueue = Promise.resolve()
+
+async function withRasterLock<A>(operation: () => Promise<A>): Promise<A> {
+  const previous = rasterQueue
+  let release!: () => void
+  rasterQueue = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+  try {
+    return await operation()
+  } finally {
+    release()
+  }
+}
+
+export function rasterizePdf(bytes: Uint8Array, options: RasterOptions = {}): Promise<RasterPage[]> {
+  return withRasterLock(() => rasterizePdfUnlocked(bytes, options))
+}
+
+async function rasterizePdfUnlocked(bytes: Uint8Array, options: RasterOptions = {}): Promise<RasterPage[]> {
   const canvasModule = await loadCanvas()
   const document: PDFDocumentProxy = await openDocument(bytes)
   try {

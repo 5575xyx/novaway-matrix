@@ -1,4 +1,5 @@
-import { statSync } from "node:fs"
+import { realpathSync, statSync } from "node:fs"
+import path from "node:path"
 
 export type Backend = "auto" | "bwrap" | "landlock" | "seatbelt" | "docker" | "podman"
 
@@ -15,9 +16,11 @@ export type Invocation = { command: string; args: string[]; cwd: string }
 export class UnsupportedBackendError extends Error {
   constructor(backend: Backend, platform: string) {
     super(
-      backend === "auto"
-        ? `Sandbox backend "auto" could not be resolved on ${platform}; install bwrap (Linux) or use sandbox-exec (macOS), or pick docker/podman explicitly`
-        : `Sandbox backend ${backend} is not available on ${platform}`,
+      platform === "win32"
+        ? `Sandbox backend windows is not available on ${platform}; no verified Windows helper is bundled`
+        : backend === "auto"
+          ? `Sandbox backend "auto" could not be resolved on ${platform}; install bwrap (Linux) or use sandbox-exec (macOS)`
+          : `Sandbox backend ${backend} is not available on ${platform}`,
     )
     this.name = "UnsupportedBackendError"
   }
@@ -55,6 +58,7 @@ export function resolveBackend(config: Config, platform = process.platform, prob
   if (backend !== "auto") return backend
   if (platform === "linux" && probe("bwrap")) return "bwrap"
   if (platform === "darwin" && probe("sandbox-exec")) return "seatbelt"
+  if (platform === "win32") throw new UnsupportedBackendError("auto", platform)
   throw new UnsupportedBackendError("auto", platform)
 }
 
@@ -63,8 +67,67 @@ function networkDenied(config: Config) {
   return config.network !== true
 }
 
-function seatbeltProfile(input: Invocation, config: Config) {
-  const writable = [input.cwd, ...(config.allow_paths ?? [])]
+function allowedPaths(input: Invocation, config: Config, platform: string) {
+  const pathApi = platform === "win32" ? path.win32 : path.posix
+  const cwd = platform === process.platform ? path.resolve(input.cwd) : pathApi.resolve(input.cwd)
+  const resolve = (value: string) => (platform === process.platform ? realpathSync(value) : pathApi.resolve(value))
+  const workspace = resolve(cwd)
+  const paths = (config.allow_paths ?? []).map((value) => {
+    if (!isAbsoluteFilesystemPath(value, platform)) {
+      throw new Error(`Sandbox allow_paths entry must be an absolute filesystem path: ${value}`)
+    }
+    const resolved = resolve(value)
+    if (platform !== process.platform) {
+      if (process.platform === "win32" && platform === "linux") {
+        const hostPath = value.replaceAll("/", path.sep)
+        if (!statSync(hostPath).isDirectory()) throw new Error(`Sandbox allow_paths entry must be a directory: ${value}`)
+      }
+      if (pathApi.parse(resolved).root === resolved) throw new Error(`Sandbox allow_paths entry cannot be a filesystem root: ${value}`)
+      if (pathContains(resolved, workspace, platform) || pathContains(workspace, resolved, platform)) {
+        throw new Error(`Sandbox allow_paths entry overlaps the workspace: ${value}`)
+      }
+      return resolved
+    }
+    if (!statSync(resolved).isDirectory()) {
+      throw new Error(`Sandbox allow_paths entry must be a directory: ${value}`)
+    }
+    if (pathApi.parse(resolved).root === resolved) throw new Error(`Sandbox allow_paths entry cannot be a filesystem root: ${value}`)
+    if (pathContains(resolved, workspace, platform) || pathContains(workspace, resolved, platform)) {
+      throw new Error(`Sandbox allow_paths entry overlaps the workspace: ${value}`)
+    }
+    return resolved
+  })
+  for (let i = 0; i < paths.length; i++) {
+    for (let j = i + 1; j < paths.length; j++) {
+      if (pathContains(paths[i], paths[j], platform) || pathContains(paths[j], paths[i], platform)) {
+        throw new Error(`Sandbox allow_paths entries overlap: ${paths[i]} and ${paths[j]}`)
+      }
+    }
+  }
+  return paths
+}
+
+export function isAbsoluteFilesystemPath(value: string, platform: string) {
+  if (platform !== "win32") return path.posix.isAbsolute(value)
+  if (/^[\\\\/]{2}[?.][\\\\/]/.test(value)) return false
+  if (/^[A-Za-z]:[\\\\/]/.test(value)) return true
+  const root = path.win32.parse(value).root
+  return root.slice(0, 2) === "\\\\" && root.split(/[\\\\/]/).filter(Boolean).length === 2
+}
+
+export function pathContains(parent: string, child: string, platform: string) {
+  const paths = platform === "win32" ? path.win32 : path.posix
+  const normalizedParent = paths.normalize(parent)
+  const normalizedChild = paths.normalize(child)
+  const relative = paths.relative(
+    platform === "win32" ? normalizedParent.toLowerCase() : normalizedParent,
+    platform === "win32" ? normalizedChild.toLowerCase() : normalizedChild,
+  )
+  return relative === "" || (!relative.startsWith(`..${paths.sep}`) && relative !== ".." && !paths.isAbsolute(relative))
+}
+
+function seatbeltProfile(input: Invocation, config: Config, platform: string) {
+  const writable = [path.resolve(input.cwd), ...allowedPaths(input, config, platform)]
   return [
     "(version 1)",
     "(allow default)",
@@ -80,9 +143,10 @@ export function wrap(
   platform = process.platform,
   probe: Probe = probeOnPath,
 ): Invocation {
-  if (!config.enabled || platform === "win32") return input
+  if (!config.enabled) return input
 
   const backend = resolveBackend(config, platform, probe)
+
 
   if (backend === "bwrap") {
     if (platform !== "linux") throw new UnsupportedBackendError(backend, platform)
@@ -94,7 +158,7 @@ export function wrap(
         "--ro-bind",
         "/",
         "/",
-        ...(config.allow_paths ?? []).flatMap((directory) => ["--bind", directory, directory]),
+        ...allowedPaths(input, config, platform).flatMap((directory) => ["--bind", directory, directory]),
         "--bind",
         input.cwd,
         input.cwd,
@@ -113,7 +177,7 @@ export function wrap(
     if (platform !== "darwin") throw new UnsupportedBackendError(backend, platform)
     return {
       command: "sandbox-exec",
-      args: ["-p", seatbeltProfile(input, config), "--", input.command, ...input.args],
+      args: ["-p", seatbeltProfile(input, config, platform), "--", input.command, ...input.args],
       cwd: input.cwd,
     }
   }
@@ -131,7 +195,7 @@ export function wrap(
         "--volume",
         `${input.cwd}:${input.cwd}:rw`,
         ...(networkDenied(config) ? ["--network=none"] : []),
-        ...(config.allow_paths ?? []).flatMap((directory) => ["--volume", `${directory}:${directory}:rw`]),
+        ...allowedPaths(input, config, platform).flatMap((directory) => ["--volume", `${directory}:${directory}:rw`]),
         "--workdir",
         input.cwd,
         image,

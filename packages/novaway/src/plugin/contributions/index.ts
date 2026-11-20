@@ -119,35 +119,8 @@ export function createPreviewerRegistry(): ContributionRegistry<PreviewContribut
   return createRegistry<PreviewContribution>({ kind: "previewer", policy: "accumulate" })
 }
 
-export function createSurfaceRegistry(): Registry<SurfaceContribution> {
-  const entries = new Map<string, SurfaceContribution>()
-  const listeners = new Set<() => void>()
-  const change = () => listeners.forEach((listener) => listener())
-  return {
-    register(item) {
-      const previous = entries.get(item.id)
-      entries.set(item.id, item)
-      change()
-      return {
-        dispose: () => {
-          if (entries.get(item.id) !== item) return
-          entries.delete(item.id)
-          if (previous) entries.set(previous.id, previous)
-          change()
-        },
-      }
-    },
-    resolve(id) {
-      return entries.get(id)
-    },
-    list() {
-      return [...entries.values()]
-    },
-    onDidChange(listener) {
-      listeners.add(listener)
-      return { dispose: () => listeners.delete(listener) }
-    },
-  }
+export function createSurfaceRegistry(): ContributionRegistry<SurfaceContribution> {
+  return createRegistry<SurfaceContribution>({ kind: "surface", policy: "accumulate" })
 }
 
 export function createAgentRegistry(input?: {

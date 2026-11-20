@@ -3,7 +3,46 @@ import { HttpApiEndpoint, HttpApiError, HttpApiGroup } from "effect/unstable/htt
 
 const root = "/session/:sessionId/workflows"
 
+const WorkflowMetricsSchema = Schema.Struct({
+  sessionID: Schema.String,
+  route: Schema.optional(Schema.String),
+  phase: Schema.optional(Schema.String),
+  routeDistribution: Schema.Record(Schema.String, Schema.Number),
+  phaseDistribution: Schema.Record(Schema.String, Schema.Number),
+  escalationCount: Schema.Number,
+  questionCalls: Schema.Number,
+  questionBudget: Schema.Number,
+  questionMisuseCount: Schema.Number,
+  blockedToolCount: Schema.Number,
+  verification: Schema.Struct({ status: Schema.optional(Schema.String), passed: Schema.Number, failed: Schema.Number, unverified: Schema.Number }),
+  delivery: Schema.Struct({ status: Schema.optional(Schema.String), completed: Schema.Number, blocked: Schema.Number }),
+  phaseTransitions: Schema.Number,
+  firstEventAt: Schema.optional(Schema.String),
+  lastEventAt: Schema.optional(Schema.String),
+})
+
 export const WorkflowApi = HttpApiGroup.make("workflow")
+  .add(
+    HttpApiEndpoint.get("getWorkflowState", "/session/:sessionId/workflow-state", {
+      params: { sessionId: Schema.String },
+      success: Schema.Any,
+      error: Schema.Never,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("listWorkflowEvents", "/session/:sessionId/workflow-events", {
+      params: { sessionId: Schema.String },
+      success: Schema.Array(Schema.Any),
+      error: Schema.Never,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("getWorkflowMetrics", "/session/:sessionId/workflow-metrics", {
+      params: { sessionId: Schema.String },
+      success: WorkflowMetricsSchema,
+      error: Schema.Never,
+    }),
+  )
   .add(
     HttpApiEndpoint.get("listWorkflows", root, {
       params: { sessionId: Schema.String },

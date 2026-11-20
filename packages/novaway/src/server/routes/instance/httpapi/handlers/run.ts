@@ -32,6 +32,7 @@ import * as TeamBlockers from "@/team/blockers"
 import * as TeamMetrics from "@/team/metrics"
 import * as TeamReplay from "@/team/replay"
 import { Config as ConfigService } from "@/config/config"
+import { ConfigSandbox } from "@/config/sandbox"
 import {
   forkPoint,
   integrate as integrateWorktrees,
@@ -1157,7 +1158,11 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
                     measured: "没有可执行验收的工作区",
                   } satisfies VerificationResult
                 const result = yield* Effect.promise(() =>
-                  TeamCommandVerifier.execute({ directory: input.directory!, spec }),
+                  TeamCommandVerifier.execute({
+                    directory: input.directory!,
+                    spec,
+                    sandbox: ConfigSandbox.resolve(cfg.sandbox),
+                  }),
                 )
                 return { ...base, ...TeamCommandVerifier.interpret(result) } satisfies VerificationResult
               })

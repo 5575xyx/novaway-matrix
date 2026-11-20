@@ -1,0 +1,1 @@
+ALTER TABLE `goal` ADD `run_owner` text;

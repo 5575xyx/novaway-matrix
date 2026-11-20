@@ -52,6 +52,8 @@ export function parseOptions(args: string[]): Options {
     scenarioTimeout: parseScenarioTimeout(option(args, "--scenario-timeout") ?? "30 seconds"),
     progress: args.includes("--progress"),
     trace: args.includes("--trace"),
+    shardIndex: parseShardIndex(args),
+    shardCount: parseShardCount(args),
   }
 }
 
@@ -72,7 +74,13 @@ export function selectedScenarios(options: Options, scenarios: Scenario[]) {
     : included.length - 1
   if (start === -1) throw new Error(`--start-at matched no scenario: ${options.startAt}`)
   if (end === -1) throw new Error(`--stop-at matched no scenario: ${options.stopAt}`)
-  return included.slice(start, end + 1)
+  const ranged = included.slice(start, end + 1)
+  if (options.shardIndex === undefined && options.shardCount === undefined) return ranged
+  if (options.shardIndex === undefined || options.shardCount === undefined)
+    throw new Error("--shard and --shards must be provided together")
+  const shardIndex = options.shardIndex
+  const shardCount = options.shardCount
+  return ranged.filter((_, index) => index % shardCount === shardIndex)
 }
 
 function matchesName(value: string, scenario: Scenario) {
@@ -83,6 +91,24 @@ function option(args: string[], name: string) {
   const index = args.indexOf(name)
   if (index === -1) return undefined
   return args[index + 1]
+}
+
+function parseShardIndex(args: string[]) {
+  const value = option(args, "--shard")
+  if (value === undefined) return undefined
+  const index = Number(value)
+  const count = parseShardCount(args)
+  if (!Number.isInteger(index) || index < 0) throw new Error(`invalid --shard ${value}`)
+  if (count !== undefined && index >= count) throw new Error(`--shard must be less than --shards (${count})`)
+  return index
+}
+
+function parseShardCount(args: string[]) {
+  const value = option(args, "--shards")
+  if (value === undefined) return undefined
+  const count = Number(value)
+  if (!Number.isInteger(count) || count < 1) throw new Error(`invalid --shards ${value}`)
+  return count
 }
 
 function parseScenarioTimeout(input: string) {

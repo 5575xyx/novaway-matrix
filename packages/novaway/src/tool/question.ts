@@ -2,6 +2,7 @@ import { Effect, Option, Schema } from "effect"
 import * as Tool from "./tool"
 import { Question } from "../question"
 import { Session } from "../session/session"
+import * as WorkflowPolicy from "@/workflow/policy"
 import DESCRIPTION from "./question.txt"
 
 export const Parameters = Schema.Struct({
@@ -19,12 +20,26 @@ export const QuestionTool = Tool.define<typeof Parameters, Metadata, Question.Se
     // 会话服务是可选的：最小 layer（单测、嵌入式用法）里没有它，
     // 那就当"不知道档位"，照常等人回答。
     const sessions = Option.getOrUndefined(yield* Effect.serviceOption(Session.Service))
+    const workflowPolicy = Option.getOrUndefined(yield* Effect.serviceOption(WorkflowPolicy.Service))
 
     return {
       description: DESCRIPTION,
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
+          const budget = workflowPolicy ? yield* workflowPolicy.consumeQuestion(ctx.sessionID) : { allowed: true, state: undefined }
+          if (!budget.allowed) {
+            return {
+              title: `Skipped ${params.questions.length} question${params.questions.length > 1 ? "s" : ""}`,
+              output: [
+                "Workflow policy question budget exhausted.",
+                "Decide the remaining ambiguity yourself with best judgement, state the assumption in one short line, and continue.",
+                "Do not call the question tool again in this turn.",
+              ].join("\n"),
+              metadata: { answers: params.questions.map(() => [] as Question.Answer) },
+            }
+          }
+
           // 无人值守档位：没有人会回答，问了就是整轮挂住。
           // 直接把"自己去决定"交还给模型 —— 这不是替用户选第一个选项，
           // 而是让模型按它自己的判断继续，并把假设写进结果里。

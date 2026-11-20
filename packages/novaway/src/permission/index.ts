@@ -7,9 +7,9 @@ import { InstanceState } from "@/effect/instance-state"
 import { PLAN_WRITE_TOOLS, isPlanWrite, isReadOnlyShell } from "./plan"
 import { ProjectID } from "@/project/schema"
 import { MessageID, SessionID } from "@/session/schema"
-import { PermissionTable } from "@/session/session.sql"
+import { PermissionTable, PermissionRequestTable, SessionTable } from "@/session/session.sql"
 import { Database } from "@/storage/db"
-import { eq } from "drizzle-orm"
+import { eq, inArray, or } from "drizzle-orm"
 import * as Log from "@novaway/core/util/log"
 import { Wildcard } from "@/util/wildcard"
 import { Deferred, Effect, Layer, Option, Schema, Context } from "effect"
@@ -166,10 +166,48 @@ export const layer = Layer.effect(
         const row = Database.use((db) =>
           db.select().from(PermissionTable).where(eq(PermissionTable.project_id, ctx.project.id)).get(),
         )
+        const durable = Database.use((db) => {
+          const sessionIDs = db
+            .select({ id: SessionTable.id })
+            .from(SessionTable)
+            .where(eq(SessionTable.directory, ctx.directory))
+            .all()
+            .map((session) => session.id)
+          return db
+            .select()
+            .from(PermissionRequestTable)
+            .where(
+              sessionIDs.length > 0
+                ? or(
+                    eq(PermissionRequestTable.project_id, ctx.project.id),
+                    inArray(PermissionRequestTable.session_id, sessionIDs),
+                  )
+                : eq(PermissionRequestTable.project_id, ctx.project.id),
+            )
+            .all()
+        })
         const state: State = {
           pending: new Map<PermissionID, PendingEntry>(),
           approved: row?.data ?? [],
           autoDenials: new Map<string, number>(),
+        }
+
+        for (const item of durable.filter((item) => item.status === "pending")) {
+          const deferred = yield* Deferred.make<void, RejectedError | CorrectedError>()
+          const restored = {
+            id: PermissionID.make(item.id),
+            sessionID: item.session_id as SessionID,
+            permission: item.permission,
+            patterns: item.patterns,
+            metadata: item.metadata,
+            always: item.always,
+            ...(item.tool ? { tool: item.tool } : {}),
+          }
+          const info = Schema.decodeUnknownSync(Request)(restored)
+          state.pending.set(PermissionID.make(item.id), {
+            info,
+            deferred,
+          })
         }
 
         yield* Effect.addFinalizer(() =>
@@ -187,6 +225,7 @@ export const layer = Layer.effect(
 
     const ask = Effect.fn("Permission.ask")(function* (input: AskInput) {
       const { approved, pending, autoDenials } = yield* InstanceState.get(state)
+      const ctx = yield* InstanceState.context
       const { ruleset, mode: requested, ...request } = input
 
       const cfg = yield* Effect.serviceOption(Config.Service)
@@ -199,6 +238,19 @@ export const layer = Layer.effect(
       if (mode === "unattended") return
       if (mode === "bypassPermissions") return
       if (mode === "acceptEdits" && writeTool) return
+      if (request.id) {
+        const durable = Database.use((db) =>
+          db
+            .select()
+            .from(PermissionRequestTable)
+            .where(eq(PermissionRequestTable.id, String(request.id)))
+            .get(),
+        )
+        if (durable?.status === "approved") return
+        if (durable?.status === "rejected") return yield* new RejectedError()
+        const existing = pending.get(request.id)
+        if (existing) return yield* Deferred.await(existing.deferred)
+      }
       if (mode === "plan" && writeTool) {
         // 「只读」保留两条例外：写计划文件、跑只读命令。其余写入硬拒绝。
         const ctx = yield* InstanceState.context
@@ -234,9 +286,10 @@ export const layer = Layer.effect(
 
       if (!needsAsk) return
 
-      // auto 模式:让安全分类器先判断,把「明显安全」从询问里摘掉。
+      // 自主审批（acceptEdits）开启分类器后,让安全分类器先判断,把「明显安全」从询问里摘掉。
+      // 旧档位 "auto" 保留同义行为,供仍写着它的历史会话/配置使用。
       // 分类器不可用/解析失败一律退回询问用户 —— 绝不因为调用失败而放行。
-      if (mode === "auto") {
+      if (mode === "auto" || mode === "acceptEdits") {
         const auto = cfg._tag === "Some" ? ((yield* cfg.value.get()).permission_auto ?? {}) : {}
         if (auto.classifier) {
           const limit = auto.denial_limit ?? 3
@@ -313,6 +366,27 @@ export const layer = Layer.effect(
       log.info("asking", { id, permission: info.permission, patterns: info.patterns })
 
       const deferred = yield* Deferred.make<void, RejectedError | CorrectedError>()
+      Database.use((db) =>
+        db
+          .insert(PermissionRequestTable)
+          .values([
+            {
+              id: String(id),
+              project_id: ctx.project.id,
+              session_id: info.sessionID,
+              permission: info.permission,
+              patterns: [...info.patterns],
+              metadata: { ...info.metadata },
+              always: [...info.always],
+              ...(info.tool ? { tool: info.tool } : {}),
+              status: "pending",
+              time_created: Date.now(),
+              time_updated: Date.now(),
+            },
+          ])
+          .onConflictDoNothing()
+          .run(),
+      )
       pending.set(id, { info, deferred })
       yield* bus.publish(Event.Asked, info)
       return yield* Effect.ensuring(
@@ -329,6 +403,18 @@ export const layer = Layer.effect(
       if (!existing) return
 
       pending.delete(input.requestID)
+      Database.use((db) =>
+        db
+          .update(PermissionRequestTable)
+          .set({
+            status: input.reply === "reject" ? "rejected" : "approved",
+            reply: input.reply,
+            message: input.message,
+            time_updated: Date.now(),
+          })
+          .where(eq(PermissionRequestTable.id, String(input.requestID)))
+          .run(),
+      )
       yield* bus.publish(Event.Replied, {
         sessionID: existing.info.sessionID,
         requestID: existing.info.id,
@@ -344,6 +430,13 @@ export const layer = Layer.effect(
         for (const [id, item] of pending.entries()) {
           if (item.info.sessionID !== existing.info.sessionID) continue
           pending.delete(id)
+          Database.use((db) =>
+            db
+              .update(PermissionRequestTable)
+              .set({ status: "rejected", reply: "reject", time_updated: Date.now() })
+              .where(eq(PermissionRequestTable.id, String(id)))
+              .run(),
+          )
           yield* bus.publish(Event.Replied, {
             sessionID: item.info.sessionID,
             requestID: item.info.id,

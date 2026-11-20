@@ -1,0 +1,121 @@
+name: Production readiness
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "packages/novaway/**"
+      - ".github/workflows/production-readiness.yml"
+
+concurrency:
+  group: production-readiness-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  production-binary:
+    name: ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-24.04
+          - windows-2025
+          - macos-13
+          - macos-14
+    defaults:
+      run:
+        working-directory: packages/novaway
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck backend
+        run: bun run typecheck
+      - name: Build current platform production binary
+        run: bun run build -- --single --skip-install
+      - name: Record artifact attestation
+        run: bun run script/production-artifact-attestation.ts
+      - name: Run production deployment smoke
+        run: bun run script/production-deployment-smoke.ts
+      - name: Run TLS, logging, and backup restore smoke
+        run: bun run script/production-operations-smoke.ts
+      - name: Upload production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-evidence-${{ matrix.runner }}
+          path: |
+            packages/novaway/test-results/production-artifact-attestation.json
+            packages/novaway/test-results/production-deployment-smoke.json
+            packages/novaway/test-results/production-operations-smoke.json
+            packages/novaway/dist/xymt-novaway-*/package.json
+          if-no-files-found: error
+  linux-musl:
+    name: ubuntu-24.04-musl
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: packages/novaway
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install musl runtime
+        run: sudo apt-get update && sudo apt-get install -y musl
+        working-directory: .
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck backend
+        run: bun run typecheck
+      - name: Install Linux musl Bun runtime
+        run: bun install --ignore-scripts --os=linux --cpu=x64 @oven/bun-linux-x64-musl@1.3.14
+      - name: Build Linux x64 musl production binary
+        run: bun run build -- --single --musl
+      - name: Record musl artifact attestation
+        env:
+          NOVAWAY_BINARY_ABI: musl
+        run: bun run script/production-artifact-attestation.ts
+      - name: Run musl production deployment smoke
+        env:
+          NOVAWAY_BINARY_ABI: musl
+        run: bun run script/production-deployment-smoke.ts
+      - name: Run musl TLS, logging, and backup restore smoke
+        env:
+          NOVAWAY_BINARY_ABI: musl
+        run: bun run script/production-operations-smoke.ts
+      - name: Upload musl production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-evidence-linux-musl
+          path: |
+            packages/novaway/test-results/production-artifact-attestation.json
+            packages/novaway/test-results/production-deployment-smoke.json
+            packages/novaway/test-results/production-operations-smoke.json
+            packages/novaway/dist/xymt-novaway-linux-x64-musl/package.json
+          if-no-files-found: error
+
+  production-gate:
+    name: production-readiness-gate
+    if: always()
+    needs:
+      - production-binary
+      - linux-musl
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every target runner to pass
+        env:
+          MATRIX_RESULT: ${{ needs.production-binary.result }}
+          MUSL_RESULT: ${{ needs.linux-musl.result }}
+        run: |
+          test "$MATRIX_RESULT" = success
+          test "$MUSL_RESULT" = success
+          echo "MULTI_PLATFORM_PRODUCTION_READY=PASS"
+

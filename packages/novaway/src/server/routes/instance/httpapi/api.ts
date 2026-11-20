@@ -44,6 +44,7 @@ import { WorkflowApi } from "./groups/workflow"
 import { DynamicWorkflowApi } from "./groups/dynamic-workflow"
 import { ArenaApi } from "./groups/arena"
 import { OrchestratorApi } from "./groups/orchestrator"
+import { SuperAgentApi } from "./groups/super-agent"
 import { TeamApi } from "./groups/team"
 import { MissionApi } from "./groups/mission"
 import { ProfileApi } from "./groups/profile"
@@ -103,6 +104,7 @@ export const InstanceHttpApi = InstanceGroups.addHttpApi(TuiApi)
   .add(WorkflowApi)
   .addHttpApi(DynamicWorkflowApi)
   .add(OrchestratorApi)
+  .add(SuperAgentApi)
   .add(ArenaApi)
   .addHttpApi(TeamApi)
   .add(ProfileApi)

@@ -782,7 +782,7 @@ async function loadSkillEntries(input: {
     return {
       id,
       description: field("description") || `Skill ${id}`,
-      source: { text },
+      source: { file: path.relative(realRoot, file).split(path.sep).join("/"), text },
     }
   }
   const walk = async (directory: string): Promise<string[]> => {

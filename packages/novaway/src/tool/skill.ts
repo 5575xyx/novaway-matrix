@@ -1,16 +1,16 @@
 import path from "path"
 import { pathToFileURL } from "url"
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import * as Stream from "effect/Stream"
 import { Ripgrep } from "../file/ripgrep"
 import { Skill } from "../skill"
 import * as SkillUsage from "@/skill/usage"
 import { InstanceState } from "@/effect/instance-state"
 import * as SkillPython from "@/skill/python-env"
-import * as PptEngine from "@/office/ppt-engine"
 import { Service as SessionService } from "@/session/session"
 import { Service as AgentService } from "@/agent/agent"
 import { Service as TeamService } from "@/team/team"
+import * as WorkflowPolicy from "@/workflow/policy"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import { MessageV2 } from "@/session/message-v2"
 import * as Tool from "./tool"
@@ -30,6 +30,7 @@ export const SkillTool = Tool.define(
     const sessions = yield* SessionService
     const agents = yield* AgentService
     const teams = yield* TeamService
+    const workflowPolicy = Option.getOrUndefined(yield* Effect.serviceOption(WorkflowPolicy.Service))
 
     return {
       description: DESCRIPTION,
@@ -42,6 +43,8 @@ export const SkillTool = Tool.define(
             const available = all.map((item) => item.name).join(", ")
             throw new Error(`Skill "${params.name}" not found. Available skills: ${available || "none"}`)
           }
+
+          if (workflowPolicy) yield* workflowPolicy.recordSkill({ sessionID: ctx.sessionID, name: info.name })
 
           yield* ctx.ask({
             permission: "skill",
@@ -110,32 +113,6 @@ export const SkillTool = Tool.define(
                 return SkillPython.missingEnvNote(found.name, found.file)
               })
             : undefined
-          // 办公模式的 PPT：选哪条渲染链由环境决定，不让模型猜。
-          const engine =
-            info.name === "office-ppt"
-              ? yield* Effect.gen(function* () {
-                  const master = (yield* skill.all()).find((item) => item.name === "ppt-master")
-                  const state = master ? yield* Effect.promise(() => SkillPython.status(master.name)) : undefined
-                  // 装了 ppt-master 但从没准备过 Python 环境（老版本装的、或安装时后台任务被中断）：
-                  // 现在正是要用它，顺手在后台开始装。skill_python 的 prepare 会复用同一个任务，
-                  // 不会重复下载；失败也不影响这次加载，模型会按提示如实报告。
-                  if (master && state?.state === "idle") {
-                    const found = yield* Effect.promise(() =>
-                      SkillPython.findRequirements(path.dirname(master.location)),
-                    )
-                    if (found)
-                      void SkillPython.prepare({ name: found.name, requirements: found.file }).catch(() => undefined)
-                  }
-                  return PptEngine.pptEngineNote(
-                    PptEngine.decidePptEngine({
-                      installed: Boolean(master),
-                      pythonReady: state?.state === "ready",
-                      ...(state?.python ? { python: state.python } : {}),
-                      ...(state?.state === "error" && state.error ? { pythonError: state.error } : {}),
-                    }),
-                  )
-                })
-              : undefined
           const limit = 10
           const files = resourceRoot
             ? yield* rg.files({ cwd: resourceRoot, follow: false, hidden: true, signal: ctx.abort }).pipe(
@@ -163,7 +140,6 @@ export const SkillTool = Tool.define(
               files,
               "</skill_files>",
               ...(python ? ["", "<python_environment>", python, "</python_environment>"] : []),
-              ...(engine ? ["", "<ppt_engine>", engine, "</ppt_engine>"] : []),
               "</skill_content>",
             ].join("\n"),
             metadata: { name: info.name, ...(resourceRoot ? { dir: resourceRoot } : {}) } satisfies Metadata,

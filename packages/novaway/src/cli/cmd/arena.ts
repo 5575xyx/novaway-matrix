@@ -109,7 +109,7 @@ export const ArenaCommand = effectCmd({
       agents,
       parentSessionID: root.id,
       defaultModel: fallback,
-      defaultAgent: root.agent ?? cfg.default_agent ?? "build",
+      defaultAgent: root.agent ?? cfg.default_agent ?? "creova",
     })
 
     const sandbox = ConfigSandbox.resolve(cfg.sandbox)

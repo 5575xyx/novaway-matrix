@@ -4,13 +4,12 @@ Use this tool when you need to ask the user questions during execution. This all
 3. Get decisions on implementation choices as you work
 4. Offer choices to the user about what direction to take.
 
-CRITICAL: When you need to ask the user a question with options, you MUST use this tool instead of outputting text. The tool renders an interactive selection UI (buttons/checkboxes). Outputting text questions forces the user to type responses manually, which is a worse experience.
+CRITICAL: Whenever you need an answer from the user, you MUST use this tool instead of outputting a text question and stopping. This includes open-ended clarification questions: pass an empty `options` array so the user can type a free-form answer. For choice questions, provide 2-4 options. The tool renders the interactive response UI.
 
 Timing rules:
-- Ask questions FIRST, before planning or creating any todo list. Batch all clarifying questions into one ask up front; never drip questions one by one.
-- Once a todo list has been created, do NOT ask further questions — execute the list in order. Asking after the list is published means the planning was premature; go back, gather answers first, then re-plan.
-- While executing, asking again is allowed ONLY for a genuine blocker or conflict you cannot resolve yourself (contradictory requirements, missing credentials, destructive action needing consent, no viable path on any remaining item). Convenience or curiosity questions are not blockers.
-- When you ask mid-execution, update the todo list in the same turn so it reflects reality: keep the blocked item `in_progress`, mention the blocker in its text (or add a follow-up todo describing it), and adjust the remaining items to match what will happen after the answer. The list must never contradict the conversation.
+- Ask questions before irreversible planning or implementation when a user decision is genuinely required. Ask the smallest coherent set; an active workflow may require one question per call.
+- Once a todo list has been created, do NOT ask convenience questions. Ask again only for a genuine blocker, conflict, missing credential, destructive action needing consent, or a decision that changes the acceptance criteria.
+- In unattended mode the host skips the interaction and returns control to the model with an explicit instruction to record its assumption.
 
 Usage notes:
 - When `custom` is enabled (default), a "Type your own answer" option is added automatically; don't include "Other" or catch-all options

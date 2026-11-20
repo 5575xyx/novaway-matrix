@@ -87,7 +87,7 @@ async function extractPackagedSkill() {
     Effect.gen(function* () {
       const fsys = yield* AppFileSystem.Service
       const global = yield* Global.Service
-      return yield* ensureSkillExtracted("office-ppt", fsys, global)
+      return yield* ensureSkillExtracted("office-renderer", fsys, global)
     }).pipe(Effect.provide(AppFileSystem.defaultLayer), Effect.provide(Global.defaultLayer)),
   )
 }

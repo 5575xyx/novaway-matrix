@@ -12,6 +12,8 @@ process.env.XDG_STATE_HOME = path.join(exerciseGlobalRoot, "state")
 process.env.XDG_CACHE_HOME = path.join(exerciseGlobalRoot, "cache")
 const originalDisableShare = process.env.NOVAWAY_DISABLE_SHARE
 const originalDisableDefaultPlugins = process.env.NOVAWAY_DISABLE_DEFAULT_PLUGINS
+const originalModelsPath = Flag.NOVAWAY_MODELS_PATH
+const originalModelsPathEnv = process.env.NOVAWAY_MODELS_PATH
 const originalRipgrepPath = process.env.NOVAWAY_RG_PATH
 if (process.platform === "win32" && originalRipgrepPath === undefined) {
   const bundledRipgrep = path.join(import.meta.dir, "../../../../desktop/resources/ripgrep/rg.exe")
@@ -31,6 +33,9 @@ export const exerciseDatabasePath =
   path.join(process.env.TMPDIR ?? "/tmp", `novaway-httpapi-exercise-${process.pid}.db`)
 process.env.NOVAWAY_DB = exerciseDatabasePath
 Flag.NOVAWAY_DB = exerciseDatabasePath
+const exerciseModelsPath = path.join(import.meta.dir, "../../tool/fixtures/models-api.json")
+process.env.NOVAWAY_MODELS_PATH = exerciseModelsPath
+Flag.NOVAWAY_MODELS_PATH = exerciseModelsPath
 
 export const original = {
   NOVAWAY_SERVER_PASSWORD: Flag.NOVAWAY_SERVER_PASSWORD,
@@ -52,6 +57,9 @@ export const cleanupExercisePaths = Effect.promise(async () => {
   else process.env.NOVAWAY_DISABLE_SHARE = originalDisableShare
   if (originalDisableDefaultPlugins === undefined) delete process.env.NOVAWAY_DISABLE_DEFAULT_PLUGINS
   else process.env.NOVAWAY_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
+  if (originalModelsPathEnv === undefined) delete process.env.NOVAWAY_MODELS_PATH
+  else process.env.NOVAWAY_MODELS_PATH = originalModelsPathEnv
+  Flag.NOVAWAY_MODELS_PATH = originalModelsPath
   if (originalRipgrepPath === undefined) delete process.env.NOVAWAY_RG_PATH
   else process.env.NOVAWAY_RG_PATH = originalRipgrepPath
 })

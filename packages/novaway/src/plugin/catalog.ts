@@ -1,5 +1,5 @@
 import path from "node:path"
-import type { ContributionKind, PluginScope, PluginStatus } from "@novaway/plugin-api"
+import type { ContributionKind, PluginScope, PluginStatus, ViewRender } from "@novaway/plugin-api"
 import { createRegistry, type Source } from "./contributions/registry"
 import type { Instance } from "./host"
 import { isRecord } from "@/util/record"
@@ -24,6 +24,12 @@ export type Entry = {
   path?: string
   slot?: string
   title?: string
+  description?: string
+  icon?: string
+  action?: unknown
+  view?: unknown
+  render?: ViewRender
+  order?: number
   match?: Match
   viewId?: string
   priority?: number
@@ -36,6 +42,12 @@ type Declaration = {
   path?: string
   slot?: string
   title?: string
+  description?: string
+  icon?: string
+  action?: unknown
+  view?: unknown
+  render?: ViewRender
+  order?: number
   match?: Match
   viewId?: string
   priority?: number
@@ -65,6 +77,14 @@ const kinds = {
   workerTypes: "worker-type",
   watchdogPolicies: "watchdog-policy",
   channels: "channel",
+  agentRuntimes: "agent-runtime",
+  superAgentStrategies: "super-agent-strategy",
+  taskKinds: "task-kind",
+  verifiers: "verifier",
+  repairStrategies: "repair-strategy",
+  agentTemplates: "agent-template",
+  superAgentPolicies: "super-agent-policy",
+  superAgentSurfaces: "super-agent-surface",
 } as const satisfies Partial<Record<keyof Instance["manifest"]["contributes"], ContributionKind>>
 
 export function tuiContribution(instance: Instance, json: Record<string, unknown>, root: string) {
@@ -166,7 +186,13 @@ export function list(
           status: candidate.instance.status,
           ...(registered.item.path === undefined ? {} : { path: registered.item.path }),
           ...(registered.item.slot === undefined ? {} : { slot: registered.item.slot }),
+          ...(registered.item.order === undefined ? {} : { order: registered.item.order }),
           ...(registered.item.title === undefined ? {} : { title: registered.item.title }),
+          ...(registered.item.description === undefined ? {} : { description: registered.item.description }),
+          ...(registered.item.icon === undefined ? {} : { icon: registered.item.icon }),
+          ...(registered.item.action === undefined ? {} : { action: registered.item.action }),
+          ...(registered.item.view === undefined ? {} : { view: registered.item.view }),
+          ...(registered.item.render === undefined ? {} : { render: registered.item.render }),
           ...(registered.item.match === undefined ? {} : { match: registered.item.match }),
           ...(registered.item.viewId === undefined ? {} : { viewId: registered.item.viewId }),
           ...(registered.item.priority === undefined ? {} : { priority: registered.item.priority }),
@@ -217,6 +243,12 @@ function declarations(key: string, value: unknown): Declaration[] {
         ...(string(item.path) === undefined ? {} : { path: string(item.path) }),
         ...(string(item.slot) === undefined ? {} : { slot: string(item.slot) }),
         ...(string(item.title) === undefined ? {} : { title: string(item.title) }),
+        ...(string(item.description) === undefined ? {} : { description: string(item.description) }),
+        ...(string(item.icon) === undefined ? {} : { icon: string(item.icon) }),
+        ...(item.action === undefined ? {} : { action: item.action }),
+        ...(item.view === undefined ? {} : { view: item.view }),
+        ...(viewRender(item.render) === undefined ? {} : { render: viewRender(item.render) }),
+        ...(typeof item.order === "number" && Number.isFinite(item.order) ? { order: item.order } : {}),
         ...(match(item.match) === undefined ? {} : { match: match(item.match) }),
         ...(string(item.viewId) === undefined ? {} : { viewId: string(item.viewId) }),
         ...(typeof item.priority === "number" && Number.isFinite(item.priority) ? { priority: item.priority } : {}),
@@ -228,6 +260,17 @@ function declarations(key: string, value: unknown): Declaration[] {
 
 function fileID(value: string) {
   return path.basename(value, path.extname(value)) || value
+}
+
+function viewRender(value: unknown): ViewRender | undefined {
+  if (!isRecord(value) || typeof value.type !== "string") return undefined
+  if (value.type === "builtin" && typeof value.component === "string") {
+    return { type: "builtin", component: value.component }
+  }
+  if (value.type === "iframe" && typeof value.url === "string") {
+    return { type: "iframe", url: value.url }
+  }
+  return undefined
 }
 
 function string(value: unknown): string | undefined {

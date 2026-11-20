@@ -40,7 +40,7 @@ const ctx = (asks: Array<Omit<Permission.Request, "id" | "sessionID" | "tool">> 
   sessionID: SessionID.make("ses_plan_enter"),
   messageID: MessageID.make("msg_test"),
   callID: "",
-  agent: "build",
+  agent: "creova",
   abort: AbortSignal.any([]),
   messages: [],
   metadata: () => Effect.void,
@@ -54,7 +54,7 @@ const model = { providerID: "test" as never, modelID: "test-model" as never }
 
 describe("tool.plan_enter", () => {
   it.instance(
-    "asks for the plan_enter permission and switches the session to the plan agent",
+    "asks for plan_enter permission and sets plan permission mode without switching agents",
     () =>
       Effect.gen(function* () {
         const sessions = yield* Session.Service
@@ -64,7 +64,7 @@ describe("tool.plan_enter", () => {
           sessionID: chat.id,
           role: "user",
           time: { created: Date.now() },
-          agent: "build",
+          agent: "creova",
           model,
         } satisfies MessageV2.User)
 
@@ -75,32 +75,31 @@ describe("tool.plan_enter", () => {
 
         expect(asks.map((item) => item.permission)).toContain("plan_enter")
         expect(result.title).toBe("Entered plan mode")
-        expect(result.metadata).toMatchObject({ agent: "plan" })
+        expect(result.metadata).toMatchObject({ agent: "creova" })
+        expect(yield* sessions.permissionModeOf(chat.id)).toBe("plan")
 
-        // The switch is recorded as a synthetic user turn carrying `agent: plan`
-        // so the next loop step resolves the plan agent from lastUser.agent.
         const messages = yield* sessions.messages({ sessionID: chat.id })
         const last = messages.findLast((item) => item.info.role === "user")
-        expect(last?.info.role === "user" && last.info.agent).toBe("plan")
+        expect(last?.info.role === "user" && last.info.agent).toBe("creova")
         const text = last?.parts.find((part): part is MessageV2.TextPart => part.type === "text")
         expect(text?.synthetic).toBe(true)
-        expect(text?.text).toContain("plan mode")
+        expect(text?.text).toContain("permission mode")
       }).pipe(provideInstance(process.cwd())),
     30_000,
   )
 
   it.instance(
-    "is a no-op when the session is already on the plan agent",
+    "is a no-op when the session is already in plan permission mode",
     () =>
       Effect.gen(function* () {
         const sessions = yield* Session.Service
-        const chat = yield* sessions.create({ title: "Plan 2", permission: [] })
+        const chat = yield* sessions.create({ title: "Plan 2", permission: [], permissionMode: "plan" })
         yield* sessions.updateMessage({
           id: MessageID.ascending(),
           sessionID: chat.id,
           role: "user",
           time: { created: Date.now() },
-          agent: "plan",
+          agent: "creova",
           model,
         } satisfies MessageV2.User)
 

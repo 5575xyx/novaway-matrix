@@ -27,7 +27,7 @@ export function createTuiResolvedConfig(input: ResolvedInput = {}): TuiConfig.Re
   return {
     ...input,
     icons: "nerdfont",
-    default_agent: "agents-orchestrator",
+    default_agent: "agency-agents_agents-orchestrator",
     mouse: true,
     attention: {
       enabled: false,

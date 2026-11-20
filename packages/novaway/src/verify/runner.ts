@@ -5,7 +5,7 @@
  * 不做交互式处理：验证命令必须是能自己结束的。
  */
 import { spawn } from "node:child_process"
-import { Shell } from "@/shell/shell"
+import { Shell, killTree } from "@/shell/shell"
 import { Sandbox } from "@/sandbox/sandbox"
 import { summarize, tail, type VerifyOutcome } from "./summary"
 
@@ -29,18 +29,25 @@ export async function run(input: {
   const started = Date.now()
   const shell = Shell.acceptable(undefined)
   const timeoutMs = input.timeoutMs ?? 10 * 60 * 1000
-  const sandboxed =
-    input.sandbox?.enabled && process.platform !== "win32"
-      ? Sandbox.wrapShell({ shell, command: input.command, cwd: input.cwd }, input.sandbox)
-      : undefined
 
   return new Promise<RunResult>((resolve) => {
+    let sandboxed: ReturnType<typeof Sandbox.wrapShell> | undefined
+    try {
+      sandboxed = input.sandbox?.enabled
+        ? Sandbox.wrapShell({ shell, command: input.command, cwd: input.cwd }, input.sandbox)
+        : undefined
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const outcome = summarize({ output: message, exitCode: 1, timedOut: false })
+      resolve({ ...outcome, command: input.command, output: message, durationMs: Date.now() - started })
+      return
+    }
     const child = sandboxed
       ? spawn(sandboxed.command, sandboxed.args, {
           cwd: sandboxed.cwd,
           env: input.env ?? process.env,
           stdio: ["ignore", "pipe", "pipe"],
-          detached: true,
+          detached: process.platform !== "win32",
         })
       : spawn(input.command, {
           cwd: input.cwd,
@@ -62,10 +69,11 @@ export async function run(input: {
 
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill("SIGKILL")
+      void killTree(child, { exited: () => child.exitCode !== null })
     }, timeoutMs)
 
-    const abort = () => child.kill("SIGKILL")
+    const abort = () =>
+      void killTree(child, { exited: () => child.exitCode !== null })
     input.signal?.addEventListener("abort", abort, { once: true })
 
     const finish = (code: number | null, extra = "") => {

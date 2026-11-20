@@ -39,7 +39,11 @@ const ctx = (sessionID: SessionID): Tool.Context => ({
   ask: () => Effect.void,
 })
 
-type ToolResult = { title: string; output: string; metadata: { todos: Todo.Info[]; truncated: boolean } }
+type ToolResult = {
+  title: string
+  output: string
+  metadata: { todos: Todo.Info[]; focusPosition?: number; truncated: boolean }
+}
 
 const call = (args: unknown, sessionID: SessionID) =>
   Effect.gen(function* () {
@@ -225,6 +229,25 @@ describe("todoedit", () => {
       expect(result.output).toContain("0. [x] a")
       expect(result.output).toContain("1. [x] b")
       expect(result.output).toContain("2. [-] c")
+    }),
+  )
+
+  it.instance("allows independent parallel items and focuses the active lane", () =>
+    Effect.gen(function* () {
+      const sessionID = freshSession()
+      yield* callWrite(
+        [
+          { content: "inspect", status: "in_progress", priority: "medium" },
+          { content: "implement", status: "in_progress", priority: "medium" },
+        ],
+        sessionID,
+      )
+
+      const result = yield* call({ action: "focus", position: 1 }, sessionID)
+
+      expect(result.metadata.focusPosition).toBe(1)
+      expect(result.output).toContain("Focused item 1: implement")
+      expect((yield* rows(sessionID)).map((row) => row.status)).toEqual(["in_progress", "in_progress"])
     }),
   )
 

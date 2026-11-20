@@ -1725,6 +1725,7 @@ function inventoryScenario(key: string): Scenario {
   const global = template.startsWith("/global/") || template === "/log" || template.startsWith("/auth/")
   const sessionParam = /\/session\/\{(sessionID|sessionId)\}/.exec(template)?.[1]
   const hasBody = method !== "GET" && method !== "DELETE"
+  const body = template === "/memory/embedding/setup-local" ? { allowInstall: false } : {}
 
   return {
     kind: "active",
@@ -1740,7 +1741,7 @@ function inventoryScenario(key: string): Scenario {
       return {
         path: requestPath,
         headers: ctx.headers(),
-        ...(hasBody ? { body: {} } : {}),
+        ...(hasBody ? { body } : {}),
       }
     },
     authProbe: undefined,

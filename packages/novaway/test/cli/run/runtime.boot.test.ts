@@ -74,7 +74,7 @@ function config(input?: {
   const bind = input?.bindings
   return createTuiResolvedConfig({
     icons: "nerdfont",
-    default_agent: "agents-orchestrator",
+    default_agent: "agency-agents_agents-orchestrator",
     diff_style: input?.diff_style,
     leader_timeout: input?.leaderTimeout,
     keybinds: {

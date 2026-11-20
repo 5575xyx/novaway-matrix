@@ -1,11 +1,47 @@
-import { Context, Effect, Layer } from "effect"
-import { and, eq, sql } from "drizzle-orm"
+import { Context, Effect, Layer, Schema } from "effect"
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { GoalBudgetTable, GoalTable, type GoalProgress } from "./goal.sql"
 import { TodoTable as GoalTodoTable } from "./session.sql"
 import { NotFoundError } from "@/storage/storage"
 import { SessionID } from "./schema"
 import type { Budget } from "./goal-budget"
+
+export type GoalExecutionConfig = {
+  readonly maxIterations: number
+  readonly judgeModel?: string
+  readonly maxTokens?: number
+  readonly maxActiveMs?: number
+  readonly verifier?: "judge" | "agent"
+  readonly evidenceMinBytes?: number
+  readonly mode?: "interactive" | "durable"
+  readonly superAgentRunId?: string
+}
+
+/** The persisted configuration is untrusted database input. Keep one bounded schema for API and reloads. */
+export const ExecutionConfigSchema = Schema.Struct({
+  maxIterations: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100 })),
+  judgeModel: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+  maxTokens: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100_000_000 }))),
+  maxActiveMs: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 7 * 24 * 60 * 60 * 1_000 }))),
+  verifier: Schema.optional(Schema.Literals(["judge", "agent"])),
+  evidenceMinBytes: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 10_000_000 }))),
+  mode: Schema.optional(Schema.Literals(["interactive", "durable"])),
+  superAgentRunId: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+})
+
+const decodeExecutionConfig = Schema.decodeUnknownSync(ExecutionConfigSchema)
+
+function parseExecutionConfig(raw: unknown): GoalExecutionConfig | null {
+  if (typeof raw !== "string" || raw.trim().length === 0) return null
+  try {
+    return decodeExecutionConfig(JSON.parse(raw))
+  } catch {
+    // A damaged row must not make the whole Goal list unavailable. The scheduler
+    // treats null as non-resumable until a user repairs the configuration.
+    return null
+  }
+}
 
 export interface Goal {
   readonly id: string
@@ -19,6 +55,7 @@ export interface Goal {
   readonly deadline: Date | null
   readonly progress: number
   readonly tags: string[]
+  readonly executionConfig: GoalExecutionConfig | null
   readonly createdAt: Date
   readonly updatedAt: Date
 }
@@ -34,6 +71,7 @@ export interface Interface {
     successCriteria?: string[]
     deadline?: Date
     tags?: string[]
+    executionConfig?: GoalExecutionConfig
   }) => Effect.Effect<Goal, NotFoundError>
 
   readonly list: (sessionId: SessionID) => Effect.Effect<readonly Goal[]>
@@ -50,6 +88,7 @@ export interface Interface {
     successCriteria?: string[]
     deadline?: Date
     tags?: string[]
+    executionConfig?: GoalExecutionConfig
   }) => Effect.Effect<Goal, NotFoundError>
 
   readonly delete: (input: { goalId: string; sessionId: SessionID }) => Effect.Effect<void, NotFoundError>
@@ -63,6 +102,27 @@ export interface Interface {
 
   /** 记一轮续跑，并把本轮消耗的 token 增量累加进预算。 */
   readonly chargeBudget: (input: { goalId: string; sessionId: SessionID; tokens: number }) => Effect.Effect<Budget>
+
+  /** 原子获取跨进程执行租约；已被其他活动实例持有时返回 false。 */
+  readonly claimRun: (input: {
+    goalId: string
+    sessionId: SessionID
+    owner: string
+    now?: number
+    leaseMs?: number
+  }) => Effect.Effect<boolean>
+
+  /** 续租；只有当前 owner 可以延长租约。 */
+  readonly renewRun: (input: {
+    goalId: string
+    sessionId: SessionID
+    owner: string
+    now?: number
+    leaseMs?: number
+  }) => Effect.Effect<boolean>
+
+  /** 释放当前实例持有的执行租约。 */
+  readonly releaseRun: (input: { goalId: string; sessionId: SessionID; owner: string }) => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/GoalService") {}
@@ -85,6 +145,7 @@ export const layer = Layer.effect(
       deadline: row.deadline ? new Date(row.deadline) : null,
       progress: row.progress,
       tags: (row.tags as string[]) ?? [],
+      executionConfig: parseExecutionConfig(row.execution_config),
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     })
@@ -99,6 +160,7 @@ export const layer = Layer.effect(
       successCriteria?: string[]
       deadline?: Date
       tags?: string[]
+      executionConfig?: GoalExecutionConfig
     }) {
       if (input.parentId) {
         const parent = yield* Effect.sync(() =>
@@ -116,6 +178,7 @@ export const layer = Layer.effect(
       }
 
       const now = new Date()
+      const executionConfig = input.executionConfig ? decodeExecutionConfig(input.executionConfig) : undefined
       const goal: Goal = {
         id: generateId(),
         sessionId: input.sessionId,
@@ -128,6 +191,7 @@ export const layer = Layer.effect(
         deadline: input.deadline ?? null,
         progress: 0,
         tags: input.tags ?? [],
+        executionConfig: executionConfig ?? null,
         createdAt: now,
         updatedAt: now,
       }
@@ -148,6 +212,7 @@ export const layer = Layer.effect(
               deadline: goal.deadline ?? null,
               progress: goal.progress,
               tags: goal.tags,
+              execution_config: goal.executionConfig ? JSON.stringify(goal.executionConfig) : null,
               created_at: goal.createdAt,
               updated_at: goal.updatedAt,
             })
@@ -174,6 +239,7 @@ export const layer = Layer.effect(
               deadline: GoalTable.deadline,
               progress: GoalTable.progress,
               tags: GoalTable.tags,
+              execution_config: GoalTable.execution_config,
               created_at: GoalTable.created_at,
               updated_at: GoalTable.updated_at,
               todo_total: sql<number>`count(${GoalTodoTable.session_id})`,
@@ -219,8 +285,10 @@ export const layer = Layer.effect(
       successCriteria?: string[]
       deadline?: Date
       tags?: string[]
+      executionConfig?: GoalExecutionConfig
     }) {
       const now = new Date()
+      const executionConfig = input.executionConfig ? decodeExecutionConfig(input.executionConfig) : undefined
       const rowsUpdated = yield* Effect.sync(() =>
         Database.use((db) =>
           db
@@ -237,6 +305,9 @@ export const layer = Layer.effect(
                 deadline: input.deadline ?? null,
               }),
               ...(input.tags !== undefined && { tags: input.tags }),
+              ...(input.executionConfig !== undefined && {
+                execution_config: executionConfig ? JSON.stringify(executionConfig) : null,
+              }),
               updated_at: now,
             })
             .where(
@@ -398,6 +469,86 @@ export const layer = Layer.effect(
       return (yield* readBudget(input.goalId)) ?? { turns: 0, tokens: delta, startedAt: 0 }
     })
 
+    const releaseRun = Effect.fn("GoalService.releaseRun")(function* (input: {
+      goalId: string
+      sessionId: SessionID
+      owner: string
+    }) {
+      yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(GoalTable)
+            .set({ run_owner: null, run_lease_until: null, updated_at: new Date() })
+            .where(
+              and(
+                eq(GoalTable.id, input.goalId),
+                eq(GoalTable.session_id, input.sessionId),
+                eq(GoalTable.run_owner, input.owner),
+              ),
+            )
+            .run(),
+        ),
+      )
+    })
+
+    const claimRun = Effect.fn("GoalService.claimRun")(function* (input: {
+      goalId: string
+      sessionId: SessionID
+      owner: string
+      now?: number
+      leaseMs?: number
+    }) {
+      const now = input.now ?? Date.now()
+      const leaseUntil = new Date(now + Math.max(30_000, Math.min(input.leaseMs ?? 5 * 60_000, 30 * 60_000)))
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(GoalTable)
+            .set({ run_owner: input.owner, run_lease_until: leaseUntil })
+            .where(
+              and(
+                eq(GoalTable.id, input.goalId),
+                eq(GoalTable.session_id, input.sessionId),
+                eq(GoalTable.status, "in_progress"),
+                or(isNull(GoalTable.run_lease_until), lt(GoalTable.run_lease_until, new Date(now)), eq(GoalTable.run_owner, input.owner)),
+              ),
+            )
+            .returning({ id: GoalTable.id })
+            .all(),
+        ),
+      )
+      return rows.length > 0
+    })
+
+    const renewRun = Effect.fn("GoalService.renewRun")(function* (input: {
+      goalId: string
+      sessionId: SessionID
+      owner: string
+      now?: number
+      leaseMs?: number
+    }) {
+      const now = input.now ?? Date.now()
+      const leaseUntil = new Date(now + Math.max(30_000, Math.min(input.leaseMs ?? 5 * 60_000, 30 * 60_000)))
+      const rows = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .update(GoalTable)
+            .set({ run_lease_until: leaseUntil })
+            .where(
+              and(
+                eq(GoalTable.id, input.goalId),
+                eq(GoalTable.session_id, input.sessionId),
+                eq(GoalTable.status, "in_progress"),
+                eq(GoalTable.run_owner, input.owner),
+              ),
+            )
+            .returning({ id: GoalTable.id })
+            .all(),
+        ),
+      )
+      return rows.length > 0
+    })
+
     return Service.of({
       create,
       list,
@@ -408,6 +559,9 @@ export const layer = Layer.effect(
       updateProgress,
       budget,
       chargeBudget,
+      claimRun,
+      renewRun,
+      releaseRun,
     })
   }),
 )

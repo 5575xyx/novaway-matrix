@@ -7,7 +7,8 @@
  * 并在任何一条不通过时以非 0 退出 —— 「不通过不发版」只能由退出码保证。
  *
  * G6（误判通过率）无法自动化：判定「这条 pass 是不是假的」本身需要人。
- * 这里只读取复核记录并核对阈值；**没有记录就是没复核**，按不通过处理。
+ * 有 pass 记录时这里只读取复核记录并核对阈值；没有记录就是没复核，按不通过处理。
+ * 没有任何 pass 记录时没有误判样本，G6 标记为不适用并通过。
  *
  * 复核流程三步（脚本只做前两步，判定留给人）：
  *   1. `bun run gate:release --export`：把本地库里的 pass 验证导出成 `pass-records.json`
@@ -29,6 +30,7 @@ import { sanitizeOptional } from "../src/team/evidence"
 const root = join(import.meta.dir, "..")
 const artifacts = join(root, ".artifacts", "release-gate")
 const reviewFile = join(artifacts, "false-pass-review.json")
+const passRecordsFile = join(artifacts, "pass-records.json")
 
 const GATES = [
   ["G1", "可复验：抽样 pass 能展开到快照 + 验证器版本 + 实测值"],
@@ -50,6 +52,22 @@ type Outcome = { id: (typeof GATES)[number][0]; title: string; passed: boolean; 
 function falsePassGate(): Outcome {
   const title = GATES.find(([id]) => id === "G6")![1]
   type Review = { sampled?: number; reviewed?: number; wrong?: number; note?: string }
+  const passRecords: unknown[] | undefined = (() => {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(passRecordsFile, "utf8"))
+      return Array.isArray(parsed) ? parsed : undefined
+    } catch {
+      return undefined
+    }
+  })()
+  if (passRecords?.length === 0) {
+    return {
+      id: "G6",
+      title,
+      passed: true,
+      detail: ["pass 记录为空，无误判通过样本；G6 不适用"],
+    }
+  }
   const review: Review | undefined = (() => {
     try {
       const parsed: unknown = JSON.parse(readFileSync(reviewFile, "utf8"))

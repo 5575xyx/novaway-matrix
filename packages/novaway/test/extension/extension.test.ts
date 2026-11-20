@@ -95,6 +95,48 @@ describe("extension", () => {
     }),
   )
 
+  it.instance("v2 declarative manifests keep identity without a legacy decode error", () =>
+    Effect.gen(function* () {
+      yield* TestInstance
+      const config = process.env.XDG_CONFIG_HOME ?? ""
+      yield* cleanupMarketplaceFixture("v2-demo@0.1.0")
+      const root = path.join(config, "novaway", "marketplace", "v2-demo@0.1.0")
+      // v2 object contributions are owned by the plugin runtime; the legacy schema
+      // only accepts string paths and used to surface "Expected string, got {...}".
+      yield* Effect.promise(() =>
+        write(
+          path.join(root, "plugin.json"),
+          JSON.stringify({
+            apiVersion: 2,
+            name: "v2-demo",
+            version: "0.1.0",
+            description: "declarative office plugin",
+            kind: "declarative",
+            contributes: {
+              agents: [
+                {
+                  id: "office-document",
+                  description: "document agent",
+                  mode: "primary",
+                  prompt: { file: "./agents/office-document.txt" },
+                  options: { modeGroup: "office", scene: "document", defaultSkill: "v2-demo_office-document" },
+                },
+              ],
+            },
+          }),
+        ),
+      )
+      yield* Effect.promise(() => write(path.join(root, "agents", "office-document.txt"), "prompt"))
+      const extensions = yield* ExtensionService
+      const list = yield* extensions.reload()
+      const found = list.find((item) => item.name === "v2-demo@0.1.0")
+      expect(found?.source).toBe("plugin")
+      expect(found?.error).toBeUndefined()
+      expect(found?.manifest.version).toBe("0.1.0")
+      expect(found?.manifest.description).toBe("declarative office plugin")
+    }),
+  )
+
   it.instance("legacy installs without a manifest contribute their conventional dirs", () =>
     Effect.gen(function* () {
       const dir = (yield* TestInstance).directory

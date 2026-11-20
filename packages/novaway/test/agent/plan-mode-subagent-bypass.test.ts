@@ -1,9 +1,8 @@
 /**
  * Reproducer for upstream issue #26514:
  *
- * In Plan Mode (the `plan` agent), the main agent's edit/write tools are
- * blocked by the plan agent's permission ruleset (`edit: { "*": "deny" }`).
- * However, when the plan agent spawns a subagent via the `task` tool, the
+ * In Plan Mode, the main agent's edit/write tools are blocked by the session
+ * permission mode. When a plan-mode agent spawns a subagent via the `task` tool, the
  * subagent retains full file modification capabilities — a security bypass.
  *
  * This test replicates the permission ruleset that would govern a
@@ -46,30 +45,15 @@ function testAgent(input: {
 
 it.instance("[#26514] subagent spawned from plan mode inherits read-only restriction (edit denied)", () =>
   Effect.gen(function* () {
-    const planAgent = yield* Agent.Service.use((svc) => svc.get("plan"))
     const generalAgent = yield* Agent.Service.use((svc) => svc.get("general"))
-
-    expect(planAgent).toBeDefined()
     expect(generalAgent).toBeDefined()
-    // Sanity: the plan agent itself blocks edit. (Note: `write` and
-    // `apply_patch` route through the `edit` permission at the runtime
-    // tool layer — see Permission.disabled / EDIT_TOOLS.)
-    expect(Permission.evaluate("edit", "/some/file.ts", planAgent!.permission).action).toBe("deny")
 
-    // Simulate the plan-mode parent session: in real flow the plan
-    // session's `permission` field is empty (Plan Mode lives on the agent
-    // ruleset, not the session). So we pass [] through as the parent
-    // session permission, exactly like the actual code path.
-    const parentSessionPermission: Permission.Ruleset = []
-
+    const planMode = Permission.fromConfig({ edit: "deny", write: "deny" })
     const subagentSessionPermission = deriveSubagentSessionPermission({
-      parentSessionPermission,
-      parentAgent: planAgent,
+      parentSessionPermission: planMode,
+      parentAgent: undefined,
       subagent: generalAgent!,
     })
-
-    // Mirror the runtime evaluation in session/prompt.ts (~line 410, 639):
-    //   ruleset: Permission.merge(agent.permission, session.permission ?? [])
     const effective = Permission.merge(generalAgent!.permission, subagentSessionPermission)
 
     expect(Permission.evaluate("edit", "/some/file.ts", effective).action).toBe("deny")
@@ -83,15 +67,13 @@ it.instance("[#26514] explore subagent launched from plan mode also stays read-o
   // should propagate the parent **agent** permissions, not just deny edit
   // when the subagent happens to already deny it.
   Effect.gen(function* () {
-    const planAgent = yield* Agent.Service.use((svc) => svc.get("plan"))
     const explore = yield* Agent.Service.use((svc) => svc.get("explore"))
-    expect(planAgent).toBeDefined()
     expect(explore).toBeDefined()
 
-    const parentSessionPermission: Permission.Ruleset = []
+    const planMode = Permission.fromConfig({ edit: "deny", write: "deny" })
     const subagentSessionPermission = deriveSubagentSessionPermission({
-      parentSessionPermission,
-      parentAgent: planAgent,
+      parentSessionPermission: planMode,
+      parentAgent: undefined,
       subagent: explore!,
     })
     const effective = Permission.merge(explore!.permission, subagentSessionPermission)
@@ -108,15 +90,13 @@ it.instance(
   // be able to edit when the parent agent is `plan`.
   () =>
     Effect.gen(function* () {
-      const planAgent = yield* Agent.Service.use((svc) => svc.get("plan"))
       const my = yield* Agent.Service.use((svc) => svc.get("my_subagent"))
-      expect(planAgent).toBeDefined()
       expect(my).toBeDefined()
 
-      const parentSessionPermission: Permission.Ruleset = []
+      const planMode = Permission.fromConfig({ edit: "deny", write: "deny" })
       const subagentSessionPermission = deriveSubagentSessionPermission({
-        parentSessionPermission,
-        parentAgent: planAgent,
+        parentSessionPermission: planMode,
+        parentAgent: undefined,
         subagent: my!,
       })
       const effective = Permission.merge(my!.permission, subagentSessionPermission)

@@ -9,7 +9,7 @@ export const Info = Schema.Struct({
       "启用目标驱动的自主执行:Agent 持续规划、执行并验证活动目标,未达成则继续迭代,直到目标完成或达到最大轮数。默认 false。",
   }),
   max_iterations: Schema.optional(NonNegativeInt).annotate({
-    description: "单次目标执行的最大追加轮数。可选 5、10、15、20、50、100;默认 20,0 关闭自主追加。",
+    description: "普通目标循环的最大追加轮数。交互式目标模式可传 0 表示自动模式；配置值为 0 仍表示关闭后台自动追加。默认 20。",
   }),
   judge_model: Schema.optional(Schema.String).annotate({
     description: '裁判模型,格式 "providerID/modelID"。省略则复用当轮 assistant 模型。',

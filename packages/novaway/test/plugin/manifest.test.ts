@@ -299,6 +299,88 @@ describe("legacy normalization snapshot", () => {
   })
 })
 
+describe("v2 Surface / Previewer declarations", () => {
+  test("normalizes supported render forms without dropping metadata", () => {
+    const hit = parseFile(
+      {
+        name: "surface-author",
+        apiVersion: 2,
+        contributes: {
+          surfaces: [
+            {
+              slot: "sidebar.item",
+              id: "dashboard",
+              title: "Dashboard",
+              icon: "home",
+              order: 10,
+              action: { type: "view", viewId: "dashboard", render: { type: "iframe", url: "https://example.test/ui" } },
+            },
+            {
+              slot: "settings.section",
+              id: "settings",
+              title: "Settings",
+              view: { type: "declarative", fields: [{ key: "enabled", type: "boolean", label: "Enabled" }] },
+            },
+          ],
+          previewers: [
+            {
+              id: "foo",
+              match: { extension: ".foo" },
+              render: { type: "iframe", url: "https://example.test/preview" },
+              priority: 2,
+              order: 1,
+            },
+          ],
+        },
+      },
+      { file: "plugin.json" },
+    )
+    expect(errors(hit.issues)).toEqual([])
+    expect(hit.manifest.contributes.surfaces?.[0]).toMatchObject({
+      slot: "sidebar.item",
+      action: { type: "view", render: { type: "iframe", url: "https://example.test/ui" } },
+    })
+    expect(hit.manifest.contributes.previewers?.[0]).toMatchObject({
+      id: "foo",
+      render: { type: "iframe", url: "https://example.test/preview" },
+      order: 1,
+    })
+  })
+
+  test("rejects unknown slots, unsafe URLs, host commands and unresolved previewers", () => {
+    const hit = parseFile(
+      {
+        name: "bad-surface",
+        apiVersion: 2,
+        contributes: {
+          surfaces: [
+            { slot: "unknown.slot", id: "unknown", title: "Unknown", action: { type: "url", url: "https://x.test" } },
+            {
+              slot: "sidebar.item",
+              id: "unsafe",
+              title: "Unsafe",
+              icon: "home",
+              action: { type: "url", url: "javascript:alert(1)" },
+            },
+            {
+              slot: "sidebar.item",
+              id: "host",
+              title: "Host",
+              icon: "home",
+              action: { type: "command", command: "settings.open" },
+            },
+          ],
+          previewers: [{ id: "missing", match: { extension: ".missing" } }],
+        },
+      },
+      { file: "plugin.json" },
+    )
+    expect(errors(hit.issues).length).toBe(4)
+    expect(hit.manifest.contributes.surfaces).toEqual([])
+    expect(hit.manifest.contributes.previewers).toEqual([])
+  })
+})
+
 describe("parseConfigSpec：config.plugin 的 spec", () => {
   test("git spec 装出来的是安装实例，贡献要等模块加载", () => {
     const hit = parseConfigSpec("PowersNexus@git+https://gitee.com/nova-way/powersnexus.git", {

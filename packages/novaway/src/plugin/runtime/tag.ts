@@ -8,6 +8,7 @@ export interface Interface {
   readonly invalidate: Effect.Effect<void>
   readonly setEnabled: (instance: DiscoveredPlugin, enabled: boolean) => Effect.Effect<void, PluginError>
   readonly activateBuiltin: (instance: DiscoveredPlugin) => Effect.Effect<void, PluginError>
+  readonly activateOnDemand: (instance: DiscoveredPlugin) => Effect.Effect<void, PluginError>
 }
 
 /** Lightweight tag: hot-path consumers must not import the Runtime Host activation graph. */

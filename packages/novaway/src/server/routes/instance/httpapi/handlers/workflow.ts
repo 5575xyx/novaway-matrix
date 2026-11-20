@@ -12,6 +12,8 @@ import { Service as TeamService } from "@/team/team"
 import { Effect, Scope } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
+import * as WorkflowPolicy from "@/workflow/policy"
+import { summarize } from "@/workflow/metrics"
 
 export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow", (handlers) =>
   Effect.gen(function* () {
@@ -22,8 +24,19 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
     const provider = yield* Provider.Service
     const teams = yield* TeamService
     const scope = yield* Scope.Scope
+    const workflowPolicy = yield* WorkflowPolicy.Service
 
     return handlers
+      .handle("getWorkflowState", (ctx) => workflowPolicy.get(SessionID.make(ctx.params.sessionId)))
+      .handle("listWorkflowEvents", (ctx) => workflowPolicy.events(SessionID.make(ctx.params.sessionId), 1000))
+      .handle("getWorkflowMetrics", (ctx) =>
+        Effect.gen(function* () {
+          const sessionID = SessionID.make(ctx.params.sessionId)
+          const state = yield* workflowPolicy.get(sessionID)
+          const events = yield* workflowPolicy.events(sessionID, 1000)
+          return summarize(sessionID, state, events as any)
+        }),
+      )
       .handle("listWorkflows", (ctx) =>
         Effect.gen(function* () {
           const sessionId = SessionID.make(ctx.params.sessionId)

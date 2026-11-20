@@ -49,6 +49,7 @@ export type HostCode =
   | "dependency_disabled"
   | "dependency_version"
   | "dependency_cycle"
+  | "conflict"
   | "path_escape"
   | "id_conflict"
   | "duplicate_spec"
@@ -433,6 +434,7 @@ function validate(list: Instance[], winners: Map<string, Instance>, cycles: stri
       push(inst, "error", "dependency_cycle", `依赖成环，环上全部 blocked（§4.9）：${cycle}`, "dependencies")
     } else {
       checkDependencies(inst, winners, p)
+      checkConflicts(inst, winners)
     }
     checkApiVersion(inst)
     checkEngines(inst, p)
@@ -484,6 +486,20 @@ function checkDependencies(inst: Instance, winners: Map<string, Instance>, p: Pr
     if (!semver.valid(actual) || !semver.satisfies(actual, range)) {
       push(inst, "error", "dependency_version", `硬依赖 "${dep}" 需要 ${range}，实际 ${actual}`, "dependencies")
     }
+  }
+}
+
+function checkConflicts(inst: Instance, winners: Map<string, Instance>) {
+  for (const conflict of inst.manifest.conflicts ?? []) {
+    const hit = winners.get(conflict)
+    if (hit === undefined || hit === inst || !usable(hit)) continue
+    push(
+      inst,
+      "error",
+      "conflict",
+      `插件 "${inst.id}" 与已发现的插件 "${conflict}" 冲突；两者不能同时 active`,
+      "conflicts",
+    )
   }
 }
 

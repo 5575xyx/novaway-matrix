@@ -51,8 +51,9 @@ it.instance("returns default native agents when no config", () =>
   Effect.gen(function* () {
     const agents = yield* load((svc) => svc.list())
     const names = agents.map((a) => a.name)
-    expect(names).toContain("build")
-    expect(names).toContain("plan")
+    expect(names).toContain("creova")
+    expect(names).not.toContain("build")
+    expect(names).not.toContain("plan")
     expect(names).toContain("general")
     expect(names).toContain("explore")
     expect(names).not.toContain("scout")
@@ -83,27 +84,18 @@ it.instance("verification agent is a read-only, background subagent", () =>
   }),
 )
 
-it.instance("build agent has correct default properties", () =>
+it.instance("Creova agent follows session permissions instead of embedding plan-only permissions", () =>
   Effect.gen(function* () {
-    const build = yield* load((svc) => svc.get("build"))
-    expect(build).toBeDefined()
-    expect(build?.mode).toBe("primary")
-    expect(build?.native).toBe(true)
-    expect(evalPerm(build, "edit")).toBe("allow")
-    expect(evalPerm(build, "bash")).toBe("allow")
-    expect(evalPerm(build, "repo_clone")).toBe("deny")
-    expect(evalPerm(build, "repo_overview")).toBe("deny")
-  }),
-)
-
-it.instance("plan agent denies edits except .novaway/plans/*", () =>
-  Effect.gen(function* () {
-    const plan = yield* load((svc) => svc.get("plan"))
-    expect(plan).toBeDefined()
-    // Wildcard is denied
-    expect(evalPerm(plan, "edit")).toBe("deny")
-    // But specific path is allowed
-    expect(Permission.evaluate("edit", ".novaway/plans/foo.md", plan!.permission).action).toBe("allow")
+    const creova = yield* load((svc) => svc.get("creova"))
+    expect(creova).toBeDefined()
+    expect(creova?.mode).toBe("primary")
+    expect(creova?.native).toBe(true)
+    expect(evalPerm(creova, "edit")).toBe("allow")
+    expect(evalPerm(creova, "bash")).toBe("allow")
+    expect(evalPerm(creova, "repo_clone")).toBe("deny")
+    expect(evalPerm(creova, "repo_overview")).toBe("deny")
+    expect(evalPerm(creova, "plan_enter")).toBe("allow")
+    expect(evalPerm(creova, "plan_exit")).toBe("allow")
   }),
 )
 
@@ -187,7 +179,7 @@ it.instance("general agent denies todo tools", () =>
   }),
 )
 
-it.instance("office mode exposes dedicated primary agents with office skills", () =>
+it.instance("office agents and skills are absent without installed plugins", () =>
   Effect.gen(function* () {
     const names = (yield* load((svc) => svc.list())).map((agent) => agent.name)
     for (const name of [
@@ -201,38 +193,19 @@ it.instance("office mode exposes dedicated primary agents with office skills", (
       "office-task",
       "office-communication",
     ]) {
-      expect(names).toContain(name)
-      const agent = yield* load((svc) => svc.get(name))
-      expect(agent?.mode).toBe("primary")
-      expect(agent?.native).toBe(true)
-      expect(agent?.options.category).toBe("办公模式")
-      expect(agent?.prompt).toContain("你是 NovaWay 办公模式的内置 AI 员工")
-      expect(Permission.evaluate("skill", name, agent!.permission).action).toBe("allow")
-      expect(Permission.evaluate("question", "*", agent!.permission).action).toBe("allow")
+      expect(names).not.toContain(name)
+      expect(yield* load((svc) => svc.get(name))).toBeUndefined()
+      expect(yield* Skill.Service.use((svc) => svc.get(name)).pipe(Effect.provide(Skill.defaultLayer))).toBeUndefined()
     }
   }),
 )
 
-it.instance("includes agency agents as built-in categorized agents", () =>
+it.instance("agency agents are absent until the marketplace plugin is installed", () =>
   Effect.gen(function* () {
     const agents = yield* load((svc) => svc.list())
-    const agency = agents.filter((agent) => typeof agent.options.agencyPath === "string")
-    expect(agency).toHaveLength(184)
-
-    const backend = yield* load((svc) => svc.get("engineering-backend-architect"))
-    expect(backend?.native).toBe(true)
-    expect(backend?.mode).toBe("subagent")
-    expect(backend?.options.category).toBe("工程开发")
-    expect(backend?.options.displayName).toBe("后端架构师")
-    expect(backend?.description).toBe("内置工程开发 AI 员工，适合处理后端架构师相关任务。")
-    expect(backend?.prompt).toContain("Backend Architect Agent Personality")
-
-    const orchestrator = yield* load((svc) => svc.get("agents-orchestrator"))
-    expect(orchestrator?.native).toBe(true)
-    expect(orchestrator?.mode).toBe("primary")
-    expect(orchestrator?.options.category).toBe("专项能力")
-    expect(orchestrator?.options.displayName).toBe("Agent 编排总控")
-    expect(Permission.evaluate("question", "*", orchestrator!.permission).action).toBe("allow")
+    expect(agents.filter((agent) => typeof agent.options.agencyPath === "string")).toHaveLength(0)
+    expect(yield* load((svc) => svc.get("agency-agents_engineering-backend-architect"))).toBeUndefined()
+    expect(yield* load((svc) => svc.get("agency-agents_agents-orchestrator"))).toBeUndefined()
   }),
 )
 
@@ -254,15 +227,6 @@ it.instance("all built-in agents allow every built-in skill", () =>
       "customize-novaway",
       "find-skills",
       "skill-creator",
-      "office-document",
-      "office-ppt",
-      "office-meeting",
-      "office-data",
-      "office-design",
-      "office-web",
-      "office-knowledge",
-      "office-task",
-      "office-communication",
       "dynamic-workflows",
     ]
 
@@ -721,27 +685,27 @@ description: Permission skill.
   { git: true },
 )
 
-it.instance("defaultAgent returns build when no default_agent config", () =>
+it.instance("defaultAgent returns Creova when no default_agent config", () =>
   Effect.gen(function* () {
     const agent = yield* load((svc) => svc.defaultAgent())
-    expect(agent).toBe("build")
+    expect(agent).toBe("creova")
   }),
 )
 
-it.instance("defaultInfo returns resolved build agent when no default_agent config", () =>
+it.instance("defaultInfo returns Creova when no default_agent config", () =>
   Effect.gen(function* () {
     const agent = yield* load((svc) => svc.defaultInfo())
-    expect(agent.name).toBe("build")
+    expect(agent.name).toBe("creova")
     expect(agent.mode).toBe("primary")
   }),
 )
 
 it.instance(
-  "defaultAgent respects default_agent config set to plan",
+  "defaultAgent migrates legacy plan config to Creova",
   () =>
     Effect.gen(function* () {
       const agent = yield* load((svc) => svc.defaultAgent())
-      expect(agent).toBe("plan")
+      expect(agent).toBe("creova")
     }),
   {
     config: {
@@ -800,17 +764,16 @@ it.instance(
 )
 
 it.instance(
-  "defaultAgent returns plan when build is disabled and default_agent not set",
+  "defaultAgent falls back when Creova is disabled",
   () =>
     Effect.gen(function* () {
       const agent = yield* load((svc) => svc.defaultAgent())
-      // build is disabled, so it should return plan (next primary agent)
-      expect(agent).toBe("plan")
+      expect(agent).not.toBe("creova")
     }),
   {
     config: {
       agent: {
-        build: { disable: true },
+        creova: { disable: true },
       },
     },
   },
@@ -824,6 +787,7 @@ it.instance(
       agent: {
         build: { disable: true },
         plan: { disable: true },
+        creova: { disable: true },
         "office-document": { disable: true },
         "office-ppt": { disable: true },
         "office-data": { disable: true },
@@ -835,12 +799,6 @@ it.instance(
         "office-communication": { disable: true },
         "pulse-orchestrator": { disable: true },
         coordinator: { disable: true },
-        "agents-orchestrator": { disable: true },
-        "product-manager": { disable: true },
-        "project-manager-senior": { disable: true },
-        "project-management-project-shepherd": { disable: true },
-        "project-management-studio-producer": { disable: true },
-        "specialized-chief-of-staff": { disable: true },
       },
     },
   },

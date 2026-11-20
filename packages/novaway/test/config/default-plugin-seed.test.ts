@@ -67,21 +67,21 @@ async function loadAndRead(directory: string, filename = "novaway.json") {
   return ConfigParse.schema(Config.Info, ConfigParse.jsonc(content, file), file)
 }
 
-test("seeds the default plugin without invoking network installation", async () => {
+test("does not seed any built-in default plugin", async () => {
   await withConfigDirectory(async (directory) => {
     const parsed = await loadAndRead(directory)
-    expect(parsed.plugin).toEqual(["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
+    expect(parsed.plugin ?? []).toEqual([])
   })
 })
 
-test("seeds the Gitee source regardless of the legacy first-party environment variable", async () => {
+test("does not seed PowersNexus regardless of the legacy first-party environment variable", async () => {
   const previous = process.env.POWERSNEXUS_FIRST_PARTY
   process.env.POWERSNEXUS_FIRST_PARTY = "1"
 
   try {
     await withConfigDirectory(async (directory) => {
       const parsed = await loadAndRead(directory)
-      expect(parsed.plugin).toEqual(["PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
+      expect(parsed.plugin ?? []).toEqual([])
     })
   } finally {
     if (previous === undefined) delete process.env.POWERSNEXUS_FIRST_PARTY
@@ -89,18 +89,18 @@ test("seeds the Gitee source regardless of the legacy first-party environment va
   }
 })
 
-test("adds the default plugin after existing global plugin entries", async () => {
+test("preserves existing global plugin entries without adding defaults", async () => {
   await withConfigDirectory(async (directory) => {
     await Bun.write(path.join(directory, "novaway.json"), JSON.stringify({ plugin: ["other-plugin@1.0"] }))
     const parsed = await loadAndRead(directory)
-    expect(parsed.plugin).toEqual(["other-plugin@1.0", "PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
+    expect(parsed.plugin).toEqual(["other-plugin@1.0"])
   })
 })
 
-test("writes a JSON config with the default plugin when only JSONC exists", async () => {
+test("preserves JSONC plugin entries without adding defaults", async () => {
   await withConfigDirectory(async (directory) => {
     await Bun.write(path.join(directory, "novaway.jsonc"), JSON.stringify({ plugin: ["old-plugin@1.0"] }))
-    const parsed = await loadAndRead(directory)
-    expect(parsed.plugin).toEqual(["old-plugin@1.0", "PowersNexus@git+https://gitee.com/nova-way/powersnexus.git"])
+    const parsed = await loadAndRead(directory, "novaway.jsonc")
+    expect(parsed.plugin).toEqual(["old-plugin@1.0"])
   })
 })

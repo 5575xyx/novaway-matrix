@@ -77,8 +77,15 @@ export type Installed = Record & {
 export type ZipEntry = {
   name: string
   sourceId?: string
+  displayName?: string
+  displayNameI18n?: { [key: string]: string }
   version?: string
   description?: string
+  author?: string
+  icon?: string
+  screenshots?: string[]
+  categories?: string[]
+  marketTypes?: string[]
   url: string
   sha256?: string
   permissions?: string[]
@@ -91,8 +98,15 @@ export type ZipEntry = {
 export type GitEntry = {
   name: string
   sourceId?: string
+  displayName?: string
+  displayNameI18n?: { [key: string]: string }
   version?: string
   description?: string
+  author?: string
+  icon?: string
+  screenshots?: string[]
+  categories?: string[]
+  marketTypes?: string[]
   url: string
   ref?: string
   subdir?: string

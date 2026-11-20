@@ -19,7 +19,7 @@ import { iife } from "@/util/iife"
 import { Global } from "@novaway/core/global"
 import path from "path"
 import { pathToFileURL } from "url"
-import { Effect, Layer, Context, Schema, Types, Schedule, Duration, Option } from "effect"
+import { Effect, Layer, Context, Schema, Types, Duration, Option } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { EffectPromise } from "@/effect/promise"
@@ -57,6 +57,8 @@ const log = Log.create({ service: "provider" })
 export const CatalogUpdated = BusEvent.define("catalog.updated", Schema.Struct({}))
 
 const REFRESH_INTERVAL = Duration.minutes(15)
+// 发现失败（如网关冷启动超时）后的快速重试间隔，恢复后回到 REFRESH_INTERVAL。
+const DISCOVERY_RETRY_INTERVAL = Duration.seconds(30)
 
 function asDiscoverySnapshot(result: Record<string, Model> | FreeDiscoverySnapshot): {
   models: Record<string, Model>
@@ -1733,7 +1735,8 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
               return models
             } catch (error) {
               log.warn("builtin gateway model discovery failed", { error })
-              return {}
+              // 抛出让上层记录失败并触发快速重试；返回 {} 会被当成「live 列表为空」。
+              throw error
             }
           },
         }
@@ -2708,7 +2711,8 @@ export const layer = Layer.effect(
         // 通用模型发现：各 loader 拉厂商 live /models（或本地实例），
         // 只补目录没有的模型；配置了 discoverPrune 的免费通道额外清理
         // 「目录有但 live 已下架」的条目（用户手动配置的模型受保护）。
-        // 网络失败只记日志，不影响列表构建。
+        // 网络失败只记日志，不影响列表构建；失败标记驱动快速重试。
+        let discoveryDegraded = false
         if (!process.env.NOVAWAY_DISABLE_MODEL_DISCOVERY) {
           yield* Effect.promise(async () => {
             await Promise.allSettled(
@@ -2731,6 +2735,7 @@ export const layer = Layer.effect(
                     })
                   }
                 } catch (e) {
+                  discoveryDegraded = true
                   log.warn("state discovery error", { id, error: e })
                 }
               }),
@@ -2749,6 +2754,7 @@ export const layer = Layer.effect(
           const entries = Object.entries(discoveryLoaders)
           if (entries.length === 0) return
           const changed = yield* Effect.promise(async () => {
+            discoveryDegraded = false
             const added: string[] = []
             const removed: string[] = []
             await Promise.allSettled(
@@ -2772,6 +2778,7 @@ export const layer = Layer.effect(
                   // 厂商把免费模型清光时与 bootstrap 语义对齐：移除空 provider
                   if (Object.keys(target.models).length === 0) delete providers[providerID]
                 } catch (e) {
+                  discoveryDegraded = true
                   log.warn("discovery refresh error", { id, error: e })
                 }
               }),
@@ -2792,9 +2799,11 @@ export const layer = Layer.effect(
 
         if (!process.env.NOVAWAY_DISABLE_MODEL_DISCOVERY && Object.keys(discoveryLoaders).length > 0) {
           yield* Effect.gen(function* () {
-            yield* Effect.sleep(REFRESH_INTERVAL)
-            yield* refresh()
-          }).pipe(Effect.repeat(Schedule.spaced(REFRESH_INTERVAL)), Effect.ignore, Effect.forkScoped)
+            while (true) {
+              yield* Effect.sleep(discoveryDegraded ? DISCOVERY_RETRY_INTERVAL : REFRESH_INTERVAL)
+              yield* refresh()
+            }
+          }).pipe(Effect.ignore, Effect.forkScoped)
         }
 
         for (const [id, provider] of Object.entries(providers)) {

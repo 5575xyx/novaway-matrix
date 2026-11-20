@@ -335,7 +335,7 @@ export const teamHandlers = HttpApiBuilder.group(InstanceHttpApi, "team", (handl
             teamID: team.id,
             sessionID: root.id,
             name: "team-lead",
-            agent: ctx.payload.lead?.trim() || "build",
+            agent: ctx.payload.lead?.trim() || "creova",
             role: "lead",
           })
           for (const member of ctx.payload.members) {

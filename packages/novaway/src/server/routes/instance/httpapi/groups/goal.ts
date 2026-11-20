@@ -1,6 +1,7 @@
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi"
 import { ApiNotFoundError } from "../errors"
+import { ExecutionConfigSchema } from "@/session/goal"
 
 const root = "/session/:sessionId/goals"
 
@@ -24,6 +25,39 @@ export const GoalApi = HttpApiGroup.make("goal")
         status: Schema.optional(Schema.Literals(["pending", "in_progress"])),
         deadline: Schema.optional(Schema.String),
         tags: Schema.optional(Schema.Array(Schema.String)),
+        executionConfig: Schema.optional(ExecutionConfigSchema),
+      }),
+      success: Schema.Any,
+      error: [ApiNotFoundError],
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("createAndLaunchGoal", `${root}/launch`, {
+      params: { sessionId: Schema.String },
+      payload: Schema.Struct({
+        idempotencyKey: Schema.String,
+        title: Schema.String,
+        description: Schema.optional(Schema.String),
+        priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
+        successCriteria: Schema.optional(Schema.Array(Schema.String)),
+        deadline: Schema.optional(Schema.String),
+        tags: Schema.optional(Schema.Array(Schema.String)),
+        executionConfig: Schema.optional(ExecutionConfigSchema),
+        text: Schema.optional(Schema.String),
+        planningMode: Schema.optional(Schema.Literals(["deterministic", "model"])),
+        budget: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
+      }),
+      success: Schema.Any,
+      error: [ApiNotFoundError],
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("launchGoal", `${root}/:goalId/launch`, {
+      params: { sessionId: Schema.String, goalId: Schema.String },
+      payload: Schema.Struct({
+        text: Schema.optional(Schema.String),
+        planningMode: Schema.optional(Schema.Literals(["deterministic", "model"])),
+        budget: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
       }),
       success: Schema.Any,
       error: [ApiNotFoundError],
@@ -47,6 +81,7 @@ export const GoalApi = HttpApiGroup.make("goal")
         successCriteria: Schema.optional(Schema.Array(Schema.String)),
         deadline: Schema.optional(Schema.String),
         tags: Schema.optional(Schema.Array(Schema.String)),
+        executionConfig: Schema.optional(ExecutionConfigSchema),
       }),
       success: Schema.Any,
       error: [ApiNotFoundError],

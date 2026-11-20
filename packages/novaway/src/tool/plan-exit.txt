@@ -1,6 +1,6 @@
-Use this tool when you have completed the planning phase and are ready to exit plan agent.
+Use this tool when the plan is complete and ready for the user to approve before implementation.
 
-This tool will ask the user if they want to switch to build agent to start implementing the plan.
+This tool asks whether to exit plan permission mode. The current agent remains unchanged.
 
 Call this tool:
 - After you have written a complete plan to the plan file

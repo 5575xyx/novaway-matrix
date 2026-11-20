@@ -161,6 +161,8 @@ export const MarketplaceEntry = Schema.Struct({
   longDescription: Schema.optional(Schema.String),
   author: Schema.optional(Schema.String),
   license: Schema.optional(Schema.String),
+  icon: Schema.optional(Schema.String),
+  screenshots: Schema.optional(Schema.Array(Schema.String)),
   url: Schema.String,
   kind: Schema.optional(Schema.Literals(["zip", "git"])),
   sha256: Schema.optional(Schema.String),

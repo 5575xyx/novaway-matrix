@@ -26,6 +26,16 @@ async function readManifest(root: string): Promise<{ manifest: Manifest; error?:
     try {
       const text = await fs.readFile(file, "utf8")
       const raw = parseJsonc(text) as Record<string, unknown>
+      // v2 声明式清单的贡献是对象，旧 Schema 只接受字符串路径会解码报错；这些贡献归插件运行时注册，这里只保留标量身份。
+      if (typeof raw.apiVersion === "number" && raw.apiVersion >= 2) {
+        return {
+          manifest: {
+            name: path.basename(root),
+            ...(typeof raw.version === "string" ? { version: raw.version } : {}),
+            ...(typeof raw.description === "string" ? { description: raw.description } : {}),
+          },
+        }
+      }
       return { manifest: Schema.decodeUnknownSync(ManifestSchema.Manifest)(raw) as Manifest }
     } catch (error) {
       return {
@@ -97,7 +107,8 @@ async function children(root: string) {
     const entries = await fs.readdir(root, { withFileTypes: true })
     return entries
       .filter((entry) => entry.isDirectory())
-      .filter((entry) => !["node_modules", ".git", "dist", "build", ".cache"].includes(entry.name))
+      .filter((entry) => !["node_modules", ".git", "dist", "build", ".cache", ".backups", ".legacy-backups"].includes(entry.name))
+      .filter((entry) => !entry.name.startsWith(".staging-"))
       .map((entry) => path.join(root, entry.name))
   } catch {
     return []

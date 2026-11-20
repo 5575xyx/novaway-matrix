@@ -67,6 +67,50 @@ describe("GoalService", () => {
     expect(updated.status).toBe("paused")
   })
 
+  test("claims a Goal lease atomically and allows takeover after release", async () => {
+    const sessionId = seedSession("ses_01J5Y5H0AH4Q4NXJ6P4C3P5V2U")
+    seedGoal(sessionId, "goal-lease", "in_progress")
+
+    const first = await runGoal(
+      Goal.Service.use((goal) => goal.claimRun({ goalId: "goal-lease", sessionId, owner: "worker-a" })),
+    )
+    const second = await runGoal(
+      Goal.Service.use((goal) => goal.claimRun({ goalId: "goal-lease", sessionId, owner: "worker-b" })),
+    )
+    expect(first).toBe(true)
+    expect(second).toBe(false)
+
+    await runGoal(Goal.Service.use((goal) => goal.releaseRun({ goalId: "goal-lease", sessionId, owner: "worker-a" })))
+    const afterRelease = await runGoal(
+      Goal.Service.use((goal) => goal.claimRun({ goalId: "goal-lease", sessionId, owner: "worker-b" })),
+    )
+    expect(afterRelease).toBe(true)
+  })
+
+  test("ignores malformed persisted execution configuration", async () => {
+    const sessionId = seedSession("ses_01J5Y5H0AH4Q4NXJ6P4C3P5V2V")
+    Database.use((db) =>
+      db
+        .insert(GoalTable)
+        .values({
+          id: "goal-invalid-config",
+          session_id: sessionId,
+          title: "invalid",
+          status: "in_progress",
+          priority: "medium",
+          progress: 0,
+          tags: [],
+          execution_config: "{not-json}",
+          created_at: new Date(),
+          updated_at: new Date(),
+        })
+        .run(),
+    )
+
+    const goals = await runGoal(Goal.Service.use((goal) => goal.list(sessionId)))
+    expect(goals.find((goal) => goal.id === "goal-invalid-config")?.executionConfig).toBeNull()
+  })
+
   test("cancels only an in-progress goal", async () => {
     const sessionId = seedSession("ses_01J5Y5H0AH4Q4NXJ6P4C3P5V2Q")
     seedGoal(sessionId, "goal-cancel-active", "in_progress")
@@ -77,7 +121,33 @@ describe("GoalService", () => {
 
     expect(updated.status).toBe("cancelled")
   })
+
+  test("round-trips the durable execution profile", async () => {
+    const sessionId = seedSession("ses_01J5Y5H0AH4Q4NXJ6P4C3P5W")
+    await runGoal(
+      Goal.Service.use((goal) =>
+        goal.create({
+          sessionId,
+          title: "durable goal",
+          status: "in_progress",
+          executionConfig: {
+            maxIterations: 0,
+            mode: "durable",
+            superAgentRunId: "sa_test_run",
+          },
+        }),
+      ),
+    )
+
+    const goals = await runGoal(Goal.Service.use((goal) => goal.list(sessionId)))
+    expect(goals.find((goal) => goal.title === "durable goal")?.executionConfig).toEqual({
+      maxIterations: 0,
+      mode: "durable",
+      superAgentRunId: "sa_test_run",
+    })
+  })
 })
+
 
 describe("GoalBudget", () => {
   test("allows continuation without limits", () => {

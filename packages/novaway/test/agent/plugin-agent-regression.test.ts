@@ -7,12 +7,15 @@ import { Agent } from "../../src/agent/agent"
 import { Bus } from "../../src/bus"
 import { Config } from "../../src/config/config"
 import { Env } from "../../src/env"
-import { RuntimeFlags } from "../../src/effect/runtime-flags"
+import { Permission } from "../../src/permission"
 import { Plugin } from "../../src/plugin"
+import { RuntimeFlags } from "../../src/effect/runtime-flags"
+import { ProviderTest } from "../fake/provider"
+import { Skill } from "../../src/skill"
+import type { Info as SkillInfo } from "../../src/skill"
+import { SkillTest } from "../fake/skill"
 import { AuthTest } from "../fake/auth"
 import { NpmTest } from "../fake/npm"
-import { ProviderTest } from "../fake/provider"
-import { SkillTest } from "../fake/skill"
 import { testEffect } from "../lib/effect"
 import { PLUGIN_AGENT } from "../fixture/agent-plugin.constants"
 
@@ -42,7 +45,22 @@ const agentLayer = Agent.layer.pipe(
   Layer.provide(RuntimeFlags.layer({ disableDefaultPlugins: true })),
 )
 
+const dynamicSkills: SkillInfo[] = []
+const dynamicSkillLayer = Layer.mock(Skill.Service)({
+  all: () => Effect.succeed(dynamicSkills),
+  dirs: () => Effect.succeed([]),
+})
+const dynamicAgentLayer = Agent.layer.pipe(
+  Layer.provide(configLayer),
+  Layer.provide(AuthTest.empty),
+  Layer.provide(dynamicSkillLayer),
+  Layer.provide(provider.layer),
+  Layer.provide(pluginLayer),
+  Layer.provide(RuntimeFlags.layer({ disableDefaultPlugins: true })),
+)
+
 const it = testEffect(Layer.mergeAll(agentLayer, pluginLayer))
+const dynamicIt = testEffect(Layer.mergeAll(dynamicAgentLayer, pluginLayer))
 
 it.instance(
   "plugin-registered agents appear in Agent.list",
@@ -55,4 +73,23 @@ it.instance(
       expect(added?.mode).toBe(PLUGIN_AGENT.mode)
     }),
   { config: { plugin: [pluginUrl] } },
+)
+
+dynamicIt.instance("newly activated plugin skills are allowed by the current agent", () =>
+  Effect.gen(function* () {
+    const before = yield* Agent.Service.use((svc) => svc.get("creova"))
+    expect(Permission.evaluate("skill", "powersnexus_using-powersnexus", before?.permission ?? []).action).toBe("deny")
+
+    dynamicSkills.push({
+      name: "powersnexus_using-powersnexus",
+      description: "Use PowersNexus workflows.",
+      location: "C:/plugins/powersnexus/skills/using-powersnexus",
+      content: "# PowersNexus",
+      paths: [],
+    })
+
+    const after = yield* Agent.Service.use((svc) => svc.get("creova"))
+    expect(Permission.evaluate("skill", "powersnexus_using-powersnexus", after?.permission ?? []).action).toBe("allow")
+    dynamicSkills.length = 0
+  }),
 )

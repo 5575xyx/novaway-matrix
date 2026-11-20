@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentContribution, ToolContribution } from "@novaway/plugin-api"
+import type { AgentContribution, SurfaceContribution, ToolContribution } from "@novaway/plugin-api"
 import { isPluginError } from "@novaway/plugin-api"
 import {
   createAgentRegistry,
   createCommandRegistry,
   createSkillRegistry,
+  createSurfaceRegistry,
   createToolRegistry,
 } from "@/plugin/contributions"
 import { type Source, orderContributions, sanitize } from "@/plugin/contributions/registry"
@@ -29,6 +30,20 @@ function tool(id: string, extra?: Partial<ToolContribution>): ToolContribution {
 
 function agent(id: string, pluginID: string, extra?: Partial<AgentContribution>): AgentContribution {
   return { id, description: `${pluginID}/${id}`, mode: "primary", prompt: "x", global: true, ...extra }
+}
+
+function surface(
+  id: string,
+  extra?: Partial<Extract<SurfaceContribution, { slot: "sidebar.item" }>>,
+): SurfaceContribution {
+  return {
+    slot: "sidebar.item",
+    id,
+    title: id,
+    icon: "dot-grid",
+    action: { type: "url", url: "https://example.test/" + id },
+    ...extra,
+  }
 }
 
 function names(list: readonly { name: string }[]) {
@@ -67,6 +82,17 @@ describe("贡献命名（§4.8）", () => {
     expect(names(registry.list())).toEqual(["builtin_office_bash"])
   })
 
+  test("Surface 同名也命名空间化，停用后释放并恢复列表", () => {
+    const registry = createSurfaceRegistry()
+    const first = registry.register(acme, surface("home", { order: 20 }))
+    registry.register({ ...local, priority: 2 }, surface("home", { order: 10 }))
+    expect(names(registry.list())).toEqual(["acme_home", "acme_home_2"])
+    expect(registry.list().map((entry) => entry.item.order)).toEqual([10, 20])
+    first.dispose()
+    expect(names(registry.list())).toEqual(["acme_home"])
+    registry.release("acme")
+    expect(registry.list()).toEqual([])
+  })
   test("id 归一化后为空 → register 当场抛 contribution_invalid", () => {
     const registry = createToolRegistry()
     let caught: unknown
