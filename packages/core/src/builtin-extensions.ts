@@ -61,10 +61,10 @@ export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
   },
   {
     name: "com.novaway.operations-suite",
-    version: "1.0.0",
+    version: "1.0.1",
     description: "NovaWay 运营工作台：选题、创作、预检、发布和数据复盘。",
     kind: "zip",
-    url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.operations-suite-v1.0.0/com.novaway.operations-suite-1.0.0.zip",
+    url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.operations-suite-v1.0.1/com.novaway.operations-suite-1.0.1.zip",
     keywords: ["operations", "marketing", "social-media", "content", "workbench"],
     autoInstall: true,
   },

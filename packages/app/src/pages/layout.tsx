@@ -122,7 +122,6 @@ import { SidebarRail, SidebarRailButton, type SidebarRailItem } from "./layout/s
 import { ExtensionsPage } from "./extensions"
 import { TeamPage } from "./team"
 import { ArenaPage } from "./arena"
-import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
 import { GlobalChatTasks } from "./layout/global-chat-tasks"
 
 import { AutomationPage } from "./automation"
@@ -420,9 +419,6 @@ export default function Layout(props: ParentProps) {
     arenaPage: {
       open: false,
     },
-    pulsePage: {
-      open: false,
-    },
 
     sortNow: Date.now(),
     sizing: false,
@@ -439,7 +435,6 @@ export default function Layout(props: ParentProps) {
     "knowledgePage",
     "teamPage",
     "arenaPage",
-    "pulsePage",
   ] as const
   type FramePage = (typeof FRAME_PAGES)[number]
 
@@ -490,7 +485,6 @@ export default function Layout(props: ParentProps) {
     }
   })
   const automationTransition = createMountTransition(() => state.automationPage.open)
-  const pulseTransition = createMountTransition(() => state.pulsePage.open)
   const knowledgeTransition = createMountTransition(() => state.knowledgePage.open)
 
   // 这里**刻意不做**路由级的入场重放。
@@ -1781,17 +1775,6 @@ export default function Layout(props: ParentProps) {
 
   function closeAutomationPage() {
     setState("automationPage", "open", false)
-    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
-  }
-
-  /** 运营工作台（原 `/pulse` 整窗页面）：现在只是主帧里的一个普通页面。 */
-  function openPulsePage() {
-    closeFramePages("pulsePage")
-    setState("pulsePage", "open", true)
-  }
-
-  function closePulsePage() {
-    setState("pulsePage", "open", false)
     window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
@@ -3609,19 +3592,6 @@ export default function Layout(props: ParentProps) {
         active: state.arenaPage.open,
         onClick: openArenaPage,
       },
-      // 运营工作台由 operations-suite 插件提供 Agent/Skill/Workbench；插件未启用时不展示旧入口。
-      ...(layout.mode.all().some((mode) => mode.id === "operations")
-        ? [
-            {
-              id: "pulse",
-              icon: "globe" as const,
-              label: language.t("sidebar.pulseWorkspace"),
-              tone: "var(--icon-interactive-base)",
-              active: state.pulsePage.open,
-              onClick: openPulsePage,
-            },
-          ]
-        : []),
     )
 
     if (!params.dir) return items
@@ -3998,20 +3968,6 @@ export default function Layout(props: ParentProps) {
                         if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
                       }}
                     />
-                  </div>
-                </section>
-              </Show>
-              <Show when={pulseTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={pulseTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("pulse.workspace.title")}
-                  aria-hidden={pulseTransition.closing()}
-                  inert={pulseTransition.closing()}
-                >
-                  <div class="flex-1 min-h-0">
-                    <PulseWorkspace onBack={closePulsePage} />
                   </div>
                 </section>
               </Show>

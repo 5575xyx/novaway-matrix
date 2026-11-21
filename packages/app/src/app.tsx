@@ -12,7 +12,7 @@ import { Font } from "@novaway/ui/font"
 import { Splash } from "@novaway/ui/logo"
 import { ThemeProvider } from "@novaway/ui/theme/context"
 import { MetaProvider } from "@solidjs/meta"
-import { type BaseRouterProps, Navigate, Route, Router, useParams } from "@solidjs/router"
+import { type BaseRouterProps, Navigate, Route, Router, useNavigate, useParams } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
@@ -63,6 +63,7 @@ import { decode64 } from "@/utils/base64"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { PluginViewHost, type PluginViewRender } from "@/components/plugin-view-host"
+import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
 import { installPointerTracking } from "@novaway/ui/util/pointer-origin"
 // 「思考过程」图标的思考强度版本：注册一次，所有渲染 message-part 的地方都生效。
 import "@/components/session/reasoning-effort-indicator"
@@ -101,6 +102,7 @@ function pluginViewRender(value: unknown): PluginViewRender | undefined {
 
 function PluginSurfaceViewRoute() {
   const params = useParams()
+  const navigate = useNavigate()
   const globalSync = useGlobalSync()
   const contribution = createMemo(() => {
     const directory = decode64(params.dir) ?? ""
@@ -141,23 +143,30 @@ function PluginSurfaceViewRoute() {
             data-view-id={params.viewId}
             class="size-full"
           >
-            <PluginViewHost
-              pluginID={item().pluginID}
-              viewID={params.viewId}
-              render={render}
-              data={{
-                pluginID: item().pluginID,
-                contribution: item().localName,
-                title: item().title,
-                viewID: params.viewId,
-              }}
+            <Show
+              when={render?.type === "builtin" && render.component === "operations-workbench"}
               fallback={
-                <div class="size-full p-6">
-                  <h1 class="text-20-medium text-foreground">{item().title}</h1>
-                  <p class="mt-2 text-14-regular text-foreground-subtle">插件视图：{params.viewId}</p>
-                </div>
+                <PluginViewHost
+                  pluginID={item().pluginID}
+                  viewID={params.viewId}
+                  render={render}
+                  data={{
+                    pluginID: item().pluginID,
+                    contribution: item().localName,
+                    title: item().title,
+                    viewID: params.viewId,
+                  }}
+                  fallback={
+                    <div class="size-full p-6">
+                      <h1 class="text-20-medium text-foreground">{item().title}</h1>
+                      <p class="mt-2 text-14-regular text-foreground-subtle">插件视图：{params.viewId}</p>
+                    </div>
+                  }
+                />
               }
-            />
+            >
+              <PulseWorkspace onBack={() => navigate(`/${params.dir}`)} />
+            </Show>
           </main>
         )
       }}
