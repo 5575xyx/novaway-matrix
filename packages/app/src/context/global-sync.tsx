@@ -384,6 +384,41 @@ function createGlobalSync() {
     }
 
     if (directory === "global") {
+      if (event.type === "plugin.changed") {
+        // 插件安装/启停/卸载通常通过 global 目录广播。它没有对应的项目
+        // child event，因此必须主动刷新所有已知项目的 Agent、命令和 Surface，
+        // 否则左上角工作台和左侧插件入口会等到下次打开项目才更新。
+        const directories = new Set(globalStore.project.map((project) => project.worktree))
+        for (const projectDirectory of directories) {
+          const projectKey = directoryKey(projectDirectory)
+          const existing = children.children[projectKey]
+          if (!existing) {
+            void bootstrapInstance(projectDirectory)
+            continue
+          }
+
+          const [store, setStore] = existing
+          const props = event.properties as { pluginID?: string; enabled?: boolean }
+          if (props.pluginID && props.enabled === false) {
+            setStore(
+              "plugin_contributions",
+              store.plugin_contributions.filter((item) => item.pluginID !== props.pluginID),
+            )
+          }
+          void queryClient
+            .invalidateQueries({ queryKey: queryOptionsApi.agents(projectKey).queryKey })
+            .then(() => queryClient.fetchQuery(queryOptionsApi.agents(projectKey)))
+            .then((data) => setStore("agent", data))
+          void queryClient
+            .invalidateQueries({ queryKey: queryOptionsApi.contributions(projectKey).queryKey })
+            .then(() => queryClient.fetchQuery(queryOptionsApi.contributions(projectKey)))
+            .then((data) => setStore("plugin_contributions", data))
+          void sdkFor(projectDirectory)
+            .command.list()
+            .then((response) => setStore("command", response.data ?? []))
+        }
+      }
+
       applyGlobalEvent({
         event,
         project: globalStore.project,
