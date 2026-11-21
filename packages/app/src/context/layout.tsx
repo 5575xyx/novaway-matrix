@@ -1126,8 +1126,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     const availableModes = createMemo<AppModeConfig[]>(() => {
       const result = [APP_MODES[0]!] as AppModeConfig[]
       const seen = new Set<string>([result[0]!.id])
-      for (const project of server.projects.list()) {
-        const [child] = globalSync.child(project.worktree, { bootstrap: false })
+      const directories = new Set<string>([
+        ...server.projects.list().map((project) => project.worktree),
+        ...globalSync.data.project.map((project) => project.worktree),
+      ])
+      for (const directory of directories) {
+        // Bootstrap on demand so a plugin installed after the project was opened
+        // can contribute a workbench without requiring a reload or reopening it.
+        const [child] = globalSync.child(directory, { bootstrap: true })
         const byGroup = new Map<string, WorkbenchAgent>()
         for (const agent of child.agent as WorkbenchAgent[]) {
           if (agent.mode === "subagent" || agent.hidden || !agent.options) continue

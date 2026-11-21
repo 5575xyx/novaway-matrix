@@ -1,12 +1,14 @@
-import { For } from "solid-js"
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js"
+import { Popover } from "@novaway/ui/popover"
+import { Icon } from "@novaway/ui/icon"
 import { useLanguage } from "@/context/language"
 import { useLayout, type AppModeConfig } from "@/context/layout"
 import { ModeGlyph } from "./mode-visual"
 
 /**
- * 工作模式开关：胶囊分段控件（不是下拉）。
- * 选中项是一块带模式色的滑块，用 transform 平移过渡；
- * 模式数量 > 2 时自动变成等宽多段，无需改结构。
+ * 工作台选择器：Creova 保留为直接入口，插件工作台集中在第二颗胶囊里。
+ * 鼠标移入、键盘 focus 或点击工作台胶囊都会打开选择面板；选择后胶囊标题
+ * 直接变成新的工作台名称（例如「办公」→「运营」）。
  */
 export function ModeSwitchButton(props: {
   onSelect: (mode: AppModeConfig) => void
@@ -16,72 +18,121 @@ export function ModeSwitchButton(props: {
   const layout = useLayout()
   const language = useLanguage()
   const modes = () => layout.mode.all()
-  const activeIndex = () => modes().findIndex((mode) => mode.id === layout.mode.current())
-  const accent = () => modes()[activeIndex()]?.color ?? "var(--border-hover)"
-  const buttons: HTMLButtonElement[] = []
+  const workbenches = createMemo(() => modes().filter((mode) => mode.id !== "forge"))
+  const currentWorkbench = createMemo(() => {
+    const current = layout.mode.current()
+    return workbenches().find((mode) => mode.id === current) ?? workbenches()[0]
+  })
+  const [open, setOpen] = createSignal(false)
+  let closeTimer: number | undefined
 
-  const onKeyDown = (event: KeyboardEvent) => {
-    const delta =
-      event.key === "ArrowRight" || event.key === "ArrowDown"
-        ? 1
-        : event.key === "ArrowLeft" || event.key === "ArrowUp"
-          ? -1
-          : 0
-    if (!delta) return
-    event.preventDefault()
-    const from = activeIndex() >= 0 ? activeIndex() : 0
-    const next = (from + delta + modes().length) % modes().length
-    props.onSelect(modes()[next])
-    buttons[next]?.focus()
+  const cancelClose = () => {
+    if (closeTimer !== undefined) window.clearTimeout(closeTimer)
+    closeTimer = undefined
   }
+  const scheduleClose = () => {
+    cancelClose()
+    closeTimer = window.setTimeout(() => setOpen(false), 180)
+  }
+  const select = (mode: AppModeConfig) => {
+    cancelClose()
+    setOpen(false)
+    props.onSelect(mode)
+  }
+  onCleanup(cancelClose)
 
   return (
-    <div
-      role="radiogroup"
-      aria-label={language.t("mode.switch.ariaLabel")}
-      data-component="mode-switch"
-      class="relative inline-grid shrink-0 rounded-full border border-border bg-surface p-0.5 transition-[border-color] duration-300"
-      classList={{ "h-7": !!props.compact, "h-9": !props.compact }}
-      style={{
-        "grid-template-columns": `repeat(${modes().length}, minmax(0, 1fr))`,
-        "border-color": `color-mix(in srgb, ${accent()} 28%, var(--border))`,
-      }}
-      onKeyDown={onKeyDown}
-    >
-      {/* 滑块：宽度 = 单段宽度，translateX 按段索引平移；未选择模式时淡出。 */}
-      <span
-        aria-hidden
-        class="pointer-events-none absolute inset-y-0.5 left-0.5 rounded-full border transition-[transform,opacity,background-color,border-color,box-shadow] duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]"
-        style={{
-          width: `calc((100% - 4px) / ${modes().length})`,
-          transform: `translateX(${Math.max(activeIndex(), 0) * 100}%)`,
-          opacity: activeIndex() >= 0 ? 1 : 0,
-          background: `color-mix(in srgb, ${accent()} 16%, var(--background))`,
-          "border-color": `color-mix(in srgb, ${accent()} 45%, var(--border))`,
-          "box-shadow": `0 1px 8px color-mix(in srgb, ${accent()} 26%, transparent)`,
-        }}
-      />
-      <For each={modes()}>
-        {(mode, index) => (
+    <div class="flex shrink-0 items-center gap-1">
+      <For each={modes().filter((mode) => mode.id === "forge")}>
+        {(mode) => (
           <button
             type="button"
             role="radio"
             aria-checked={layout.mode.current() === mode.id}
-            tabIndex={layout.mode.current() === mode.id || (activeIndex() < 0 && index() === 0) ? 0 : -1}
-            ref={(el) => (buttons[index()] = el)}
-            class="relative z-10 flex items-center justify-center rounded-full text-foreground-subtle transition-colors duration-300 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-hover)]"
+            class="relative flex h-7 items-center gap-1 rounded-full border px-2 text-12-semibold transition-colors hover:bg-hover"
             classList={{
-              "gap-1 px-2 text-12-semibold": !!props.compact,
-              "gap-1.5 px-3 text-13-semibold": !props.compact,
+              "text-foreground": layout.mode.current() === mode.id,
+              "text-foreground-subtle": layout.mode.current() !== mode.id,
             }}
-            style={{ color: layout.mode.current() === mode.id ? mode.color : undefined }}
-            onClick={() => props.onSelect(mode)}
+            style={{
+              "border-color": `color-mix(in srgb, ${mode.color} 45%, var(--border))`,
+              color: layout.mode.current() === mode.id ? mode.color : undefined,
+            }}
+            onClick={() => select(mode)}
           >
-            <ModeGlyph mode={mode} class={props.compact ? "size-3.5 shrink-0" : "size-4 shrink-0"} />
-            <span class="truncate">{mode.shortName}</span>
+            <ModeGlyph mode={mode} class="size-3.5 shrink-0" />
+            <span>{mode.shortName}</span>
           </button>
         )}
       </For>
+      <Show when={currentWorkbench()}>
+        {(active) => (
+          <Popover
+            open={open()}
+            onOpenChange={(value) => {
+              cancelClose()
+              setOpen(value)
+            }}
+            placement="bottom-start"
+            gutter={6}
+            class="w-64 rounded-xl border border-border bg-popover p-1.5 shadow-[var(--shadow-md)]"
+          >
+            <button
+              type="button"
+              role="combobox"
+              aria-label={language.t("mode.switch.ariaLabel")}
+              aria-expanded={open()}
+              class="flex h-7 max-w-[150px] items-center gap-1.5 rounded-full border px-2 text-12-semibold text-foreground transition-colors hover:bg-hover data-[state=open]:bg-hover"
+              style={{ "border-color": `color-mix(in srgb, ${active().color} 45%, var(--border))` }}
+              onMouseEnter={cancelClose}
+              onMouseLeave={scheduleClose}
+              onFocus={() => {
+                cancelClose()
+                setOpen(true)
+              }}
+              onClick={() => {
+                cancelClose()
+                setOpen((value) => !value)
+              }}
+            >
+              <ModeGlyph mode={active()} class="size-3.5 shrink-0" />
+              <span class="truncate">{active().shortName}</span>
+              <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtlest" />
+            </button>
+            <div
+              data-slot="mode-switch-popover"
+              class="flex flex-col gap-0.5"
+              onMouseEnter={cancelClose}
+              onMouseLeave={scheduleClose}
+            >
+              <div class="px-2 pb-1 pt-1 text-11-medium text-foreground-subtle">选择工作台</div>
+              <For each={workbenches()}>
+                {(mode) => (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={layout.mode.current() === mode.id}
+                    class="flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-hover"
+                    classList={{ "bg-hover": layout.mode.current() === mode.id }}
+                    onClick={() => select(mode)}
+                  >
+                    <ModeGlyph mode={mode} class="mt-0.5 size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-12-medium text-foreground">{mode.name}</span>
+                      <span class="mt-0.5 block truncate text-11-regular text-foreground-subtle">
+                        {mode.description}
+                      </span>
+                    </span>
+                    <Show when={layout.mode.current() === mode.id}>
+                      <Icon name="check" size="small" class="mt-0.5 shrink-0 text-success-base" />
+                    </Show>
+                  </button>
+                )}
+              </For>
+            </div>
+          </Popover>
+        )}
+      </Show>
     </div>
   )
 }
