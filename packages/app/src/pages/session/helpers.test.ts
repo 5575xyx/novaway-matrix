@@ -7,6 +7,7 @@ import {
   createSessionTabs,
   focusTerminalById,
   getTabReorderIndex,
+  resolveFileHostCleanup,
   shouldFocusTerminalOnKeyDown,
 } from "./helpers"
 
@@ -176,5 +177,65 @@ describe("createSessionTabs", () => {
       expect(result.closableTab()).toBeUndefined()
       dispose()
     })
+  })
+})
+
+describe("resolveFileHostCleanup", () => {
+  const base = {
+    opened: true,
+    activeTab: "preview" as string | null,
+    workspaceFileCount: 0,
+    officeFileCount: 0,
+    hasBrowserTab: false,
+  }
+
+  test("opening the first office file from a tree-only preview host keeps both hosts", () => {
+    // 回归：文件数 0→1（打开 Office 文件）绝不能触发宿主收起，
+    // 否则「工作区文件」标签会在打开 Office 文件时消失。
+    expect(
+      resolveFileHostCleanup({ ...base, count: 1, previous: 0, activeTab: "preview", officeFileCount: 1 }),
+    ).toEqual({ action: "none" })
+    expect(resolveFileHostCleanup({ ...base, count: 1, previous: 0, activeTab: "office", officeFileCount: 1 })).toEqual(
+      { action: "none" },
+    )
+  })
+
+  test("closing the last workspace file removes the preview host and the tree", () => {
+    expect(resolveFileHostCleanup({ ...base, count: 0, previous: 1 })).toEqual({
+      action: "remove-host",
+      clearTree: true,
+    })
+  })
+
+  test("closing the last office file keeps the tree when workspace files remain", () => {
+    expect(
+      resolveFileHostCleanup({
+        ...base,
+        count: 1,
+        previous: 2,
+        activeTab: "office",
+        workspaceFileCount: 1,
+      }),
+    ).toEqual({ action: "remove-host", clearTree: false })
+  })
+
+  test("closing a file while the active host still has files does nothing", () => {
+    expect(resolveFileHostCleanup({ ...base, count: 1, previous: 2, activeTab: "office", officeFileCount: 1 })).toEqual(
+      { action: "none" },
+    )
+    expect(resolveFileHostCleanup({ ...base, count: 2, previous: 2, activeTab: "preview" })).toEqual({ action: "none" })
+  })
+
+  test("switches to an already-open browser tab instead of removing the host", () => {
+    expect(resolveFileHostCleanup({ ...base, count: 0, previous: 1, hasBrowserTab: true })).toEqual({
+      action: "switch-browser",
+      clearTree: true,
+    })
+  })
+
+  test("ignores non-file hosts, closed panels, and the initial run", () => {
+    expect(resolveFileHostCleanup({ ...base, count: 0, previous: 1, activeTab: "browser" })).toEqual({ action: "none" })
+    expect(resolveFileHostCleanup({ ...base, count: 0, previous: 1, opened: false })).toEqual({ action: "none" })
+    expect(resolveFileHostCleanup({ ...base, count: 0, previous: undefined })).toEqual({ action: "none" })
   })
 })

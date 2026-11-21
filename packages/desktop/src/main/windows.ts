@@ -1,10 +1,11 @@
 import windowState from "electron-window-state"
-import { app, BrowserWindow, net, nativeImage, nativeTheme, protocol } from "electron"
+import { app, BrowserWindow, net, nativeTheme, protocol } from "electron"
 import { existsSync } from "node:fs"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
 import { LOCAL_FILE_HOST, LOCAL_FILE_PROTOCOL, RENDERER_HOST, RENDERER_PROTOCOL } from "../shared/protocol"
+import { appDisplayName, currentAppIcon } from "./appearance"
 import { getLogger } from "./logging"
 import { INSPECTOR_PATH, INSPECTOR_SOURCE } from "./preview-inspector"
 
@@ -46,41 +47,6 @@ export function getBackgroundColor(): string | undefined {
   return backgroundColor
 }
 
-function iconsDir() {
-  if (app.isPackaged) return join(process.resourcesPath, "icons")
-
-  const candidates = [
-    process.env.DEV_RESOURCES_ROOT,
-    join(root, "../../resources/icons"),
-    join(process.cwd(), "resources/icons"),
-    join(process.cwd(), "packages/desktop/resources/icons"),
-  ].filter(Boolean) as string[]
-
-  for (const candidate of candidates) {
-    const dir = candidate.endsWith("icons") ? candidate : join(candidate, "icons")
-    if (existsSync(dir)) {
-      return dir
-    }
-  }
-
-  return join(root, "../../resources/icons")
-}
-
-export function appIconPath() {
-  const ext = process.platform === "win32" ? "ico" : "png"
-  const iconPath = join(iconsDir(), `icon.${ext}`)
-  return iconPath
-}
-
-export function loadAppIcon() {
-  const iconPath = appIconPath()
-  const icon = nativeImage.createFromPath(iconPath)
-  if (icon.isEmpty()) {
-    console.warn(`应用图标加载失败: ${iconPath}`)
-  }
-  return icon
-}
-
 function tone() {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light"
 }
@@ -106,12 +72,6 @@ export function updateTitlebar(win: BrowserWindow) {
   win.setTitleBarOverlay(overlay(titlebarThemes.get(win), win.webContents.getZoomFactor()))
 }
 
-export function setDockIcon() {
-  if (process.platform !== "darwin") return
-  const icon = nativeImage.createFromPath(join(iconsDir(), "dock.png"))
-  if (!icon.isEmpty()) app.dock?.setIcon(icon)
-}
-
 export function createMainWindow() {
   const state = windowState({
     defaultWidth: 1280,
@@ -119,7 +79,7 @@ export function createMainWindow() {
   })
 
   const mode = tone()
-  const appIcon = loadAppIcon()
+  const appIcon = currentAppIcon()
   const win = new BrowserWindow({
     x: state.x,
     y: state.y,
@@ -127,7 +87,7 @@ export function createMainWindow() {
     height: state.height,
     show: false,
     autoHideMenuBar: true,
-    title: "NovaWay",
+    title: appDisplayName(),
     icon: appIcon,
     backgroundColor,
     ...(process.platform === "darwin"
@@ -157,7 +117,12 @@ export function createMainWindow() {
   // 反向 import 会形成循环依赖。
   const notifyMaximized = () => {
     if (win.isDestroyed() || win.webContents.isDestroyed()) return
-    win.webContents.send("window-maximized-change", win.isMaximized())
+    try {
+      win.webContents.send("window-maximized-change", win.isMaximized())
+    } catch {
+      // The renderer can be between Vite HMR reloads. Chromium may dispose the
+      // WebFrameMain before webContents reports itself as destroyed.
+    }
   }
   win.on("maximize", notifyMaximized)
   win.on("unmaximize", notifyMaximized)
@@ -190,7 +155,7 @@ export function createMainWindow() {
 
 export function createLoadingWindow() {
   const mode = tone()
-  const appIcon = loadAppIcon()
+  const appIcon = currentAppIcon()
   const win = new BrowserWindow({
     width: 640,
     height: 480,
@@ -198,6 +163,7 @@ export function createLoadingWindow() {
     center: true,
     show: true,
     autoHideMenuBar: true,
+    title: appDisplayName(),
     icon: appIcon,
     backgroundColor,
     ...(process.platform === "darwin" ? { titleBarStyle: "hidden" as const } : {}),
@@ -413,8 +379,10 @@ function loadWindow(win: BrowserWindow, html: string) {
   const devUrl = process.env.ELECTRON_RENDERER_URL
   const url = devUrl ? new URL(html, devUrl).toString() : `${RENDERER_PROTOCOL}://${RENDERER_HOST}/${html}`
 
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
   const load = () => {
-    void win.loadURL(url)
+    if (win.isDestroyed() || win.webContents.isDestroyed()) return
+    void win.loadURL(url).catch(() => {})
   }
 
   // 开发模式下 Vite dev server 可能还没就绪，加载失败时自动重试。
@@ -422,8 +390,12 @@ function loadWindow(win: BrowserWindow, html: string) {
   win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame) return
     if (errorCode === -3) return // ERR_ABORTED，通常是刷新或导航导致，不需要重试
+    if (win.isDestroyed() || retryTimer !== undefined) return
     console.warn(`窗口加载失败: ${validatedURL} - ${errorDescription} (${errorCode})，500ms 后重试`)
-    setTimeout(load, 500)
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined
+      load()
+    }, 500)
   })
 
   load()

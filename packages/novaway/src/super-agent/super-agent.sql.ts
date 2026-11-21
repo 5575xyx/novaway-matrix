@@ -14,6 +14,9 @@ export const SuperAgentRunTable = sqliteTable(
     checkpoint_id: text(),
     failure_json: text({ mode: "json" }),
     completion_json: text({ mode: "json" }),
+    /** Cross-process worker lease. Only the owner may renew/release it. */
+    run_owner: text(),
+    run_lease_until: integer(),
     time_created: integer().notNull(),
     time_updated: integer().notNull(),
   },
@@ -169,6 +172,7 @@ export const SuperAgentEvidenceTable = sqliteTable(
     task_id: text().notNull(),
     kind: text().notNull(),
     source: text().notNull(),
+    acceptance_ids_json: text({ mode: "json" }),
     content_hash: text(),
     measured: text(),
     time_expires: integer(),

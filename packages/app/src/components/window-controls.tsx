@@ -37,7 +37,12 @@ export function WindowControls() {
 
   return (
     <Show when={enabled()}>
-      <div data-component="window-controls" class="flex shrink-0 items-center gap-0.5 pl-1">
+      <div
+        data-component="window-controls"
+        data-window-interactive
+        class="pointer-events-auto flex shrink-0 items-center gap-0.5 pl-1"
+        style={{ "-webkit-app-region": "no-drag", "pointer-events": "auto" }}
+      >
         <button
           type="button"
           class="grid size-7 place-items-center rounded-md text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"

@@ -46,7 +46,7 @@ export type TaskRowProps = {
 }
 
 const STATUS_DOT_CLASS: Record<TaskStatus, string> = {
-  running: "bg-surface-interactive-base novaway-breathe-dot",
+  running: "bg-[var(--icon-interactive-base)] novaway-breathe-dot",
   waiting: "bg-surface-warning-base",
   failed: "bg-surface-critical-base",
   idle: "bg-border-hover",
@@ -145,7 +145,10 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
       <Show when={props.pinned}>
         <Icon name="pin" size="small" class="shrink-0 text-foreground-subtlest" />
       </Show>
-      <span class={`size-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASS[props.status()]}`} />
+      <span
+        data-task-status={props.status()}
+        class={`size-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASS[props.status()]}`}
+      />
       <Show
         when={editing()}
         fallback={<span class="text-ui-caption text-foreground truncate flex-1 min-w-0">{props.title()}</span>}

@@ -36,26 +36,17 @@
   app-region: no-drag;
 }
 
-/* 设置 / 数据库整帧覆盖：见 layout.tsx 的 data-frame-overlay。
- * 被盖住的会话帧 Header 里还有一组窗控，覆盖层（自带一组）淡入淡出的这 1s
- * 里两组会重叠成"重影"。开覆盖时把下面这组藏掉，只留覆盖层自己的。 */
-/* 覆盖层可能盖住侧栏顶带（侧栏收起时主区从 0 开始）或会话帧 Header，
- * 两者都是拖拽区。Electron 的 app-region 按区域生效、与 z-index 无关，
- * 覆盖层左上角的返回按钮会落在这条带子里，真实鼠标点击被拖拽吃掉。
- * 覆盖期间把这两处拖拽禁用（覆盖层自己的 [data-window-drag] 不受影响）。 */
-[data-frame-overlay] [data-component="workspace-header"],
-[data-frame-overlay] [data-component="sidebar-top-band"] {
+/* Window controls can sit inside an absolutely positioned drag layer. Keep
+ * the interactive island explicit so neither the drag region nor a sibling
+ * overlay can swallow minimize/maximize/close clicks. */
+[data-window-interactive] {
   -webkit-app-region: no-drag;
   app-region: no-drag;
+  pointer-events: auto;
+  position: relative;
+  z-index: 100;
 }
 
-/* 覆盖式面板（设置 / 数据库）的开合动效。
- *
- * 用 animation 而不是 transition：这些面板是 `<Show>` 挂载/卸载的，
- * transition 需要元素先在 DOM 里渲染一帧隐藏态才肯播，时序上很脆
- * （窗口被遮挡时拿不到那一帧，面板会卡在 opacity:0）。animation 没有这个问题。
- * 关闭方向靠 `createMountTransition` 延迟卸载来撑住时长。
- */
 /* 整帧面板进场：淡入 + 从「点击位置」轻微放大。
  *
  * 之前只有淡入，且时长 1s —— 看上去像「点了没反应，过一会儿才出来」。
@@ -88,6 +79,14 @@
   }
 }
 
+.frame-page-panel {
+  right: var(--frame-page-right, 8px);
+  bottom: var(--frame-page-bottom, 8px);
+  transition:
+    right var(--transition-panel-ms, 1000ms) var(--transition-panel-ease),
+    bottom var(--transition-panel-ms, 1000ms) var(--transition-panel-ease);
+}
+
 [data-panel-transition][data-state="open"] {
   animation: panel-overlay-in var(--transition-panel-ms, 1000ms) var(--transition-panel-ease) both;
 }
@@ -107,8 +106,7 @@
 
 /* ===== 助手回复：每个块一张「贴内容」的小卡片（原型 A1） =====
  *
- * 正文 / 思考 / 工具 / 变更摘要各自成块；卡片 width: fit-content，
- * 短句是窄卡片、长段撑满整列，左缘参差。块间只留 8px 行距，
+ * 正文 / 思考 / 工具 / 变更摘要各自成块；卡片统一限制在内容列内，左缘与正文对齐。
  * 不再给连续工具调用画外框，所以整屏没有横线与色带。
  *
  * 卡片是行内的子元素；缝隙靠行的 py-1 提供——虚拟滚动按行高(offsetHeight)
@@ -119,8 +117,9 @@
  */
 [data-slot="session-turn-assistant-content"],
 [data-component="session-turn-diffs-group"] {
-  width: fit-content !important;
+  width: 100% !important;
   max-width: 100% !important;
+  min-width: 0 !important;
   box-sizing: border-box !important;
   background: var(--panel) !important;
   border: 1px solid var(--border) !important;
@@ -207,6 +206,44 @@
 [data-component="text-part"] {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
+}
+
+/* 正文与思考、工具、问题卡片共用同一条内容左边界，不再为非正文内容预留头像空位。 */
+[data-timeline-row="AssistantPart"] [data-slot="assistant-avatar-spacer"] {
+  display: none;
+}
+
+/* 过程行也与正文共用左边界；保留紧凑间距，不再额外向右缩进。 */
+[data-component="turn-fold-rows"] {
+  padding-left: 0 !important;
+  border-left: 0 !important;
+}
+
+/* 正文不属于工具/思考的头像时间线：与「执行 N 步」摘要使用同一左列。 */
+[data-timeline-row="AssistantPart"] .session-assistant-text-row {
+  gap: 0 !important;
+}
+
+/* 任何正文/工具/预览卡都不能突破时间线的内容列；长路径交给内部省略或滚动。 */
+[data-timeline-row] [data-slot="session-turn-message-container"],
+[data-timeline-row] [data-component="session-turn"],
+[data-timeline-row] [data-slot="session-turn-assistant-content"],
+[data-timeline-row] [data-component="session-turn-diffs-group"],
+[data-timeline-row] [data-slot="session-turn-preview"] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+[data-timeline-row] [data-slot="session-turn-message-container"] {
+  overflow-x: hidden;
+}
+
+/* 工具输出内部如果有超长路径/参数，不能把外层卡片的 min-content 宽度撑开。 */
+[data-timeline-row] [data-slot="session-turn-assistant-content"] > *,
+[data-timeline-row] [data-slot="session-turn-preview"] > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* task-tool-card 自带边框+底色，在卡片里会框套框 */
@@ -785,14 +822,27 @@
     animation: session-progress-whip var(--session-progress-ms, 1800ms) infinite;
     will-change: clip-path;
   }
-  /* 会话进行中：输入框描边提亮一档，静态不动。
-     原来是 1px↔2px 加一层外发光的呼吸动画，一屏里唯一持续闪烁的东西就是它，
-     跟"简约"是反的；运行状态已经由停止按钮和进度条表达，边框没必要再喊一遍。 */
-  [data-dock-surface="shell"][data-working="true"] {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--border-interactive-base) 55%, transparent),
-      0 4px 24px color-mix(in srgb, var(--text-strong) 8%, transparent);
+  /* 会话进行中：输入框恢复呼吸提示。停止按钮和进度条表达的是即时状态，
+     外壳呼吸则持续告诉用户请求仍在推进；使用语义交互色，不再是几乎看不见的静态阴影。 */
+  @keyframes prompt-working-breathe {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--border-interactive-base) 58%, transparent),
+        0 4px 24px color-mix(in srgb, var(--icon-interactive-base) 10%, transparent);
+    }
+    50% {
+      box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--border-interactive-base) 88%, transparent),
+        0 0 0 5px color-mix(in srgb, var(--icon-interactive-base) 12%, transparent),
+        0 6px 28px color-mix(in srgb, var(--icon-interactive-base) 18%, transparent);
+    }
   }
+
+  [data-dock-surface="shell"][data-working="true"] {
+    animation: prompt-working-breathe 2.2s ease-in-out infinite;
+  }
+
   /* 提示词优化中：输入内容区波纹扫光 */
   @keyframes prompt-optimize-wave {
     0% {
@@ -1052,6 +1102,36 @@
 
 .novaway-breathe-dot {
   animation: dot-breathe 1.8s ease-in-out infinite;
+}
+
+/* 侧栏运行中任务：交互色需要在小尺寸圆点上仍然清晰可见，
+ * 同时用外圈光晕表达"正在运行"，不能只靠低对比度透明度变化。 */
+@keyframes task-running-breathe {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.92);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--icon-interactive-base) 42%, transparent);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--icon-interactive-base) 18%, transparent);
+  }
+}
+
+[data-component="task-row"] [data-task-status="running"] {
+  background-color: var(--icon-interactive-base) !important;
+  animation: task-running-breathe 1.35s ease-in-out infinite;
+}
+
+[data-component="todo-status"][data-status="running"] {
+  border-color: var(--icon-interactive-base) !important;
+}
+
+[data-component="todo-status"][data-status="running"] > span {
+  background-color: var(--icon-interactive-base) !important;
+  animation: task-running-breathe 1.35s ease-in-out infinite;
 }
 
 /* ── 输入框上方的「实时跟随」开关 ──────────────────────────────────
@@ -1425,60 +1505,92 @@
   box-shadow: 0 1px 2px color-mix(in srgb, var(--text-strong) 4%, transparent);
 }
 
-/* ===== 工具行的信息展示：单行优先，但不截断 =====
- * 先给足宽度：工具卡占据整列（fit-content 时内层 100% 宽度会退化成"内容的最窄
- * 可行宽"，MCP 的长参数就被提前省略号截掉了）。给满列宽后，绝大多数调用
- * （包括 mcp_tool_search 的 select=... 参数）都能排在一行。
- * 真放不下时**换行显示全文**，而不是用省略号藏掉信息 —— 用户明确要求
- * "工具调用不要截断"，完整参数比行高更重要。
- */
+/* ===== 工具行的信息展示：永远保持一行 =====
+ * 工具调用是过程摘要，不是输出正文：标题、工具名和参数在同一行展示，
+ * 空间不够时从右侧省略。只有点击展开后，才显示完整的工具结果/详情。
+ * 之前这里允许 info-main 换行，像 `max_results=8` 这样的参数就会掉到
+ * 第二行，看起来像两条重叠的调用。 */
 [data-slot="session-turn-assistant-content"]:has([data-component="tool-part-wrapper"]),
 [data-slot="session-turn-assistant-content"]:has([data-component="collapsible"].tool-collapsible) {
   width: 100% !important;
 }
 
-[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-title"],
-[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-detail"] {
-  white-space: nowrap !important;
-  text-overflow: clip !important;
-  overflow: visible !important;
+[data-slot="session-turn-assistant-content"]:has([data-component="tool-part-wrapper"]) [data-component="tool-trigger"],
+[data-slot="session-turn-assistant-content"]:has([data-component="collapsible"].tool-collapsible)
+  [data-component="tool-trigger"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
 }
 
-[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-subtitle"],
-[data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-arg"] {
-  white-space: normal !important;
-  text-overflow: clip !important;
-  overflow: visible !important;
-  overflow-wrap: anywhere !important;
+[data-slot="session-turn-assistant-content"]
+  :is(
+    [data-slot="basic-tool-tool-trigger-content"],
+    [data-slot="basic-tool-tool-info"],
+    [data-slot="basic-tool-tool-info-structured"]
+  ) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
 }
 
-/* 标题 + 副标题的内层容器也要能收缩，长参数才会在卡片内换行而不是溢出。 */
 [data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-info-main"] {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
+  flex-wrap: nowrap !important;
   gap: 2px 8px;
   min-width: 0;
-  overflow: visible !important;
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
+  white-space: nowrap;
 }
 
 [data-slot="session-turn-assistant-content"]
   [data-slot="basic-tool-tool-info-main"]
-  > [data-slot="basic-tool-tool-title"] {
-  flex: 0 0 auto;
+  > :is(
+    [data-slot="basic-tool-tool-title"],
+    [data-slot="basic-tool-tool-detail"],
+    [data-slot="basic-tool-tool-subtitle"],
+    [data-slot="basic-tool-tool-arg"]
+  ) {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  overflow-wrap: normal !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
-[data-slot="session-turn-assistant-content"]
-  [data-slot="basic-tool-tool-info-main"]
-  > [data-slot="basic-tool-tool-subtitle"],
-[data-slot="session-turn-assistant-content"]
-  [data-slot="basic-tool-tool-info-main"]
-  > [data-slot="basic-tool-tool-arg"] {
-  flex: 0 1 auto;
-  min-width: 0;
+/* 紧凑过程行的参数是摘要 chip：给它一个明确上限，不能因为单个超长
+ * `code=` 参数把工具行撑出聊天内容区。 */
+[data-tool-density="compact"] [data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-subtitle"],
+[data-tool-density="compact"] [data-slot="session-turn-assistant-content"] [data-slot="basic-tool-tool-arg"] {
+  max-width: 240px !important;
 }
 
-/* 轮尾正向反馈：语义成功色 */
+/* memory 的 action / id 也遵循同一条单行规则；保留这个更具体的选择器，
+ * 防止旧的 memory 专用样式把参数重新撑开。 */
+[data-component="tool-part-wrapper"][data-tool="memory"] [data-slot="basic-tool-tool-info-main"] {
+  flex-wrap: nowrap !important;
+  overflow: hidden !important;
+}
+
+[data-component="tool-part-wrapper"][data-tool="memory"] [data-slot="basic-tool-tool-subtitle"],
+[data-component="tool-part-wrapper"][data-tool="memory"] [data-slot="basic-tool-tool-arg"] {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  overflow-wrap: normal !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
 [data-component="icon-button"][aria-pressed="true"][data-icon="lu-thumbs-up"] {
   background-color: var(--surface-success-weak);
 }
@@ -1821,7 +1933,10 @@
 @media (prefers-reduced-motion: reduce) {
   [data-component="tool-trigger"][data-running="true"] [data-slot="tool-badge-icon"] [data-slot="icon-svg"],
   [data-component="turn-fold-trigger"][data-working="true"] [data-slot="icon-svg"],
-  [data-slot="reasoning-part-indicator"] [data-slot="icon-svg"][class*="animate-pulse"] {
+  [data-slot="reasoning-part-indicator"] [data-slot="icon-svg"][class*="animate-pulse"],
+  [data-component="task-row"] [data-task-status="running"],
+  [data-component="todo-status"][data-status="running"] > span,
+  [data-dock-surface="shell"][data-working="true"] {
     animation: none;
   }
 }

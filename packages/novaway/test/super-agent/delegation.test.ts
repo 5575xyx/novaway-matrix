@@ -337,7 +337,11 @@ describe("Super-Agent child delegation", () => {
       ],
       sourceTask: source,
     })
-    run.graph = { ...run.graph, nodes: [source, repair] }
+    run.graph = {
+      ...run.graph,
+      nodes: [source, repair],
+      edges: [{ from: repair.id, to: source.id, kind: "repairs" }],
+    }
     const events: string[] = []
     const store = {
       get: () => Effect.succeed({ ...run }),
@@ -395,7 +399,11 @@ describe("Super-Agent child delegation", () => {
       ],
       sourceTask: source,
     })
-    run.graph = { ...run.graph, nodes: [source, repair] }
+    run.graph = {
+      ...run.graph,
+      nodes: [source, repair],
+      edges: [{ from: repair.id, to: source.id, kind: "repairs" }],
+    }
     let current = { ...run }
     const verifications: unknown[] = []
     const store = {
@@ -413,6 +421,7 @@ describe("Super-Agent child delegation", () => {
           kind: "test" as const,
           source: "fixture",
           measured: "pass",
+          acceptanceIDs: ["checks"],
           capturedAt: Date.now(),
         },
       ]),

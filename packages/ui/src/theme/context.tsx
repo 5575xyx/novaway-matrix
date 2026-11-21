@@ -75,7 +75,6 @@ const names: Record<string, string> = {
   cobalt2: "Cobalt2",
   cursor: "Cursor",
   dracula: "Dracula",
-  parchment: "Parchment",
   flexoki: "Flexoki",
   github: "GitHub",
   gruvbox: "Gruvbox",
@@ -105,9 +104,9 @@ const names: Record<string, string> = {
 const novawayClassicTheme = novawayClassicThemeJson as DesktopTheme
 const novawayTheme = novawayThemeJson as DesktopTheme
 
-// 森林绿已下架：旧选中值无缝落到接替它的羊皮纸，避免加载不到主题。
+// 已移除的旧主题统一回退到默认 NovaWay，避免历史设置值导致主题无法加载。
 function migrateThemeId(id: string) {
-  return id === "everforest" ? "parchment" : id
+  return id === "everforest" || id === "parchment" ? "novaway" : id
 }
 
 function read(key: string) {

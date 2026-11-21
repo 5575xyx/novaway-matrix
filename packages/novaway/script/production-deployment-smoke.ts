@@ -29,6 +29,7 @@ await mkdir(workspace, { recursive: true })
 const request = async (pathname: string, init: RequestInit = {}) =>
   fetch(`${base}${pathname}`, {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(10_000),
     headers: {
       authorization: auth,
       "content-type": "application/json",
@@ -52,6 +53,52 @@ const start = () =>
     stderr: "inherit",
   })
 
+const portListenerPids = async () => {
+  if (process.platform !== "win32") return new Set<string>()
+  const result = Bun.spawn(["netstat", "-ano", "-p", "tcp"], { stdout: "pipe", stderr: "ignore" })
+  const output = await new Response(result.stdout).text()
+  await result.exited.catch(() => undefined)
+  return new Set(
+    output
+      .split(/\r?\n/)
+      .filter((line) => line.includes(`:${port} `) && line.includes("LISTENING"))
+      .map((line) => line.trim().split(/\s+/).at(-1))
+      .filter((pid): pid is string => !!pid && /^\d+$/.test(pid)),
+  )
+}
+
+const killPortListeners = async () => {
+  for (const pid of await portListenerPids()) {
+    await Bun.spawn(["taskkill", "/PID", pid, "/T", "/F"], { stdout: "ignore", stderr: "ignore" }).exited.catch(() => undefined)
+  }
+}
+
+const waitForPortFree = async () => {
+  if (process.platform !== "win32") return
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    const pids = await portListenerPids()
+    if (pids.size === 0) return
+    await killPortListeners()
+    await Bun.sleep(100)
+  }
+  throw new Error(`production smoke could not free port ${port}`)
+}
+
+const stop = async (child: Bun.Subprocess) => {
+  if (process.platform === "win32" && child.pid) {
+    await Bun.spawn(["taskkill", "/PID", String(child.pid), "/T", "/F"], {
+      stdout: "ignore",
+      stderr: "ignore",
+    }).exited.catch(() => undefined)
+  } else if (child.exitCode === null) {
+    child.kill()
+  }
+  await child.exited.catch(() => undefined)
+  await killPortListeners()
+  await waitForPortFree()
+}
+
 const waitFor = async (predicate: () => Promise<boolean>, timeoutMs: number, label: string) => {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -63,17 +110,24 @@ const waitFor = async (predicate: () => Promise<boolean>, timeoutMs: number, lab
 
 let serverProcess = start()
 try {
+  let initialHealth: { status: number; body: string } | undefined
   await waitFor(
     async () => {
       try {
-        return (await request("/global/health")).ok
+        const response = await request("/global/health")
+        initialHealth = { status: response.status, body: await response.text() }
+        return response.ok
       } catch {
+        initialHealth = undefined
         return false
       }
     },
     60_000,
     "health",
-  )
+  ).catch((error) => {
+    const detail = initialHealth ? ` (last response ${initialHealth.status}: ${initialHealth.body})` : " (no HTTP response)"
+    throw new Error(`${error.message}${detail}`)
+  })
   const authenticatedHealth = await request("/global/health")
   if (!authenticatedHealth.ok) throw new Error(`expected authenticated health to return 200, got ${authenticatedHealth.status}`)
   const unauthenticated = await fetch(`${base}/global/health`)
@@ -118,6 +172,28 @@ try {
     body: JSON.stringify({ expectedVersion: run.graph.version, graph }),
   })
   await waitFor(
+    async () => ((await request(`/super-agent/runs/${run.id}`)).json() as Promise<{ status: string }>).then((item) => item.status === "needs_review"),
+    60_000,
+    "durable verification required",
+  )
+  const evidenceResponse = await request(`/super-agent/runs/${run.id}/evidence`, {
+    method: "POST",
+    body: JSON.stringify({
+      id: `${run.id}:production-smoke:evidence`,
+      taskID: run.graph.rootTaskID,
+      kind: "test",
+      source: "production-deployment-smoke",
+      acceptanceIDs: ["criterion-1"],
+      measured: "pass",
+    }),
+  })
+  if (!evidenceResponse.ok) throw new Error(`production smoke could not record criterion evidence: ${evidenceResponse.status}`)
+  const verificationResponse = await request(`/super-agent/runs/${run.id}/verify-finish`, {
+    method: "POST",
+    body: JSON.stringify({ verifierID: "builtin.test", summary: "production durable smoke verified" }),
+  })
+  if (!verificationResponse.ok) throw new Error(`production smoke could not verify run: ${verificationResponse.status}`)
+  await waitFor(
     async () => ((await request(`/super-agent/runs/${run.id}`)).json() as Promise<{ status: string }>).then((item) => item.status === "completed"),
     60_000,
     "durable completion",
@@ -150,20 +226,26 @@ try {
     30_000,
     "operation start before restart",
   )
-  serverProcess.kill()
-  await serverProcess.exited
+  await stop(serverProcess)
   serverProcess = start()
+  let restartHealth: { status: number; body: string } | undefined
   await waitFor(
     async () => {
       try {
-        return (await request("/global/health")).ok
+        const response = await request("/global/health")
+        restartHealth = { status: response.status, body: await response.text() }
+        return response.ok
       } catch {
+        restartHealth = undefined
         return false
       }
     },
     60_000,
     "health after restart",
-  )
+  ).catch((error) => {
+    const detail = restartHealth ? ` (last response ${restartHealth.status}: ${restartHealth.body})` : " (no HTTP response)"
+    throw new Error(`${error.message}${detail}`)
+  })
   await waitFor(
     async () => ((await request(`/super-agent/runs/${restartRun.id}`)).json() as Promise<{ status: string }>).then((item) => item.status === "needs_review"),
     30_000,
@@ -189,8 +271,7 @@ try {
   console.log("PRODUCTION_AUTH=unauthenticated:401/wrong:401/authenticated:200")
 } finally {
   if (process.exitCode === undefined) {
-    serverProcess.kill()
-    await serverProcess.exited.catch(() => undefined)
+    await stop(serverProcess)
   }
   await rm(runRoot, { recursive: true, force: true })
 }

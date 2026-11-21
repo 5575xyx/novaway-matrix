@@ -66,6 +66,9 @@ export function preferAppEnv(userDataPath: string) {
     // 平台页面）。内核据此决定要不要注入 webview_* 工具。
     NOVAWAY_CLIENT_CAPABILITIES: "question,tui,webview",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
+    // 桌面应用图标目录：内置 app-icon 技能把生成的 PNG 落在这里，
+    // 设置「通用 → 应用图标与名称」的图标墙会立即列出、可切换复用。
+    NOVAWAY_DESKTOP_ICON_DIR: join(userDataPath, "appearance", "icons"),
   })
 }
 

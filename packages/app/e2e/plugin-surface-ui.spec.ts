@@ -6,6 +6,44 @@ const workspaceSlug = () =>
   Buffer.from(directory, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 
 test("builtin sidebar surface and declarative settings surface render in Chromium", async ({ page }) => {
+  await page.route("**/extension/marketplace*", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        installed: [],
+        sources: [
+          {
+            id: "novaway-official",
+            name: "NovaWay Official",
+            type: "novaway",
+            url: "https://example.test/catalog.json",
+            enabled: true,
+            trust: "official",
+            builtin: true,
+            createdAt: 0,
+            updatedAt: 0,
+          },
+        ],
+        novaway: [
+          {
+            packageId: "com.novaway.e2e-smoke",
+            name: "Browser Marketplace Smoke",
+            version: "0.1.0",
+            description: "Marketplace browser fixture",
+            url: "https://example.test/smoke.zip",
+            kind: "zip",
+            sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            runtimeTargets: ["novaway-v2"],
+            capabilities: ["skills"],
+          },
+        ],
+        zcode: [],
+        claude: [],
+        updates: [],
+        errors: [],
+      }),
+    }),
+  )
   await page.route("**/plugin/contributions**", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -60,12 +98,11 @@ test("builtin sidebar surface and declarative settings surface render in Chromiu
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/${workspaceSlug()}/session`)
   const settings = page
-    .locator(
-      '[data-component="sidebar-rail-item"][aria-label="Settings"], [data-component="sidebar-rail-item"][aria-label="设置"]',
-    )
-    .first()
+    .locator('button[aria-label="Settings"]:not([data-component]), button[aria-label="设置"]:not([data-component])')
+    .last()
   await expect(settings).toBeVisible({ timeout: 15_000 })
   await settings.click()
+  await page.locator('[data-action="rail-menu-open-settings"]').click()
   const settingsPanel = page.locator("[data-panel-transition][aria-label]")
   await expect(settingsPanel).toBeVisible({ timeout: 15_000 })
 
@@ -74,4 +111,18 @@ test("builtin sidebar surface and declarative settings surface render in Chromiu
   await pluginsTab.click()
   await expect(settingsPanel).toContainText("Configured plugins")
   await expect(settingsPanel).toContainText("Add plugin")
+
+  const extensions = page
+    .locator(
+      '[data-component="sidebar-rail-item"][aria-label="Extensions"]:visible, [data-component="sidebar-rail-item"][aria-label="扩展"]:visible',
+    )
+    .last()
+  await expect(extensions).toBeVisible({ timeout: 15_000 })
+  await extensions.click()
+  await expect(page.getByText(/Extensions|扩展/).first()).toBeVisible({ timeout: 15_000 })
+  await page.getByRole("button", { name: /Marketplace|市场/ }).click()
+  await expect(page.getByText(/Marketplace sources|市场源/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText("NovaWay Official", { exact: true })).toBeVisible()
+  await expect(page.getByText("Browser Marketplace Smoke", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: /Add source|添加源/ })).toBeVisible()
 })

@@ -6,7 +6,8 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ProviderIcon } from "@novaway/ui/provider-icon"
 import { Switch } from "@novaway/ui/switch"
-import { modelIconId, providerIconId } from "@/utils/provider-icon"
+import { modelIconId } from "@/utils/provider-icon"
+import { ProviderAvatar } from "./provider-avatar"
 import { Tag } from "@novaway/ui/tag"
 import { showToast } from "@novaway/ui/toast"
 import { writeClipboard } from "@novaway/ui/util/clipboard"
@@ -371,12 +372,7 @@ export const SettingsProviders: Component = () => {
         setSelectedProvider(item.id)
       }}
     >
-      <ProviderIcon
-        id={providerIconId(item.id, item.name)}
-        colorId={item.id}
-        brand
-        class="size-4.5 shrink-0 text-foreground"
-      />
+      <ProviderAvatar id={item.id} name={item.name} brand class="size-4.5 shrink-0 text-foreground" />
       <span class="min-w-0 flex-1 truncate text-13-regular text-foreground">{item.name}</span>
       <Show when={connectedRow}>
         <span class="size-1.5 shrink-0 rounded-full bg-surface-success-base" />
@@ -439,9 +435,9 @@ export const SettingsProviders: Component = () => {
                   onClick={() => void reconnect(item.id, item.name)}
                   title={language.t("settings.providers.reconnect.hint")}
                 >
-                  <ProviderIcon
-                    id={providerIconId(item.id, item.name)}
-                    colorId={item.id}
+                  <ProviderAvatar
+                    id={item.id}
+                    name={item.name}
                     brand
                     class="size-4.5 shrink-0 text-foreground opacity-50"
                   />
@@ -484,12 +480,7 @@ export const SettingsProviders: Component = () => {
               <div class="flex flex-col gap-5 p-6">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div class="flex min-w-0 items-center gap-3">
-                    <ProviderIcon
-                      id={providerIconId(item().id, item().name)}
-                      colorId={item().id}
-                      brand
-                      class="size-8 shrink-0 text-foreground"
-                    />
+                    <ProviderAvatar id={item().id} name={item().name} brand class="size-8 shrink-0 text-foreground" />
                     <div class="flex min-w-0 flex-col gap-1">
                       <div class="flex min-w-0 flex-wrap items-center gap-2">
                         <span class="truncate text-16-medium text-foreground">{item().name}</span>

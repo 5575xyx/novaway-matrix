@@ -14,6 +14,7 @@ export function officeAgentSyntheticText(input: {
   quickMode: boolean
   pptTemplate: OfficePptTemplateChoice
   launchConfig?: OfficeLaunchConfig
+  skillName?: string
 }) {
   const action = zenActions.find((item) => item.id === input.actionID) ?? zenActions[0]
   const scenario = officeAgentScenario(action.id)
@@ -46,7 +47,7 @@ export function officeAgentSyntheticText(input: {
     "",
     `你现在处于 NovaWay 禅意模式（办公模式），当前办公场景是「${action.title}」。`,
     `请按「${action.meta}」场景处理用户输入，优先输出可直接复制使用的办公产物。`,
-    `开始处理前请优先调用 skill 工具加载「${scenario.skillName}」Skill，并按该 Skill 的流程组织结果。`,
+    ...(input.skillName ? [`开始处理前请调用 skill 工具加载「${input.skillName}」Skill，并按插件流程组织结果。`] : []),
     "输出中必须把正文和长期沉淀建议分开：正文使用「# 办公产物」作为一级标题；末尾使用「# 可沉淀记忆/可进化建议」作为一级标题，并分别列出「可沉淀记忆」「可进化建议」「需要用户确认」。",
     "不要把未确认的偏好写成确定事实。",
     "产物引用协议：正文写完后，另起一行为**最终交付文件**输出一条 :nova-file-citation{path=相对路径}（一行一条；path 用相对工作区的路径写法；Word/Excel/PPT/PDF/图片文档都适用）。系统会据此在回执下方生成可点击的产物卡片。",
@@ -80,6 +81,7 @@ export function transformOfficePrompt(input: {
   quickMode: boolean
   pptTemplate: OfficePptTemplateChoice
   launchConfig?: OfficeLaunchConfig
+  skillName?: string
 }) {
   const text = input.prompt.map((part) => ("content" in part ? part.content : "")).join("")
   if (text.trim().startsWith("/")) return input.prompt

@@ -845,7 +845,8 @@ export namespace TurnFold {
  *
  * 规则(与原型一致):
  * - todowrite / todoedit 出现**之前**的一切行保持原有流式;
- * - 第一次 todowrite 后插入待办总览卡,从此后续行按"当前 in_progress 的待办"归入分区;
+ * - 第一次 todowrite 后插入待办总览卡,从此后续行按后端写入的 todoContent / focus 归入分区;
+ *   单个 in_progress 项可以安全回退,多个并行项没有明确 focus 时不猜归属;
  * - 快照里没有 in_progress 时(列表刚开始/全部完成)收起当前分区,后续行走原有流式;
  * - 用户消息、轮次分隔等结构性行始终在分区外,并把当前分区断开
  *   (同一待办被用户消息打断后,下一段以新的 segment 重新开卡)。
@@ -856,7 +857,7 @@ export namespace TodoGrouping {
   // 计入"产出"的工具:写文件类。按去重后的 filePath 计数。
   const OUTPUT_TOOLS = new Set(["write", "edit", "multiedit", "patch"])
 
-  type SnapshotTodo = { id: string; content: string; status: string }
+  type SnapshotTodo = { id: string; content: string; status: string; focused?: boolean }
 
   const isTodoToolPart = (part: Part): part is Extract<Part, { type: "tool" }> =>
     part.type === "tool" && TODO_TOOL_IDS.has(part.tool)
@@ -879,13 +880,28 @@ export namespace TodoGrouping {
             status: typeof item.status === "string" ? item.status : "pending",
           }
         })
-      return list
+      const focusPosition =
+        Number.isInteger(state.metadata?.focusPosition) && state.metadata.focusPosition >= 0
+          ? state.metadata.focusPosition
+          : undefined
+      return list.map((todo, index) => ({ ...todo, focused: focusPosition === index }))
     }
     const fromMetadata = collect(state.metadata?.todos)
     if (fromMetadata && fromMetadata.length > 0) return fromMetadata
     const fromInput = collect(state.input?.todos)
     if (fromInput) return fromInput
     return []
+  }
+
+  const explicitTodoContentOf = (parts: Part[]): string | undefined => {
+    for (const part of parts) {
+      if (part.type !== "tool") continue
+      const metadata = (part.state as any)?.metadata
+      if (typeof metadata?.todoContent === "string" && metadata.todoContent.trim()) {
+        return metadata.todoContent.trim()
+      }
+    }
+    return undefined
   }
 
   const groupPartsOf = (group: PartGroup, getPart: (messageID: string, partID: string) => Part | undefined): Part[] => {
@@ -937,8 +953,8 @@ export namespace TodoGrouping {
       start: number | undefined
       end: number | undefined
     }
-    // 同一时刻可能有多个 in_progress(并行待办)。这里为每个进行中的项各记一份区间,
-    // 并行期间产生的行同时归入每个项 —— 每一项都有自己的计时和可展开的过程。
+    // 多个 in_progress 表示并行 lane。focus 和普通工具结果上的 todoContent
+    // 是唯一可信的归属；没有 lane 标记时绝不把整批过程吸收到第一项。
     let current: Bucket[] = []
 
     const flush = () => {
@@ -1013,18 +1029,56 @@ export namespace TodoGrouping {
           // 计时从"被标记为 in_progress 的那一刻"开始，而不是等到第一行工具调用返回 ——
           // 并行时后面几个项往往先挂起再出活，没有这行时间它们就永远不跳秒。
           const activatedAt = partTime(todoCall).end ?? partTime(todoCall).start
-          current = snapshot
-            .filter((todo) => todo.status === "in_progress")
-            .map((todo) => ({
-              todoID: todo.id,
-              rows: [],
-              outputs: new Set<string>(),
-              start: activatedAt,
-              end: activatedAt,
-            }))
+          const activeTodos = snapshot.filter((todo) => todo.status === "in_progress")
+          const focusedTodo = activeTodos.find((todo) => todo.focused)
+          const lanes = focusedTodo ? [focusedTodo] : activeTodos
+          current = lanes.map((todo) => ({
+            todoID: todo.id,
+            rows: [],
+            outputs: new Set<string>(),
+            start: activatedAt,
+            end: activatedAt,
+          }))
+          continue
+        }
+        const explicitTodoContent = explicitTodoContentOf(parts)
+        if (explicitTodoContent) {
+          const bucket = current.find(
+            (candidate) =>
+              candidate.todoID === explicitTodoContent ||
+              candidate.todoID === `content:${explicitTodoContent}` ||
+              titleByID.get(candidate.todoID) === explicitTodoContent,
+          )
+          if (bucket) {
+            bucket.rows.push(row)
+            for (const part of parts) {
+              const time = partTime(part)
+              if (time.start !== undefined) {
+                bucket.start = bucket.start === undefined ? time.start : Math.min(bucket.start, time.start)
+              }
+              if (time.end !== undefined) {
+                bucket.end = bucket.end === undefined ? time.end : Math.max(bucket.end, time.end)
+              }
+              if (part.type === "tool" && OUTPUT_TOOLS.has(part.tool)) {
+                const filePath = (part.state as any).input?.filePath
+                if (typeof filePath === "string") bucket.outputs.add(filePath)
+              }
+            }
+            continue
+          }
+          // An explicit lane that no longer exists must not be silently attached
+          // to another todo after a status transition.
+          out.push(row)
           continue
         }
         if (current.length === 0) {
+          out.push(row)
+          continue
+        }
+        // A single active item is safe to infer. Multiple active items require
+        // the backend focus marker; otherwise keeping the row outside is safer
+        // than putting it into the first todo and corrupting the audit trail.
+        if (current.length > 1) {
           out.push(row)
           continue
         }

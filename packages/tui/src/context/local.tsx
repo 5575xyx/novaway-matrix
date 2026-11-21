@@ -102,8 +102,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const agents = createMemo(() => sync.data.agent.filter((agent) => agent.mode !== "subagent" && !agent.hidden))
       const visibleAgents = createMemo(() => sync.data.agent.filter((agent) => !agent.hidden))
       const [agentStore, setAgentStore] = createStore({
-        // 默认代理来自 tui 配置 default_agent,缺省为「Agent 编排总控」;若不存在,current() 回退到列表首个。
-        current: (tuiConfig.default_agent ?? "agents-orchestrator") as string | undefined,
+        // 默认代理来自 tui 配置 default_agent,缺省为「Agent 编排总控」插件代理;未安装时,current() 回退到列表首个。
+        current: (tuiConfig.default_agent ?? "agency-agents_agents-orchestrator") as string | undefined,
       })
       const colors = createMemo(() => [
         theme.secondary,

@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { SessionWorkflowEventTable, SessionWorkflowPolicyTable } from "./policy.sql"
 import type { SessionID } from "@/session/schema"
@@ -21,9 +21,10 @@ export type State = {
   verificationStatus: VerificationStatus
   deliveryStatus: DeliveryStatus
   updatedAt: Date
+  revision?: number
 }
 
-export type EventType = "turn.started" | "route.escalated" | "question.consumed" | "skill.loaded" | "phase.changed" | "verification.changed" | "delivery.changed" | "tool.blocked"
+export type EventType = "turn.started" | "route.escalated" | "question.consumed" | "skill.loaded" | "phase.changed" | "verification.changed" | "delivery.changed" | "tool.blocked" | "integration.commit" | "integration.pull_request" | "integration.check" | "memory.evidence"
 
 const generateID = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 
@@ -55,6 +56,7 @@ function fromRow(row: typeof SessionWorkflowPolicyTable.$inferSelect): State {
     verificationStatus: row.verification_status as VerificationStatus,
     deliveryStatus: row.delivery_status as DeliveryStatus,
     updatedAt: row.updated_at,
+    revision: row.revision ?? 0,
   }
 }
 
@@ -67,6 +69,9 @@ export interface Interface {
   readonly setVerification: (input: { sessionID: SessionID; status: VerificationStatus }) => Effect.Effect<State | undefined>
   readonly setDelivery: (input: { sessionID: SessionID; status: DeliveryStatus }) => Effect.Effect<State | undefined>
   readonly events: (sessionID: SessionID, limit?: number) => Effect.Effect<readonly Record<string, unknown>[]>
+  readonly recordEvidence: (input: { sessionID: SessionID; payload: Record<string, unknown> }) => Effect.Effect<State | undefined>
+  readonly recordIntegration: (input: { sessionID: SessionID; kind: "commit" | "pull_request" | "check"; payload: Record<string, unknown> }) => Effect.Effect<State | undefined>
+  readonly updateState: (input: { sessionID: SessionID; expectedRevision: number; patch: Partial<Pick<State, "phase" | "route" | "verificationStatus" | "deliveryStatus">> }) => Effect.Effect<State, Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/WorkflowPolicy") {}
@@ -85,12 +90,12 @@ export const layer = Layer.effect(Service, Effect.gen(function* () {
   })
 
   const save = Effect.fn("WorkflowPolicy.save")(function* (state: State) {
-    yield* Effect.sync(() => Database.use((db) => db.update(SessionWorkflowPolicyTable).set({
+    const result = yield* Effect.sync(() => Database.use((db) => db.update(SessionWorkflowPolicyTable).set({
       turn_id: state.turnID, route: state.route, phase: state.phase, route_locked: state.routeLocked ? 1 : 0,
       escalation_reason: state.escalationReason ?? null, question_calls: state.questionCalls, question_budget: state.questionBudget,
-      verification_status: state.verificationStatus, delivery_status: state.deliveryStatus, updated_at: state.updatedAt,
-    }).where(eq(SessionWorkflowPolicyTable.session_id, state.sessionID)).run()))
-    return state
+      verification_status: state.verificationStatus, delivery_status: state.deliveryStatus, updated_at: state.updatedAt, revision: (state.revision ?? 0) + 1,
+    }).where(and(eq(SessionWorkflowPolicyTable.session_id, state.sessionID), eq(SessionWorkflowPolicyTable.revision, state.revision ?? 0))).run()))
+    return { ...state, revision: (state.revision ?? 0) + 1 }
   })
 
   const beginTurn = Effect.fn("WorkflowPolicy.beginTurn")(function* (input: { sessionID: SessionID; turnID: string; text: string }) {
@@ -107,11 +112,11 @@ export const layer = Layer.effect(Service, Effect.gen(function* () {
     yield* Effect.sync(() => Database.use((db) => db.insert(SessionWorkflowPolicyTable).values({
       session_id: state.sessionID, turn_id: state.turnID, route: state.route, phase: state.phase, route_locked: 1,
       escalation_reason: null, question_calls: 0, question_budget: state.questionBudget, verification_status: state.verificationStatus,
-      delivery_status: state.deliveryStatus, created_at: now, updated_at: now,
+      delivery_status: state.deliveryStatus, created_at: now, updated_at: now, revision: 0,
     }).onConflictDoUpdate({ target: SessionWorkflowPolicyTable.session_id, set: {
       turn_id: state.turnID, route: state.route, phase: state.phase, route_locked: 1, escalation_reason: null,
       question_calls: 0, question_budget: state.questionBudget, verification_status: state.verificationStatus,
-      delivery_status: state.deliveryStatus, updated_at: now,
+      delivery_status: state.deliveryStatus, updated_at: now, revision: 0,
     }}).run()))
     yield* emit({ state, type: "turn.started", payload: { textLength: input.text.length } })
     return state
@@ -166,11 +171,33 @@ export const layer = Layer.effect(Service, Effect.gen(function* () {
   const setVerification = (input: { sessionID: SessionID; status: VerificationStatus }) => update({ sessionID: input.sessionID, mutate: (state) => ({ ...state, verificationStatus: input.status, updatedAt: new Date() }), type: "verification.changed", payload: { status: input.status } })
   const setDelivery = (input: { sessionID: SessionID; status: DeliveryStatus }) => update({ sessionID: input.sessionID, mutate: (state) => ({ ...state, deliveryStatus: input.status, updatedAt: new Date() }), type: "delivery.changed", payload: { status: input.status } })
 
+  const recordEvidence = Effect.fn("WorkflowPolicy.recordEvidence")(function* (input: { sessionID: SessionID; payload: Record<string, unknown> }) {
+    const state = yield* read(input.sessionID)
+    if (!state) return undefined
+    yield* emit({ state, type: "memory.evidence", payload: input.payload })
+    return state
+  })
+  const recordIntegration = Effect.fn("WorkflowPolicy.recordIntegration")(function* (input: { sessionID: SessionID; kind: "commit" | "pull_request" | "check"; payload: Record<string, unknown> }) {
+    const state = yield* read(input.sessionID)
+    if (!state) return undefined
+    const type = input.kind === "commit" ? "integration.commit" as const : input.kind === "pull_request" ? "integration.pull_request" as const : "integration.check" as const
+    yield* emit({ state, type, payload: input.payload })
+    return state
+  })
+  const updateState = Effect.fn("WorkflowPolicy.updateState")(function* (input: { sessionID: SessionID; expectedRevision: number; patch: Partial<Pick<State, "phase" | "route" | "verificationStatus" | "deliveryStatus">> }) {
+    const state = yield* read(input.sessionID)
+    if (!state) return yield* Effect.fail(new Error("workflow state not found: " + input.sessionID))
+    if ((state.revision ?? 0) !== input.expectedRevision) return yield* Effect.fail(new Error("workflow state conflict for " + input.sessionID))
+    const next = { ...state, ...input.patch, updatedAt: new Date() }
+    const saved = yield* save(next)
+    yield* emit({ state: saved, type: "phase.changed", payload: { source: "shared-state-update", patch: input.patch } })
+    return saved
+  })
   const events = Effect.fn("WorkflowPolicy.events")(function* (sessionID: SessionID, limit = 100) {
     return yield* Effect.sync(() => Database.use((db) => db.select().from(SessionWorkflowEventTable).where(eq(SessionWorkflowEventTable.session_id, sessionID)).orderBy(SessionWorkflowEventTable.created_at).limit(limit).all().map((item) => ({ ...item }))))
   })
 
-  return { get: read, beginTurn, consumeQuestion, recordSkill, setPhase, setVerification, setDelivery, events } satisfies Interface
+  return { get: read, beginTurn, consumeQuestion, recordSkill, setPhase, setVerification, setDelivery, recordEvidence, recordIntegration, updateState, events } satisfies Interface
 }))
 
 export const defaultLayer = layer

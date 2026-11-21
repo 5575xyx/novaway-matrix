@@ -499,13 +499,26 @@ export const layer = Layer.effect(
           }
           let item = agents[key]
           if (!item)
-            item = agents[key] = {
-              name: key,
-              mode: "all",
-              permission: Permission.merge(defaults, user),
-              options: {},
-              native: false,
-            }
+            item = agents[key] =
+              (key === "build" || key === "plan") && agents[DEFAULT_AGENT]
+                ? {
+                    ...agents[DEFAULT_AGENT],
+                    name: key,
+                    options: { ...agents[DEFAULT_AGENT].options },
+                    permission: [...agents[DEFAULT_AGENT].permission],
+                    ...(agents[DEFAULT_AGENT].tools ? { tools: [...agents[DEFAULT_AGENT].tools] } : {}),
+                    ...(agents[DEFAULT_AGENT].disallowedTools
+                      ? { disallowedTools: [...agents[DEFAULT_AGENT].disallowedTools] }
+                      : {}),
+                    native: true,
+                  }
+                : {
+                    name: key,
+                    mode: "all",
+                    permission: Permission.merge(defaults, user),
+                    options: {},
+                    native: false,
+                  }
           if (value.model) item.model = Provider.parseModel(value.model)
           item.variant = value.variant ?? item.variant
           item.prompt = value.prompt ?? item.prompt
@@ -534,6 +547,17 @@ export const layer = Layer.effect(
           item.outputStyle = value.outputStyle ?? item.outputStyle
         }
 
+        const legacyDefault = cfg.default_agent === "build" || cfg.default_agent === "plan" ? cfg.default_agent : undefined
+        if (legacyDefault && !agents[legacyDefault]) {
+          agents[legacyDefault] = {
+            ...agents[DEFAULT_AGENT],
+            name: legacyDefault,
+            options: { ...agents[DEFAULT_AGENT].options },
+            permission: [...agents[DEFAULT_AGENT].permission],
+            native: true,
+          }
+        }
+
         // Ensure Truncate.GLOB is allowed unless explicitly configured
         for (const name in agents) {
           const agent = agents[name]
@@ -552,18 +576,24 @@ export const layer = Layer.effect(
         }
 
         const get = Effect.fnUntraced(function* (agent: string) {
-          if (agent === "build" || agent === "plan") agent = DEFAULT_AGENT
+          // `build` and `plan` remain legacy aliases for the default agent when
+          // no compatibility override exists. If either name is explicitly
+          // configured, preserve that configured agent so its model, prompt,
+          // permissions and execution limits are not silently discarded.
+          if ((agent === "build" || agent === "plan") && !agents[agent]) agent = DEFAULT_AGENT
           return agents[agent]
         })
 
         const list = Effect.fnUntraced(function* () {
           const cfg = yield* config.get()
-          const defaultAgent =
-            cfg.default_agent === "build" || cfg.default_agent === "plan" ? DEFAULT_AGENT : cfg.default_agent
+          const defaultAgent = cfg.default_agent
           return pipe(
             agents,
             values(),
-            filter((item) => item.name !== "build" && item.name !== "plan"),
+            filter(
+              (item) =>
+                (item.name !== "build" && item.name !== "plan") || item.name === defaultAgent,
+            ),
             sortBy(
               [(x) => (defaultAgent ? x.name === defaultAgent : x.name === DEFAULT_AGENT), "desc"],
               [(x) => x.name, "asc"],
@@ -665,7 +695,10 @@ export const layer = Layer.effect(
         for (const item of base) combined.set(item.name, item)
         const permissioned = yield* Effect.forEach([...combined.values()], withCurrentSkillPermissions)
         return sortBy(
-          permissioned,
+          permissioned.filter((item) =>
+            item.name !== "build" && item.name !== "plan" ||
+            item.name === configValue.default_agent,
+          ),
           [(x) => (configValue.default_agent ? agentNameMatches(x.name, configValue.default_agent) : x.name === DEFAULT_AGENT), "desc"],
           [(x) => x.name, "asc"],
         )
@@ -691,9 +724,17 @@ export const layer = Layer.effect(
 
     return Service.of({
       get: Effect.fn("Agent.get")(function* (agent: string) {
-        if (agent === "build" || agent === "plan") agent = DEFAULT_AGENT
+        // Preserve configured legacy `build`/`plan` entries. Only unresolved
+        // legacy names map to the current default agent.
+        const requested = agent
+        const cfg = yield* config.get()
+        const legacyAlias = (agent === "build" || agent === "plan") && !cfg.agent?.[agent]
+        if (legacyAlias) agent = DEFAULT_AGENT
         const fromBase = yield* InstanceState.useEffect(state, (s) => s.get(agent))
-        if (fromBase) return yield* withCurrentSkillPermissions(fromBase)
+        if (fromBase) {
+          const resolved = legacyAlias ? { ...fromBase, name: requested } : fromBase
+          return yield* withCurrentSkillPermissions(resolved)
+        }
         const pluginAgent = yield* Effect.map(pluginAgents, (items) => items.find((item) => agentNameMatches(item.name, agent)))
         if (!pluginAgent) return undefined
         return yield* withCurrentSkillPermissions(pluginAgent)

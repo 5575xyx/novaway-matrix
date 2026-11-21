@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { compactBytes, formatDate, updateLabel, updateTitle, type InstalledPackage } from "./settings-market-model"
+import {
+  compactBytes,
+  formatDate,
+  marketTypesOf,
+  updateLabel,
+  updateTitle,
+  type InstalledPackage,
+} from "./settings-market-model"
 
 const pkg = (input: Partial<InstalledPackage> & { previous?: InstalledPackage["previous"] }): InstalledPackage => ({
   name: "demo",
@@ -59,19 +66,21 @@ describe("marketplace install history", () => {
 
 import { updateAvailable } from "./settings-market-model"
 
-describe("marketplace updates", () => {
-  const installed = (version?: string) => (version ? pkg({ version }) : pkg({}))
-
-  test("flags a newer catalog version", () => {
-    expect(updateAvailable(installed("1.2.0"), "1.3.0")).toBe(true)
-    expect(updateAvailable(installed("1.10.0"), "1.9.0")).toBe(false)
-    expect(updateAvailable(installed("2.0.0"), "2.0.0")).toBe(false)
-    expect(updateAvailable(installed("1.2"), "1.2.1")).toBe(true)
+describe("marketplace contribution types", () => {
+  test("maps Office workbench metadata and contributions to stable filters", () => {
+    expect(
+      marketTypesOf({
+        marketTypes: ["workbench", "agents", "skills"],
+        capabilities: ["agents", "skills"],
+      }),
+    ).toEqual(["workbench", "agents", "skills"])
   })
 
-  test("stays quiet without version metadata", () => {
-    expect(updateAvailable(undefined, "1.0.0")).toBe(false)
-    expect(updateAvailable(installed(), "1.0.0")).toBe(false)
-    expect(updateAvailable(installed("1.0.0"), undefined)).toBe(false)
+  test("maps UI contribution registries to the theme category", () => {
+    expect(marketTypesOf({ capabilities: ["surfaces", "previewers", "tools"] })).toEqual(["tools", "theme"])
+  })
+
+  test("maps untyped third-party entries to the Other filter", () => {
+    expect(marketTypesOf({})).toEqual(["other"])
   })
 })

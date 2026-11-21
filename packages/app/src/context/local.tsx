@@ -9,6 +9,7 @@ import { configuredModel, firstSelectableModel, isAutoModel, orderFallbackProvid
 import { Persist, persisted } from "@/utils/persist"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "./model-variant"
 import { visibleAgentList } from "./local-agent"
+import { DEFAULT_AGENT } from "./agent-permission"
 import { useLayout } from "./layout"
 import { useSDK } from "./sdk"
 import { useSync } from "./sync"
@@ -88,7 +89,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         variant?: string | null
       }
     }>({
-      current: list()[0]?.name,
+      current: list().find((item) => item.name === DEFAULT_AGENT)?.name ?? list()[0]?.name,
       draft: undefined,
       last: undefined,
     })
@@ -109,7 +110,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const pickAgent = (name: string | undefined) => {
       const items = list()
       if (items.length === 0) return
-      return items.find((item) => item.name === name) ?? items[0]
+      return items.find((item) => item.name === name) ?? items.find((item) => item.name === DEFAULT_AGENT) ?? items[0]
     }
 
     createEffect(() => {
@@ -119,7 +120,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         return
       }
       if (items.some((item) => item.name === store.current)) return
-      setStore("current", items[0]?.name)
+      setStore("current", items.find((item) => item.name === DEFAULT_AGENT)?.name ?? items[0]?.name)
     })
 
     const scope = createMemo<State | undefined>(() => {

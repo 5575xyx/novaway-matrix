@@ -61,7 +61,7 @@ import { ToolStatusTitle } from "./tool-status-title"
 import { toolActionKey } from "./tool-title"
 import { ToolFileChips } from "./tool-file-chips"
 import { patchFiles } from "./apply-patch-file"
-import { animate } from "motion"
+import { animate } from "../util/motion"
 import { useLocation } from "@solidjs/router"
 import { attached, inline, kind } from "./message-file"
 import { ReasoningIndicator } from "./reasoning-indicator"
@@ -138,6 +138,8 @@ function DiagnosticsDisplay(props: { diagnostics: Diagnostic[] }): JSX.Element {
   )
 }
 
+export type LinkOpenHandler = (url: string) => boolean | void
+
 export interface MessageProps {
   message: MessageType
   parts: PartType[]
@@ -145,6 +147,7 @@ export interface MessageProps {
   showAssistantCopyPartID?: string | null
   showReasoningSummaries?: boolean
   onFileOpen?: (path: string) => void
+  onLinkOpen?: LinkOpenHandler
 }
 
 export type SessionAction = (input: { sessionID: string; messageID: string }) => Promise<void> | void
@@ -163,6 +166,7 @@ export interface MessagePartProps {
   showAssistantCopyPartID?: string | null
   turnDurationMs?: number
   onFileOpen?: (path: string) => void
+  onLinkOpen?: LinkOpenHandler
   /** Active surface renderer selected by the host from the current plugin snapshot. */
   pluginRenderer?: PartComponent
 }
@@ -250,6 +254,7 @@ function PacedMarkdown(props: {
   cacheKey: string
   streaming: boolean
   onFileOpen?: (path: string) => void
+  onLinkOpen?: LinkOpenHandler
 }) {
   const value = createPacedValue(
     () => props.text,
@@ -258,7 +263,13 @@ function PacedMarkdown(props: {
 
   return (
     <Show when={value()}>
-      <Markdown text={value()} cacheKey={props.cacheKey} streaming={props.streaming} onFileOpen={props.onFileOpen} />
+      <Markdown
+        text={value()}
+        cacheKey={props.cacheKey}
+        streaming={props.streaming}
+        onFileOpen={props.onFileOpen}
+        onLinkOpen={props.onLinkOpen}
+      />
     </Show>
   )
 }
@@ -906,6 +917,7 @@ export function Message(props: MessageProps) {
             showAssistantCopyPartID={props.showAssistantCopyPartID}
             showReasoningSummaries={props.showReasoningSummaries}
             onFileOpen={props.onFileOpen}
+            onLinkOpen={props.onLinkOpen}
           />
         )}
       </Match>
@@ -919,6 +931,7 @@ export function AssistantMessageDisplay(props: {
   showAssistantCopyPartID?: string | null
   showReasoningSummaries?: boolean
   onFileOpen?: (path: string) => void
+  onLinkOpen?: LinkOpenHandler
 }) {
   const emptyTools: ToolPart[] = []
   const part = createMemo(() => index(props.parts))
@@ -983,6 +996,7 @@ export function AssistantMessageDisplay(props: {
                       message={props.message}
                       showAssistantCopyPartID={props.showAssistantCopyPartID}
                       onFileOpen={props.onFileOpen}
+                      onLinkOpen={props.onLinkOpen}
                     />
                   </Show>
                 )
@@ -1003,6 +1017,7 @@ export function AssistantMessageDisplay(props: {
                       message={props.message}
                       showAssistantCopyPartID={props.showAssistantCopyPartID}
                       onFileOpen={props.onFileOpen}
+                      onLinkOpen={props.onLinkOpen}
                     />
                   </Show>
                 )
@@ -1378,6 +1393,7 @@ export function Part(props: MessagePartProps) {
         showAssistantCopyPartID={props.showAssistantCopyPartID}
         turnDurationMs={props.turnDurationMs}
         onFileOpen={props.onFileOpen}
+        onLinkOpen={props.onLinkOpen}
       />
     </Show>
   )
@@ -1704,9 +1720,23 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
         <div data-slot="text-part-body">
           <Show
             when={streaming()}
-            fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} onFileOpen={props.onFileOpen} />}
+            fallback={
+              <Markdown
+                text={text()}
+                cacheKey={part().id}
+                streaming={false}
+                onFileOpen={props.onFileOpen}
+                onLinkOpen={props.onLinkOpen}
+              />
+            }
           >
-            <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} onFileOpen={props.onFileOpen} />
+            <PacedMarkdown
+              text={text()}
+              cacheKey={part().id}
+              streaming={streaming()}
+              onFileOpen={props.onFileOpen}
+              onLinkOpen={props.onLinkOpen}
+            />
           </Show>
         </div>
         <Show when={showCopy()}>
@@ -1829,8 +1859,11 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
         </Collapsible.Trigger>
         <Collapsible.Content>
           <div data-component="reasoning-part" data-timeline-part-id={part().id}>
-            <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-              <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+            <Show
+              when={streaming()}
+              fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} onLinkOpen={props.onLinkOpen} />}
+            >
+              <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} onLinkOpen={props.onLinkOpen} />
             </Show>
           </div>
         </Collapsible.Content>

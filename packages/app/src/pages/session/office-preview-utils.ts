@@ -112,7 +112,8 @@ export function hasPathExtension(path: string | undefined, extensions: readonly 
 export type PluginFilePreviewer = {
   pluginID: string
   localName: string
-  viewId: string
+  viewId?: string
+  render?: { type: "builtin"; component: string } | { type: "iframe"; url: string }
   priority: number
   readOnly: boolean
 }
@@ -127,6 +128,7 @@ export function pluginFilePreviewer(
         pluginID?: string
         localName?: string
         viewId?: string
+        render?: unknown
         priority?: number | string
         readOnly?: boolean
         match?: unknown
@@ -135,19 +137,28 @@ export function pluginFilePreviewer(
 ): PluginFilePreviewer | undefined {
   if (!path || !contributions) return undefined
   const candidates = contributions.flatMap((item) => {
-    if (item.kind !== "previewer" || item.status !== "active" || !item.pluginID || !item.localName || !item.viewId)
-      return []
+    if (item.kind !== "previewer" || item.status !== "active" || !item.pluginID || !item.localName) return []
+
     if (!isRecord(item.match)) return []
     const extensionValue = item.match.extension
     const extensionItems = typeof extensionValue === "string" ? [extensionValue] : extensionValue
     if (!Array.isArray(extensionItems)) return []
     const extensions = extensionItems.filter((extension): extension is string => typeof extension === "string")
     if (extensions.length !== extensionItems.length || !hasPathExtension(path, extensions)) return []
+    const render = isRecord(item.render)
+      ? item.render.type === "iframe" && typeof item.render.url === "string"
+        ? { type: "iframe" as const, url: item.render.url }
+        : item.render.type === "builtin" && typeof item.render.component === "string"
+          ? { type: "builtin" as const, component: item.render.component }
+          : undefined
+      : undefined
+    if (!item.viewId && !render) return []
     return [
       {
         pluginID: item.pluginID,
         localName: item.localName,
-        viewId: item.viewId,
+        ...(item.viewId ? { viewId: item.viewId } : {}),
+        ...(render ? { render } : {}),
         priority: typeof item.priority === "number" && Number.isFinite(item.priority) ? item.priority : 0,
         readOnly: item.readOnly === true,
       },

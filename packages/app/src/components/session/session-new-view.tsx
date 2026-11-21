@@ -1,12 +1,8 @@
 import { Show, createMemo } from "solid-js"
 import { DateTime } from "luxon"
 import { useSync } from "@/context/sync"
+import { useLayout, appModeIsGroup } from "@/context/layout"
 import { useLanguage } from "@/context/language"
-import { useLayout } from "@/context/layout"
-import { useLocal } from "@/context/local"
-import { usePermission } from "@/context/permission"
-import { useSDK } from "@/context/sdk"
-import { permissionForAgent } from "@/context/agent-permission"
 import { usePrompt } from "@/context/prompt"
 import { PromptInput } from "@/components/prompt-input"
 import { createPromptVeil, PromptInputLoading } from "@/components/prompt-input/loading"
@@ -31,10 +27,6 @@ export function NewSessionView(props: NewSessionViewProps) {
   const sync = useSync()
   const language = useLanguage()
   const layout = useLayout()
-  const local = useLocal()
-  const permission = usePermission()
-  const sdk = useSDK()
-
   const prompt = usePrompt()
   const office = useOfficeAgent()
   const settings = useSettings()
@@ -49,13 +41,7 @@ export function NewSessionView(props: NewSessionViewProps) {
    */
   const veiling = createPromptVeil(() => prompt.ready()())
 
-  const isForge = createMemo(() => layout.mode.current() === "forge")
-  const isOffice = createMemo(() => layout.mode.current() === "zen")
-  const currentAgent = createMemo(() => {
-    const name = local.agent.current()?.name
-    if (name === "plan" || name === "build") return name
-    return "build"
-  })
+  const isOffice = createMemo(() => appModeIsGroup(layout.mode.current(), "office", layout.mode.all()))
 
   return (
     <div class={ROOT_CLASS}>
@@ -88,51 +74,6 @@ export function NewSessionView(props: NewSessionViewProps) {
 
           {/* Prompt input for new session */}
           <div class="relative z-10 w-full px-4 pointer-events-auto flex flex-col gap-3">
-            <Show when={isForge()}>
-              <div class="w-full flex gap-3">
-                {(
-                  [
-                    { name: "plan" as const, color: "var(--icon-agent-plan-base)" },
-                    { name: "build" as const, color: "var(--icon-agent-build-base)" },
-                  ] as const
-                ).map((agent) => {
-                  const active = () => currentAgent() === agent.name
-                  return (
-                    <button
-                      type="button"
-                      data-component="new-session-agent-card"
-                      data-active={active()}
-                      style={{ "--agent-tint": agent.color }}
-                      class="flex-1 flex items-start gap-4 px-5 py-4 rounded-xl border text-left transition-all"
-                      classList={{
-                        "border-border bg-background/50 hover:border-border-hover hover:bg-hover": !active(),
-                        "border-[var(--border-agent-plan-base)] bg-surface-agent-plan-base":
-                          active() && agent.name === "plan",
-                        "border-[var(--border-agent-build-base)] bg-surface-agent-build-base":
-                          active() && agent.name === "build",
-                      }}
-                      onClick={() => {
-                        // 角色决定执行能力，档位决定闸门：选哪个角色就带出对应档位，
-                        // 避免出现"锻造工程 + 只读"这类互相打架的组合。
-                        const next = permissionForAgent(agent.name, permission.mode(undefined, sdk.directory))
-                        if (next) permission.setMode(undefined, sdk.directory, next)
-                        local.agent.set(agent.name)
-                      }}
-                    >
-                      <div class="mt-1 size-3 rounded-full shrink-0" style={{ "background-color": agent.color }} />
-                      <div class="flex flex-col gap-1 min-w-0 text-left">
-                        <div class="text-14-semibold text-foreground">
-                          {language.t(`session.new.agentSelector.${agent.name}.title`)}
-                        </div>
-                        <div class="text-12-regular text-foreground-subtle leading-5">
-                          {language.t(`session.new.agentSelector.${agent.name}.description`)}
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </Show>
             <div class="relative w-full">
               <PromptInput
                 ref={props.inputRef}

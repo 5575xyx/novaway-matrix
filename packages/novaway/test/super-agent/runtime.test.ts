@@ -11,6 +11,23 @@ const goal: Goal = {
   acceptanceCriteria: [{ id: "tests", text: "tests pass", required: true }],
 }
 
+async function settleRoot(runtime: SuperAgentRuntime, runID: string) {
+  const taskID = runtime.snapshot().graph.rootTaskID
+  await runtime.dispatch({
+    type: "run_tool",
+    taskID,
+    tool: "fixture.verify",
+    input: {},
+    instructionID: `${runID}:verify:instruction`,
+    runID,
+    issuedAt: Date.now(),
+    policyContextHash: "test-policy",
+    capability: "tool",
+    idempotencyKey: `${runID}:verify:operation`,
+  })
+}
+
+
 describe("SuperAgentRuntime", () => {
   test("creates a durable-shaped run and emits ordered events", () => {
     const { runtime, journal } = SuperAgentRuntime.create({ id: "run-1", goal })
@@ -64,11 +81,18 @@ describe("SuperAgentRuntime", () => {
     expect(run.graph.planHash).not.toBe("initial")
   })
 
-  test("rejects invalid terminal transitions", () => {
-    const { runtime } = SuperAgentRuntime.create({ id: "run-2", goal })
+  test("rejects invalid terminal transitions", async () => {
+    const created = SuperAgentRuntime.create({ id: "run-2", goal })
+    const runtime = new SuperAgentRuntime(created.runtime.snapshot(), created.journal, async () => ({
+      type: "tool_completed",
+      tool: "fixture.verify",
+      output: "verified",
+      evidenceIDs: ["evidence-2"],
+    }))
     runtime.transition("planning")
     runtime.transition("ready")
     runtime.transition("running")
+    await settleRoot(runtime, "run-2")
     const verification: Verification = {
       id: "verification-2",
       runID: "run-2",
@@ -94,11 +118,18 @@ describe("SuperAgentRuntime", () => {
     expect(runtime.snapshot().status).toBe("needs_review")
   })
 
-  test("completes only after required verification passes", () => {
-    const { runtime } = SuperAgentRuntime.create({ id: "run-4", goal })
+  test("completes only after required verification passes", async () => {
+    const created = SuperAgentRuntime.create({ id: "run-4", goal })
+    const runtime = new SuperAgentRuntime(created.runtime.snapshot(), created.journal, async () => ({
+      type: "tool_completed",
+      tool: "fixture.verify",
+      output: "verified",
+      evidenceIDs: ["evidence-1"],
+    }))
     runtime.transition("planning")
     runtime.transition("ready")
     runtime.transition("running")
+    await settleRoot(runtime, "run-4")
     const verification: Verification = {
       id: "verification-1",
       runID: "run-4",

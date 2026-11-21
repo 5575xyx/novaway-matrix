@@ -60,7 +60,6 @@ describe("permission mode resolution", () => {
       "plan",
       "default",
       "acceptEdits",
-      "auto",
       "bypassPermissions",
       "unattended",
     ])
@@ -68,5 +67,12 @@ describe("permission mode resolution", () => {
     for (const item of PERMISSION_MODES) {
       expect(item.titleKey).not.toBe(item.descriptionKey)
     }
+  })
+
+  test("the legacy classifier tier folds into autonomous approval", () => {
+    // 分类器不再是独立档位：历史会话/配置里的 "auto" 迁移到自主审批，
+    // 是否启用分类器由 permission_auto.classifier 决定。
+    expect(resolvePermissionMode({ session: "auto" })).toBe("acceptEdits")
+    expect(resolvePermissionMode({ config: "auto" })).toBe("acceptEdits")
   })
 })

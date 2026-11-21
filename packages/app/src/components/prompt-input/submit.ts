@@ -18,7 +18,6 @@ import { useSync } from "@/context/sync"
 import { TeamSelection } from "@/context/team-selection"
 import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
-import { forgeAgentForPrompt } from "@/context/local-agent"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
@@ -45,6 +44,7 @@ export type FollowupDraft = {
 
 type FollowupSendInput = {
   client: ReturnType<typeof useSDK>["client"]
+  sdk: ReturnType<typeof useSDK>
   globalSync: ReturnType<typeof useGlobalSync>
   sync: ReturnType<typeof useSync>
   draft: FollowupDraft
@@ -80,6 +80,46 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   const setIdle = () => {
     if (!input.optimisticBusy) return
     setStore("session_status", input.draft.sessionID, { type: "idle" })
+  }
+
+  const pauseGoalIfPromptDidNotStart = async (cause?: unknown) => {
+    if (!goalExecution) return
+    const record =
+      cause && typeof cause === "object" ? (cause as { data?: { status?: number; message?: string } }) : undefined
+    const message = record?.data?.message ?? (cause instanceof Error ? cause.message : "")
+    if (record?.data?.status === 409 || /busy|already running|正在运行|繁忙/i.test(message)) return
+    try {
+      const goalResponse = await input.sdk.request(
+        `${input.sdk.url}/session/${encodeURIComponent(input.draft.sessionID)}/goals/${encodeURIComponent(goalExecution.goalId)}`,
+        { headers: { "x-novaway-directory": input.sdk.directory } },
+      )
+      if (goalResponse.ok) {
+        const goal = (await goalResponse.json().catch(() => undefined)) as
+          | { executionConfig?: { mode?: string; superAgentRunId?: string } }
+          | undefined
+        const runID = goal?.executionConfig?.superAgentRunId
+        if (runID) {
+          await input.sdk
+            .request(`${input.sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/cancel`, {
+              method: "POST",
+              headers: { "content-type": "application/json", "x-novaway-directory": input.sdk.directory },
+              body: JSON.stringify({}),
+            })
+            .catch(() => {})
+        }
+      }
+      await input.sdk.request(
+        `${input.sdk.url}/session/${encodeURIComponent(input.draft.sessionID)}/goals/${encodeURIComponent(goalExecution.goalId)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json", "x-novaway-directory": input.sdk.directory },
+          body: JSON.stringify({ status: "paused" }),
+        },
+      )
+    } catch {
+      // The original send error is more useful to the user. The server-side
+      // lease and scheduler will still prevent an immediate duplicate run.
+    }
   }
 
   const wait = async () => {
@@ -167,6 +207,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
 
   try {
     if (!(await wait())) {
+      await pauseGoalIfPromptDidNotStart()
       batch(() => {
         setIdle()
         remove()
@@ -185,6 +226,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
     })
     return true
   } catch (err) {
+    await pauseGoalIfPromptDidNotStart(err)
     batch(() => {
       setIdle()
       remove()
@@ -222,9 +264,11 @@ type PromptSubmitInput = {
    */
   agentOverride?: () => string | undefined
   goalExecution?: Accessor<{ sessionID: string; goalId: string; title: string } | undefined>
-  createGoal?: (text: string) => Promise<{ goalId: string; title: string } | undefined>
+  createGoal?: (text: string, durable?: boolean) => Promise<{ goalId: string; title: string } | undefined>
   goalMode?: Accessor<boolean>
   goalMaxIterations?: Accessor<number>
+  longTask?: Accessor<{ enabled: boolean }>
+  createLongTask?: (text: string) => Promise<string | undefined>
 }
 
 type CommentItem = {
@@ -460,14 +504,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       providerID: finalModel.provider.id,
     }
     // 固定角色（嵌入场景）不做模式推断：运营工作台的输入框永远发给运营主智能体。
-    const agent =
-      overrideAgent ??
-      forgeAgentForPrompt({
-        mode: layout.mode.current(),
-        current: currentAgent.name,
-        text,
-        promptMode: mode,
-      })
+    const agent = overrideAgent ?? currentAgent.name
     if (!overrideAgent && agent !== currentAgent.name) {
       local.agent.set(agent)
     }
@@ -479,9 +516,15 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
     const context = prompt.context.items().slice()
+    const commandCandidate = text.trim().split(" ")[0]
+    const customCommandRequested =
+      mode === "normal" &&
+      commandCandidate?.startsWith("/") &&
+      sync.data.command.some((item) => item.name === commandCandidate.slice(1))
+    const durableGoalRequested = input.goalMode?.() === true && input.longTask?.().enabled === true
     let goalExecution = input.goalExecution?.()
-    if (input.goalMode?.() && !goalExecution) {
-      const created = await input.createGoal?.(text)
+    if (input.goalMode?.() && !goalExecution && mode === "normal" && !customCommandRequested) {
+      const created = await input.createGoal?.(text, durableGoalRequested)
       if (!created) return
       goalExecution = { sessionID: session.id, ...created }
     }
@@ -530,9 +573,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
-    input.onSubmit?.()
-
     if (mode === "shell") {
+      input.onSubmit?.()
       clearInput()
       client.session
         .shell({
@@ -556,6 +598,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       const commandName = cmdName.slice(1)
       const customCommand = sync.data.command.find((c) => c.name === commandName)
       if (customCommand) {
+        input.onSubmit?.()
         clearInput()
         client.session
           .command({
@@ -584,6 +627,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       }
     }
 
+    input.onSubmit?.()
     const commentItems = context.filter(
       (item): item is Extract<ContextItem, { type: "file" }> & { key: string } =>
         item.type === "file" && !!item.comment?.trim(),
@@ -658,6 +702,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     void sendFollowupDraft({
       client,
+      sdk,
       sync,
       globalSync,
       draft,

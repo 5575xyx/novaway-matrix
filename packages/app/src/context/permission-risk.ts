@@ -9,13 +9,15 @@ import type { PermissionRequest } from "@novaway/sdk/v2/client"
  *
  * - `plan` 计划模式：只读，写操作被拒绝。
  * - `default` 每次确认：按配置规则询问。
- * - `acceptEdits` 自主模式：常规操作自动执行，**危险操作仍然询问**。
+ * - `acceptEdits` 自主审批：常规操作自动执行，**危险操作仍然询问**；
+ *   设置里的安全分类器（`permission_auto.classifier`）是这一档的辅助判定开关，
+ *   不是独立档位 —— 开启后需要询问的操作先由分类器放行明确安全的部分。
  * - `bypassPermissions` 跳过所有确认：权限不再问，但 `question` 之类
  *   "要用户拿主意"的工具仍会停下来等人。
  * - `unattended` 无人值守：权限不问，需要澄清/拍板的问题也交给模型自己决定，
  *   整轮不会因为等不到人而挂住。
  */
-export type SessionPermissionMode = "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "unattended"
+export type SessionPermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions" | "unattended"
 
 /** 档位的视觉色调：越靠后越"放行"，颜色也越需要让人多看一眼。 */
 export type PermissionTone = "neutral" | "interactive" | "info" | "warning" | "critical"
@@ -51,13 +53,6 @@ export const PERMISSION_MODES: Array<{
     tone: "interactive",
   },
   {
-    value: "auto",
-    titleKey: "permission.mode.classifier",
-    descriptionKey: "permission.mode.classifier.description",
-    icon: "brain",
-    tone: "interactive",
-  },
-  {
     value: "bypassPermissions",
     titleKey: "permission.mode.full",
     descriptionKey: "permission.mode.full.description",
@@ -77,13 +72,15 @@ export const PERMISSION_MODES: Array<{
 /** 客户端要不要替用户应答：`never` 全问，`risky` 只放行常规操作，`always` 全放行。 */
 export function autoRespondsUnder(mode: SessionPermissionMode): "never" | "risky" | "always" {
   if (mode === "bypassPermissions" || mode === "unattended") return "always"
-  if (mode === "auto") return "risky"
   // 计划模式写操作由内核直接拒绝，其余请求仍需人来决定。
   if (mode === "acceptEdits") return "risky"
   return "never"
 }
 
 export function normalizeMode(value: unknown): SessionPermissionMode | undefined {
+  // 内核旧档位 "auto"（安全分类器）已并入自主审批：分类器改由
+  // permission_auto.classifier 开关控制，历史会话/配置读到这里时迁移过去。
+  if (value === "auto") return "acceptEdits"
   return PERMISSION_MODES.some((item) => item.value === value) ? (value as SessionPermissionMode) : undefined
 }
 
@@ -122,8 +119,8 @@ export function isRiskyPermission(permission: Pick<PermissionRequest, "permissio
 
 /** 旧版目录档位（confirm / auto / full）→ 内核档位。 */
 export function legacyModeFrom(value: string | undefined, autoAccept?: boolean): SessionPermissionMode | undefined {
-  // 旧档位 "auto" 是「自动接受编辑」，与新内核档位 "auto"（小模型分类器）同名不同义。
-  // 必须先迁移，否则历史目录设置会被 normalizeMode 当成新档位，每轮凭空多一次 LLM 往返。
+  // 旧档位 "auto" 是「自动接受编辑」；内核后来同名档位（小模型分类器）也已并入
+  // 自主审批。两者都迁移到 acceptEdits，分类器行为由 permission_auto 开关决定。
   if (value === "auto") return "acceptEdits"
   const normalized = normalizeMode(value)
   if (normalized) return normalized

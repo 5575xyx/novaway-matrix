@@ -14,6 +14,8 @@ import { canCheckUpdate, checkForUpdate, updateState } from "@/context/update"
 import { useGlobalSync } from "@/context/global-sync"
 import { useGlobalSDK } from "@/context/global-sdk"
 import {
+  MAX_CONTENT_WIDTH,
+  MIN_CONTENT_WIDTH,
   monoDefault,
   monoFontFamily,
   monoInput,
@@ -27,6 +29,7 @@ import {
 } from "@/context/settings"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { SettingsGroup, SettingsPage } from "./settings-parts"
+import { SettingsAppAppearance } from "./settings-app-appearance"
 import { usePermission } from "@/context/permission"
 import { PERMISSION_MODES } from "@/context/permission-risk"
 import type { Config } from "@novaway/sdk/v2/client"
@@ -58,6 +61,41 @@ const fontStyleLabelKey = (value: string) =>
   value === "serif"
     ? ("settings.general.appearance.fontStyle.serif" as const)
     : ("settings.general.appearance.fontStyle.sans" as const)
+
+const fontStyleOptions = () => [
+  { value: "sans" as const, label: "无衬线", sample: "The quick brown fox", preview: "" },
+  {
+    value: "serif" as const,
+    label: "衬线",
+    sample: "The quick brown fox",
+    preview: "Georgia, 'Times New Roman', serif",
+  },
+  {
+    value: "kai" as const,
+    label: "楷体",
+    sample: "楷体示例文本",
+    preview: "'Kaiti SC', KaiTi, STKaiti, cursive, serif",
+  },
+  {
+    value: "fangsong" as const,
+    label: "仿宋",
+    sample: "仿宋示例文本",
+    preview: "'Fangsong SC', FangSong, STFangsong, serif",
+  },
+  {
+    value: "yuan" as const,
+    label: "圆体",
+    sample: "圆体示例文本",
+    preview: "'Yuanti SC', YouYuan, ui-rounded, sans-serif",
+  },
+  {
+    value: "xingkai" as const,
+    label: "行楷",
+    sample: "行楷示例文本",
+    preview: "'Xingkai SC', STXingkai, KaiTi, cursive",
+  },
+  { value: "lishu" as const, label: "隶书", sample: "隶书示例文本", preview: "LiSu, 'Lisu SC', STLibian, serif" },
+]
 
 const contentWidthLabelKey = (value: string) =>
   value === "small"
@@ -95,7 +133,7 @@ const playDemoSound = (id: string | undefined) => {
 
 /** 是否显示「音效」设置。当前没有可用音效资源，默认关闭。 */
 const SHOW_SOUND_SETTINGS = false
-const COLOR_THEME_IDS = ["novaway", "parchment", "osaka-jade", "gruvbox", "lucent-orng"] as const
+const COLOR_THEME_IDS = ["novaway", "osaka-jade", "gruvbox", "lucent-orng"] as const
 
 export const SettingsGeneral: Component = () => {
   const language = useLanguage()
@@ -232,8 +270,13 @@ export const SettingsGeneral: Component = () => {
       "var(--interactive-base)",
   )
   const openCustomColorPicker = () => {
-    if (!customColorInput) return
-    customColorInput.click()
+    const input = customColorInput
+    if (!input) return
+    // 部分浏览器只允许在用户手势的同步调用链里打开 color picker；
+    // 事件里经过 Solid 的批量更新后再 .click() 会丢掉手势上下文，
+    // 所以在 pointerup 同步阶段先聚焦，随即在同一 tick 内打开。
+    input.focus()
+    input.click()
   }
 
   const languageOptions = createMemo(() =>
@@ -242,6 +285,11 @@ export const SettingsGeneral: Component = () => {
       label: language.label(locale),
     })),
   )
+
+  // 滑杆显示的实际宽度：优先连续取值，否则回退到旧三档对应的像素宽度。
+  const contentWidthValue = () =>
+    settings.appearance.contentWidthPx() ??
+    ({ small: 680, standard: 820, wide: 1080 } as const)[settings.appearance.contentWidth()]
 
   const noneSound = { id: "none", label: "sound.option.none" } as const
   const soundOptions = [noneSound, ...SOUND_OPTIONS]
@@ -539,7 +587,7 @@ export const SettingsGeneral: Component = () => {
           </div>
           <div
             data-action="settings-color-theme"
-            class="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
+            class="relative mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
           >
             <For each={colorThemeOptions()}>
               {(option) => (
@@ -582,7 +630,7 @@ export const SettingsGeneral: Component = () => {
               aria-pressed={theme.customInteractive() !== null}
               aria-label={language.t("settings.general.appearance.theme.custom")}
               title={language.t("settings.general.appearance.theme.custom.description")}
-              class="rounded-lg border border-dashed border-border bg-background p-1.5 text-left transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus/40"
+              class="relative rounded-lg border border-dashed border-border bg-background p-1.5 text-left transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus/40"
               classList={{
                 "border-interactive-base/60 bg-surface-interactive-weak": theme.customInteractive() !== null,
               }}
@@ -601,17 +649,21 @@ export const SettingsGeneral: Component = () => {
               <span class="mt-1 block truncate text-center text-10-medium text-foreground-subtle">
                 {theme.customInteractive() ?? language.t("settings.general.appearance.theme.custom")}
               </span>
+              {/* 隐藏的 color input 放在卡片内部、盖住色块：原生取色器会锚定到
+                  input 所在位置，放在这里弹窗才会贴着「自定义颜色」卡片出现。 */}
+              <input
+                ref={customColorInput}
+                type="color"
+                tabindex={-1}
+                aria-hidden="true"
+                value={customThemeSwatch()}
+                class="absolute left-1/2 top-16 size-px -translate-x-1/2 opacity-0 pointer-events-none"
+                // input.click() 会冒泡回按钮的 onClick，再开一次取色器 → 无限递归，这里掐掉。
+                onClick={(event) => event.stopPropagation()}
+                onInput={(event) => theme.setCustomInteractive(event.currentTarget.value)}
+                onChange={(event) => theme.setCustomInteractive(event.currentTarget.value)}
+              />
             </button>
-            <input
-              ref={customColorInput}
-              type="color"
-              tabindex={-1}
-              aria-label={language.t("settings.general.appearance.theme.custom")}
-              value={customThemeSwatch()}
-              class="sr-only"
-              onInput={(event) => theme.setCustomInteractive(event.currentTarget.value)}
-              onChange={(event) => theme.setCustomInteractive(event.currentTarget.value)}
-            />
           </div>
         </div>
 
@@ -619,49 +671,50 @@ export const SettingsGeneral: Component = () => {
           title={language.t("settings.general.appearance.fontStyle.title")}
           description={language.t("settings.general.appearance.fontStyle.description")}
         >
-          <Select
-            options={[
-              { value: "sans", label: language.t("settings.general.appearance.fontStyle.sans") },
-              { value: "serif", label: language.t("settings.general.appearance.fontStyle.serif") },
-            ]}
-            current={{
-              value: settings.appearance.fontStyle(),
-              label: language.t(fontStyleLabelKey(settings.appearance.fontStyle())),
-            }}
-            value={(option) => option.value}
-            label={(option) => option.label}
-            onSelect={(option) => option && settings.appearance.setFontStyle(option.value as "sans" | "serif")}
-            variant="secondary"
-            size="small"
-            triggerVariant="settings"
-            triggerStyle={{ "min-width": "220px" }}
-          />
+          <div class="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-4" data-action="settings-font-style">
+            <For each={fontStyleOptions()}>
+              {(option) => (
+                <button
+                  type="button"
+                  data-font-style={option.value}
+                  aria-pressed={settings.appearance.fontStyle() === option.value}
+                  class="rounded-lg border border-border bg-background p-2 transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus/40"
+                  classList={{
+                    "border-interactive-base/60 bg-surface-interactive-weak":
+                      settings.appearance.fontStyle() === option.value,
+                  }}
+                  style={{ "font-family": option.preview }}
+                  onClick={() => settings.appearance.setFontStyle(option.value)}
+                >
+                  <span class="block text-14-medium text-foreground">{option.sample}</span>
+                  <span class="mt-1 block truncate text-center text-10-medium text-foreground-subtle">
+                    {option.label}
+                  </span>
+                </button>
+              )}
+            </For>
+          </div>
         </SettingsRow>
 
         <SettingsRow
           title={language.t("settings.general.appearance.contentWidth.title")}
           description={language.t("settings.general.appearance.contentWidth.description")}
         >
-          <Select
-            options={[
-              { value: "small", label: language.t("settings.general.appearance.contentWidth.small") },
-              { value: "standard", label: language.t("settings.general.appearance.contentWidth.standard") },
-              { value: "wide", label: language.t("settings.general.appearance.contentWidth.wide") },
-            ]}
-            current={{
-              value: settings.appearance.contentWidth(),
-              label: language.t(contentWidthLabelKey(settings.appearance.contentWidth())),
-            }}
-            value={(option) => option.value}
-            label={(option) => option.label}
-            onSelect={(option) =>
-              option && settings.appearance.setContentWidth(option.value as "small" | "standard" | "wide")
-            }
-            variant="secondary"
-            size="small"
-            triggerVariant="settings"
-            triggerStyle={{ "min-width": "220px" }}
-          />
+          <div class="flex items-center gap-3" data-action="settings-content-width">
+            <input
+              type="range"
+              min={MIN_CONTENT_WIDTH}
+              max={MAX_CONTENT_WIDTH}
+              step="20"
+              class="w-64 accent-[var(--button-primary-base)]"
+              value={contentWidthValue()}
+              onInput={(e) => settings.appearance.setContentWidthPx(Number(e.currentTarget.value))}
+              aria-label={language.t("settings.general.appearance.contentWidth.title")}
+            />
+            <span class="w-14 text-right text-12-regular tabular-nums text-foreground-subtle">
+              {contentWidthValue()}px
+            </span>
+          </div>
         </SettingsRow>
 
         <SettingsRow
@@ -811,6 +864,11 @@ export const SettingsGeneral: Component = () => {
       <AdvancedSection />
 
       <AppearanceSection />
+
+      {/* 应用图标与名称：仅桌面端有意义（窗口/任务栏/托盘/Dock 由主进程承载）。 */}
+      <Show when={desktop()}>
+        <SettingsAppAppearance />
+      </Show>
 
       {/* 音效：当前产品没有接入任何提示音资源，这一节只会在设置里制造
             「选了但没反应」的困惑，先整节隐藏；需要时把 SoundsSection 放回来即可。 */}

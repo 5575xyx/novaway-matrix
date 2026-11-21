@@ -45,9 +45,10 @@ import { agentAvatar, agentAvatarSeeds, agentAvatarSrc } from "@/utils/agent-ava
 import { pathKey } from "@/utils/path-key"
 import { AiFixButton } from "./ai-fix-button"
 import { AppIcon, appIcon } from "./app-icon"
-import { rowAccentTint, SettingsGroup, SettingsPage } from "./settings-parts"
+import { rowAccentTint, SettingsGroup, SettingsNumberField, SettingsPage, SettingsRow } from "./settings-parts"
 import { matchesModeGroup, modeGroupLabel, modeGroups, type ModeGroup } from "./settings-mode-groups"
 import { agentSkillPermission, hasSkillPermission, withAgentSkills } from "./settings-agent-config"
+import { PluginViewHost, type PluginViewRender } from "@/components/plugin-view-host"
 
 type ConfigKey = "agent" | "skills" | "permission" | "mcp" | "plugin"
 type ConfigRecordKey = Exclude<ConfigKey, "plugin">
@@ -2792,9 +2793,14 @@ export const SettingsSkills: Component = () => {
   const dialog = useDialog()
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
+  const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
   const [modeGroup, setModeGroup] = createSignal<ModeGroup>("all")
   const [sourceFilter, setSourceFilter] = createSignal<SourceFilter>("all")
+  const skillBudget = createMemo(() => {
+    const value = globalSync.data.config.skills?.listing_budget_fraction
+    return typeof value === "number" ? value : undefined
+  })
 
   const files = useQuery(() => ({
     queryKey: ["settings", "skill-files"],
@@ -3029,6 +3035,30 @@ export const SettingsSkills: Component = () => {
               </For>
             </Show>
           </Show>
+        </SettingsGroup>
+      </div>
+
+      <div>
+        <SectionTitle title="提示词预算" description="技能名称与说明会占用系统提示词；比例限制它们能用的上下文份额。" />
+        <SettingsGroup>
+          <SettingsRow
+            label="技能列表预算"
+            description="有效范围 0 到 1，默认 0.05；超出后只保留相关度最高的技能说明。"
+            control={
+              <SettingsNumberField
+                value={skillBudget()}
+                fallback={0.05}
+                min={0.01}
+                max={1}
+                step={0.01}
+                onSave={(value) =>
+                  void globalSync.updateConfig({
+                    skills: { ...(globalSync.data.config.skills ?? {}), listing_budget_fraction: value },
+                  } as Config)
+                }
+              />
+            }
+          />
         </SettingsGroup>
       </div>
     </SettingsPage>
@@ -3792,13 +3822,38 @@ type PluginSettingsSection = {
   title: string
   description?: string
   fields: PluginSettingsField[]
+  render?: PluginViewRender
 }
 
 function parsePluginSettingsSections(items: PluginContributionsResponse): PluginSettingsSection[] {
   return items.flatMap((item) => {
     if (item.kind !== "surface" || item.slot !== "settings.section" || item.status !== "active") return []
     if (!item.title || typeof item.view !== "object" || item.view === null) return []
-    const view = item.view as { type?: unknown; fields?: unknown }
+    const view = item.view as { type?: unknown; fields?: unknown; viewId?: unknown; render?: unknown; url?: unknown }
+    const render = (() => {
+      if (view.type === "iframe" && typeof view.url === "string") return { type: "iframe" as const, url: view.url }
+      if (view.type === "view" && typeof view.viewId === "string") {
+        const value = view.render as Record<string, unknown> | undefined
+        if (value?.type === "iframe" && typeof value.url === "string")
+          return { type: "iframe" as const, url: value.url }
+        if (value?.type === "builtin" && typeof value.component === "string") {
+          return { type: "builtin" as const, component: value.component }
+        }
+      }
+      return undefined
+    })()
+    if (render) {
+      return [
+        {
+          pluginID: item.pluginID,
+          localName: item.localName,
+          title: item.title,
+          description: item.description,
+          fields: [],
+          render,
+        },
+      ]
+    }
     if (view.type !== "declarative" || !Array.isArray(view.fields)) return []
     const fields = view.fields.filter((field): field is PluginSettingsField => {
       if (typeof field !== "object" || field === null) return false
@@ -3859,78 +3914,96 @@ const PluginSettingsSections: Component<{ directory?: string }> = (props) => {
         <For each={sections()}>
           {(section) => (
             <div class="mb-6">
-              <SectionTitle title={section.title} description={section.description} />
-              <SettingsGroup>
-                <For each={section.fields}>
-                  {(field) => {
-                    const value = () => valueOf(section, field)
-                    if (field.type === "boolean") {
-                      return (
-                        <RuntimeRow
-                          icon="server"
-                          title={field.label}
-                          actions={
-                            <Switch
-                              checked={Boolean(value())}
-                              onChange={(checked) => save(section, field, checked)}
-                              hideLabel
-                            />
-                          }
-                        />
-                      )
-                    }
-                    if (field.type === "select") {
-                      const options = field.options.map((option) => ({ value: option, label: option }))
-                      const current = () => options.find((option) => option.value === value())
-                      return (
-                        <div class="flex items-center justify-between gap-4 border-b border-border px-3 py-3 last:border-b-0">
-                          <span class="text-14-regular text-foreground">{field.label}</span>
-                          <Select
-                            options={options}
-                            current={current()}
-                            value={(option) => option.value}
-                            label={(option) => option.label}
-                            onSelect={(option) => option && save(section, field, option.value)}
-                            variant="secondary"
-                            triggerVariant="settings"
+              <Show when={section.fields.some((field) => field.type === "secret")}>
+                <p class="mb-3 text-12-regular text-warning">
+                  Secret values are stored in plain text in the plugin configuration file.
+                </p>
+              </Show>
+              <Show when={section.render}>
+                {(render) => (
+                  <div class="mb-4 h-96 overflow-hidden rounded-lg border border-border">
+                    <PluginViewHost
+                      pluginID={section.pluginID}
+                      viewID={section.localName}
+                      render={render()}
+                      data={{ pluginID: section.pluginID, contribution: section.localName, settings: true }}
+                    />
+                  </div>
+                )}
+              </Show>
+              <Show when={section.fields.length > 0}>
+                <SettingsGroup>
+                  <For each={section.fields}>
+                    {(field) => {
+                      const value = () => valueOf(section, field)
+                      if (field.type === "boolean") {
+                        return (
+                          <RuntimeRow
+                            icon="server"
+                            title={field.label}
+                            actions={
+                              <Switch
+                                checked={Boolean(value())}
+                                onChange={(checked) => save(section, field, checked)}
+                                hideLabel
+                              />
+                            }
                           />
-                        </div>
-                      )
-                    }
-                    if (field.type === "list") {
-                      const listValue = value()
-                      const list = () =>
-                        Array.isArray(listValue) ? listValue.map(String).join(", ") : String(listValue ?? "")
+                        )
+                      }
+                      if (field.type === "select") {
+                        const options = field.options.map((option) => ({ value: option, label: option }))
+                        const current = () => options.find((option) => option.value === value())
+                        return (
+                          <div class="flex items-center justify-between gap-4 border-b border-border px-3 py-3 last:border-b-0">
+                            <span class="text-14-regular text-foreground">{field.label}</span>
+                            <Select
+                              options={options}
+                              current={current()}
+                              value={(option) => option.value}
+                              label={(option) => option.label}
+                              onSelect={(option) => option && save(section, field, option.value)}
+                              variant="secondary"
+                              triggerVariant="settings"
+                            />
+                          </div>
+                        )
+                      }
+                      if (field.type === "list") {
+                        const listValue = value()
+                        const list = () =>
+                          Array.isArray(listValue) ? listValue.map(String).join(", ") : String(listValue ?? "")
+                        return (
+                          <TextField
+                            label={field.label}
+                            value={list()}
+                            onChange={(next) =>
+                              save(
+                                section,
+                                field,
+                                next
+                                  .split(",")
+                                  .map((item) => item.trim())
+                                  .filter(Boolean),
+                              )
+                            }
+                            placeholder={`comma-separated ${field.item} values`}
+                          />
+                        )
+                      }
                       return (
                         <TextField
                           label={field.label}
-                          value={list()}
-                          onChange={(next) =>
-                            save(
-                              section,
-                              field,
-                              next
-                                .split(",")
-                                .map((item) => item.trim())
-                                .filter(Boolean),
-                            )
-                          }
-                          placeholder={`comma-separated ${field.item} values`}
+                          type={field.type === "secret" ? "password" : field.type === "number" ? "number" : "text"}
+                          value={String(value() ?? "")}
+                          onChange={(next) => save(section, field, field.type === "number" ? Number(next) : next)}
+                          placeholder={field.placeholder}
                         />
                       )
-                    }
-                    return (
-                      <TextField
-                        label={field.label}
-                        type={field.type === "secret" ? "password" : field.type === "number" ? "number" : "text"}
-                        value={String(value() ?? "")}
-                        onChange={(next) => save(section, field, field.type === "number" ? Number(next) : next)}
-                        placeholder={field.placeholder}
-                      />
-                    )
-                  }}
-                </For>
-              </SettingsGroup>
+                    }}
+                  </For>
+                </SettingsGroup>
+              </Show>
             </div>
           )}
         </For>
@@ -4167,7 +4240,11 @@ export const PluginStoreSection: Component<{
                     icon="dot-grid"
                     title={entry.name}
                     description={entry.description}
-                    tags={[entry.author, ...(entry.tags ?? [])].filter((tag): tag is string => !!tag)}
+                    tags={[
+                      entry.author,
+                      ...(entry.tags ?? []),
+                      ...(entry.permissions ?? []).map((permission) => `permission:${permission}`),
+                    ].filter((tag): tag is string => !!tag)}
                     footer={<span class="font-mono text-12-regular text-foreground-subtle truncate">{entry.spec}</span>}
                     actions={
                       <Show

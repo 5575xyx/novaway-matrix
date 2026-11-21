@@ -9,8 +9,37 @@ type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: stri
 type SaveFilePickerOptions = { title?: string; defaultPath?: string; data?: Uint8Array }
 type UpdateInfo = { updateAvailable: boolean; version?: string; downloaded?: boolean; failed?: boolean }
 export type NotificationMetadata = { sessionID?: string; requestID?: string }
-export type InstalledEditor = { id: string; name: string }
+export type InstalledEditor = { id: string; name: string; icon?: string }
+/** 能打开 Office 文档的本机应用（Word/Excel/PPT/WPS）；icon 是真实应用图标的 dataURL。 */
+export type OfficeApp = { id: string; name: string; extensions: string[]; icon?: string }
 export type UpdateReadyEvent = { version?: string }
+
+/** 一个可选的应用图标（内置默认 + 用户导入/生成的资源）。 */
+export type AppAppearanceIcon = {
+  id: string
+  label: string
+  createdAt: number
+  builtIn?: boolean
+  lightId?: string
+  darkId?: string
+}
+
+/** 图片生成模型产出的图标来源：远程 URL 或 base64（可带 data: 前缀），二选一。 */
+export type AppAppearanceImageSource = {
+  url?: string
+  base64?: string
+}
+
+/** 桌面应用外观（图标 / 名称）当前状态。 */
+export type AppAppearanceState = {
+  name: string
+  defaultName: string
+  icon: string
+  iconData?: string
+  icons: AppAppearanceIcon[]
+  iconDir: string
+  mode?: "light" | "dark"
+}
 
 /**
  * 自动更新的状态机（桌面端主进程推过来）。
@@ -46,6 +75,12 @@ export type Platform = {
   showItemInFolder?(path: string): Promise<boolean>
 
   getInstalledEditors?(): Promise<InstalledEditor[]>
+
+  /** 本机已安装、能打开 Office 文档的应用（按 extensions 匹配文件类型）。 */
+  getOfficeApps?(): Promise<OfficeApp[]>
+
+  /** 取任意本地文件的系统关联图标（dataURL）；失败/不可用返回 null。 */
+  getFileIcon?(path: string): Promise<string | null>
 
   openInEditor?(
     editorId: string,
@@ -133,6 +168,26 @@ export type Platform = {
   checkAppExists?(appName: string): Promise<boolean>
 
   readClipboardImage?(): Promise<File | null>
+
+  /** 桌面应用外观（图标 / 名称）自定义；仅桌面端实现。 */
+  getAppAppearance?(): Promise<AppAppearanceState>
+  setAppName?(name: string | null): Promise<AppAppearanceState>
+  setAppIcon?(id: string): Promise<AppAppearanceState>
+  importAppIcon?(): Promise<AppAppearanceState | null>
+  importAppIconPair?(): Promise<AppAppearanceState | null>
+  deleteAppIcon?(id: string): Promise<AppAppearanceState>
+  getAppIconData?(id: string, mode?: "light" | "dark"): Promise<string | null>
+  generateAppIconFromImage?(
+    source: AppAppearanceImageSource,
+    label?: string,
+    frame?: "square" | "circle",
+    mode?: "light" | "dark",
+    targetId?: string,
+    themed?: boolean,
+  ): Promise<AppAppearanceState>
+  setAppAppearanceMode?(mode: "light" | "dark"): Promise<AppAppearanceState>
+  openAppIconDir?(): Promise<void>
+  onAppAppearanceChange?(cb: (state: AppAppearanceState) => void): () => void
 }
 
 export type DisplayBackend = "auto" | "wayland"

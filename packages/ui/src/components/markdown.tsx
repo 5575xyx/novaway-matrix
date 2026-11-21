@@ -204,7 +204,38 @@ function setupTaskToggle(root: HTMLDivElement, onTaskToggle: ((index: number) =>
   }
 }
 
-/** `[[wikilink]]`：链接目标交给调用方按当前文件所在目录解析成真实路径。 */
+function setupLinkOpen(root: HTMLDivElement, onLinkOpen: ((url: string) => boolean | void) | undefined) {
+  if (!onLinkOpen) return
+
+  const handler = (event: MouseEvent) => {
+    // Keep the browser's normal new-tab behavior for modified clicks. Plain
+    // primary clicks are the ones the host can route into its embedded browser.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const node = target.closest("a[href]")
+    if (!(node instanceof HTMLAnchorElement)) return
+    const rawHref = node.getAttribute("href")?.trim() ?? ""
+    if (!rawHref || rawHref.startsWith("#")) return
+    const href = node.href
+    if (!href) return
+
+    const handled = onLinkOpen(href)
+    if (handled !== false) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }
+
+  root.addEventListener("click", handler)
+  return () => {
+    root.removeEventListener("click", handler)
+  }
+}
+
+/**
+ * `[[wikilink]]`：链接目标交给调用方按当前文件所在目录解析成真实路径。
+ */
 function setupWikiLinks(root: HTMLDivElement, onWikiLink: ((target: string) => void) | undefined) {
   if (!onWikiLink) return
 
@@ -509,6 +540,8 @@ export function Markdown(
     class?: string
     classList?: Record<string, boolean>
     onFileOpen?: (path: string) => void
+    /** Open a rendered link through the host application instead of navigating the page. */
+    onLinkOpen?: (url: string) => boolean | void
     /** 点 `[[wikilink]]`：目标原样交回去，由调用方解析成工作区路径。 */
     onWikiLink?: (target: string) => void
     /** 点任务列表复选框：序号按渲染结果里的顺序（0 起）。 */
@@ -522,6 +555,7 @@ export function Markdown(
     "class",
     "classList",
     "onFileOpen",
+    "onLinkOpen",
     "onWikiLink",
     "onTaskToggle",
   ])
@@ -572,6 +606,7 @@ export function Markdown(
   let copyCleanup: (() => void) | undefined
   let imagePreviewCleanup: (() => void) | undefined
   let fileOpenCleanup: (() => void) | undefined
+  let linkOpenCleanup: (() => void) | undefined
   let wikiOpenCleanup: (() => void) | undefined
   let taskCleanup: (() => void) | undefined
 
@@ -624,6 +659,7 @@ export function Markdown(
       }))
     if (!imagePreviewCleanup) imagePreviewCleanup = setupImagePreview(container, openImagePreview)
     if (!fileOpenCleanup) fileOpenCleanup = setupFileOpen(container, local.onFileOpen)
+    if (!linkOpenCleanup) linkOpenCleanup = setupLinkOpen(container, local.onLinkOpen)
     if (!wikiOpenCleanup) wikiOpenCleanup = setupWikiLinks(container, local.onWikiLink)
     if (local.onTaskToggle) markTaskBoxes(container)
     if (!taskCleanup) taskCleanup = setupTaskToggle(container, local.onTaskToggle)
@@ -633,6 +669,7 @@ export function Markdown(
     if (copyCleanup) copyCleanup()
     if (imagePreviewCleanup) imagePreviewCleanup()
     if (fileOpenCleanup) fileOpenCleanup()
+    if (linkOpenCleanup) linkOpenCleanup()
     if (wikiOpenCleanup) wikiOpenCleanup()
     if (taskCleanup) taskCleanup()
   })

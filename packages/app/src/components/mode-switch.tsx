@@ -1,84 +1,87 @@
-import { For, Show } from "solid-js"
-import { DropdownMenu } from "@novaway/ui/dropdown-menu"
-import { Icon } from "@novaway/ui/icon"
+import { For } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useLayout, type AppModeConfig } from "@/context/layout"
+import { ModeGlyph } from "./mode-visual"
 
+/**
+ * 工作模式开关：胶囊分段控件（不是下拉）。
+ * 选中项是一块带模式色的滑块，用 transform 平移过渡；
+ * 模式数量 > 2 时自动变成等宽多段，无需改结构。
+ */
 export function ModeSwitchButton(props: {
   onSelect: (mode: AppModeConfig) => void
-  /** 侧栏顶部的主入口形态：整宽、大字重、带模式的色彩底板。 */
-  prominent?: boolean
-  /** 顶带里的小胶囊形态：和"新建任务"同高，放在 logo 右侧的留白里。 */
+  /** 顶带里的小胶囊形态：和图标按钮同高（h-7）。 */
   compact?: boolean
-  fullWidth?: boolean
 }) {
   const layout = useLayout()
   const language = useLanguage()
-  const current = () => layout.mode.all.find((m) => m.id === layout.mode.current())
-  const prominent = () => !!props.prominent
+  const modes = () => layout.mode.all()
+  const activeIndex = () => modes().findIndex((mode) => mode.id === layout.mode.current())
+  const accent = () => modes()[activeIndex()]?.color ?? "var(--border-hover)"
+  const buttons: HTMLButtonElement[] = []
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    const delta =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0
+    if (!delta) return
+    event.preventDefault()
+    const from = activeIndex() >= 0 ? activeIndex() : 0
+    const next = (from + delta + modes().length) % modes().length
+    props.onSelect(modes()[next])
+    buttons[next]?.focus()
+  }
 
   return (
-    <DropdownMenu placement="bottom" gutter={8}>
-      <DropdownMenu.Trigger
-        classList={{
-          "flex items-center gap-2 rounded-md px-2 text-foreground transition-colors": true,
-          // 默认（表单里的中等尺寸）。
-          "h-8 border border-border bg-surface text-14-semibold hover:bg-hover data-[expanded]:border-border-hover":
-            !props.fullWidth && !prominent() && !props.compact,
-          "w-full py-1.5 text-14-semibold hover:bg-hover data-[expanded]:bg-surface":
-            !!props.fullWidth && !prominent() && !props.compact,
-          // 顶部的「模式」是全局最重的入口：字号抬到 ui-xl、字重 600、
-          // 底色取自当前模式色（12% 混色），展开时再加深一档。
-          "w-full h-11 rounded-xl border px-3 text-ui-xl font-semibold": prominent(),
-          "border-[color-mix(in_srgb,var(--mode-accent)_45%,var(--border))] bg-[color-mix(in_srgb,var(--mode-accent)_12%,var(--background))] hover:bg-[color-mix(in_srgb,var(--mode-accent)_18%,var(--background))]":
-            prominent(),
-          // 顶带胶囊：高度和侧栏顶带里的图标按钮一致，不再撑出第二条工具栏。
-          "h-7 shrink-0 rounded-lg border px-2 text-13-semibold": props.compact,
-          "border-[color-mix(in_srgb,var(--mode-accent)_45%,var(--border))] bg-[color-mix(in_srgb,var(--mode-accent)_10%,var(--background))] hover:bg-[color-mix(in_srgb,var(--mode-accent)_20%,var(--background))]":
-            props.compact,
+    <div
+      role="radiogroup"
+      aria-label={language.t("mode.switch.ariaLabel")}
+      data-component="mode-switch"
+      class="relative inline-grid shrink-0 rounded-full border border-border bg-surface p-0.5 transition-[border-color] duration-300"
+      classList={{ "h-7": !!props.compact, "h-9": !props.compact }}
+      style={{
+        "grid-template-columns": `repeat(${modes().length}, minmax(0, 1fr))`,
+        "border-color": `color-mix(in srgb, ${accent()} 28%, var(--border))`,
+      }}
+      onKeyDown={onKeyDown}
+    >
+      {/* 滑块：宽度 = 单段宽度，translateX 按段索引平移；未选择模式时淡出。 */}
+      <span
+        aria-hidden
+        class="pointer-events-none absolute inset-y-0.5 left-0.5 rounded-full border transition-[transform,opacity,background-color,border-color,box-shadow] duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]"
+        style={{
+          width: `calc((100% - 4px) / ${modes().length})`,
+          transform: `translateX(${Math.max(activeIndex(), 0) * 100}%)`,
+          opacity: activeIndex() >= 0 ? 1 : 0,
+          background: `color-mix(in srgb, ${accent()} 16%, var(--background))`,
+          "border-color": `color-mix(in srgb, ${accent()} 45%, var(--border))`,
+          "box-shadow": `0 1px 8px color-mix(in srgb, ${accent()} 26%, transparent)`,
         }}
-        style={{ "--mode-accent": current()?.color ?? "var(--border-hover)" }}
-        aria-label={language.t("mode.switch.ariaLabel")}
-      >
-        <Show
-          when={current()}
-          fallback={
-            <>
-              <span class="size-2 shrink-0 rounded-full bg-border-hover" />
-              <span class="text-foreground-subtle">{language.t("mode.select.placeholder")}</span>
-            </>
-          }
-        >
-          {(mode) => (
-            <>
-              <span
-                class={`shrink-0 rounded-full ${prominent() ? "size-2.5" : "size-2"}`}
-                style={{ background: mode().color }}
-              />
-              <span class="min-w-0 flex-1 truncate text-left text-foreground">{mode().shortName}</span>
-            </>
-          )}
-        </Show>
-        <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtlest" />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content class="z-50 w-72 rounded-lg border border-border bg-popover p-1.5 shadow-[var(--shadow-md)]">
-          <For each={layout.mode.all}>
-            {(mode) => (
-              <DropdownMenu.Item
-                class="flex items-center gap-2 rounded-md px-2 py-1.5 text-ui-caption text-foreground hover:bg-hover"
-                onSelect={() => props.onSelect(mode)}
-              >
-                <span class="size-2 shrink-0 rounded-full" style={{ background: mode.color }} />
-                <span class="flex-1 text-left">{mode.shortName}</span>
-                <Show when={layout.mode.current() === mode.id}>
-                  <Icon name="check" size="small" class="text-foreground-subtlest" />
-                </Show>
-              </DropdownMenu.Item>
-            )}
-          </For>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu>
+      />
+      <For each={modes()}>
+        {(mode, index) => (
+          <button
+            type="button"
+            role="radio"
+            aria-checked={layout.mode.current() === mode.id}
+            tabIndex={layout.mode.current() === mode.id || (activeIndex() < 0 && index() === 0) ? 0 : -1}
+            ref={(el) => (buttons[index()] = el)}
+            class="relative z-10 flex items-center justify-center rounded-full text-foreground-subtle transition-colors duration-300 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-hover)]"
+            classList={{
+              "gap-1 px-2 text-12-semibold": !!props.compact,
+              "gap-1.5 px-3 text-13-semibold": !props.compact,
+            }}
+            style={{ color: layout.mode.current() === mode.id ? mode.color : undefined }}
+            onClick={() => props.onSelect(mode)}
+          >
+            <ModeGlyph mode={mode} class={props.compact ? "size-3.5 shrink-0" : "size-4 shrink-0"} />
+            <span class="truncate">{mode.shortName}</span>
+          </button>
+        )}
+      </For>
+    </div>
   )
 }

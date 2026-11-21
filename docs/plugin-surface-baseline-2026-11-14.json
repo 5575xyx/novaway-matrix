@@ -1,0 +1,434 @@
+{
+  "schema": 1,
+  "machine": {
+    "platform": "win32",
+    "arch": "x64",
+    "bun": "1.3.14"
+  },
+  "cases": {
+    "emptyProject": {
+      "status": 200,
+      "body": [
+        {
+          "adapter": "v2",
+          "extensions": ["foo"],
+          "kind": "office-engine",
+          "localName": "foo",
+          "name": "foo",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "status": "active"
+        },
+        {
+          "account": {
+            "login": "cookie",
+            "profileFields": ["label"]
+          },
+          "adapter": "v2",
+          "hosts": ["web", "desktop"],
+          "icon": "paper-plane",
+          "kind": "publish-driver",
+          "localName": "fixture-publish",
+          "name": "NovaWay Fixture Publish",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "status": "active",
+          "supports": ["article", "image_text"],
+          "ui": {
+            "accent": "#635bff",
+            "docs": "https://example.invalid/fixture-publish"
+          },
+          "urls": {
+            "article": "https://example.invalid/fixture/article",
+            "image_text": "https://example.invalid/fixture/image"
+          }
+        },
+        {
+          "action": {
+            "type": "view",
+            "viewId": "novaway.home"
+          },
+          "adapter": "v2",
+          "icon": "home",
+          "kind": "surface",
+          "localName": "home",
+          "name": "home",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "slot": "sidebar.item",
+          "status": "active",
+          "title": "NovaWay Home"
+        },
+        {
+          "adapter": "v2",
+          "description": "First-party runtime settings",
+          "kind": "surface",
+          "localName": "runtime",
+          "name": "runtime",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "slot": "settings.section",
+          "status": "active",
+          "title": "NovaWay Runtime",
+          "view": {
+            "fields": [
+              {
+                "default": true,
+                "key": "enabled",
+                "label": "Enable runtime",
+                "type": "boolean"
+              },
+              {
+                "key": "endpoint",
+                "label": "Endpoint",
+                "placeholder": "https://example.test",
+                "type": "text"
+              }
+            ],
+            "type": "declarative"
+          }
+        },
+        {
+          "adapter": "v2",
+          "kind": "surface",
+          "localName": "fixture-tool-result",
+          "match": {
+            "tool": "bash"
+          },
+          "name": "fixture-tool-result",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "renderer": {
+            "id": "novaway.fixture-tool-result",
+            "type": "builtin"
+          },
+          "scope": "builtin",
+          "slot": "message.part.renderer",
+          "status": "active"
+        },
+        {
+          "adapter": "v2",
+          "kind": "previewer",
+          "localName": "foo-preview",
+          "match": {
+            "extension": [".foo"]
+          },
+          "name": "novaway-ui_foo-preview",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "priority": 100,
+          "readOnly": false,
+          "scope": "builtin",
+          "status": "active",
+          "viewId": "novaway.office.file"
+        }
+      ]
+    },
+    "builtinBundle": {
+      "status": 200,
+      "body": [
+        {
+          "action": {
+            "type": "view",
+            "viewId": "novaway.home"
+          },
+          "adapter": "v2",
+          "icon": "home",
+          "kind": "surface",
+          "localName": "home",
+          "name": "home",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "slot": "sidebar.item",
+          "status": "active",
+          "title": "NovaWay Home"
+        },
+        {
+          "adapter": "v2",
+          "description": "First-party runtime settings",
+          "kind": "surface",
+          "localName": "runtime",
+          "name": "runtime",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "slot": "settings.section",
+          "status": "active",
+          "title": "NovaWay Runtime",
+          "view": {
+            "fields": [
+              {
+                "default": true,
+                "key": "enabled",
+                "label": "Enable runtime",
+                "type": "boolean"
+              },
+              {
+                "key": "endpoint",
+                "label": "Endpoint",
+                "placeholder": "https://example.test",
+                "type": "text"
+              }
+            ],
+            "type": "declarative"
+          }
+        },
+        {
+          "adapter": "v2",
+          "kind": "surface",
+          "localName": "fixture-tool-result",
+          "match": {
+            "tool": "bash"
+          },
+          "name": "fixture-tool-result",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "renderer": {
+            "id": "novaway.fixture-tool-result",
+            "type": "builtin"
+          },
+          "scope": "builtin",
+          "slot": "message.part.renderer",
+          "status": "active"
+        }
+      ]
+    },
+    "projectPlugin": {
+      "status": 200,
+      "body": {
+        "cycles": [],
+        "instances": [
+          {
+            "adapter": "v2",
+            "contributions": 6,
+            "id": "novaway-ui",
+            "issues": [],
+            "origin": "extension",
+            "root": "E:\\AImoney\\NovaWay-Matrix\\novaway-coder\\packages\\novaway\\builtin-plugins\\novaway-ui",
+            "runtimeStatus": "active",
+            "scope": "builtin",
+            "source": "E:\\AImoney\\NovaWay-Matrix\\novaway-coder\\packages\\novaway\\builtin-plugins\\novaway-ui",
+            "status": "installed",
+            "version": "1.0.0"
+          },
+          {
+            "adapter": "v2",
+            "contributions": 2,
+            "id": "surface-baseline",
+            "issues": [],
+            "origin": "extension",
+            "root": "<temp-root>\\project-plugin\\.novaway\\extensions\\surface-baseline",
+            "scope": "project",
+            "source": "<temp-root>\\project-plugin\\.novaway\\extensions\\surface-baseline",
+            "status": "installed",
+            "version": "1.0.0"
+          }
+        ]
+      }
+    },
+    "projectContributions": {
+      "status": 200,
+      "body": [
+        {
+          "adapter": "v2",
+          "kind": "surface",
+          "localName": "baseline",
+          "name": "surface-baseline_baseline",
+          "origin": "extension",
+          "pluginID": "surface-baseline",
+          "scope": "project",
+          "slot": "sidebar.item",
+          "status": "installed",
+          "title": "Surface Baseline"
+        },
+        {
+          "action": {
+            "type": "view",
+            "viewId": "novaway.home"
+          },
+          "adapter": "v2",
+          "icon": "home",
+          "kind": "surface",
+          "localName": "home",
+          "name": "home",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "slot": "sidebar.item",
+          "status": "active",
+          "title": "NovaWay Home"
+        },
+        {
+          "adapter": "v2",
+          "description": "First-party runtime settings",
+          "kind": "surface",
+          "localName": "runtime",
+          "name": "runtime",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "slot": "settings.section",
+          "status": "active",
+          "title": "NovaWay Runtime",
+          "view": {
+            "fields": [
+              {
+                "default": true,
+                "key": "enabled",
+                "label": "Enable runtime",
+                "type": "boolean"
+              },
+              {
+                "key": "endpoint",
+                "label": "Endpoint",
+                "placeholder": "https://example.test",
+                "type": "text"
+              }
+            ],
+            "type": "declarative"
+          }
+        },
+        {
+          "adapter": "v2",
+          "kind": "surface",
+          "localName": "fixture-tool-result",
+          "match": {
+            "tool": "bash"
+          },
+          "name": "fixture-tool-result",
+          "origin": "extension",
+          "pluginID": "novaway-ui",
+          "renderer": {
+            "id": "novaway.fixture-tool-result",
+            "type": "builtin"
+          },
+          "scope": "builtin",
+          "slot": "message.part.renderer",
+          "status": "active"
+        }
+      ]
+    },
+    "projectDiagnostics": {
+      "status": 200,
+      "body": [
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "office-engine",
+            "localName": "foo",
+            "name": "novaway-ui_foo",
+            "status": "installed"
+          },
+          "message": "office-engine contribution \"novaway-ui_foo\" is declared",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "severity": "info"
+        },
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "previewer",
+            "localName": "foo-preview",
+            "name": "novaway-ui_foo-preview",
+            "status": "installed"
+          },
+          "message": "previewer contribution \"novaway-ui_foo-preview\" is declared",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "severity": "info"
+        },
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "publish-driver",
+            "localName": "fixture-publish",
+            "name": "novaway-ui_fixture-publish",
+            "status": "installed"
+          },
+          "message": "publish-driver contribution \"novaway-ui_fixture-publish\" is declared",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "severity": "info"
+        },
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "surface",
+            "localName": "fixture-tool-result",
+            "name": "novaway-ui_fixture-tool-result",
+            "status": "installed"
+          },
+          "message": "surface contribution \"novaway-ui_fixture-tool-result\" is declared",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "severity": "info"
+        },
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "surface",
+            "localName": "home",
+            "name": "novaway-ui_home",
+            "status": "installed"
+          },
+          "message": "surface contribution \"novaway-ui_home\" is declared",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "severity": "info"
+        },
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "surface",
+            "localName": "runtime",
+            "name": "novaway-ui_runtime",
+            "status": "installed"
+          },
+          "message": "surface contribution \"novaway-ui_runtime\" is declared",
+          "pluginID": "novaway-ui",
+          "scope": "builtin",
+          "severity": "info"
+        },
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "surface",
+            "localName": "baseline",
+            "name": "surface-baseline_baseline",
+            "status": "installed"
+          },
+          "message": "surface contribution \"surface-baseline_baseline\" is declared",
+          "pluginID": "surface-baseline",
+          "scope": "project",
+          "severity": "info"
+        },
+        {
+          "code": "contribution.declared",
+          "contribution": {
+            "kind": "tool",
+            "localName": "probe",
+            "name": "surface-baseline_probe",
+            "status": "installed"
+          },
+          "message": "tool contribution \"surface-baseline_probe\" is declared",
+          "pluginID": "surface-baseline",
+          "scope": "project",
+          "severity": "info"
+        }
+      ]
+    },
+    "projectSurfaceToggle": {
+      "status": 409,
+      "body": {
+        "code": "capability_denied",
+        "message": "Office 引擎、Publish driver 和 Surface 贡献当前只对内置插件开放",
+        "pluginID": "surface-baseline"
+      }
+    }
+  }
+}

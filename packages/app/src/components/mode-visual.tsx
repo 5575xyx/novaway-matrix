@@ -1,12 +1,6 @@
 import type { Component } from "solid-js"
 import type { AppModeConfig } from "@/context/layout"
 
-export const modeGradient = (mode: AppModeConfig) =>
-  `linear-gradient(135deg, ${mode.color}, color-mix(in srgb, ${mode.color} 72%, var(--background-base)) 58%, color-mix(in srgb, ${mode.color} 84%, var(--surface)))`
-
-export const modeGlow = (mode: AppModeConfig) =>
-  `0 10px 32px color-mix(in srgb, ${mode.color} 32%, transparent), inset 0 0 0 1px color-mix(in srgb, ${mode.foreground} 32%, transparent)`
-
 export const ModeGlyph: Component<{ mode: AppModeConfig; class?: string }> = (props) => {
   const common = {
     viewBox: "0 0 32 32",
@@ -35,87 +29,23 @@ export const ModeGlyph: Component<{ mode: AppModeConfig; class?: string }> = (pr
     )
   }
 
-  if (props.mode.id === "zen") {
-    return (
-      <svg {...common}>
-        <path
-          d="M16 25C22 21 24 15 22 7C14 9 10 14 11 22"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-        <path d="M16 25C13 20 13 15 17 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-        <path
-          d="M6 24C11 25.5 18 25.5 26 23"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          opacity="0.7"
-        />
-      </svg>
-    )
-  }
-
-  if (props.mode.id === "spark") {
-    return (
-      <svg {...common}>
-        <path
-          d="M16 4L18.6 12.6L27 16L18.6 19.4L16 28L13.4 19.4L5 16L13.4 12.6L16 4Z"
-          fill="currentColor"
-          opacity="0.2"
-        />
-        <path
-          d="M16 4L18.6 12.6L27 16L18.6 19.4L16 28L13.4 19.4L5 16L13.4 12.6L16 4Z"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linejoin="round"
-        />
-        <path
-          d="M7 7L9 9M25 7L23 9M7 25L9 23M25 25L23 23"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-        />
-      </svg>
-    )
-  }
-
-  // 其余未知/未来的模式统一用「探索」的罗盘造型兜底。
   return (
     <svg {...common}>
-      <path d="M16 4L24 28L16 24L8 28L16 4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
-      <path d="M16 4L18.5 21.5L16 24L13.5 21.5L16 4Z" fill="currentColor" opacity="0.22" />
       <path
-        d="M11 28L8 30M21 28L24 30M16 24V30"
+        d="M16 25C22 21 24 15 22 7C14 9 10 14 11 22"
         stroke="currentColor"
-        stroke-width="1.5"
+        stroke-width="2"
         stroke-linecap="round"
-        opacity="0.65"
+        stroke-linejoin="round"
+      />
+      <path d="M16 25C13 20 13 15 17 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+      <path
+        d="M6 24C11 25.5 18 25.5 26 23"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        opacity="0.7"
       />
     </svg>
   )
 }
-
-export const ModeBadge: Component<{ mode: AppModeConfig; compact?: boolean; soft?: boolean }> = (props) => (
-  <span
-    class="relative grid place-items-center overflow-hidden"
-    classList={{
-      "size-10 rounded-[14px]": !props.compact,
-      "size-8 rounded-[11px]": props.compact,
-    }}
-    style={{
-      background: modeGradient(props.mode),
-      color: props.mode.foreground,
-      "box-shadow": props.soft ? undefined : modeGlow(props.mode),
-    }}
-  >
-    <span
-      class="absolute inset-0"
-      style={{
-        background: `radial-gradient(circle at 30% 20%, color-mix(in srgb, ${props.mode.foreground} 45%, transparent), transparent 28%), linear-gradient(180deg, color-mix(in srgb, ${props.mode.foreground} 18%, transparent), transparent)`,
-      }}
-    />
-    <ModeGlyph mode={props.mode} class={props.compact ? "relative size-4.5" : "relative size-5.5"} />
-  </span>
-)

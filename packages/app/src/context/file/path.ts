@@ -104,8 +104,13 @@ export function encodeFilePath(filepath: string): string {
 export function createPathHelpers(scope: () => string) {
   const normalize = (input: string) => {
     const root = scope()
+    const source = stripQueryAndHash(input)
+    const fileUrl = source.startsWith("file://")
+    let raw = unquoteGitPath(decodeFilePath(stripFileProtocol(source)))
+    if (fileUrl && /^\/[A-Za-z]:\//.test(raw)) raw = raw.slice(1)
+    const absolute = /^[A-Za-z]:[\\/]/.test(raw) || raw.startsWith("\\\\") || (!fileUrl && raw.startsWith("/"))
 
-    let path = unquoteGitPath(decodeFilePath(stripQueryAndHash(stripFileProtocol(input))))
+    let path = raw
 
     // Separator-agnostic prefix stripping for Cygwin/native Windows compatibility
     // Only case-insensitive on Windows (drive letter or UNC paths)

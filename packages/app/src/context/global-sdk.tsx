@@ -3,7 +3,7 @@ import { createSimpleContext } from "@novaway/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { batch, onCleanup, onMount } from "solid-js"
-import { createSdkForServer } from "@/utils/server"
+import { authTokenFromCredentials, createSdkForServer } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { useServer } from "./server"
@@ -232,8 +232,23 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
       throwOnError: true,
     })
 
+    const request = (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      if (currentServer.http.password) {
+        headers.set(
+          "Authorization",
+          `Basic ${authTokenFromCredentials({
+            username: currentServer.http.username,
+            password: currentServer.http.password,
+          })}`,
+        )
+      }
+      return (platform.fetch ?? globalThis.fetch)(input, { ...init, headers })
+    }
+
     return {
       url: currentServer.http.url,
+      request,
       client: sdk,
       event: {
         on: emitter.on.bind(emitter),

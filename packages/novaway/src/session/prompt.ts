@@ -105,6 +105,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import * as WorkflowPolicy from "@/workflow/policy"
+import { checkTool } from "@/workflow/guard"
 import { BackgroundJob } from "@/background/job"
 import { ToolBudget } from "./tool-budget"
 import { contextBudget, pendingTokens } from "./overflow"
@@ -1541,6 +1542,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                         ),
                       )
                     }
+                    if (policy) {
+                      const decision = checkTool(policy.phase, {
+                        id: item.id,
+                        workspace: typeof item.capabilities?.workspace === "boolean" ? item.capabilities.workspace : undefined,
+                        readOnly: typeof item.capabilities?.readOnly === "boolean" ? item.capabilities.readOnly : undefined,
+                      }, isVerificationTask)
+                      if (!decision.allowed) {
+                        yield* Effect.fail(new Error(`Workflow phase ${policy.phase} forbids tool ${item.id}: ${decision.reason}`))
+                      }
+                    }
                     if (item.id === "question") {
                       yield* workflowPolicy.setPhase({ sessionID: ctx.sessionID, phase: "grill-me" })
                     } else if (
@@ -2062,7 +2073,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
       const taskAgent = yield* agents.get(task.agent)
       if (!taskAgent) {
-        const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
+        const available = [...new Set(["build", ...(yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)])]
         const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
         const error = new NamedError.Unknown({ message: `Agent not found: "${task.agent}".${hint}` })
         yield* bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
@@ -2397,7 +2408,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       const agentName = input.agent
       const ag = agentName ? yield* agents.get(agentName) : yield* agents.defaultInfo()
       if (!ag) {
-        const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
+        const available = [...new Set(["build", ...(yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)])]
         const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
         const error = new NamedError.Unknown({ message: `Agent not found: "${agentName}".${hint}` })
         yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
@@ -3934,8 +3945,20 @@ ${text}
               sessionID,
               turnID: lastUser.id,
               text: lastUserMessage ? textFromParts(lastUserMessage.parts) : "",
-            })
+            }).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
           : undefined
+        // 编排内的子会话不是用户新开的一轮对话：它已经通过运行计划获得了
+        // 明确的执行档位。若仍按成员提示词重新分类，普通「把文件写好」会被
+        // 判成 grill-me，工作区写工具就在真正执行前被工作流门禁拦掉。
+        // 运行策略是主权威：可写团队会话进入 implementation，只读验证会话
+        // 进入 verification；普通会话仍完全沿用用户工作流分类。
+        const executionScope = teamOps ? yield* teamOps.scopeOf(sessionID) : undefined
+        if (workflowPolicy && workflowState && executionScope) {
+          const executionPhase = executionScope.readOnly === false ? "implementation" : "verification"
+          if (workflowState.phase !== executionPhase) {
+            yield* workflowPolicy.setPhase({ sessionID, phase: executionPhase })
+          }
+        }
         if (workflowState) {
           yield* slog.info("workflow policy", {
             route: workflowState.route,
@@ -5373,7 +5396,7 @@ ${text}
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orElseSucceed(() => undefined))
       const agent = agentName ? yield* agents.get(agentName) : yield* agents.defaultInfo()
       if (!agent) {
-        const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
+        const available = [...new Set(["build", ...(yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)])]
         const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
         const error = new NamedError.Unknown({ message: `Agent not found: "${agentName}".${hint}` })
         yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
@@ -5410,14 +5433,15 @@ ${text}
         )
       }
 
-      const result = yield* prompt({
+      const commandPrompt = {
         sessionID: input.sessionID,
         messageID: input.messageID,
         model: userModel,
         agent: userAgent,
         parts,
         variant: input.variant,
-      })
+      }
+      const result = yield* prompt(commandPrompt)
       yield* bus.publish(Command.Event.Executed, {
         name: input.command,
         sessionID: input.sessionID,

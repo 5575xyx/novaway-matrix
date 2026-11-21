@@ -29,7 +29,7 @@ import {
   AgentPart,
   FileAttachmentPart,
 } from "@/context/prompt"
-import { useLayout } from "@/context/layout"
+import { appModeIsGroup, useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useGlobalSync } from "@/context/global-sync"
@@ -52,7 +52,6 @@ import { Switch } from "@novaway/ui/switch"
 import { PermissionModeSelect } from "@/components/permission-mode-select"
 import { TeamModeSelect } from "@/components/team-mode-select"
 import { SessionBackgroundTrigger } from "@/components/session-background-trigger"
-import { agentForPermission, permissionForAgent } from "@/context/agent-permission"
 import type { Session } from "@novaway/sdk/v2"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
@@ -95,9 +94,11 @@ import { OfficePptTemplateGallery } from "@/components/office-ppt-template-galle
 import { officePptTemplateName } from "@/pages/session/office-export"
 import { openCustomPptTemplateDialog } from "@/pages/session/office-custom-template"
 import { ProjectSwitcherChip } from "@/components/project-switcher"
+import { DialogCreateProject } from "@/components/dialog-create-project"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGitSnapshot } from "@/pages/session/git-panel"
-import { officeAgentScenario } from "@/pages/session/office-agent-scenarios"
+import { installedOfficeAgent } from "@/pages/session/office-agent-scenarios"
+import { DEFAULT_AGENT } from "@/context/agent-permission"
 import { transformOfficePrompt } from "@/pages/session/office-agent-prompt"
 import { Dialog as KobalteDialog } from "@kobalte/core/dialog"
 import { Dialog } from "@novaway/ui/dialog"
@@ -241,6 +242,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   )
   const [newBranch, setNewBranch] = createSignal("")
   const [worktreeCreating, setWorktreeCreating] = createSignal(false)
+  const [projectMenuOpen, setProjectMenuOpen] = createSignal(false)
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = createSignal(false)
   const [branchMenuOpen, setBranchMenuOpen] = createSignal(false)
   const [availableWorktrees, setAvailableWorktrees] = createSignal<string[]>([])
@@ -318,8 +320,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const platform = usePlatform()
   const modelsCtx = useModels()
   const office = useOfficeAgent()
-  const zenOfficeMode = createMemo(() => layout.mode.current() === "zen")
-  const forgeAutoAgentMode = createMemo(() => layout.mode.current() === "forge")
+  const officeWorkbenchMode = createMemo(() => appModeIsGroup(layout.mode.current(), "office", layout.mode.all()))
+  const creovaAutoAgentMode = createMemo(() => layout.mode.current() === "forge")
   const { params, tabs, view } = useSessionLayout()
   let editorRef!: HTMLDivElement
   /** 输入框外壳（编辑器 + 工具栏），用来判断 mousedown 是否落在输入区内部。 */
@@ -328,21 +330,32 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   let scrollRef!: HTMLDivElement
   let slashPopoverRef!: HTMLDivElement
 
+  createEffect(() => {
+    const focusPrompt = () => requestAnimationFrame(() => editorRef?.focus())
+    window.addEventListener("novaway:focus-prompt", focusPrompt)
+    onCleanup(() => window.removeEventListener("novaway:focus-prompt", focusPrompt))
+  })
+
   /**
    * 办公模式下已经启用的插件（= 内置扩展）。输入框顶上只显示前三个图标 + 数量，
    * 真正的开关在弹层里，和扩展设置页写同一份 config。
    */
   const enabledOfficePlugins = createMemo(() => {
-    if (!zenOfficeMode()) return []
+    if (!officeWorkbenchMode()) return []
     return officePluginEntries()
       .map((entry) => entry.extension)
       .filter((extension) => extensionEnabled(globalSync.data.config, extension))
   })
 
+  const officeAgent = createMemo(() =>
+    installedOfficeAgent(local.agent.list(), office.activeID(), local.agent.current()?.name),
+  )
+  const officeUnavailable = createMemo(() => !props.agent && officeWorkbenchMode() && !officeAgent())
+
   createEffect(() => {
-    if (!zenOfficeMode()) return
-    const next = officeAgentScenario(office.activeID())
-    if (local.agent.list().some((agent) => agent.name === next.agentName)) local.agent.set(next.agentName)
+    if (!officeWorkbenchMode()) return
+    const next = officeAgent()
+    if (next && next.name !== local.agent.current()?.name) local.agent.set(next.name)
   })
 
   const mirror = { input: false }
@@ -474,11 +487,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     if (!id) return undefined
     return persisted(
       Persist.session(sdk.directory, id, "goal-execution"),
-      createStore<{ goalId: string; title: string }>({ goalId: "", title: "" }),
+      createStore<{ goalId: string; title: string; launchKey?: string }>({ goalId: "", title: "" }),
     )
   })
   const persistedGoal = createMemo(() => goalPersistence()?.[0])
-  const setPersistedGoal = (value: { goalId: string; title: string }) => {
+  const setPersistedGoal = (value: { goalId: string; title: string; launchKey?: string }) => {
     goalPersistence()?.[1](value)
   }
   // 目标模式计时使用这一枚时钟；普通工作状态统一由聊天区域底部显示。
@@ -502,7 +515,20 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     goalText?: string
     goalMaxIterations: number
     goalExecution?: { sessionID: string; goalId: string; title: string }
-    goalState?: { status: string; progress: number }
+    goalState?: {
+      status: string
+      progress: number
+      executionMode?: string
+      superAgentRunId?: string
+      runStatus?: string
+      review?: { evidence: number; verifications: number; failed: number; unverified: number }
+    }
+    /** 无人值守档位下，是否把本轮提问交给持久化长期任务执行。 */
+    longTaskEnabled: boolean
+    longTaskCriteria: string
+    longTaskToolBudget: number
+    longTaskRun?: { id: string; status: string }
+    longTaskCreating: boolean
   }>({
     popover: null,
     historyIndex: -1,
@@ -519,6 +545,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     goalPaused: false,
     goalMaxIterations: 20,
     goalExecution: undefined,
+    longTaskEnabled: false,
+    longTaskCriteria: "",
+    longTaskToolBudget: 20,
+    longTaskRun: undefined,
+    longTaskCreating: false,
   })
   const goalElapsed = createMemo(() => {
     if (!store.goalStartedAt) return ""
@@ -553,8 +584,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         const id = sessionID()
         if (!id) return
         if (!local.agent.current()?.name) return
-        const next = agentForPermission(permission.mode(id, sdk.directory), local.agent.current()?.name)
-        if (next) local.agent.set(next)
       },
     ),
   )
@@ -637,9 +666,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const planModeOn = createMemo(() => permission.mode(sessionID() ?? "", sdk.directory) === "plan")
   const choosePlanMode = () => {
     permission.setMode(sessionID() ?? "", sdk.directory, "plan")
-    if (props.agent) return
-    const next = agentForPermission("plan", local.agent.current()?.name)
-    if (next) local.agent.set(next)
   }
   createEffect(() => {
     const execution = activeGoal()
@@ -648,12 +674,63 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     const client = globalSync.sdkForDirectory(directory)
     let disposed = false
     const refresh = async () => {
-      const response = await client.goal.listGoals({ sessionId: execution.sessionID }).catch(() => undefined)
+      const response = await client.goal
+        .getGoal({ sessionId: execution.sessionID, goalId: execution.goalId })
+        .catch(() => undefined)
       if (disposed || !response) return
-      const goals = response.data as Array<{ id: string; status: string; progress: number }> | undefined
-      const goal = goals?.find((item) => item.id === execution.goalId)
-      if (!goal) return
-      setStore("goalState", { status: goal.status, progress: goal.progress })
+      const goal = response.data as
+        | {
+            id: string
+            status: string
+            progress: number
+            executionConfig?: { mode?: string; superAgentRunId?: string }
+          }
+        | undefined
+      if (!goal || goal.id !== execution.goalId) return
+      const runID = goal.executionConfig?.superAgentRunId
+      const runDetail = runID
+        ? await sdk
+            .request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}`, {
+              headers: { "x-novaway-directory": sdk.directory },
+            })
+            .then(async (response) => (response.ok ? ((await response.json()) as { status?: string }) : undefined))
+            .catch(() => undefined)
+        : undefined
+      const runStatus = runDetail?.status
+      const review =
+        runID && runStatus === "needs_review"
+          ? await Promise.all([
+              sdk.request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/evidence`, {
+                headers: { "x-novaway-directory": sdk.directory },
+              }),
+              sdk.request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/verifications`, {
+                headers: { "x-novaway-directory": sdk.directory },
+              }),
+            ])
+              .then(async ([evidenceResponse, verificationResponse]) => {
+                if (!evidenceResponse.ok || !verificationResponse.ok) return undefined
+                const evidence = (await evidenceResponse.json()) as unknown[]
+                const verifications = (await verificationResponse.json()) as Array<{ outcome?: string }>
+                return {
+                  evidence: evidence.length,
+                  verifications: verifications.length,
+                  failed: verifications.filter((item) => item.outcome === "fail").length,
+                  unverified: verifications.filter((item) => item.outcome !== "pass").length,
+                }
+              })
+              .catch(() => undefined)
+          : undefined
+      setStore("goalState", {
+        status: goal.status,
+        progress: goal.progress,
+        executionMode: goal.executionConfig?.mode,
+        superAgentRunId: runID,
+        runStatus,
+        review,
+      })
+      if (runID) {
+        setStore("longTaskRun", { id: runID, status: runStatus ?? goal.status })
+      }
       if (goal.status === "paused") setStore("goalPaused", true)
       if (goal.status === "completed" || goal.status === "cancelled") {
         setStore("goalExecution", undefined)
@@ -675,8 +752,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     setStore("goalRunning", false)
     setStore("goalExecution", undefined)
     setStore("goalState", { status: "cancelled", progress: store.goalState?.progress ?? 0 })
-    setStore({ goalStartedAt: undefined, goalPaused: false })
+    const runID = store.goalState?.superAgentRunId
+    if (runID) {
+      await sdk
+        .request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/cancel`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-novaway-directory": sdk.directory },
+          body: JSON.stringify({}),
+        })
+        .catch(() => {})
+    }
     await abort(execution.sessionID)
+    setStore({ goalStartedAt: undefined, goalPaused: false, longTaskRun: undefined })
     await globalSync
       .sdkForDirectory(sdk.directory)
       .goal.updateGoal({
@@ -695,7 +782,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     setStore("goalMode", !store.goalMode)
     requestAnimationFrame(() => editorRef?.focus())
   }
-  const createGoal = async (text: string) => {
+  const createGoal = async (text: string, durable = false) => {
     const id = sessionID()
     const title = text.trim().split("\n")[0]?.slice(0, 120) ?? ""
     if (globalChat()) {
@@ -705,14 +792,62 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     if (!id || !title || store.goalSaving) return undefined
     setStore("goalSaving", true)
     try {
-      const created = await sdk.client.goal.createGoal({
-        sessionId: id,
-        title,
-        description: text.trim(),
-        status: "in_progress",
-        successCriteria: ["按用户请求完成目标，并提供可复核的完成证据"],
-      })
-      const createdGoal = created.data as { id?: string } | undefined
+      const successCriteria = store.longTaskCriteria
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean)
+      if (successCriteria.length === 0) successCriteria.push("按用户请求完成目标，并提供可复核的完成证据")
+      const executionConfig = {
+        maxIterations: store.goalMaxIterations,
+        mode: durable ? "durable" : "interactive",
+      }
+      let createdGoal: { id?: string } | undefined
+      const launchKey =
+        durable && persistedGoal()?.goalId === "" && persistedGoal()?.title === title
+          ? persistedGoal()?.launchKey
+          : undefined
+      if (durable) {
+        const toolCalls = Math.min(500, Math.max(1, Math.floor(Number(store.longTaskToolBudget) || 20)))
+        const requestKey = launchKey ?? `${id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
+        // Persist the key before the network request so a lost response can be
+        // retried without creating a second Goal/Run.
+        setPersistedGoal({ goalId: "", title, launchKey: requestKey })
+        const response = await sdk.request(`${sdk.url}/session/${encodeURIComponent(id)}/goals/launch`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-novaway-directory": sdk.directory },
+          body: JSON.stringify({
+            idempotencyKey: requestKey,
+            title,
+            description: text.trim(),
+            successCriteria,
+            executionConfig,
+            text: text.trim(),
+            planningMode: "model",
+            budget: { toolCalls },
+          }),
+        })
+        const result = (await response.json().catch(() => undefined)) as
+          | { goal?: { id?: string }; run?: { id?: string; status?: string } }
+          | undefined
+        if (!response.ok) throw new Error(`创建并启动长期目标失败（HTTP ${response.status}）`)
+        createdGoal = result?.goal
+        if (!result?.run?.id) throw new Error("长期目标启动后未返回任务 ID")
+        setStore("longTaskRun", { id: result.run.id, status: result.run.status ?? "running" })
+      } else {
+        const created = await sdk.request(`${sdk.url}/session/${encodeURIComponent(id)}/goals`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-novaway-directory": sdk.directory },
+          body: JSON.stringify({
+            title,
+            description: text.trim(),
+            status: "in_progress",
+            successCriteria,
+            executionConfig,
+          }),
+        })
+        if (!created.ok) throw new Error(`创建目标失败（HTTP ${created.status}）`)
+        createdGoal = (await created.json()) as { id?: string } | undefined
+      }
       if (!createdGoal?.id) throw new Error("创建目标后未返回目标 ID")
       setStore("goalExecution", { sessionID: id, goalId: createdGoal.id, title })
       setPersistedGoal({ goalId: createdGoal.id, title })
@@ -732,6 +867,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     } finally {
       setStore("goalSaving", false)
     }
+  }
+
+  const createLongTask = async (text: string) => {
+    const created = await createGoal(text, true)
+    return created?.goalId
   }
 
   /**
@@ -868,7 +1008,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const suggest = createMemo(() => !hasUserPrompt())
 
   const placeholder = createMemo(() => {
-    if (zenOfficeMode() && store.mode === "normal" && commentCount() === 0) return office.activeAction().placeholder
+    if (officeUnavailable()) return "请先从插件市场安装并启用此场景的办公插件"
+    if (officeWorkbenchMode() && store.mode === "normal" && commentCount() === 0)
+      return office.activeAction().placeholder
     return promptPlaceholder({
       mode: store.mode,
       commentCount: commentCount(),
@@ -1797,11 +1939,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   const transformPrompt = (value: Prompt) => {
-    if (!zenOfficeMode() || store.mode !== "normal") return value
+    if (!officeWorkbenchMode() || store.mode !== "normal") return value
     const launchConfig = office.launchConfig()
     const result = transformOfficePrompt({
       prompt: value,
       actionID: office.activeID(),
+      skillName: officeAgent()?.options?.defaultSkill as string | undefined,
       quickMode: office.quickMode(),
       pptTemplate: office.pptTemplate(),
       launchConfig,
@@ -1818,7 +1961,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     autoAcceptEffective() ? language.t("permissions.prompt.tooltip.on") : language.t("permissions.prompt.tooltip.off"),
   )
 
-  const { abort, handleSubmit } = createPromptSubmit({
+  const { abort, handleSubmit: submitPrompt } = createPromptSubmit({
     info,
     imageAttachments,
     commentCount,
@@ -1842,19 +1985,29 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onAbort: props.onAbort,
     onSubmit: props.onSubmit,
     transformPrompt,
-    agentOverride: () => props.agent,
+    agentOverride: () =>
+      props.agent ?? (officeWorkbenchMode() ? officeAgent()?.name : creovaAutoAgentMode() ? DEFAULT_AGENT : undefined),
     goalExecution: () => store.goalExecution,
     createGoal,
     goalMode: () => store.goalMode,
     goalMaxIterations: () => store.goalMaxIterations,
+    longTask: () => ({ enabled: store.longTaskEnabled }),
+    createLongTask,
   })
+  const handleSubmit = (event: Event) => {
+    if (officeUnavailable() && !(working() && blank())) {
+      event.preventDefault()
+      return
+    }
+    return submitPrompt(event)
+  }
   let submittedAutoKey: string | undefined
 
   createEffect(() => {
     const key = props.autoSubmitKey
     if (!key) return
     if (submittedAutoKey === key) return
-    if (zenOfficeMode() && !office.ready()) return
+    if (officeWorkbenchMode() && (!office.ready() || officeUnavailable())) return
     if (blank() || working() || store.optimizing) return
 
     submittedAutoKey = key
@@ -2238,35 +2391,124 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-12-medium text-foreground">目标：{goal().title}</div>
                   <div class="text-11-regular text-foreground-subtle">
-                    {store.goalPaused ? "已暂停" : "持续执行中"}
+                    {store.goalState?.runStatus === "needs_review"
+                      ? "需要复核"
+                      : store.goalPaused
+                        ? "已暂停"
+                        : store.goalState?.executionMode === "durable"
+                          ? "长期执行中"
+                          : "持续执行中"}
                     {goalElapsed() ? ` · ${goalElapsed()}` : ""}
-                    <Show when={store.goalState}>{(state) => ` · ${state().progress}%`}</Show>
+                    <Show when={store.goalState?.review}>
+                      {(review) => ` · 证据 ${review().evidence} · 未通过 ${review().unverified}`}
+                    </Show>
+                    <Show when={!store.goalState?.review && store.goalState}>{(state) => ` · ${state().progress}%`}</Show>
                   </div>
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="small"
-                  aria-label={store.goalPaused ? "继续目标" : "暂停目标"}
-                  onClick={() => {
+                  aria-label={store.goalState?.runStatus === "needs_review" ? "目标需要复核" : store.goalPaused ? "继续目标" : "暂停目标"}
+                  onClick={async () => {
+                    if (store.goalState?.runStatus === "needs_review") {
+                      const runID = store.goalState.superAgentRunId
+                      if (!runID) return
+                      const response = await sdk
+                        .request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/verify-finish`, {
+                          method: "POST",
+                          headers: { "content-type": "application/json", "x-novaway-directory": sdk.directory },
+                          body: JSON.stringify({
+                            verifierID: "builtin.artifact",
+                            summary: "用户从目标面板请求重新验证",
+                          }),
+                        })
+                        .catch(() => undefined)
+                      if (!response?.ok) {
+                        showToast({ title: "目标复核失败", description: "验证服务暂时不可用，请稍后重试。", variant: "error" })
+                      } else {
+                        showToast({ title: "已重新验证目标", description: "正在刷新最新 Evidence 和 Verification 结果。" })
+                      }
+                      return
+                    }
                     if (!store.goalPaused) {
-                      setStore("goalPaused", true)
-                      void globalSync
+                      if (store.goalState?.superAgentRunId) {
+                        const pausedRun = await sdk
+                          .request(
+                            `${sdk.url}/super-agent/runs/${encodeURIComponent(store.goalState.superAgentRunId)}/pause`,
+                            {
+                              method: "POST",
+                              headers: { "content-type": "application/json", "x-novaway-directory": sdk.directory },
+                              body: JSON.stringify({ reason: "用户暂停长期目标" }),
+                            },
+                          )
+                          .then((response) => response.ok)
+                          .catch(() => false)
+                        if (!pausedRun) {
+                          showToast({
+                            title: "长期目标暂停失败",
+                            description: "长期任务没有确认暂停，请稍后重试。",
+                            variant: "error",
+                          })
+                          return
+                        }
+                      }
+                      const updated = await globalSync
                         .sdkForDirectory(sdk.directory)
                         .goal.updateGoal({ sessionId: goal().sessionID, goalId: goal().goalId, status: "paused" })
-                        .then(() => abort(goal().sessionID))
+                        .then(() => true)
+                        .catch(() => false)
+                      if (!updated) {
+                        showToast({
+                          title: "目标暂停失败",
+                          description: "服务端没有确认目标状态，请稍后重试。",
+                          variant: "error",
+                        })
+                        return
+                      }
+                      setStore("goalPaused", true)
+                      await abort(goal().sessionID)
+                      return
+                    }
+                    const runID = store.goalState?.superAgentRunId
+                    if (runID) {
+                      const resumedRun = await sdk
+                        .request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/resume`, {
+                          method: "POST",
+                          headers: { "content-type": "application/json", "x-novaway-directory": sdk.directory },
+                        })
+                        .then((response) => response.ok)
+                        .catch(() => false)
+                      if (!resumedRun) {
+                        showToast({
+                          title: "长期目标恢复失败",
+                          description: "长期任务没有确认恢复，请稍后重试。",
+                          variant: "error",
+                        })
+                        return
+                      }
+                    }
+                    const resumed = await globalSync
+                      .sdkForDirectory(sdk.directory)
+                      .goal.updateGoal({ sessionId: goal().sessionID, goalId: goal().goalId, status: "in_progress" })
+                      .then(() => true)
+                      .catch(() => false)
+                    if (!resumed) {
+                      showToast({
+                        title: "目标恢复失败",
+                        description: "服务端没有确认目标状态，请稍后重试。",
+                        variant: "error",
+                      })
                       return
                     }
                     setStore("goalPaused", false)
-                    void globalSync
-                      .sdkForDirectory(sdk.directory)
-                      .goal.updateGoal({ sessionId: goal().sessionID, goalId: goal().goalId, status: "in_progress" })
+                    if (runID) return
                     const text = `继续推进目标“${goal().title}”，从上次中断处继续，不要重复已完成的工作；验证目标成功标准并汇报证据。`
                     prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
                     queueMicrotask(() => void handleSubmit(new Event("submit", { cancelable: true })))
                   }}
                 >
-                  {store.goalPaused ? "继续" : "暂停"}
+                  {store.goalState?.runStatus === "needs_review" ? "复核" : store.goalPaused ? "继续" : "暂停"}
                 </Button>
                 <Button
                   type="button"
@@ -2316,7 +2558,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             <Show
               // 固定角色的嵌入输入框（运营工作台）始终显示角色：办公/编码模式下
               // 这里本该换成插件行或藏起来，但那个角色正是这块面板的全部意义。
-              when={!props.agent && (zenOfficeMode() || forgeAutoAgentMode())}
+              when={!props.agent && (officeWorkbenchMode() || creovaAutoAgentMode())}
               fallback={
                 <Show when={!agentsLoading()}>
                   <div
@@ -2344,8 +2586,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                             return
                           }
                           // 选规划蓝图自动进入只读；选其它角色则解除只读。
-                          const next = permissionForAgent(value, permission.mode(sessionID(), sdk.directory))
-                          if (next) permission.setMode(sessionID(), sdk.directory, next)
                           local.agent.set(value)
                           restoreFocus()
                         }}
@@ -2360,7 +2600,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </Show>
               }
             >
-              <Show when={zenOfficeMode()}>
+              <Show when={officeWorkbenchMode()}>
                 {/* 办公模式下这里原来是「当前场景」的只读标签 —— 信息量为零：
                     场景是你在首页选的，输入框里再显示一遍，什么也点不了。
                     这里改成插件入口：一眼看到启用了几种能力、
@@ -2844,6 +3084,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   type="submit"
                   disabled={
                     (!working() && blank()) ||
+                    (officeUnavailable() && !(working() && blank())) ||
                     store.optimizing ||
                     agentsLoading() ||
                     providersLoading() ||
@@ -3047,7 +3288,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                             value={store.goalMaxIterations}
                             onChange={(event) => setStore("goalMaxIterations", Number(event.currentTarget.value))}
                           >
-                            <For each={[5, 10, 15, 20, 50]}>{(value) => <option value={value}>{value} 轮</option>}</For>
+                            <For each={[5, 10, 15, 20, 50, 0]}>
+                              {(value) => (
+                                <option value={value}>{value === 0 ? "自动（不设固定上限）" : `${value} 轮`}</option>
+                              )}
+                            </For>
                           </select>
                         </div>
                       </HoverCard>
@@ -3157,14 +3402,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               </Show>
               <Show when={!globalChat()}>
                 <div data-component="prompt-auto-accept" class="flex items-center">
-                  <PermissionModeSelect
-                    sessionID={sessionID()}
-                    onChange={(mode) => {
-                      if (props.agent) return
-                      const next = agentForPermission(mode, local.agent.current()?.name)
-                      if (next) local.agent.set(next)
-                    }}
-                  />
+                  <PermissionModeSelect sessionID={sessionID()} />
                 </div>
               </Show>
               <SessionContextUsage />
@@ -3173,16 +3411,148 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           </div>
         </div>
       </DockShellForm>
+      <Show when={!props.embedded && !globalChat() && store.goalMode}>
+        <div
+          data-component="prompt-goal-execution"
+          class="mx-auto mt-1 flex w-full min-w-0 flex-col gap-2 rounded-lg border border-interactive-base/25 bg-surface-raised-base/60 px-3 py-2"
+        >
+          <label class="flex min-w-0 cursor-pointer items-start gap-2">
+            <input
+              type="checkbox"
+              class="mt-0.5 size-3.5 accent-interactive-base"
+              checked={store.longTaskEnabled}
+              onChange={(event) => setStore("longTaskEnabled", event.currentTarget.checked)}
+            />
+            <span class="min-w-0 flex-1">
+              <span class="flex items-center gap-1.5 text-12-medium text-foreground">
+                <Icon name="task" size="small" class="shrink-0 text-text-interactive-base" />
+                长期执行
+              </span>
+              <span class="mt-0.5 block text-11-regular leading-4 text-foreground-subtle">
+                开启后，本次目标会进入后台长期执行，可跨重启恢复、暂停、继续并进行最终验收。
+              </span>
+            </span>
+          </label>
+          <Show when={store.longTaskEnabled}>
+            <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-2 pl-5">
+              <label class="min-w-0">
+                <span class="mb-1 block text-11-medium text-foreground-subtle">验收标准（每行一条）</span>
+                <textarea
+                  class="h-14 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-11-regular text-foreground outline-none focus:border-border-focus"
+                  placeholder="例如：完成后运行测试；提供生成文件路径"
+                  value={store.longTaskCriteria}
+                  onInput={(event) => setStore("longTaskCriteria", event.currentTarget.value)}
+                />
+              </label>
+              <label>
+                <span class="mb-1 block text-11-medium text-foreground-subtle">工具预算</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  class="h-7 w-full rounded-md border border-border bg-background px-2 text-11-regular text-foreground outline-none focus:border-border-focus"
+                  value={store.longTaskToolBudget}
+                  onInput={(event) => setStore("longTaskToolBudget", Number(event.currentTarget.value))}
+                />
+                <span class="mt-1 block text-10-regular text-foreground-subtlest">最大工具调用数</span>
+              </label>
+            </div>
+          </Show>
+          <Show when={store.longTaskCreating}>
+            <div class="pl-5 text-11-regular text-foreground-subtle">正在创建长期任务…</div>
+          </Show>
+          <Show when={store.longTaskRun}>
+            {(run) => (
+              <div class="flex items-center gap-1.5 pl-5 text-11-regular text-success-base">
+                <Icon name="check" size="small" />
+                长期目标已启动 · {run().id}
+              </div>
+            )}
+          </Show>
+        </div>
+      </Show>
       <Show when={!props.embedded && !globalChat()}>
         <div class="mx-auto mt-1 flex w-full min-w-0 items-center gap-1 px-3 text-13-regular text-foreground-subtle">
-          <button
-            type="button"
-            class="flex h-7 min-w-0 max-w-48 items-center gap-1.5 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover"
-            onClick={() => layout.projectPicker.toggle()}
+          <Popover
+            placement="top-start"
+            gutter={8}
+            class="w-72"
+            open={projectMenuOpen()}
+            onOpenChange={setProjectMenuOpen}
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            triggerAs="button"
+            triggerProps={{
+              type: "button",
+              class:
+                "flex h-7 min-w-0 max-w-48 items-center gap-1.5 rounded-md px-1.5 text-foreground-subtle transition-colors hover:bg-hover",
+            }}
+            trigger={
+              <>
+                <Icon name="folder" size="small" class="shrink-0" />
+                <span class="truncate">{currentProject()?.name || getFilename(sdk.directory)}</span>
+                <Icon name="chevron-down" size="small" class="shrink-0" />
+              </>
+            }
           >
-            <Icon name="folder" size="small" class="shrink-0" />
-            <span class="truncate">{currentProject()?.name || getFilename(sdk.directory)}</span>
-          </button>
+            <div class="flex max-h-72 flex-col gap-1 overflow-y-auto p-1">
+              <For each={layout.projects.list()}>
+                {(project) => (
+                  <button
+                    type="button"
+                    data-action="prompt-project-item"
+                    onClick={() => {
+                      setProjectMenuOpen(false)
+                      layout.sidePane.close()
+                      layout.projects.open(project.worktree)
+                      navigate(`/${base64Encode(project.worktree)}`)
+                    }}
+                    class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-12-regular text-foreground transition-colors hover:bg-hover"
+                  >
+                    <Icon name="folder" size="small" class="shrink-0" />
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate">{project.name || getFilename(project.worktree)}</div>
+                      <div class="truncate text-11-regular text-foreground-subtle">{project.worktree}</div>
+                    </div>
+                    <Show when={project.worktree === currentProject()?.worktree}>
+                      <Icon name="check" size="small" class="shrink-0 text-icon-interactive-base" />
+                    </Show>
+                  </button>
+                )}
+              </For>
+              <button
+                type="button"
+                data-action="prompt-project-create"
+                onClick={() => {
+                  setProjectMenuOpen(false)
+                  dialog.show(() => (
+                    <DialogCreateProject
+                      onCreate={(path) => {
+                        layout.sidePane.close()
+                        navigate(`/${base64Encode(path)}`)
+                      }}
+                    />
+                  ))
+                }}
+                class="flex items-center gap-2 rounded-md border-t border-border px-2 py-2 text-left text-12-regular text-foreground transition-colors hover:bg-hover"
+              >
+                <Icon name="plus" size="small" class="shrink-0" />
+                新建项目
+              </button>
+              <button
+                type="button"
+                data-action="prompt-project-leave"
+                onClick={() => {
+                  setProjectMenuOpen(false)
+                  layout.sidePane.close()
+                  navigate("/global-chat/session")
+                }}
+                class="flex items-center gap-2 rounded-md px-2 py-2 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+              >
+                <Icon name="close" size="small" class="shrink-0" />
+                不指定工作区
+              </button>
+            </div>
+          </Popover>
           <Popover
             placement="top-start"
             gutter={8}
@@ -3192,6 +3562,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               setWorkspaceMenuOpen(open)
               if (open) refreshWorktrees()
             }}
+            onOpenAutoFocus={(event) => event.preventDefault()}
             triggerAs="button"
             triggerProps={{
               type: "button",
@@ -3253,6 +3624,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             class="w-72"
             open={branchMenuOpen()}
             onOpenChange={setBranchMenuOpen}
+            onOpenAutoFocus={(event) => event.preventDefault()}
             triggerAs="button"
             triggerProps={{
               type: "button",

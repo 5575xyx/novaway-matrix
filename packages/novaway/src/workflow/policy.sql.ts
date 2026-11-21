@@ -18,6 +18,7 @@ export const SessionWorkflowPolicyTable = sqliteTable(
     delivery_status: text("delivery_status").notNull().default("not_started"),
     created_at: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updated_at: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    revision: integer("revision").notNull().default(0),
   },
   (table) => [index("session_workflow_policy_turn_idx").on(table.turn_id)],
 )

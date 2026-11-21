@@ -149,6 +149,31 @@ export const getTabReorderIndex = (tabs: readonly string[], from: string, to: st
   return toIndex
 }
 
+/**
+ * 关掉文件标签后，裁决当前激活的文件宿主（工作区文件 / Office）要不要收起。
+ * 只在数量**减少**（关标签）时裁决：打开文件（数量增加）绝不触发 ——
+ * 否则从只有文件树的「工作区文件」宿主打开第一个 Office 文件时，
+ * preview 宿主会因"没有普通文件"被误删，工作区文件标签整个消失。
+ */
+export const resolveFileHostCleanup = (input: {
+  count: number
+  previous: number | undefined
+  opened: boolean
+  activeTab: string | null
+  workspaceFileCount: number
+  officeFileCount: number
+  hasBrowserTab: boolean
+}): { action: "none" } | { action: "remove-host" | "switch-browser"; clearTree: boolean } => {
+  if (input.previous === undefined || input.count >= input.previous) return { action: "none" }
+  if (!input.opened) return { action: "none" }
+  if (input.activeTab !== "preview" && input.activeTab !== "office") return { action: "none" }
+  const remaining = input.activeTab === "office" ? input.officeFileCount : input.workspaceFileCount
+  if (remaining > 0) return { action: "none" }
+  const clearTree = input.workspaceFileCount === 0
+  if (input.hasBrowserTab) return { action: "switch-browser", clearTree }
+  return { action: "remove-host", clearTree }
+}
+
 export const createSizing = () => {
   const [state, setState] = createStore({ active: false })
   let t: number | undefined

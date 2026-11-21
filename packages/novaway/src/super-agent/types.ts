@@ -72,6 +72,7 @@ export type GoalPlanTask = {
   objective: string
   dependencies?: readonly ID[]
   input?: unknown
+  evidenceKind?: EvidenceKind
   acceptanceCriteria?: readonly AcceptanceCriterion[]
   retryPolicy?: RetryPolicy
 }
@@ -87,6 +88,16 @@ export type Goal = {
    */
   plan?: readonly GoalPlanTask[]
   planningMode?: "deterministic" | "model"
+  /** The validated execution profile captured at launch time. */
+  executionConfig?: {
+    maxIterations?: number
+    judgeModel?: string
+    maxTokens?: number
+    maxActiveMs?: number
+    verifier?: "judge" | "agent"
+    evidenceMinBytes?: number
+    mode?: "interactive" | "durable"
+  }
   source: "user" | "trigger" | "plugin" | "api" | "agent"
   requestedBy: string
   /** The NovaWay Goal this durable run owns, when started from Goal mode. */
@@ -157,6 +168,8 @@ export type Evidence = {
   taskID: ID
   kind: EvidenceKind
   source: string
+  /** Criteria this evidence was explicitly collected to verify. */
+  acceptanceIDs?: readonly ID[]
   contentHash?: string
   measured?: string
   expiresAt?: number

@@ -350,7 +350,7 @@ export const Terminal = (props: TerminalProps) => {
 
     event.preventDefault()
     event.stopImmediatePropagation()
-    platform.openLink(text)
+    devServers.open(text)
   }
 
   const retryConnection = () => {

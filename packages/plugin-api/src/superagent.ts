@@ -272,7 +272,68 @@ export type ChannelContribution = {
   subscribe?(handler: (message: ChannelMessage) => void): Disposable
 }
 
-/* KernelApi 的 super-agent 扩展（§12.2，第三方拿不到） */
+/* Super-Agent execution contributions (the durable Run/TaskGraph protocol). */
+
+export type AgentRuntimeContribution = {
+  id: string
+  version: string
+  runtimeType: string
+  capabilities: string[]
+  entry: string
+  supports: { streaming: boolean; pause: boolean; resume: boolean; cancellation: boolean }
+}
+
+export type SuperAgentStrategyContribution = {
+  id: string
+  version: string
+  entry: string
+  deterministic?: boolean
+}
+
+export type TaskKindContribution = {
+  id: string
+  version: string
+  entry: string
+  capabilities?: string[]
+}
+
+export type VerifierContribution = {
+  id: string
+  version: string
+  entry: string
+  kinds: string[]
+}
+
+export type RepairStrategyContribution = {
+  id: string
+  version: string
+  entry: string
+  failureKinds?: string[]
+}
+
+export type AgentTemplateContribution = {
+  id: string
+  version: string
+  title: string
+  description: string
+  entry?: string
+  goal: string
+  tags?: string[]
+}
+
+export type SuperAgentPolicyContribution = {
+  id: string
+  version: string
+  entry: string
+  capabilities?: string[]
+}
+
+export type SuperAgentSurfaceContribution = {
+  id: string
+  slot: "session.panel" | "sidebar.item" | "settings.section" | "message.part.renderer"
+  title: string
+  render: { type: "iframe"; url: string } | { type: "builtin"; id: string }
+}
 
 export type KernelApiSuperAgent = {
   readonly threads: {

@@ -13,3 +13,14 @@ export const SETTINGS_STORE = "novaway.settings"
 export const DEFAULT_SERVER_URL_KEY = "defaultServerUrl"
 export const WSL_ENABLED_KEY = "wslEnabled"
 export const UPDATER_ENABLED = app.isPackaged && CHANNEL !== "dev"
+
+export const APP_NAMES: Record<string, string> = {
+  dev: "NovaWay Dev",
+  beta: "NovaWay Beta",
+  prod: "NovaWay",
+}
+export const APP_IDS: Record<string, string> = {
+  dev: "ai.novaway.desktop.dev",
+  beta: "ai.novaway.desktop.beta",
+  prod: "ai.novaway.desktop",
+}

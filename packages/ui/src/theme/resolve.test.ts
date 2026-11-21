@@ -82,11 +82,11 @@ describe("resolveThemeVariant semantic color families", () => {
     expect(theme["indicator-info-base"]).toBe(theme["icon-info-base"])
     expect(theme["text-on-diff-add-base"]).toMatch(/^#[\da-f]{6}$/i)
     expect(theme["text-on-diff-delete-base"]).toMatch(/^#[\da-f]{6}$/i)
-    for (const mode of ["forge", "zen", "spark", "future"]) {
+    for (const mode of ["forge", "zen"]) {
       expect(theme[`app-mode-${mode}`]).toMatch(/^#[\da-f]{6}$/i)
       expect(theme[`app-mode-${mode}-foreground`]).toMatch(/^#[\da-f]{6}$/i)
     }
-    expect(new Set(["forge", "zen", "spark", "future"].map((mode) => theme[`app-mode-${mode}`])).size).toBe(4)
+    expect(new Set(["forge", "zen"].map((mode) => theme[`app-mode-${mode}`])).size).toBe(2)
     for (let index = 0; index < 5; index++) {
       expect(theme[`team-category-${index}`]).toMatch(/^#[\da-f]{6}$/i)
       expect(theme[`team-category-${index}-foreground`]).toMatch(/^#[\da-f]{6}$/i)
@@ -398,7 +398,7 @@ describe("resolveThemeVariant semantic color families", () => {
   test("serializes app-mode and team-category tokens for runtime theme injection", () => {
     for (const isDark of [false, true]) {
       const css = themeToCss(resolveThemeVariant({ seeds }, isDark))
-      for (const mode of ["forge", "zen", "spark", "future"]) {
+      for (const mode of ["forge", "zen"]) {
         expect(css).toContain(`--app-mode-${mode}:`)
         expect(css).toContain(`--app-mode-${mode}-foreground:`)
       }

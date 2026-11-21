@@ -6,7 +6,7 @@ import { Icon } from "@novaway/ui/icon"
 import { useGlobalSync } from "@/context/global-sync"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
-import { useLayout, type LocalProject, type TaskRecency, type TaskSortBy, appModeConfig } from "@/context/layout"
+import { useLayout, type LocalProject, type TaskRecency, type TaskSortBy } from "@/context/layout"
 import { usePermission } from "@/context/permission"
 import { useNotification } from "@/context/notification"
 import { base64Encode } from "@novaway/core/util/encode"
@@ -235,7 +235,9 @@ export function ProjectTaskList(props: {
           if (!directory) return false
           return pathKey(directory) === pathKey(session.directory)
         }}
-        modeColor={() => appModeConfig(layout.mode.projectMode(session.directory))?.color}
+        modeColor={() =>
+          layout.mode.all().find((mode) => mode.id === layout.mode.projectMode(session.directory))?.color
+        }
         onClick={() => {
           // 数据库 / 设置等整帧页面开着时，点任务应当先退出去。
           requestCloseFramePages()

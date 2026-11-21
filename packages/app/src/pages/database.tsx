@@ -1029,9 +1029,9 @@ export function DatabasePage(props: { onBack: () => void }) {
 
   return (
     <div class="flex flex-col h-full bg-background">
-      {/* 顶行同时是窗口拖拽区。页面动作（刷新）跟在标题后面**靠左**放：
-          右上角 108px 是覆盖层补的窗控条，右侧放按钮会被压在下面点不到。 */}
-      <div class="flex items-center justify-between border-b border-border px-4 py-3 pr-[108px]" data-window-drag>
+      {/* 顶行同时是窗口拖拽区。页面动作（刷新）跟在标题后面靠左放，
+          窗口控制按钮由外层主页面 Header 统一承载。 */}
+      <div class="flex items-center justify-between border-b border-border px-4 py-3" data-window-drag>
         <div class="flex items-center gap-3">
           <Button variant="ghost" size="small" icon="arrow-left" onClick={props.onBack}>
             {language.t("common.goBack")}

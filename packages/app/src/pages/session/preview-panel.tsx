@@ -5,10 +5,11 @@ import { Tooltip } from "@novaway/ui/tooltip"
 import { createSignal, onCleanup, on, createEffect, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 import { usePreview } from "@/context/preview"
 import { usePreviewInspection } from "@/context/preview-inspection"
 import { useSideChat } from "@/pages/session/use-side-chat"
-import { normalizePreviewUrl } from "@/utils/preview-url"
+import { isLocalPreviewUrl, normalizePreviewUrl } from "@/utils/preview-url"
 import { pickedElementLabel, type PickedElement } from "@/utils/preview-pick"
 
 const IFRAME_SANDBOX =
@@ -16,8 +17,14 @@ const IFRAME_SANDBOX =
 
 const IFRAME_ALLOW = "fullscreen"
 
+// Electron 的 iframe 会被 GitHub、Gitee 等站点的 X-Frame-Options/CSP 拒绝。
+// 桌面端对外部网页使用真实 WebContents；本地页面继续用 iframe，保留元素拾取能力。
+const BROWSER_WEBVIEW_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
 export function PreviewPanel(props: { files?: { count: () => number; open: () => void } }) {
   const language = useLanguage()
+  const platform = usePlatform()
   const preview = usePreview()
   const inspection = usePreviewInspection()
   const sideChat = useSideChat()
@@ -37,6 +44,8 @@ ${url()}
 
   const url = preview.url
   const embedUrl = preview.embedUrl
+  const useExternalWebview = () =>
+    platform.platform === "desktop" && !!url() && !isLocalPreviewUrl(url()) && /^https?:\/\//i.test(url())
 
   const [store, setStore] = createStore({
     draft: url(),
@@ -116,6 +125,32 @@ ${url()}
     if (giveUpTimer) clearTimeout(giveUpTimer)
     setFrameLoaded(true)
   }
+
+  let webviewRef: any
+  let removeWebviewListeners: (() => void) | undefined
+  const setWebviewRef = (element: any) => {
+    removeWebviewListeners?.()
+    removeWebviewListeners = undefined
+    webviewRef = element
+    inspection.setFrame(undefined)
+    if (!element) return
+
+    const onFinish = () => finishLoading()
+    const onFail = (event: { isMainFrame?: boolean; errorDescription?: string }) => {
+      if (event.isMainFrame === false) return
+      console.warn("[PreviewPanel] embedded browser failed to load", event.errorDescription ?? url())
+      finishLoading()
+    }
+    element.addEventListener("did-finish-load", onFinish)
+    element.addEventListener("did-stop-loading", onFinish)
+    element.addEventListener("did-fail-load", onFail)
+    removeWebviewListeners = () => {
+      element.removeEventListener("did-finish-load", onFinish)
+      element.removeEventListener("did-stop-loading", onFinish)
+      element.removeEventListener("did-fail-load", onFail)
+    }
+  }
+
   createEffect(
     on(
       () => [embedUrl(), store.reload] as const,
@@ -126,6 +161,9 @@ ${url()}
   onCleanup(() => {
     if (slowTimer) clearTimeout(slowTimer)
     if (giveUpTimer) clearTimeout(giveUpTimer)
+    removeWebviewListeners?.()
+    removeWebviewListeners = undefined
+    webviewRef = undefined
   })
 
   return (
@@ -219,7 +257,27 @@ ${url()}
 
       <div class="relative min-h-0 flex-1">
         {/* keyed Show 的 children 在 untrack 中执行，故把刷新序号与 URL 一起作为 when 值：任一变化都生成新对象，从而重新挂载 iframe */}
-        <Show when={embedUrl() ? { target: embedUrl(), reload: store.reload } : undefined} keyed>
+        <Show
+          when={useExternalWebview() && embedUrl() ? { target: embedUrl(), reload: store.reload } : undefined}
+          keyed
+        >
+          {(frame) => (
+            <webview
+              ref={setWebviewRef}
+              src={frame.target}
+              title={frame.target}
+              class="absolute inset-0 h-full w-full border-0"
+              partition="persist:novaway-browser"
+              allowpopups
+              useragent={BROWSER_WEBVIEW_USER_AGENT}
+              webpreferences="contextIsolation=yes,sandbox=yes"
+            />
+          )}
+        </Show>
+        <Show
+          when={!useExternalWebview() && embedUrl() ? { target: embedUrl(), reload: store.reload } : undefined}
+          keyed
+        >
           {(frame) => (
             <iframe
               src={frame.target}

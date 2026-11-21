@@ -7,6 +7,8 @@ import {
   migrateLayoutStore,
   pruneSessionKeys,
   reduceSidePane,
+  workbenchModeFromAgent,
+  APP_MODES,
   type SidePaneState,
 } from "./layout"
 
@@ -426,9 +428,64 @@ describe("migrateLayoutStore mode", () => {
     expect(out.mode.projects).toEqual({ "/b": "zen" })
   })
 
+  test("drops the retired 创意 (spark) / 探索 (future) modes", () => {
+    for (const retired of ["spark", "future"]) {
+      const out = migrateLayoutStore({
+        mode: {
+          current: retired,
+          hasSelected: true,
+          projects: { "/a": retired, "/b": "forge" },
+        },
+      }) as { mode: { current?: string; hasSelected: boolean; projects: Record<string, string> } }
+
+      expect(out.mode.current).toBeUndefined()
+      expect(out.mode.hasSelected).toBe(false)
+      expect(out.mode.projects).toEqual({ "/b": "forge" })
+    }
+  })
+
   test("keeps a still-valid mode untouched", () => {
     const mode = { current: "forge", hasSelected: true, projects: { "/a": "forge" } }
     const out = migrateLayoutStore({ mode }) as { mode: unknown }
     expect(out.mode).toEqual(mode)
+  })
+})
+
+describe("plugin workbench mode metadata", () => {
+  test("keeps only the host kernel mode in static configuration", () => {
+    expect(APP_MODES.map((mode) => mode.id)).toEqual(["forge"])
+  })
+
+  test("does not synthesize Zen from a legacy office group", () => {
+    expect(
+      workbenchModeFromAgent({
+        mode: "primary",
+        options: { modeGroup: "office" },
+      }),
+    ).toMatchObject({ id: "office", group: "office" })
+  })
+
+  test("exposes the office workbench from a plugin agent", () => {
+    expect(
+      workbenchModeFromAgent({
+        mode: "primary",
+        options: {
+          modeGroup: "office",
+          workbench: { id: "zen", name: "办公模式", shortName: "办公" },
+        },
+      }),
+    ).toMatchObject({ id: "zen", name: "办公模式", shortName: "办公" })
+  })
+
+  test("creates a dynamic mode for another plugin workbench", () => {
+    expect(
+      workbenchModeFromAgent({
+        mode: "primary",
+        options: {
+          modeGroup: "short-drama",
+          workbench: { id: "short-drama", name: "短剧生成", shortName: "短剧" },
+        },
+      }),
+    ).toMatchObject({ id: "short-drama", name: "短剧生成", shortName: "短剧" })
   })
 })

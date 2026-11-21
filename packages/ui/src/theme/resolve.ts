@@ -408,8 +408,8 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["text-agent-docs-base"] = textTone(amber, 8)
   tokens["text-agent-ask-base"] = textTone(blue, 8)
   tokens["text-agent-build-base"] = textTone(interactive, 8)
-  const appModeNames = ["forge", "zen", "spark", "future"] as const
-  const appModeSeeds = [0, 90, 180, 270].map((h) => shift(colors.primary, { h, c: 1.08 }))
+  const appModeNames = ["forge", "zen"] as const
+  const appModeSeeds = [0, 90].map((h) => shift(colors.primary, { h, c: 1.08 }))
   appModeSeeds.forEach((seed, index) => {
     const scale = generateScale(seed, isDark)
     const color = iconTone(scale, 8)

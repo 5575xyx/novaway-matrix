@@ -37,6 +37,23 @@ const api: ElectronAPI = {
   marketplaceGitInstall: (input) => ipcRenderer.invoke("marketplace-git-install", input),
   setKeepAwake: (enabled) => ipcRenderer.invoke("set-keep-awake", enabled),
 
+  getAppAppearance: () => ipcRenderer.invoke("app-appearance:get"),
+  setAppName: (name) => ipcRenderer.invoke("app-appearance:set-name", name),
+  setAppIcon: (id) => ipcRenderer.invoke("app-appearance:set-icon", id),
+  importAppIcon: () => ipcRenderer.invoke("app-appearance:import-icon"),
+  importAppIconPair: () => ipcRenderer.invoke("app-appearance:import-icon-pair"),
+  setAppAppearanceMode: (mode) => ipcRenderer.invoke("app-appearance:set-mode", mode),
+  deleteAppIcon: (id) => ipcRenderer.invoke("app-appearance:delete-icon", id),
+  getAppIconData: (id, mode) => ipcRenderer.invoke("app-appearance:icon-data", id, mode),
+  generateAppIconFromImage: (source, label, frame, mode, targetId, themed) =>
+    ipcRenderer.invoke("app-appearance:generate-image-icon", { url: source.url, base64: source.base64 }, label, frame, mode, targetId, themed),
+  openAppIconDir: () => ipcRenderer.invoke("app-appearance:open-icon-dir"),
+  onAppAppearanceChange: (cb) => {
+    const handler = (_: unknown, state: import("./types").AppAppearanceState) => cb(state)
+    ipcRenderer.on("app-appearance-change", handler)
+    return () => ipcRenderer.removeListener("app-appearance-change", handler)
+  },
+
   getWindowCount: () => ipcRenderer.invoke("get-window-count"),
   onSqliteMigrationProgress: (cb) => {
     const handler = (_: unknown, progress: SqliteMigrationProgress) => cb(progress)
@@ -76,6 +93,11 @@ const api: ElectronAPI = {
 
   createDirectory: (parentPath, dirName) => ipcRenderer.invoke("create-directory", parentPath, dirName),
   openDirectoryPicker: (opts) => ipcRenderer.invoke("open-directory-picker", opts),
+  getResourceReport: () => ipcRenderer.invoke("resource:get-report"),
+  setResourceLocation: (id, path) => ipcRenderer.invoke("resource:set-location", id, path),
+  getResourceCleanupConfig: () => ipcRenderer.invoke("resource:get-cleanup-config"),
+  setResourceCleanupConfig: (config) => ipcRenderer.invoke("resource:set-cleanup-config", config),
+  cleanResources: (olderThanDays) => ipcRenderer.invoke("resource:clean", olderThanDays),
   openFilePicker: (opts) => ipcRenderer.invoke("open-file-picker", opts),
   // 文件阅读器:读写项目目录外的本地文本文件(主进程直读,绕开服务端工作区边界)。
   readLocalFileText: (path) => ipcRenderer.invoke("read-local-file-text", path),
@@ -91,6 +113,8 @@ const api: ElectronAPI = {
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
   showItemInFolder: (path) => ipcRenderer.invoke("show-item-in-folder", path),
   getInstalledEditors: () => ipcRenderer.invoke("get-installed-editors"),
+  getOfficeApps: () => ipcRenderer.invoke("get-office-apps"),
+  getFileIcon: (path) => ipcRenderer.invoke("get-file-icon", path),
   openInEditor: (editorId, path, kind) => ipcRenderer.invoke("open-in-editor", editorId, path, kind),
   readClipboardImage: () => ipcRenderer.invoke("read-clipboard-image"),
   showNotification: (title, body, href, showSystem) =>

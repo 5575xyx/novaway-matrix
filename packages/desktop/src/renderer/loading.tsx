@@ -5,7 +5,7 @@ import { Font } from "@novaway/ui/font"
 import { Splash } from "@novaway/ui/logo"
 import { Progress } from "@novaway/ui/progress"
 import "./styles.css"
-import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
 import type { InitStep, SqliteMigrationProgress } from "../preload/types"
 import { t, initI18n } from "./i18n"
 
@@ -21,9 +21,11 @@ const initSteps = [
 
 render(() => {
   const [step, setStep] = createSignal<InitStep | null>(null)
+  const [iconData, setIconData] = createSignal<string | undefined>()
   const [currentStepIndex, setCurrentStepIndex] = createSignal(0)
   const [percent, setPercent] = createSignal(0)
   const [showMayTakeTime, setShowMayTakeTime] = createSignal(false)
+  void window.api.getAppAppearance().then((appearance) => setIconData(appearance.iconData))
 
   const phase = createMemo(() => step()?.phase)
 
@@ -102,7 +104,9 @@ render(() => {
               深浅色下都「看不出来」——用户要求放大并拉开对比。
               尺寸按 120 的 viewBox 取正方形（原来 w-20 h-25 会被 preserveAspectRatio
               压成 80×80，正方形才能把图形用满），不透明度提到 0.8。 */}
-          <Splash class="w-28 h-28 opacity-80" />
+          <Show when={iconData()} fallback={<Splash class="w-28 h-28 opacity-80" />}>
+            {(src) => <img src={src()} alt="" class="size-28 object-contain opacity-80" draggable={false} />}
+          </Show>
           <div class="w-72 flex flex-col items-center gap-4" aria-live="polite">
             <span class="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap text-foreground text-14-normal">
               {status()}

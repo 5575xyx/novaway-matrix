@@ -8,6 +8,7 @@ import { run } from "@/util/process"
 import { hasGit } from "@/util/git"
 import { extractArchive, fetchArchive, probeArchive, type ArchiveProbe } from "./archive"
 import * as Generation from "./generation"
+import { assess as assessTrust, verifyArtifactSignature } from "./trust"
 
 const log = Log.create({ service: "extension.marketplace" })
 
@@ -53,6 +54,10 @@ export type Record = {
   ref?: string
   subdir?: string
   sha256?: string
+  /** Detached Ed25519 signature over the archive, base64 encoded. */
+  signature?: string
+  /** Public key corresponding to signature, PEM encoded. */
+  publicKey?: string
   sourceId?: string
   permissions?: string[]
   dependencies?: { [key: string]: string }
@@ -560,6 +565,8 @@ export type InstallZipInput = {
   version?: string
   url: string
   sha256?: string
+  signature?: string
+  publicKey?: string
   sourceId?: string
   permissions?: string[]
   dependencies?: { [key: string]: string }
@@ -594,8 +601,14 @@ async function installZipUnlocked(input: InstallZipInput, target: string): Promi
   const config = input.config ?? Global.Path.config
   const name = safeSegment(input.name)
 
+  if (input.sourceId) {
+    const trust = assessTrust({ url: input.url, sourceId: input.sourceId, sha256: input.sha256, permissions: input.permissions, signatureVerified: Boolean(input.signature && input.publicKey) })
+    if (!trust.allowed) throw new Error(`extension trust policy rejected ${input.name}: ${trust.reasons.join("; ")}`)
+  }
   const buffer = await download(input.url, input.signal, input.onProgress)
   verify(buffer, input.sha256)
+  if (input.signature && input.publicKey && !verifyArtifactSignature({ data: buffer, signature: input.signature, publicKey: input.publicKey }))
+    throw new Error(`artifact signature verification failed: ${input.name}`)
 
   const siblings = await sameNameInstalls(config, input.name, target)
   const replaced = (await previousRevision(target)) ?? siblings.toSorted((a, b) => b.installedAt - a.installedAt)[0]
@@ -615,6 +628,8 @@ async function installZipUnlocked(input: InstallZipInput, target: string): Promi
         ...(input.version ? { version: input.version } : {}),
         source: input.url,
         ...(input.sha256 ? { sha256: input.sha256 } : {}),
+        ...(input.signature ? { signature: input.signature } : {}),
+        ...(input.publicKey ? { publicKey: input.publicKey } : {}),
         ...(input.sourceId ? { sourceId: input.sourceId } : {}),
         ...(input.permissions ? { permissions: [...new Set(input.permissions)] } : {}),
         ...(input.dependencies ? { dependencies: { ...input.dependencies } } : {}),
@@ -666,6 +681,8 @@ export type InstallGitInput = {
   version?: string
   /** 归档下载通道可校验的摘要（git 通道忽略）。 */
   sha256?: string
+  signature?: string
+  publicKey?: string
   sourceId?: string
   permissions?: string[]
   dependencies?: { [key: string]: string }
@@ -707,6 +724,8 @@ async function cloneRepository(input: InstallGitInput, target: string) {
 async function checkoutArchive(input: InstallGitInput, target: string): Promise<{ root: string; etag?: string }> {
   const archive = await fetchArchive(input.url, input.ref, input.signal)
   verify(archive.buffer, input.sha256)
+  if (input.signature && input.publicKey && !verifyArtifactSignature({ data: archive.buffer, signature: input.signature, publicKey: input.publicKey }))
+    throw new Error(`artifact signature verification failed: ${input.name}`)
   await extractArchive(archive.buffer, target, input.subdir ? { prefix: input.subdir } : {})
   return { root: target, ...(archive.etag ? { etag: archive.etag } : {}) }
 }
@@ -729,6 +748,11 @@ export function installGit(input: InstallGitInput): Promise<Installed> {
 
 async function installGitUnlocked(input: InstallGitInput, target: string, config: string): Promise<Installed> {
   if (!/^https?:\/\//i.test(input.url) && !input.url.startsWith("git@")) throw new Error("unsupported git url")
+
+  if (input.sourceId) {
+    const trust = assessTrust({ url: input.url, sourceId: input.sourceId, sha256: input.sha256, permissions: input.permissions })
+    if (!trust.allowed) throw new Error(`extension trust policy rejected ${input.name}: ${trust.reasons.join("; ")}`)
+  }
 
   const siblings = await sameNameInstalls(config, input.name, target)
   const replaced = (await previousRevision(target)) ?? siblings.toSorted((a, b) => b.installedAt - a.installedAt)[0]

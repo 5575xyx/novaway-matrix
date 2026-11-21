@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect"
-import { asc, desc, eq, max, and, lt, lte, gt, inArray } from "drizzle-orm"
+import { asc, desc, eq, max, and, lt, lte, gt, inArray, isNull, or } from "drizzle-orm"
 import { Database, type TxOrDb } from "@/storage/db"
 import {
   SuperAgentApprovalTable,
@@ -101,6 +101,20 @@ export interface Interface {
     executionConfig: Record<string, unknown>
   }) => Effect.Effect<StoredSuperAgentRun | undefined>
   readonly get: (id: string) => Effect.Effect<StoredSuperAgentRun | undefined>
+  /** Atomically claims the durable worker lease, allowing takeover only after expiry. */
+  readonly claimRunLease: (input: {
+    runID: string
+    owner: string
+    leaseMs: number
+    now?: number
+  }) => Effect.Effect<boolean>
+  readonly renewRunLease: (input: {
+    runID: string
+    owner: string
+    leaseMs: number
+    now?: number
+  }) => Effect.Effect<boolean>
+  readonly releaseRunLease: (input: { runID: string; owner: string }) => Effect.Effect<boolean>
   readonly list: (directory: string) => Effect.Effect<StoredSuperAgentRun[]>
   readonly listAll: (limit?: number) => Effect.Effect<StoredSuperAgentRun[]>
   readonly appendEvent: (event: SuperAgentEventInput) => Effect.Effect<SuperAgentEvent>
@@ -339,6 +353,24 @@ function synchronizeLinkedGoal(db: TxOrDb, run: StoredSuperAgentRun, at: number)
     }
     if (!linked) continue
 
+    const totalTasks = run.graph.nodes.length
+    const progress =
+      nextStatus === "completed"
+        ? 100
+        : totalTasks === 0
+          ? 0
+          : Math.round(
+              (run.graph.nodes.reduce((sum, task) => {
+                if (["completed", "succeeded"].includes(task.status)) return sum + 1
+                if (task.status === "verifying") return sum + 0.9
+                if (task.status === "running" || task.status === "waiting") return sum + 0.35
+                if (task.status === "ready" || task.status === "retrying") return sum + 0.1
+                return sum
+              }, 0) /
+                totalTasks) *
+                100,
+            )
+
     const allowedStatuses =
       nextStatus === "completed"
         ? ["in_progress"]
@@ -348,7 +380,7 @@ function synchronizeLinkedGoal(db: TxOrDb, run: StoredSuperAgentRun, at: number)
             ? ["in_progress"]
             : ["in_progress", "paused"]
     db.update(GoalTable)
-      .set({ status: nextStatus, updated_at: new Date(at) })
+      .set({ status: nextStatus, progress, updated_at: new Date(at) })
       .where(and(eq(GoalTable.id, row.id), inArray(GoalTable.status, allowedStatuses)))
       .run();
   }
@@ -442,6 +474,9 @@ export const defaultLayer = Layer.effect(
                 taskID: row.task_id,
                 kind: row.kind as Evidence["kind"],
                 source: row.source,
+                ...(Array.isArray(row.acceptance_ids_json) && row.acceptance_ids_json.length > 0
+                  ? { acceptanceIDs: row.acceptance_ids_json as string[] }
+                  : {}),
                 ...(row.content_hash ? { contentHash: row.content_hash } : {}),
                 ...(row.measured ? { measured: row.measured } : {}),
                 ...(row.time_expires ? { expiresAt: row.time_expires } : {}),
@@ -515,7 +550,12 @@ export const defaultLayer = Layer.effect(
       createLinked: Effect.fn("SuperAgentStore.createLinked")(function* (input) {
         const created = SuperAgentRuntime.create({
           id: input.id,
-          goal: { ...input.goal, goalId: input.goalId, sessionId: input.sessionId },
+          goal: {
+            ...input.goal,
+            executionConfig: input.executionConfig as Goal["executionConfig"],
+            goalId: input.goalId,
+            sessionId: input.sessionId,
+          },
           budget: input.budget,
         }).runtime.snapshot()
         const candidate: StoredSuperAgentRun = { ...created, directory: input.directory }
@@ -592,7 +632,12 @@ export const defaultLayer = Layer.effect(
       createGoalLinked: Effect.fn("SuperAgentStore.createGoalLinked")(function* (input) {
         const created = SuperAgentRuntime.create({
           id: input.id,
-          goal: { ...input.goal, goalId: input.goalId, sessionId: input.sessionId },
+          goal: {
+            ...input.goal,
+            executionConfig: input.executionConfig as Goal["executionConfig"],
+            goalId: input.goalId,
+            sessionId: input.sessionId,
+          },
           budget: input.budget,
         }).runtime.snapshot()
         const candidate: StoredSuperAgentRun = { ...created, directory: input.directory }
@@ -672,6 +717,58 @@ export const defaultLayer = Layer.effect(
         return linked
       }),
       get,
+      claimRunLease: Effect.fn("SuperAgentStore.claimRunLease")(function* (input) {
+        const at = input.now ?? now()
+        const leaseUntil = at + Math.max(1_000, input.leaseMs)
+        const rows = yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(SuperAgentRunTable)
+              .set({ run_owner: input.owner, run_lease_until: leaseUntil, time_updated: at })
+              .where(
+                and(
+                  eq(SuperAgentRunTable.id, input.runID),
+                  or(
+                    isNull(SuperAgentRunTable.run_owner),
+                    lt(SuperAgentRunTable.run_lease_until, at),
+                    eq(SuperAgentRunTable.run_owner, input.owner),
+                  ),
+                ),
+              )
+              .returning({ id: SuperAgentRunTable.id })
+              .all(),
+          ),
+        )
+        return rows.length > 0
+      }),
+      renewRunLease: Effect.fn("SuperAgentStore.renewRunLease")(function* (input) {
+        const at = input.now ?? now()
+        const rows = yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(SuperAgentRunTable)
+              .set({ run_lease_until: at + Math.max(1_000, input.leaseMs), time_updated: at })
+              .where(and(eq(SuperAgentRunTable.id, input.runID), eq(SuperAgentRunTable.run_owner, input.owner)))
+              .returning({ id: SuperAgentRunTable.id })
+              .all(),
+          ),
+        )
+        return rows.length > 0
+      }),
+      releaseRunLease: Effect.fn("SuperAgentStore.releaseRunLease")(function* (input) {
+        const at = now()
+        const rows = yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .update(SuperAgentRunTable)
+              .set({ run_owner: null, run_lease_until: null, time_updated: at })
+              .where(and(eq(SuperAgentRunTable.id, input.runID), eq(SuperAgentRunTable.run_owner, input.owner)))
+              .returning({ id: SuperAgentRunTable.id })
+              .all(),
+          ),
+        )
+        return rows.length > 0
+      }),
       list: Effect.fn("SuperAgentStore.list")(function* (directory) {
         const rows = yield* Effect.sync(() =>
           Database.use((db) =>
@@ -1397,6 +1494,7 @@ export const defaultLayer = Layer.effect(
                 task_id: evidence.taskID,
                 kind: evidence.kind,
                 source: evidence.source,
+                acceptance_ids_json: evidence.acceptanceIDs,
                 content_hash: evidence.contentHash,
                 measured: evidence.measured,
                 time_expires: evidence.expiresAt,
@@ -1424,6 +1522,9 @@ export const defaultLayer = Layer.effect(
           taskID: row.task_id,
           kind: row.kind as Evidence["kind"],
           source: row.source,
+          ...(Array.isArray(row.acceptance_ids_json) && row.acceptance_ids_json.length > 0
+            ? { acceptanceIDs: row.acceptance_ids_json as string[] }
+            : {}),
           ...(row.content_hash ? { contentHash: row.content_hash } : {}),
           ...(row.measured ? { measured: row.measured } : {}),
           ...(row.time_expires ? { expiresAt: row.time_expires } : {}),
@@ -1575,10 +1676,23 @@ export const defaultLayer = Layer.effect(
         })
         yield* Effect.sync(() =>
           Database.transaction((db) => {
-            db.update(SuperAgentRunTable)
+            db
+              .update(SuperAgentRunTable)
               .set({ graph_json: nextGraph, graph_version: nextGraph.version, time_updated: updatedAt })
               .where(and(eq(SuperAgentRunTable.id, runID), eq(SuperAgentRunTable.graph_version, expectedVersion)))
-              .run();
+              .run()
+            const persistedGraphVersion = db
+              .select({ version: SuperAgentRunTable.graph_version })
+              .from(SuperAgentRunTable)
+              .where(eq(SuperAgentRunTable.id, runID))
+              .limit(1)
+              .all()[0]?.version
+            if (persistedGraphVersion !== nextGraph.version) return false
+            synchronizeLinkedGoal(
+              db,
+              { ...current, graph: nextGraph, updatedAt } as StoredSuperAgentRun,
+              updatedAt,
+            )
             for (const mutation of mutations) {
               db.insert(SuperAgentTaskMutationTable)
                 .values({
@@ -1593,6 +1707,7 @@ export const defaultLayer = Layer.effect(
                 })
                 .run();
             }
+            return true
           }),
         )
         const persistedVersion = yield* Effect.sync(() =>

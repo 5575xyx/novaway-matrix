@@ -9,6 +9,7 @@ const ignoredDirectory = (name: string) =>
   name === "node_modules" ||
   name === ".git" ||
   name === "dist" ||
+  name === "out" ||
   name.startsWith("dist.pre-") ||
   name.startsWith("novaway.tmp-") ||
   name === "public"
@@ -65,7 +66,7 @@ for (const target of roots.sort()) {
 let failed = false
 for (const target of targets) {
   console.log(`\n== oxlint ${path.relative(root, target) || "."} ==`)
-  const result = Bun.spawnSync(["bunx", "oxlint", ...args, target], { cwd: root, stdout: "inherit", stderr: "inherit" })
+  const result = Bun.spawnSync(["bunx", "oxlint", "--threads=2", ...args, target], { cwd: root, stdout: "inherit", stderr: "inherit" })
   if (result.exitCode !== 0) {
     console.error(`oxlint failed for ${path.relative(root, target) || "."} with exit code ${result.exitCode}`)
     failed = true

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat scroll fixture</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --background: #f4f5f7;
+        --panel: #f4f5f7;
+        --foreground: #344054;
+        --foreground-subtle: #667085;
+        --border: #cbd2dc;
+        --surface: #fff;
+        --interactive-base: #3875c6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        background: var(--background);
+        color: var(--foreground);
+        font:
+          14px/1.6 Inter,
+          system-ui,
+          sans-serif;
+      }
+      #scroll-root {
+        height: 100%;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      #timeline {
+        width: min(100%, 820px);
+        margin-inline: auto;
+        padding: 20px 18px 36px;
+      }
+      [data-timeline-row] {
+        padding-block: 8px;
+      }
+      .user {
+        margin-left: auto;
+        width: fit-content;
+        max-width: 82%;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 14px;
+        background: var(--surface);
+      }
+      .assistant {
+        padding: 2px 4px;
+      }
+      .thinking,
+      .tool {
+        color: var(--foreground-subtle);
+        border-left: 2px solid var(--border);
+        padding: 5px 12px;
+      }
+      pre {
+        overflow: auto;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #eceff3;
+        font:
+          12px/1.5 ui-monospace,
+          monospace;
+      }
+      #metrics {
+        position: fixed;
+        right: 12px;
+        top: 12px;
+        z-index: 2;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        font:
+          12px/1.5 ui-monospace,
+          monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./chat-scroll.tsx"></script>
+  </body>
+</html>

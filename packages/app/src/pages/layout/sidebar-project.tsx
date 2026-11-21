@@ -102,7 +102,7 @@ export function ProjectMenu(props: { project: LocalProject; ctx: ProjectSidebarC
             </DropdownMenu.SubTrigger>
             <DropdownMenu.Portal>
               <DropdownMenu.SubContent>
-                <For each={layout.mode.all}>
+                <For each={layout.mode.all()}>
                   {(mode) => (
                     <DropdownMenu.Item onSelect={() => ctx.moveProjectToMode(project.worktree, mode.id)}>
                       <DropdownMenu.ItemLabel>

@@ -2,6 +2,14 @@ import { describe, expect, test } from "bun:test"
 import { officeAgentSyntheticText, transformOfficePrompt } from "./office-agent-prompt"
 
 describe("office agent prompt", () => {
+  test("loads the installed namespaced skill without a built-in fallback", () => {
+    const input = { actionID: "document" as const, quickMode: false, pptTemplate: "auto" as const }
+    expect(officeAgentSyntheticText(input)).not.toContain("skill 工具加载")
+    const text = officeAgentSyntheticText({ ...input, skillName: "office-suite_office-document" })
+    expect(text).toContain("「office-suite_office-document」")
+    expect(text).not.toContain("「office-document」")
+  })
+
   test("locks the selected ppt template on the first generation", () => {
     const text = officeAgentSyntheticText({
       actionID: "ppt",

@@ -109,6 +109,7 @@ import { ProjectGitInit } from "./layout/sidebar-project-git"
 import { ModeSwitchButton } from "@/components/mode-switch"
 import { ThemeSchemeToggle } from "@/components/theme-scheme-toggle"
 import { SettingsRailMenu } from "@/components/settings-rail-menu"
+import { ResourceMonitorButton } from "@/components/resource-monitor-button"
 import {
   ProjectTaskList,
   TaskFilterBar,
@@ -267,7 +268,7 @@ export default function Layout(props: ParentProps) {
     const view = sessionLayout.view()
     const paneTerminal = layout.sidePane.opened() && layout.sidePane.activeTab() === "terminal"
     if (!view.terminal.opened() || paneTerminal) return "8px"
-    const viewport = typeof window === "undefined" ? 1000 : window.visualViewport?.height ?? window.innerHeight
+    const viewport = typeof window === "undefined" ? 1000 : (window.visualViewport?.height ?? window.innerHeight)
     const terminal = Math.min(layout.terminal.height(), Math.round(viewport * 0.6))
     return `${terminal + 8}px`
   }
@@ -366,7 +367,7 @@ export default function Layout(props: ParentProps) {
     void globalSDK.client.extension
       .marketplaceCatalog({ directory })
       .then((result) => {
-        const updates = ((result.data as unknown as { updates?: Array<{ state?: string }> } | undefined)?.updates ?? [])
+        const updates = (result.data as unknown as { updates?: Array<{ state?: string }> } | undefined)?.updates ?? []
         setExtensionUpdateCount(updates.filter((item) => item.state === "outdated").length)
       })
       .catch(() => undefined)
@@ -3603,7 +3604,7 @@ export default function Layout(props: ParentProps) {
     items.push(
       {
         id: "knowledge",
-        icon: "review",
+        icon: "book",
         label: language.t("sidebar.knowledge"),
         tone: "var(--icon-interactive-base)",
         active: state.knowledgePage.open,
@@ -3624,15 +3625,6 @@ export default function Layout(props: ParentProps) {
         tone: "var(--icon-interactive-base)",
         active: state.arenaPage.open,
         onClick: openArenaPage,
-      },
-      {
-        id: "extensions",
-        icon: "dot-grid",
-        label: language.t("sidebar.extensionsMarket"),
-        tone: "var(--icon-interactive-base)",
-        active: state.extensionsPage.open,
-        badge: extensionUpdateCount(),
-        onClick: openExtensionsPage,
       },
       {
         id: "kernel",
@@ -3825,10 +3817,13 @@ export default function Layout(props: ParentProps) {
                     items={railItems()}
                     footer={railFooter()}
                     footerEnd={
-                      <SettingsRailMenu
-                        settingsOpen={state.settings.open}
-                        onOpenSettings={() => command.trigger("settings.open")}
-                      />
+                      <div class="flex flex-col items-center gap-1">
+                        <ResourceMonitorButton />
+                        <SettingsRailMenu
+                          settingsOpen={state.settings.open}
+                          onOpenSettings={() => command.trigger("settings.open")}
+                        />
+                      </div>
                     }
                   />
                   {/* 面板容器负责折叠动画：宽度 0 ↔ panel()。收起时同时 inert，

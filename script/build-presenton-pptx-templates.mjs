@@ -6,7 +6,8 @@ import { templateV2UiToHtml } from "./vendor/presenton-template-v2-json-to-html.
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, "..")
-const templateRoot = resolve(repoRoot, "packages/novaway/src/skill/prompt/office-ppt/templates/presenton")
+if (!process.env.NOVAWAY_OFFICE_SKILL_DIR) throw new Error("Set NOVAWAY_OFFICE_SKILL_DIR to the installed Office PPT skill directory")
+const templateRoot = resolve(process.env.NOVAWAY_OFFICE_SKILL_DIR, "templates/presenton")
 const outputRoot = resolve(repoRoot, "packages/app/public/assets/office-ppt-templates/presenton-pptx")
 const deckRoot = resolve(repoRoot, ".tmp/presenton-pptx-deck")
 const novawayDir = resolve(repoRoot, "packages/novaway")

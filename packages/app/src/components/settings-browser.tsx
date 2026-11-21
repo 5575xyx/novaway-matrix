@@ -4,6 +4,7 @@ import { Tag } from "@novaway/ui/tag"
 import { createMemo, type Component } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
+import { browserEmbeddedEnabled } from "@/utils/browser-preferences"
 import { SettingsGroup, SettingsPage, SettingsRow } from "./settings-parts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -13,8 +14,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * 浏览器控制。
  *
  * 能力由内核自带（`browser_*` 工具直接说 Chrome DevTools 协议，拉起的是本机
- * 已安装的 Chrome / Edge 的 headless 模式），不经过任何 MCP 服务 —— 所以这一页
- * 只留一个开关，加上「它到底怎么跑」的说明，不再显示一个跟能力无关的 MCP 连接状态。
+ * 已安装的 Chrome / Edge 的 headless 模式），不经过任何 MCP 服务 —— 设置页提供能力开关，
+ * 以及任务页面默认使用右侧内置浏览器的偏好，加上「它到底怎么跑」的说明。
  */
 export const SettingsBrowser: Component = () => {
   const language = useLanguage()
@@ -26,10 +27,16 @@ export const SettingsBrowser: Component = () => {
   })
 
   const enabled = createMemo(() => entry()["enabled"] !== false)
+  const openInApp = createMemo(() => browserEmbeddedEnabled({ browser: entry() }))
 
   const update = (value: boolean) =>
     globalSync.updateConfig({
       browser: { ...entry(), enabled: value },
+    } as Config)
+
+  const updateOpenInApp = (value: boolean) =>
+    globalSync.updateConfig({
+      browser: { ...entry(), open_in_app: value },
     } as Config)
 
   return (
@@ -44,6 +51,15 @@ export const SettingsBrowser: Component = () => {
           control={
             <Switch checked={enabled()} onChange={update} hideLabel>
               {language.t("settings.browser.enabled.title" as never)}
+            </Switch>
+          }
+        />
+        <SettingsRow
+          label={language.t("settings.browser.openInApp.title" as never)}
+          description={language.t("settings.browser.openInApp.description" as never)}
+          control={
+            <Switch checked={openInApp()} onChange={updateOpenInApp} hideLabel>
+              {language.t("settings.browser.openInApp.title" as never)}
             </Switch>
           }
         />

@@ -139,7 +139,12 @@ function runtimeCommands(directory: string) {
   )
 }
 
-async function executablePlugin(directory: string, name = "sample", implementation?: string) {
+async function executablePlugin(
+  directory: string,
+  name = "sample",
+  implementation?: string,
+  safety?: { readOnly?: boolean; concurrencySafe?: boolean; destructive?: boolean; idempotent?: boolean },
+) {
   const root = path.join(directory, ".novaway", "extensions", name)
   await Bun.write(
     path.join(root, "plugin.json"),
@@ -148,7 +153,13 @@ async function executablePlugin(directory: string, name = "sample", implementati
       apiVersion: 2,
       kind: "declarative",
       contributes: {
-        tools: [{ id: "hello", description: "Executable fixture", parameters: { type: "object" }, entry: "hello.mjs" }],
+        tools: [{
+          id: "hello",
+          description: "Executable fixture",
+          parameters: { type: "object" },
+          entry: "hello.mjs",
+          ...(safety ? { safety } : {}),
+        }],
       },
     }),
   )
@@ -1520,7 +1531,12 @@ describe("plugin HttpApi", () => {
           },
         },
       })
-      await executablePlugin(tmp.path, "hot", `export default () => ({ execute: async () => "plugin-pong" })`)
+      await executablePlugin(
+        tmp.path,
+        "hot",
+        `export default () => ({ execute: async () => "plugin-pong" })`,
+        { readOnly: true, concurrencySafe: true, destructive: false, idempotent: true },
+      )
       const toggle = (enabled: boolean) =>
         request("/plugin/hot", tmp.path, {
           method: "PATCH",

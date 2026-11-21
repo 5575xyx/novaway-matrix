@@ -2,6 +2,7 @@ import { Show, type Component, type JSX } from "solid-js"
 import { Popover } from "@novaway/ui/popover"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
+import { Tooltip } from "@novaway/ui/tooltip"
 import { Keybind } from "@novaway/ui/keybind"
 import { useLocal } from "@/context/local"
 import { useCommand } from "@/context/command"
@@ -44,7 +45,30 @@ export const ThinkingEffortPopover: Component<{
   const tone = () => effortText(ratio())
 
   return (
-    <Show when={stops().length > 1}>
+    <Show
+      when={stops().length > 1}
+      fallback={
+        <Show when={model().current()}>
+          <Tooltip value="当前模型不支持多档思考强度调节" placement="top" gutter={6}>
+            <span class="inline-flex">
+              <Button
+                variant="ghost"
+                size={props.size ?? "normal"}
+                disabled
+                class={`gap-1 opacity-60 ${props.triggerClass ?? ""}`}
+                style={props.triggerStyle}
+                data-action="prompt-thinking"
+                aria-label="当前模型不支持多档思考强度调节"
+              >
+                <ThinkingEffortIcon ratio={0} class="shrink-0" />
+                <span class="text-13-medium">默认</span>
+                <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtle" />
+              </Button>
+            </span>
+          </Tooltip>
+        </Show>
+      }
+    >
       <Popover
         placement={props.placement ?? "top"}
         gutter={6}

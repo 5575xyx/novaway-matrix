@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiError } from "effect/unstable/httpapi"
 import { ApiNotFoundError } from "../errors"
 import { ExecutionConfigSchema } from "@/session/goal"
 
@@ -76,7 +76,7 @@ export const GoalApi = HttpApiGroup.make("goal")
       payload: Schema.Struct({
         title: Schema.optional(Schema.String),
         description: Schema.optional(Schema.String),
-        status: Schema.optional(Schema.Literals(["pending", "in_progress", "paused", "completed", "cancelled"])),
+        status: Schema.optional(Schema.Literals(["pending", "in_progress", "paused", "cancelled"])),
         priority: Schema.optional(Schema.Literals(["high", "medium", "low"])),
         successCriteria: Schema.optional(Schema.Array(Schema.String)),
         deadline: Schema.optional(Schema.String),
@@ -84,7 +84,7 @@ export const GoalApi = HttpApiGroup.make("goal")
         executionConfig: Schema.optional(ExecutionConfigSchema),
       }),
       success: Schema.Any,
-      error: [ApiNotFoundError],
+      error: [HttpApiError.BadRequest, ApiNotFoundError],
     }),
   )
   .add(

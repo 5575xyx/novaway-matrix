@@ -185,6 +185,7 @@ export const SuperAgentApi = HttpApiGroup.make("super-agent")
         taskID: Schema.String,
         kind: Schema.Literals(["test", "file", "http", "screenshot", "log", "artifact", "human", "external"]),
         source: Schema.String,
+        acceptanceIDs: Schema.optional(Schema.Array(Schema.String)),
         contentHash: Schema.optional(Schema.String),
         measured: Schema.optional(Schema.String),
         expiresAt: Schema.optional(Schema.Number),

@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-16",
+  "scope": "Durable Super-Agent external HTTP outbox consumer delivery",
+  "command": "bun test test/super-agent/external-publisher.test.ts --timeout 120000",
+  "result": {
+    "passed": 1,
+    "failed": 0,
+    "expectations": 9,
+    "consumer": {
+      "transport": "HTTP",
+      "ownership": "test-owned",
+      "firstResponse": 503,
+      "retryResponse": 204,
+      "sameEventIDOnRetry": true,
+      "outboxAcknowledgedAfterRetry": true,
+      "pendingOutboxAfterAck": 0
+    }
+  },
+  "coverage": [
+    "external consumer receives durable event payload",
+    "non-2xx delivery remains pending and records retry metadata",
+    "fresh outbox worker replays the pending event",
+    "idempotency key and event ID remain stable across retry",
+    "2xx delivery acknowledges the durable outbox record"
+  ],
+  "limitations": [
+    "The consumer is test-owned and local; this artifact does not replace an independently operated production deployment review.",
+    "SA-G12 real human sampling, operator signature, and reviewer signature remain pending."
+  ]
+}

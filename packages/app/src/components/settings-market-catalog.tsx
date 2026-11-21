@@ -93,11 +93,16 @@ const MarketplaceDetailsDialog: Component<{
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="text-16-medium text-foreground">{props.title}</h2>
-              <Show when={props.entry.version}><Tag>{props.entry.version}</Tag></Show>
+              <Show when={props.entry.version}>
+                <Tag>{props.entry.version}</Tag>
+              </Show>
             </div>
             <div class="mt-1 flex flex-wrap items-center gap-2 text-12-regular text-foreground-subtle">
               <span>{language.t("settings.market.source.filterOption", { name: props.source })}</span>
-              <span class="inline-flex items-center gap-1" classList={{ "text-text-success-base": props.trust === language.t("settings.market.trust.verified") }}>
+              <span
+                class="inline-flex items-center gap-1"
+                classList={{ "text-text-success-base": props.trust === language.t("settings.market.trust.verified") }}
+              >
                 <Show when={props.trust === language.t("settings.market.trust.verified")}>
                   <Icon name="circle-check" size="small" />
                 </Show>
@@ -113,16 +118,32 @@ const MarketplaceDetailsDialog: Component<{
           {props.entry.longDescription ?? props.entry.description ?? language.t("settings.market.empty")}
         </div>
         <div class="grid gap-2 rounded-lg border border-border/70 bg-background px-3 py-2 text-12-regular text-foreground-subtle sm:grid-cols-2">
-          <Show when={props.entry.author}><span>作者：{props.entry.author}</span></Show>
-          <Show when={props.entry.license}><span>许可证：{props.entry.license}</span></Show>
-          <Show when={props.entry.runtimeTargets?.length}><span>运行时：{props.entry.runtimeTargets?.join(", ")}</span></Show>
-          <Show when={props.entry.capabilities?.length}><span>能力：{props.entry.capabilities?.join(", ")}</span></Show>
-          <Show when={props.entry.categories?.length}><span>分类：{props.entry.categories?.map(marketCategoryLabel).join(", ")}</span></Show>
-          <Show when={props.entry.releaseNotes}><span class="sm:col-span-2">更新说明：{props.entry.releaseNotes}</span></Show>
-          <Show when={props.entry.sha256}><span class="break-all font-mono sm:col-span-2">SHA-256：{props.entry.sha256}</span></Show>
+          <Show when={props.entry.author}>
+            <span>作者：{props.entry.author}</span>
+          </Show>
+          <Show when={props.entry.license}>
+            <span>许可证：{props.entry.license}</span>
+          </Show>
+          <Show when={props.entry.runtimeTargets?.length}>
+            <span>运行时：{props.entry.runtimeTargets?.join(", ")}</span>
+          </Show>
+          <Show when={props.entry.capabilities?.length}>
+            <span>能力：{props.entry.capabilities?.join(", ")}</span>
+          </Show>
+          <Show when={props.entry.categories?.length}>
+            <span>分类：{props.entry.categories?.map(marketCategoryLabel).join(", ")}</span>
+          </Show>
+          <Show when={props.entry.releaseNotes}>
+            <span class="sm:col-span-2">更新说明：{props.entry.releaseNotes}</span>
+          </Show>
+          <Show when={props.entry.sha256}>
+            <span class="break-all font-mono sm:col-span-2">SHA-256：{props.entry.sha256}</span>
+          </Show>
         </div>
         <div class="flex justify-end border-t border-border pt-3">
-          <Button variant="secondary" onClick={() => dialog.close()}>{language.t("common.close")}</Button>
+          <Button variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.close")}
+          </Button>
         </div>
       </div>
     </Dialog>
@@ -134,10 +155,7 @@ const MarketplaceIcon: Component<{ src?: string; fallbackSrc?: string; seed: str
   const candidates = () => [props.src, props.fallbackSrc].filter((value): value is string => Boolean(value))
   const source = () => candidates()[attempt()]
   return (
-    <Show
-      when={source()}
-      fallback={<AppIcon seed={props.seed} fallback="mcp" class="shrink-0" />}
-    >
+    <Show when={source()} fallback={<AppIcon seed={props.seed} fallback="mcp" class="shrink-0" />}>
       <img
         src={source()}
         alt=""
@@ -230,7 +248,9 @@ const MarketplaceSourcesDialog: Component<MarketplaceSourcesDialogProps> = (prop
             disabled={props.sourceBusy() !== ""}
           />
           <Button size="small" disabled={props.sourceBusy() !== ""} onClick={props.onSave}>
-            {props.editingSource() ? language.t("settings.market.source.save") : language.t("settings.market.source.add")}
+            {props.editingSource()
+              ? language.t("settings.market.source.save")
+              : language.t("settings.market.source.add")}
           </Button>
         </div>
         <Show when={props.editingSource()}>
@@ -241,10 +261,7 @@ const MarketplaceSourcesDialog: Component<MarketplaceSourcesDialogProps> = (prop
         <div class="flex flex-col gap-2">
           <For each={props.sources()}>
             {(source) => (
-              <div
-                data-source-id={source.id}
-                class="rounded-xl border border-border/70 bg-background/50 px-3 py-3"
-              >
+              <div data-source-id={source.id} class="rounded-xl border border-border/70 bg-background/50 px-3 py-3">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-1.5">
@@ -308,7 +325,9 @@ const MarketplaceSourcesDialog: Component<MarketplaceSourcesDialogProps> = (prop
           </For>
         </div>
         <div class="flex justify-end border-t border-border pt-3">
-          <Button variant="secondary" onClick={() => dialog.close()}>{language.t("common.close")}</Button>
+          <Button variant="secondary" onClick={() => dialog.close()}>
+            {language.t("common.close")}
+          </Button>
         </div>
       </div>
     </Dialog>
@@ -485,9 +504,7 @@ function arrayValue<T>(value: unknown): T[] {
 }
 
 function objectArrayValue<T extends object>(value: unknown): T[] {
-  return arrayValue<unknown>(value).filter(
-    (item): item is T => item !== null && typeof item === "object",
-  )
+  return arrayValue<unknown>(value).filter((item): item is T => item !== null && typeof item === "object")
 }
 
 function stringArrayValue(value: unknown): string[] {
@@ -496,9 +513,7 @@ function stringArrayValue(value: unknown): string[] {
 
 function recordValue(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {}
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => typeof item === "string"),
-  )
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => typeof item === "string"))
 }
 
 function updatePreviewValue(value: unknown): UpdatePreview | undefined {
@@ -646,9 +661,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
 
     return (
       <div class="flex flex-col gap-3">
-        <p class="text-13-regular leading-5 text-foreground-subtle">
-          {language.t("settings.market.preview.confirm")}
-        </p>
+        <p class="text-13-regular leading-5 text-foreground-subtle">{language.t("settings.market.preview.confirm")}</p>
         <Show
           when={changes.length > 0}
           fallback={
@@ -947,8 +960,8 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       .finally(() => setStore("pending", ""))
   }
 
-  const installedNames = createMemo(() =>
-    new Set(objectArrayValue<InstalledEntry>(store.installed).map((item) => item.name)),
+  const installedNames = createMemo(
+    () => new Set(objectArrayValue<InstalledEntry>(store.installed).map((item) => item.name)),
   )
   const entryIdentity = (entry: CatalogEntry) => entry.packageId ?? entry.name
   const entries = createMemo(() => [
@@ -976,13 +989,13 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         .filter((value): value is string => Boolean(value)),
     ),
   ])
-  const displayNameOf = (
-    entry: Pick<CatalogEntry, "name" | "displayName" | "displayNameI18n" | "packageId">,
-  ) => {
+  const displayNameOf = (entry: Pick<CatalogEntry, "name" | "displayName" | "displayNameI18n" | "packageId">) => {
     const locale = language.intl()
     const translations = entry.displayNameI18n ?? {}
     const languageCode = locale.split("-")[0]
-    return translations[locale] ?? translations[languageCode] ?? entry.displayName ?? entry.name ?? entry.packageId ?? ""
+    return (
+      translations[locale] ?? translations[languageCode] ?? entry.displayName ?? entry.name ?? entry.packageId ?? ""
+    )
   }
   // Keep these helpers above visibleEntries: createMemo may evaluate immediately,
   // so sorting must not close over a const that is still in its TDZ.
@@ -1035,7 +1048,8 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   const descriptionOf = (entry: CatalogEntry) =>
     entry.descriptionKey ? language.t(entry.descriptionKey as never) : entry.description
   const sourceLabelOf = (source: MarketplaceSource | undefined, fallback?: string) => {
-    if (source?.trust === "official" && source.id === "novaway-official") return language.t("settings.market.source.official")
+    if (source?.trust === "official" && source.id === "novaway-official")
+      return language.t("settings.market.source.official")
     if (source?.trust === "official" && source.type === "claude") return "Claude 官方"
     if (source?.trust === "official" && source.type === "zcode") return "ZCode 官方"
     return source?.name ?? fallback ?? language.t("settings.market.source.unknown")
@@ -1297,7 +1311,11 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         </div>
       </div>
 
-      <Show when={(arrayValue<LegacyEntry>(store.legacy).length > 0) || (arrayValue<LegacyMigration>(store.migrations).length > 0)}>
+      <Show
+        when={
+          arrayValue<LegacyEntry>(store.legacy).length > 0 || arrayValue<LegacyMigration>(store.migrations).length > 0
+        }
+      >
         <details class="mb-4 rounded-lg border border-border px-4 py-3">
           <summary class="cursor-pointer text-13-medium text-foreground">
             {language.t("settings.market.legacy.title")}
@@ -1354,11 +1372,16 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
 
       <Show when={arrayValue<string>(store.errors).length > 0}>
         <div class="border-b border-border px-4 py-2" data-component="market-catalog-errors">
-          <For each={arrayValue<string>(store.errors)}>{(error) => <div class="text-11-regular text-warning-base">{error}</div>}</For>
+          <For each={arrayValue<string>(store.errors)}>
+            {(error) => <div class="text-11-regular text-warning-base">{error}</div>}
+          </For>
         </div>
       </Show>
 
-      <div class="flex items-center gap-2 overflow-x-auto pb-5" aria-label={language.t("settings.market.type") as string}>
+      <div
+        class="flex items-center gap-2 overflow-x-auto pb-5"
+        aria-label={language.t("settings.market.type") as string}
+      >
         <For each={marketTypeOptions()}>
           {(value) => (
             <button
@@ -1371,7 +1394,9 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
               aria-pressed={typeFilter() === value}
               onClick={() => setTypeFilter(value)}
             >
-              {value === "all" ? language.t("settings.market.typeAll") : language.t(`settings.market.type.${value}` as never)}
+              {value === "all"
+                ? language.t("settings.market.typeAll")
+                : language.t(`settings.market.type.${value}` as never)}
             </button>
           )}
         </For>
@@ -1402,7 +1427,9 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           aria-label={language.t("settings.market.category")}
         >
           <option value="all">{language.t("settings.market.categoryAll")}</option>
-          <For each={categories().slice(1)}>{(value) => <option value={value}>{marketCategoryLabel(value)}</option>}</For>
+          <For each={categories().slice(1)}>
+            {(value) => <option value={value}>{marketCategoryLabel(value)}</option>}
+          </For>
         </select>
         <select
           class="rounded-lg border border-border bg-panel px-3 py-2 text-ui-xs text-foreground outline-none focus:border-border-focus"
@@ -1513,195 +1540,203 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
             const sourceGroup = () => entry.sourceId ?? sourceOf(entry)?.type ?? "unknown"
             const sourceGroupChanged = () => {
               const previous = visibleEntries()[index() - 1]
-              return index() === 0 || sourceGroup() !== (previous ? previous.sourceId ?? sourceOf(previous)?.type : "unknown")
+              return (
+                index() === 0 ||
+                sourceGroup() !== (previous ? (previous.sourceId ?? sourceOf(previous)?.type) : "unknown")
+              )
             }
             return (
               <>
                 <Show when={sourceGroupChanged()}>
                   <div class="col-span-full flex items-center gap-3 py-3" data-component="market-source-divider">
                     <div class="h-px flex-1 bg-border" />
-                    <span class="text-12-medium text-foreground-subtle">
-                      {sourceNameOf(entry)}
-                    </span>
+                    <span class="text-12-medium text-foreground-subtle">{sourceNameOf(entry)}</span>
                     <div class="h-px flex-1 bg-border" />
                   </div>
                 </Show>
                 <article
-                data-component="market-entry"
-                data-market-source={entry.sourceId ?? "unknown"}
-                data-market-trust={trustOf(entry)}
-                class="group grid min-w-0 grid-cols-[36px_minmax(0,1fr)_auto] content-start gap-x-3 rounded-xl px-3 py-5 transition-colors hover:bg-hover/40"
-              >
-                <div class="col-span-2 flex min-w-0 items-start gap-3">
-                  <MarketplaceIcon
-                    src={avatarUrlOf(entry)}
-                    fallbackSrc={cdnMirrorOfIcon(avatarUrlOf(entry))}
-                    seed={displayNameOf(entry)}
-                  />
-                  <div class="min-w-0 flex-1">
-                    <div class="flex min-w-0 items-start justify-between gap-2">
-                      <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                        <span class="min-w-0 break-words text-ui-base font-medium text-foreground">{displayNameOf(entry)}</span>
-                        <Show when={entry.version}>
-                          <Tag>{entry.version}</Tag>
+                  data-component="market-entry"
+                  data-market-source={entry.sourceId ?? "unknown"}
+                  data-market-trust={trustOf(entry)}
+                  class="group grid min-w-0 grid-cols-[36px_minmax(0,1fr)_auto] content-start gap-x-3 rounded-xl px-3 py-5 transition-colors hover:bg-hover/40"
+                >
+                  <div class="col-span-2 flex min-w-0 items-start gap-3">
+                    <MarketplaceIcon
+                      src={avatarUrlOf(entry)}
+                      fallbackSrc={cdnMirrorOfIcon(avatarUrlOf(entry))}
+                      seed={displayNameOf(entry)}
+                    />
+                    <div class="min-w-0 flex-1">
+                      <div class="flex min-w-0 items-start justify-between gap-2">
+                        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span class="min-w-0 break-words text-ui-base font-medium text-foreground">
+                            {displayNameOf(entry)}
+                          </span>
+                          <Show when={entry.version}>
+                            <Tag>{entry.version}</Tag>
+                          </Show>
+                        </div>
+                        <Show when={trustOf(entry) === "verified"}>
+                          <span
+                            class="inline-flex shrink-0 items-center gap-1 rounded-full border border-border-success-base/30 bg-surface-success-weak px-1.5 py-0.5 text-11-medium text-text-success-base"
+                            title={trustLabel(entry)}
+                            aria-label={trustLabel(entry)}
+                          >
+                            <Icon name="circle-check" size="small" />
+                            {trustLabel(entry)}
+                          </span>
                         </Show>
                       </div>
-                      <Show when={trustOf(entry) === "verified"}>
-                        <span
-                          class="inline-flex shrink-0 items-center gap-1 rounded-full border border-border-success-base/30 bg-surface-success-weak px-1.5 py-0.5 text-11-medium text-text-success-base"
-                          title={trustLabel(entry)}
-                          aria-label={trustLabel(entry)}
-                        >
-                          <Icon name="circle-check" size="small" />
+                      <div class="mt-1 flex min-w-0 items-center gap-1 text-11-regular text-foreground-subtlest">
+                        <span class="truncate" title={sourceNameOf(entry)}>
+                          {language.t("settings.market.source.filterOption", { name: sourceNameOf(entry) })}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span class={`shrink-0 rounded-full border px-1.5 py-0.5 ${trustClass(entry)}`}>
                           {trustLabel(entry)}
                         </span>
-                      </Show>
-                    </div>
-                    <div class="mt-1 flex min-w-0 items-center gap-1 text-11-regular text-foreground-subtlest">
-                      <span class="truncate" title={sourceNameOf(entry)}>
-                        {language.t("settings.market.source.filterOption", { name: sourceNameOf(entry) })}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span class={`shrink-0 rounded-full border px-1.5 py-0.5 ${trustClass(entry)}`}>
-                        {trustLabel(entry)}
-                      </span>
-                      <Show when={compatibilityLabelOf(entry)}>
-                        <span class="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-foreground-subtle">
-                          {compatibilityLabelOf(entry)}
-                        </span>
-                      </Show>
+                        <Show when={compatibilityLabelOf(entry)}>
+                          <span class="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-foreground-subtle">
+                            {compatibilityLabelOf(entry)}
+                          </span>
+                        </Show>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div class="col-start-2 row-start-2 mt-2 flex flex-col gap-1.5">
-                  <Show when={descriptionOf(entry)}>
-                    <div class="line-clamp-2 text-ui-xs leading-5 text-foreground-subtle">{descriptionOf(entry)}</div>
-                  </Show>
-                  <Show when={marketTypesOfEntry(entry).length > 0}>
-                    <div class="flex flex-wrap gap-1">
-                      <For each={marketTypesOfEntry(entry)}>
-                        {(type) => <Tag>{language.t(`settings.market.type.${type}` as never)}</Tag>}
-                      </For>
-                    </div>
-                  </Show>
-                  <Show when={entry.categories?.length}>
-                    <div class="flex flex-wrap gap-1">
-                      <For each={entry.categories?.slice(0, 3)}>{(item) => <Tag>{marketCategoryLabel(item)}</Tag>}</For>
-                    </div>
-                  </Show>
-                </div>
-
-                <Show when={installed()}>
-                  <div class="col-span-3 mt-2 flex min-w-0 flex-wrap items-center gap-1.5 pl-12 [&>[data-component=tag]]:max-w-full [&>[data-component=tag]]:truncate">
-                    <Tag>{language.t("settings.market.installedTag")}</Tag>
-                    <Show when={outdated(entry)}>
-                      <Tag title={updateOf(entry)?.available}>{language.t("settings.market.updateNote")}</Tag>
+                  <div class="col-start-2 row-start-2 mt-2 flex flex-col gap-1.5">
+                    <Show when={descriptionOf(entry)}>
+                      <div class="line-clamp-2 text-ui-xs leading-5 text-foreground-subtle">{descriptionOf(entry)}</div>
                     </Show>
-                    <Show when={installedEntry()}>
-                      {(item) => (
-                        <>
-                          <Show when={updateLabel(item())}>
-                            {(label) => <Tag title={updateTitle(item(), language.intl())}>{label()}</Tag>}
-                          </Show>
-                          <Show when={updateAvailable(item(), entry.version)}>
-                            <Tag>{language.t("settings.market.updateAvailable", { version: entry.version ?? "" })}</Tag>
-                          </Show>
-                        </>
-                      )}
+                    <Show when={marketTypesOfEntry(entry).length > 0}>
+                      <div class="flex flex-wrap gap-1">
+                        <For each={marketTypesOfEntry(entry)}>
+                          {(type) => <Tag>{language.t(`settings.market.type.${type}` as never)}</Tag>}
+                        </For>
+                      </div>
+                    </Show>
+                    <Show when={entry.categories?.length}>
+                      <div class="flex flex-wrap gap-1">
+                        <For each={entry.categories?.slice(0, 3)}>
+                          {(item) => <Tag>{marketCategoryLabel(item)}</Tag>}
+                        </For>
+                      </div>
                     </Show>
                   </div>
-                </Show>
 
-                <div class="col-start-3 row-start-1 row-span-2 flex flex-col items-end gap-1 self-start">
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    icon="eye"
-                    aria-label={language.t("settings.market.details")}
-                    title={language.t("settings.market.details")}
-                    class="border border-border/70 bg-surface/40 hover:bg-hover"
-                    onClick={() =>
-                      dialog.show(() => (
-                        <MarketplaceDetailsDialog
-                          entry={entry}
-                          title={displayNameOf(entry)}
-                          source={sourceNameOf(entry)}
-                          trust={trustLabel(entry)}
-                          compatibility={compatibilityLabelOf(entry)}
-                        />
-                      ))
-                    }
-                  >
-                  </Button>
-                  <Show when={installed() && outdated(entry)}>
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      disabled={busy()}
-                      icon="download"
-                      onClick={() => update(installedEntry()!, entry)}
-                    >
-                      <Show when={busy()} fallback={language.t("settings.market.update")}>
-                        <span class="flex items-center gap-1.5">
-                          <span
-                            class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-border border-t-foreground"
-                            aria-hidden="true"
-                          />
-                          {busyText()}
-                        </span>
+                  <Show when={installed()}>
+                    <div class="col-span-3 mt-2 flex min-w-0 flex-wrap items-center gap-1.5 pl-12 [&>[data-component=tag]]:max-w-full [&>[data-component=tag]]:truncate">
+                      <Tag>{language.t("settings.market.installedTag")}</Tag>
+                      <Show when={outdated(entry)}>
+                        <Tag title={updateOf(entry)?.available}>{language.t("settings.market.updateNote")}</Tag>
                       </Show>
-                    </Button>
+                      <Show when={installedEntry()}>
+                        {(item) => (
+                          <>
+                            <Show when={updateLabel(item())}>
+                              {(label) => <Tag title={updateTitle(item(), language.intl())}>{label()}</Tag>}
+                            </Show>
+                            <Show when={updateAvailable(item(), entry.version)}>
+                              <Tag>
+                                {language.t("settings.market.updateAvailable", { version: entry.version ?? "" })}
+                              </Tag>
+                            </Show>
+                          </>
+                        )}
+                      </Show>
+                    </div>
                   </Show>
-                  <Show when={installedEntry()?.previous && !outdated(entry)}>
+
+                  <div class="col-start-3 row-start-1 row-span-2 flex flex-col items-end gap-1 self-start">
                     <Button
                       variant="ghost"
                       size="small"
-                      disabled={busy()}
-                      icon="refresh"
-                      onClick={() => rollback(installedEntry()!)}
-                    >
-                      <Show when={busy()} fallback={language.t("settings.market.rollback")}>
-                        <span class="flex items-center gap-1.5">
-                          <span
-                            class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-border border-t-foreground"
-                            aria-hidden="true"
+                      icon="eye"
+                      aria-label={language.t("settings.market.details")}
+                      title={language.t("settings.market.details")}
+                      class="border border-border/70 bg-surface/40 hover:bg-hover"
+                      onClick={() =>
+                        dialog.show(() => (
+                          <MarketplaceDetailsDialog
+                            entry={entry}
+                            title={displayNameOf(entry)}
+                            source={sourceNameOf(entry)}
+                            trust={trustLabel(entry)}
+                            compatibility={compatibilityLabelOf(entry)}
                           />
-                          {busyText()}
-                        </span>
-                      </Show>
-                    </Button>
-                  </Show>
-                  <Show when={!secondaryActionBusy()}>
-                    <Button
-                      class="ml-auto"
-                      classList={{
-                        "text-text-critical-base hover:bg-surface-critical-weak hover:text-text-critical-base": installed(),
-                      }}
-                      variant={installed() ? "ghost" : "primary"}
-                      size="small"
-                      disabled={busy()}
-                      aria-label={installed() ? language.t("settings.market.remove") : language.t("settings.market.install")}
-                      title={installed() ? language.t("settings.market.remove") : language.t("settings.market.install")}
-                      icon={busy() ? undefined : installed() ? "trash" : "download"}
-                      onClick={() => (installed() ? uninstall(installedEntry()!) : install(entry))}
-                    >
-                      <Show
-                        when={busy()}
-                        fallback={installed() ? null : language.t("settings.market.install")}
+                        ))
+                      }
+                    ></Button>
+                    <Show when={installed() && outdated(entry)}>
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        disabled={busy()}
+                        icon="download"
+                        onClick={() => update(installedEntry()!, entry)}
                       >
-                        <span class="flex items-center gap-1.5">
-                          <span
-                            class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-border border-t-foreground"
-                            aria-hidden="true"
-                          />
-                          {busyText()}
-                        </span>
-                      </Show>
-                    </Button>
-                  </Show>
-                </div>
-              </article>
+                        <Show when={busy()} fallback={language.t("settings.market.update")}>
+                          <span class="flex items-center gap-1.5">
+                            <span
+                              class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-border border-t-foreground"
+                              aria-hidden="true"
+                            />
+                            {busyText()}
+                          </span>
+                        </Show>
+                      </Button>
+                    </Show>
+                    <Show when={installedEntry()?.previous && !outdated(entry)}>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        disabled={busy()}
+                        icon="refresh"
+                        onClick={() => rollback(installedEntry()!)}
+                      >
+                        <Show when={busy()} fallback={language.t("settings.market.rollback")}>
+                          <span class="flex items-center gap-1.5">
+                            <span
+                              class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-border border-t-foreground"
+                              aria-hidden="true"
+                            />
+                            {busyText()}
+                          </span>
+                        </Show>
+                      </Button>
+                    </Show>
+                    <Show when={!secondaryActionBusy()}>
+                      <Button
+                        class="ml-auto"
+                        classList={{
+                          "text-text-critical-base hover:bg-surface-critical-weak hover:text-text-critical-base":
+                            installed(),
+                        }}
+                        variant={installed() ? "ghost" : "primary"}
+                        size="small"
+                        disabled={busy()}
+                        aria-label={
+                          installed() ? language.t("settings.market.remove") : language.t("settings.market.install")
+                        }
+                        title={
+                          installed() ? language.t("settings.market.remove") : language.t("settings.market.install")
+                        }
+                        icon={busy() ? undefined : installed() ? "trash" : "download"}
+                        onClick={() => (installed() ? uninstall(installedEntry()!) : install(entry))}
+                      >
+                        <Show when={busy()} fallback={installed() ? null : language.t("settings.market.install")}>
+                          <span class="flex items-center gap-1.5">
+                            <span
+                              class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-border border-t-foreground"
+                              aria-hidden="true"
+                            />
+                            {busyText()}
+                          </span>
+                        </Show>
+                      </Button>
+                    </Show>
+                  </div>
+                </article>
               </>
             )
           }}

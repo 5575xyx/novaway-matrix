@@ -15,7 +15,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { requestPreviewOpenMode } from "@/pages/session/editor-memory"
 import { isOfficePreviewPath } from "@/pages/session/office-preview-utils"
-import { usePlatform } from "@/context/platform"
+import { usePlatform, type InstalledEditor, type OfficeApp } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { changedSearchEntries, createWorkspaceFiles, type WorkspaceEntry } from "./workspace-files-store"
 import {
@@ -63,7 +63,8 @@ export function WorkspaceFileTree(props: {
   const [rowElements, setRowElements] = createSignal<Record<number, HTMLElement>>({})
   const [scrollOffset, setScrollOffset] = createSignal(0)
   const [refreshing, setRefreshing] = createSignal(false)
-  const [installedEditors, setInstalledEditors] = createSignal<{ id: string; name: string }[]>([])
+  const [installedEditors, setInstalledEditors] = createSignal<InstalledEditor[]>([])
+  const [officeApps, setOfficeApps] = createSignal<OfficeApp[]>([])
   const [editorsAvailable, setEditorsAvailable] = createSignal(false)
   const editorConnection = () => server.current
   const canOpenInLocalEditor = () => platform.platform === "desktop" && server.isLocal()
@@ -99,6 +100,22 @@ export function WorkspaceFileTree(props: {
         if (!active) return
         setInstalledEditors([])
         setEditorsAvailable(true)
+      })
+    onCleanup(() => {
+      active = false
+    })
+  })
+
+  createEffect(() => {
+    if (!platform.getOfficeApps || platform.platform !== "desktop") return
+    let active = true
+    void platform
+      .getOfficeApps()
+      .then((apps) => {
+        if (active) setOfficeApps(apps)
+      })
+      .catch(() => {
+        if (active) setOfficeApps([])
       })
     onCleanup(() => {
       active = false
@@ -364,6 +381,58 @@ export function WorkspaceFileTree(props: {
     void sdk()
       .pty.create({ cwd: absolutePath(entry) })
       .catch(() => {})
+  }
+
+  /** 用选中的本机编辑器 / Office 应用打开（主进程负责解析安装路径）。 */
+  const openWithApp = (entry: WorkspaceEntry, appId: string) => {
+    const connection = editorConnection()
+    if (!platform.openInEditor || !server.isLocal() || !connection) return
+    void platform
+      .openInEditor(appId, absolutePath(entry), entry.type === "dir" ? "directory" : "file", connection)
+      .then((opened) => {
+        if (!opened) showToast({ variant: "error", title: language.t("session.filePreview.openFailed") })
+      })
+  }
+
+  const openDefaultApp = (entry: WorkspaceEntry) => {
+    if (!platform.openPath) return
+    void platform.openPath(absolutePath(entry)).catch(() => {
+      showToast({ variant: "error", title: language.t("session.filePreview.openFailed") })
+    })
+  }
+
+  /** 在文件所在目录打开系统终端（Windows Terminal / macOS Terminal），失败回落集成终端。 */
+  const openParentInTerminal = (entry: WorkspaceEntry) => {
+    const directory =
+      entry.type === "dir"
+        ? absolutePath(entry)
+        : absolutePath(entry).replace(/[\\/][^\\/]*$/, "") || absolutePath(entry)
+    const integrated = () =>
+      sdk()
+        .pty.create({ cwd: directory })
+        .catch(() => {})
+    const native =
+      !canOpenInLocalEditor() || !platform.os
+        ? undefined
+        : platform.os === "windows"
+          ? { command: "wt", args: ["-d", directory] }
+          : platform.os === "macos"
+            ? { command: "open", args: ["-a", "Terminal", directory] }
+            : undefined
+    if (!native) {
+      void integrated()
+      return
+    }
+    void sdk()
+      .pty.create({ command: native.command, args: native.args, title: "terminal" })
+      .catch(() => integrated())
+  }
+
+  /** 右键「选择打开应用」的候选：Office 文档给 Office 应用，其余给代码编辑器。 */
+  const openWithAppsFor = (entry: WorkspaceEntry): (InstalledEditor | OfficeApp)[] => {
+    if (entry.type !== "file" || !isOfficePreviewPath(entry.path)) return installedEditors()
+    const extension = entry.path.split(".").pop()?.toLowerCase() ?? ""
+    return officeApps().filter((app) => app.extensions.includes(extension))
   }
 
   /** 工作区级定位：对根目录做和行「在资源管理器中显示」同样的降级链。 */
@@ -683,38 +752,50 @@ export function WorkspaceFileTree(props: {
               <Icon name="open-file" size="small" />
               {language.t("common.open")}
             </ContextMenu.Item>
-            <Show when={!isDeleted() && canOpenInLocalEditor() && editorsAvailable() && installedEditors().length > 0}>
+            <Show when={!isDeleted() && canOpenInLocalEditor() && editorsAvailable()}>
               <ContextMenu.Sub>
                 <ContextMenu.SubTrigger class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none">
                   <Icon name="open-file" size="small" />
                   {language.t("session.filePreview.openWith")}
                 </ContextMenu.SubTrigger>
                 <ContextMenu.Portal>
-                  <ContextMenu.SubContent class="min-w-[180px] p-1 bg-surface border border-border rounded-lg shadow-lg z-50">
-                    <For each={installedEditors()}>
-                      {(editor) => (
+                  <ContextMenu.SubContent class="min-w-[210px] p-1 bg-surface border border-border rounded-lg shadow-lg z-50">
+                    <For each={openWithAppsFor(p.entry)}>
+                      {(app) => (
                         <ContextMenu.Item
                           class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
-                          onSelect={() => {
-                            const connection = editorConnection()
-                            if (!platform.openInEditor || !server.isLocal() || !connection) return
-                            void platform
-                              .openInEditor(
-                                editor.id,
-                                absolutePath(p.entry),
-                                p.entry.type === "dir" ? "directory" : "file",
-                                connection,
-                              )
-                              .then((opened) => {
-                                if (!opened)
-                                  showToast({ variant: "error", title: language.t("session.filePreview.openFailed") })
-                              })
-                          }}
+                          onSelect={() => openWithApp(p.entry, app.id)}
                         >
-                          {editor.name}
+                          <Show when={app.icon} fallback={<Icon name="open-file" size="small" />}>
+                            <img src={app.icon} alt="" class="size-4 shrink-0 object-contain" draggable={false} />
+                          </Show>
+                          {app.name}
                         </ContextMenu.Item>
                       )}
                     </For>
+                    <Show when={p.entry.type === "file" && !!platform.openPath}>
+                      <ContextMenu.Item
+                        class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
+                        onSelect={() => openDefaultApp(p.entry)}
+                      >
+                        <Icon name="lu-arrow-up-right" size="small" />
+                        {language.t("session.filePreview.openDefaultApp")}
+                      </ContextMenu.Item>
+                    </Show>
+                    <Show when={p.entry.type === "file"}>
+                      <ContextMenu.Separator class="h-px bg-border my-1" />
+                      <ContextMenu.Item
+                        class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
+                        onSelect={() => openParentInTerminal(p.entry)}
+                      >
+                        <Icon name="terminal" size="small" />
+                        {language.t(
+                          platform.os === "windows"
+                            ? "session.filePreview.openDirInTerminal.windows"
+                            : "session.filePreview.openDirInTerminal.other",
+                        )}
+                      </ContextMenu.Item>
+                    </Show>
                   </ContextMenu.SubContent>
                 </ContextMenu.Portal>
               </ContextMenu.Sub>
@@ -733,7 +814,7 @@ export function WorkspaceFileTree(props: {
               class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
               onSelect={() => revealInExplorer(p.entry)}
             >
-              <Icon name="open-file" size="small" />
+              <Icon name="folder" size="small" />
               {language.t("session.filePreview.revealInExplorer")}
             </ContextMenu.Item>
             <Show when={p.entry.type === "dir"}>

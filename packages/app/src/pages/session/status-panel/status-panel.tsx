@@ -89,16 +89,16 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
   })
 
   return (
-    // w-80 显式定宽:折叠胶囊与展开卡都锚定在同一个 320px 盒子的右缘,
-    // 不依赖零宽 aside 的绝对定位推断,任何状态下都离容器边缘 16px。
+    // w-64 显式定宽：收起胶囊与展开卡都锚定在同一个紧凑盒子的右缘，
+    // 避免运行状态覆盖右侧用户消息；内容超出时由内部滚动和省略处理。
     <aside
       data-component="status-panel"
-      class="group absolute top-4 right-4 z-10 w-80"
+      class="group absolute top-3 right-3 z-10 w-64 max-w-[calc(100%-1.5rem)]"
       data-collapsed={collapsed() ? "true" : "false"}
     >
       <div
         data-component="status-panel-expanded"
-        class="absolute top-0 right-0 flex w-80 min-h-0 max-h-[min(76dvh,42rem)] flex-col origin-top-right transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none group-data-[collapsed=true]:invisible group-data-[collapsed=true]:pointer-events-none group-data-[collapsed=true]:opacity-0 group-data-[collapsed=true]:-translate-y-1 group-data-[collapsed=true]:scale-[0.98] @max-[768px]:invisible @max-[768px]:pointer-events-none @max-[768px]:opacity-0 @max-[768px]:scale-[0.98] @max-[768px]:group-hover:visible @max-[768px]:group-hover:pointer-events-auto @max-[768px]:group-hover:opacity-100 @max-[768px]:group-hover:scale-100"
+        class="absolute top-0 right-0 flex w-64 min-h-0 max-h-[min(76dvh,42rem)] max-w-[calc(100vw-1.5rem)] flex-col origin-top-right transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none group-data-[collapsed=true]:invisible group-data-[collapsed=true]:pointer-events-none group-data-[collapsed=true]:opacity-0 group-data-[collapsed=true]:-translate-y-1 group-data-[collapsed=true]:scale-[0.98] @max-[768px]:invisible @max-[768px]:pointer-events-none @max-[768px]:opacity-0 @max-[768px]:scale-[0.98] @max-[768px]:group-hover:visible @max-[768px]:group-hover:pointer-events-auto @max-[768px]:group-hover:opacity-100 @max-[768px]:group-hover:scale-100"
       >
         {/* 无标题胶囊:面板直接是卡片列表;收起入口是一个右上角的小图标钮,
             悬浮在卡片列表之上,不占一行高度。 */}
@@ -159,7 +159,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
       <Show when={summaries().length > 0}>
         <div
           data-component="status-panel-mini"
-          class="absolute top-0 right-0 hidden h-8 max-w-full items-center gap-1 overflow-hidden rounded-lg border border-border bg-panel px-2 shadow-sm transition-opacity duration-200 ease-out motion-reduce:transition-none @max-[768px]:flex @max-[768px]:group-hover:pointer-events-none @max-[768px]:group-hover:opacity-0"
+          class="absolute top-0 right-0 hidden h-7 max-w-[min(13rem,100%)] items-center gap-1 overflow-hidden rounded-lg border border-border bg-panel px-2 shadow-sm transition-opacity duration-200 ease-out motion-reduce:transition-none @max-[768px]:flex @max-[768px]:group-hover:pointer-events-none @max-[768px]:group-hover:opacity-0"
           title={language.t("statusPanel.summary")}
         >
           <CapsuleBody sections={summaries()} />
@@ -174,7 +174,7 @@ function SessionStatusPanelView(props: { sections: StatusPanelSection[] }): JSX.
           <button
             type="button"
             data-component="status-panel-expand"
-            class="hidden h-8 max-w-full items-center gap-1 overflow-hidden rounded-lg border border-border bg-panel px-2 shadow-sm transition-opacity duration-200 group-data-[collapsed=true]:flex"
+            class="hidden h-7 max-w-[min(13rem,100%)] items-center gap-1 overflow-hidden rounded-lg border border-border bg-panel px-2 shadow-sm transition-opacity duration-200 group-data-[collapsed=true]:flex"
             title={language.t("statusPanel.expand")}
             aria-label={language.t("statusPanel.expand")}
             onClick={() => layout.statusPanel.toggleCollapsed(directory())}
@@ -208,7 +208,7 @@ const CapsuleBody = (props: { sections: StatusPanelSection[] }): JSX.Element => 
           </For>
         }
       >
-        <span data-component="status-panel-ticker" class="w-[min(60vw,232px)] min-w-0 overflow-hidden">
+        <span data-component="status-panel-ticker" class="w-[min(24vw,9rem)] min-w-0 overflow-hidden">
           <span
             data-component="status-panel-ticker-track"
             style={{ "--ticker-ms": `${Math.max(9, Math.ceil(tickerText().length * 0.4))}s` }}

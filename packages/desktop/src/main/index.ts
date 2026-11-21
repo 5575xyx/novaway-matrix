@@ -14,7 +14,8 @@ import contextMenu from "electron-context-menu"
 
 import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
-import { CHANNEL, UPDATER_ENABLED } from "./constants"
+import { APP_IDS, CHANNEL, UPDATER_ENABLED } from "./constants"
+import { applyAppearance, appDisplayName, currentAppIcon, onAppearanceChange } from "./appearance"
 import { checkQuarantine, DEFENDER_URIS, exclusionCommand } from "./defender-repair"
 import {
   registerIpcHandlers,
@@ -41,12 +42,10 @@ import {
 import {
   createLoadingWindow,
   createMainWindow,
-  loadAppIcon,
   registerLocalFileProtocol,
   registerPreviewHttpProtocol,
   registerRendererProtocol,
   setBackgroundColor,
-  setDockIcon,
 } from "./windows"
 import {
   autoUpdateEnabled,
@@ -62,16 +61,6 @@ import {
 } from "./updater"
 import { Deferred, Effect, Fiber } from "effect"
 
-const APP_NAMES: Record<string, string> = {
-  dev: "NovaWay Dev",
-  beta: "NovaWay Beta",
-  prod: "NovaWay",
-}
-const APP_IDS: Record<string, string> = {
-  dev: "ai.novaway.desktop.dev",
-  beta: "ai.novaway.desktop.beta",
-  prod: "ai.novaway.desktop",
-}
 const TEST_ONBOARDING = process.env.NOVAWAY_TEST_ONBOARDING === "1"
 
 let logger: ReturnType<typeof initLogging>
@@ -303,12 +292,12 @@ function checkDefenderQuarantine() {
 
 function createTray() {
   if (tray) return tray
-  tray = new Tray(loadAppIcon())
-  tray.setToolTip(APP_NAMES[CHANNEL])
+  tray = new Tray(currentAppIcon())
+  tray.setToolTip(appDisplayName())
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: "显示 NovaWay",
+        label: `显示 ${appDisplayName()}`,
         click: () => showMainWindow(),
       },
       {
@@ -317,7 +306,7 @@ function createTray() {
       },
       { type: "separator" },
       {
-        label: "退出 NovaWay",
+        label: `退出 ${appDisplayName()}`,
         click: () => quitApp(),
       },
     ]),
@@ -325,6 +314,22 @@ function createTray() {
   tray.on("click", () => showMainWindow())
   tray.on("double-click", () => showMainWindow())
   return tray
+}
+
+/** 图标/名称变更后刷新托盘图标、提示与菜单文案。 */
+function refreshTray() {
+  if (!tray || tray.isDestroyed()) return
+  const icon = currentAppIcon()
+  if (!icon.isEmpty()) tray.setImage(icon)
+  tray.setToolTip(appDisplayName())
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: `显示 ${appDisplayName()}`, click: () => showMainWindow() },
+      { label: "隐藏主窗口", click: () => hideMainWindow() },
+      { type: "separator" },
+      { label: `退出 ${appDisplayName()}`, click: () => quitApp() },
+    ]),
+  )
 }
 
 function ensureLoopbackNoProxy() {
@@ -373,7 +378,7 @@ const main = Effect.gen(function* () {
     process.env.XDG_STATE_HOME = join(root, "state")
     return root
   })()
-  app.setName(APP_NAMES[CHANNEL])
+  app.setName(appDisplayName())
   app.setAppUserModelId(appId)
   app.setPath(
     "userData",
@@ -511,7 +516,9 @@ const main = Effect.gen(function* () {
   registerRendererProtocol()
   registerLocalFileProtocol()
   registerPreviewHttpProtocol()
-  setDockIcon()
+  // 应用自定义外观（图标/名称）：启动时套用一次，之后每次变更刷新托盘与窗口。
+  applyAppearance()
+  onAppearanceChange(() => refreshTray())
   createTray()
   setupAutoUpdater()
   // Defender 误杀自检:exe/关键 DLL 被隔离后进程仍能活着,但下次启动就找不到了。

@@ -117,18 +117,12 @@ test("D9 UI budget: disable via SSE removes the rail icon in < 300ms", async ({ 
     .join(", ")
   const window = calls.filter((call) => call.start > marks.patchStart! && call.start <= marks.railGoneAt!)
   console.log(
-    `event@${marks.eventAt!.toFixed(1)} railGone@${marks.railGoneAt!.toFixed(1)} calls=${JSON.stringify(window.map((c) => [c.url.replace(/^https?:\/\/[^/]+/, "").slice(0, 60), +(c.end - c.start).toFixed(1)]))}`,
-  )
-  console.log(
     `disable → icon gone: fromEvent=${fromEvent.toFixed(1)}ms fromPatchEnd=${fromPatchEnd.toFixed(1)}ms fromPatchStart=${fromPatchStart.toFixed(1)}ms | ${detail || "no contributions refetch"}`,
   )
-  const resources = await page.evaluate(() =>
-    performance
-      .getEntriesByType("resource")
-      .filter((entry) => entry.name.includes("/plugin/contributions"))
-      .map((entry) => [entry.startTime, entry.responseEnd, entry.duration].map((value) => Math.round(value * 10) / 10)),
+  // 诊断用：乐观移除后应只看到后台对齐请求，而不是等待它完成才消失。
+  console.log(
+    `calls in window: ${JSON.stringify(window.map((c) => c.url.replace(/^https?:\/\/[^/]+/, "").slice(0, 48)))}`,
   )
-  console.log(`contributions resource timing: ${JSON.stringify(resources)}`)
   // §6.4 口径：停用插件（SSE → 重渲染）→ rail 图标消失 < 300ms。
   expect(fromEvent).toBeLessThan(300)
 

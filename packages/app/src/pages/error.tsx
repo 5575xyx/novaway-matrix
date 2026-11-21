@@ -1,8 +1,9 @@
 import { TextField } from "@novaway/ui/text-field"
 import { Logo } from "@novaway/ui/logo"
 import { Button } from "@novaway/ui/button"
-import { Component } from "solid-js"
+import { Component, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 
 const NOVAWAY_VERSION = "1.0.0"
 
@@ -219,12 +220,26 @@ interface ErrorPageProps {
 
 export const ErrorPage: Component<ErrorPageProps> = (props) => {
   const language = useLanguage()
+  const platform = usePlatform()
+  const [appIcon, setAppIcon] = createSignal<string>()
   const restart = props.restart ?? (() => window.location.reload())
+
+  onMount(() => {
+    if (platform.platform !== "desktop") return
+    void platform.getAppAppearance?.().then((appearance) => setAppIcon(appearance.iconData))
+    const dispose = platform.onAppAppearanceChange?.((appearance) => setAppIcon(appearance.iconData))
+    if (dispose) onCleanup(dispose)
+  })
 
   return (
     <div class="relative flex-1 h-screen w-screen min-h-0 flex flex-col items-center justify-center bg-background font-sans">
       <div class="w-2/3 max-w-3xl flex flex-col items-center justify-center gap-8">
-        <Logo class="w-58.5 opacity-12 shrink-0" />
+        <Show
+          when={platform.platform === "desktop" && appIcon()}
+          fallback={<Logo class="w-58.5 opacity-12 shrink-0" />}
+        >
+          {(src) => <img src={src()} alt="" class="w-58.5 opacity-12 shrink-0 object-contain" draggable={false} />}
+        </Show>
         <div class="flex flex-col items-center gap-2 text-center">
           <h1 class="text-lg font-medium text-foreground">{language.t("error.page.title")}</h1>
           <p class="text-sm text-foreground-subtle">{language.t("error.page.description")}</p>

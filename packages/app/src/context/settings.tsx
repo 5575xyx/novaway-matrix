@@ -52,7 +52,9 @@ export interface Settings {
   }
   appearance: {
     fontSize: number
-    fontStyle: "sans" | "serif"
+    fontStyle: "sans" | "serif" | "kai" | "fangsong" | "yuan" | "xingkai" | "lishu"
+    /** 内容宽度的连续取值（px）；未设置时回退到 contentWidth 档位。 */
+    contentWidthPx?: number
     contentWidth: "small" | "standard" | "wide"
     mono: string
     sans: string
@@ -136,6 +138,25 @@ export function terminalInput(font: string | undefined) {
 
 export function terminalFontFamily(font: string | undefined) {
   return stack(font, terminalBase)
+}
+
+/** 内容宽度的连续取值范围（px），滑杆两端的边界。 */
+export const MIN_CONTENT_WIDTH = 640
+export const MAX_CONTENT_WIDTH = 1200
+
+/** 字体风格 → UI 字体栈；sans 表示使用用户设置的界面字体，其余为固定衬线族。 */
+const fontStyleStacks: Record<"serif" | "kai" | "fangsong" | "yuan" | "xingkai" | "lishu", string> = {
+  serif: "Georgia, 'Times New Roman', 'Songti SC', SimSun, serif",
+  kai: "'Kaiti SC', KaiTi, STKaiti, cursive, serif",
+  fangsong: "'Fangsong SC', FangSong, STFangsong, serif",
+  yuan: "'Yuanti SC', YouYuan, ui-rounded, sans-serif",
+  xingkai: "'Xingkai SC', STXingkai, KaiTi, cursive",
+  lishu: "LiSu, 'Lisu SC', STLibian, serif",
+}
+
+export function serifStack(style: string | undefined) {
+  if (!style || style === "sans") return undefined
+  return fontStyleStacks[style as keyof typeof fontStyleStacks]
 }
 
 /** 默认值调整的版本号：调了默认值就 +1，存档会在下次启动时一次性跟上。 */
@@ -233,13 +254,16 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       root.style.setProperty("--font-family-mono", monoFontFamily(store.appearance?.mono))
       root.style.setProperty(
         "--font-family-sans",
-        store.appearance?.fontStyle === "serif"
-          ? "Georgia, 'Times New Roman', serif"
-          : sansFontFamily(store.appearance?.sans),
+        serifStack(store.appearance?.fontStyle) ?? sansFontFamily(store.appearance?.sans),
       )
-      const widths = { small: "680px", standard: "820px", wide: "1080px" } as const
-      const width = store.appearance?.contentWidth
-      root.style.setProperty("--session-content-max-width", widths[width as keyof typeof widths] ?? widths.standard)
+      const px = store.appearance?.contentWidthPx
+      if (px && px >= MIN_CONTENT_WIDTH && px <= MAX_CONTENT_WIDTH) {
+        root.style.setProperty("--session-content-max-width", `${Math.round(px)}px`)
+      } else {
+        const widths = { small: "680px", standard: "820px", wide: "1080px" } as const
+        const width = store.appearance?.contentWidth
+        root.style.setProperty("--session-content-max-width", widths[width as keyof typeof widths] ?? widths.standard)
+      }
     })
 
     const fontSize = withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize)
@@ -344,8 +368,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       appearance: {
         fontSize: withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize),
         fontStyle: withFallback(() => store.appearance?.fontStyle, defaultSettings.appearance.fontStyle),
-        setFontStyle(value: "sans" | "serif") {
+        setFontStyle(value: "sans" | "serif" | "kai" | "fangsong" | "yuan" | "xingkai" | "lishu") {
           setStore("appearance", "fontStyle", value)
+        },
+        contentWidthPx: withFallback(() => store.appearance?.contentWidthPx, undefined as number | undefined),
+        setContentWidthPx(value: number | undefined) {
+          setStore("appearance", "contentWidthPx", value)
         },
         contentWidth: withFallback(() => store.appearance?.contentWidth, defaultSettings.appearance.contentWidth),
         setContentWidth(value: "small" | "standard" | "wide") {

@@ -6,7 +6,6 @@ import { useLanguage } from "@/context/language"
 import { AppIcon } from "./app-icon"
 import { BUILTIN_EXTENSIONS, type BuiltinExtension } from "./builtin-extensions-data"
 import { extensionConfigPatch, extensionEnabled } from "./extension-config"
-import { SettingsGroup } from "./settings-parts"
 
 export { BUILTIN_EXTENSIONS, type BuiltinExtension }
 
@@ -32,8 +31,8 @@ export const BuiltinExtensions: Component = () => {
   }
 
   return (
-    <SettingsGroup>
-      <div class="flex items-center gap-2 border-b border-border px-4 py-2">
+    <section>
+      <div class="flex items-center gap-2 px-1 pb-4">
         <div class="min-w-0 flex-1">
           <div class="text-13-medium text-foreground">{language.t("settings.extensions.builtin")}</div>
           <div class="mt-0.5 text-12-regular text-foreground-subtle">
@@ -41,12 +40,12 @@ export const BuiltinExtensions: Component = () => {
           </div>
         </div>
       </div>
-      <div class="flex flex-col gap-2 border-t border-border p-2">
+      <div class="divide-y divide-border/60 rounded-2xl border border-border px-5">
         <For each={BUILTIN_EXTENSIONS}>
           {(item) => (
             <div
               data-component="builtin-extension-row"
-              class="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-panel px-3 py-2.5 transition-colors hover:border-border-hover hover:bg-hover/40"
+              class="flex min-w-0 items-center gap-4 py-5 transition-colors hover:bg-hover/30"
             >
               <AppIcon seed={item.id} glyph={item.icon} class="mt-0.5" />
               <div class="min-w-0 flex-1">
@@ -73,6 +72,6 @@ export const BuiltinExtensions: Component = () => {
           )}
         </For>
       </div>
-    </SettingsGroup>
+    </section>
   )
 }

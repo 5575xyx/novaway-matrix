@@ -61,10 +61,10 @@ export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
   },
   {
     name: "com.novaway.powersnexus",
-    version: "1.1.0",
+    version: "1.1.4",
     description: "PowersNexus 工程技能库。",
     kind: "zip",
-    url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.powersnexus-v1.1.0/com.novaway.powersnexus-1.1.0.zip",
+    url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.powersnexus-v1.1.4/com.novaway.powersnexus-1.1.4.zip",
     keywords: ["development", "workflow", "tdd"],
     autoInstall: true,
   },

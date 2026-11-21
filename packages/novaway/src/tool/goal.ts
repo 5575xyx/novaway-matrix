@@ -32,8 +32,8 @@ const UpdateParams = Schema.Struct({
   title: Schema.optional(Schema.String.annotate({ description: "目标标题" })),
   description: Schema.optional(Schema.String.annotate({ description: "目标描述" })),
   status: Schema.optional(
-    Schema.Literals(["pending", "in_progress", "paused", "completed", "cancelled"]).annotate({
-      description: "目标状态",
+    Schema.Literals(["pending", "in_progress", "paused", "cancelled"]).annotate({
+      description: "目标状态；completed 只能由通过验收的运行时设置",
     }),
   ),
   priority: Schema.optional(Schema.Literals(["high", "medium", "low"]).annotate({ description: "优先级" })),

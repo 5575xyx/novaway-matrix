@@ -4,7 +4,7 @@ import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { useLayout, appModeConfig, type LocalProject } from "@/context/layout"
+import { useLayout, type LocalProject } from "@/context/layout"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { useCommand } from "@/context/command"
@@ -175,7 +175,10 @@ export default function TaskCenterPage() {
                         additions={() => row.session.summary?.additions ?? 0}
                         deletions={() => row.session.summary?.deletions ?? 0}
                         waitingBadge={() => status() === "waiting"}
-                        modeColor={() => appModeConfig(layout.mode.projectMode(row.session.directory))?.color}
+                        modeColor={() =>
+                          layout.mode.all().find((mode) => mode.id === layout.mode.projectMode(row.session.directory))
+                            ?.color
+                        }
                         onClick={() => openSession(row.session)}
                       />
                     </div>

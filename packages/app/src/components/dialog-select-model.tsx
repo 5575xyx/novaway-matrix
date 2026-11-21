@@ -18,29 +18,47 @@ import { useLanguage } from "@/context/language"
 import { isAutoModel } from "@/utils/model"
 
 type ModelState = ReturnType<typeof useLocal>["model"]
+type ModelItem = ReturnType<ModelState["list"]>[number]
+const modelKeyOf = (item: ModelItem) => `${item.provider.id}:${item.id}`
 
-const ModelList: Component<{
+export const ModelList: Component<{
   provider?: string
   class?: string
   onSelect: () => void
   action?: JSX.Element
   model?: ModelState
+  /** 覆盖当前选中项（按 providerID:modelID），配合 onChoose 可在不影响会话模型的情况下复用本列表。 */
+  currentKey?: string
+  filter?: (item: ModelItem) => boolean
+  onChoose?: (item: ModelItem) => void
 }> = (props) => {
-  const model = props.model ?? useLocal().model
+  const model = props.model
   const modelsCtx = useModels()
   const language = useLanguage()
+
+  // 设置面板挂在不含 LocalProvider 的层，所以这里不能默认取 useLocal()；
+  // 没传 model 时直接读全局模型列表，选中态由 currentKey / onChoose 驱动。
+  const all = createMemo(() => (model ? model.list() : modelsCtx.list()))
+  const isVisible = (item: ModelItem) =>
+    model
+      ? model.visible({ modelID: item.id, providerID: item.provider.id })
+      : modelsCtx.visible({ modelID: item.id, providerID: item.provider.id })
 
   const models = createMemo(() => {
     // Auto Mode ON 时，返回空列表（隐藏模型列表）
     if (modelsCtx.autoMode()) return []
 
     // Auto 关闭后，仅排除内置的 auto 条目，内置实时模型仍可选择。
-    return model
-      .list()
-      .filter((m) => model.visible({ modelID: m.id, providerID: m.provider.id }))
+    return all()
+      .filter((m) => isVisible(m))
       .filter((m) => !isAutoModel(m.provider.id, m.id))
       .filter((m) => (props.provider ? m.provider.id === props.provider : true))
+      .filter((m) => (props.filter ? props.filter(m) : true))
   })
+
+  const current = createMemo(() =>
+    props.currentKey ? models().find((m) => modelKeyOf(m) === props.currentKey) : model?.current(),
+  )
 
   return (
     <List
@@ -49,7 +67,7 @@ const ModelList: Component<{
       emptyMessage={language.t("dialog.model.empty")}
       key={(x) => `${x.provider.id}:${x.id}`}
       items={models}
-      current={model.current()}
+      current={current()}
       filterKeys={["provider.name", "name", "id"]}
       sortBy={(a, b) => a.name.localeCompare(b.name)}
       groupBy={(x) => x.provider.name}
@@ -71,7 +89,12 @@ const ModelList: Component<{
         </Tooltip>
       )}
       onSelect={(x) => {
-        model.set(x ? { modelID: x.id, providerID: x.provider.id } : undefined, {
+        if (props.onChoose) {
+          if (x) props.onChoose(x)
+          props.onSelect()
+          return
+        }
+        model?.set(x ? { modelID: x.id, providerID: x.provider.id } : undefined, {
           recent: true,
         })
         props.onSelect()

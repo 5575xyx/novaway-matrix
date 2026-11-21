@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { FileSearchHandle } from "@novaway/ui/file"
@@ -22,7 +22,7 @@ import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { useComments } from "@/context/comments"
 import { useSDK } from "@/context/sdk"
-import { usePlatform, type InstalledEditor } from "@/context/platform"
+import { usePlatform, type InstalledEditor, type OfficeApp } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -38,6 +38,7 @@ import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSideChat } from "@/pages/session/use-side-chat"
+import { PluginViewHost } from "@/components/plugin-view-host"
 import {
   base64ToBytes,
   bytesToBase64,
@@ -267,6 +268,28 @@ const setTypewriter = (value: boolean) => {
   writeBooleanPreference(TYPEWRITER_STORAGE_KEY, value)
 }
 
+/**
+ * 「选择打开应用」里最近一次用过的应用（编辑器 / Office 应用 / 系统默认），
+ * 菜单里给它打勾。跨标签共享、写 localStorage，重启后还记得。
+ */
+const OPEN_WITH_STORAGE_KEY = "novaway.openWith.last"
+const readLastOpenWith = (): string => {
+  try {
+    return globalThis.localStorage?.getItem(OPEN_WITH_STORAGE_KEY) ?? ""
+  } catch {
+    return ""
+  }
+}
+const [lastOpenWith, setLastOpenWithSignal] = createSignal(readLastOpenWith())
+const rememberOpenWith = (id: string) => {
+  setLastOpenWithSignal(id)
+  try {
+    globalThis.localStorage?.setItem(OPEN_WITH_STORAGE_KEY, id)
+  } catch {
+    // 记不住不影响本次打开。
+  }
+}
+
 function FileCommentMenu(props: {
   moreLabel: string
   editLabel: string
@@ -421,9 +444,9 @@ function createScrollSync(input: { tab: () => string; view: ReturnType<typeof us
 function PluginFilePreviewerHost(props: {
   previewer?: ReturnType<typeof pluginFilePreviewer>
   active: boolean
-  children: any
+  children: JSX.Element
 }) {
-  const supported = () => props.active && props.previewer?.viewId === "novaway.office.file"
+  const supported = () => props.active && props.previewer?.render !== undefined
   return (
     <Show when={supported()} fallback={props.children}>
       <div
@@ -431,8 +454,14 @@ function PluginFilePreviewerHost(props: {
         data-plugin-id={props.previewer?.pluginID}
         data-previewer-id={props.previewer?.localName}
         data-view-id={props.previewer?.viewId}
+        class="size-full"
       >
-        {props.children}
+        <PluginViewHost
+          pluginID={props.previewer!.pluginID}
+          viewID={props.previewer?.viewId ?? props.previewer?.localName}
+          render={props.previewer!.render}
+          data={{ preview: true, pluginID: props.previewer?.pluginID, path: undefined }}
+        />
       </div>
     </Show>
   )
@@ -464,6 +493,9 @@ export function FileTabContent(props: { tab: string }) {
   const platform = usePlatform()
   const server = useServer()
   const [installedEditors, setInstalledEditors] = createSignal<InstalledEditor[]>([])
+  const [officeApps, setOfficeApps] = createSignal<OfficeApp[]>([])
+  /** 当前文件的系统关联图标（「系统默认应用」条目用，例如 .docx 显示 Word 图标）。 */
+  const [defaultAppIcon, setDefaultAppIcon] = createSignal<string | undefined>()
   const preview = usePreview()
   const layout = useLayout()
   const { sessionKey, tabs, view } = useSessionLayout()
@@ -498,6 +530,24 @@ export function FileTabContent(props: { tab: string }) {
       })
       .catch(() => {
         if (active) setInstalledEditors([])
+      })
+    onCleanup(() => {
+      active = false
+    })
+  })
+  createEffect(() => {
+    if (platform.platform !== "desktop" || !platform.getOfficeApps) {
+      setOfficeApps([])
+      return
+    }
+    let active = true
+    void platform
+      .getOfficeApps()
+      .then((apps) => {
+        if (active) setOfficeApps(apps)
+      })
+      .catch(() => {
+        if (active) setOfficeApps([])
       })
     onCleanup(() => {
       active = false
@@ -1376,73 +1426,152 @@ export function FileTabContent(props: { tab: string }) {
     return `${sdk.directory.replace(/[\\/]+$/, "")}${separator}${p}`
   }
 
-  const openOfficeNative = async () => {
-    const p = path()
-    if (!p || !file.isExternal(p) || !platform.openPath) return
+  /** 当前文件的系统关联图标：.docx 拿到 Word 图标，「系统默认应用」条目用它。 */
+  createEffect(
+    on(path, (current) => {
+      setDefaultAppIcon(undefined)
+      if (!current || platform.platform !== "desktop" || !platform.getFileIcon) return
+      const absolute = absolutePath()
+      if (!absolute) return
+      let active = true
+      void platform
+        .getFileIcon(absolute)
+        .then((icon) => {
+          if (active && icon) setDefaultAppIcon(icon)
+        })
+        .catch(() => {})
+      onCleanup(() => {
+        active = false
+      })
+    }),
+  )
+
+  /** 用系统默认关联应用打开当前文件（工作区内外的本地文件都可以）。 */
+  const openDefaultApp = async () => {
+    const absolute = absolutePath()
+    if (!absolute || !platform.openPath) return
+    rememberOpenWith("default")
     try {
-      await platform.openPath(p)
+      await platform.openPath(absolute)
     } catch (error) {
       showToast({
         variant: "error",
-        title: "无法启动默认 Office 应用",
+        title: "无法启动默认应用",
         description: error instanceof Error ? error.message : String(error),
       })
     }
   }
 
-  const openWithEditor = async (editorId: string) => {
-    const p = path()
+  /** 用选中的本机编辑器 / Office 应用打开当前文件；外部文件也走本地通道。 */
+  const openWithApp = async (appId: string) => {
+    const absolute = absolutePath()
     const connection = server.current
-    if (!p || file.isExternal(p) || !platform.openInEditor || !server.isLocal() || !connection) return
-    const separator = sdk.directory.includes("\\") ? "\\" : "/"
-    const absolute = /^(?:[a-zA-Z]:[\\/]|[\\/]{2}|\/)/.test(p)
-      ? p
-      : `${sdk.directory.replace(/[\\/]+$/, "")}${separator}${p}`
-    const opened = await platform.openInEditor(editorId, absolute, "file", connection)
+    if (!absolute || !platform.openInEditor || !server.isLocal() || !connection) return
+    rememberOpenWith(appId)
+    const opened = await platform.openInEditor(appId, absolute, "file", connection)
     if (!opened) showToast({ variant: "error", title: language.t("session.filePreview.openFailed") })
   }
 
+  /** 在文件所在目录打开系统终端（Windows Terminal / macOS Terminal），失败回落集成终端。 */
+  const openDirectoryInTerminal = () => {
+    const absolute = absolutePath()
+    if (!absolute) return
+    const directory = absolute.replace(/[\\/][^\\/]*$/, "") || absolute
+    const integrated = () => sdk.client.pty.create({ cwd: directory }).catch(() => {})
+    if (platform.platform !== "desktop" || !server.isLocal()) {
+      void integrated()
+      return
+    }
+    const native =
+      platform.os === "windows"
+        ? { command: "wt", args: ["-d", directory] }
+        : platform.os === "macos"
+          ? { command: "open", args: ["-a", "Terminal", directory] }
+          : undefined
+    if (!native) {
+      void integrated()
+      return
+    }
+    void sdk.client.pty
+      .create({ command: native.command, args: native.args, title: "terminal" })
+      .catch(() => integrated())
+  }
+
+  /**
+   * 「选择打开应用」下拉（头部右侧的分体按钮）：
+   * Office 文档列出能打开它的本机 Office 应用（Word/Excel/PPT/WPS），
+   * 普通工作区文件列出本机代码编辑器；两者都带真实应用图标，
+   * 后面跟「系统默认应用 / 在资源管理器中显示 / 在终端中打开目录」。
+   */
   const officeNativeMenu = (): PreviewMenuItem[] => {
     const p = path()
     if (!p) return []
-    if (!file.isExternal(p)) {
-      if (
-        platform.platform !== "desktop" ||
-        !server.isLocal() ||
-        !platform.openInEditor ||
-        installedEditors().length === 0
-      )
-        return []
-      return installedEditors().map((editor) => ({
-        id: `editor-${editor.id}`,
-        label: editor.name,
-        onSelect: () => void openWithEditor(editor.id),
-      }))
+    const absolute = absolutePath()
+    const localDesktop = platform.platform === "desktop" && server.isLocal()
+    const items: PreviewMenuItem[] = []
+    if (localDesktop && absolute) {
+      const extension = p.split(".").pop()?.toLowerCase() ?? ""
+      const apps = isOfficePreviewPath(p)
+        ? officeApps().filter((app) => app.extensions.includes(extension))
+        : installedEditors()
+      for (const app of apps) {
+        items.push({
+          id: `app-${app.id}`,
+          label: app.name,
+          iconSrc: app.icon,
+          icon: "open-file",
+          checked: lastOpenWith() === app.id,
+          onSelect: () => void openWithApp(app.id),
+        })
+      }
+      if (platform.openPath) {
+        items.push({
+          id: "default",
+          label: language.t("session.filePreview.openDefaultApp"),
+          iconSrc: defaultAppIcon(),
+          icon: "lu-arrow-up-right",
+          checked: lastOpenWith() === "default",
+          onSelect: () => void openDefaultApp(),
+        })
+      }
+      if (platform.showItemInFolder) {
+        items.push({
+          id: "show-folder",
+          label: language.t("session.filePreview.revealInExplorer"),
+          icon: "folder",
+          divider: items.length > 0 ? "before" : undefined,
+          onSelect: () => void platform.showItemInFolder?.(absolute),
+        })
+      }
+      items.push({
+        id: "open-terminal",
+        label: language.t(
+          platform.os === "windows"
+            ? "session.filePreview.openDirInTerminal.windows"
+            : "session.filePreview.openDirInTerminal.other",
+        ),
+        icon: "terminal",
+        onSelect: openDirectoryInTerminal,
+      })
     }
-    return [
-      ...(platform.openPath
-        ? [{ id: "default", label: "在默认应用中打开", onSelect: () => void openOfficeNative() }]
-        : []),
-      ...(platform.showItemInFolder
-        ? [
-            {
-              id: "show-folder",
-              label: language.t("session.filePreview.revealInExplorer"),
-              onSelect: () => void platform.showItemInFolder?.(p),
-            },
-          ]
-        : []),
-      {
-        id: "copy-absolute",
-        label: language.t("session.filePreview.copyAbsolutePath"),
-        onSelect: () => void writeClipboard(p),
-      },
-      {
-        id: "copy-relative",
-        label: language.t("session.filePreview.copyRelativePath"),
-        onSelect: () => void copyPath("relative"),
-      },
-    ]
+    if (file.isExternal(p)) {
+      items.push(
+        {
+          id: "copy-absolute",
+          label: language.t("session.filePreview.copyAbsolutePath"),
+          icon: "copy",
+          divider: items.length > 0 ? "before" : undefined,
+          onSelect: () => void writeClipboard(p),
+        },
+        {
+          id: "copy-relative",
+          label: language.t("session.filePreview.copyRelativePath"),
+          icon: "copy",
+          onSelect: () => void copyPath("relative"),
+        },
+      )
+    }
+    return items
   }
 
   /**
@@ -3861,11 +3990,8 @@ export function FileTabContent(props: { tab: string }) {
                         : undefined
                   }
                   onOpenNative={
-                    officePath() &&
-                    file.isExternal(path() ?? "") &&
-                    platform.platform === "desktop" &&
-                    !!platform.openPath
-                      ? () => void openOfficeNative()
+                    platform.platform === "desktop" && server.isLocal() && !!platform.openPath
+                      ? () => void openDefaultApp()
                       : undefined
                   }
                   openNativeLabel={language.t("session.filePreview.open")}

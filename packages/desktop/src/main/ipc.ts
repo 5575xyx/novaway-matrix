@@ -1,6 +1,6 @@
 import { writeLocalFileBase64Atomically } from "./conditional-file-write"
 import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import {
@@ -19,7 +19,7 @@ import {
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron"
 
 import { copyLocalFileToClipboard, downloadUrlToTempFile } from "./clipboard-file"
-import { getInstalledEditors, openInEditor } from "./editors"
+import { getFileIconDataUrl, getInstalledEditors, getOfficeApps, openInEditor } from "./editors"
 
 import type {
   InitStep,
@@ -28,6 +28,11 @@ import type {
   TitlebarTheme,
   WindowConfig,
   WslConfig,
+  ResourceCleanupConfig,
+  ResourceCleanupResult,
+  ResourceLocation,
+  ResourceLocationId,
+  ResourceReport,
 } from "../preload/types"
 import { getStore } from "./store"
 import {
@@ -51,7 +56,20 @@ import {
   savePublishBatch,
   type PublishInput,
 } from "./platform"
-import { appIconPath, setPreviewInspectorOrigin, setTitlebar, updateTitlebar } from "./windows"
+import { setPreviewInspectorOrigin, setTitlebar, updateTitlebar } from "./windows"
+import {
+  currentAppIconPath,
+  deleteAppIcon,
+  getAppearanceState,
+  getAppIconData,
+  importAppIcon,
+  importAppIconPair,
+  openAppIconDir,
+  saveGeneratedImageIcon,
+  setAppAppearanceMode,
+  setAppIcon,
+  setAppName,
+} from "./appearance"
 import { getLogger } from "./logging"
 
 const pickerFilters = (ext?: string[]) => {
@@ -76,9 +94,9 @@ function sendWindowEvent(win: BrowserWindow | null, channel: string, ...args: un
   if (!contents) return
   try {
     contents.send(channel, ...args)
-  } catch (error) {
-    if (win?.isDestroyed() || contents.isDestroyed()) return
-    throw error
+  } catch {
+    // HMR/navigation can dispose the frame before WebContents is destroyed.
+    // Window lifecycle events are best-effort and must not take down the main process.
   }
 }
 
@@ -293,6 +311,42 @@ export function registerIpcHandlers(deps: Deps) {
       return root
     },
   )
+  // === 应用外观（图标 / 名称）自定义 ===
+  //
+  // 图标文件落在 userData/appearance/icons/，名称与当前选择存在设置库里。
+  // 变更后主进程即时刷新窗口标题、任务栏/托盘/Dock 图标，并把新状态广播给
+  // 所有渲染窗口（设置面板据此更新选中态与图标墙）。
+  ipcMain.handle("app-appearance:get", () => getAppearanceState())
+  ipcMain.handle("app-appearance:set-name", (_event: IpcMainInvokeEvent, name: string | null) => setAppName(name))
+  ipcMain.handle("app-appearance:set-icon", (_event: IpcMainInvokeEvent, id: string) => setAppIcon(id))
+  ipcMain.handle("app-appearance:import-icon", (event: IpcMainInvokeEvent) => importAppIcon(event))
+  ipcMain.handle("app-appearance:import-icon-pair", (event: IpcMainInvokeEvent) => importAppIconPair(event))
+  ipcMain.handle("app-appearance:set-mode", (_event: IpcMainInvokeEvent, mode: "light" | "dark") =>
+    setAppAppearanceMode(mode),
+  )
+  ipcMain.handle("app-appearance:delete-icon", (_event: IpcMainInvokeEvent, id: string) => deleteAppIcon(id))
+  ipcMain.handle("app-appearance:icon-data", (_event: IpcMainInvokeEvent, id: string, mode?: "light" | "dark") =>
+    getAppIconData(id, mode),
+  )
+  ipcMain.handle("app-appearance:open-icon-dir", () => openAppIconDir())
+  ipcMain.handle(
+    "app-appearance:generate-image-icon",
+    (
+      _event: IpcMainInvokeEvent,
+      source: { url?: string; base64?: string },
+      label?: string,
+      frame?: "square" | "circle",
+      mode?: "light" | "dark",
+      targetId?: string,
+      themed?: boolean,
+    ) => {
+      if (!source || typeof source !== "object" || (!source.url && !source.base64)) {
+        throw new Error("图片内容无效")
+      }
+      return saveGeneratedImageIcon(source, label, frame, mode, targetId, themed)
+    },
+  )
+
   // 保持唤醒：自动化任务可能在后台跑很久，系统休眠会直接掐断。
   let keepAwakeId: number | undefined
   ipcMain.handle("set-keep-awake", (_event: IpcMainInvokeEvent, enabled: boolean) => {
@@ -372,6 +426,210 @@ export function registerIpcHandlers(deps: Deps) {
     const configRoot = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "novaway")
     await rm(path.join(configRoot, "command", shortName), { recursive: true, force: true }).catch(() => {})
     await rm(path.join(configRoot, "agents", shortName), { recursive: true, force: true }).catch(() => {})
+  })
+
+  /**
+   * Resource management deliberately lives in the main process. The renderer cannot
+   * safely enumerate arbitrary local folders, and keeping the allow-list here means
+   * cleanup can never be pointed at a random path by a web page.
+   */
+  const resourceIds: ResourceLocationId[] = ["data", "config", "cache", "temp", "logs"]
+  const resourceStore = () => getStore()
+  const resourceStoreKey = (key: "paths" | "cleanup") => `resource-management.${key}`
+  const resourceDefaults = (): Record<ResourceLocationId, string> => {
+    const home = os.homedir()
+    const xdgData = process.env.XDG_DATA_HOME || path.join(home, ".local", "share")
+    const xdgCache = process.env.XDG_CACHE_HOME || path.join(home, ".cache")
+    const configRoot = process.env.NOVAWAY_CONFIG_DIR || path.join(process.env.XDG_CONFIG_HOME || path.join(home, ".config"), "novaway")
+    const dataRoot = path.join(xdgData, "novaway")
+    return {
+      data: dataRoot,
+      config: configRoot,
+      cache: path.join(xdgCache, "novaway"),
+      temp: os.tmpdir(),
+      logs: path.join(dataRoot, "log"),
+    }
+  }
+  const resourceLabel: Record<ResourceLocationId, string> = {
+    data: "NovaWay data",
+    config: "Configuration",
+    cache: "Cache",
+    temp: "Temporary files",
+    logs: "Logs",
+  }
+
+  const resourcePaths = () => {
+    const defaults = resourceDefaults()
+    const raw = resourceStore().get(resourceStoreKey("paths"))
+    if (typeof raw !== "string") return defaults
+    try {
+      const parsed = JSON.parse(raw) as Partial<Record<ResourceLocationId, unknown>>
+      return Object.fromEntries(
+        resourceIds.map((id) => [id, typeof parsed[id] === "string" && parsed[id] ? parsed[id] : defaults[id]]),
+      ) as Record<ResourceLocationId, string>
+    } catch {
+      return defaults
+    }
+  }
+
+  const scanResourceDirectory = async (root: string, novaWayOnly = false) => {
+    let size = 0
+    let fileCount = 0
+    let lastModified: number | null = null
+    const visit = async (directory: string): Promise<void> => {
+      const entries = await readdir(directory, { withFileTypes: true }).catch(() => [])
+      for (const entry of entries) {
+        if (novaWayOnly && directory === root && !entry.name.toLowerCase().includes("novaway")) continue
+        if (entry.isSymbolicLink()) continue
+        const entryPath = path.join(directory, entry.name)
+        if (entry.isDirectory()) {
+          await visit(entryPath)
+          continue
+        }
+        const info = await stat(entryPath).catch(() => undefined)
+        if (!info?.isFile()) continue
+        size += info.size
+        fileCount += 1
+        lastModified = Math.max(lastModified ?? 0, info.mtimeMs)
+      }
+    }
+    await visit(root)
+    return { size, fileCount, lastModified }
+  }
+
+  const resourceReport = async (): Promise<ResourceReport> => {
+    const defaults = resourceDefaults()
+    const paths = resourcePaths()
+    const locations = await Promise.all(
+      resourceIds.map(async (id): Promise<ResourceLocation> => {
+        const summary = await scanResourceDirectory(paths[id], id === "temp" && paths[id] === defaults[id])
+        const exists = await stat(paths[id]).then((info) => info.isDirectory()).catch(() => false)
+        return {
+          id,
+          label: resourceLabel[id],
+          path: paths[id],
+          defaultPath: defaults[id],
+          exists,
+          ...summary,
+        }
+      }),
+    )
+    return {
+      generatedAt: Date.now(),
+      totalSize: locations.reduce((total, location) => total + location.size, 0),
+      locations,
+    }
+  }
+
+  const cleanupResourceDirectory = async (root: string, cutoff: number, novaWayOnly = false): Promise<ResourceCleanupResult> => {
+    let deletedFiles = 0
+    let deletedBytes = 0
+    const visit = async (directory: string): Promise<void> => {
+      const entries = await readdir(directory, { withFileTypes: true }).catch(() => [])
+      for (const entry of entries) {
+        if (novaWayOnly && directory === root && !entry.name.toLowerCase().includes("novaway")) continue
+        if (entry.isSymbolicLink()) continue
+        const entryPath = path.join(directory, entry.name)
+        if (entry.isDirectory()) {
+          await visit(entryPath)
+          const info = await stat(entryPath).catch(() => undefined)
+          if (info?.isDirectory() && info.mtimeMs < cutoff) {
+            const children = await readdir(entryPath).catch(() => [])
+            if (children.length === 0) await rm(entryPath, { recursive: true, force: true })
+          }
+          continue
+        }
+        const info = await stat(entryPath).catch(() => undefined)
+        if (!info?.isFile() || info.mtimeMs >= cutoff) continue
+        await rm(entryPath, { force: true }).then(() => {
+          deletedFiles += 1
+          deletedBytes += info.size
+        }).catch(() => {})
+      }
+    }
+    await visit(root)
+    return { deletedFiles, deletedBytes }
+  }
+
+  const defaultCleanupConfig = (): ResourceCleanupConfig => ({
+    enabled: false,
+    interval: "daily",
+    olderThanDays: 3,
+    lastRunAt: null,
+  })
+  const readCleanupConfig = (): ResourceCleanupConfig => {
+    const fallback = defaultCleanupConfig()
+    const raw = resourceStore().get(resourceStoreKey("cleanup"))
+    if (typeof raw !== "string") return fallback
+    try {
+      const parsed = JSON.parse(raw) as Partial<ResourceCleanupConfig>
+      return {
+        enabled: parsed.enabled === true,
+        interval: parsed.interval === "weekly" ? "weekly" : "daily",
+        olderThanDays: Math.min(365, Math.max(1, Math.floor(Number(parsed.olderThanDays) || 3))),
+        lastRunAt: typeof parsed.lastRunAt === "number" ? parsed.lastRunAt : null,
+      }
+    } catch {
+      return fallback
+    }
+  }
+  let cleanupTimer: ReturnType<typeof setInterval> | undefined
+  const runScheduledCleanup = async () => {
+    const config = readCleanupConfig()
+    const interval = config.interval === "weekly" ? 7 : 1
+    if (!config.enabled || (config.lastRunAt !== null && Date.now() - config.lastRunAt < interval * 86400000)) return
+    const paths = resourcePaths()
+    const defaults = resourceDefaults()
+    const result = await Promise.all(["temp", "cache", "logs"].map((id) => cleanupResourceDirectory(
+      paths[id as ResourceLocationId],
+      Date.now() - config.olderThanDays * 86400000,
+      id === "temp" && paths[id as ResourceLocationId] === defaults.temp,
+    )))
+    resourceStore().set(resourceStoreKey("cleanup"), JSON.stringify({ ...config, lastRunAt: Date.now() }))
+    return result
+  }
+  const armScheduledCleanup = () => {
+    if (cleanupTimer) clearInterval(cleanupTimer)
+    cleanupTimer = setInterval(() => void runScheduledCleanup(), 60_000)
+  }
+  armScheduledCleanup()
+
+  ipcMain.handle("resource:get-report", () => resourceReport())
+  ipcMain.handle("resource:set-location", async (_event: IpcMainInvokeEvent, id: ResourceLocationId, nextPath: string) => {
+    if (!resourceIds.includes(id) || typeof nextPath !== "string" || !nextPath.trim()) throw new Error("Invalid resource location")
+    const resolved = path.resolve(nextPath)
+    await mkdir(resolved, { recursive: true })
+    const paths = resourcePaths()
+    resourceStore().set(resourceStoreKey("paths"), JSON.stringify({ ...paths, [id]: resolved }))
+    return resourceReport()
+  })
+  ipcMain.handle("resource:get-cleanup-config", () => readCleanupConfig())
+  ipcMain.handle("resource:set-cleanup-config", (_event: IpcMainInvokeEvent, input: Omit<ResourceCleanupConfig, "lastRunAt">) => {
+    const config: ResourceCleanupConfig = {
+      ...readCleanupConfig(),
+      enabled: input.enabled === true,
+      interval: input.interval === "weekly" ? "weekly" : "daily",
+      olderThanDays: Math.min(365, Math.max(1, Math.floor(Number(input.olderThanDays) || 3))),
+    }
+    resourceStore().set(resourceStoreKey("cleanup"), JSON.stringify(config))
+    armScheduledCleanup()
+    return config
+  })
+  ipcMain.handle("resource:clean", async (_event: IpcMainInvokeEvent, olderThanDays: number) => {
+    const days = Math.min(365, Math.max(1, Math.floor(Number(olderThanDays) || 3)))
+    const paths = resourcePaths()
+    const defaults = resourceDefaults()
+    const result = await Promise.all(["temp", "cache", "logs"].map((id) => cleanupResourceDirectory(
+      paths[id as ResourceLocationId],
+      Date.now() - days * 86400000,
+      id === "temp" && paths[id as ResourceLocationId] === defaults.temp,
+    )))
+    const total = result.reduce((summary, item) => ({
+      deletedFiles: summary.deletedFiles + item.deletedFiles,
+      deletedBytes: summary.deletedBytes + item.deletedBytes,
+    }), { deletedFiles: 0, deletedBytes: 0 })
+    resourceStore().set(resourceStoreKey("cleanup"), JSON.stringify({ ...readCleanupConfig(), lastRunAt: Date.now() }))
+    return total
   })
 
   ipcMain.handle(
@@ -516,6 +774,8 @@ export function registerIpcHandlers(deps: Deps) {
   })
 
   ipcMain.handle("get-installed-editors", () => getInstalledEditors())
+  ipcMain.handle("get-office-apps", () => getOfficeApps())
+  ipcMain.handle("get-file-icon", (_event: IpcMainInvokeEvent, path: string) => getFileIconDataUrl(path))
   ipcMain.handle(
     "open-in-editor",
     (_event: IpcMainInvokeEvent, editorId: string, targetPath: string, kind: "file" | "directory") =>
@@ -556,7 +816,7 @@ export function registerIpcHandlers(deps: Deps) {
       if (showSystem && Notification.isSupported()) {
         // 空白 toast 排查日志:记录每一次系统通知的入参,便于对照 Windows 通知库里的 payload
         getLogger().info("[notification] show", { title, bodyLength: body?.length ?? 0, showSystem })
-        const systemNotification = new Notification({ title, body, icon: appIconPath() })
+        const systemNotification = new Notification({ title, body, icon: currentAppIconPath() })
         const release = () => activeNotifications.delete(systemNotification)
         activeNotifications.add(systemNotification)
         systemNotification.once("close", release)

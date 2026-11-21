@@ -1,0 +1,31 @@
+{
+  "version": "<release-candidate-version>",
+  "releaseCandidate": {
+    "binary": "dist/<release-candidate-binary>",
+    "sha256": "<sha256>"
+  },
+  "environment": {
+    "operator": "<operator-name>",
+    "browser": "<browser-and-version>",
+    "backendPort": 0,
+    "uiPort": 0,
+    "database": "<database-path>",
+    "workspace": "<workspace-path>"
+  },
+  "scenarios": {
+    "goal_and_acceptance_criteria": { "observed": false, "notes": "", "evidence": [] },
+    "dangerous_operation_approval": { "observed": false, "notes": "", "evidence": [] },
+    "timeline_and_task_graph_order": { "observed": false, "notes": "", "evidence": [] },
+    "pause_refresh_resume": { "observed": false, "notes": "", "evidence": [] },
+    "offline_online_recovery": { "observed": false, "notes": "", "evidence": [] },
+    "backend_restart_recovery": { "observed": false, "notes": "", "evidence": [] },
+    "parallel_agent_partial_failure": { "observed": false, "notes": "", "evidence": [] },
+    "plugin_disable_blocks_calls": { "observed": false, "notes": "", "evidence": [] },
+    "verification_repair_evidence_completion": { "observed": false, "notes": "", "evidence": [] },
+    "secret_token_redaction": { "observed": false, "notes": "", "evidence": [] },
+    "timer_listener_child_process_cleanup": { "observed": false, "notes": "", "evidence": [] },
+    "provider_judge_and_agent_verifier": { "observed": false, "notes": "", "evidence": [] }
+  },
+  "operator": { "name": "", "signature": "", "signedAt": "", "conclusion": "needs_review" },
+  "reviewer": { "name": "", "signature": "", "signedAt": "", "conclusion": "needs_review" }
+}

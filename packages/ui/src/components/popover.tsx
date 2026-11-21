@@ -19,6 +19,8 @@ export interface PopoverProps<T extends ValidComponent = "div">
   portal?: boolean
   /** 额外算作“内容区”的节点，例如从菜单里弹出的子级浮层（点它不该关掉菜单）。 */
   outsideIgnore?: () => Array<Element | null | undefined>
+  /** 打开时的自动聚焦；默认聚焦内容首个可聚焦元素，preventDefault 可阻止。 */
+  onOpenAutoFocus?: (event: Event) => void
 }
 
 export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>) {
@@ -35,6 +37,7 @@ export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>
     "children",
     "portal",
     "outsideIgnore",
+    "onOpenAutoFocus",
     "open",
     "defaultOpen",
     "onOpenChange",
@@ -116,6 +119,7 @@ export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>
         [local.class ?? ""]: !!local.class,
       }}
       style={local.style}
+      onOpenAutoFocus={local.onOpenAutoFocus}
       onCloseAutoFocus={(event: Event) => {
         if (state.dismiss === "outside") event.preventDefault()
         setState("dismiss", null)

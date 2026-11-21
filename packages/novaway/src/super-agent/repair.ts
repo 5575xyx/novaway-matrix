@@ -119,7 +119,17 @@ export class SuperAgentRepairCoordinator {
         at: Date.now(),
         payload: { taskID: task.id, sourceTaskID: source.id, verificationIDs: input.failedVerificationIDs },
       })
-      return { run: updated, task }
+      // Creating a repair task is an explicit recovery action. Move only this
+      // newly repaired run back to running; review-gated runs without an
+      // explicit repair remain stopped and cannot be resumed by a worker scan.
+      const resumed = updated.status === "needs_review"
+        ? yield* store.transitionWithEvent(updated.id, "running", {
+            type: "run_status_changed",
+            at: Date.now(),
+            payload: { from: "needs_review", to: "running", source: "repair-request" },
+          })
+        : undefined
+      return { run: resumed?.run ?? updated, task }
     })
   }
 

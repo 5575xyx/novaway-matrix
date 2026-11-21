@@ -26,6 +26,7 @@ export type NativeToolExecutorInput = {
   mcp?: MCPInterface
   allowedTools?: readonly string[]
   evidenceKind?: EvidenceKind
+  acceptanceIDs?: readonly string[]
   timeoutMs?: number
   leaseMs?: number
 }
@@ -114,20 +115,31 @@ export function createNativeToolExecutorEffect(input: NativeToolExecutorInput) {
         }, Math.max(10, Math.floor(leaseMs / 3)))
       }
       const definition = (yield* input.registry.all()).find((item) => item.id === instruction.tool)
-      const complete = (rawOutput: unknown) =>
+      const complete = (rawOutput: unknown, rawMetadata?: unknown) =>
         Effect.gen(function* () {
           const output = typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput) ?? String(rawOutput)
           if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer)
           if (!input.store) return { type: "tool_completed" as const, tool: instruction.tool, output }
           const evidenceID = `${operationID}:evidence`
+          const exitCode =
+            rawMetadata && typeof rawMetadata === "object" && "exit" in rawMetadata
+              ? Number((rawMetadata as { exit?: unknown }).exit)
+              : undefined
+          const measured =
+            input.evidenceKind === "test"
+              ? exitCode === 0
+                ? "pass"
+                : "fail"
+              : "tool execution completed"
           yield* input.store.evidence({
             id: evidenceID,
             runID: run.id,
             taskID: instruction.taskID,
             kind: input.evidenceKind ?? "artifact",
             source: definition ? `tool:${instruction.tool}` : `mcp:${instruction.tool}`,
+            ...(input.acceptanceIDs?.length ? { acceptanceIDs: input.acceptanceIDs } : {}),
             contentHash: createHash("sha256").update(output).digest("hex"),
-            measured: input.evidenceKind === "test" ? "pass" : "tool execution completed",
+            measured,
             capturedAt: Date.now(),
           })
           const completed = { type: "tool_completed" as const, tool: instruction.tool, output, evidenceIDs: [evidenceID] }
@@ -212,7 +224,7 @@ export function createNativeToolExecutorEffect(input: NativeToolExecutorInput) {
         timeoutController.abort()
         return yield* Effect.fail(new Error(`tool timed out after ${timeoutMs}ms`))
       }
-      return yield* complete(timedResult.value.output)
+      return yield* complete(timedResult.value.output, timedResult.value.metadata)
     }).pipe(
       Effect.catch((error: unknown) =>
         Effect.gen(function* () {

@@ -1,4 +1,4 @@
-import type { AcceptanceCriterion, Evidence, VerificationOutcome } from "./types"
+import type { AcceptanceCriterion, Evidence, EvidenceKind, VerificationOutcome } from "./types"
 
 export type VerifierInput = {
   runID: string
@@ -46,38 +46,73 @@ export class VerifierRegistry {
   }
 }
 
+const evidenceForCriterion = (input: VerifierInput, kinds: readonly EvidenceKind[]) =>
+  input.evidence.filter(
+    (item) =>
+      kinds.includes(item.kind) &&
+      item.acceptanceIDs !== undefined &&
+      item.acceptanceIDs.includes(input.criterion.id),
+  )
+
 export const builtinTestVerifier: Verifier = {
   id: "builtin.test",
-  version: "1",
+  version: "2",
   async verify(input) {
-    const evidence = input.evidence.filter((item) => item.kind === "test")
+    const evidence = evidenceForCriterion(input, ["test"])
     if (evidence.length === 0) return { outcome: "unverified", evidenceIDs: [], reason: "no test evidence" }
-    const passed = evidence.every((item) => item.measured?.toLowerCase() === "pass")
+    const latestAt = Math.max(...evidence.map((item) => item.capturedAt))
+    const latest = evidence.filter((item) => item.capturedAt === latestAt)
+    const passed = latest.every((item) => item.measured?.toLowerCase() === "pass")
     return {
       outcome: passed ? "pass" : "fail",
-      evidenceIDs: evidence.map((item) => item.id),
-      reason: passed ? "all test evidence passed" : "at least one test evidence failed",
-      measured: `${evidence.length} test evidence record(s)`,
+      evidenceIDs: latest.map((item) => item.id),
+      reason: passed ? "latest test evidence passed" : "latest test evidence failed",
+      measured: `${latest.length} latest test evidence record(s)`,
     }
   },
 }
 
 export const builtinArtifactVerifier: Verifier = {
   id: "builtin.artifact",
-  version: "1",
+  version: "2",
   async verify(input) {
-    const evidence = input.evidence.filter((item) =>
-      ["artifact", "file", "http", "log", "screenshot", "external"].includes(item.kind),
-    )
+    const evidence = evidenceForCriterion(input, [
+      "artifact",
+      "file",
+      "http",
+      "log",
+      "screenshot",
+      "external",
+      "test",
+    ])
     if (evidence.length === 0) return { outcome: "unverified", evidenceIDs: [], reason: "no artifact evidence" }
+    // An operation finishing is not evidence that the acceptance criterion is
+    // true.  Only an explicitly measured pass may close a criterion.  This is
+    // intentionally conservative: an untyped artifact must go to needs_review
+    // instead of allowing a durable Goal to report a false completion.
     const latestAt = Math.max(...evidence.map((item) => item.capturedAt))
     const latest = evidence.filter((item) => item.capturedAt === latestAt)
     const failed = latest.some((item) => item.measured?.toLowerCase() === "fail")
+    const passed = latest.filter((item) => item.measured?.toLowerCase() === "pass")
+    if (failed) {
+      return {
+        outcome: "fail",
+        evidenceIDs: latest.map((item) => item.id),
+        reason: "latest artifact evidence failed",
+      }
+    }
+    if (passed.length === 0) {
+      return {
+        outcome: "unverified",
+        evidenceIDs: latest.map((item) => item.id),
+        reason: "artifact exists but no verifier measured pass",
+      }
+    }
     return {
-      outcome: failed ? "fail" : "pass",
-      evidenceIDs: latest.map((item) => item.id),
-      reason: failed ? "latest artifact evidence failed" : "latest artifact evidence is present",
-      measured: `${latest.length} latest artifact evidence record(s)`,
+      outcome: "pass",
+      evidenceIDs: passed.map((item) => item.id),
+      reason: "latest artifact evidence explicitly passed",
+      measured: `${passed.length} passing artifact evidence record(s)`,
     }
   },
 }

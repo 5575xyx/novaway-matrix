@@ -161,6 +161,40 @@ async function waitForRunStatus(runID: string, expected: string) {
   throw new Error(`Super-Agent run ${runID} did not reach ${expected}: ${JSON.stringify({ detail, events })}`)
 }
 
+async function recordExplicitPassAndFinish(runID: string, taskID: string, acceptanceID: string) {
+  const deadline = Date.now() + 30_000
+  while (Date.now() < deadline) {
+    const response = await request(`/super-agent/runs/${runID}`)
+    if (response.ok) {
+      const run = (await response.json()) as { graph?: { nodes?: Array<{ id: string; status: string }> } }
+      if (run.graph?.nodes?.some((task) => task.id === taskID && ["succeeded", "completed"].includes(task.status))) break
+    }
+    await Bun.sleep(250)
+  }
+  await waitForRunStatus(runID, "needs_review")
+  const evidence = await request(`/super-agent/runs/${runID}/evidence`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      id: `${runID}:evidence:explicit-pass:${acceptanceID}`,
+      taskID,
+      kind: "artifact",
+      source: "durable-e2e-verifier",
+      measured: "pass",
+      acceptanceIDs: [acceptanceID],
+    }),
+  })
+  expect(evidence.status).toBe(200)
+  const finished = await request(`/super-agent/runs/${runID}/verify-finish`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ verifierID: "builtin.artifact", summary: "explicit durable evidence passed" }),
+  })
+  expect(finished.status).toBe(200)
+  const finishedBody = (await finished.json()) as { completed: boolean; run?: unknown; verifications?: unknown }
+  if (!finishedBody.completed) throw new Error(`explicit verification did not complete: ${JSON.stringify(finishedBody)}`)
+}
+
 async function waitForRunEvent(runID: string, type: string) {
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {
@@ -461,6 +495,7 @@ describe("durable Goal end-to-end lifecycle", () => {
     expect(restoredRun.graph.nodes[0]?.id).toBe("restart-artifact-task")
     expect(restoredRun.graph.nodes[0]?.input).toEqual({ tool: "sleep", input: { duration_ms: 0 } })
 
+    await recordExplicitPassAndFinish(restartedRun.id, restartedRun.graph.rootTaskID, "restart-artifact")
     await waitForRunStatus(restartedRun.id, "completed")
     const restartExecution = (await (await request(`/super-agent/runs/${restartedRun.id}`)).json()) as {
       status: string
@@ -559,6 +594,7 @@ describe("durable Goal end-to-end lifecycle", () => {
         })
       ).status,
     ).toBe(200)
+    await recordExplicitPassAndFinish(approvalRun.id, approvalRun.graph.rootTaskID, "approval-artifact")
     await waitForRunStatus(approvalRun.id, "completed")
     const approvedExecution = (await (await request(`/super-agent/runs/${approvalRun.id}`)).json()) as {
       status: string
@@ -681,6 +717,7 @@ describe("durable Goal end-to-end lifecycle", () => {
     }
     // Creating the repair task is the only driver action. The durable worker
     // must pick it up, execute it, and run the verifier automatically.
+    await recordExplicitPassAndFinish(repairRun.id, repair.task.id, "repair-artifact")
     await waitForRunStatus(repairRun.id, "completed")
     const repaired = (await (await request(`/super-agent/runs/${repairRun.id}`)).json()) as {
       status: string
@@ -762,6 +799,7 @@ describe("durable Goal end-to-end lifecycle", () => {
     })
     expect(replied.status).toBe(200)
 
+    await recordExplicitPassAndFinish(run.id, run.graph.rootTaskID, "approved-write")
     await waitForRunStatus(run.id, "completed")
     expect(await fs.readFile(filePath, "utf8")).toBe("approved durable task\n")
     await waitForGoalStatus(session.id, goal.id, "completed")
@@ -837,6 +875,7 @@ describe("durable Goal end-to-end lifecycle", () => {
       body: JSON.stringify({ reply: "once" }),
     })
     expect(replied.status).toBe(200)
+    await recordExplicitPassAndFinish(run.id, run.graph.rootTaskID, "restart-write")
     await waitForRunStatus(run.id, "completed")
     expect(await fs.readFile(filePath, "utf8")).toBe("restarted durable task\\n")
     await waitForGoalStatus(session.id, goal.id, "completed")

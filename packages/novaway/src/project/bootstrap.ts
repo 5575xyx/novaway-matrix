@@ -26,7 +26,11 @@ import { bindExecutableSuperAgentContributions } from "@/super-agent/plugin-cont
 import { Permission } from "@/permission"
 import { MCP } from "@/mcp"
 import { Provider } from "@/provider/provider"
+import { ProviderID } from "@/provider/schema"
 import { startSuperAgentRun } from "@/super-agent/launcher"
+import { createModelVerifier } from "@/super-agent/model-verifier"
+import { planGoalWithModel, materializeGoalPlan } from "@/super-agent/planner"
+import { SessionID } from "@/session/schema"
 import * as Session from "../session/session"
 import { Service as ToolRegistryService } from "@/tool/registry"
 
@@ -134,6 +138,49 @@ export const layer = Layer.effect(
               ? {
                   recover: (runID: string) =>
                     Effect.runPromise(startSuperAgentRun({ store: superAgentStore, sessions, provider, toolRegistry }, runID)),
+                  judge: async ({ run, criterion, evidence }) => {
+                    try {
+                      const session = await Effect.runPromise(sessions.get(run.goal.sessionId as SessionID).pipe(Effect.orDie))
+                      const configured = run.goal.executionConfig?.judgeModel?.trim()
+                      const selected = configured?.includes("/")
+                        ? Provider.parseModel(configured)
+                        : session.model
+                          ? { providerID: session.model.providerID, modelID: session.model.id }
+                          : await Effect.runPromise(provider.defaultModel())
+                      const model = await Effect.runPromise(provider.getModel(ProviderID.make(selected.providerID), selected.modelID))
+                      const language = await Effect.runPromise(provider.getLanguage(model))
+                      return await createModelVerifier({
+                        model: language,
+                        maxOutputTokens: run.goal.executionConfig?.maxTokens,
+                        minReasonBytes: run.goal.executionConfig?.evidenceMinBytes,
+                      }).verify({ runID: run.id, criterion, evidence })
+                    } catch (error) {
+                      return {
+                        outcome: "unverified" as const,
+                        evidenceIDs: [],
+                        reason: `durable judge unavailable: ${String(error)}`,
+                      }
+                    }
+                  },
+                  replan: async ({ run, reason }) => {
+                    const session = await Effect.runPromise(sessions.get(run.goal.sessionId as SessionID).pipe(Effect.orDie))
+                    const configured = run.goal.executionConfig?.judgeModel?.trim()
+                    const selected = configured?.includes("/")
+                      ? Provider.parseModel(configured)
+                      : session.model
+                        ? { providerID: session.model.providerID, modelID: session.model.id }
+                        : await Effect.runPromise(provider.defaultModel())
+                    const model = await Effect.runPromise(provider.getModel(ProviderID.make(selected.providerID), selected.modelID))
+                    const language = await Effect.runPromise(provider.getLanguage(model))
+                    const definitions = await Effect.runPromise(toolRegistry.all())
+                    const plan = await planGoalWithModel({
+                      model: language,
+                      run,
+                      availableTools: definitions.map((definition) => definition.id),
+                      reason,
+                    })
+                    return materializeGoalPlan(run, plan)
+                  },
                 }
               : {}),
           },

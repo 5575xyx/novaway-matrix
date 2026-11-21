@@ -31,9 +31,9 @@ describe("media preview recovery", () => {
 
   test("project files use installed editors only with a local desktop connection", () => {
     expect(tabs).toContain('platform.platform !== "desktop" || !platform.getInstalledEditors')
-    expect(tabs).toContain("!p || file.isExternal(p) || !platform.openInEditor || !server.isLocal() || !connection")
-    expect(tabs).toContain('platform.openInEditor(editorId, absolute, "file", connection)')
-    expect(tabs).toContain("if (!file.isExternal(p))")
+    expect(tabs).toContain("if (!absolute || !platform.openInEditor || !server.isLocal() || !connection) return")
+    expect(tabs).toContain('platform.openInEditor(appId, absolute, "file", connection)')
+    expect(tabs).toContain("if (file.isExternal(p))")
     const header = readFileSync(join(import.meta.dir, "file-preview-header.tsx"), "utf8")
     expect(header).toContain("props.onOpenNative || (props.openNativeMenu?.length ?? 0) > 0")
     expect(tabs).toContain("openNativeMenu={officeNativeMenu()}")

@@ -1,0 +1,37 @@
+{
+  "apiVersion": 2,
+  "kind": "declarative",
+  "name": "surface-fixture",
+  "version": "0.0.0",
+  "activationEvents": ["onView:surface-fixture.dashboard"],
+  "contributes": {
+    "commands": [{ "id": "refresh", "description": "Refresh fixture", "template": "/refresh" }],
+    "surfaces": [
+      {
+        "slot": "sidebar.item",
+        "id": "dashboard",
+        "title": "Surface fixture",
+        "icon": "dot-grid",
+        "action": {
+          "type": "view",
+          "viewId": "surface-fixture.dashboard",
+          "render": { "type": "iframe", "url": "https://example.test/surface-fixture.html" }
+        }
+      },
+      {
+        "slot": "session.panel",
+        "id": "refresh",
+        "title": "Refresh fixture",
+        "action": { "type": "command", "command": "refresh" }
+      }
+    ],
+    "previewers": [
+      {
+        "id": "fixture",
+        "match": { "extension": ".surface" },
+        "render": { "type": "iframe", "url": "https://example.test/surface-preview.html" }
+      }
+    ],
+    "storage": { "namespace": "surface-fixture", "migrations": "./migrations" }
+  }
+}

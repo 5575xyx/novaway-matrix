@@ -257,7 +257,13 @@ export const layer = Layer.effect(
         ),
       )
       return rows.map((row) =>
-        toGoal({ ...row, progress: row.todo_total > 0 ? (row.todo_completed / row.todo_total) * 100 : 0 }),
+        toGoal({
+          ...row,
+          // Durable Super-Agent Goals have no Todo rows. Preserve the
+          // TaskGraph-derived progress stored by the run synchronizer instead
+          // of resetting the UI to 0% on every list request.
+          progress: row.todo_total > 0 ? (row.todo_completed / row.todo_total) * 100 : row.progress,
+        }),
       )
     })
 

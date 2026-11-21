@@ -26748,6 +26748,89 @@
                             "enum": ["Infinity", "-Infinity", "NaN"]
                           }
                         ]
+                      },
+                      "judgeModel": {
+                        "type": "string"
+                      },
+                      "maxTokens": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "maxActiveMs": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "verifier": {
+                        "type": "string",
+                        "enum": ["judge", "agent"]
+                      },
+                      "evidenceMinBytes": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": ["interactive", "durable"]
+                      },
+                      "superAgentRunId": {
+                        "type": "string"
                       }
                     },
                     "required": ["goalId", "maxIterations"],
@@ -28614,6 +28697,89 @@
                             "enum": ["Infinity", "-Infinity", "NaN"]
                           }
                         ]
+                      },
+                      "judgeModel": {
+                        "type": "string"
+                      },
+                      "maxTokens": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "maxActiveMs": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "verifier": {
+                        "type": "string",
+                        "enum": ["judge", "agent"]
+                      },
+                      "evidenceMinBytes": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": ["interactive", "durable"]
+                      },
+                      "superAgentRunId": {
+                        "type": "string"
                       }
                     },
                     "required": ["goalId", "maxIterations"],
@@ -35143,6 +35309,49 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "executionConfig": {
+                    "type": "object",
+                    "properties": {
+                      "maxIterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "judgeModel": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "maxTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maxActiveMs": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 604800000
+                      },
+                      "verifier": {
+                        "type": "string",
+                        "enum": ["judge", "agent"]
+                      },
+                      "evidenceMinBytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000000
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": ["interactive", "durable"]
+                      },
+                      "superAgentRunId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["maxIterations"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["title"],
@@ -35155,6 +35364,260 @@
           {
             "lang": "js",
             "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.createGoal({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/goals/launch": {
+      "post": {
+        "tags": ["goal"],
+        "operationId": "goal.createAndLaunchGoal",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idempotencyKey": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"]
+                  },
+                  "successCriteria": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "deadline": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "executionConfig": {
+                    "type": "object",
+                    "properties": {
+                      "maxIterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "judgeModel": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "maxTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maxActiveMs": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 604800000
+                      },
+                      "verifier": {
+                        "type": "string",
+                        "enum": ["judge", "agent"]
+                      },
+                      "evidenceMinBytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000000
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": ["interactive", "durable"]
+                      },
+                      "superAgentRunId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["maxIterations"],
+                    "additionalProperties": false
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "planningMode": {
+                    "type": "string",
+                    "enum": ["deterministic", "model"]
+                  },
+                  "budget": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["idempotencyKey", "title"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.createAndLaunchGoal({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/goals/{goalId}/launch": {
+      "post": {
+        "tags": ["goal"],
+        "operationId": "goal.launchGoal",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "goalId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "planningMode": {
+                    "type": "string",
+                    "enum": ["deterministic", "model"]
+                  },
+                  "budget": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.launchGoal({\n  ...\n})"
           }
         ]
       }
@@ -35238,6 +35701,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "NotFoundError",
             "content": {
@@ -35263,7 +35736,7 @@
                   },
                   "status": {
                     "type": "string",
-                    "enum": ["pending", "in_progress", "paused", "completed", "cancelled"]
+                    "enum": ["pending", "in_progress", "paused", "cancelled"]
                   },
                   "priority": {
                     "type": "string",
@@ -35283,6 +35756,49 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "executionConfig": {
+                    "type": "object",
+                    "properties": {
+                      "maxIterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "judgeModel": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "maxTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000000
+                      },
+                      "maxActiveMs": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 604800000
+                      },
+                      "verifier": {
+                        "type": "string",
+                        "enum": ["judge", "agent"]
+                      },
+                      "evidenceMinBytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000000
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": ["interactive", "durable"]
+                      },
+                      "superAgentRunId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["maxIterations"],
+                    "additionalProperties": false
                   }
                 },
                 "additionalProperties": false
@@ -35392,6 +35908,776 @@
           {
             "lang": "js",
             "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.goal.getGoalProgress({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflow-webhooks/github": {
+      "post": {
+        "tags": ["workflow"],
+        "operationId": "workflow.githubWorkflowWebhook",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event": {
+                    "type": "string"
+                  },
+                  "deliveryID": {
+                    "type": "string"
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                },
+                "required": ["event", "payload"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.githubWorkflowWebhook({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflow-evidence": {
+      "post": {
+        "tags": ["workflow"],
+        "operationId": "workflow.recordWorkflowEvidence",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memoryID": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "evidence": {
+                    "type": "object"
+                  }
+                },
+                "required": ["source", "evidence"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.recordWorkflowEvidence({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflow-integrations": {
+      "post": {
+        "tags": ["workflow"],
+        "operationId": "workflow.recordWorkflowIntegration",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["commit", "pull_request", "check"]
+                  },
+                  "payload": {
+                    "type": "object"
+                  }
+                },
+                "required": ["kind", "payload"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.recordWorkflowIntegration({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflow-state": {
+      "patch": {
+        "tags": ["workflow"],
+        "operationId": "workflow.updateWorkflowState",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedRevision": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["NaN"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["-Infinity"]
+                      },
+                      {
+                        "type": "string",
+                        "enum": ["Infinity", "-Infinity", "NaN"]
+                      }
+                    ]
+                  },
+                  "patch": {
+                    "type": "object",
+                    "properties": {
+                      "route": {
+                        "type": "string"
+                      },
+                      "phase": {
+                        "type": "string"
+                      },
+                      "verificationStatus": {
+                        "type": "string"
+                      },
+                      "deliveryStatus": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["expectedRevision", "patch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.updateWorkflowState({\n  ...\n})"
+          }
+        ]
+      },
+      "get": {
+        "tags": ["workflow"],
+        "operationId": "workflow.getWorkflowState",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.getWorkflowState({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflow-events": {
+      "get": {
+        "tags": ["workflow"],
+        "operationId": "workflow.listWorkflowEvents",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.listWorkflowEvents({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionId}/workflow-metrics": {
+      "get": {
+        "tags": ["workflow"],
+        "operationId": "workflow.getWorkflowMetrics",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionID": {
+                      "type": "string"
+                    },
+                    "route": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string"
+                    },
+                    "routeDistribution": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "phaseDistribution": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "escalationCount": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "questionCalls": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "questionBudget": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "questionMisuseCount": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "blockedToolCount": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string"
+                        },
+                        "passed": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "failed": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "unverified": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["passed", "failed", "unverified"],
+                      "additionalProperties": false
+                    },
+                    "delivery": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string"
+                        },
+                        "completed": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        },
+                        "blocked": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["NaN"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["-Infinity"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["Infinity", "-Infinity", "NaN"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["completed", "blocked"],
+                      "additionalProperties": false
+                    },
+                    "phaseTransitions": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["NaN"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["-Infinity"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "firstEventAt": {
+                      "type": "string"
+                    },
+                    "lastEventAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sessionID",
+                    "routeDistribution",
+                    "phaseDistribution",
+                    "escalationCount",
+                    "questionCalls",
+                    "questionBudget",
+                    "questionMisuseCount",
+                    "blockedToolCount",
+                    "verification",
+                    "delivery",
+                    "phaseTransitions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.workflow.getWorkflowMetrics({\n  ...\n})"
           }
         ]
       }
@@ -36605,12 +37891,126 @@
                           "additionalProperties": false
                         }
                       },
+                      "plan": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "objective": {
+                              "type": "string"
+                            },
+                            "dependencies": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "input": {},
+                            "acceptanceCriteria": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "required": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": ["id", "text"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "retryPolicy": {
+                              "type": "object",
+                              "properties": {
+                                "maxAttempts": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["NaN"]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity"]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["-Infinity"]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "backoffMs": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["NaN"]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity"]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["-Infinity"]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "retryable": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": ["maxAttempts", "backoffMs", "retryable"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["id", "kind", "title", "objective"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "planningMode": {
+                        "type": "string",
+                        "enum": ["deterministic", "model"]
+                      },
                       "requestedBy": {
                         "type": "string"
                       },
                       "source": {
                         "type": "string",
                         "enum": ["user", "trigger", "plugin", "api", "agent"]
+                      },
+                      "goalId": {
+                        "type": "string"
+                      },
+                      "sessionId": {
+                        "type": "string"
                       }
                     },
                     "required": ["text"],
@@ -37452,6 +38852,12 @@
                   "source": {
                     "type": "string"
                   },
+                  "acceptanceIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "contentHash": {
                     "type": "string"
                   },
@@ -38053,7 +39459,8 @@
                   },
                   "strategyID": {
                     "type": "string"
-                  }
+                  },
+                  "input": {}
                 },
                 "required": ["failedVerificationIDs", "strategyID"],
                 "additionalProperties": false
@@ -42566,6 +43973,9 @@
             "$ref": "#/components/schemas/EventPlatformWebviewResolved"
           },
           {
+            "$ref": "#/components/schemas/EventSuper-agentOutboxPublished1"
+          },
+          {
             "$ref": "#/components/schemas/EventVcsBranchUpdated"
           },
           {
@@ -45521,6 +46931,9 @@
                 "$ref": "#/components/schemas/EventPlatformWebviewResolved"
               },
               {
+                "$ref": "#/components/schemas/EventSuper-agentOutboxPublished"
+              },
+              {
                 "$ref": "#/components/schemas/EventVcsBranchUpdated"
               },
               {
@@ -46923,6 +48336,9 @@
             "type": "object",
             "properties": {
               "enabled": {
+                "type": "boolean"
+              },
+              "open_in_app": {
                 "type": "boolean"
               }
             },
@@ -49754,11 +51170,38 @@
           "sourceId": {
             "type": "string"
           },
+          "displayName": {
+            "type": "string"
+          },
+          "displayNameI18n": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
           "version": {
             "type": "string"
           },
           "description": {
             "type": "string"
+          },
+          "longDescription": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "license": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "screenshots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "url": {
             "type": "string"
@@ -49777,6 +51220,18 @@
             "type": "string"
           },
           "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "marketTypes": {
             "type": "array",
             "items": {
               "type": "string"
@@ -58486,6 +59941,17 @@
         "required": ["name", "data"],
         "additionalProperties": false
       },
+      "effect_HttpApiError_Conflict": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["Conflict"]
+          }
+        },
+        "required": ["_tag"],
+        "additionalProperties": false
+      },
       "DynamicWorkflowRunSummary": {
         "type": "object",
         "properties": {
@@ -63370,17 +64836,6 @@
         "required": ["window", "states", "tokens", "rounds", "rework", "attempts", "blockers", "spend", "unavailable"],
         "additionalProperties": false
       },
-      "effect_HttpApiError_Conflict": {
-        "type": "object",
-        "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": ["Conflict"]
-          }
-        },
-        "required": ["_tag"],
-        "additionalProperties": false
-      },
       "RunWorktreeCleanup": {
         "type": "object",
         "properties": {
@@ -67797,6 +69252,62 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventSuper-agentOutboxPublished": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["super-agent.outbox.published"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "runID": {
+                "type": "string"
+              },
+              "eventID": {
+                "type": "string"
+              },
+              "sequence": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "eventType": {
+                "type": "string"
+              },
+              "payload": {
+                "type": "object"
+              }
+            },
+            "required": ["runID", "eventID", "sequence", "eventType", "payload"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "EventVcsBranchUpdated": {
         "type": "object",
         "properties": {
@@ -71015,6 +72526,58 @@
               }
             },
             "required": ["id", "sessionID", "action"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventSuper-agentOutboxPublished1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["super-agent.outbox.published"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "runID": {
+                "type": "string"
+              },
+              "eventID": {
+                "type": "string"
+              },
+              "sequence": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  }
+                ]
+              },
+              "eventType": {
+                "type": "string"
+              },
+              "payload": {
+                "type": "object"
+              }
+            },
+            "required": ["runID", "eventID", "sequence", "eventType", "payload"],
             "additionalProperties": false
           }
         },

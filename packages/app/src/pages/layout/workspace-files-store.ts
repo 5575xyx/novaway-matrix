@@ -134,13 +134,22 @@ export function createWorkspaceFiles(directory: () => string) {
       })
   }
 
+  // 轮询每 5s 重拉一次，如果每次都生成新条目对象，`<For>` 会按引用把整列按钮
+  // 拆掉重建（下拉刷新时整列闪一下）。这里按路径复用同一份条目，轮询只更新数据、
+  // 不换节点。
+  const entryCache = new Map<string, WorkspaceEntry>()
+  const stableEntry = (type: WorkspaceEntry["type"], path: string, name: string, ignored?: boolean) => {
+    const normalized = path.replaceAll("\\", "/")
+    const key = `${type}:${ignored ? 1 : 0}:${normalized}`
+    const cached = entryCache.get(key)
+    if (cached) return cached
+    const entry: WorkspaceEntry = { path: normalized, name, type, ignored: ignored === true }
+    entryCache.set(key, entry)
+    return entry
+  }
+
   const entriesOf = (data: { path: string; name: string; type: string; ignored?: boolean }[] | undefined) =>
-    (data ?? []).map((x) => ({
-      path: x.path.replaceAll("\\", "/"),
-      name: x.name,
-      type: x.type === "directory" ? ("dir" as const) : ("file" as const),
-      ignored: x.ignored === true,
-    }))
+    (data ?? []).map((x) => stableEntry(x.type === "directory" ? "dir" : "file", x.path, x.name, x.ignored === true))
 
   /** 目录行的加载/失败态：只在首次展开且还没内容时显示，轮询刷新不闪烁。 */
   const setDirState = (dir: string, state: "loading" | "error" | undefined) =>
@@ -332,11 +341,7 @@ export function createWorkspaceFiles(directory: () => string) {
 
   const changedEntries = createMemo(() =>
     changedFiles()
-      .map((file) => ({
-        path: file.replaceAll("\\", "/"),
-        name: file.split(/[\\/]/).pop() ?? file,
-        type: "file" as const,
-      }))
+      .map((file) => stableEntry("file", file, file.split(/[\\/]/).pop() ?? file))
       .sort((a, b) => a.path.localeCompare(b.path)),
   )
 
@@ -350,10 +355,7 @@ export function createWorkspaceFiles(directory: () => string) {
         const parent = separator < 0 ? "" : normalizedPath.slice(0, separator)
         return parent === dir && !current.has(normalizedPath.toLowerCase())
       })
-      .map(([path]) => {
-        const normalizedPath = path.replaceAll("\\", "/")
-        return { path: normalizedPath, name: normalizedPath.split("/").pop() ?? normalizedPath, type: "file" as const }
-      })
+      .map(([path]) => stableEntry("file", path, path.replaceAll("\\", "/").split("/").pop() ?? path))
     return [...entries, ...deleted].sort((a, b) =>
       a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1,
     )

@@ -60,6 +60,7 @@ export type SuperAgentDelegationInput = {
   childBudget?: Budget
   timeoutMs?: number
   watchdog?: SuperAgentWatchdog
+  abort?: AbortSignal
   securityPolicy?: SuperAgentSecurityPolicy
   maxParallelism?: number
 }
@@ -95,7 +96,24 @@ export class SuperAgentDelegationCoordinator {
         agentID: instruction.agentID,
         instruction: instruction.instruction,
       })
-      const output = await this.collect(adapter, handle)
+      const collect = this.collect(adapter, handle)
+      const output = this.input.abort
+        ? await Promise.race([
+            collect,
+            new Promise<never>((_, reject) => {
+              if (this.input.abort?.aborted) {
+                reject(new Error("child Agent cancelled"))
+                return
+              }
+              const cancel = () => reject(new Error("child Agent cancelled"))
+              this.input.abort?.addEventListener("abort", cancel, { once: true })
+              void collect.then(
+                () => this.input.abort?.removeEventListener("abort", cancel),
+                () => this.input.abort?.removeEventListener("abort", cancel),
+              )
+            }),
+          ])
+        : await collect
       if (this.input.store) {
         await this.persistChildTask(run.id, instruction.taskID, childTaskID, "succeeded", output)
         await Effect.runPromise(this.input.store.settleBudget(reservationID, { childAgents: 1, ...(this.input.childBudget ?? {}) }))

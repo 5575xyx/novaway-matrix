@@ -1,4 +1,5 @@
 import { createMemo, createSignal, For, onMount, Show } from "solid-js"
+import { produce } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { TaskRow } from "@/components/session/task-row"
 import { Icon } from "@novaway/ui/icon"
@@ -45,6 +46,27 @@ export function GlobalChatTasks() {
     return groups
   })
 
+  const removeSession = (session: Session) => {
+    const [, setSessionStore] = globalSync.child(session.directory)
+    setSessionStore(
+      "session",
+      produce((draft) => {
+        const index = draft.findIndex((item) => item.id === session.id)
+        if (index >= 0) draft.splice(index, 1)
+      }),
+    )
+  }
+
+  const archiveSession = async (session: Session) => {
+    await globalSync.sdkForDirectory("global-chat").session.update({
+      sessionID: session.id,
+      directory: session.directory,
+      time: { archived: Date.now() },
+    })
+    removeSession(session)
+    if (params.id === session.id) navigate("/global-chat/session")
+  }
+
   const renderTask = (session: Session) => {
     const status = () => {
       const type = store.session_status[session.id]?.type ?? "idle"
@@ -68,7 +90,17 @@ export function GlobalChatTasks() {
             title,
             directory: session.directory,
           })
+          const [, setSessionStore] = globalSync.child(session.directory)
+          setSessionStore(
+            "session",
+            produce((draft) => {
+              const item = draft.find((entry) => entry.id === session.id)
+              if (item) item.title = title
+            }),
+          )
         }}
+        onArchive={() => void archiveSession(session)}
+        onDelete={() => removeSession(session)}
         group={
           layout.taskList.groupBy() === "custom"
             ? {

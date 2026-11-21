@@ -1,13 +1,24 @@
-import { Component, Show, createEffect, createMemo, createResource, createSignal, type JSX } from "solid-js"
+import type { Config } from "@novaway/sdk/v2/client"
+import { useMutation } from "@tanstack/solid-query"
+import { Component, For, Show, createEffect, createMemo, createResource, createSignal, type JSX } from "solid-js"
 import { Icon } from "@novaway/ui/icon"
 import { Switch } from "@novaway/ui/switch"
 import { showToast } from "@novaway/ui/toast"
 import { writeClipboard } from "@novaway/ui/util/clipboard"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { useGlobalSync } from "@/context/global-sync"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { FeishuAppSetupGuide } from "./feishu-app-setup-guide"
-import { SettingsGroup } from "./settings-parts"
+import { SettingsGroup, SettingsNumberField } from "./settings-parts"
+
+const channelKindLabels: Record<string, string> = {
+  feishu: "飞书",
+  telegram: "Telegram",
+  dingtalk: "钉钉",
+  wecom: "企业微信",
+  slack: "Slack",
+}
 
 // 与其它设置页保持同一种行式布局：左侧标题 + 说明，右侧控件。
 function SettingsRow(props: {
@@ -120,6 +131,23 @@ function FeishuAppHelpTip() {
 export const SettingsNotifications: Component = () => {
   const settings = useSettings()
   const globalSDK = useGlobalSDK()
+  const globalSync = useGlobalSync()
+  const channels = createMemo(() => globalSync.data.config.channels ?? {})
+  const channelInstances = createMemo(() => channels().channels ?? [])
+  const channelMaxRestarts = createMemo(() => {
+    const value = channels().max_restarts
+    return typeof value === "number" ? value : undefined
+  })
+  const saveChannels = useMutation(() => ({
+    mutationFn: (config: Config) => globalSync.updateConfig(config),
+    onError: (err) =>
+      showToast({
+        title: "保存失败",
+        description: err instanceof Error ? err.message : String(err),
+      }),
+  }))
+  const updateChannels = (patch: Partial<NonNullable<Config["channels"]>>) =>
+    saveChannels.mutate({ channels: { ...channels(), ...patch } } as Config)
   const [connectors, { refetch: refetchConnectors }] = createResource(() =>
     globalSDK.client.office.platform.connector.list().then((result) => result.data ?? []),
   )
@@ -237,7 +265,7 @@ export const SettingsNotifications: Component = () => {
       <header class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--popover)_calc(100%_-_24px),transparent)] pb-2">
         <h2 class="text-24-semibold tracking-tight text-foreground">消息通知</h2>
         <p class="mt-1 text-12-regular leading-relaxed text-foreground-subtle">
-          将 NovaWay 的通知转发到飞书群，后续可在这里继续扩展其他通知渠道。
+          把 NovaWay 的通知转发到外部消息通道（飞书、Telegram、钉钉、企业微信、Slack）。
         </p>
       </header>
 
@@ -417,6 +445,82 @@ export const SettingsNotifications: Component = () => {
             </button>
           </SettingsRow>
         </SettingsGroup>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h3 class="pb-2 text-14-medium text-foreground">外部通道</h3>
+        <SettingsGroup>
+          <SettingsRow
+            title="启用外部通道"
+            description={
+              channelInstances().length === 0
+                ? "配置中还没有登记通道实例；先在配置文件里添加 channels.channels。"
+                : `已登记 ${channelInstances().length} 个实例。关闭后所有通道停止收发消息。`
+            }
+            disabled={channelInstances().length === 0 || saveChannels.isPending}
+          >
+            <Switch
+              checked={channels().enabled === true}
+              disabled={saveChannels.isPending || channelInstances().length === 0}
+              onChange={(value) => updateChannels({ enabled: value })}
+            />
+          </SettingsRow>
+          <SettingsRow
+            title="失败重启次数"
+            description="单个通道连续失败达到上限后标记为 failed，不再自动重启。"
+            disabled={channels().enabled !== true || saveChannels.isPending}
+          >
+            <SettingsNumberField
+              value={channelMaxRestarts()}
+              fallback={3}
+              min={0}
+              disabled={saveChannels.isPending || channels().enabled !== true}
+              onSave={(value) => updateChannels({ max_restarts: value })}
+            />
+          </SettingsRow>
+          <Show
+            when={channelInstances().length > 0}
+            fallback={
+              <SettingsRow
+                title="已登记实例"
+                description="还没有通道实例。在配置文件的 channels.channels 中添加后，这里会显示只读概览。"
+              >
+                <span class="text-12-regular text-foreground-subtlest">无</span>
+              </SettingsRow>
+            }
+          >
+            <For each={channelInstances()}>
+              {(channel) => (
+                <SettingsRow
+                  title={
+                    <span class="inline-flex items-center gap-2">
+                      {channel.name}
+                      <span class="rounded-md bg-surface px-1.5 py-0.5 text-11-regular text-foreground-subtle">
+                        {channelKindLabels[channel.kind] ?? channel.kind}
+                      </span>
+                      <Show when={channel.enabled === false}>
+                        <span class="text-11-regular text-foreground-subtlest">实例已单独关闭</span>
+                      </Show>
+                    </span>
+                  }
+                  description={
+                    channel.secret_name
+                      ? `凭据来自秘密存储：${channel.secret_name}`
+                      : "凭据以明文写在配置中；建议改为 secret_name 引用秘密存储。"
+                  }
+                >
+                  <span class="text-12-regular text-foreground-subtlest">
+                    {channel.secret_name ? "已接入秘密存储" : "明文配置"}
+                  </span>
+                </SettingsRow>
+              )}
+            </For>
+          </Show>
+        </SettingsGroup>
+        <div class="px-1 pt-2 text-12-regular leading-5 text-foreground-subtle">
+          凭据不放设置页：在秘密存储中为每个通道建一条记录，用 channels.channels 的 secret_name
+          指向它；需要回调的通道（钉钉 / 企业微信 / Slack）再配置 host、port 与 path。
+        </div>
       </div>
     </div>
   )

@@ -161,6 +161,7 @@ export function agentDisplayName(name: string, options?: Record<string, unknown>
 // 办公类代理从 server 的中文 description 里提取("用于A、B和C" → [A,B,C])。
 const agentFeatureWords: Record<string, string[]> = {
   "agents-orchestrator": ["任务拆解", "多体协作", "自动推进"],
+  "agency-agents_agents-orchestrator": ["任务拆解", "多体协作", "自动推进"],
   build: ["读写代码", "执行命令", "修复测试"],
   plan: ["只读分析", "方案设计", "确认后执行"],
   general: ["深度调研", "多步执行", "知识问答"],

@@ -23,6 +23,12 @@ describe("file path helpers", () => {
     expect(path.normalize("c:\\repo\\src\\app.ts")).toBe("src/app.ts")
   })
 
+  test("preserves external Windows paths through file tabs", () => {
+    const path = createPathHelpers(() => "C:\\repo")
+    const external = "D:\\360data\\重要数据\\桌面\\超高压\\dify版本升级.docx"
+    expect(path.pathFromTab(path.tab(external))).toBe("D:/360data/重要数据/桌面/超高压/dify版本升级.docx")
+  })
+
   test("keeps query/hash stripping behavior stable", () => {
     expect(stripQueryAndHash("a/b.ts#L12?x=1")).toBe("a/b.ts")
     expect(stripQueryAndHash("a/b.ts?x=1#L12")).toBe("a/b.ts")

@@ -1,4 +1,4 @@
-const shardCount = Number(process.env.NOVAWAY_HTTPAPI_EFFECT_SHARDS ?? "2")
+const shardCount = Number(process.env.NOVAWAY_HTTPAPI_EFFECT_SHARDS ?? "4")
 if (!Number.isInteger(shardCount) || shardCount < 1) {
   throw new Error(`invalid NOVAWAY_HTTPAPI_EFFECT_SHARDS: ${process.env.NOVAWAY_HTTPAPI_EFFECT_SHARDS}`)
 }
@@ -32,7 +32,8 @@ async function runShard(shard: number) {
   return 1
 }
 
-const exitCodes = await Promise.all(Array.from({ length: shardCount }, (_, shard) => runShard(shard)))
+const exitCodes: number[] = []
+for (let shard = 0; shard < shardCount; shard++) exitCodes.push(await runShard(shard))
 const failures = exitCodes.filter((code) => code !== 0)
 if (failures.length > 0) {
   throw new Error(`${failures.length}/${shardCount} HTTP effect shards failed after one retry`)

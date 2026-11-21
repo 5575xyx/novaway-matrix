@@ -7,7 +7,7 @@ import { Provider } from "@/provider/provider"
 import * as Session from "@/session/session"
 import { Service as ToolRegistry } from "@/tool/registry"
 import { Effect } from "effect"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { notFound } from "../errors"
 
@@ -216,6 +216,10 @@ export const goalHandlers = HttpApiBuilder.group(InstanceHttpApi, "goal", (handl
       )
       .handle("updateGoal", (ctx) =>
         Effect.gen(function* () {
+          // Completion is a Runtime-owned transition. Allowing a generic
+          // PATCH to mark a Goal complete would bypass acceptance, evidence,
+          // and verification gates.
+          if ((ctx.payload.status as string | undefined) === "completed") return yield* new HttpApiError.BadRequest({})
           const updated = yield* goal
             .update({
               goalId: ctx.params.goalId,

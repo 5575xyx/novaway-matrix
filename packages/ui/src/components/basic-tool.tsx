@@ -11,7 +11,7 @@ import {
   Switch,
   type JSX,
 } from "solid-js"
-import { animate, type AnimationPlaybackControls } from "motion"
+import { animate, type AnimationPlaybackControls } from "../util/motion"
 import { Breathing } from "./breathing"
 import { useI18n } from "../context/i18n"
 import { createStore } from "solid-js/store"

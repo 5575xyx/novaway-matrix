@@ -21,7 +21,7 @@ const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_SIDE_PANE_WIDTH = 360
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
-export type AppMode = "forge" | "zen" | "spark" | "future"
+export type AppMode = string
 
 export type AppModeConfig = {
   id: AppMode
@@ -31,57 +31,75 @@ export type AppModeConfig = {
   description: string
   color: string
   foreground: string
+  /** Plugin-declared group used by the host's optional productized UI. */
+  group?: string
 }
 
+/**
+ * 只有宿主内核模式固定存在；所有产品化工作台都由已激活插件的 Agent
+ * `options.workbench` 元数据动态提供。这里不能放 Zen、办公、短剧等模式，
+ * 否则卸载插件后它们仍会被宿主重新创建。
+ */
 export const APP_MODES: AppModeConfig[] = [
   {
     id: "forge",
-    name: "编码模式",
-    shortName: "编码",
-    icon: "F",
-    description: "编程、调试、项目工程和代码协作专用工作舱。",
+    name: "Creova",
+    shortName: "Creova",
+    icon: "N",
+    description: "NovaWay 通用工作模式，可使用已启用的工作台、智能体与技能。",
     color: "var(--app-mode-forge)",
     foreground: "var(--app-mode-forge-foreground)",
-  },
-  {
-    id: "zen",
-    name: "办公模式",
-    shortName: "办公",
-    icon: "Z",
-    description: "文档、日程、办公协作和轻量知识处理空间。",
-    color: "var(--app-mode-zen)",
-    foreground: "var(--app-mode-zen-foreground)",
-  },
-  {
-    id: "spark",
-    name: "创意模式",
-    shortName: "创意",
-    icon: "S",
-    description: "写作、视频、短剧、海报和创意生成工作室。",
-    color: "var(--app-mode-spark)",
-    foreground: "var(--app-mode-spark-foreground)",
-  },
-  {
-    id: "future",
-    name: "探索模式",
-    shortName: "探索",
-    icon: "N",
-    description: "为高级用户预留的自定义工作流和探索空间。",
-    color: "var(--app-mode-future)",
-    foreground: "var(--app-mode-future-foreground)",
   },
 ]
 
 export const appModeConfig = (mode: AppMode | undefined | null) => APP_MODES.find((item) => item.id === mode)
 
+/** 通过插件声明的 group 判断产品化 UI，不依赖某个固定模式 id。 */
+export function appModeIsGroup(mode: AppMode | undefined | null, group: string, modes: readonly AppModeConfig[]) {
+  return Boolean(mode && modes.find((item) => item.id === mode)?.group === group)
+}
+
+type WorkbenchAgent = {
+  mode?: string
+  hidden?: boolean
+  options?: Record<string, unknown>
+}
+
+function textOption(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
+
+/** 从插件 Agent 的 options 中读取工作台元数据。没有显式 id 时，使用插件声明的 modeGroup；宿主不再把 office 映射成 Zen。 */
+export function workbenchModeFromAgent(agent: WorkbenchAgent): AppModeConfig | undefined {
+  if (agent.mode === "subagent" || agent.hidden || !agent.options) return undefined
+  const group = textOption(agent.options.modeGroup)
+  if (!group || group === "forge") return undefined
+  const raw = agent.options.workbench
+  const workbench = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
+  const id = textOption(workbench.id) ?? group
+  if (!id || id === "forge" || RETIRED_APP_MODES.has(id)) return undefined
+
+  return {
+    id,
+    group,
+    name: textOption(workbench.name) ?? id,
+    shortName: textOption(workbench.shortName) ?? id,
+    icon: textOption(workbench.icon) ?? "W",
+    description: textOption(workbench.description) ?? `${id} 工作台。`,
+    color: textOption(workbench.color) ?? "var(--app-mode-workbench, var(--app-mode-forge))",
+    foreground:
+      textOption(workbench.foreground) ?? "var(--app-mode-workbench-foreground, var(--app-mode-forge-foreground))",
+  }
+}
+
 /**
  * 曾经存在、后已下线的模式。
  *
- * "pulse"（运营模式）已移除：运营工作台不再是一种「工作模式」，而是图标条上的常驻入口，
- * 任何模式下都能打开。持久化里残留的 "pulse" 必须在迁移时清掉 ——
- * 否则侧栏读到的 current 是个未知模式，模式胶囊会显示成未选择的占位、项目过滤也全部失效。
+ * "pulse"（运营）改为图标条常驻入口；"spark"（创意）、"future"（探索）整体下线。
+ * 持久化里残留的这些 id 必须在迁移时清掉 ——
+ * 否则侧栏读到的 current 是个未知模式，模式开关会显示成未选择的占位、项目过滤也全部失效。
  */
-const RETIRED_APP_MODES = new Set(["pulse"])
+const RETIRED_APP_MODES = new Set(["pulse", "spark", "future"])
 
 export function getAvatarColors(key?: string) {
   if (key && AVATAR_COLOR_KEYS.includes(key as AvatarColorKey)) {
@@ -226,6 +244,19 @@ const normalizeStoredSessionTabs = (key: string, tabs: SessionTabs) => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+/** 项目列表对象的逐字段内容比较（数组 / 对象按 JSON 值比较，不做引用比较）。 */
+function sameProjectContent(a: Record<string, unknown>, b: Record<string, unknown>) {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const key of keys) {
+    const left = a[key]
+    const right = b[key]
+    if (left === right) continue
+    if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false
+    if (JSON.stringify(left) !== JSON.stringify(right)) return false
+  }
+  return true
+}
+
 export type SidePaneState = {
   opened: boolean
   tabs: SidePaneTab[]
@@ -283,7 +314,7 @@ export const SIDE_PANE_TREE_MAX_WIDTH = 480
 export const DEFAULT_SIDE_PANE_TREE_WIDTH = 260
 
 // 网页预览（浏览器）、工作区文件与 Office 文件是并列的内置标签。
-export const SIDE_PANE_TABS = ["preview", "office", "browser", "terminal", "review"] as const
+export const SIDE_PANE_TABS = ["preview", "office", "browser", "terminal", "review", "super-agent"] as const
 
 /**
  * Side Pane 的动态标签：一个标签对应一个**会话**（`background` 例外——它对应
@@ -501,7 +532,7 @@ export function migrateLayoutStore(value: unknown) {
     const keptProjects = Object.fromEntries(
       Object.entries(projectModes).filter((entry): entry is [string, AppMode] => {
         const id = entry[1]
-        return typeof id === "string" && !RETIRED_APP_MODES.has(id) && !!appModeConfig(id as AppMode)
+        return typeof id === "string" && !RETIRED_APP_MODES.has(id)
       }),
     )
     const current = typeof mode.current === "string" && !RETIRED_APP_MODES.has(mode.current) ? mode.current : undefined
@@ -890,6 +921,24 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       return base
     }
 
+    /*
+     * 项目对象按内容复用。
+     *
+     * `enrich` / `allProjects` 每次重算都会生成新对象，而侧栏用 `<For each={项目列表}>`
+     * 渲染：对象身份一变，整个分组连同下面的任务列表会被拆掉重建。
+     * 保存设置这类会触发全局 bootstrap 的操作会重写 project 列表，于是「一操作侧栏就闪」。
+     * 这里按 worktree 缓存上一次的对象，内容没变就直接复用，`For` 只动真正变化的行。
+     */
+    const projectSnapshots = new Map<string, LocalProject>()
+    function stableProject(project: LocalProject) {
+      const previous = projectSnapshots.get(project.worktree)
+      if (previous && sameProjectContent(previous as Record<string, unknown>, project as Record<string, unknown>)) {
+        return previous
+      }
+      projectSnapshots.set(project.worktree, project)
+      return project
+    }
+
     const roots = createMemo(() => {
       const map = new Map<string, string>()
       for (const project of globalSync.data.project) {
@@ -961,14 +1010,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         : allProjects().filter((project) => (store.mode.projects[pathKey(project.worktree)] ?? mode) === mode)
       // 置顶的项目排在最前（多个置顶按置顶时间倒序），其余保持原有顺序。
       const pins = store.pinned?.projects ?? {}
-      return [...visible].sort((a, b) => {
-        const pa = pins[pathKey(a.worktree)] ?? 0
-        const pb = pins[pathKey(b.worktree)] ?? 0
-        if (pa && pb) return pb - pa
-        if (pa) return -1
-        if (pb) return 1
-        return 0
-      })
+      return [...visible]
+        .sort((a, b) => {
+          const pa = pins[pathKey(a.worktree)] ?? 0
+          const pb = pins[pathKey(b.worktree)] ?? 0
+          if (pa && pb) return pb - pa
+          if (pa) return -1
+          if (pb) return 1
+          return 0
+        })
+        .map(stableProject)
     })
 
     createEffect(() => {
@@ -1065,6 +1116,48 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       })
     }
 
+    /**
+     * 工作台不是宿主硬编码菜单：插件激活后，它的 primary Agent options 中的
+     * `workbench`/`modeGroup` 会被实时合并进左上角切换器。plugin.changed 事件会让
+     * global-sync 重拉 Agent，因此安装、启用、停用都不需要重启客户端。
+     */
+    const availableModes = createMemo<AppModeConfig[]>(() => {
+      const result = [APP_MODES[0]!] as AppModeConfig[]
+      const seen = new Set<string>([result[0]!.id])
+      for (const project of server.projects.list()) {
+        const [child] = globalSync.child(project.worktree, { bootstrap: false })
+        const byGroup = new Map<string, WorkbenchAgent>()
+        for (const agent of child.agent as WorkbenchAgent[]) {
+          if (agent.mode === "subagent" || agent.hidden || !agent.options) continue
+          const group = textOption(agent.options.modeGroup)
+          if (!group || group === "forge") continue
+          // Prefer the Agent that carries the complete workbench metadata. The
+          // remaining Agents in that group inherit the same dynamic mode.
+          const raw = agent.options.workbench
+          const hasWorkbench = raw && typeof raw === "object" && !Array.isArray(raw)
+          if (!byGroup.has(group) || hasWorkbench) byGroup.set(group, agent)
+        }
+        for (const agent of byGroup.values()) {
+          const mode = workbenchModeFromAgent(agent)
+          if (!mode || seen.has(mode.id)) continue
+          seen.add(mode.id)
+          result.push(mode)
+        }
+      }
+      return result
+    })
+
+    createEffect(() => {
+      const current = store.mode.current
+      if (!current || current === "forge") return
+      if (availableModes().some((mode) => mode.id === current)) return
+      // 插件被停用/卸载后，当前工作台立即回到编码模式，避免输入框仍引用已消失的 Agent。
+      batch(() => {
+        setStore("mode", "current", "forge")
+        setStore("mode", "hasSelected", true)
+      })
+    })
+
     return {
       ready,
       handoff: {
@@ -1137,7 +1230,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       },
       mode: {
-        all: APP_MODES,
+        all: availableModes,
         current: createMemo(() => store.mode.current),
         hasSelected: createMemo(() => store.mode.hasSelected),
         projectMode(directory: string) {

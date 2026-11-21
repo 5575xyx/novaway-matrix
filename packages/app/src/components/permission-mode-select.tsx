@@ -1,10 +1,11 @@
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { Icon } from "@novaway/ui/icon"
-import { Show, type Component } from "solid-js"
+import { Show, createSignal, type Component, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { usePermission } from "@/context/permission"
 import { useSDK } from "@/context/sdk"
 import { PERMISSION_MODES, type PermissionTone, type SessionPermissionMode } from "@/context/permission-risk"
+import { ConfirmDialog } from "./dialog-confirm"
 
 /**
  * 档位配色通过主题语义色区分风险等级，不绑定具体色相；越靠后代表权限越宽。
@@ -35,6 +36,8 @@ const TONE_TEXT: Record<PermissionTone, string> = {
  */
 const SEPARATOR_AFTER = new Set([0, PERMISSION_MODES.length - 2])
 
+const DANGEROUS_MODES = new Set<SessionPermissionMode>(["bypassPermissions", "unattended"])
+
 /**
  * 会话权限档位选择器 —— 全应用**唯一**的权限开关。
  *
@@ -58,16 +61,70 @@ export const PermissionModeSelect: Component<{
   const inherited = () => permission.isInherited(sessionID(), sdk.directory)
   const defaultMode = () => permission.defaultMode(sdk.directory)
   const mode = () => PERMISSION_MODES.find((item) => item.value === current()) ?? PERMISSION_MODES[0]
+  const [pendingMode, setPendingMode] = createSignal<SessionPermissionMode>()
 
-  const choose = (value: SessionPermissionMode) => {
-    // 新建会话界面还没有 session：档位先记在"待定"槽位，创建会话时写进去；
-    // 不会改动设置里的全局默认值。
+  const apply = (value: SessionPermissionMode) => {
+    setPendingMode(undefined)
     permission.setMode(sessionID(), sdk.directory, value)
     props.onChange?.(value)
   }
 
+  const confirmationDescription = (value: SessionPermissionMode): JSX.Element => {
+    const unattended = value === "unattended"
+    return (
+      <div class="flex flex-col gap-3">
+        <p class="leading-5 text-foreground-subtle">
+          {unattended
+            ? "无人值守会让模型在没有人工介入的情况下持续推进任务。只有在你明确理解并接受以下风险后才建议启用。"
+            : "跳过所有确认会让权限请求直接放行。自主审批仍会拦截的危险操作，在此档位也不会再弹出确认。"}
+        </p>
+        <div class="rounded-lg border border-critical-base/30 bg-surface-critical-weak px-3 py-2.5">
+          <div class="mb-1 text-12-medium text-text-critical-base">可能触及的危险操作</div>
+          <ul class="list-disc space-y-1 pl-4 text-12-regular leading-5 text-foreground-subtle">
+            <li>执行删除、覆盖、重置、终止进程等不可逆的本地命令。</li>
+            <li>修改或删除工作区文件，安装依赖，执行 Git 提交、推送或发布。</li>
+            <li>访问工作区之外的目录、网络资源或外部服务。</li>
+            <li>
+              {unattended
+                ? "遇到需要澄清或拍板的问题时，由模型自行决定，不再等待你回答。"
+                : "遇到需要用户回答的问题时仍可能暂停等待输入。"}
+            </li>
+          </ul>
+        </div>
+        <p class="text-12-regular text-foreground-subtlest">
+          {unattended
+            ? "建议仅对可回滚、边界明确的长任务使用，并同时设置目标、验收标准和预算。"
+            : "如只是希望常规编辑自动执行，建议继续使用“自主审批”，它仍会拦截高风险操作。"}
+        </p>
+      </div>
+    )
+  }
+
+  const choose = (value: SessionPermissionMode) => {
+    if (value === current()) return
+    if (DANGEROUS_MODES.has(value)) {
+      setPendingMode(value)
+      return
+    }
+    apply(value)
+  }
+
   return (
     <div data-component="permission-mode-select" class="flex items-center gap-1.5">
+      <ConfirmDialog
+        open={pendingMode() !== undefined}
+        title={language.t("permission.mode.confirmDangerTitle")}
+        description={pendingMode() ? confirmationDescription(pendingMode()!) : ""}
+        confirmText={language.t(
+          pendingMode() === "unattended" ? "permission.mode.confirmUnattended" : "permission.mode.confirmDanger",
+        )}
+        variant="danger"
+        onConfirm={() => {
+          const value = pendingMode()
+          if (value) apply(value)
+        }}
+        onClose={() => setPendingMode(undefined)}
+      />
       <DropdownMenu gutter={4} placement="top-end">
         <DropdownMenu.Trigger
           as="button"

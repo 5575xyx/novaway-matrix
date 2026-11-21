@@ -1,3 +1,4 @@
+import { TextField } from "@novaway/ui/text-field"
 import { type Component, type JSX } from "solid-js"
 
 /**
@@ -43,6 +44,43 @@ export const SettingsPage: Component<{
     <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-8">{props.children}</div>
   </div>
 )
+
+/**
+ * 行内数字输入：失焦或回车时写入，非法值直接丢弃。
+ * `step` 小于 1 时保留小数（比例类配置），否则按整数处理。
+ */
+export const SettingsNumberField: Component<{
+  value: number | undefined
+  fallback: number
+  onSave: (value: number) => void
+  min?: number
+  max?: number
+  step?: number
+  disabled?: boolean
+}> = (props) => {
+  const step = () => props.step ?? 1
+  return (
+    <TextField
+      type="number"
+      min={String(props.min ?? 0)}
+      max={props.max === undefined ? undefined : String(props.max)}
+      step={String(step())}
+      value={String(props.value ?? props.fallback)}
+      label=""
+      hideLabel
+      disabled={props.disabled}
+      onBlur={(event: FocusEvent & { currentTarget: HTMLInputElement }) => {
+        const parsed = Number(event.currentTarget.value)
+        if (!Number.isFinite(parsed)) return
+        const next = step() < 1 ? parsed : Math.floor(parsed)
+        props.onSave(Math.min(props.max ?? Number.POSITIVE_INFINITY, Math.max(props.min ?? 0, next)))
+      }}
+      onKeyDown={(event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
+        if (event.key === "Enter") event.currentTarget.blur()
+      }}
+    />
+  )
+}
 
 export const SettingsGroup: Component<{ children: JSX.Element; class?: string }> = (props) => (
   <div class={`overflow-hidden rounded-xl border border-border/80 bg-surface shadow-sm ${props.class ?? ""}`}>

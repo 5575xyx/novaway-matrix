@@ -205,6 +205,10 @@ export function createPlatform(): Platform {
 
     getInstalledEditors: () => window.api.getInstalledEditors(),
 
+    getOfficeApps: () => window.api.getOfficeApps(),
+
+    getFileIcon: (path) => window.api.getFileIcon(path),
+
     async openInEditor(editorId, path, kind, connection) {
       if (connection.type === "sidecar" && connection.variant === "base") {
         return window.api.openInEditor(editorId, path, kind)
@@ -319,5 +323,18 @@ export function createPlatform(): Platform {
         type: "image/png",
       })
     },
+
+    getAppAppearance: () => window.api.getAppAppearance(),
+    setAppName: (name) => window.api.setAppName(name),
+    setAppIcon: (id) => window.api.setAppIcon(id),
+    importAppIcon: () => window.api.importAppIcon(),
+    importAppIconPair: () => window.api.importAppIconPair(),
+    setAppAppearanceMode: (mode) => window.api.setAppAppearanceMode(mode),
+    deleteAppIcon: (id) => window.api.deleteAppIcon(id),
+    getAppIconData: (id, mode) => window.api.getAppIconData(id, mode),
+    generateAppIconFromImage: (source, label, frame, mode, targetId, themed) =>
+      window.api.generateAppIconFromImage(source, label, frame, mode, targetId, themed),
+    openAppIconDir: () => window.api.openAppIconDir(),
+    onAppAppearanceChange: (cb) => window.api.onAppAppearanceChange(cb),
   }
 }

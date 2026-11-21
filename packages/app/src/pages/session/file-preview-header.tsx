@@ -8,7 +8,7 @@
  */
 import { For, Show } from "solid-js"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
-import { Icon } from "@novaway/ui/icon"
+import { Icon, type IconProps } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { getFilename } from "@novaway/core/util/path"
 import { useLanguage } from "@/context/language"
@@ -24,6 +24,12 @@ export type PreviewMenuItem = {
   disabled?: boolean
   /** 右侧的快捷键 / 补充说明，例如 ⌘F。 */
   hint?: string
+  /** 内置图标名（资源管理器、终端这类系统动作）。 */
+  icon?: IconProps["name"]
+  /** 真实应用图标的 dataURL（本机编辑器 / Office 应用），优先于 icon。 */
+  iconSrc?: string
+  /** 在该条目前画一条分隔线（应用列表与系统动作之间）。 */
+  divider?: "before"
 }
 
 export type PreviewMenuGroup = {
@@ -227,12 +233,23 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
                 title={language.t("session.filePreview.openWith")}
               />
               <DropdownMenu.Portal>
-                <DropdownMenu.Content class="max-h-[70vh] overflow-y-auto" style={{ "min-width": "210px" }}>
+                <DropdownMenu.Content class="max-h-[70vh] overflow-y-auto" style={{ "min-width": "230px" }}>
                   <For each={props.openNativeMenu ?? []}>
                     {(item) => (
-                      <DropdownMenu.Item disabled={item.disabled} onSelect={item.onSelect}>
-                        <DropdownMenu.ItemLabel>{item.label}</DropdownMenu.ItemLabel>
-                      </DropdownMenu.Item>
+                      <>
+                        <Show when={item.divider === "before"}>
+                          <DropdownMenu.Separator />
+                        </Show>
+                        <DropdownMenu.Item disabled={item.disabled} onSelect={item.onSelect}>
+                          <DropdownMenu.ItemLabel class="flex items-center gap-2">
+                            <MenuItemIcon item={item} />
+                            <span class="min-w-0 flex-1 truncate">{item.label}</span>
+                            <Show when={item.checked}>
+                              <Icon name="check-small" size="small" class="shrink-0 text-interactive-base" />
+                            </Show>
+                          </DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                      </>
                     )}
                   </For>
                 </DropdownMenu.Content>
@@ -322,6 +339,27 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
   )
 }
 
+/** 菜单条目左侧的图标位：真实应用图标（dataURL）优先，其次内置图标，再次是选中勾。 */
+function MenuItemIcon(props: { item: PreviewMenuItem }) {
+  return (
+    <span class="flex w-4 shrink-0 items-center justify-center">
+      <Show
+        when={props.item.iconSrc}
+        fallback={
+          <Show
+            when={props.item.icon}
+            fallback={<span class="text-ui-xs text-foreground">{props.item.checked ? "✓" : ""}</span>}
+          >
+            <Icon name={props.item.icon!} size="small" class="text-foreground-subtle" />
+          </Show>
+        }
+      >
+        <img src={props.item.iconSrc} alt="" class="size-4 shrink-0 object-contain" draggable={false} />
+      </Show>
+    </span>
+  )
+}
+
 /** 「视图▾」与「⋯」共用同一套条目渲染：选中勾、快捷键提示只在这里定义一次。 */
 function MenuItems(props: { items: PreviewMenuItem[] }) {
   return (
@@ -329,7 +367,7 @@ function MenuItems(props: { items: PreviewMenuItem[] }) {
       {(item) => (
         <DropdownMenu.Item disabled={item.disabled} onSelect={item.onSelect}>
           <DropdownMenu.ItemLabel class="flex items-center gap-2">
-            <span class="w-3 shrink-0 text-ui-xs text-foreground">{item.checked ? "✓" : ""}</span>
+            <MenuItemIcon item={item} />
             <span class="min-w-0 flex-1 truncate">{item.label}</span>
             <Show when={item.hint}>
               <span class="shrink-0 text-ui-xs text-foreground-subtlest">{item.hint}</span>

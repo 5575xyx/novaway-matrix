@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-16",
+  "scope": "Super-Agent host, outbox, watchdog, Agent Runtime and isolated UI test resources",
+  "commands": [
+    "bun test test/super-agent/host-service.test.ts --timeout 120000",
+    "bun test test/super-agent --timeout 120000",
+    "netstat -ano | grep LISTENING | grep -E '4199|3323|65200|49484'"
+  ],
+  "results": {
+    "hostService": {
+      "passed": 1,
+      "failed": 0,
+      "expectations": 7,
+      "activeOutboxWorkersAfterDispose": 0,
+      "activeWatchdogWorkersAfterDispose": 0,
+      "registeredInstancesAfterDispose": 0
+    },
+    "superAgentSuite": {
+      "passed": 61,
+      "failed": 0,
+      "expectations": 224,
+      "files": 16
+    },
+    "isolatedPortsAfterTests": {
+      "4199": "not listening",
+      "3323": "not listening",
+      "65200": "not listening",
+      "49484": "not listening"
+    },
+    "testOwnedProcessCleanup": "confirmed"
+  },
+  "limitations": [
+    "This automated artifact does not replace SA-G12 human release sampling/sign-off.",
+    "External deployment-level consumers are not represented by this local evidence."
+  ]
+}

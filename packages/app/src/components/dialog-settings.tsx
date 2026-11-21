@@ -1,4 +1,4 @@
-import { Component, Suspense, createEffect, createMemo, createSignal, untrack } from "solid-js"
+import { Component, Show, Suspense, createEffect, createMemo, createSignal, untrack } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Tabs } from "@novaway/ui/tabs"
 import { Icon } from "@novaway/ui/icon"
@@ -14,9 +14,12 @@ import { SettingsNotifications } from "./settings-notifications"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsBrowser } from "./settings-browser"
 import { SettingsComputer } from "./settings-computer"
+import { SettingsAutomation } from "./settings-automation"
+import { SettingsArena } from "./settings-arena"
 import { SettingsCommands } from "./settings-commands"
 import { SettingsHooks } from "./settings-hooks"
 import { SettingsUsage } from "./settings-usage"
+import { SettingsData } from "./settings-data"
 
 const settingsTabs = [
   "general",
@@ -31,7 +34,11 @@ const settingsTabs = [
   "commands",
   "hooks",
   "rules",
+  "automation",
+  "arena",
   "usage",
+  "data",
+  "extensions",
   "mcp",
   "plugins",
 ] as const
@@ -42,6 +49,8 @@ export const isSettingsTab = (value: string): value is SettingsTab => settingsTa
 // 设置页挂在**应用级** Suspense 之下。某个标签页里只要有一个资源还在加载，
 // 整个应用就会被换成启动 Splash（用户看到的"切个菜单整页闪一下"）。
 // 每个标签外面包一层局部 Suspense，把等待限制在面板内部。
+// Every settings panel owns its loading boundary so switching tabs does not
+// replace the whole settings drawer with the application splash screen.
 const SettingsPanelFallback = () => (
   <div class="flex h-full flex-col gap-3 p-6 sm:p-10">
     <div class="h-6 w-40 animate-pulse rounded bg-surface" />
@@ -54,13 +63,74 @@ const SettingsPanelFallback = () => (
   </div>
 )
 
+const extensionManagementTabs = ["agents", "plugins", "mcp", "skills"] as const
+type ExtensionManagementTab = (typeof extensionManagementTabs)[number]
+
+const isExtensionManagementTab = (value: SettingsTab | undefined): value is ExtensionManagementTab =>
+  value !== undefined && extensionManagementTabs.includes(value as ExtensionManagementTab)
+
+const SettingsExtensions: Component<{ directory?: string; initialTab: ExtensionManagementTab }> = (props) => {
+  const language = useLanguage()
+  const [tab, setTab] = createSignal<ExtensionManagementTab>(props.initialTab)
+  createEffect(() => setTab(props.initialTab))
+  const labels: Record<ExtensionManagementTab, string> = {
+    agents: language.t("settings.agents.title"),
+    plugins: language.t("settings.plugins.title"),
+    mcp: language.t("settings.mcp.title"),
+    skills: language.t("settings.skills.title"),
+  }
+
+  return (
+    <div class="flex min-h-full flex-col">
+      <div
+        class="sticky top-0 z-10 flex shrink-0 gap-1 border-b border-border bg-background px-6 py-4 sm:px-10"
+        role="tablist"
+      >
+        {extensionManagementTabs.map((value) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab() === value}
+            class="rounded-lg px-4 py-2 text-13-medium transition-colors"
+            classList={{
+              "bg-surface text-foreground": tab() === value,
+              "text-foreground-subtle hover:bg-hover hover:text-foreground": tab() !== value,
+            }}
+            onClick={() => setTab(value)}
+          >
+            {labels[value]}
+          </button>
+        ))}
+      </div>
+      <div class="min-h-0 flex-1">
+        <Show when={tab() === "agents"}>
+          <SettingsAgents directory={props.directory} />
+        </Show>
+        <Show when={tab() === "plugins"}>
+          <SettingsPlugins directory={props.directory} />
+        </Show>
+        <Show when={tab() === "mcp"}>
+          <SettingsMcp />
+        </Show>
+        <Show when={tab() === "skills"}>
+          <SettingsSkills />
+        </Show>
+      </div>
+    </div>
+  )
+}
+
 export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: string; onBack?: () => void }> = (
   props,
 ) => {
   const language = useLanguage()
   const params = useParams()
   const directory = createMemo(() => props.directory ?? decode64(params.dir) ?? undefined)
-  const [tab, setTab] = createSignal<SettingsTab>(props.initialTab ?? "general")
+  const initialExtensionTab = isExtensionManagementTab(props.initialTab) ? props.initialTab : "agents"
+  const [extensionTab, setExtensionTab] = createSignal<ExtensionManagementTab>(initialExtensionTab)
+  const [tab, setTab] = createSignal<SettingsTab>(
+    isExtensionManagementTab(props.initialTab) ? "extensions" : (props.initialTab ?? "general"),
+  )
   const globalSync = useGlobalSync()
 
   /*
@@ -87,7 +157,9 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
   })
 
   createEffect(() => {
-    const next = props.initialTab ?? "general"
+    const requested = props.initialTab
+    const next = isExtensionManagementTab(requested) ? "extensions" : (requested ?? "general")
+    if (isExtensionManagementTab(requested)) setExtensionTab(requested)
     untrack(() => {
       if (next === tab()) return
       setTab(next)
@@ -98,6 +170,11 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
   // 只会让切换看起来卡顿。
   const changeTab = (value: string) => {
     if (!isSettingsTab(value)) return
+    if (isExtensionManagementTab(value)) {
+      setExtensionTab(value)
+      setTab("extensions")
+      return
+    }
     if (value === tab()) return
     setTab(value)
   }
@@ -113,8 +190,8 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
         style={{ "--settings-accent": "var(--icon-interactive-base)" }}
       >
         <Tabs.List>
-          <div class="flex flex-col justify-between h-full w-full">
-            <div class="flex flex-col gap-3 w-full">
+          <div class="flex flex-col h-full w-full gap-4 pb-[50px]">
+            <div class="sticky top-0 z-10 flex flex-col gap-3 w-full bg-panel pb-3">
               <Button
                 variant="ghost"
                 icon="arrow-left"
@@ -146,6 +223,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                 </span>
               </div>
               <div class="h-px w-full bg-border" />
+            </div>
               {/*
                 导航按三组组织（基础设置 / Agent 能力 / 数据与统计）：
                 之前是十几个触发器的平铺列表，找不到"这属于哪一类"。
@@ -186,21 +264,9 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                     <Icon name="review" />
                     {language.t("settings.memory.nav" as never)}
                   </Tabs.Trigger>
-                  <Tabs.Trigger value="agents">
-                    <Icon name="brain" />
-                    {language.t("settings.agents.title")}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="plugins">
+                  <Tabs.Trigger value="extensions">
                     <Icon name="server" />
-                    {language.t("settings.plugins.title")}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="mcp">
-                    <Icon name="mcp" />
-                    {language.t("settings.mcp.title")}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="skills">
-                    <Icon name="checklist" />
-                    {language.t("settings.skills.title")}
+                    {language.t("settings.extensions.title")}
                   </Tabs.Trigger>
                   <Tabs.Trigger value="commands">
                     <Icon name="console" />
@@ -217,16 +283,34 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
                 </div>
 
                 <div class="flex flex-col gap-1.5 w-full">
+                  <Tabs.SectionTitle>{language.t("settings.group.automation")}</Tabs.SectionTitle>
+                  <Tabs.Trigger value="automation">
+                    <Icon name="lu-zap" />
+                    {language.t("settings.automation.title")}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="arena">
+                    <Icon name="dot-grid" />
+                    {language.t("settings.arena.settingsTitle")}
+                  </Tabs.Trigger>
+                </div>
+
+                <div class="flex flex-col gap-1.5 w-full">
                   <Tabs.SectionTitle>{language.t("settings.group.usage")}</Tabs.SectionTitle>
                   <Tabs.Trigger value="usage">
                     <Icon name="chart" />
                     {language.t("settings.usage.title")}
                   </Tabs.Trigger>
                 </div>
+                <div class="flex flex-col gap-1.5 w-full">
+                  <Tabs.SectionTitle>{language.t("settings.group.data" as never)}</Tabs.SectionTitle>
+                  <Tabs.Trigger value="data">
+                    <Icon name="database" />
+                    {language.t("settings.tab.data" as never)}
+                  </Tabs.Trigger>
+                </div>
               </div>
             </div>
-          </div>
-        </Tabs.List>
+          </Tabs.List>
         <Tabs.Content value="general" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
             <SettingsGeneral />
@@ -258,19 +342,14 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
             <SettingsKeybinds />
           </Suspense>
         </Tabs.Content>
-        <Tabs.Content value="agents" class="no-scrollbar">
+        <Tabs.Content value="extensions" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
-            <SettingsAgents directory={directory()} />
+            <SettingsExtensions directory={directory()} initialTab={extensionTab()} />
           </Suspense>
         </Tabs.Content>
         <Tabs.Content value="memory" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
             <SettingsMemoryEvolution directory={directory()} />
-          </Suspense>
-        </Tabs.Content>
-        <Tabs.Content value="skills" class="no-scrollbar">
-          <Suspense fallback={<SettingsPanelFallback />}>
-            <SettingsSkills />
           </Suspense>
         </Tabs.Content>
         <Tabs.Content value="commands" class="no-scrollbar">
@@ -288,19 +367,24 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
             <SettingsRules directory={directory()} />
           </Suspense>
         </Tabs.Content>
+        <Tabs.Content value="automation" class="no-scrollbar">
+          <Suspense fallback={<SettingsPanelFallback />}>
+            <SettingsAutomation />
+          </Suspense>
+        </Tabs.Content>
+        <Tabs.Content value="arena" class="no-scrollbar">
+          <Suspense fallback={<SettingsPanelFallback />}>
+            <SettingsArena />
+          </Suspense>
+        </Tabs.Content>
         <Tabs.Content value="usage" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
             <SettingsUsage directory={directory()} />
           </Suspense>
         </Tabs.Content>
-        <Tabs.Content value="mcp" class="no-scrollbar">
+        <Tabs.Content value="data" class="no-scrollbar">
           <Suspense fallback={<SettingsPanelFallback />}>
-            <SettingsMcp />
-          </Suspense>
-        </Tabs.Content>
-        <Tabs.Content value="plugins" class="no-scrollbar">
-          <Suspense fallback={<SettingsPanelFallback />}>
-            <SettingsPlugins directory={directory()} />
+            <SettingsData />
           </Suspense>
         </Tabs.Content>
       </Tabs>

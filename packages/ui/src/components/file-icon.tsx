@@ -1,5 +1,5 @@
 import type { Component, JSX } from "solid-js"
-import { createMemo, createUniqueId, splitProps } from "solid-js"
+import { createMemo, createUniqueId, Show, splitProps } from "solid-js"
 import sprite from "./file-icons/sprite.svg"
 import { chooseIconName } from "./file-icons/choose"
 
@@ -11,6 +11,8 @@ import { chooseIconName } from "./file-icons/choose"
  * `mono` 仍然走 `currentColor`，供标签栏"未激活灰、激活上色"的两层叠放使用。
  */
 type FileIconCategory = "code" | "doc" | "data" | "style" | "shell" | "plain"
+
+const OFFICE_EXTENSIONS = new Set(["doc", "docx", "xls", "xlsx", "ppt", "pptx"])
 
 const EXTENSIONS: Record<Exclude<FileIconCategory, "plain">, string[]> = {
   code: [
@@ -216,6 +218,12 @@ export const FileIcon: Component<FileIconProps> = (props) => {
   const [local, rest] = splitProps(props, ["node", "class", "classList", "expanded", "mono"])
   const name = createMemo(() => chooseIconName(local.node.path, local.node.type, local.expanded || false))
   const id = `file-icon-mono-${createUniqueId()}`
+  const isOfficeFile = () => {
+    if (local.node.type !== "file") return false
+    const name = local.node.path.split(/[/\\\\]/).pop() ?? ""
+    const extension = name.slice(name.lastIndexOf(".") + 1).toLowerCase()
+    return OFFICE_EXTENSIONS.has(extension)
+  }
   return (
     <svg
       data-component="file-icon"
@@ -230,12 +238,16 @@ export const FileIcon: Component<FileIconProps> = (props) => {
           <use href={`${sprite}#${name()}`} />
         </mask>
       </defs>
-      <rect
-        width="100%"
-        height="100%"
-        fill={local.mono ? "currentColor" : fileIconColor(local.node.path, local.node.type)}
-        mask={`url(#${id})`}
-      />
+      <Show when={isOfficeFile()} fallback={
+        <rect
+          width="100%"
+          height="100%"
+          fill={local.mono ? "currentColor" : fileIconColor(local.node.path, local.node.type)}
+          mask={`url(#${id})`}
+        />
+      }>
+        <use href={`${sprite}#${name()}`} width="100%" height="100%" />
+      </Show>
     </svg>
   )
 }

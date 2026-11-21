@@ -1,8 +1,42 @@
 import { describe, expect, test } from "bun:test"
 import { zenActions } from "@/pages/home/zen-office"
-import { officeAgentPromptDraft, officeAgentScenario } from "./office-agent-scenarios"
+import { installedOfficeAgent, officeAgentPromptDraft, officeAgentScenario } from "./office-agent-scenarios"
 
 describe("office agent scenarios", () => {
+  test("只路由到已激活且场景匹配的办公插件", () => {
+    const agents = [
+      { name: "office-ppt", mode: "primary", options: {} },
+      {
+        name: "office-suite_office-document",
+        mode: "primary",
+        options: { modeGroup: "office", scene: "document", defaultSkill: "office-suite_office-document" },
+      },
+      {
+        name: "office-suite_office-ppt",
+        mode: "primary",
+        options: { modeGroup: "office", scene: "ppt", defaultSkill: "office-suite_office-ppt" },
+      },
+    ]
+    expect(installedOfficeAgent([], "ppt")).toBeUndefined()
+    expect(installedOfficeAgent(agents.slice(0, 2), "ppt")).toBeUndefined()
+    expect(installedOfficeAgent(agents, "ppt")?.name).toBe("office-suite_office-ppt")
+    expect(
+      installedOfficeAgent(
+        agents.map((agent) => ({ ...agent, hidden: true })),
+        "ppt",
+      ),
+    ).toBeUndefined()
+    expect(
+      installedOfficeAgent(
+        agents.map((agent) => ({ ...agent, mode: "subagent" })),
+        "ppt",
+      ),
+    ).toBeUndefined()
+    expect(installedOfficeAgent([agents[2]!, { ...agents[2]!, name: "other_ppt" }], "ppt", "other_ppt")?.name).toBe(
+      "other_ppt",
+    )
+  })
+
   test("keeps every zen office action backed by scenario details", () => {
     for (const action of zenActions) {
       const scenario = officeAgentScenario(action.id)

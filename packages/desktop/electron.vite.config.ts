@@ -111,7 +111,11 @@ export default defineConfig({
           sidecar: "src/main/sidecar.ts",
         },
       },
-      externalizeDeps: { include: [nodePtyPkg] },
+      // Workspace packages expose TypeScript source files. Leaving @novaway/core
+      // external makes the packaged Electron runtime resolve those .ts exports from
+      // app.asar/node_modules, where Node cannot type-strip files under node_modules.
+      // Bundle it into the main process instead; native node-pty remains external.
+      externalizeDeps: { exclude: ["@novaway/core"], include: [nodePtyPkg] },
     },
     plugins: [
       {
@@ -148,9 +152,16 @@ export default defineConfig({
       {
         name: "novaway:copy-server-assets",
         async writeBundle() {
-          for (const l of await fs.readdir(NOVAWAY_SERVER_DIST)) {
-            if (!l.endsWith(".wasm")) continue
-            await fs.writeFile(`./out/main/chunks/${l}`, await fs.readFile(`${NOVAWAY_SERVER_DIST}/${l}`))
+          // The Node server bundle uses Bun's `with { type: "file" }` imports for
+          // built-in skill references and other runtime assets. Once the server is
+          // embedded into Electron, those relative imports resolve beside the
+          // generated main-process chunks, not beside the original novaway/dist
+          // directory. Copy every non-JS server asset so packaged Desktop has the
+          // same runtime resource set as the standalone server bundle.
+          const target = "./out/main/chunks"
+          for (const entry of await fs.readdir(NOVAWAY_SERVER_DIST, { withFileTypes: true })) {
+            if (!entry.isFile() || entry.name === "node.js" || entry.name === "node.js.map") continue
+            await fs.writeFile(path.join(target, entry.name), await fs.readFile(path.join(NOVAWAY_SERVER_DIST, entry.name)))
           }
         },
       },

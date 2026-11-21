@@ -380,10 +380,6 @@
   --app-mode-forge-foreground: #ffffff;
   --app-mode-zen: #0f766e;
   --app-mode-zen-foreground: #ffffff;
-  --app-mode-spark: #c2410c;
-  --app-mode-spark-foreground: #ffffff;
-  --app-mode-future: #7c3aed;
-  --app-mode-future-foreground: #ffffff;
   /* Team identity colors are separate from the Agent identity palette. */
   --team-category-0: #ede9fe;
   --team-category-0-foreground: #5b21b6;
@@ -715,10 +711,6 @@
     --app-mode-forge-foreground: #0b1220;
     --app-mode-zen: #5eead4;
     --app-mode-zen-foreground: #0b1220;
-    --app-mode-spark: #fdba74;
-    --app-mode-spark-foreground: #0b1220;
-    --app-mode-future: #c4b5fd;
-    --app-mode-future-foreground: #0b1220;
     --team-category-0: #3b2e55;
     --team-category-0-foreground: #ddd6fe;
     --team-category-1: #12364d;

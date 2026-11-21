@@ -60,7 +60,21 @@ export type AgentContribution = {
   tools?: string[]
   disallowedTools?: string[]
   permission?: PermissionConfig
-  options?: { displayName?: string; category?: string; modeGroup?: string; scene?: string }
+  options?: {
+    displayName?: string
+    category?: string
+    modeGroup?: string
+    scene?: string
+    defaultSkill?: string
+    /** Metadata used by the Agency AI employee workbench. */
+    agencyCategory?: string
+    agencyPath?: string
+    originalDescription?: string
+    vibe?: string
+    emoji?: string
+    agencyTools?: string
+    [key: string]: unknown
+  }
   model?: ModelRef
   global?: boolean
 }
@@ -198,9 +212,12 @@ export type SurfaceSlot =
   | "notification.item"
 
 export type SurfaceAction =
-  | { type: "view"; viewId: string }
+  | { type: "view"; viewId: string; render?: ViewRender }
   | { type: "command"; command: string }
   | { type: "url"; url: string }
+
+/** 第一方可引用宿主白名单组件；第三方 UI 只能使用 iframe。 */
+export type ViewRender = { type: "builtin"; component: string } | { type: "iframe"; url: string }
 
 export type SurfaceContribution =
   | {
@@ -218,11 +235,15 @@ export type SurfaceContribution =
       title: string
       description?: string
       order?: number
-      view: { type: "declarative"; fields: SettingsField[] } | { type: "view"; viewId: string }
+      view:
+        | { type: "declarative"; fields: SettingsField[] }
+        | { type: "view"; viewId: string; render?: ViewRender }
+        | { type: "iframe"; url: string }
     }
   | {
       slot: "message.part.renderer"
       id: LocalName
+      order?: number
       match: { tool?: string; partType?: string }
       renderer: { type: "builtin"; id: string } | { type: "iframe"; url: string }
     }
@@ -250,8 +271,11 @@ export type ViewContribution = {
 export type PreviewContribution = {
   id: LocalName
   match: { extension?: string | string[]; format?: string | string[]; mime?: string | string[] }
-  viewId: string
+  /** Builtin previewers keep a host component id; third-party previewers use iframe render. */
+  viewId?: string
+  render?: ViewRender
   priority?: number
+  order?: number
   readOnly?: boolean
 }
 

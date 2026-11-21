@@ -3,7 +3,6 @@ import { useParams } from "@solidjs/router"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
-import { FRAME_WINDOW_CONTROLS_WIDTH } from "@/components/frame-window-controls"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { PlatformAccountsProvider, usePlatformAccounts } from "@/context/platform-accounts"
@@ -51,10 +50,7 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         <span class="min-w-0 truncate text-12-regular text-foreground-subtle">
           {language.t("pulse.workspace.subtitle")}
         </span>
-        {/* 一站式发布入口：账号详情区是平台网页，没有这里的话用户找不到"发到多个平台"。
-            放标题右侧而不是顶行最右 —— 最右那块是 FrameWindowControls 的窗控拖拽区
-            （最小化/恢复/关闭），按钮放过去既重叠又点不到（见 frame-window-controls.tsx
-            顶部注释：「页面自己的动作按钮一律放左边」）。 */}
+        {/* 发布入口和对话开关都属于内容页自己的左侧动作区；主页面 Header 负责窗口控制。 */}
         <button
           type="button"
           data-slot="pulse-publish-entry"
@@ -70,7 +66,6 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
           <Icon name="paper-plane" size="small" />
           {language.t("pulse.publish.open")}
         </button>
-        {/* 对话区开关：和发布入口一起留在左侧动作区，右侧整段留给窗控。 */}
         <IconButton
           icon="speech-bubble"
           variant="ghost"
@@ -80,8 +75,6 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
           onClick={() => setChatOpen((value) => !value)}
         />
         <span class="flex-1" aria-hidden="true" />
-        {/* 占住右上角窗控的宽度：封面面板自带的窗控浮在这行上，右侧要留白。 */}
-        <span class="h-px shrink-0" style={{ width: `${FRAME_WINDOW_CONTROLS_WIDTH}px` }} aria-hidden="true" />
       </div>
       {/* 三栏：账号列表 / 账号详情（平台网页） / 运营对话。
           对话是**一条普通会话**，区别只在角色固定成 pulse-orchestrator：输入框与

@@ -42,6 +42,21 @@ export function canCompleteRun(
   verifications: readonly { outcome: string; acceptanceID: string; evidenceIDs?: readonly string[] }[],
 ) {
   if (run.status !== "verifying") return { ok: false, reason: "run is not verifying" }
+  const unfinished = run.graph.nodes.filter((task) => {
+    if (["succeeded", "completed"].includes(task.status)) return false
+    // A source task with an explicitly completed repair is considered
+    // superseded. This also covers legacy runs where the failed verification
+    // did not first mutate the source task to `failed`.
+    const repaired = run.graph.edges.some(
+      (edge) =>
+        edge.kind === "repairs" &&
+        edge.to === task.id &&
+        run.graph.nodes.some((candidate) => candidate.id === edge.from && ["succeeded", "completed"].includes(candidate.status)),
+    )
+    return !repaired
+  })
+  if (unfinished.length > 0)
+    return { ok: false, reason: `unfinished tasks: ${unfinished.map((task) => task.id).join(", ")}` }
   const required = run.goal.acceptanceCriteria.filter((criterion) => criterion.required)
   const byCriterion = new Map(verifications.map((verification) => [verification.acceptanceID, verification]))
   for (const criterion of required) {

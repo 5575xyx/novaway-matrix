@@ -10,10 +10,14 @@ import { Provider } from "@/provider/provider"
 import { SessionID } from "@/session/schema"
 import { Service as TeamService } from "@/team/team"
 import { Effect, Scope } from "effect"
+import { HttpServerRequest } from "effect/unstable/http"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import * as WorkflowPolicy from "@/workflow/policy"
 import { summarize } from "@/workflow/metrics"
+import { Memory } from "@/memory/service"
+import { memoryInput } from "@/workflow/evidence"
+import { githubEvent, hasGithubDelivery, deliveryID, verifyGithubSignature } from "@/workflow/integration"
 
 export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow", (handlers) =>
   Effect.gen(function* () {
@@ -25,15 +29,113 @@ export const workflowHandlers = HttpApiBuilder.group(InstanceHttpApi, "workflow"
     const teams = yield* TeamService
     const scope = yield* Scope.Scope
     const workflowPolicy = yield* WorkflowPolicy.Service
+    const memory = yield* Memory.Service
 
     return handlers
-      .handle("getWorkflowState", (ctx) => workflowPolicy.get(SessionID.make(ctx.params.sessionId)))
-      .handle("listWorkflowEvents", (ctx) => workflowPolicy.events(SessionID.make(ctx.params.sessionId), 1000))
+      .handle("githubWorkflowWebhook", (ctx) =>
+        Effect.gen(function* () {
+          const sessionID = SessionID.make(ctx.params.sessionId)
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const webhookSecret = process.env.NOVAWAY_GITHUB_WEBHOOK_SECRET?.trim()
+          // Development may opt into unsigned fixtures; production must always
+          // configure the secret because GitHub signs the raw JSON bytes.
+          if (webhookSecret || process.env.NODE_ENV === "production") {
+            const rawBody = yield* request.text.pipe(Effect.catch(() => Effect.succeed("")))
+            if (
+              !webhookSecret ||
+              !verifyGithubSignature({
+                rawBody,
+                signature: request.headers["x-hub-signature-256"],
+                secret: webhookSecret,
+              })
+            )
+              return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          }
+          const headerEvent = request.headers["x-github-event"]?.trim()
+          const eventName = ctx.payload.event.trim()
+          if (headerEvent && headerEvent !== eventName) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const requestDeliveryID = deliveryID(request.headers["x-github-delivery"])
+          const payloadDeliveryID = deliveryID(ctx.payload.deliveryID)
+          if (requestDeliveryID && payloadDeliveryID && requestDeliveryID !== payloadDeliveryID)
+            return yield* Effect.fail(new HttpApiError.BadRequest({}))
+          const id = requestDeliveryID ?? payloadDeliveryID
+          // A webhook can arrive before the first model turn (for example when
+          // GitHub is configured immediately after a session is created). Create
+          // the durable policy anchor so evidence and delivery idempotency are
+          // not silently discarded for that valid integration path.
+          if (!(yield* workflowPolicy.get(sessionID))) {
+            yield* workflowPolicy.beginTurn({
+              sessionID,
+              turnID: `github:${id ?? eventName}`,
+              text: `GitHub integration event: ${eventName}`,
+            })
+          }
+          if (id) {
+            const events = yield* workflowPolicy
+              .events(sessionID, 10_000)
+              .pipe(Effect.catchCause(() => Effect.succeed([])))
+            if (hasGithubDelivery(events, id)) return { accepted: true, duplicate: true }
+          }
+          const event = githubEvent({ event: eventName, deliveryID: id, payload: ctx.payload.payload })
+          const source = "github:" + eventName
+          const memoryItem = yield* memory.add(memoryInput({ sessionID, source, evidence: event.payload }))
+          yield* workflowPolicy.recordEvidence({
+            sessionID,
+            payload: { memoryID: memoryItem.id, source, evidence: event.payload },
+          })
+          yield* workflowPolicy.recordIntegration({
+            sessionID,
+            kind: event.kind,
+            payload: { ...event.payload, memoryID: memoryItem.id },
+          })
+          return { accepted: true, duplicate: false, memoryID: memoryItem.id }
+        }),
+      )
+      .handle("recordWorkflowEvidence", (ctx) =>
+        Effect.gen(function* () {
+          const sessionID = SessionID.make(ctx.params.sessionId)
+          const item = yield* memory.add(
+            memoryInput({ sessionID, source: ctx.payload.source, evidence: ctx.payload.evidence }),
+          )
+          return yield* workflowPolicy.recordEvidence({
+            sessionID,
+            payload: { memoryID: item.id, source: ctx.payload.source, evidence: ctx.payload.evidence },
+          })
+        }),
+      )
+      .handle("recordWorkflowIntegration", (ctx) =>
+        workflowPolicy.recordIntegration({
+          sessionID: SessionID.make(ctx.params.sessionId),
+          kind: ctx.payload.kind,
+          payload: ctx.payload.payload,
+        }),
+      )
+      .handle("updateWorkflowState", (ctx) =>
+        workflowPolicy
+          .updateState({
+            sessionID: SessionID.make(ctx.params.sessionId),
+            expectedRevision: ctx.payload.expectedRevision,
+            patch: ctx.payload.patch as any,
+          })
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof Error && error.message.startsWith("workflow state conflict")
+                ? Effect.fail(new HttpApiError.Conflict({}))
+                : Effect.die(error),
+            ),
+          ),
+      )
+      .handle("getWorkflowState", (ctx) => workflowPolicy.get(SessionID.make(ctx.params.sessionId)).pipe(Effect.map((state) => state ?? null)))
+      .handle("listWorkflowEvents", (ctx) =>
+        workflowPolicy
+          .events(SessionID.make(ctx.params.sessionId), 1000)
+          .pipe(Effect.catchCause(() => Effect.succeed([]))),
+      )
       .handle("getWorkflowMetrics", (ctx) =>
         Effect.gen(function* () {
           const sessionID = SessionID.make(ctx.params.sessionId)
           const state = yield* workflowPolicy.get(sessionID)
-          const events = yield* workflowPolicy.events(sessionID, 1000)
+          const events = yield* workflowPolicy.events(sessionID, 1000).pipe(Effect.catchCause(() => Effect.succeed([])))
           return summarize(sessionID, state, events as any)
         }),
       )

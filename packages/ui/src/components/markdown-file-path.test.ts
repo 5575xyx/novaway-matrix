@@ -16,6 +16,13 @@ describe("filePath - 可点链接的判定", () => {
     expect(filePath("gitee/main")).toBeUndefined()
   })
 
+  test("普通带点文本与域名不当成文件", () => {
+    expect(filePath("example.com")).toBeUndefined()
+    expect(filePath("v1.2")).toBeUndefined()
+    expect(filePath("foo.bar")).toBeUndefined()
+    expect(filePath("PowerSkills.md")).toBe("PowerSkills.md")
+  })
+
   test("网址、data: 和带行号的不是文件链接", () => {
     expect(filePath("https://example.com/a.md")).toBeUndefined()
     expect(filePath("data:text/plain,x")).toBeUndefined()

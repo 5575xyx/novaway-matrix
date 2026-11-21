@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, onCleanup } from "solid-js"
+import { For, Show, createEffect, createMemo, onCleanup, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { useSpring } from "@novaway/ui/motion-spring"
@@ -10,7 +10,6 @@ import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { useSync } from "@/context/sync"
 import { useLocal } from "@/context/local"
-import { hasForgeBuildIntent } from "@/context/local-agent"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionKey, useSessionLayout } from "@/pages/session/session-layout"
 import { createOpenSessionFileTab } from "@/pages/session/helpers"
@@ -24,6 +23,7 @@ import { SessionContextWarning } from "@/components/session-context-warning"
 import type { SessionComposerState } from "@/pages/session/composer/session-composer-state"
 import type { FollowupDraft } from "@/components/prompt-input/submit"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
+import { diffs } from "@/utils/diffs"
 
 export function SessionComposerRegion(props: {
   state: SessionComposerState
@@ -68,6 +68,23 @@ export function SessionComposerRegion(props: {
   const sync = useSync()
   const sessionLayout = useSessionLayout()
   const view = layout.view(route.sessionKey)
+  const [changedFilesOpen, setChangedFilesOpen] = createSignal(false)
+
+  const changedFiles = createMemo(() => {
+    const id = route.params.id
+    if (!id) return []
+    const seen = new Set<string>()
+    return (sync.data.message[id] ?? [])
+      .filter((message) => message.role === "user")
+      .flatMap((message) => diffs(message.summary?.diffs))
+      .filter((diff) => {
+        const path = diff.file ?? ""
+        if (!path || seen.has(path)) return false
+        seen.add(path)
+        return true
+      })
+      .reverse()
+  })
 
   const info = createMemo(() => (route.params.id ? sync.session.get(route.params.id) : undefined))
   const parentID = createMemo(() => info()?.parentID)
@@ -149,12 +166,6 @@ export function SessionComposerRegion(props: {
     navigate(`/${route.params.dir}/session/${id}`)
   }
 
-  const routeQuestionAnswers = (answers: string[][]) => {
-    if (layout.mode.current() !== "forge") return
-    if (!answers.some((items) => hasForgeBuildIntent(items.join(" ")))) return
-    local.agent.set("build")
-  }
-
   const openFileTab = createOpenSessionFileTab({
     normalizeTab: (tab) => (tab.startsWith("file://") ? file.tab(tab) : tab),
     openTab: sessionLayout.tabs().open,
@@ -205,11 +216,7 @@ export function SessionComposerRegion(props: {
         <Show when={props.state.questionRequest()} keyed>
           {(request) => (
             <div>
-              <SessionQuestionDock
-                request={request}
-                onSubmit={props.onResponseSubmit}
-                onAnswered={routeQuestionAnswers}
-              />
+              <SessionQuestionDock request={request} onSubmit={props.onResponseSubmit} />
             </div>
           )}
         </Show>
@@ -242,6 +249,47 @@ export function SessionComposerRegion(props: {
             未就绪时在上面盖一层同几何的遮罩（PromptInputLoading）淡出。
           */}
           <div class="relative w-full">
+            <Show when={sync.data.session_working(route.params.id ?? "") && changedFiles().length > 0}>
+              <div
+                class="absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2"
+                onMouseEnter={() => setChangedFilesOpen(true)}
+                onMouseLeave={() => setChangedFilesOpen(false)}
+              >
+                <button
+                  type="button"
+                  class="flex items-center gap-2 whitespace-nowrap rounded-full border border-border bg-background px-3 py-2 text-ui-xs text-foreground shadow-lg"
+                  aria-expanded={changedFilesOpen()}
+                  onFocus={() => setChangedFilesOpen(true)}
+                  onBlur={() => setChangedFilesOpen(false)}
+                >
+                  <span>{changedFiles().length} 个文件已修改</span>
+                  <span class="text-[var(--icon-diff-add-base)]">
+                    +{changedFiles().reduce((sum, diff) => sum + diff.additions, 0)}
+                  </span>
+                  <span class="text-[var(--icon-diff-delete-base)]">
+                    -{changedFiles().reduce((sum, diff) => sum + diff.deletions, 0)}
+                  </span>
+                </button>
+                <Show when={changedFilesOpen()}>
+                  <div class="absolute bottom-full left-1/2 mb-2 max-h-72 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-xl border border-border bg-background p-3 shadow-xl">
+                    <div class="mb-2 px-1 text-ui-xs font-medium text-foreground">
+                      {changedFiles().length} 个文件已修改
+                    </div>
+                    <For each={changedFiles()}>
+                      {(diff) => (
+                        <div class="flex items-center gap-3 px-1 py-1.5 text-ui-xs text-foreground-subtle">
+                          <span class="min-w-0 flex-1 truncate" title={diff.file}>
+                            {diff.file}
+                          </span>
+                          <span class="shrink-0 text-[var(--icon-diff-add-base)]">+{diff.additions}</span>
+                          <span class="shrink-0 text-[var(--icon-diff-delete-base)]">-{diff.deletions}</span>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+              </div>
+            </Show>
             <SessionContextWarning />
             <Show when={rolled()} keyed>
               {(revert) => (

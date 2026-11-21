@@ -217,8 +217,9 @@ test("memory settings simplified layout: toggles persist, cards count/expand/cle
     await expect(root).toBeVisible()
     await expect(root).toContainText("记忆行为")
     await expect(root).toContainText("自动技能抽取")
-    await expect(root).toContainText("Goal 自主执行")
-    await expect(root).toContainText("Arena 多模型竞技")
+    // 自主执行 / Arena / 通道等配置有独立设置页，不应再挤在记忆页里。
+    await expect(root).not.toContainText("Goal 自主执行")
+    await expect(root).not.toContainText("Arena 多模型竞技")
 
     // 自动技能抽取 → 配置 PATCH 持久化
     const autoSkill = page.getByRole("switch", { name: "自动技能抽取" })

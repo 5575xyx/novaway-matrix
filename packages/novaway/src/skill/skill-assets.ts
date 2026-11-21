@@ -1,10 +1,13 @@
 import path from "path"
+import { fileURLToPath } from "url"
 import { Effect } from "effect"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { Global } from "@novaway/core/global"
 import * as Log from "@novaway/core/util/log"
 
 const log = Log.create({ service: "skill-assets" })
+
+const assetModuleDir = path.dirname(fileURLToPath(import.meta.url))
 
 const extracted = new Set<string>()
 
@@ -50,7 +53,11 @@ export function ensureSkillExtracted(
       yield* fsys.ensureDir(path.dirname(target))
       // sidecar 跑在 Node 里，没有 Bun 全局。
       const content = yield* Effect.promise(() =>
-        import("node:fs/promises").then((fs) => fs.readFile(sourcePath).then((buffer) => buffer.buffer)),
+        import("node:fs/promises").then((fs) =>
+          fs
+            .readFile(path.isAbsolute(sourcePath) ? sourcePath : path.resolve(assetModuleDir, sourcePath))
+            .then((buffer) => buffer.buffer),
+        ),
       )
       yield* fsys.writeWithDirs(target, new Uint8Array(content))
     }

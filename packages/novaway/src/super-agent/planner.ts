@@ -11,6 +11,9 @@ const ModelPlanTask = Schema.Struct({
   objective: Schema.String,
   dependencies: Schema.optional(Schema.Array(Schema.String)),
   tool: Schema.optional(Schema.String),
+  evidenceKind: Schema.optional(
+    Schema.Literals(["test", "file", "http", "screenshot", "log", "artifact", "human", "external"]),
+  ),
   input: Schema.optional(Schema.Unknown),
 })
 
@@ -39,6 +42,7 @@ export async function planGoalWithModel(input: {
   model: LanguageModelV3
   run: SuperAgentRun
   availableTools: readonly string[]
+  reason?: string
 }): Promise<GoalPlanTask[]> {
   const response = await generateObject({
     model: input.model,
@@ -51,11 +55,14 @@ export async function planGoalWithModel(input: {
       "Every task must be independently reviewable and have a precise objective.",
       "Use dependencies only when a task truly needs another task's output.",
       "Every task must be executable with one of the available tools; do not return abstract or checkpoint-only tasks.",
+      "For a verification task, set evidenceKind to test only when the selected tool returns a real exit code; never use evidenceKind to pretend an ordinary tool call passed.",
+      "Assign the final verification work to the Goal acceptance criteria; if no executable verifier is available, leave the run for review rather than claiming completion.",
       "Never invent a tool. For executable work, tool must be one of the available tools.",
       `Available tools: ${input.availableTools.join(", ") || "none"}`,
       `Goal: ${input.run.goal.text}`,
       `Constraints: ${input.run.goal.constraints.join("; ") || "none"}`,
       `Acceptance criteria: ${input.run.goal.acceptanceCriteria.map((item) => `${item.id}: ${item.text}`).join("; ") || "none"}`,
+      ...(input.reason ? [`Re-plan reason: ${input.reason}`] : []),
       "Return 1 to 32 tasks. Use key values that are unique within the plan.",
     ].join("\n"),
   })
@@ -85,7 +92,15 @@ export async function planGoalWithModel(input: {
       title: item.title.trim(),
       objective: item.objective.trim(),
       dependencies,
-      ...(tool ? { input: { tool, input: item.input } } : {}),
+      ...(tool
+        ? {
+            input: {
+              tool,
+              input: item.input,
+              ...(item.evidenceKind ? { evidenceKind: item.evidenceKind } : {}),
+            },
+          }
+        : {}),
       acceptanceCriteria: [],
       retryPolicy: { maxAttempts: 1, backoffMs: 0, retryable: false },
     }
@@ -96,10 +111,21 @@ export async function planGoalWithModel(input: {
 export function materializeGoalPlan(run: SuperAgentRun, plan: readonly GoalPlanTask[]): TaskGraph {
   if (plan.length === 0 || plan.length > 32) throw new Error("planner must return between 1 and 32 tasks")
   const planHash = createHash("sha256").update(JSON.stringify(plan)).digest("hex")
+  const materialized = plan.map((item, index) => ({
+    ...item,
+    // If the planner did not assign criterion ownership, the final task is
+    // the only safe default owner. This prevents an arbitrary intermediate
+    // tool result from satisfying the whole Goal while still allowing a
+    // planner to return finer-grained criterion assignments explicitly.
+    acceptanceCriteria:
+      item.acceptanceCriteria?.length || index !== plan.length - 1
+        ? [...(item.acceptanceCriteria ?? [])]
+        : [...run.goal.acceptanceCriteria],
+  }))
   const replacement: TaskGraph = {
     ...run.graph,
     version: run.graph.version,
-    nodes: plan.map((item) => ({
+    nodes: materialized.map((item) => ({
       id: item.id,
       graphID: run.graph.id,
       kind: item.kind,
@@ -107,7 +133,21 @@ export function materializeGoalPlan(run: SuperAgentRun, plan: readonly GoalPlanT
       objective: item.objective,
       status: "pending" as const,
       dependencies: [...(item.dependencies ?? [])],
-      ...(item.input === undefined ? {} : { input: item.input }),
+      ...(item.input === undefined && item.evidenceKind === undefined
+        ? {}
+        : {
+            input:
+              item.evidenceKind === undefined
+                ? item.input
+                : {
+                    ...(item.input && typeof item.input === "object" && !Array.isArray(item.input)
+                      ? (item.input as Record<string, unknown>)
+                      : item.input === undefined
+                        ? {}
+                        : { value: item.input }),
+                    evidenceKind: item.evidenceKind,
+                  },
+          }),
       acceptanceCriteria: [...(item.acceptanceCriteria ?? [])],
       retryPolicy: item.retryPolicy ?? { maxAttempts: 1, backoffMs: 0, retryable: false },
       attempts: 0,

@@ -679,7 +679,14 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       yield* requireProjectSession(ctx.params.sessionID)
       return yield* promptSvc
         .command({ ...ctx.payload, sessionID: ctx.params.sessionID })
-        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+        .pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError("session.command failure").pipe(
+              Effect.annotateLogs({ cause }),
+              Effect.andThen(Effect.fail(new HttpApiError.BadRequest({}))),
+            ),
+          ),
+        )
     })
 
     const shell = Effect.fn("SessionHttpApi.shell")(function* (ctx: {

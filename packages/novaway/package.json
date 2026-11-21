@@ -10,6 +10,7 @@
     "test": "bun test --timeout 120000",
     "test:ci": "mkdir -p .artifacts/unit && bun test --timeout 120000 --reporter=junit --reporter-outfile=.artifacts/unit/junit.xml",
     "gate:release": "bun run script/release-gate.ts",
+    "gate:sa-g12": "bun run script/sa-g12-manual-gate.ts",
     "scan:boundary": "bun run script/scan-boundary.ts",
     "verify:plugins": "bun run script/verify-plugins.ts",
     "gate:perf": "bun run script/plugin-perf-gate.ts",

@@ -47,6 +47,7 @@ describe("SuperAgentStore", () => {
             kind: "test",
             source: "store test",
             measured: "pass",
+            acceptanceIDs: ["persisted"],
             capturedAt: 2,
           })
           yield* store.verification({
@@ -182,6 +183,47 @@ describe("SuperAgentStore", () => {
     expect(recovered.operations[0]?.status).toBe("unknown")
     expect(recovered.run?.status).toBe("needs_review")
   })
+  test("atomically claims, renews, and transfers an expired worker lease", async () => {
+    const created = await run(
+      SuperAgentStore.use((store) =>
+        store.create({ id: `sa_lease_${Date.now()}`, directory: "/tmp/super-agent", goal }),
+      ),
+    )
+    expect(
+      await run(
+        SuperAgentStore.use((store) =>
+          store.claimRunLease({ runID: created.id, owner: "worker-a", leaseMs: 1_000, now: 10_000 }),
+        ),
+      ),
+    ).toBe(true)
+    expect(
+      await run(
+        SuperAgentStore.use((store) =>
+          store.claimRunLease({ runID: created.id, owner: "worker-b", leaseMs: 1_000, now: 10_500 }),
+        ),
+      ),
+    ).toBe(false)
+    expect(
+      await run(
+        SuperAgentStore.use((store) =>
+          store.renewRunLease({ runID: created.id, owner: "worker-b", leaseMs: 1_000, now: 10_600 }),
+        ),
+      ),
+    ).toBe(false)
+    expect(
+      await run(
+        SuperAgentStore.use((store) =>
+          store.claimRunLease({ runID: created.id, owner: "worker-b", leaseMs: 1_000, now: 11_001 }),
+        ),
+      ),
+    ).toBe(true)
+    expect(
+      await run(SuperAgentStore.use((store) => store.releaseRunLease({ runID: created.id, owner: "worker-a" }))),
+    ).toBe(false)
+    expect(
+      await run(SuperAgentStore.use((store) => store.releaseRunLease({ runID: created.id, owner: "worker-b" }))),
+    ).toBe(true)
+  })
   test("enforces verification before a persisted run can complete", async () => {
     const created = await run(
       SuperAgentStore.use((store) =>
@@ -193,6 +235,13 @@ describe("SuperAgentStore", () => {
     await expect(run(SuperAgentStore.use((store) => store.transition(created.id, "completed")))).rejects.toThrow(
       "cannot complete Super-Agent run",
     )
+    const settledGraph = {
+      ...created.graph,
+      nodes: created.graph.nodes.map((node) =>
+        node.id === created.graph.rootTaskID ? { ...node, status: "succeeded" as const, attempts: 1 } : node,
+      ),
+    }
+    await run(SuperAgentStore.use((store) => store.updateGraph(created.id, settledGraph, created.graph.version)))
     await run(
       SuperAgentStore.use((store) =>
         store.evidence({
@@ -202,6 +251,7 @@ describe("SuperAgentStore", () => {
           kind: "test",
           source: "bun test",
           measured: "pass",
+          acceptanceIDs: ["persisted"],
           capturedAt: Date.now(),
         }),
       ),

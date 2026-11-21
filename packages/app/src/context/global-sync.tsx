@@ -389,7 +389,14 @@ function createGlobalSync() {
         project: globalStore.project,
         refresh: () => {
           if (recent) return
-          bootstrap.refetch()
+          // 重连需要整体对账（断线期间的事件全丢了）；而 global.disposed 只是服务端
+          // 销毁了实例，项目元数据没变 —— 设置页每次自动保存都会发这条事件，
+          // 跟着重拉整个 bootstrap 会让侧栏项目/任务列表反复重建。这里只重拉配置。
+          if (event.type === "server.connected") {
+            bootstrap.refetch()
+            return
+          }
+          void queryClient.invalidateQueries({ queryKey: ["config"] })
         },
         setGlobalProject: setProjects,
       })
@@ -422,7 +429,10 @@ function createGlobalSync() {
         void queryClient.fetchQuery(queryOptionsApi.lsp(key))
       },
       loadAgents: () => {
-        void queryClient.fetchQuery(queryOptionsApi.agents(key)).then((data) => setStore("agent", data))
+        void queryClient
+          .invalidateQueries({ queryKey: queryOptionsApi.agents(key).queryKey })
+          .then(() => queryClient.fetchQuery(queryOptionsApi.agents(key)))
+          .then((data) => setStore("agent", data))
       },
       loadCommands: () => {
         void sdkFor(directory)
@@ -431,7 +441,8 @@ function createGlobalSync() {
       },
       loadContributions: () => {
         void queryClient
-          .fetchQuery(queryOptionsApi.contributions(key))
+          .invalidateQueries({ queryKey: queryOptionsApi.contributions(key).queryKey })
+          .then(() => queryClient.fetchQuery(queryOptionsApi.contributions(key)))
           .then((data) => setStore("plugin_contributions", data))
       },
       loadProviders: () => {
@@ -497,13 +508,21 @@ function createGlobalSync() {
   const updateConfigMutation = useMutation(() => ({
     mutationFn: (config: Config) => globalSDK.client.global.config.update({ config }),
     onSuccess: () => {
-      bootstrap.refetch()
+      // 只重拉全局配置本身。以前这里 refetch 整个 bootstrap，会把 project 列表、
+      // path、provider 全部重下一次 —— 设置页每次自动保存都触发一遍，侧栏任务列表
+      // 跟着整块重建（用户看到的「一操作就闪」）。目录侧的重载由服务端的
+      // global.disposed 事件负责，这里不需要重复。
+      void queryClient.invalidateQueries({ queryKey: ["config"] })
       // Invalidate all provider queries so newly configured custom providers
       // appear immediately in the available provider list across all directories.
       queryClient.invalidateQueries({ queryKey: [null, "providers"] })
       queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[1] === "providers",
       })
+      // 服务端写配置后会销毁全部实例并广播 global.disposed；那条事件到达时
+      // 本 mutation 还在 pending，刷新队列是暂停的，推入的目录会被压着不跑。
+      // 保存完成后再推一次，让各目录按新配置重新 bootstrap。
+      for (const directory of Object.keys(children.children)) queue.push(directory)
     },
   }))
 

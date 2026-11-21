@@ -10,7 +10,10 @@ export type SqliteMigrationProgress = { type: "InProgress"; value: number } | { 
 
 export type WslConfig = { enabled: boolean }
 
-export type InstalledEditor = { id: string; name: string }
+export type InstalledEditor = { id: string; name: string; icon?: string }
+
+/** 能打开 Office 文档的本机应用（Word/Excel/PPT/WPS）；icon 是真实应用图标的 dataURL。 */
+export type OfficeApp = { id: string; name: string; extensions: string[]; icon?: string }
 
 /**
  * 自动更新的状态机（主进程是唯一事实来源）。
@@ -40,6 +43,61 @@ export type TitlebarTheme = {
 
 export type WindowConfig = {
   updaterEnabled: boolean
+}
+
+/** Desktop-managed NovaWay directories shown in Data Management. */
+export type ResourceLocationId = "data" | "config" | "cache" | "temp" | "logs"
+export type ResourceLocation = {
+  id: ResourceLocationId
+  label: string
+  path: string
+  defaultPath: string
+  size: number
+  fileCount: number
+  lastModified: number | null
+  exists: boolean
+}
+export type ResourceReport = {
+  generatedAt: number
+  totalSize: number
+  locations: ResourceLocation[]
+}
+export type ResourceCleanupConfig = {
+  enabled: boolean
+  interval: "daily" | "weekly"
+  olderThanDays: number
+  lastRunAt: number | null
+}
+export type ResourceCleanupResult = {
+  deletedFiles: number
+  deletedBytes: number
+}
+
+/** 一个可选的应用图标（内置默认 + 用户导入/生成的资源）。 */
+export type AppAppearanceIcon = {
+  id: string
+  label: string
+  createdAt: number
+  builtIn?: boolean
+  lightId?: string
+  darkId?: string
+}
+
+/** 图片生成模型产出的图标来源：远程 URL 或 base64（可带 data: 前缀），二选一。 */
+export type AppAppearanceImageSource = {
+  url?: string
+  base64?: string
+}
+
+/** 应用外观当前状态：名称、当前图标、可选图标列表、图标目录。 */
+export type AppAppearanceState = {
+  name: string
+  defaultName: string
+  icon: string
+  iconData?: string
+  icons: AppAppearanceIcon[]
+  iconDir: string
+  mode?: "light" | "dark"
 }
 
 export interface PlatformAccount {
@@ -223,6 +281,26 @@ export type ElectronAPI = {
   setKeepAwake: (enabled: boolean) => Promise<boolean>
   keepAwakeEnabled?: boolean
 
+  /** 应用外观（图标 / 名称）自定义。 */
+  getAppAppearance: () => Promise<AppAppearanceState>
+  setAppAppearanceMode: (mode: "light" | "dark") => Promise<AppAppearanceState>
+  setAppName: (name: string | null) => Promise<AppAppearanceState>
+  setAppIcon: (id: string) => Promise<AppAppearanceState>
+  importAppIcon: () => Promise<AppAppearanceState | null>
+  importAppIconPair: () => Promise<AppAppearanceState | null>
+  deleteAppIcon: (id: string) => Promise<AppAppearanceState>
+  getAppIconData: (id: string, mode?: "light" | "dark") => Promise<string | null>
+  generateAppIconFromImage: (
+    source: AppAppearanceImageSource,
+    label?: string,
+    frame?: "square" | "circle",
+    mode?: "light" | "dark",
+    targetId?: string,
+    themed?: boolean,
+  ) => Promise<AppAppearanceState>
+  openAppIconDir: () => Promise<void>
+  onAppAppearanceChange: (cb: (state: AppAppearanceState) => void) => () => void
+
   getWindowCount: () => Promise<number>
   onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void
@@ -240,6 +318,12 @@ export type ElectronAPI = {
     title?: string
     defaultPath?: string
   }) => Promise<string | string[] | null>
+  /** Inspect and safely clean NovaWay-owned runtime resources. */
+  getResourceReport: () => Promise<ResourceReport>
+  setResourceLocation: (id: ResourceLocationId, path: string) => Promise<ResourceReport>
+  getResourceCleanupConfig: () => Promise<ResourceCleanupConfig>
+  setResourceCleanupConfig: (config: Omit<ResourceCleanupConfig, "lastRunAt">) => Promise<ResourceCleanupConfig>
+  cleanResources: (olderThanDays: number) => Promise<ResourceCleanupResult>
   openFilePicker: (opts?: {
     multiple?: boolean
     title?: string
@@ -263,6 +347,8 @@ export type ElectronAPI = {
   openPath: (path: string, app?: string) => Promise<void>
   showItemInFolder: (path: string) => Promise<boolean>
   getInstalledEditors: () => Promise<InstalledEditor[]>
+  getOfficeApps: () => Promise<OfficeApp[]>
+  getFileIcon: (path: string) => Promise<string | null>
   openInEditor: (editorId: string, path: string, kind: "file" | "directory") => Promise<boolean>
   readClipboardImage: () => Promise<{ buffer: ArrayBuffer; width: number; height: number } | null>
   showNotification: (title: string, body?: string, href?: string, showSystem?: boolean) => void

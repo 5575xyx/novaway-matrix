@@ -17,7 +17,10 @@ const entry = {
   capabilities: ["skills"],
   permissions: ["filesystem.read"],
   categories: ["testing"],
-  longDescription: "A controlled browser fixture with explicit permission metadata and a deliberately long description for layout verification. ".repeat(24),
+  longDescription:
+    "A controlled browser fixture with explicit permission metadata and a deliberately long description for layout verification. ".repeat(
+      24,
+    ),
 }
 
 async function openMarketplace(page: import("@playwright/test").Page) {
@@ -35,15 +38,52 @@ async function openMarketplace(page: import("@playwright/test").Page) {
   await expect(extensions).toBeVisible({ timeout: 15_000 })
   await extensions.click()
   await expect(page.getByText(/Extensions|扩展/).first()).toBeVisible({ timeout: 15_000 })
-  await page.getByRole("button", { name: /Marketplace|市场/ }).click()
-  await expect(page.getByText(/Marketplace sources|市场源/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('[data-component="marketplace-hero"]')).toBeVisible()
+  expect(
+    await page
+      .locator('[data-component="marketplace-hero"] h1')
+      .evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+  ).toBeGreaterThanOrEqual(28)
+  for (const width of [1440, 768]) {
+    await page.setViewportSize({ width, height: 900 })
+    const header = page.locator('[data-component="extensions-header"]')
+    await expect(header).toBeVisible()
+    const navigation = page.locator('nav[aria-label="Extension navigation"], nav[aria-label="扩展导航"]').first()
+    await expect(navigation).toBeVisible()
+    expect(
+      await navigation.evaluate((element) => {
+        const bounds = element.getBoundingClientRect()
+        return bounds.left + bounds.width
+      }),
+    ).toBeLessThan(520)
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.screenshot({
+    path: test.info().outputPath("market-discovery.png"),
+    fullPage: true,
+    animations: "disabled",
+  })
+  await expect(page.locator("#market-source-panel")).toHaveCount(0)
+  await page.getByRole("button", { name: /Marketplace sources|市场源/ }).click()
+  await expect(page.locator("#market-source-panel")).toBeVisible()
 }
 
-test("marketplace browser lifecycle covers discovery, source management, install, update and uninstall", async ({ page }) => {
+test("marketplace browser lifecycle covers discovery, source management, install, update and uninstall", async ({
+  page,
+}) => {
+  const pageErrors: string[] = []
+  page.on("pageerror", (error) => pageErrors.push(error.message))
   let installed = false
   let sourceEnabled = true
   let sourceName = "NovaWay Official"
-  const customSources: Array<{ id: string; name: string; type: "claude" | "zcode" | "auto"; url: string; enabled: boolean; lastError?: string }> = []
+  const customSources: Array<{
+    id: string
+    name: string
+    type: "claude" | "zcode" | "auto"
+    url: string
+    enabled: boolean
+    lastError?: string
+  }> = []
   let operationNumber = 0
   let operationPolls = 0
   let failNextInstall = false
@@ -67,7 +107,9 @@ test("marketplace browser lifecycle covers discovery, source management, install
       progress: phase === "completed" ? 100 : 40,
       startedAt: Date.now(),
       ...(phase === "completed" ? { finishedAt: Date.now() } : {}),
-      ...(phase === "failed" ? { errorCode: "MARKETPLACE_OPERATION_FAILED", recoveryHint: "Retry the installation." } : {}),
+      ...(phase === "failed"
+        ? { errorCode: "MARKETPLACE_OPERATION_FAILED", recoveryHint: "Retry the installation." }
+        : {}),
     }
     operations.push(value)
     return value
@@ -81,9 +123,42 @@ test("marketplace browser lifecycle covers discovery, source management, install
     root: `/isolated/marketplace/${entry.packageId}@0.1.0`,
     files: 4,
     bytes: 1878,
-    previous: installed && operations.some((item) => item.operationType === "update")
-      ? { version: "0.1.0", source: entry.url, installedAt: Date.now() - 1_000, files: 4, bytes: 1878 }
-      : undefined,
+    previous:
+      installed && operations.some((item) => item.operationType === "update")
+        ? { version: "0.1.0", source: entry.url, installedAt: Date.now() - 1_000, files: 4, bytes: 1878 }
+        : undefined,
+  })
+
+  await page.route(/https?:\/\/(?:localhost|127\.0\.0\.1):\d+\//, async (route) => {
+    const url = new URL(route.request().url())
+    if (url.port === (process.env.PLAYWRIGHT_PORT ?? "3210")) return route.fallback()
+    const path = url.pathname
+    const project = { id: "market-test", worktree: directory, time: { created: 0, updated: 0 }, sandboxes: [] }
+    const responses: Record<string, unknown> = {
+      "/global/health": { healthy: true, version: "test" },
+      "/global/config": {},
+      "/config": {},
+      "/path": { directory, worktree: directory, home: directory, config: directory, state: directory },
+      "/project": [project],
+      "/project/current": project,
+      "/provider": { all: [], connected: [], default: {} },
+      "/provider/auth": {},
+      "/mcp": {},
+      "/session/status": {},
+      "/vcs": { branch: "test" },
+      "/git": {
+        changes: [],
+        log: [],
+        branches: [],
+        branch: { branch: "test", ahead: 0, behind: 0 },
+        remotes: [],
+        stashes: [],
+      },
+    }
+    if (path.endsWith("/event")) {
+      return route.fulfill({ contentType: "text/event-stream", body: ": fixture\n\n" })
+    }
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify(responses[path] ?? []) })
   })
 
   await page.route("**/extension/marketplace**", async (route) => {
@@ -162,7 +237,11 @@ test("marketplace browser lifecycle covers discovery, source management, install
       return
     }
     if (pathname.endsWith("/extension/marketplace/sources") && request.method() === "POST") {
-      const body = JSON.parse(request.postData() ?? "{}") as { name?: string; type?: "claude" | "zcode" | "auto"; url?: string }
+      const body = JSON.parse(request.postData() ?? "{}") as {
+        name?: string
+        type?: "claude" | "zcode" | "auto"
+        url?: string
+      }
       const source = {
         id: `browser-source-${customSources.length + 1}`,
         name: body.name ?? "Browser source",
@@ -175,16 +254,37 @@ test("marketplace browser lifecycle covers discovery, source management, install
       return
     }
     if (pathname.includes("/extension/marketplace/sources/") && request.method() === "PATCH") {
-      const body = JSON.parse(request.postData() ?? "{}") as { enabled?: boolean; name?: string; url?: string; type?: "claude" | "zcode" | "auto" }
+      const body = JSON.parse(request.postData() ?? "{}") as {
+        enabled?: boolean
+        name?: string
+        url?: string
+        type?: "claude" | "zcode" | "auto"
+      }
       const sourceId = pathname.split("/").pop() ?? ""
       if (sourceId === "novaway-official") {
         if (body.enabled !== undefined) sourceEnabled = body.enabled
         if (body.name) sourceName = body.name
-        await json({ id: sourceId, name: sourceName, type: "novaway", url: "https://example.test/catalog.json", enabled: sourceEnabled, trust: "official", builtin: true, createdAt: 0, updatedAt: 1 })
+        await json({
+          id: sourceId,
+          name: sourceName,
+          type: "novaway",
+          url: "https://example.test/catalog.json",
+          enabled: sourceEnabled,
+          trust: "official",
+          builtin: true,
+          createdAt: 0,
+          updatedAt: 1,
+        })
       } else {
         const source = customSources.find((item) => item.id === sourceId)
         if (source) Object.assign(source, body)
-        await json({ ...(source ?? { id: sourceId, name: "missing", type: "auto", url: "", enabled: false }), trust: "unverified", builtin: false, createdAt: 1, updatedAt: 1 })
+        await json({
+          ...(source ?? { id: sourceId, name: "missing", type: "auto", url: "", enabled: false }),
+          trust: "unverified",
+          builtin: false,
+          createdAt: 1,
+          updatedAt: 1,
+        })
       }
       return
     }
@@ -198,7 +298,19 @@ test("marketplace browser lifecycle covers discovery, source management, install
         return
       }
       if (source) delete source.lastError
-      await json({ ...(source ?? { id: sourceId, name: "refreshed", type: "auto", url: "https://example.test/custom.json", enabled: true }), trust: "unverified", builtin: false, createdAt: 1, updatedAt: 2 })
+      await json({
+        ...(source ?? {
+          id: sourceId,
+          name: "refreshed",
+          type: "auto",
+          url: "https://example.test/custom.json",
+          enabled: true,
+        }),
+        trust: "unverified",
+        builtin: false,
+        createdAt: 1,
+        updatedAt: 2,
+      })
       return
     }
     if (pathname.includes("/extension/marketplace/sources/") && request.method() === "DELETE") {
@@ -209,7 +321,20 @@ test("marketplace browser lifecycle covers discovery, source management, install
       return
     }
     if (pathname.endsWith("/update/preview") && request.method() === "POST") {
-      await json({ currentVersion: "0.1.0", targetVersion: "0.2.0", sourceChanged: false, sourceUrlChanged: false, permissionsAdded: [], permissionsRemoved: [], dependenciesAdded: {}, dependenciesRemoved: [], conflictsAdded: [], conflictsRemoved: [], digestChanged: false, requiresConfirmation: false })
+      await json({
+        currentVersion: "0.1.0",
+        targetVersion: "0.2.0",
+        sourceChanged: false,
+        sourceUrlChanged: false,
+        permissionsAdded: [],
+        permissionsRemoved: [],
+        dependenciesAdded: {},
+        dependenciesRemoved: [],
+        conflictsAdded: [],
+        conflictsRemoved: [],
+        digestChanged: false,
+        requiresConfirmation: false,
+      })
       return
     }
     if (pathname.includes(`/extension/marketplace/${entry.packageId}/rollback`) && request.method() === "POST") {
@@ -247,13 +372,20 @@ test("marketplace browser lifecycle covers discovery, source management, install
       extensionEnabled = body.enabled ?? extensionEnabled
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({ name: entry.packageId, root: "/isolated/marketplace/com.novaway.browser-marketplace-smoke@0.1.0", source: "plugin", enabled: extensionEnabled }),
+        body: JSON.stringify({
+          name: entry.packageId,
+          root: "/isolated/marketplace/com.novaway.browser-marketplace-smoke@0.1.0",
+          source: "plugin",
+          enabled: extensionEnabled,
+        }),
       })
       return
     }
     await route.continue()
   })
-  await page.route("**/plugin/contributions**", (route) => route.fulfill({ contentType: "application/json", body: "[]" }))
+  await page.route("**/plugin/contributions**", (route) =>
+    route.fulfill({ contentType: "application/json", body: "[]" }),
+  )
 
   page.on("dialog", (dialog) => void dialog.accept())
   await openMarketplace(page)
@@ -273,17 +405,19 @@ test("marketplace browser lifecycle covers discovery, source management, install
   await expect(smokeEntry.locator('[data-component="market-entry-details"]')).toContainText("filesystem.read")
   await expect(smokeEntry.locator('[data-component="market-entry-details"]')).toContainText("novaway-v2")
   expect(
-    await smokeEntry.locator('[data-component="market-entry-details"]').evaluate((element) => element.scrollWidth <= element.clientWidth),
+    await smokeEntry
+      .locator('[data-component="market-entry-details"]')
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
   ).toBe(true)
 
-  const searchInput = page.getByRole("textbox", { name: /Search plugins|搜索插件/ })
+  const searchInput = page.getByRole("textbox", { name: /Search names|搜索名称/ })
   await searchInput.fill("Browser Marketplace")
   await expect(page.getByText(entry.name, { exact: true })).toBeVisible()
   await expect(page.getByText("ppt-master", { exact: true })).toHaveCount(0)
   await searchInput.fill("")
-  await page.getByRole("combobox", { name: /Category|分类/ }).selectOption("testing")
+  await page.getByRole("button", { name: "testing", exact: true }).click()
   await expect(page.getByText(entry.name, { exact: true })).toBeVisible()
-  await page.getByRole("combobox", { name: /Category|分类/ }).selectOption("all")
+  await page.locator('[aria-label="Category"], [aria-label="分类"]').getByRole("button").first().click()
   await searchInput.fill("no-such-plugin")
   await expect(page.getByText(/catalog is empty|目录为空/)).toBeVisible()
   await searchInput.fill("")
@@ -313,7 +447,9 @@ test("marketplace browser lifecycle covers discovery, source management, install
   await editedSource.getByRole("button", { name: /Refresh|刷新/ }).click()
   await expect(editedSource).toContainText("preflight failed")
 
-  await page.getByRole("button", { name: /Install|安装/ }).last().click()
+  await smokeEntry.getByRole("button", { name: /Install|安装/ }).click()
+  await expect(page.locator('[data-component="market-operation-history"]')).not.toHaveAttribute("open", "")
+  await page.locator('[data-component="market-operation-history"] summary').click()
   await expect(page.locator('[data-component="market-operation-history"]')).toContainText("staging")
   await expect(page.locator('[data-component="market-operation-history"]')).toContainText("completed")
   await expect(page.getByText(/Installed|已安装/).first()).toBeVisible()
@@ -326,9 +462,7 @@ test("marketplace browser lifecycle covers discovery, source management, install
 
   await editedSource.getByRole("button", { name: /Remove|删除/ }).click()
   await expect(page.locator('[data-source-id="browser-source-1"]')).toHaveCount(0)
-  await expect(page.getByText(/Installed 1|已安装 1/)).toBeVisible()
-
-  await page.getByRole("button", { name: /Disable|禁用/ }).first().click().catch(() => undefined)
+  await expect(smokeEntry.getByRole("button", { name: /Remove|卸载/ })).toBeVisible()
   await smokeEntry.getByRole("button", { name: /Remove|卸载/ }).click()
   await expect(page.locator('[data-component="market-operation-history"]')).toContainText("uninstall")
   await expect(smokeEntry.getByRole("button", { name: /Install|安装/ })).toBeVisible()
@@ -344,16 +478,41 @@ test("marketplace browser lifecycle covers discovery, source management, install
   await page.getByRole("button", { name: /Refresh catalog|刷新目录/ }).click()
   await expect(page.locator('[data-component="market-catalog-errors"]')).toContainText("offline")
   await expect(page.getByText(entry.name, { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: /Claude \(0\)|Claude（0）/ }).click()
-  await expect(page.getByText(/catalog is empty|目录为空/)).toBeVisible()
-
-  await page.getByRole("button", { name: /Installed|已安装/ }).click()
-  await expect(page.getByText(entry.packageId, { exact: true })).toBeVisible()
-  const extensionSwitch = page.getByRole("switch").first()
+  await page.getByRole("button", { name: /Marketplace sources|市场源/ }).click()
+  await expect(page.locator("#market-source-panel")).toHaveCount(0)
+  await searchInput.fill("Browser Marketplace")
+  await smokeEntry.getByRole("button", { name: /Details|详情/ }).click()
+  await page.locator('[data-component="market-operation-history"] summary').click()
+  await searchInput.fill("")
+  await searchInput.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: test.info().outputPath("market-light.png"), fullPage: true })
+  await page.evaluate(() => {
+    localStorage.setItem("novaway-color-scheme", "dark")
+    window.dispatchEvent(new StorageEvent("storage", { key: "novaway-color-scheme", newValue: "dark" }))
+  })
+  await page.screenshot({ path: test.info().outputPath("market-dark.png"), fullPage: true })
+  await page.setViewportSize({ width: 768, height: 900 })
+  expect(
+    await page
+      .locator('[data-component="marketplace"]')
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true)
+  await page.screenshot({ path: test.info().outputPath("market-narrow.png"), fullPage: true })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.getByRole("button", { name: /^(Installed|已安装)$/ }).click()
+  await expect(page.getByText(entry.packageId, { exact: true }).first()).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath("installed-dark.png"), fullPage: true })
+  const extensionSwitch = page.getByRole("switch", { name: entry.packageId, exact: true })
   const extensionSwitchControl = extensionSwitch.locator("..").locator('[data-slot="switch-control"]')
   await expect(extensionSwitch).toHaveAttribute("aria-checked", "true")
   await extensionSwitchControl.click()
   await expect(extensionSwitch).toHaveAttribute("aria-checked", "false")
   await extensionSwitchControl.click()
   await expect(extensionSwitch).toHaveAttribute("aria-checked", "true")
+  await page.getByRole("button", { name: "Marketplace", exact: true }).first().click()
+  await searchInput.fill("Browser Marketplace")
+  await page.getByRole("button", { name: /^(Installed|已安装)$/ }).click()
+  await page.getByRole("button", { name: "Marketplace", exact: true }).first().click()
+  await expect(searchInput).toHaveValue("Browser Marketplace")
+  expect(pageErrors).toEqual([])
 })

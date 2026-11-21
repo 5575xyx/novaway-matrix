@@ -1,7 +1,7 @@
 import { createSimpleContext } from "@novaway/ui/context"
 import { checksum } from "@novaway/core/util/encode"
 import { useParams } from "@solidjs/router"
-import { batch, createMemo, createRoot, getOwner, onCleanup } from "solid-js"
+import { batch, createMemo, createRoot, getOwner, onCleanup, onMount } from "solid-js"
 import { createStore, type SetStoreFunction } from "solid-js/store"
 import type { FileSelection } from "@/context/file"
 import { useSDK } from "@/context/sdk"
@@ -293,6 +293,16 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
     // 无项目聊天没有 :dir 路由参数，草稿按 SDK 目录（global-chat）存取。
     const session = createMemo(() => load(params.dir ?? sdk.directory, params.id))
     const pick = (scope?: Scope) => (scope ? load(scope.dir, scope.id) : session())
+
+    const onPluginCommand = (event: Event) => {
+      const detail = (event as CustomEvent<{ command?: unknown }>).detail
+      if (!detail || typeof detail.command !== "string" || detail.command.length === 0) return
+      const text = `/${detail.command} `
+      session().set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
+      window.dispatchEvent(new CustomEvent("novaway:focus-prompt"))
+    }
+    onMount(() => window.addEventListener("novaway:plugin-command", onPluginCommand))
+    onCleanup(() => window.removeEventListener("novaway:plugin-command", onPluginCommand))
 
     return {
       ready: () => session().ready,

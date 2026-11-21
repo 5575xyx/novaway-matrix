@@ -98,11 +98,13 @@ describe("sidebar rail labels and footer", () => {
     const themeCss = read("../../ui/src/styles/theme.css")
     expect(teamAvatar).toContain("--team-category-${category()}")
     expect(teamAvatar).not.toMatch(/(?:surface|text)-agent-|surface-brand-base/)
-    for (const mode of ["forge", "zen", "spark", "future"]) {
+    for (const mode of ["forge"]) {
       expect(layout).toContain(`--app-mode-${mode}`)
       expect(themeCss).toContain(`--app-mode-${mode}:`)
       expect(themeCss).toContain(`--app-mode-${mode}-foreground:`)
     }
+    // Workbench colors are plugin metadata; Zen must not be a host mode token.
+    expect(layout).not.toContain("--app-mode-zen")
     expect(layout).not.toMatch(/surface-(?:success|warning|brand)-base/)
   })
 

@@ -243,3 +243,15 @@ PRODUCTION_LOG_BYTES>0
 该脚本只能证明目标 Runner 上的可重复运维流程，不能替代正式环境的证书、反向代理、日志
 采集和备份系统配置验收。
 
+
+## 10. SA-G12 人工发布记录门禁
+
+SA-G12 不能由自动化结果、AI 结论或预生成签名替代。发布操作者必须复制
+`docs/sa-g12-manual-release-record.template.json`，在真实发布候选版本上填写每个场景的观察记录、证据路径、操作者签名和复核者签名，然后执行：
+
+```bash
+SA_G12_RECORD=test-results/sa-g12-manual-release.json bun run gate:sa-g12
+```
+
+该门禁在任何场景未观察、缺少证据、缺少签名或任一结论不是 `pass` 时失败。只有输出
+`SA-G12_MANUAL_ACCEPTANCE=PASS` 后，SA-G12 才能进入发布审批；模板本身必须保持失败，不能作为发布证据。

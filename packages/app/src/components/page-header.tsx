@@ -2,26 +2,14 @@ import { Show, type JSX } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Icon, type IconProps } from "@novaway/ui/icon"
 import { useLanguage } from "@/context/language"
-import { FRAME_WINDOW_CONTROLS_WIDTH } from "@/components/frame-window-controls"
 
 /**
- * 覆盖式整帧页面（设置 / 知识库 / 自动化 / 扩展 / 内核 / 团队 / 运行 / 运营 / 数据库）
- * 共用的顶行。
+ * 内容区域页面共用的顶行。
  *
- * **为什么要有这个组件：** 这些页面盖住了会话帧 Header，窗口自绘的最小化/最大化/
- * 关闭按钮会被 `FrameWindowControls` 补在**右上角 108px**。页面自己的动作按钮如果
- * 也右对齐，就会和窗控叠在一起 —— 用户点「添加团队」点到了最小化。
- *
- * 规则（新增覆盖式页面时照此办理）：
- *
- * 1. **页面级动作放左边**：`actions` 槽位紧接标题，或放进页面左侧栏的顶部。
- *    绝不放在顶行的最右侧。
- * 2. 顶行右侧必须留空 108px（本组件自动加 `pr`），即使现在还没有右侧内容，
- *    将来加筛选器时也不会压到窗控上。
- * 3. 整行是窗口拖拽区；行内的按钮/输入框由 `index.css` 的规则自动排除拖拽，
- *    不要再手工加 `data-window-drag`。
+ * 页面现在渲染在主页面 Header 下方，窗口控制按钮由主页面唯一的 Header 承载，
+ * 因此这里不再为第二组窗控预留右侧空白。
  */
-export const PAGE_HEADER_RIGHT_INSET = "pr-[108px]"
+export const PAGE_HEADER_RIGHT_INSET = ""
 
 export function PageHeader(props: {
   onBack?: () => void
@@ -33,16 +21,12 @@ export function PageHeader(props: {
   accent?: string
   /** 页面级动作：渲染在**标题右边**，不要放在行尾。 */
   actions?: JSX.Element
-  /** 右侧内容（筛选器之类）；会自动让出窗控宽度。 */
+  /** 右侧内容（筛选器之类）。 */
   filters?: JSX.Element
 }) {
   const language = useLanguage()
   return (
-    <div
-      class="flex shrink-0 flex-col border-b border-border px-4 py-3"
-      style={{ "padding-right": `${FRAME_WINDOW_CONTROLS_WIDTH}px` }}
-      data-window-drag
-    >
+    <div class="flex shrink-0 flex-col border-b border-border px-4 py-3" data-window-drag>
       <div class="flex items-center gap-2">
         <Show when={props.onBack}>
           <Button variant="ghost" size="small" onClick={() => props.onBack?.()}>

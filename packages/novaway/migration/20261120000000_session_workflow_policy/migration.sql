@@ -12,7 +12,9 @@ CREATE TABLE `session_workflow_policy` (
   `created_at` integer NOT NULL,
   `updated_at` integer NOT NULL
 );
+--> statement-breakpoint
 CREATE INDEX `session_workflow_policy_turn_idx` ON `session_workflow_policy` (`turn_id`);
+--> statement-breakpoint
 CREATE TABLE `session_workflow_event` (
   `id` text PRIMARY KEY NOT NULL,
   `session_id` text NOT NULL REFERENCES `session`(`id`) ON DELETE CASCADE,
@@ -23,4 +25,5 @@ CREATE TABLE `session_workflow_event` (
   `payload` text,
   `created_at` integer NOT NULL
 );
+--> statement-breakpoint
 CREATE INDEX `session_workflow_event_session_idx` ON `session_workflow_event` (`session_id`, `created_at`);

@@ -7,7 +7,6 @@ import { showToast } from "@novaway/ui/toast"
 import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { AppIcon } from "./app-icon"
-import { SettingsGroup } from "./settings-parts"
 
 type ExtensionIssue = {
   severity: "error" | "warning"
@@ -77,8 +76,8 @@ export const InstalledExtensions: Component<{ directory: string; refreshKey?: nu
 
   return (
     <Show when={items().length > 0}>
-      <SettingsGroup>
-        <div class="flex items-center gap-2 border-b border-border px-4 py-2">
+      <section>
+        <div class="flex items-center gap-2 px-1 pb-4">
           <div class="min-w-0 flex-1">
             <div class="text-13-medium text-foreground">{language.t("settings.extensions.installed")}</div>
             <div class="mt-0.5 text-12-regular text-foreground-subtle">
@@ -90,48 +89,52 @@ export const InstalledExtensions: Component<{ directory: string; refreshKey?: nu
             {language.t("settings.extensions.reload")}
           </Button>
         </div>
-        <For each={items()}>
-          {(item) => (
-            <div class="flex min-w-0 items-start gap-3 rounded-lg px-3 py-2 hover:bg-hover">
-              <AppIcon seed={item.name} fallback="mcp" size="sm" class="mt-0.5" />
-              <div class="min-w-0 flex-1">
-                <div class="flex min-w-0 items-center gap-2">
-                  <span class="min-w-0 truncate text-ui-base text-foreground">{item.name}</span>
-                  <Show when={item.version}>
-                    <Tag>{item.version}</Tag>
+        <div class="divide-y divide-border/60 rounded-2xl border border-border px-5">
+          <For each={items()}>
+            {(item) => (
+              <div class="flex min-w-0 items-center gap-4 py-5 transition-colors hover:bg-hover/30">
+                <AppIcon seed={item.name} fallback="mcp" size="sm" class="mt-0.5" />
+                <div class="min-w-0 flex-1">
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span class="min-w-0 truncate text-ui-base text-foreground">{item.name}</span>
+                    <Show when={item.version}>
+                      <Tag>{item.version}</Tag>
+                    </Show>
+                    <Tag>{item.source}</Tag>
+                    <Show when={item.status && item.status !== "unchanged"}>
+                      <Tag>{language.t(`settings.extensions.status.${item.status}`)}</Tag>
+                    </Show>
+                  </div>
+                  <Show when={item.description}>
+                    <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{item.description}</div>
                   </Show>
-                  <Tag>{item.source}</Tag>
-                  <Show when={item.status && item.status !== "unchanged"}>
-                    <Tag>{language.t(`settings.extensions.status.${item.status}`)}</Tag>
+                  <Show when={item.error}>
+                    <div class="mt-0.5 truncate text-ui-xs text-critical-base">{item.error}</div>
                   </Show>
+                  <For each={item.issues ?? []}>
+                    {(issue) => (
+                      <div
+                        class="mt-0.5 truncate text-ui-xs"
+                        classList={{
+                          "text-critical-base": issue.severity === "error",
+                          "text-warning-base": issue.severity !== "error",
+                        }}
+                        title={issue.code}
+                      >
+                        {issue.message}
+                      </div>
+                    )}
+                  </For>
+                  <div class="mt-0.5 truncate font-mono text-ui-xs text-foreground-subtlest">{item.root}</div>
                 </div>
-                <Show when={item.description}>
-                  <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{item.description}</div>
-                </Show>
-                <Show when={item.error}>
-                  <div class="mt-0.5 truncate text-ui-xs text-critical-base">{item.error}</div>
-                </Show>
-                <For each={item.issues ?? []}>
-                  {(issue) => (
-                    <div
-                      class="mt-0.5 truncate text-ui-xs"
-                      classList={{
-                        "text-critical-base": issue.severity === "error",
-                        "text-warning-base": issue.severity !== "error",
-                      }}
-                      title={issue.code}
-                    >
-                      {issue.message}
-                    </div>
-                  )}
-                </For>
-                <div class="mt-0.5 truncate font-mono text-ui-xs text-foreground-subtlest">{item.root}</div>
+                <Switch checked={item.enabled} onChange={(value: boolean) => toggle(item, value)} hideLabel>
+                  {item.name}
+                </Switch>
               </div>
-              <Switch checked={item.enabled} onChange={(value: boolean) => toggle(item, value)} />
-            </div>
-          )}
-        </For>
-      </SettingsGroup>
+            )}
+          </For>
+        </div>
+      </section>
     </Show>
   )
 }

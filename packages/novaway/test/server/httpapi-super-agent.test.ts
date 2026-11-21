@@ -27,6 +27,27 @@ afterEach(async () => {
 })
 
 describe("Super-Agent HttpApi", () => {
+  test("does not allow a Goal PATCH to bypass verification", async () => {
+    await using tmp = await tmpdir({ git: true })
+    const directory = tmp.path
+    const sessionResponse = await request("/session", directory, "POST", { title: "verification-owned goal" })
+    expect(sessionResponse.status).toBe(200)
+    const session = (await sessionResponse.json()) as { id: string }
+    const goalResponse = await request(`/session/${session.id}/goals`, directory, "POST", {
+      title: "must be verified",
+      status: "in_progress",
+      successCriteria: ["a real verifier passes"],
+    })
+    expect(goalResponse.status).toBe(200)
+    const goal = (await goalResponse.json()) as { id: string }
+    const bypass = await request(`/session/${session.id}/goals/${goal.id}`, directory, "PATCH", {
+      status: "completed",
+    })
+    expect(bypass.status).toBe(400)
+    const current = await request(`/session/${session.id}/goals/${goal.id}`, directory)
+    expect(((await current.json()) as { status: string }).status).toBe("in_progress")
+  })
+
   test("creates a run, transitions it, and reads ordered events", async () => {
     await using tmp = await tmpdir({ git: true })
     const directory = tmp.path
@@ -110,6 +131,14 @@ describe("Super-Agent HttpApi", () => {
     const detail = (await (await request(`/super-agent/runs/${run.id}`, directory)).json()) as {
       graph: { rootTaskID: string }
     }
+    const executed = await request(`/super-agent/runs/${run.id}/execute-tool`, directory, "POST", {
+      taskID: detail.graph.rootTaskID,
+      tool: "sleep",
+      input: { duration_ms: 0 },
+      sessionID: "sa-http-verified-session",
+      messageID: "sa-http-verified-message",
+    })
+    expect(executed.status).toBe(200)
     const verifying = await request(`/super-agent/runs/${run.id}/transition`, directory, "POST", {
       status: "verifying",
     })
@@ -120,6 +149,7 @@ describe("Super-Agent HttpApi", () => {
       kind: "test",
       source: "bun test",
       measured: "pass",
+      acceptanceIDs: ["checks"],
     })
     expect(evidence.status).toBe(200)
     const finished = await request(`/super-agent/runs/${run.id}/verify-finish`, directory, "POST", {
@@ -270,25 +300,39 @@ describe("Super-Agent HttpApi", () => {
       sessionID: "sa-http-repair-session",
       messageID: "sa-http-repair-message",
       evidenceKind: "artifact",
-      verifyAfter: true,
+      verifyAfter: false,
       verifierID: "builtin.artifact",
       summary: "repair verified",
     })
     expect(rerun.status).toBe(200)
     const rerunBody = (await rerun.json()) as {
       result: { type: string }
-      completed: boolean
       run: { status: string; graph: { nodes: Array<{ id: string; status: string; evidenceIDs: string[] }> } }
     }
     expect(rerunBody.result.type).toBe("tool_completed")
-    expect(rerunBody.completed).toBe(true)
-    expect(rerunBody.run.status).toBe("completed")
-    expect(rerunBody.run.graph.nodes.find((node) => node.id === body.task.id)).toMatchObject({
-      status: "succeeded",
-      evidenceIDs: [expect.any(String)],
+
+    // A successful repair operation is not itself acceptance evidence. Record
+    // the explicit verification result before closing the run.
+    const passEvidence = await request(`/super-agent/runs/${run.id}/evidence`, directory, "POST", {
+      id: `${run.id}:evidence:repair-pass`,
+      taskID: body.task.id,
+      kind: "test",
+      source: "fixture-verifier",
+      measured: "pass",
+      acceptanceIDs: ["checks"],
     })
+    expect(passEvidence.status).toBe(200)
+    const finishedRepair = await request(`/super-agent/runs/${run.id}/verify-finish`, directory, "POST", {
+      verifierID: "builtin.test",
+      summary: "repair verified",
+    })
+    expect(finishedRepair.status).toBe(200)
+    const finishedRepairBody = (await finishedRepair.json()) as { completed: boolean; run: { status: string } }
+    expect(finishedRepairBody.completed).toBe(true)
+    expect(finishedRepairBody.run.status).toBe("completed")
+
     const evidence = await request(`/super-agent/runs/${run.id}/evidence`, directory)
-    expect(((await evidence.json()) as unknown[]).length).toBe(2)
+    expect(((await evidence.json()) as unknown[]).length).toBe(3)
     const mutations = await request(`/super-agent/runs/${run.id}/task-mutations`, directory)
     expect(mutations.status).toBe(200)
     const mutationBody = (await mutations.json()) as Array<{ taskID: string; graphVersion: number }>

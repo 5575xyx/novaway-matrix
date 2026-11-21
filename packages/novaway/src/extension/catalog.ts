@@ -1,4 +1,28 @@
+import { verify as verifySignature } from "node:crypto"
 import type { GitEntry, ZipEntry } from "./marketplace"
+
+
+export type CatalogSigningKey = { id: string; publicKey: string; expiresAt?: string }
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]"
+  if (value && typeof value === "object") return "{" + Object.keys(value as Record<string, unknown>).filter((key) => key !== "signature" && key !== "keyId").sort().map((key) => JSON.stringify(key) + ":" + canonical((value as Record<string, unknown>)[key])).join(",") + "}"
+  return JSON.stringify(value)
+}
+
+/** Verify a catalog envelope against the active key set; key ids support rotation. */
+export function verifySignedCatalog(value: unknown, keys: readonly CatalogSigningKey[], now = new Date()): { signed: boolean; verified: boolean; keyId?: string; reason?: string } {
+  if (!value || typeof value !== "object") return { signed: false, verified: false, reason: "catalog is not an object" }
+  const raw = value as Record<string, unknown>
+  if (typeof raw.signature !== "string") return { signed: false, verified: false }
+  const keyId = typeof raw.keyId === "string" ? raw.keyId : undefined
+  const key = keys.find((item) => item.id === keyId && (!item.expiresAt || new Date(item.expiresAt) > now))
+  if (!key) return { signed: true, verified: false, keyId, reason: "no active signing key" }
+  try {
+    const verified = verifySignature(null, Buffer.from(canonical(value)), key.publicKey, Buffer.from(raw.signature, "base64"))
+    return { signed: true, verified, keyId, ...(verified ? {} : { reason: "catalog signature mismatch" }) }
+  } catch { return { signed: true, verified: false, keyId, reason: "invalid catalog signature" } }
+}
 
 /** NovaWay 官方 catalog 中归一化后的条目。 */
 export type NovaWayEntry = {

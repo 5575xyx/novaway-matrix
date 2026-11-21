@@ -13,7 +13,7 @@ import {
   type PickedElement,
 } from "@/utils/preview-pick"
 import { relativeToWorkspace } from "@/utils/preview-sources"
-import { previewFilePath } from "@/utils/preview-url"
+import { isLocalPreviewUrl, previewFilePath } from "@/utils/preview-url"
 import { usePreview } from "./preview"
 
 // 预览里的元素选取。桌面端主进程往 HTML 预览文档注入 inspector 脚本（本地文件走 oc-file
@@ -149,7 +149,7 @@ export const { use: usePreviewInspection, provider: PreviewInspectionProvider } 
 
 /** 只有 http(s) 预览需要主进程拦截改写文档；其余地址上报空串，解除上一个源的改写 */
 function httpOrigin(url: string): string {
-  if (!/^https?:\/\//.test(url)) return ""
+  if (!/^https?:\/\//.test(url) || !isLocalPreviewUrl(url)) return ""
   try {
     return new URL(url).origin
   } catch {

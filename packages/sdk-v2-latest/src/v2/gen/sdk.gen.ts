@@ -10956,6 +10956,13 @@ export class Session3 extends HeyApiClient {
       goalExecution?: {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        judgeModel?: string
+        maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
       }
       goalContinuation?: boolean
       messageID?: string
@@ -11512,6 +11519,13 @@ export class Session3 extends HeyApiClient {
       goalExecution?: {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        judgeModel?: string
+        maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
       }
       goalContinuation?: boolean
       messageID?: string
@@ -14299,6 +14313,16 @@ export class Goal extends HeyApiClient {
       status?: "pending" | "in_progress"
       deadline?: string
       tags?: Array<string>
+      executionConfig?: {
+        maxIterations: number
+        judgeModel?: string
+        maxTokens?: number
+        maxActiveMs?: number
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
+      }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -14316,6 +14340,7 @@ export class Goal extends HeyApiClient {
             { in: "body", key: "status" },
             { in: "body", key: "deadline" },
             { in: "body", key: "tags" },
+            { in: "body", key: "executionConfig" },
           ],
         },
       ],
@@ -14393,6 +14418,16 @@ export class Goal extends HeyApiClient {
       successCriteria?: Array<string>
       deadline?: string
       tags?: Array<string>
+      executionConfig?: {
+        maxIterations: number
+        judgeModel?: string
+        maxTokens?: number
+        maxActiveMs?: number
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
+      }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -14410,6 +14445,7 @@ export class Goal extends HeyApiClient {
             { in: "body", key: "successCriteria" },
             { in: "body", key: "deadline" },
             { in: "body", key: "tags" },
+            { in: "body", key: "executionConfig" },
           ],
         },
       ],

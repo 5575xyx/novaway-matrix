@@ -1,4 +1,4 @@
-import { createSignal, Show, type Component } from "solid-js"
+import { createSignal, type Component } from "solid-js"
 import { Icon } from "@novaway/ui/icon"
 import { Button } from "@novaway/ui/button"
 import { useLanguage } from "@/context/language"
@@ -27,7 +27,7 @@ export const ExtensionsPage: Component<{
   onBack: () => void
 }> = (props) => {
   const language = useLanguage()
-  const [tab, setTab] = createSignal<Tab>("installed")
+  const [tab, setTab] = createSignal<Tab>("market")
   const [refreshKey, setRefreshKey] = createSignal(0)
 
   const tabs: Array<{ id: Tab; label: string }> = [
@@ -37,43 +37,63 @@ export const ExtensionsPage: Component<{
 
   return (
     <div class="flex h-full min-h-0 flex-col bg-background">
-      <div class="shrink-0 border-b border-border px-4 pt-3">
+      <div
+        class="flex shrink-0 flex-wrap items-center justify-between gap-3 px-6 py-4"
+        data-window-drag
+        data-component="extensions-header"
+      >
         <div class="flex items-center gap-2">
           <Button variant="ghost" size="small" onClick={() => props.onBack()}>
             <Icon name="arrow-left" size="small" />
             {language.t("common.goBack")}
           </Button>
           <span class="text-14-medium text-foreground">{language.t("settings.extensions.title")}</span>
-          <div class="flex-1" />
         </div>
-        <div class="mt-2 flex items-center gap-1">
-          {tabs.map((item) => (
-            <button
-              type="button"
-              class="h-8 rounded-full px-3.5 text-13-medium transition-colors"
-              classList={{
-                "bg-surface text-foreground": tab() === item.id,
-                "text-foreground-subtle hover:text-foreground": tab() !== item.id,
-              }}
-              onClick={() => setTab(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <div class="flex-1" />
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <Show when={tab() === "installed"}>
-          <div class="flex flex-col gap-3">
-            <BuiltinExtensions />
-            <InstalledExtensions directory={props.directory} refreshKey={refreshKey()} />
-          </div>
-        </Show>
+      <div class="flex min-h-0 flex-1">
+        <aside class="w-44 shrink-0 border-r border-border/80 bg-surface/30 px-3 py-5">
+          <nav class="flex flex-col gap-1" aria-label={language.t("settings.extensions.navigation")}>
+            {tabs.map((item) => (
+              <button
+                type="button"
+                class="flex h-10 items-center rounded-lg px-3 text-left text-13-medium transition-colors"
+                classList={{
+                  "bg-background text-foreground shadow-sm": tab() === item.id,
+                  "text-foreground-subtle hover:bg-hover hover:text-foreground": tab() !== item.id,
+                }}
+                aria-current={tab() === item.id ? "page" : undefined}
+                onClick={() => setTab(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-        <Show when={tab() === "market"}>
-          <MarketCatalog directory={props.directory} onInstalled={() => setRefreshKey((value) => value + 1)} />
-        </Show>
+        <main class="min-w-0 flex-1 overflow-y-auto px-5 pb-10 sm:px-8">
+          <div class="mx-auto w-full max-w-[960px]" hidden={tab() !== "installed"}>
+            <div class="flex items-center justify-between gap-4 py-10">
+              <div>
+                <h1 class="text-[26px] leading-tight font-semibold text-foreground">
+                  {language.t("settings.market.manageTitle")}
+                </h1>
+                <p class="mt-2 text-13-regular text-foreground-subtle">{language.t("settings.market.manageHint")}</p>
+              </div>
+              <Button variant="secondary" onClick={() => setTab("market")}>
+                {language.t("settings.extensions.tab.market")}
+              </Button>
+            </div>
+            <div class="flex flex-col gap-8">
+              <InstalledExtensions directory={props.directory} refreshKey={refreshKey()} />
+              <BuiltinExtensions />
+            </div>
+          </div>
+          <div class="mx-auto w-full max-w-[1120px]" hidden={tab() !== "market"}>
+            <MarketCatalog directory={props.directory} onInstalled={() => setRefreshKey((value) => value + 1)} />
+          </div>
+        </main>
       </div>
     </div>
   )

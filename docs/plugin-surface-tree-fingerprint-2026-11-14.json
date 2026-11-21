@@ -1,0 +1,7 @@
+{
+  "files": 7814,
+  "sha256First": "7561172775d3b0c732980f5b5b81c35cdf02aa917510da5c1f6425ac8c2a00b7",
+  "sha256Second": "7561172775d3b0c732980f5b5b81c35cdf02aa917510da5c1f6425ac8c2a00b7",
+  "stable": true,
+  "scope": "git tracked tree excluding self-referential plan plus SU-T18 untracked e2e file"
+}

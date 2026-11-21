@@ -6,10 +6,11 @@
  *   只在两者真的相撞时往下缩（20px 兜底），避免大窗口里文字两侧留白却仍被强行缩小；
  * - 办公模式和编码模式的问候语只差一句话，由 `layout.mode` 决定。
  */
-import { createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { Mark } from "@novaway/ui/logo"
 import { useLanguage } from "@/context/language"
-import { useLayout } from "@/context/layout"
+import { usePlatform } from "@/context/platform"
+import { appModeIsGroup, useLayout } from "@/context/layout"
 import { greetingMessageId } from "@/utils/greeting"
 
 const MIN_FONT_SIZE_PX = 20
@@ -35,9 +36,20 @@ export function resolveGreetingFontSizePx(availableWidthPx: number, naturalTextW
 export function DraftEmptyState(props: { class?: string }) {
   const language = useLanguage()
   const layout = useLayout()
+  const platform = usePlatform()
+  const [appIcon, setAppIcon] = createSignal<string>()
+
+  onMount(() => {
+    if (platform.platform !== "desktop") return
+    void platform.getAppAppearance?.().then((appearance) => setAppIcon(appearance.iconData))
+    const dispose = platform.onAppAppearanceChange?.((appearance) => setAppIcon(appearance.iconData))
+    if (dispose) onCleanup(dispose)
+  })
 
   const greeting = createMemo(() =>
-    layout.mode.current() === "zen" ? language.t("chat.empty.greeting.office") : language.t(greetingMessageId()),
+    appModeIsGroup(layout.mode.current(), "office", layout.mode.all())
+      ? language.t("chat.empty.greeting.office")
+      : language.t(greetingMessageId()),
   )
 
   const [fontSizePx, setFontSizePx] = createSignal(MAX_FONT_SIZE_PX)
@@ -92,9 +104,16 @@ export function DraftEmptyState(props: { class?: string }) {
         aria-hidden="true"
         class="pointer-events-none absolute left-1/2 top-1/2 -mt-10 aspect-[5/4] w-[min(72vw,25rem)] -translate-x-1/2 -translate-y-1/2"
       >
-        <Mark
-          class={`h-full w-full opacity-[0.055] [mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)] [mask-repeat:no-repeat] [mask-size:100%_100%] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]`}
-        />
+        <Show
+          when={platform.platform === "desktop" && appIcon()}
+          fallback={
+            <Mark
+              class={`h-full w-full opacity-[0.055] [mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)] [mask-repeat:no-repeat] [mask-size:100%_100%] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]`}
+            />
+          }
+        >
+          {(src) => <img src={src()} alt="" class="h-full w-full object-contain opacity-[0.055]" draggable={false} />}
+        </Show>
       </div>
       <p
         ref={(el) => (container = el)}

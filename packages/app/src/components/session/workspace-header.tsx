@@ -5,6 +5,7 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { Mark } from "@novaway/ui/logo"
 import { WindowControls } from "@/components/window-controls"
 import { SessionHeader } from "@/components/session/session-header"
+import { WorkflowStatus } from "@/components/session/workflow-status"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -146,6 +147,7 @@ export function WorkspaceHeader() {
       </Show>
       {/* 搜索、连接状态、在编辑器中打开、Side Pane 开关原先被 Portal 塞进全局标题栏，
           现在就地渲染在这里（操作都在会话帧的 Header 里）。 */}
+      <WorkflowStatus />
       <SessionHeader />
       <DropdownMenu>
         <DropdownMenu.Trigger

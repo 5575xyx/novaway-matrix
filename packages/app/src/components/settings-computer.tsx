@@ -4,7 +4,7 @@ import { Switch } from "@novaway/ui/switch"
 import { createMemo, Show, type Component } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
-import { SettingsGroup, SettingsPage, SettingsRow } from "./settings-parts"
+import { SettingsGroup, SettingsNumberField, SettingsPage, SettingsRow } from "./settings-parts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value)
@@ -58,6 +58,10 @@ export const SettingsComputer: Component = () => {
     globalSync.updateConfig({
       experimental: { ...experimental(), ...patch },
     } as Config)
+
+  const loopConfig = createMemo(() => globalSync.data.config.computer ?? {})
+  const updateLoop = (patch: Partial<Config["computer"]>) =>
+    globalSync.updateConfig({ computer: { ...loopConfig(), ...patch } } as Config)
 
   return (
     <SettingsPage
@@ -118,6 +122,43 @@ export const SettingsComputer: Component = () => {
           </div>
         </Show>
       </SettingsGroup>
+
+      {/*
+        多步循环是独立于单步电脑控制的开关：后端只看 computer.enabled，
+        不依赖上面的 experimental.computer_control。放在同一页是因为都属于桌面自动化。
+      */}
+      <div class="flex flex-col gap-2">
+        <h3 class="text-14-medium text-foreground">自主循环</h3>
+        <SettingsGroup>
+          <SettingsRow
+            label="Computer-use 循环"
+            description="让模型连续执行「截图 → 推理 → 动作」，直到完成或达到步数上限；每个动作仍按上面的权限档位处理。"
+            control={
+              <Switch
+                checked={loopConfig().enabled === true}
+                onChange={(value) => updateLoop({ enabled: value })}
+                hideLabel
+              >
+                Computer-use 循环
+              </Switch>
+            }
+            detail={
+              <SettingsRow
+                label="最大动作步数"
+                control={
+                  <SettingsNumberField
+                    value={loopConfig().max_steps}
+                    fallback={10}
+                    min={1}
+                    disabled={loopConfig().enabled !== true}
+                    onSave={(value) => updateLoop({ max_steps: Math.max(1, value) })}
+                  />
+                }
+              />
+            }
+          />
+        </SettingsGroup>
+      </div>
 
       {/* 「怎么用」比开关更重要：这一页只有三个开关时，用户根本不知道开完该说什么。 */}
       <div class="rounded-xl border border-border bg-surface px-4 py-3">

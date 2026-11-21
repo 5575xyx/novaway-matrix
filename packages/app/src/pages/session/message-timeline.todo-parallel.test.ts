@@ -10,7 +10,7 @@ const part = (id: string, input: Partial<Part>): Part =>
     ...input,
   }) as Part
 
-const todoPart = (id: string, todos: { content: string; status: string }[]): Part =>
+const todoPart = (id: string, todos: { content: string; status: string }[], focusPosition?: number): Part =>
   part(id, {
     type: "tool",
     tool: "todowrite",
@@ -19,12 +19,19 @@ const todoPart = (id: string, todos: { content: string; status: string }[]): Par
       input: { todos },
       output: "",
       title: "",
-      metadata: { todos },
+      metadata: { todos, ...(focusPosition === undefined ? {} : { focusPosition }) },
       time: { start: 100, end: 110 },
     },
   } as Partial<Part>)
 
-const toolPart = (id: string, tool: string, start: number, end: number, filePath?: string): Part =>
+const toolPart = (
+  id: string,
+  tool: string,
+  start: number,
+  end: number,
+  filePath?: string,
+  todoContent?: string,
+): Part =>
   part(id, {
     type: "tool",
     tool,
@@ -33,7 +40,7 @@ const toolPart = (id: string, tool: string, start: number, end: number, filePath
       input: filePath ? { filePath } : {},
       output: "",
       title: "",
-      metadata: {},
+      metadata: todoContent ? { todoContent } : {},
       time: { start, end },
     },
   } as Partial<Part>)
@@ -51,7 +58,7 @@ const ref = (partID: string) => ({ messageID: "msg_assistant", partID })
 const overview = (rows: TimelineRow.TimelineRow[]) =>
   rows.find((row) => row._tag === "TodoOverview") as TimelineRow.TodoOverview | undefined
 
-describe("TodoGrouping.group parallel todos", () => {
+describe("TodoGrouping.group malformed parallel todos", () => {
   const parts = new Map<string, Part>()
   const getPart = (messageID: string, partID: string) => (messageID === "msg_assistant" ? parts.get(partID) : undefined)
 
@@ -77,7 +84,7 @@ describe("TodoGrouping.group parallel todos", () => {
     )
   }
 
-  test("every in_progress item gets its own section, timer and rows", () => {
+  test("does not guess an untagged row into the first parallel item", () => {
     setup()
     const rows = [
       assistantRow(ref("p_todo")),
@@ -88,21 +95,52 @@ describe("TodoGrouping.group parallel todos", () => {
     const grouped = TodoGrouping.group(rows, { getPart })
     const card = overview(grouped)
     expect(card).toBeDefined()
-    const titles = card!.sections.map((section) => section.title)
-    expect(titles).toContain("检查项目结构")
-    expect(titles).toContain("实现接口")
 
-    for (const title of ["检查项目结构", "实现接口"]) {
-      const section = card!.sections.find((item) => item.title === title)!
-      // 并行期间的行同时归入两个项:两项都能展开、都有自己的耗时。
-      expect(section.rows.length).toBe(2)
-      expect(section.startedAt).toBe(110)
-      expect(section.endedAt).toBe(400)
-      expect(section.durationMs).toBe(290)
-    }
+    const first = card!.sections.find((section) => section.title === "检查项目结构")!
+    expect(first.rows.length).toBe(0)
+    expect(first.startedAt).toBe(110)
+    expect(first.endedAt).toBe(110)
   })
 
-  test("a parallel item that produced no rows still carries its start time", () => {
+  test("focus snapshots route parallel lane output to the selected item", () => {
+    parts.clear()
+    parts.set(
+      "p_todo",
+      todoPart("p_todo", [
+        { content: "检查项目结构", status: "in_progress" },
+        { content: "实现接口", status: "in_progress" },
+      ]),
+    )
+    parts.set("p_read", toolPart("p_read", "glob", 120, 200, undefined, "检查项目结构"))
+    parts.set(
+      "p_focus",
+      todoPart(
+        "p_focus",
+        [
+          { content: "检查项目结构", status: "in_progress" },
+          { content: "实现接口", status: "in_progress" },
+        ],
+        1,
+      ),
+    )
+    parts.set("p_write", toolPart("p_write", "write", 220, 400, "src/a.ts", "实现接口"))
+
+    const card = overview(
+      TodoGrouping.group(
+        [
+          assistantRow(ref("p_todo")),
+          assistantRow(ref("p_read")),
+          assistantRow(ref("p_focus")),
+          assistantRow(ref("p_write")),
+        ],
+        { getPart },
+      ),
+    )!
+    expect(card.sections.find((section) => section.title === "检查项目结构")!.rows.length).toBe(1)
+    expect(card.sections.find((section) => section.title === "实现接口")!.rows.length).toBe(1)
+    expect(card.sections.find((section) => section.title === "实现接口")!.rows[0]._tag).toBe("AssistantPart")
+  })
+  test("a parallel snapshot without a focus lane preserves empty independent sections", () => {
     setup()
     const rows = [assistantRow(ref("p_todo")), assistantRow(ref("p_todo2"))]
     const card = overview(TodoGrouping.group(rows, { getPart }))

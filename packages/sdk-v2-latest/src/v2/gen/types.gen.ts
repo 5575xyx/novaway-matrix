@@ -65,6 +65,7 @@ export type Event =
   | EventBrowserNavigated
   | EventPlatformWebviewRequest1
   | EventPlatformWebviewResolved
+  | EventSuperAgentOutboxPublished1
   | EventVcsBranchUpdated
   | EventWorkspaceReady
   | EventWorkspaceFailed
@@ -997,6 +998,7 @@ export type GlobalEvent = {
     | EventBrowserNavigated
     | EventPlatformWebviewRequest
     | EventPlatformWebviewResolved
+    | EventSuperAgentOutboxPublished
     | EventVcsBranchUpdated
     | EventWorkspaceReady
     | EventWorkspaceFailed
@@ -2178,14 +2180,25 @@ export type MarketplaceEntry = {
   name: string
   packageId?: string
   sourceId?: string
+  displayName?: string
+  displayNameI18n?: {
+    [key: string]: string
+  }
   version?: string
   description?: string
+  longDescription?: string
+  author?: string
+  license?: string
+  icon?: string
+  screenshots?: Array<string>
   url: string
   kind?: "zip" | "git"
   sha256?: string
   ref?: string
   subdir?: string
   keywords?: Array<string>
+  categories?: Array<string>
+  marketTypes?: Array<string>
   repository?: string
   runtimeTargets?: Array<string>
   capabilities?: Array<string>
@@ -5600,6 +5613,20 @@ export type EventPlatformWebviewResolved = {
   }
 }
 
+export type EventSuperAgentOutboxPublished = {
+  id: string
+  type: "super-agent.outbox.published"
+  properties: {
+    runID: string
+    eventID: string
+    sequence: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    eventType: string
+    payload: {
+      [key: string]: unknown
+    }
+  }
+}
+
 export type EventVcsBranchUpdated = {
   id: string
   type: "vcs.branch.updated"
@@ -6614,6 +6641,20 @@ export type EventPlatformWebviewRequest1 = {
     x?: number | "NaN" | "Infinity" | "-Infinity"
     y?: number | "NaN" | "Infinity" | "-Infinity"
     timeoutMs?: number | "NaN" | "Infinity" | "-Infinity"
+  }
+}
+
+export type EventSuperAgentOutboxPublished1 = {
+  id: string
+  type: "super-agent.outbox.published"
+  properties: {
+    runID: string
+    eventID: string
+    sequence: number | "NaN" | "Infinity" | "-Infinity"
+    eventType: string
+    payload: {
+      [key: string]: unknown
+    }
   }
 }
 
@@ -15703,6 +15744,13 @@ export type SessionPromptData = {
     goalExecution?: {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      judgeModel?: string
+      maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
     }
     goalContinuation?: boolean
     messageID?: string
@@ -16475,6 +16523,13 @@ export type SessionPromptAsyncData = {
     goalExecution?: {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      judgeModel?: string
+      maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
     }
     goalContinuation?: boolean
     messageID?: string
@@ -19038,6 +19093,16 @@ export type GoalCreateGoalData = {
     status?: "pending" | "in_progress"
     deadline?: string
     tags?: Array<string>
+    executionConfig?: {
+      maxIterations: number
+      judgeModel?: string
+      maxTokens?: number
+      maxActiveMs?: number
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
+    }
   }
   path: {
     sessionId: string
@@ -19123,6 +19188,16 @@ export type GoalUpdateGoalData = {
     successCriteria?: Array<string>
     deadline?: string
     tags?: Array<string>
+    executionConfig?: {
+      maxIterations: number
+      judgeModel?: string
+      maxTokens?: number
+      maxActiveMs?: number
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
+    }
   }
   path: {
     sessionId: string

@@ -37,7 +37,7 @@ import {
   type SidePaneSplitAxis,
   type SidePaneTab,
 } from "@/context/layout"
-import { createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
+import { createSessionTabs, getTabReorderIndex, resolveFileHostCleanup, type Sizing } from "@/pages/session/helpers"
 import { confirmOfficeEditorClose } from "@/pages/session/office-editor-session"
 import { disposeOfficeEditorsForDirectory, reconcileOfficeEditors } from "@/pages/session/office-editor-keepalive"
 import { FileTabContent } from "@/pages/session/file-tabs"
@@ -53,10 +53,11 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { drainQueuedOpenFiles, queuedOpenFiles } from "@/pages/layout/open-files"
 import { WorkspaceFileTree } from "@/pages/layout/workspace-file-tree"
 import { isOfficePreviewPath } from "@/pages/session/office-preview-utils"
+import { SuperAgentPanel } from "@/pages/session/super-agent-panel"
 
 const sidePaneTabs: Array<{
   id: SidePaneTab
-  icon: "folder" | "tree-structure" | "browser" | "terminal" | "review"
+  icon: "folder" | "tree-structure" | "browser" | "terminal" | "review" | "task"
   labelKey: string
 }> = [
   // 工作区文本文件与 Office 文件分开承载：Office 编辑器不带工作区文件树。
@@ -65,6 +66,7 @@ const sidePaneTabs: Array<{
   { id: "browser", icon: "browser", labelKey: "sidePane.tab.browser" },
   { id: "terminal", icon: "terminal", labelKey: "sidePane.tab.terminal" },
   { id: "review", icon: "review", labelKey: "sidePane.tab.review" },
+  { id: "super-agent", icon: "task", labelKey: "sidePane.tab.superAgent" },
 ]
 
 const sidePaneTabMeta = (tab: string) => sidePaneTabs.find((item) => item.id === tab) ?? sidePaneTabs[0]
@@ -203,6 +205,7 @@ export function SessionSidePanel(props: {
             const tab = file.tab(created)
             openFileTab(tab)
           }}
+          onOpenExternal={openPaths}
         />
       ))
     })
@@ -278,55 +281,42 @@ export function SessionSidePanel(props: {
     if (paths.length > 0) openPaths(paths)
   })
 
-  const openFilesFromPicker = () => {
-    const showInAppDialog = () => {
-      void import("@/components/dialog-select-file").then((x) => {
-        void dialog.show(() => <x.DialogSelectFile mode="files" />)
-      })
-    }
-    if (!platform.openFilePickerDialog) {
-      showInAppDialog()
-      return
-    }
-    void platform
-      .openFilePickerDialog({ title: language.t("command.file.open"), multiple: true })
-      .then((picked) => {
-        openPaths(Array.isArray(picked) ? picked : picked ? [picked] : [])
-      })
-      .catch(showInAppDialog)
-  }
+  const openFilesFromPicker = openNewFile
   /**
    * 关掉最后一个文件标签后,「文件」区就没有内容了。只切到**已经开着**的标签
    * (比如浏览器本来就开着,就聚焦它);绝不凭空新开一个浏览器标签 ——
    * 之前 `add("browser")` 会凭空造出新标签,用户看着就像"关个文件怎么把浏览器打开了"。
    * 没有别的标签就把「文件」区从面板里摘掉:reducer 会激活邻居标签,
    * 面板里没别的标签时整个收起。只在「从有到无」时触发。
+   *
+   * 只在数量**减少**（关标签）时裁决：打开文件（数量增加）绝不能触发 ——
+   * 否则从只有文件树的「工作区文件」宿主打开第一个 Office 文件时，
+   * preview 宿主会因"没有普通文件"被误删，工作区文件标签整个消失。
    */
   createEffect(
     on(
       () => openedTabs().length,
       (count, previous) => {
-        if (count === 0) {
-          if (!previous || !layout.sidePane.opened()) return
-        }
         const active = layout.sidePane.activeTab()
-        if (active !== "preview" && active !== "office") return
-        const remaining = active === "office" ? officeFileTabs().length : workspaceFileTabs().length
-        if (remaining > 0) return
-        // Office 宿主关闭后不能把上一次工作区文件树的打开状态带回来。
-        // 只有仍有普通工作区文件时，才保留 preview 宿主和文件树。
-        if (active === "office" && workspaceFileTabs().length === 0) {
-          layout.sidePane.setTree(false)
-        }
-        if (active === "preview" && workspaceFileTabs().length === 0) {
-          layout.sidePane.setTree(false)
-        }
-        if (layout.sidePane.tabs().includes("browser")) {
+        const decision = resolveFileHostCleanup({
+          count,
+          previous,
+          opened: layout.sidePane.opened(),
+          activeTab: active,
+          workspaceFileCount: workspaceFileTabs().length,
+          officeFileCount: officeFileTabs().length,
+          hasBrowserTab: layout.sidePane.tabs().includes("browser"),
+        })
+        if (decision.action === "none") return
+        // 宿主关闭后不能把上一次工作区文件树的打开状态带回来。
+        if (decision.clearTree) layout.sidePane.setTree(false)
+        if (decision.action === "switch-browser") {
           layout.sidePane.setActive("browser")
           return
         }
-        layout.sidePane.remove(active)
+        layout.sidePane.remove(active!)
       },
+      { defer: true },
     ),
   )
 
@@ -504,6 +494,7 @@ export function SessionSidePanel(props: {
     }
     if (id === "terminal") return <TerminalPanel variant="pane" />
     if (id === "review") return props.reviewPanel()
+    if (id === "super-agent") return <SuperAgentPanel />
     const session = sessionTabOf(id)
     if (session) return renderSessionTab(session)
     return emptyPane()
@@ -901,8 +892,8 @@ function SidePaneAddTabMenu(props: { onCreateFile: () => void; workspaceAvailabl
         <DropdownMenu.Content style={{ "min-width": "140px" }}>
           <Show when={props.workspaceAvailable}>
             <DropdownMenu.Item class="flex items-center gap-2" onSelect={props.onCreateFile}>
-              <Icon name="plus-small" size="small" />
-              <DropdownMenu.ItemLabel>新建文件</DropdownMenu.ItemLabel>
+              <Icon name="plus" size="small" />
+              <DropdownMenu.ItemLabel>{language.t("sidePane.newFile")}</DropdownMenu.ItemLabel>
             </DropdownMenu.Item>
             <DropdownMenu.Separator />
           </Show>
@@ -1042,9 +1033,9 @@ function SidePaneEmptyState(props: { workspaceAvailable: boolean; onOpenFiles: (
             class="side-pane-launcher-button group flex h-12 min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-surface/70 px-3 text-ui-base font-medium text-foreground shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-px hover:border-interactive-hover/45 hover:bg-surface-interactive-weak hover:shadow-md"
             onClick={props.onOpenFiles}
           >
-            <Icon name="folder" size="small" class="shrink-0 text-foreground-subtlest" />
+            <Icon name="plus" size="small" class="shrink-0 text-foreground-subtlest" />
             <span class="side-pane-launcher-label min-w-0 flex-1 truncate text-left">
-              {language.t("sidebar.tree.externalFiles")}
+              {language.t("sidePane.newFile")}
             </span>
           </button>
           <For

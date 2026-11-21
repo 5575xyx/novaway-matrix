@@ -119,7 +119,9 @@ export async function bootstrapGlobal(input: {
     () =>
       input.queryClient
         .fetchQuery(loadProjectsQuery(input.globalSDK))
-        .then((data) => input.setGlobalStore("project", data)),
+        // 按 id 复用已有对象：整体替换数组会让侧栏的项目分组连同任务列表全部重建
+        // （每次设置自动保存都会触发一次 bootstrap，表现为任务列表持续闪烁）。
+        .then((data) => input.setGlobalStore("project", reconcile(data, { key: "id" }))),
   ]
   await runAll(slow)
   // showErrors({

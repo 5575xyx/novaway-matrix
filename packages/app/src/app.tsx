@@ -27,6 +27,7 @@ import {
   type JSX,
   lazy,
   onCleanup,
+  onMount,
   type ParentProps,
   Show,
   Suspense,
@@ -52,6 +53,7 @@ import { PermissionProvider } from "@/context/permission"
 import { PreviewInspectionProvider } from "@/context/preview-inspection"
 import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
+import { usePlatform } from "@/context/platform"
 import { SettingsProvider } from "@/context/settings"
 import { TerminalProvider } from "@/context/terminal"
 import DirectoryLayout from "@/pages/directory-layout"
@@ -60,6 +62,7 @@ import Layout from "@/pages/layout"
 import { decode64 } from "@/utils/base64"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
+import { PluginViewHost, type PluginViewRender } from "@/components/plugin-view-host"
 import { installPointerTracking } from "@novaway/ui/util/pointer-origin"
 // 「思考过程」图标的思考强度版本：注册一次，所有渲染 message-part 的地方都生效。
 import "@/components/session/reasoning-effort-indicator"
@@ -87,6 +90,15 @@ function SessionRoute() {
 
 const SessionIndexRoute = () => <Navigate href="session" />
 
+function pluginViewRender(value: unknown): PluginViewRender | undefined {
+  if (typeof value !== "object" || value === null || !("type" in value)) return undefined
+  const item = value as Record<string, unknown>
+  if (item.type === "iframe" && typeof item.url === "string") return { type: "iframe", url: item.url }
+  if (item.type === "builtin" && typeof item.component === "string")
+    return { type: "builtin", component: item.component }
+  return undefined
+}
+
 function PluginSurfaceViewRoute() {
   const params = useParams()
   const globalSync = useGlobalSync()
@@ -98,7 +110,7 @@ function PluginSurfaceViewRoute() {
       (item) =>
         item.pluginID === params.pluginID &&
         item.kind === "surface" &&
-        item.slot === "sidebar.item" &&
+        (item.slot === "sidebar.item" || item.slot === "sidebar.footer") &&
         item.status === "active" &&
         item.action !== undefined &&
         typeof item.action === "object" &&
@@ -119,17 +131,36 @@ function PluginSurfaceViewRoute() {
         </div>
       }
     >
-      {(item) => (
-        <main
-          data-component="plugin-surface-view"
-          data-plugin-id={item().pluginID}
-          data-view-id={params.viewId}
-          class="size-full p-6"
-        >
-          <h1 class="text-20-medium text-foreground">{item().title}</h1>
-          <p class="mt-2 text-14-regular text-foreground-subtle">插件视图：{params.viewId}</p>
-        </main>
-      )}
+      {(item) => {
+        const action = item().action as { type?: unknown; viewId?: unknown; render?: unknown } | undefined
+        const render = pluginViewRender(action?.render)
+        return (
+          <main
+            data-component="plugin-surface-view"
+            data-plugin-id={item().pluginID}
+            data-view-id={params.viewId}
+            class="size-full"
+          >
+            <PluginViewHost
+              pluginID={item().pluginID}
+              viewID={params.viewId}
+              render={render}
+              data={{
+                pluginID: item().pluginID,
+                contribution: item().localName,
+                title: item().title,
+                viewID: params.viewId,
+              }}
+              fallback={
+                <div class="size-full p-6">
+                  <h1 class="text-20-medium text-foreground">{item().title}</h1>
+                  <p class="mt-2 text-14-regular text-foreground-subtle">插件视图：{params.viewId}</p>
+                </div>
+              }
+            />
+          </main>
+        )
+      }}
     </Show>
   )
 }
@@ -205,6 +236,39 @@ declare global {
       }) => Promise<string | string[] | null>
       toPreviewUrl?: (url: string) => string
       setPreviewInspectorOrigin?: (origin: string) => Promise<void>
+      getResourceReport?: () => Promise<{
+        generatedAt: number
+        totalSize: number
+        locations: Array<{
+          id: "data" | "config" | "cache" | "temp" | "logs"
+          label: string
+          path: string
+          defaultPath: string
+          size: number
+          fileCount: number
+          lastModified: number | null
+          exists: boolean
+        }>
+      }>
+      setResourceLocation?: (id: "data" | "config" | "cache" | "temp" | "logs", path: string) => Promise<unknown>
+      getResourceCleanupConfig?: () => Promise<{
+        enabled: boolean
+        interval: "daily" | "weekly"
+        olderThanDays: number
+        lastRunAt: number | null
+      }>
+      setResourceCleanupConfig?: (config: {
+        enabled: boolean
+        interval: "daily" | "weekly"
+        olderThanDays: number
+      }) => Promise<{
+        enabled: boolean
+        interval: "daily" | "weekly"
+        olderThanDays: number
+        lastRunAt: number | null
+      }>
+      cleanResources?: (olderThanDays: number) => Promise<{ deletedFiles: number; deletedBytes: number }>
+      openDirectoryPicker?: (opts?: { title?: string; defaultPath?: string }) => Promise<string | string[] | null>
     }
   }
 }
@@ -270,12 +334,14 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
 }
 
 export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
+  const platform = usePlatform()
   return (
     <MetaProvider>
       <Font />
       <ThemeProvider
         onThemeApplied={(_, mode) => {
           void window.api?.setTitlebar?.({ mode })
+          void platform.setAppAppearanceMode?.(mode)
         }}
       >
         <LanguageProvider locale={props.locale}>
@@ -303,7 +369,21 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
 
 function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
   const server = useServer()
+  const platform = usePlatform()
+  const [appIcon, setAppIcon] = createSignal<string>()
   const checkServerHealth = useCheckServerHealth()
+
+  onMount(() => {
+    if (platform.platform !== "desktop") return
+    void platform.getAppAppearance?.().then((appearance) => setAppIcon(appearance.iconData))
+    const dispose = platform.onAppAppearanceChange?.((appearance) => setAppIcon(appearance.iconData))
+    if (dispose) onCleanup(dispose)
+  })
+  const splash = (className: string) => (
+    <Show when={platform.platform === "desktop" && appIcon()} fallback={<Splash class={className} />}>
+      {(src) => <img src={src()} alt="" class={className} draggable={false} />}
+    </Show>
+  )
 
   const [checkMode, setCheckMode] = createSignal<"blocking" | "background">("blocking")
 
@@ -343,7 +423,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
     <Suspense
       fallback={
         <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background">
-          <Splash class="w-28 h-28 opacity-80 animate-pulse" />
+          {splash("w-28 h-28 opacity-80 animate-pulse")}
         </div>
       }
     >
@@ -351,7 +431,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
         when={checkMode() === "blocking" ? !startupHealthCheck.loading : startupHealthCheck.state !== "pending"}
         fallback={
           <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background">
-            <Splash class="w-28 h-28 opacity-80 animate-pulse" />
+            {splash("w-28 h-28 opacity-80 animate-pulse")}
           </div>
         }
       >*/}
@@ -381,6 +461,19 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
 function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key: ServerConnection.Key) => void }) {
   const language = useLanguage()
   const server = useServer()
+  const platform = usePlatform()
+  const [appIcon, setAppIcon] = createSignal<string>()
+  onMount(() => {
+    if (platform.platform !== "desktop") return
+    void platform.getAppAppearance?.().then((appearance) => setAppIcon(appearance.iconData))
+    const dispose = platform.onAppAppearanceChange?.((appearance) => setAppIcon(appearance.iconData))
+    if (dispose) onCleanup(dispose)
+  })
+  const splash = (className: string) => (
+    <Show when={platform.platform === "desktop" && appIcon()} fallback={<Splash class={className} />}>
+      {(src) => <img src={src()} alt="" class={className} draggable={false} />}
+    </Show>
+  )
   const others = () => server.list.filter((s) => ServerConnection.key(s) !== server.key)
   const name = createMemo(() => server.name || server.key)
   const serverToken = "\u0000server\u0000"
@@ -393,7 +486,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
     <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background gap-6 p-6">
       <div class="flex flex-col items-center max-w-md text-center">
         {/* Splash 的 viewBox 是正方形（120×120），`w-12 h-15` 会把它压扁。 */}
-        <Splash class="w-12 h-12 mb-4" />
+        {splash("w-12 h-12 mb-4")}
         <p class="text-14-regular text-foreground">
           {unreachable()[0]}
           <span class="text-foreground font-medium">{name()}</span>

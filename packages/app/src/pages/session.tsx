@@ -41,6 +41,7 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
+import { browserEmbeddedEnabled } from "@/utils/browser-preferences"
 import { usePrompt } from "@/context/prompt"
 import { usePreview } from "@/context/preview"
 import { useSDK } from "@/context/sdk"
@@ -102,8 +103,111 @@ import {
   takeSidebar,
 } from "@/pages/session/live-follow"
 import { SessionDiffProvider, type SessionDiffStyle } from "@/context/session-diff"
+import { PluginViewHost } from "@/components/plugin-view-host"
+
+type PluginSlotItem = {
+  pluginID: string
+  localName: string
+  title?: string
+  action?: unknown
+}
+
+type PluginSlot = "session.panel" | "composer.action" | "statusbar.item" | "home.card" | "notification.item"
+
+function PluginSurfaceSlots(props: { directory: string; slot: PluginSlot; class?: string }) {
+  const globalSync = useGlobalSync()
+  const prompt = usePrompt()
+  const [store] = globalSync.child(props.directory, { bootstrap: false })
+  const items = createMemo(() =>
+    store.plugin_contributions.filter(
+      (item) => item.kind === "surface" && item.slot === props.slot && item.status === "active" && item.title,
+    ),
+  )
+  const renderOf = (value: unknown) => {
+    if (typeof value !== "object" || value === null) return undefined
+    const item = value as Record<string, unknown>
+    if (item.type === "iframe" && typeof item.url === "string") return { type: "iframe" as const, url: item.url }
+    if (item.type === "builtin" && typeof item.component === "string") {
+      return { type: "builtin" as const, component: item.component }
+    }
+    return undefined
+  }
+  const actionOf = (item: PluginSlotItem) => {
+    if (typeof item.action !== "object" || item.action === null) return undefined
+    const action = item.action as Record<string, unknown>
+    if (action.type === "url" && typeof action.url === "string") return { type: "url" as const, url: action.url }
+    if (action.type === "command" && typeof action.command === "string") {
+      return { type: "command" as const, command: action.command }
+    }
+    if (action.type === "view" && typeof action.viewId === "string") {
+      return { type: "view" as const, viewId: action.viewId, render: renderOf(action.render) }
+    }
+    return undefined
+  }
+  const activate = (item: { pluginID: string }, command: string) => {
+    const declared = store.plugin_contributions.some(
+      (candidate) =>
+        candidate.kind === "command" &&
+        candidate.pluginID === item.pluginID &&
+        (candidate.status === "active" || candidate.status === "installed") &&
+        (candidate.localName === command || candidate.name === command),
+    )
+    if (!declared) return
+    const text = `/${command} `
+    prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
+    window.dispatchEvent(new CustomEvent("novaway:focus-prompt"))
+  }
+
+  return (
+    <Show when={items().length > 0}>
+      <div class={props.class} data-plugin-slot={props.slot}>
+        <For each={items()}>
+          {(item) => {
+            const action = actionOf(item)
+            const render = () => (action?.type === "view" ? action.render : undefined)
+            return (
+              <Show
+                when={action?.type === "view" && render()}
+                fallback={
+                  <button
+                    type="button"
+                    class="flex min-h-8 items-center rounded-md border border-border px-2 text-12-medium text-foreground hover:bg-hover"
+                    onClick={() => {
+                      if (!action) return
+                      if (action.type === "command") activate(item, action.command)
+                      else if (action.type === "url") {
+                        try {
+                          const url = new URL(action.url, window.location.href)
+                          if (url.protocol === "http:" || url.protocol === "https:")
+                            window.open(url.href, "_blank", "noopener,noreferrer")
+                        } catch {}
+                      }
+                    }}
+                  >
+                    {item.title}
+                  </button>
+                }
+              >
+                <div class="min-h-20 overflow-hidden rounded-md border border-border">
+                  <PluginViewHost
+                    pluginID={item.pluginID}
+                    viewID={action?.type === "view" ? action.viewId : item.localName}
+                    render={render()}
+                    data={{ pluginID: item.pluginID, contribution: item.localName, slot: props.slot }}
+                    onAction={(message) => activate(item, message.command)}
+                  />
+                </div>
+              </Show>
+            )
+          }}
+        </For>
+      </div>
+    </Show>
+  )
+}
 
 const emptyUserMessages: UserMessage[] = []
+
 type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
 const emptyFollowups: FollowupItem[] = []
@@ -599,6 +703,10 @@ export default function Page() {
           if (!url || autoOpenedHtml.has(url)) continue
 
           autoOpenedHtml.add(url)
+          if (!browserEmbeddedEnabled(globalSync.data.config)) {
+            platform.openLink(url)
+            continue
+          }
           if (url === current || !preview.setUrl(url)) continue
 
           layout.sidePane.add("browser")
@@ -617,6 +725,7 @@ export default function Page() {
       if (event.name !== sdk.directory) return
       const payload = event.details as { type?: string; properties?: { sessionID?: string; url?: string } }
       if (payload.type !== "browser.navigated") return
+      if (!browserEmbeddedEnabled(globalSync.data.config)) return
       if (payload.properties?.sessionID !== params.id) return
       const url = payload.properties?.url
       if (!url) return
@@ -1835,6 +1944,7 @@ export default function Page() {
 
       const ok = await sendFollowupDraft({
         client: sdk.client,
+        sdk,
         sync,
         globalSync,
         draft: item,
@@ -2331,6 +2441,16 @@ export default function Page() {
               {/* 消息列不再为状态面板留白:面板是纯悬浮浮层,
                       聊天区保持全宽 —— 主要内容是聊天,不能被右侧卡片挤压。 */}
               <div class="flex-1 min-w-0 min-h-0 flex flex-col">
+                <PluginSurfaceSlots
+                  directory={sdk.directory}
+                  slot="session.panel"
+                  class="flex shrink-0 flex-wrap gap-2 border-b border-border p-2"
+                />
+                <PluginSurfaceSlots
+                  directory={sdk.directory}
+                  slot="notification.item"
+                  class="flex shrink-0 flex-wrap gap-2 px-2 pt-2"
+                />
                 <div
                   ref={(el) => {
                     contentStageRef = el
@@ -2401,6 +2521,11 @@ export default function Page() {
                     {/* New session view (centered) */}
                     <Show when={!params.id}>
                       <div class="h-full">
+                        <PluginSurfaceSlots
+                          directory={sdk.directory}
+                          slot="home.card"
+                          class="flex flex-wrap gap-2 p-3"
+                        />
                         <NewSessionView
                           worktree={newSessionWorktree()}
                           centered={centered()}
@@ -2439,6 +2564,11 @@ export default function Page() {
                         promptDock = el
                       },
                     })}
+                    <PluginSurfaceSlots
+                      directory={sdk.directory}
+                      slot="composer.action"
+                      class="flex shrink-0 gap-2 px-3 pb-2"
+                    />
                   </div>
                 </Show>
               </div>
@@ -2450,6 +2580,11 @@ export default function Page() {
               <Show when={!globalChatOnly()}>
                 <Suspense fallback={null}>
                   <SessionStatusPanel sections={statusSections()} />
+                  <PluginSurfaceSlots
+                    directory={sdk.directory}
+                    slot="statusbar.item"
+                    class="flex flex-wrap gap-2 p-2"
+                  />
                 </Suspense>
               </Show>
 

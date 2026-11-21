@@ -25,6 +25,7 @@ export type PluginCatalogEntry = {
   author?: string
   homepage?: string
   tags?: string[]
+  permissions?: string[]
 }
 
 const asString = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined)
@@ -53,6 +54,9 @@ export function parsePluginCatalog(value: unknown): PluginCatalogEntry[] {
       homepage: asString(record.homepage),
       tags: Array.isArray(record.tags)
         ? record.tags.filter((tag): tag is string => typeof tag === "string")
+        : undefined,
+      permissions: Array.isArray(record.permissions)
+        ? record.permissions.filter((permission): permission is string => typeof permission === "string")
         : undefined,
     })
   }

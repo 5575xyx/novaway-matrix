@@ -209,6 +209,9 @@ export function makeSuperAgentToolExecutor(input: {
           taskID: toolInstruction.taskID,
           kind: input.evidenceKind ?? "artifact",
           source: definition ? `tool:${toolInstruction.tool}` : `mcp:${toolInstruction.tool}`,
+          acceptanceIDs: run.graph.nodes.find((task) => task.id === toolInstruction.taskID)?.acceptanceCriteria.map(
+            (criterion) => criterion.id,
+          ),
           contentHash: hash(output),
           measured:
             input.evidenceKind === "test"

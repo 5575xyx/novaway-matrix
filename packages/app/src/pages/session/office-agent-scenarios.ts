@@ -130,6 +130,25 @@ export const officeAgentScenarios: Record<HomeActionId, OfficeAgentScenario> = {
   },
 }
 
+export function installedOfficeAgent<
+  T extends {
+    name: string
+    mode: string
+    hidden?: boolean
+    options?: Record<string, unknown>
+  },
+>(agents: readonly T[], scene: HomeActionId, current?: string) {
+  const matches = agents.filter(
+    (agent) =>
+      agent.mode === "primary" &&
+      !agent.hidden &&
+      agent.options?.modeGroup === "office" &&
+      agent.options.scene === scene &&
+      typeof agent.options.defaultSkill === "string",
+  )
+  return matches.find((agent) => agent.name === current) ?? matches[0]
+}
+
 export function officeAgentScenario(id: HomeActionId) {
   return officeAgentScenarios[id]
 }

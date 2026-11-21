@@ -6,6 +6,90 @@ export type InstallRevision = {
   bytes: number
 }
 
+export const MARKET_TYPES = [
+  "workbench",
+  "agents",
+  "skills",
+  "mcp",
+  "tools",
+  "commands",
+  "theme",
+  "other",
+  "providers",
+  "office",
+  "interceptors",
+] as const
+
+export const MARKET_CATEGORIES = [
+  "office",
+  "product",
+  "productivity",
+  "development",
+  "design",
+  "security",
+  "data",
+  "research",
+  "writing",
+  "communication",
+  "marketing",
+  "automation",
+  "workflow",
+  "testing",
+  "devops",
+  "education",
+  "media",
+  "finance",
+  "other",
+] as const
+
+const MARKET_CATEGORY_LABELS: Record<string, string> = {
+  office: "办公",
+  product: "产品",
+  productivity: "效率",
+  development: "开发",
+  design: "设计",
+  security: "安全",
+  data: "数据",
+  research: "研究",
+  writing: "写作",
+  communication: "沟通",
+  marketing: "营销",
+  automation: "自动化",
+  workflow: "工作流",
+  testing: "测试",
+  devops: "运维",
+  education: "教育",
+  media: "媒体",
+  finance: "金融",
+  other: "其他",
+}
+
+export function marketCategoryLabel(value: string): string {
+  return MARKET_CATEGORY_LABELS[value.trim().toLowerCase()] ?? value
+}
+export type MarketType = (typeof MARKET_TYPES)[number]
+
+export type MarketTypeSource = {
+  marketTypes?: string[]
+  capabilities?: string[]
+  categories?: string[]
+}
+
+/** Normalize manifest/catalog contributions into the marketplace's user-facing type filters. */
+export function marketTypesOf(entry: MarketTypeSource): MarketType[] {
+  const result: MarketType[] = []
+  const add = (value: string) => {
+    if (value === "surfaces" || value === "previewers" || value === "ui") value = "theme"
+    if (!MARKET_TYPES.includes(value as MarketType)) return
+    if (!result.includes(value as MarketType)) result.push(value as MarketType)
+  }
+
+  for (const value of entry.marketTypes ?? []) add(value)
+  for (const value of entry.capabilities ?? []) add(value)
+  if (result.length === 0) result.push("other")
+  return MARKET_TYPES.filter((value) => result.includes(value))
+}
+
 export type InstalledPackage = {
   name: string
   kind: "zip" | "git"
@@ -15,6 +99,10 @@ export type InstalledPackage = {
   ref?: string
   subdir?: string
   sha256?: string
+  sourceId?: string
+  permissions?: string[]
+  dependencies?: Record<string, string>
+  conflicts?: string[]
   root: string
   files: number
   bytes: number
