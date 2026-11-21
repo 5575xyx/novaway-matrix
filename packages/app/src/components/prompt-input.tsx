@@ -123,7 +123,7 @@ interface PromptInputProps {
    * 传了它就不会走"新建会话 + 跳转"那条路，消息直接发给这条会话。
    */
   session?: Session
-  /** 固定角色：嵌入场景绑定主 Agent（运营工作台固定 pulse-orchestrator）。 */
+  /** 固定角色：运营工作台会话绑定已激活 operations-suite 插件贡献的主 Agent。 */
   agent?: string
 }
 
@@ -167,6 +167,7 @@ function AddMenuItem(props: {
   description?: string
   hint?: string
   active?: boolean
+  tone?: "success"
   onSelect: () => void
 }) {
   return (
@@ -174,17 +175,37 @@ function AddMenuItem(props: {
       type="button"
       data-action={props.action}
       class="flex w-full items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+      classList={{ "bg-surface-success-weak/70": props.tone === "success" && props.active }}
       onClick={() => props.onSelect()}
     >
-      <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-interactive-base">
-        <Show when={props.glyph} fallback={<Icon name={props.icon ?? "plus-small"} size="small" />}>
+      <span
+        class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-13-medium text-interactive-base"
+        classList={{
+          "bg-surface-success-weak text-success-base": props.tone === "success",
+        }}
+      >
+        <Show when={props.glyph} fallback={<Icon
+            name={props.icon ?? "plus-small"}
+            size="small"
+            class={props.tone === "success" ? "text-success-base" : undefined}
+          />}>
           {props.glyph}
         </Show>
       </span>
       <span class="min-w-0 flex-1">
-        <span class="block text-13-medium text-foreground">{props.title}</span>
+        <span
+          class="block text-13-medium text-foreground"
+          classList={{ "text-success-base": props.tone === "success" }}
+        >
+          {props.title}
+        </span>
         <Show when={props.description}>
-          <span class="mt-0.5 block text-11-regular text-foreground-subtle">{props.description}</span>
+          <span
+            class="mt-0.5 block text-11-regular text-foreground-subtle"
+            classList={{ "text-success-base/75": props.tone === "success" }}
+          >
+            {props.description}
+          </span>
         </Show>
       </span>
       <Show
@@ -195,7 +216,12 @@ function AddMenuItem(props: {
           </Show>
         }
       >
-        <Icon name="check" size="small" class="mt-0.5 shrink-0 text-icon-interactive-base" />
+        <Icon
+          name="check"
+          size="small"
+          class="mt-0.5 shrink-0 text-icon-interactive-base"
+          classList={{ "text-success-base": props.tone === "success" }}
+        />
       </Show>
     </button>
   )
@@ -496,6 +522,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   }
   // 目标模式计时使用这一枚时钟；普通工作状态统一由聊天区域底部显示。
   const [workNow, setWorkNow] = createSignal(Date.now())
+  const [goalConfigOpen, setGoalConfigOpen] = createSignal(false)
+  const [goalBudgetOpen, setGoalBudgetOpen] = createSignal(false)
+  let goalLongTaskContent: HTMLElement | undefined
+  let goalIterationContent: HTMLElement | undefined
   const [store, setStore] = createStore<{
     popover: "at" | "slash" | null
     historyIndex: number
@@ -543,11 +573,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     goalRunning: false,
     goalMode: false,
     goalPaused: false,
-    goalMaxIterations: 20,
+    goalMaxIterations: 0,
     goalExecution: undefined,
     longTaskEnabled: false,
     longTaskCriteria: "",
-    longTaskToolBudget: 20,
+    longTaskToolBudget: 0,
     longTaskRun: undefined,
     longTaskCreating: false,
   })
@@ -779,7 +809,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       showToast({ title: "目标模式不可用", description: "请在项目会话中创建目标。" })
       return
     }
-    setStore("goalMode", !store.goalMode)
+    if (store.goalMode) {
+      setStore({ goalMode: false, longTaskEnabled: false })
+    } else {
+      setStore({ goalMode: true, longTaskEnabled: false })
+    }
     requestAnimationFrame(() => editorRef?.focus())
   }
   const createGoal = async (text: string, durable = false) => {
@@ -807,7 +841,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           ? persistedGoal()?.launchKey
           : undefined
       if (durable) {
-        const toolCalls = Math.min(500, Math.max(1, Math.floor(Number(store.longTaskToolBudget) || 20)))
+        const requestedToolCalls = Math.floor(Number(store.longTaskToolBudget))
+        const toolCalls = requestedToolCalls > 0 ? Math.min(500, Math.max(1, requestedToolCalls)) : undefined
         const requestKey = launchKey ?? `${id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
         // Persist the key before the network request so a lost response can be
         // retried without creating a second Goal/Run.
@@ -823,7 +858,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             executionConfig,
             text: text.trim(),
             planningMode: "model",
-            budget: { toolCalls },
+            budget: toolCalls === undefined ? undefined : { toolCalls },
           }),
         })
         const result = (await response.json().catch(() => undefined)) as
@@ -880,13 +915,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
    * popover-content 的 overflow:hidden 裁剪；父级 Popover 需要把这些节点当作内容区，
    * 否则点浮层里的搜索框/文件时会先被 outside 判定关掉。
    */
-  const [addSubmenu, setAddSubmenu] = createSignal<"workspace" | "plugins" | null>(null)
-  const flyouts: { workspace?: HTMLElement; plugins?: HTMLElement } = {}
-  const openSubmenu = (name: "workspace" | "plugins") => {
-    if (name === "plugins") loadPlugins()
+  const [addSubmenu, setAddSubmenu] = createSignal<"workspace" | null>(null)
+  const flyouts: { workspace?: HTMLElement } = {}
+  const openSubmenu = (name: "workspace") => {
     setAddSubmenu(name)
   }
-  const closeSubmenu = (name: "workspace" | "plugins") => {
+  const closeSubmenu = (name: "workspace") => {
     setAddSubmenu((current) => (current === name ? null : current))
   }
 
@@ -901,39 +935,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     addPart({ type: "file", path, content: "@" + path, start: 0, end: 0 })
   }
 
-  type InstalledPlugin = { name: string; version?: string; description?: string; enabled?: boolean }
-  const [pluginQuery, setPluginQuery] = createSignal("")
-  const [pluginItems, setPluginItems] = createSignal<InstalledPlugin[]>([])
-  const [pluginsLoaded, setPluginsLoaded] = createSignal(false)
-  const [pluginsLoading, setPluginsLoading] = createSignal(false)
-  const loadPlugins = () => {
-    if (pluginsLoaded()) return
-    setPluginsLoaded(true)
-    setPluginsLoading(true)
-    void sdk.client.extension
-      .list({ directory: sdk.directory })
-      .then((result) => setPluginItems((result.data ?? []) as InstalledPlugin[]))
-      .catch(() => setPluginItems([]))
-      .finally(() => setPluginsLoading(false))
-  }
-  const pluginHits = createMemo(() => {
-    const query = pluginQuery().trim().toLowerCase()
-    const all = pluginItems()
-    if (!query) return all
-    return all.filter(
-      (item) => item.name.toLowerCase().includes(query) || (item.description ?? "").toLowerCase().includes(query),
-    )
-  })
-  const openPluginSettings = () => {
-    closeAddMenu()
-    command.trigger("settings.open", "palette", "plugins")
-  }
-
   const closeAddMenu = () => {
     setAddMenuOpen(false)
     setAddSubmenu(null)
     setWorkspaceQuery("")
-    setPluginQuery("")
   }
 
   const commentCount = createMemo(() => {
@@ -2387,7 +2392,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 data-component="prompt-goal-running"
                 class="flex items-center gap-2 border-b border-border px-3 py-2"
               >
-                <Icon name="brain" size="small" class="shrink-0 text-text-interactive-base" />
+                <Icon name="target" size="small" class="shrink-0 text-text-interactive-base" />
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-12-medium text-foreground">目标：{goal().title}</div>
                   <div class="text-11-regular text-foreground-subtle">
@@ -2530,12 +2535,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             )}
           </Show>
           <div class="px-2 pb-1 pt-2 flex items-center gap-2 min-w-0 overflow-hidden whitespace-nowrap border-b border-border">
-            <Show when={store.goalMode && !activeGoal()}>
-              <span class="flex h-7 items-center gap-1.5 rounded-md bg-surface-raised-base px-2 text-12-medium text-foreground">
-                <Icon name="brain" size="small" class="shrink-0" />
-                目标模式
-              </span>
-            </Show>
             <Show when={!globalChat()}>
               <ProjectSwitcherChip />
             </Show>
@@ -2921,6 +2920,235 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   </Show>
                 </Button>
               </Tooltip>
+              <Show when={store.goalMode && !activeGoal()}>
+                <Popover
+                  placement="top-start"
+                  gutter={8}
+                  class="w-72"
+                  open={goalConfigOpen()}
+                  onOpenChange={(open) => {
+                    setGoalConfigOpen(open)
+                    if (!open) {
+                      setGoalBudgetOpen(false)
+                    }
+                  }}
+                  outsideIgnore={() => [goalLongTaskContent, goalIterationContent]}
+                  triggerAs="button"
+                  triggerProps={{
+                    type: "button",
+                    "aria-label": language.t("prompt.goal.label" as never),
+                    class:
+                      "group/goal flex h-8 shrink-0 appearance-none items-center gap-1.5 px-2.5 text-12-medium text-success-base transition-opacity hover:opacity-80",
+                    style: { background: "transparent", border: "none", color: "var(--text-success-base)" },
+                  }}
+                  trigger={
+                    <>
+                      <Icon name="target" size="small" class="shrink-0 text-success-base" />
+                      <span>{language.t("prompt.goal.label" as never)}</span>
+                      <span class="relative flex size-4 shrink-0 items-center justify-center">
+                        <Icon
+                          name="chevron-down"
+                          size="small"
+                          class="transition-opacity text-success-base group-hover/goal:opacity-0"
+                        />
+                        <span
+                          role="button"
+                          tabindex="0"
+                          aria-label={language.t("prompt.goal.remove" as never)}
+                          class="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover/goal:opacity-100 hover:text-critical-base"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setGoalConfigOpen(false)
+                            if (activeGoal()) {
+                              void stopGoalMode()
+                            } else {
+                              setStore({
+                                goalMode: false,
+                                longTaskEnabled: false,
+                                goalText: undefined,
+                                goalStartedAt: undefined,
+                                goalExecution: undefined,
+                              })
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return
+                            event.preventDefault()
+                            event.stopPropagation()
+                            if (activeGoal()) void stopGoalMode()
+                            else setStore({ goalMode: false, longTaskEnabled: false, goalText: undefined })
+                          }}
+                        >
+                          <Icon name="close-small" size="small" class="text-success-base group-hover/goal:text-critical-base" />
+                        </span>
+                      </span>
+                    </>
+                  }
+                >
+                  <div class="flex flex-col gap-1.5 p-2">
+                    <div class="px-2 pb-1 text-11-medium text-foreground-subtle">
+                      {language.t("prompt.goal.label" as never)}
+                    </div>
+                    <HoverCard
+                      placement="right-start"
+                      gutter={8}
+                      openDelay={160}
+                      closeDelay={220}
+                      contentRef={(el) => (goalIterationContent = el)}
+                      trigger={
+                        <button
+                          type="button"
+                          class={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-hover ${
+                            store.longTaskEnabled ? "text-foreground-subtle" : "bg-surface-success-weak text-success-base"
+                          }`}
+                          onClick={() => setStore({ goalMode: true, longTaskEnabled: false })}
+                        >
+                          <Icon name="target" size="small" class="shrink-0 text-success-base" />
+                          <span class="min-w-0 flex-1 text-12-medium">
+                            {language.t("prompt.goal.normal" as never)}
+                          </span>
+                          <Show when={!store.longTaskEnabled}>
+                            <Icon name="check" size="small" class="text-success-base" />
+                          </Show>
+                        </button>
+                      }
+                    >
+                      <div class="w-56 p-3">
+                        <div class="mb-1 text-12-medium text-foreground">
+                          {language.t("prompt.goal.normal" as never)}
+                        </div>
+                        <div class="mb-2 text-11-regular text-foreground-subtle">
+                          {language.t("prompt.goal.iterations" as never)}
+                        </div>
+                        <div class="flex flex-col gap-0.5">
+                          <For each={[5, 10, 15, 20, 50, 0]}>
+                            {(value) => (
+                              <button
+                                type="button"
+                                class={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-11-regular transition-colors hover:bg-hover ${
+                                  store.goalMaxIterations === value
+                                    ? "bg-surface-success-weak text-success-base"
+                                    : "text-foreground"
+                                }`}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setStore("goalMaxIterations", value)
+                                }}
+                              >
+                                <span>
+                                  {value === 0
+                                    ? language.t("prompt.goal.unlimited" as never)
+                                    : `${value} ${language.t("prompt.goal.rounds" as never)}`}
+                                </span>
+                                <Show when={store.goalMaxIterations === value}>
+                                  <Icon name="check-small" size="small" class="size-4 shrink-0" />
+                                </Show>
+                              </button>
+                            )}
+                          </For>
+                        </div>
+                      </div>
+                    </HoverCard>
+                    <HoverCard
+                      placement="right-start"
+                      gutter={8}
+                      openDelay={160}
+                      closeDelay={220}
+                      contentRef={(el) => (goalLongTaskContent = el)}
+                      trigger={
+                        <button
+                          type="button"
+                          class={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-hover ${
+                            store.longTaskEnabled
+                              ? "bg-surface-success-weak text-success-base"
+                              : "text-foreground-subtle"
+                          }`}
+                          onClick={() => setStore({ goalMode: true, longTaskEnabled: true })}
+                        >
+                          <Icon name="task" size="small" class="shrink-0" />
+                          <span class="min-w-0 flex-1 text-12-medium">
+                            {language.t("prompt.goal.longTask" as never)}
+                          </span>
+                          <Show when={store.longTaskEnabled}>
+                            <Icon name="check" size="small" />
+                          </Show>
+                        </button>
+                      }
+                    >
+                      <div class="w-72 p-3">
+                        <div class="mb-2 text-12-medium text-foreground">
+                          {language.t("prompt.goal.longTask" as never)}
+                        </div>
+                        <p class="mb-3 text-11-regular leading-4 text-foreground-subtle">
+                          本次目标会进入后台长期执行，可跨重启恢复、暂停、继续并进行最终验收。
+                        </p>
+                        <label class="block">
+                          <span class="mb-1 block text-11-medium text-foreground-subtle">验收标准（每行一条）</span>
+                          <textarea
+                            class="h-16 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-11-regular text-foreground outline-none focus:border-border-focus"
+                            placeholder="例如：完成后运行测试；提供生成文件路径"
+                            value={store.longTaskCriteria}
+                            onInput={(event) => setStore("longTaskCriteria", event.currentTarget.value)}
+                          />
+                        </label>
+                        <label class="mt-2 block">
+                          <span class="mb-1 block text-11-medium text-foreground-subtle">工具预算</span>
+                          <div class="relative w-full">
+                            <button
+                              type="button"
+                              class="flex h-8 w-full items-center justify-between rounded-[7px] border border-border bg-background px-2.5 text-left text-11-regular text-foreground transition-colors hover:border-border-hover hover:bg-hover focus-visible:border-border-focus focus-visible:outline-none"
+                              aria-haspopup="listbox"
+                              aria-expanded={goalBudgetOpen()}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setGoalBudgetOpen((open) => !open)
+                              }}
+                            >
+                              <span class="min-w-0 truncate">
+                                {store.longTaskToolBudget === 0 ? "自动（不设固定上限）" : `${store.longTaskToolBudget} 次`}
+                              </span>
+                              <Icon name="chevron-down" size="small" class="ml-2 size-4 shrink-0 text-foreground-subtle" />
+                            </button>
+                            <Show when={goalBudgetOpen()}>
+                              <div
+                                role="listbox"
+                                class="absolute left-0 top-[calc(100%+4px)] z-30 w-full overflow-hidden rounded-lg border border-border bg-background p-1 shadow-lg"
+                              >
+                                <For each={[20, 50, 100, 200, 500, 0]}>
+                                  {(value) => (
+                                    <button
+                                      type="button"
+                                      role="option"
+                                      aria-selected={store.longTaskToolBudget === value}
+                                      class={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-11-regular transition-colors hover:bg-hover ${
+                                        store.longTaskToolBudget === value
+                                          ? "bg-surface-success-weak text-success-base"
+                                          : "text-foreground"
+                                      }`}
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        setStore("longTaskToolBudget", value)
+                                        setGoalBudgetOpen(false)
+                                      }}
+                                    >
+                                      <span>{value === 0 ? "自动（不设固定上限）" : `${value} 次`}</span>
+                                      <Show when={store.longTaskToolBudget === value}>
+                                        <Icon name="check-small" size="small" class="size-4 shrink-0" />
+                                      </Show>
+                                    </button>
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
+                          </div>
+                          <span class="mt-1 block text-10-regular text-foreground-subtlest">最大工具调用数</span>
+                        </label>
+                      </div>
+                    </HoverCard>
+                  </div>
+                </Popover>
+              </Show>
               <Show when={!providersLoading()}>
                 <Show when={store.mode !== "shell"}>
                   <div
@@ -3119,7 +3347,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   }}
                   gutter={6}
                   // 子级浮层被 portal 到 body，不在 popover-content 里，得显式让父级认作“内部”。
-                  outsideIgnore={() => [flyouts.workspace, flyouts.plugins]}
+                  outsideIgnore={() => [flyouts.workspace]}
                   triggerAs="button"
                   placement="top-start"
                   triggerProps={
@@ -3252,8 +3480,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     <AddMenuGroup label="这一轮怎么跑">
                       <AddMenuItem
                         action="prompt-plan-mode"
-                        icon="lu-lock"
-                        title="计划模式（只读）"
+                        icon="checklist"
+                        title="计划模式"
                         description="只读分析，写操作会被拒绝"
                         active={planModeOn()}
                         onSelect={() => {
@@ -3261,141 +3489,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           choosePlanMode()
                         }}
                       />
-                      <HoverCard
-                        placement="right-start"
-                        gutter={8}
-                        openDelay={120}
-                        closeDelay={180}
-                        trigger={
-                          <AddMenuItem
-                            action="prompt-goal-mode"
-                            icon="brain"
-                            title="目标模式"
-                            description="围绕本轮输入的目标持续推进"
-                            active={store.goalMode}
-                            onSelect={() => {
-                              closeAddMenu()
-                              openGoalMode()
-                            }}
-                          />
-                        }
-                      >
-                        <div class="w-64 p-3">
-                          <div class="text-12-medium text-foreground">最大追加轮数</div>
-                          <select
-                            aria-label="最大追加轮数"
-                            class="mt-2 h-8 w-full rounded-md border border-border bg-surface px-2 text-12-regular text-foreground"
-                            value={store.goalMaxIterations}
-                            onChange={(event) => setStore("goalMaxIterations", Number(event.currentTarget.value))}
-                          >
-                            <For each={[5, 10, 15, 20, 50, 0]}>
-                              {(value) => (
-                                <option value={value}>{value === 0 ? "自动（不设固定上限）" : `${value} 轮`}</option>
-                              )}
-                            </For>
-                          </select>
-                        </div>
-                      </HoverCard>
-                    </AddMenuGroup>
-                    <AddMenuGroup label="去管理">
                       <AddMenuItem
-                        action="prompt-skills"
-                        icon="lu-brain"
-                        title="技能"
-                        description="查看、安装与开关技能"
+                        action="prompt-goal-mode"
+                        icon="target"
+                        title="目标模式"
+                        description="围绕本轮输入的目标持续推进"
+                        active={store.goalMode}
+                        tone="success"
                         onSelect={() => {
                           closeAddMenu()
-                          command.trigger("settings.open", "palette", "skills")
+                          openGoalMode()
                         }}
                       />
-                      <HoverCard
-                        placement="right-start"
-                        gutter={8}
-                        openDelay={120}
-                        closeDelay={180}
-                        open={addSubmenu() === "plugins"}
-                        onOpenChange={(open) => (open ? openSubmenu("plugins") : closeSubmenu("plugins"))}
-                        contentRef={(el) => (flyouts.plugins = el)}
-                        class="add-menu-flyout"
-                        trigger={
-                          <AddMenuItem
-                            action="prompt-plugins"
-                            icon="lu-wrench"
-                            title="插件"
-                            description="管理插件与 MCP 服务"
-                            hint="▸"
-                            onSelect={() => openSubmenu("plugins")}
-                          />
-                        }
-                      >
-                        <div class="flex flex-col">
-                          <div class="flex items-center gap-2 px-2 pb-2">
-                            <span class="text-12-medium text-foreground">插件</span>
-                            <div class="flex-1" />
-                            <span class="text-11-regular text-foreground-subtlest">
-                              {`${pluginItems().length} 个已安装`}
-                            </span>
-                          </div>
-                          <div class="flex items-center gap-1.5 border-y border-border px-2 py-1.5">
-                            <Icon name="magnifying-glass" size="small" class="shrink-0 text-foreground-subtlest" />
-                            <input
-                              data-action="prompt-plugin-search"
-                              value={pluginQuery()}
-                              onInput={(event) => setPluginQuery(event.currentTarget.value)}
-                              placeholder="搜索插件"
-                              class="min-w-0 flex-1 bg-transparent text-12-regular text-foreground outline-none placeholder:text-foreground-subtlest"
-                            />
-                          </div>
-                          <div class="max-h-[320px] min-h-[120px] overflow-y-auto p-1">
-                            <Show
-                              when={!pluginsLoading()}
-                              fallback={<div class="px-2 py-3 text-12-regular text-foreground-subtlest">加载中…</div>}
-                            >
-                              <For each={pluginHits()}>
-                                {(item) => (
-                                  <button
-                                    type="button"
-                                    data-action="prompt-plugin-item"
-                                    onClick={openPluginSettings}
-                                    class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
-                                  >
-                                    <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-[6px] bg-surface text-interactive-base">
-                                      <Icon name="lu-wrench" size="small" />
-                                    </span>
-                                    <span class="min-w-0 flex-1">
-                                      <span class="block truncate text-12-medium text-foreground">{item.name}</span>
-                                      <Show when={item.description}>
-                                        <span class="mt-0.5 block truncate text-11-regular text-foreground-subtle">
-                                          {item.description}
-                                        </span>
-                                      </Show>
-                                    </span>
-                                    <Show when={item.enabled === false}>
-                                      <span class="mt-0.5 shrink-0 text-11-regular text-foreground-subtlest">
-                                        已停用
-                                      </span>
-                                    </Show>
-                                  </button>
-                                )}
-                              </For>
-                              <Show when={pluginHits().length === 0}>
-                                <div class="px-2 py-3 text-12-regular text-foreground-subtlest">没有匹配的插件</div>
-                              </Show>
-                            </Show>
-                          </div>
-                          <div class="border-t border-border px-1.5 py-1.5">
-                            <button
-                              type="button"
-                              data-action="prompt-plugin-manage"
-                              onClick={openPluginSettings}
-                              class="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-12-regular text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                            >
-                              管理插件与 MCP 服务
-                              <Icon name="arrow-right" size="small" />
-                            </button>
-                          </div>
-                        </div>
-                      </HoverCard>
                     </AddMenuGroup>
                   </div>
                 </Popover>
@@ -3411,66 +3516,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           </div>
         </div>
       </DockShellForm>
-      <Show when={!props.embedded && !globalChat() && store.goalMode}>
-        <div
-          data-component="prompt-goal-execution"
-          class="mx-auto mt-1 flex w-full min-w-0 flex-col gap-2 rounded-lg border border-interactive-base/25 bg-surface-raised-base/60 px-3 py-2"
-        >
-          <label class="flex min-w-0 cursor-pointer items-start gap-2">
-            <input
-              type="checkbox"
-              class="mt-0.5 size-3.5 accent-interactive-base"
-              checked={store.longTaskEnabled}
-              onChange={(event) => setStore("longTaskEnabled", event.currentTarget.checked)}
-            />
-            <span class="min-w-0 flex-1">
-              <span class="flex items-center gap-1.5 text-12-medium text-foreground">
-                <Icon name="task" size="small" class="shrink-0 text-text-interactive-base" />
-                长期执行
-              </span>
-              <span class="mt-0.5 block text-11-regular leading-4 text-foreground-subtle">
-                开启后，本次目标会进入后台长期执行，可跨重启恢复、暂停、继续并进行最终验收。
-              </span>
-            </span>
-          </label>
-          <Show when={store.longTaskEnabled}>
-            <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-2 pl-5">
-              <label class="min-w-0">
-                <span class="mb-1 block text-11-medium text-foreground-subtle">验收标准（每行一条）</span>
-                <textarea
-                  class="h-14 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-11-regular text-foreground outline-none focus:border-border-focus"
-                  placeholder="例如：完成后运行测试；提供生成文件路径"
-                  value={store.longTaskCriteria}
-                  onInput={(event) => setStore("longTaskCriteria", event.currentTarget.value)}
-                />
-              </label>
-              <label>
-                <span class="mb-1 block text-11-medium text-foreground-subtle">工具预算</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="500"
-                  class="h-7 w-full rounded-md border border-border bg-background px-2 text-11-regular text-foreground outline-none focus:border-border-focus"
-                  value={store.longTaskToolBudget}
-                  onInput={(event) => setStore("longTaskToolBudget", Number(event.currentTarget.value))}
-                />
-                <span class="mt-1 block text-10-regular text-foreground-subtlest">最大工具调用数</span>
-              </label>
-            </div>
-          </Show>
-          <Show when={store.longTaskCreating}>
-            <div class="pl-5 text-11-regular text-foreground-subtle">正在创建长期任务…</div>
-          </Show>
-          <Show when={store.longTaskRun}>
-            {(run) => (
-              <div class="flex items-center gap-1.5 pl-5 text-11-regular text-success-base">
-                <Icon name="check" size="small" />
-                长期目标已启动 · {run().id}
-              </div>
-            )}
-          </Show>
-        </div>
-      </Show>
       <Show when={!props.embedded && !globalChat()}>
         <div class="mx-auto mt-1 flex w-full min-w-0 items-center gap-1 px-3 text-13-regular text-foreground-subtle">
           <Popover

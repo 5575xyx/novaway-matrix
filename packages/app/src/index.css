@@ -1573,8 +1573,35 @@
   max-width: 240px !important;
 }
 
-/* memory 的 action / id 也遵循同一条单行规则；保留这个更具体的选择器，
- * 防止旧的 memory 专用样式把参数重新撑开。 */
+/* 工具摘要只保留“调用了什么工具”；路径、参数、增删统计等详情在展开后查看。 */
+[data-tool-density="compact"] [data-slot="basic-tool-tool-subtitle"],
+[data-tool-density="compact"] [data-slot="basic-tool-tool-arg"],
+[data-tool-density="compact"] [data-slot="basic-tool-tool-detail"],
+[data-tool-density="compact"] [data-slot="basic-tool-tool-action"],
+[data-tool-density="compact"] [data-slot="message-part-title-filename"],
+[data-tool-density="compact"] [data-slot="message-part-path"],
+[data-tool-density="compact"] [data-slot="message-part-actions"] {
+  display: none !important;
+}
+
+[data-tool-density="compact"]
+  [data-component="tool-part-wrapper"][data-status="error"]:is(
+    [data-tool="write"],
+    [data-tool="edit"],
+    [data-tool="apply_patch"],
+    [data-tool="bash"]
+  )
+  :is([data-slot="message-part-title-text"], [data-slot="basic-tool-tool-title"]) {
+  color: var(--icon-critical-base) !important;
+}
+
+/* GenericTool 的完整输入/输出仍由 BasicTool 展开后显示。 */
+[data-tool-density="compact"] [data-component="generic-tool-details"] {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+
 [data-component="tool-part-wrapper"][data-tool="memory"] [data-slot="basic-tool-tool-info-main"] {
   flex-wrap: nowrap !important;
   overflow: hidden !important;

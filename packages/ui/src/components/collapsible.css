@@ -133,7 +133,6 @@
     height: var(--kb-collapsible-content-height);
   }
 }
-
 @keyframes slideUp {
   from {
     height: var(--kb-collapsible-content-height);
@@ -141,4 +140,19 @@
   to {
     height: 0;
   }
+}
+
+/* A collapsible is commonly nested in a flex message row. Keep its content
+   from contributing min-content width while preserving inner scrolling. */
+[data-component="collapsible"] {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+[data-component="collapsible"] > [data-slot="collapsible-content"] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }

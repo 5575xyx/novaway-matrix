@@ -60,12 +60,12 @@ export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
     autoInstall: true,
   },
   {
-    name: "com.novaway.powersnexus",
-    version: "1.1.4",
-    description: "PowersNexus 工程技能库。",
+    name: "com.novaway.operations-suite",
+    version: "1.0.0",
+    description: "NovaWay 运营工作台：选题、创作、预检、发布和数据复盘。",
     kind: "zip",
-    url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.powersnexus-v1.1.4/com.novaway.powersnexus-1.1.4.zip",
-    keywords: ["development", "workflow", "tdd"],
+    url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.operations-suite-v1.0.0/com.novaway.operations-suite-1.0.0.zip",
+    keywords: ["operations", "marketing", "social-media", "content", "workbench"],
     autoInstall: true,
   },
 ]

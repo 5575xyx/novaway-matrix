@@ -1406,6 +1406,8 @@ export interface ToolProps {
   sessionID?: string
   output?: string
   status?: string
+  /** 状态词覆盖：失败时为空字符串可只保留行首的红色错误图标。 */
+  statusLabel?: string
   hideDetails?: boolean
   defaultOpen?: boolean
   deferContent?: boolean
@@ -1551,7 +1553,12 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
     <Show when={!hideQuestion()}>
       {/* data-tool 让样式层能按工具区分摘要形态(文件名 chip / 命令行 / 提问卡),
           不用为每个渲染器再传一遍 class。 */}
-      <div data-component="tool-part-wrapper" data-tool={part().tool} data-timeline-part-id={part().id}>
+      <div
+        data-component="tool-part-wrapper"
+        data-tool={part().tool}
+        data-status={toolStatus().tone}
+        data-timeline-part-id={part().id}
+      >
         <span
           data-slot="tool-status-icon"
           data-tone={toolStatus().tone}
@@ -1573,9 +1580,8 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   </div>
                 )
               }
-              // 失败不再换成一张独立错误卡，而是让工具行留在原地、把失败挂到状态词上
-              // （statusLabel=失败 + statusTooltip=原始报错）。这样时间线在失败时不会突然多出一大块卡片，
-              // 失败原因也仍然可读（悬停状态词展开，并可一键复制）。
+              // 失败不再换成一张独立错误卡：工具标题显示具体动作，通用工具只保留行首红色错误图标，
+              // 原始错误仍通过展开详情查看。
               return (
                 <Dynamic
                   component={render()}
@@ -1586,6 +1592,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   // @ts-expect-error 错误态没有 output 字段
                   output={part().state.output}
                   status="error"
+                  statusLabel=""
                   statusTooltip={cleaned}
                   timing={timing()}
                   attachments={attachments()}
@@ -2222,6 +2229,7 @@ ToolRegistry.register({
       <BasicTool
         icon="task"
         status={props.status}
+        statusLabel={props.statusLabel}
         trigger={trigger()}
         hideDetails
         triggerHref={href()}
@@ -2270,7 +2278,13 @@ ToolRegistry.register({
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title" style={{ color: "inherit" }}>
                 <TextShimmer
-                  text={i18n.t(pending() ? "ui.tool.action.run.running" : "ui.tool.action.run.done")}
+                  text={i18n.t(
+                    props.status === "error"
+                      ? "ui.tool.action.run.failed"
+                      : pending()
+                        ? "ui.tool.action.run.running"
+                        : "ui.tool.action.run.done",
+                  )}
                   active={pending()}
                 />
               </span>
@@ -2359,7 +2373,13 @@ ToolRegistry.register({
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
                     <TextShimmer
-                      text={i18n.t(pending() ? "ui.tool.action.edit.running" : "ui.tool.action.edit.done")}
+                      text={i18n.t(
+                        props.status === "error"
+                          ? "ui.tool.action.edit.failed"
+                          : pending()
+                            ? "ui.tool.action.edit.running"
+                            : "ui.tool.action.edit.done",
+                      )}
                       active={pending()}
                     />
                   </span>
@@ -2436,7 +2456,13 @@ ToolRegistry.register({
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
                     <TextShimmer
-                      text={i18n.t(pending() ? "ui.tool.action.write.running" : "ui.tool.action.write.done")}
+                      text={i18n.t(
+                        props.status === "error"
+                          ? "ui.tool.action.write.failed"
+                          : pending()
+                            ? "ui.tool.action.write.running"
+                            : "ui.tool.action.write.done",
+                      )}
                       active={pending()}
                     />
                   </span>
@@ -2476,7 +2502,7 @@ ToolRegistry.register({
                     contents: props.input.content,
                     cacheKey: checksum(props.input.content),
                   }}
-                  overflow="scroll"
+                  overflow="wrap"
                 />
               </div>
             </ToolFileAccordion>
@@ -2528,7 +2554,7 @@ ToolRegistry.register({
               badge={{ color: "orange" }}
               defer={props.deferContent !== false}
               trigger={{
-                title: i18n.t("ui.tool.patch"),
+                title: i18n.t(props.status === "error" ? "ui.tool.action.patch.failed" : "ui.tool.patch"),
                 // 文件名逐个列出来（`编辑 [icon] a.ts [icon] b.ts +2`），
                 // 而不是只写"N 个文件"——用户扫一眼就知道动了什么，不用展开。
                 // 右侧再给汇总增删。
@@ -2648,7 +2674,13 @@ ToolRegistry.register({
                   <div data-slot="message-part-title">
                     <span data-slot="message-part-title-text">
                       <TextShimmer
-                        text={i18n.t(pending() ? "ui.tool.action.patch.running" : "ui.tool.action.patch.done")}
+                        text={i18n.t(
+                          props.status === "error"
+                            ? "ui.tool.action.patch.failed"
+                            : pending()
+                              ? "ui.tool.action.patch.running"
+                              : "ui.tool.action.patch.done",
+                        )}
                         active={pending()}
                       />
                     </span>
@@ -2834,6 +2866,7 @@ ToolRegistry.register({
           icon="brain"
           badge={{ color: "indigo" }}
           status={props.status}
+          statusLabel={props.statusLabel}
           trigger={{
             title: title(),
             subtitle: subtitle(),

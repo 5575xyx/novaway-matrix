@@ -26,7 +26,7 @@ export const PERMISSION_MODES: Array<{
   value: SessionPermissionMode
   titleKey: string
   descriptionKey: string
-  icon: "shield" | "autopilot" | "checklist" | "warning" | "brain"
+  icon: "shield" | "autopilot" | "checklist" | "warning" | "brain" | "robot"
   tone: PermissionTone
 }> = [
   // 只读单独排在最前：它不是一个"松紧程度"，而是把闸门换成另一种语义 ——
@@ -64,7 +64,7 @@ export const PERMISSION_MODES: Array<{
     value: "unattended",
     titleKey: "permission.mode.unattended",
     descriptionKey: "permission.mode.unattended.description",
-    icon: "brain",
+    icon: "robot",
     tone: "critical",
   },
 ]

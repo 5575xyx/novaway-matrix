@@ -3725,9 +3725,7 @@ export const SettingsMcp: Component = () => {
         onEdit={editMcp}
         onDelete={(name) => void deleteMcp(name)}
       />
-      {/* 市场：MCP 安装面板 —— 浏览 + 一键添加，不用手写 command/args。
-          密钥一律走 {env:...} 占位，不写进配置文件。 */}
-      <McpCatalogSection configured={configured()} onAdd={updateMcp} />
+      {/* MCP 统一通过扩展市场管理，这里只保留已配置服务器和连接状态。 */}
     </SettingsPage>
   )
 }

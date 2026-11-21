@@ -120,7 +120,6 @@ import {
 import { SidebarContent } from "./layout/sidebar-shell"
 import { SidebarRail, SidebarRailButton, type SidebarRailItem } from "./layout/sidebar-rail"
 import { ExtensionsPage } from "./extensions"
-import { KernelPage } from "./kernel"
 import { TeamPage } from "./team"
 import { ArenaPage } from "./arena"
 import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
@@ -415,9 +414,6 @@ export default function Layout(props: ParentProps) {
     knowledgePage: {
       open: false,
     },
-    kernelPage: {
-      open: false,
-    },
     teamPage: {
       open: false,
     },
@@ -441,7 +437,6 @@ export default function Layout(props: ParentProps) {
     "extensionsPage",
     "automationPage",
     "knowledgePage",
-    "kernelPage",
     "teamPage",
     "arenaPage",
     "pulsePage",
@@ -476,7 +471,6 @@ export default function Layout(props: ParentProps) {
   )
 
   const extensionsTransition = createMountTransition(() => state.extensionsPage.open)
-  const kernelTransition = createMountTransition(() => state.kernelPage.open)
   const teamTransition = createMountTransition(() => state.teamPage.open)
   const arenaTransition = createMountTransition(() => state.arenaPage.open)
 
@@ -489,7 +483,6 @@ export default function Layout(props: ParentProps) {
       state.extensionsPage.open ||
       state.automationPage.open ||
       state.knowledgePage.open ||
-      state.kernelPage.open ||
       state.teamPage.open ||
       state.arenaPage.open
     ) {
@@ -1759,16 +1752,6 @@ export default function Layout(props: ParentProps) {
   function openExtensionsPage() {
     closeFramePages("extensionsPage")
     setState("extensionsPage", "open", true)
-  }
-
-  function openKernelPage() {
-    closeFramePages("kernelPage")
-    setState("kernelPage", "open", true)
-  }
-
-  function closeKernelPage() {
-    setState("kernelPage", "open", false)
-    window.dispatchEvent(new CustomEvent("novaway:overlay-closed"))
   }
 
   function openTeamPage() {
@@ -3568,7 +3551,7 @@ export default function Layout(props: ParentProps) {
   /**
    * 侧栏最左侧窄图标条的内容。
    *
-   * 顺序按使用频率排：数据库（编码时查表）→ 知识库 → 团队 → 扩展 → 内核；
+   * 顺序按使用频率排：数据库（编码时查表）→ 知识库 → 团队 → 扩展；
    * 主题切换挪到底部（设置之上），设置沉在最底部，辅助对话只在会话里出现。
    * 「定时任务」在面板展开时有整宽入口；**面板收起后**它和「新建任务」一起收进
    * 图标条 —— 否则折叠后这两个最常用的动作就完全没入口了。
@@ -3626,24 +3609,19 @@ export default function Layout(props: ParentProps) {
         active: state.arenaPage.open,
         onClick: openArenaPage,
       },
-      {
-        id: "kernel",
-        icon: "lu-activity",
-        label: language.t("sidebar.kernel"),
-        tone: "var(--icon-interactive-base)",
-        active: state.kernelPage.open,
-        onClick: openKernelPage,
-      },
-      // 运营工作台（账号 / 发布 / 数据）**常驻**图标条，不再挂在「运营模式」下。
-      // 它本来就是一个整帧页面，和数据库、知识库同级；作为工作模式反而要先进模式才看得见入口。
-      {
-        id: "pulse",
-        icon: "globe",
-        label: language.t("sidebar.pulseWorkspace"),
-        tone: "var(--icon-interactive-base)",
-        active: state.pulsePage.open,
-        onClick: openPulsePage,
-      },
+      // 运营工作台由 operations-suite 插件提供 Agent/Skill/Workbench；插件未启用时不展示旧入口。
+      ...(layout.mode.all().some((mode) => mode.id === "operations")
+        ? [
+            {
+              id: "pulse",
+              icon: "globe" as const,
+              label: language.t("sidebar.pulseWorkspace"),
+              tone: "var(--icon-interactive-base)",
+              active: state.pulsePage.open,
+              onClick: openPulsePage,
+            },
+          ]
+        : []),
     )
 
     if (!params.dir) return items
@@ -3977,28 +3955,6 @@ export default function Layout(props: ParentProps) {
                 >
                   <div class="flex-1 min-h-0">
                     <ExtensionsPage directory={currentDir()} onBack={closeExtensionsPage} />
-                  </div>
-                </section>
-              </Show>
-              <Show when={kernelTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={kernelTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("sidebar.kernel")}
-                  aria-hidden={kernelTransition.closing()}
-                  inert={kernelTransition.closing()}
-                >
-                  <div class="flex-1 min-h-0">
-                    <KernelPage
-                      directory={currentDir()}
-                      onBack={closeKernelPage}
-                      onOpenSettings={openSettingsFromExtensions}
-                      onOpenTeams={() => {
-                        closeKernelPage()
-                        openTeamPage()
-                      }}
-                    />
                   </div>
                 </section>
               </Show>

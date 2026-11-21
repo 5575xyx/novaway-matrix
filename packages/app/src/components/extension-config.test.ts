@@ -2,14 +2,14 @@ import { describe, expect, test } from "bun:test"
 import { BUILTIN_EXTENSIONS } from "./builtin-extensions-data"
 import { extensionConfigPatch, extensionEnabled, type ExtensionConfigView } from "./extension-config"
 
-const skill = BUILTIN_EXTENSIONS.find((item) => item.id === "media-ops")!
+const skill = BUILTIN_EXTENSIONS.find((item) => item.id === "skill-tools")!
 const browser = BUILTIN_EXTENSIONS.find((item) => item.id === "browser-use")!
 const computer = BUILTIN_EXTENSIONS.find((item) => item.id === "computer-use")!
 
 describe("extensionEnabled", () => {
   test("技能型扩展默认开，出现在 skills.disabled 里才算关", () => {
     expect(extensionEnabled({}, skill)).toBe(true)
-    expect(extensionEnabled({ skills: { disabled: ["media-ops"] } }, skill)).toBe(false)
+    expect(extensionEnabled({ skills: { disabled: ["find-skills"] } }, skill)).toBe(false)
     // 别的技能被关掉不影响这个扩展
     expect(extensionEnabled({ skills: { disabled: ["office-ppt"] } }, skill)).toBe(true)
   })
@@ -30,7 +30,7 @@ describe("extensionConfigPatch", () => {
   test("开关技能只改对应的技能名，保留其它已关闭项", () => {
     const config: ExtensionConfigView = { skills: { disabled: ["office-ppt", "wxgzh-ops"] } }
     const off = extensionConfigPatch(config, skill, false) as { skills: { disabled: string[] } }
-    expect(new Set(off.skills.disabled)).toEqual(new Set(["office-ppt", "wxgzh-ops", "media-ops"]))
+    expect(new Set(off.skills.disabled)).toEqual(new Set(["office-ppt", "wxgzh-ops", "find-skills", "skill-creator"]))
     const on = extensionConfigPatch(off as ExtensionConfigView, skill, true) as { skills: { disabled: string[] } }
     expect(new Set(on.skills.disabled)).toEqual(new Set(["office-ppt", "wxgzh-ops"]))
   })
@@ -53,11 +53,11 @@ describe("内置扩展目录", () => {
     }
   })
 
-  test("运营类扩展各自绑定一个技能，关掉不会互相影响", () => {
-    const radar = BUILTIN_EXTENSIONS.find((item) => item.id === "topic-radar")!
-    const review = BUILTIN_EXTENSIONS.find((item) => item.id === "account-review")!
-    const off = extensionConfigPatch({}, radar, false) as ExtensionConfigView
-    expect(extensionEnabled(off, radar)).toBe(false)
-    expect(extensionEnabled(off, review)).toBe(true)
+  test("内置技能扩展绑定自身技能，关掉不会影响其它配置", () => {
+    const tools = BUILTIN_EXTENSIONS.find((item) => item.id === "skill-tools")!
+    const browserItem = BUILTIN_EXTENSIONS.find((item) => item.id === "browser-use")!
+    const off = extensionConfigPatch({}, tools, false) as ExtensionConfigView
+    expect(extensionEnabled(off, tools)).toBe(false)
+    expect(extensionEnabled(off, browserItem)).toBe(true)
   })
 })

@@ -44,11 +44,11 @@ export const ResourceMonitorButton: Component = () => {
         "aria-label": language.t("settings.monitor.open" as never),
         class: "group relative flex size-10 shrink-0 items-center justify-center rounded-[10px] text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground",
       }}
-      trigger={<Icon name="lu-activity" size="normal" class="transition-transform duration-150 group-hover:scale-105" />}
+      trigger={<Icon name="chart" size="normal" class="transition-transform duration-150 group-hover:scale-105" />}
     >
       <div class="flex flex-col gap-2 p-3">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2 text-13-medium text-foreground"><Icon name="lu-activity" size="small" />{language.t("settings.monitor.title" as never)}</div>
+          <div class="flex items-center gap-2 text-13-medium text-foreground"><Icon name="chart" size="small" />{language.t("settings.monitor.title" as never)}</div>
           <button type="button" class="rounded p-1 text-foreground-subtle hover:bg-hover hover:text-foreground" onClick={() => void refresh()} aria-label={language.t("settings.data.refresh" as never)}><Icon name="refresh" size="small" /></button>
         </div>
         <Show when={available()} fallback={<div class="py-3 text-12-regular text-foreground-subtle">{language.t("settings.data.noDesktop" as never)}</div>}>

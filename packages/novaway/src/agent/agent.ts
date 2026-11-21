@@ -13,7 +13,6 @@ import PROMPT_SCOUT from "./prompt/scout.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_VERIFICATION from "./prompt/verification.txt"
-import PROMPT_PULSE_ORCHESTRATOR from "./prompt/pulse-orchestrator.txt"
 import PROMPT_COORDINATOR from "./prompt/coordinator.txt"
 import { Permission } from "@/permission"
 import { filter, mergeDeep, pipe, sortBy, values } from "remeda"
@@ -342,27 +341,6 @@ export const layer = Layer.effect(
                 },
               }
             : {}),
-          "pulse-orchestrator": {
-            name: "pulse-orchestrator",
-            description: "运营主 Agent，分析用户意图并协调子 Agent 完成任务",
-            mode: "primary",
-            native: true,
-            color: "#FF6B6B",
-            prompt: PROMPT_PULSE_ORCHESTRATOR,
-            permission: Permission.merge(
-              defaults,
-              user,
-              Permission.fromConfig({
-                mcp: {
-                  "wechat-official": "allow",
-                },
-              }),
-            ),
-            options: {
-              category: "运营",
-              displayName: "运营主智能体",
-            },
-          },
           coordinator: {
             name: "coordinator",
             description:

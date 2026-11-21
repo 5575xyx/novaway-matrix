@@ -9,7 +9,7 @@ import { decode64 } from "@/utils/base64"
 import { SettingsGeneral } from "./settings-general"
 import { SettingsMemoryEvolution } from "./settings-memory-evolution"
 import { SettingsProviders } from "./settings-providers"
-import { SettingsAgents, SettingsMcp, SettingsPlugins, SettingsRules, SettingsSkills } from "./settings-runtime"
+import { SettingsAgents, SettingsMcp, SettingsRules, SettingsSkills } from "./settings-runtime"
 import { SettingsNotifications } from "./settings-notifications"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsBrowser } from "./settings-browser"
@@ -40,7 +40,6 @@ const settingsTabs = [
   "data",
   "extensions",
   "mcp",
-  "plugins",
 ] as const
 export type SettingsTab = (typeof settingsTabs)[number]
 
@@ -53,6 +52,10 @@ export const isSettingsTab = (value: string): value is SettingsTab => settingsTa
 // replace the whole settings drawer with the application splash screen.
 const SettingsPanelFallback = () => (
   <div class="flex h-full flex-col gap-3 p-6 sm:p-10">
+    <div class="flex items-center gap-2 text-12-regular text-foreground-subtle">
+      <Icon name="refresh" size="small" class="animate-spin text-icon-interactive-base" />
+      <span>正在加载设置…</span>
+    </div>
     <div class="h-6 w-40 animate-pulse rounded bg-surface" />
     <div class="h-4 w-72 animate-pulse rounded bg-surface" />
     <div class="mt-4 flex flex-col gap-2">
@@ -63,7 +66,7 @@ const SettingsPanelFallback = () => (
   </div>
 )
 
-const extensionManagementTabs = ["agents", "plugins", "mcp", "skills"] as const
+const extensionManagementTabs = ["agents", "mcp", "skills"] as const
 type ExtensionManagementTab = (typeof extensionManagementTabs)[number]
 
 const isExtensionManagementTab = (value: SettingsTab | undefined): value is ExtensionManagementTab =>
@@ -75,7 +78,6 @@ const SettingsExtensions: Component<{ directory?: string; initialTab: ExtensionM
   createEffect(() => setTab(props.initialTab))
   const labels: Record<ExtensionManagementTab, string> = {
     agents: language.t("settings.agents.title"),
-    plugins: language.t("settings.plugins.title"),
     mcp: language.t("settings.mcp.title"),
     skills: language.t("settings.skills.title"),
   }
@@ -105,9 +107,6 @@ const SettingsExtensions: Component<{ directory?: string; initialTab: ExtensionM
       <div class="min-h-0 flex-1">
         <Show when={tab() === "agents"}>
           <SettingsAgents directory={props.directory} />
-        </Show>
-        <Show when={tab() === "plugins"}>
-          <SettingsPlugins directory={props.directory} />
         </Show>
         <Show when={tab() === "mcp"}>
           <SettingsMcp />
@@ -191,7 +190,7 @@ export const DialogSettings: Component<{ initialTab?: SettingsTab; directory?: s
       >
         <Tabs.List>
           <div class="flex flex-col h-full w-full gap-4 pb-[50px]">
-            <div class="sticky top-0 z-10 flex flex-col gap-3 w-full bg-panel pb-3">
+            <div class="sticky top-0 z-10 isolate flex flex-col gap-3 w-full bg-background pb-3">
               <Button
                 variant="ghost"
                 icon="arrow-left"

@@ -22,9 +22,17 @@ import { sessionPermissionRequest, sessionQuestionRequest } from "@/pages/sessio
 const MAX_ROWS = 40
 
 /**
- * 运营对话固定用的主 Agent（见 packages/novaway/src/agent/agent.ts）。
- * 只有角色不同 —— 技能、工具、模型选择、权限档位都和普通会话一样。 */
-const PULSE_AGENT = "pulse-orchestrator"
+ * 运营 Agent 由 operations-suite 插件贡献。保留无插件时的 Creova 降级，
+ * 这样旧入口不会因为插件被停用而把输入框绑定到不存在的角色。
+ */
+function operationsAgentName(agents: readonly { name: string; mode?: string; options?: Record<string, unknown> }[]) {
+  return (
+    agents.find((agent) => agent.name === "operations-suite_pulse-orchestrator")?.name ??
+    agents.find((agent) => agent.name.endsWith("_pulse-orchestrator"))?.name ??
+    agents.find((agent) => agent.mode === "primary" && agent.options?.modeGroup === "operations")?.name ??
+    "creova"
+  )
+}
 
 const storageKey = (directory: string) => `novaway.pulse.chat.session.${directory || "default"}`
 
@@ -48,7 +56,7 @@ function writeStoredSession(directory: string, sessionID: string | undefined) {
 /**
  * 运营工作台右侧的对话区。
  *
- * **就是一条普通会话**，区别只在角色固定成 pulse-orchestrator：
+ * **就是一条普通会话**，区别只在角色绑定到当前激活的运营插件 Agent：
  * 输入框用的是会话页那同一个 `PromptInput`（角色 / 模型 / 权限档位 / 附件 /
  * @ 提及 / 技能命令全都在），消息用的是同一套 `Message` + `AssistantParts`。
  * 不另造一套气泡和假 textarea —— 在哪个界面聊天，观感和操作都该一致。
@@ -64,6 +72,7 @@ export function PulseSessionPane(props: { directory: string }) {
   const permission = usePermission()
   const navigate = useNavigate()
 
+  const operationsAgent = createMemo(() => operationsAgentName(sync.data.agent))
   const [session, setSession] = createSignal<Session | undefined>()
   const [loading, setLoading] = createSignal(true)
 
@@ -257,7 +266,7 @@ export function PulseSessionPane(props: { directory: string }) {
   const empty = createMemo(() => messages().length === 0)
 
   const composer = () => (
-    <PromptInput session={session()} agent={PULSE_AGENT} onSubmit={() => queueMicrotask(scrollToBottom)} />
+    <PromptInput session={session()} agent={operationsAgent()} onSubmit={() => queueMicrotask(scrollToBottom)} />
   )
 
   return (

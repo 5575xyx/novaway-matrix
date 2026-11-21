@@ -77,7 +77,7 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         <span class="flex-1" aria-hidden="true" />
       </div>
       {/* 三栏：账号列表 / 账号详情（平台网页） / 运营对话。
-          对话是**一条普通会话**，区别只在角色固定成 pulse-orchestrator：输入框与
+          对话是**一条普通会话**，角色来自当前激活的运营插件 Agent：输入框与
           消息渲染都用会话页那套（PromptInput / Message / AssistantParts）。 */}
       <div class="flex min-h-0 flex-1">
         <div class="w-60 shrink-0 overflow-y-auto border-r border-border bg-background-alt/40">

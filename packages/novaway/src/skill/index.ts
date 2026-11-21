@@ -1,6 +1,6 @@
 import path from "path"
 import fs from "fs/promises"
-import { pathToFileURL, fileURLToPath } from "url"
+import { pathToFileURL } from "url"
 import matter from "gray-matter"
 import { Effect, Layer, Context, Schema } from "effect"
 import * as Option from "effect/Option"
@@ -22,14 +22,7 @@ import FIND_SKILLS_BODY from "./prompt/find-skills.md" with { type: "text" }
 import SKILL_CREATOR_BODY from "./prompt/skill-creator.md" with { type: "text" }
 import APP_ICON_BODY from "./prompt/app-icon/SKILL.md" with { type: "text" }
 import DYNAMIC_WORKFLOWS_BODY from "./prompt/dynamic-workflows.md" with { type: "text" }
-import ACCOUNT_REVIEW_BODY from "./prompt/account-review/SKILL.md" with { type: "text" }
-import HUMANIZE_WRITING_BODY from "./prompt/humanize-writing/SKILL.md" with { type: "text" }
-import MEDIA_OPS_BODY from "./prompt/media-ops/SKILL.md" with { type: "text" }
-import TOPIC_RADAR_BODY from "./prompt/topic-radar/SKILL.md" with { type: "text" }
-import WXGZH_OPS_BODY from "./prompt/wxgzh-ops/SKILL.md" with { type: "text" }
-import XIAOHONGSHU_OPS_BODY from "./prompt/xiaohongshu-ops/SKILL.md" with { type: "text" }
 import { isRecord } from "@/util/record"
-import { ensureSkillExtracted } from "./skill-assets"
 import * as SkillUsage from "./usage"
 import * as ExtensionLoader from "@/extension/loader"
 import * as Generation from "@/extension/generation"
@@ -63,41 +56,8 @@ function builtInSkillFromMarkdown(input: string) {
   }
 }
 
-// Built-in skills whose SKILL.md references auxiliary files on disk (Python scripts,
-// Chrome extensions, etc.). Maps skill name → relative path under prompt/ directory.
-const BUILT_IN_SKILL_DIRS: Record<string, string> = {
-  "wxgzh-ops": "wxgzh-ops",
-  "xiaohongshu-ops": "xiaohongshu-ops",
-  // 带 references/ 资料：平台手册、预检规则、热榜来源、数据口径。
-  "media-ops": "media-ops",
-  "topic-radar": "topic-radar",
-  "humanize-writing": "humanize-writing",
-  "account-review": "account-review",
-}
 
-/** Compute the filesystem source path to a built-in skill's directory. */
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const SKILL_PROMPT_DIR = path.join(__dirname, "prompt")
-
-function builtInSkillSourcePath(skillName: string): string | undefined {
-  const rel = BUILT_IN_SKILL_DIRS[skillName]
-  if (!rel) return undefined
-  return path.join(SKILL_PROMPT_DIR, rel)
-}
-
-const resolveSkillLocation = Effect.fnUntraced(function* (
-  skillName: string,
-  fsys: AppFileSystem.Interface,
-  global: Global.Interface,
-) {
-  const sourcePath = builtInSkillSourcePath(skillName)
-  if (!sourcePath) return "<built-in>"
-  const exists = yield* fsys.isDir(sourcePath)
-  if (exists) return sourcePath
-  const extracted = yield* ensureSkillExtracted(skillName, fsys, global)
-  return extracted ?? "<built-in>"
-})
+const resolveSkillLocation = () => "<built-in>"
 
 const BUILT_IN_SKILLS = [
   {
@@ -111,12 +71,6 @@ const BUILT_IN_SKILLS = [
   // 与 `create_workflow` / `workflow_run` 两个工具配套：描述里写清了「什么时候不该用」，
   // 因为这段正文只在模型决定要看它之后才进上下文，真正的分流判断发生在 description 里。
   builtInSkillFromMarkdown(DYNAMIC_WORKFLOWS_BODY),
-  builtInSkillFromMarkdown(MEDIA_OPS_BODY),
-  builtInSkillFromMarkdown(TOPIC_RADAR_BODY),
-  builtInSkillFromMarkdown(HUMANIZE_WRITING_BODY),
-  builtInSkillFromMarkdown(ACCOUNT_REVIEW_BODY),
-  builtInSkillFromMarkdown(WXGZH_OPS_BODY),
-  builtInSkillFromMarkdown(XIAOHONGSHU_OPS_BODY),
 ]
 
 export function usageScore(usage: { count: number; lastUsed: number } | undefined, now = Date.now()) {
@@ -463,7 +417,7 @@ export const layer = Layer.effect(
         // Register the built-in skill BEFORE disk discovery so a user-disk
         // skill with the same name can override it.
         for (const skill of BUILT_IN_SKILLS) {
-          const location = yield* resolveSkillLocation(skill.name, fsys, global)
+          const location = resolveSkillLocation()
           s.skills[skill.name] = { ...skill, location, builtIn: true }
         }
         yield* loadSkills(s, yield* InstanceState.get(discovered), bus)

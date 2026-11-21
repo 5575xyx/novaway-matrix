@@ -314,7 +314,7 @@ export const SIDE_PANE_TREE_MAX_WIDTH = 480
 export const DEFAULT_SIDE_PANE_TREE_WIDTH = 260
 
 // 网页预览（浏览器）、工作区文件与 Office 文件是并列的内置标签。
-export const SIDE_PANE_TABS = ["preview", "office", "browser", "terminal", "review", "super-agent"] as const
+export const SIDE_PANE_TABS = ["preview", "office", "browser", "terminal", "review"] as const
 
 /**
  * Side Pane 的动态标签：一个标签对应一个**会话**（`background` 例外——它对应
@@ -488,11 +488,13 @@ export function migrateLayoutStore(value: unknown) {
         ? Math.min(SIDE_PANE_TREE_MAX_WIDTH, Math.max(SIDE_PANE_TREE_MIN_WIDTH, sidePane.treeWidth))
         : DEFAULT_SIDE_PANE_TREE_WIDTH
     // 分屏状态只在「标签非空且与主窗格不同」时保留。文件标签不在 sidePane.tabs 里，
-    // 所以这里只校验字符串本身，渲染时找不到对应标签会自然回落为空态。
+    // 所以这里只校验字符串本身；已移除的内置标签会在这里被清理。
     const secondary: SidePaneSecondary | undefined = (() => {
       const raw = sidePane.secondary
       if (!isRecord(raw)) return undefined
       if (typeof raw.tab !== "string" || !raw.tab) return undefined
+      // Super-Agent is no longer a side-pane tab; remove stale persisted splits.
+      if (raw.tab === "super-agent") return undefined
       if (raw.tab === activeTab) return undefined
       const axis = raw.axis === "below" ? "below" : "right"
       const ratio = typeof raw.ratio === "number" ? Math.min(0.85, Math.max(0.15, raw.ratio)) : 0.5

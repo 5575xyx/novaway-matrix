@@ -14,6 +14,8 @@ import { BUILTIN_EXTENSIONS } from "@novaway/core/builtin-extensions"
  */
 export type BuiltinMarketEntry = {
   name: string
+  displayName?: string
+  displayNameI18n?: Record<string, string>
   version?: string
   /** 兜底描述（远程/离线场景）；有 descriptionKey 时以 i18n 文案为准。 */
   description?: string
@@ -29,6 +31,42 @@ export type BuiltinMarketEntry = {
   autoInstall: boolean
 }
 
+const OFFICIAL_PLUGIN_DISPLAY_NAMES: Record<string, string> = {
+  "com.novaway.agency-agents": "Agency AI 员工",
+  "com.novaway.mcp-suite": "MCP 基础连接器",
+  "com.novaway.office-suite": "办公工作台",
+  "com.novaway.powersnexus": "PowersNexus 工程技能库",
+  "com.novaway.operations-suite": "运营工作台",
+}
+
+const OFFICIAL_PLUGIN_DISPLAY_NAME_I18N: Record<string, Record<string, string>> = {
+  "com.novaway.agency-agents": {
+    "zh-CN": "Agency AI 员工",
+    "zh-TW": "Agency AI 員工",
+    en: "Agency AI Employees",
+  },
+  "com.novaway.mcp-suite": {
+    "zh-CN": "MCP 基础连接器",
+    "zh-TW": "MCP 基礎連接器",
+    en: "MCP Suite",
+  },
+  "com.novaway.office-suite": {
+    "zh-CN": "办公工作台",
+    "zh-TW": "辦公工作台",
+    en: "Office Workbench",
+  },
+  "com.novaway.powersnexus": {
+    "zh-CN": "PowersNexus 工程技能库",
+    "zh-TW": "PowersNexus 工程技能庫",
+    en: "PowersNexus Engineering Skills",
+  },
+  "com.novaway.operations-suite": {
+    "zh-CN": "运营工作台",
+    "zh-TW": "營運工作台",
+    en: "Operations Workbench",
+  },
+}
+
 const OFFICIAL_PLUGIN_ICONS: Record<string, string> = {
   "com.novaway.agency-agents":
     "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.agency-agents/assets/icon.svg",
@@ -38,10 +76,16 @@ const OFFICIAL_PLUGIN_ICONS: Record<string, string> = {
     "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.office-suite/assets/icon.svg",
   "com.novaway.powersnexus":
     "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.powersnexus/assets/icon.svg",
+  "com.novaway.operations-suite":
+    "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.operations-suite/assets/icon.svg",
 }
 
 export const NOVAWAY_MARKETPLACE_ENTRIES: BuiltinMarketEntry[] = BUILTIN_EXTENSIONS.map((entry) => ({
   name: entry.name,
+  ...(OFFICIAL_PLUGIN_DISPLAY_NAMES[entry.name] ? { displayName: OFFICIAL_PLUGIN_DISPLAY_NAMES[entry.name] } : {}),
+  ...(OFFICIAL_PLUGIN_DISPLAY_NAME_I18N[entry.name]
+    ? { displayNameI18n: OFFICIAL_PLUGIN_DISPLAY_NAME_I18N[entry.name] }
+    : {}),
   ...(entry.version ? { version: entry.version } : {}),
   description: entry.description,
   ...(entry.descriptionKey ? { descriptionKey: entry.descriptionKey } : {}),

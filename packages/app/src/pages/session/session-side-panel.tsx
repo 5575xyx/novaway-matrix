@@ -53,7 +53,6 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { drainQueuedOpenFiles, queuedOpenFiles } from "@/pages/layout/open-files"
 import { WorkspaceFileTree } from "@/pages/layout/workspace-file-tree"
 import { isOfficePreviewPath } from "@/pages/session/office-preview-utils"
-import { SuperAgentPanel } from "@/pages/session/super-agent-panel"
 
 const sidePaneTabs: Array<{
   id: SidePaneTab
@@ -66,7 +65,6 @@ const sidePaneTabs: Array<{
   { id: "browser", icon: "browser", labelKey: "sidePane.tab.browser" },
   { id: "terminal", icon: "terminal", labelKey: "sidePane.tab.terminal" },
   { id: "review", icon: "review", labelKey: "sidePane.tab.review" },
-  { id: "super-agent", icon: "task", labelKey: "sidePane.tab.superAgent" },
 ]
 
 const sidePaneTabMeta = (tab: string) => sidePaneTabs.find((item) => item.id === tab) ?? sidePaneTabs[0]
@@ -494,7 +492,6 @@ export function SessionSidePanel(props: {
     }
     if (id === "terminal") return <TerminalPanel variant="pane" />
     if (id === "review") return props.reviewPanel()
-    if (id === "super-agent") return <SuperAgentPanel />
     const session = sessionTabOf(id)
     if (session) return renderSessionTab(session)
     return emptyPane()

@@ -1338,7 +1338,6 @@
     overflow: hidden;
   }
 }
-
 [data-component="tool-loaded-file"] {
   display: flex;
   align-items: center;
@@ -1354,4 +1353,49 @@
     flex-shrink: 0;
     color: var(--foreground-subtlest);
   }
+}
+
+/* Expanded tool payloads must stay inside the session content column. Long
+   source lines scroll at their own level instead of widening the message card. */
+[data-component="edit-content"],
+[data-component="write-content"],
+[data-component="apply-patch-file-diff"],
+[data-component="tool-loaded-file"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+[data-component="edit-content"] [data-component="diff"],
+[data-component="write-content"] [data-component="code"],
+[data-component="apply-patch-file-diff"] [data-component="diff"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+[data-component="edit-content"] pre,
+[data-component="write-content"] pre,
+[data-component="apply-patch-file-diff"] pre,
+[data-component="edit-content"] table,
+[data-component="write-content"] table,
+[data-component="apply-patch-file-diff"] table {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+[data-component="edit-tool"] [data-slot="collapsible-content"],
+[data-component="write-tool"] [data-slot="collapsible-content"],
+[data-component="apply-patch-tool"] [data-slot="collapsible-content"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }

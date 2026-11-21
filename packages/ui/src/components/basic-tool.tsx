@@ -615,8 +615,10 @@ function args(input: Record<string, unknown> | undefined) {
 export function GenericTool(props: {
   tool: string
   status?: string
+  statusLabel?: string
   hideDetails?: boolean
   input?: Record<string, unknown>
+  output?: string
   statusTooltip?: string
   persistKey?: string
   /** 结果里的图片附件：展开后按缩略图展示（MCP 工具也可能返回图片）。 */
@@ -624,10 +626,16 @@ export function GenericTool(props: {
 }) {
   const i18n = useI18n()
 
+  const details = () => {
+    const input = props.input && Object.keys(props.input).length > 0 ? JSON.stringify(props.input, null, 2) : ""
+    return input || props.output || ""
+  }
+
   return (
     <BasicTool
       icon="mcp"
       status={props.status}
+      statusLabel={props.statusLabel}
       trigger={{
         title: i18n.t("ui.basicTool.called", { tool: props.tool }),
         subtitle: label(props.input),
@@ -637,6 +645,12 @@ export function GenericTool(props: {
       statusTooltip={props.statusTooltip}
       persistKey={props.persistKey}
       attachments={props.attachments}
-    />
+    >
+      <Show when={details()}>
+        <pre data-component="generic-tool-details" class="max-h-64 overflow-auto whitespace-pre-wrap break-words p-2 text-11-regular text-foreground-subtle">
+          {details()}
+        </pre>
+      </Show>
+    </BasicTool>
   )
 }

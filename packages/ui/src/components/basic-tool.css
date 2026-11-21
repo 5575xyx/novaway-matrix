@@ -543,3 +543,19 @@
   height: 100%;
   object-fit: cover;
 }
+
+/* Details are allowed to grow vertically, never horizontally. */
+[data-component="generic-tool-details"],
+[data-component="tool-part-wrapper"] [data-slot="collapsible-content"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+[data-component="generic-tool-details"] {
+  overflow-x: auto;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

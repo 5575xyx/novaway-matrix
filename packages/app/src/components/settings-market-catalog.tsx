@@ -511,6 +511,24 @@ function stringArrayValue(value: unknown): string[] {
   return arrayValue<unknown>(value).filter((item): item is string => typeof item === "string")
 }
 
+function bundledCatalogEntries(): CatalogEntry[] {
+  return NOVAWAY_MARKETPLACE_ENTRIES.map((entry) => ({
+    name: entry.name,
+    ...(entry.displayName ? { displayName: entry.displayName } : {}),
+    ...(entry.displayNameI18n ? { displayNameI18n: entry.displayNameI18n } : {}),
+    version: entry.version,
+    description: entry.description,
+    descriptionKey: entry.descriptionKey,
+    icon: entry.icon,
+    url: entry.url,
+    sourceId: "novaway-official",
+    ref: entry.ref,
+    subdir: entry.subdir,
+    kind: entry.kind,
+    keywords: entry.keywords,
+  }))
+}
+
 function recordValue(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {}
   return Object.fromEntries(Object.entries(value).filter(([, item]) => typeof item === "string"))
@@ -576,7 +594,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
     migrations: [] as LegacyMigration[],
     zcode: [] as CatalogEntry[],
     claude: [] as CatalogEntry[],
-    novaway: NOVAWAY_MARKETPLACE_ENTRIES.map((entry) => ({ ...entry })),
+    novaway: [] as CatalogEntry[],
     updates: [] as UpdateEntry[],
     operations: [] as MarketplaceOperation[],
     errors: [] as string[],
@@ -741,13 +759,21 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
     }
 
     const silent = Boolean(cached && !options.force)
-    if (!silent) setStore("loading", true)
+    if (!silent) {
+      // 首次请求期间不要把内置兜底条目当成已加载目录展示；否则用户会同时看到
+      // “正在加载市场…”和一组尚未确认来源的插件。
+      setStore("novaway", [])
+      setStore("loading", true)
+    }
     void loadOperations()
     void sdk.client.extension
       .marketplaceCatalog({ directory: props.directory })
       .then(async (result) => {
         const data = result.data
-        if (!data) return
+        if (!data) {
+          if (!silent) setStore("novaway", bundledCatalogEntries())
+          return
+        }
         const catalog = data as unknown as {
           installed?: unknown
           legacy?: unknown
@@ -765,19 +791,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
             entry.kind ??
             (Array.isArray(entry.runtimeTargets) && entry.runtimeTargets.includes("legacy-extension") ? "git" : "zip"),
         }))
-        const fallback: CatalogEntry[] = NOVAWAY_MARKETPLACE_ENTRIES.map((entry) => ({
-          name: entry.name,
-          version: entry.version,
-          description: entry.description,
-          descriptionKey: entry.descriptionKey,
-          icon: entry.icon,
-          url: entry.url,
-          sourceId: "novaway-official",
-          ref: entry.ref,
-          subdir: entry.subdir,
-          kind: entry.kind,
-          keywords: entry.keywords,
-        }))
+        const fallback = bundledCatalogEntries()
         const merged = new Map<string, CatalogEntry>()
         for (const entry of fallback) merged.set(entry.packageId ?? entry.name, entry)
         for (const entry of official) {
@@ -815,7 +829,10 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
         setStore(snapshot)
       })
       .catch((error: unknown) => {
-        if (!silent) setStore("errors", [text(error)])
+        if (!silent) {
+          setStore("novaway", bundledCatalogEntries())
+          setStore("errors", [text(error)])
+        }
       })
       .finally(() => {
         if (!silent) setStore("loading", false)

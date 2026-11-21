@@ -24,6 +24,10 @@ export const agentAvatarSeeds = [
   "ocean",
   "peach",
   "plum",
+  "coral",
+  "violet",
+  "sapphire",
+  "mint",
 ] as const
 
 /**
