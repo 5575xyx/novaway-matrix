@@ -59,8 +59,11 @@ function pick(value: string | null, fallback?: string, encode?: (value: string) 
   return value
 }
 
-function rewrite(request: Request, values: { directory?: string; workspace?: string }) {
-  if (request.method !== "GET" && request.method !== "HEAD") return request
+async function rewrite(request: Request, values: { directory?: string; workspace?: string }) {
+  // Workspace-scoped routes need the directory on every HTTP method. GET and
+  // HEAD used to be the only rewritten methods, which left POST /session
+  // dependent on the custom header being interpreted by every middleware layer.
+  // In browsers that could leave session.create pending before the handler.
 
   const url = new URL(request.url)
   let changed = false
@@ -83,10 +86,25 @@ function rewrite(request: Request, values: { directory?: string; workspace?: str
 
   if (!changed) return request
 
-  const next = new Request(url, request)
-  next.headers.delete("x-novaway-directory")
-  next.headers.delete("x-novaway-workspace")
-  return next
+  // Reusing Request as RequestInit turns its body into a streaming upload.
+  // Chromium cannot send that upload to the desktop sidecar over HTTP/1.1.
+  const headers = new Headers(request.headers)
+  headers.delete("x-novaway-directory")
+  headers.delete("x-novaway-workspace")
+  return new Request(url, {
+    method: request.method,
+    headers,
+    body: request.body === null ? undefined : await request.arrayBuffer(),
+    cache: request.cache,
+    credentials: request.credentials,
+    integrity: request.integrity,
+    keepalive: request.keepalive,
+    mode: request.mode,
+    redirect: request.redirect,
+    referrer: request.referrer,
+    referrerPolicy: request.referrerPolicy,
+    signal: request.signal,
+  })
 }
 
 export function createNovawayClient(config?: Config & { directory?: string; experimental_workspaceID?: string }) {

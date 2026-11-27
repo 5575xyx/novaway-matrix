@@ -4,7 +4,7 @@ import { Effect, Option } from "effect"
 import * as Tool from "./tool"
 import { ReadState } from "./read-state"
 import { LSP } from "@/lsp/lsp"
-import { createTwoFilesPatch } from "diff"
+import { createTwoFilesPatch, diffLines } from "diff"
 import DESCRIPTION from "./write.txt"
 import { Bus } from "../bus"
 import { File } from "../file"
@@ -13,6 +13,7 @@ import { Format } from "../format"
 import { AppFileSystem } from "@novaway/core/filesystem"
 import { InstanceState } from "@/effect/instance-state"
 import { trimDiff } from "./edit"
+import { Snapshot } from "@/snapshot"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import * as Bom from "@/util/bom"
 import { record as recordTempFile } from "@/session/temp-files"
@@ -79,6 +80,18 @@ export const WriteTool = Tool.define(
           const contentNew = next.text
 
           const diff = trimDiff(createTwoFilesPatch(filepath, filepath, contentOld, contentNew))
+          let additions = 0
+          let deletions = 0
+          for (const change of diffLines(contentOld, contentNew)) {
+            if (change.added) additions += change.count || 0
+            if (change.removed) deletions += change.count || 0
+          }
+          const filediff: Snapshot.FileDiff = {
+            file: filepath,
+            patch: diff,
+            additions,
+            deletions,
+          }
           yield* ctx.ask({
             permission: "edit",
             patterns: [path.relative(permissionRoot(instance, ctx.directory), filepath)],
@@ -143,6 +156,7 @@ export const WriteTool = Tool.define(
               diagnostics,
               filepath,
               exists: exists,
+              filediff,
             },
             output,
           }

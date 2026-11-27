@@ -66,6 +66,14 @@
       height: 48px;
       padding: 0 10px;
     }
+
+    &[data-type="quote"] {
+      width: min(280px, 100%);
+      min-height: 48px;
+      height: auto;
+      padding: 7px 10px;
+      align-items: stretch;
+    }
   }
 
   [data-slot="user-message-attachment-image"] {
@@ -100,6 +108,24 @@
       height: 20px;
       flex: none;
     }
+  }
+
+  [data-slot="user-message-attachment-quote-body"] {
+    min-width: 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  [data-slot="user-message-attachment-comment"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--foreground-subtle);
+    font-size: var(--font-size-ui-xs);
+    line-height: var(--line-height-large);
   }
 
   [data-slot="user-message-attachment-name"] {
@@ -365,7 +391,12 @@
 }
 
 [data-component="tool-output"] {
-  white-space: pre;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
   padding: 0;
   margin-bottom: 24px;
   height: fit-content;
@@ -379,6 +410,9 @@
     min-width: 0;
 
     pre {
+      max-width: 100%;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
       margin: 0;
       padding: 0;
       background-color: transparent !important;
@@ -562,6 +596,52 @@
     justify-content: flex-end;
     flex-shrink: 0;
   }
+}
+
+[data-component="tool-part-wrapper"][data-status="done"] [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-status="done"] [data-slot="message-part-title-filename"],
+[data-component="tool-part-wrapper"][data-status="done"] [data-slot="basic-tool-tool-title"],
+[data-component="tool-part-wrapper"][data-status="done"] [data-slot="basic-tool-tool-subtitle"],
+[data-component="tool-part-wrapper"][data-status="done"] [data-slot="basic-tool-tool-arg"] {
+  color: var(--icon-success-base) !important;
+}
+
+[data-component="tool-part-wrapper"][data-status="error"] [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-status="error"] [data-slot="message-part-title-filename"],
+[data-component="tool-part-wrapper"][data-status="error"] [data-slot="basic-tool-tool-title"],
+[data-component="tool-part-wrapper"][data-status="error"] [data-slot="basic-tool-tool-subtitle"],
+[data-component="tool-part-wrapper"][data-status="error"] [data-slot="basic-tool-tool-arg"] {
+  color: var(--icon-critical-base) !important;
+}
+
+[data-component="context-tool-group-trigger"][data-tone="done"] [data-slot="context-tool-group-label"],
+[data-component="context-tool-group-trigger"][data-tone="done"] [data-slot="context-tool-group-label"] [data-slot="tool-status-done"],
+[data-component="context-tool-group-trigger"][data-tone="done"] [data-slot="context-tool-group-summary"] {
+  color: var(--icon-success-base) !important;
+}
+
+[data-component="context-tool-group-trigger"][data-tone="error"] [data-slot="context-tool-group-label"],
+[data-component="context-tool-group-trigger"][data-tone="error"] [data-slot="context-tool-group-label"] [data-slot="tool-status-done"],
+[data-component="context-tool-group-trigger"][data-tone="error"] [data-slot="context-tool-group-summary"] {
+  color: var(--icon-critical-base) !important;
+}
+
+/* The shared Icon wrapper has a default color. Pass the result tone through
+   to the SVG so currentColor paints the check/cross, not just its outer span. */
+[data-slot="tool-status-icon"] > [data-component="icon"] {
+  color: inherit;
+}
+
+[data-slot="tool-status-icon"][data-tone="done"] {
+  color: var(--icon-success-base);
+}
+
+[data-slot="tool-status-icon"][data-tone="error"] {
+  color: var(--icon-critical-base);
+}
+
+[data-slot="tool-status-icon"][data-tone="active"] {
+  color: var(--foreground-subtle);
 }
 
 [data-component="edit-content"] {

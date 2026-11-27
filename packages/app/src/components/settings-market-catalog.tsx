@@ -87,7 +87,7 @@ const MarketplaceDetailsDialog: Component<{
   const language = useLanguage()
   return (
     <Dialog title={props.title} class="w-[min(calc(100vw-40px),680px)]">
-      <div class="flex flex-col gap-5">
+      <div data-component="marketplace-details-dialog" class="flex flex-col gap-5">
         <div class="flex items-start gap-3 rounded-xl border border-border bg-surface/60 p-4">
           <MarketplaceIcon src={props.entry.icon} seed={props.title} />
           <div class="min-w-0 flex-1">
@@ -129,6 +129,9 @@ const MarketplaceDetailsDialog: Component<{
           </Show>
           <Show when={props.entry.capabilities?.length}>
             <span>能力：{props.entry.capabilities?.join(", ")}</span>
+          </Show>
+          <Show when={props.entry.permissions?.length}>
+            <span>权限：{props.entry.permissions?.join(", ")}</span>
           </Show>
           <Show when={props.entry.categories?.length}>
             <span>分类：{props.entry.categories?.map(marketCategoryLabel).join(", ")}</span>
@@ -211,7 +214,10 @@ const MarketplaceSourcesDialog: Component<MarketplaceSourcesDialogProps> = (prop
   const dialog = useDialog()
   return (
     <Dialog title={language.t("settings.market.sources")} class="w-[min(calc(100vw-40px),860px)]">
-      <div class="flex max-h-[min(75vh,720px)] flex-col gap-4 overflow-y-auto">
+      <div
+        data-component="marketplace-sources-dialog"
+        class="flex max-h-[min(75vh,720px)] flex-col gap-4 overflow-y-auto"
+      >
         <div>
           <div class="text-14-medium text-foreground">{language.t("settings.market.sources")}</div>
           <div class="mt-1 text-12-regular text-foreground-subtle">{language.t("settings.market.sourcesHint")}</div>
@@ -376,6 +382,8 @@ type MarketplaceSource = {
   lastRefreshAt?: number
   lastError?: string
 }
+
+const marketplaceSearchCache = new Map<string, string>()
 
 /** 后端 `extension.marketplaceCatalog` 附带的远端更新检查结果。 */
 type UpdateEntry = {
@@ -607,13 +615,21 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
   const [sourceType, setSourceType] = createSignal<MarketplaceSource["type"]>("auto")
   const [editingSource, setEditingSource] = createSignal<string>()
   const [sourceBusy, setSourceBusy] = createSignal("")
-  const [search, setSearch] = createSignal("")
+  const [search, setSearch] = createSignal(marketplaceSearchCache.get(props.directory) ?? "")
   const [category, setCategory] = createSignal("all")
   const [typeFilter, setTypeFilter] = createSignal<MarketType | "all">("all")
   const [sourceFilter, setSourceFilter] = createSignal("all")
   const [sort, setSort] = createSignal<"featured" | "name" | "updated">("featured")
   const dialog = useDialog()
   const [updateConfirmation, setUpdateConfirmation] = createSignal<UpdateConfirmation>()
+  const [uninstallConfirmation, setUninstallConfirmation] = createSignal<{
+    name: string
+    onConfirm: () => void
+  }>()
+  const [sourceConfirmation, setSourceConfirmation] = createSignal<{
+    name: string
+    onConfirm: () => void
+  }>()
 
   const updatePreviewDescription = (preview: UpdatePreview): JSX.Element => {
     const changes = [
@@ -1213,6 +1229,16 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
       })
   }
 
+  const requestUninstall = (entry: InstalledEntry) => {
+    setUninstallConfirmation({
+      name: displayNameOf(entry),
+      onConfirm: () => {
+        setUninstallConfirmation(undefined)
+        uninstall(entry)
+      },
+    })
+  }
+
   const rollback = (entry: InstalledEntry) => {
     setStore("pending", entry.name)
     setStore("pendingAction", "rollback")
@@ -1255,11 +1281,37 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           pending.resolve(false)
         }}
       />
+      <ConfirmDialog
+        open={Boolean(uninstallConfirmation())}
+        variant="uninstall"
+        title={language.t("settings.market.uninstallConfirmTitle")}
+        description={language.t("settings.market.uninstallConfirm", {
+          name: uninstallConfirmation()?.name ?? "",
+        })}
+        confirmText={language.t("settings.market.uninstallConfirmAction")}
+        onConfirm={() => uninstallConfirmation()?.onConfirm()}
+        onClose={() => setUninstallConfirmation(undefined)}
+      />
+      <ConfirmDialog
+        open={Boolean(sourceConfirmation())}
+        variant="danger"
+        title={language.t("settings.market.source.remove")}
+        description={language.t("settings.market.source.removeConfirm", {
+          name: sourceConfirmation()?.name ?? "",
+        })}
+        confirmText={language.t("common.delete")}
+        onConfirm={() => sourceConfirmation()?.onConfirm()}
+        onClose={() => setSourceConfirmation(undefined)}
+      />
       <div class="flex flex-wrap items-center justify-end gap-2 py-3">
         <input
           class="mr-auto w-full rounded-lg border border-border bg-transparent px-3 py-2 text-13-regular text-foreground outline-none focus:border-border-focus sm:max-w-sm"
           value={search()}
-          onInput={(event) => setSearch(event.currentTarget.value)}
+          onInput={(event) => {
+            const value = event.currentTarget.value
+            setSearch(value)
+            marketplaceSearchCache.set(props.directory, value)
+          }}
           placeholder={language.t("settings.market.search")}
           aria-label={language.t("settings.market.search")}
           spellcheck={false}
@@ -1268,7 +1320,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           variant="ghost"
           size="small"
           disabled={store.loading}
-          onClick={load}
+          onClick={() => load({ force: true })}
           aria-label={language.t("settings.market.refresh")}
         >
           <Icon name="refresh" size="small" class={store.loading ? "animate-spin" : undefined} />
@@ -1295,9 +1347,13 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                 onRefresh={refreshSource}
                 onEdit={editSource}
                 onRemove={(source) => {
-                  if (window.confirm(language.t("settings.market.source.removeConfirm", { name: source.name }))) {
-                    removeSource(source)
-                  }
+                  setSourceConfirmation({
+                    name: source.name,
+                    onConfirm: () => {
+                      setSourceConfirmation(undefined)
+                      removeSource(source)
+                    },
+                  })
                 }}
               />
             ))
@@ -1318,7 +1374,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
           </h1>
           <p class="mt-3 text-base text-foreground-subtle">{language.t("settings.market.discoverHint")}</p>
         </div>
-        <div class="hidden shrink-0 items-center gap-3 pr-5 sm:flex" aria-hidden="true">
+        <div class="hidden shrink-0 items-center gap-3 pr-5 lg:flex" aria-hidden="true">
           <div class="-rotate-12 rounded-2xl border border-border bg-surface p-5">
             <Icon name="archive" size="large" />
           </div>
@@ -1644,6 +1700,18 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                   <Show when={installed()}>
                     <div class="col-span-3 mt-2 flex min-w-0 flex-wrap items-center gap-1.5 pl-12 [&>[data-component=tag]]:max-w-full [&>[data-component=tag]]:truncate">
                       <Tag>{language.t("settings.market.installedTag")}</Tag>
+                      <Show when={installedEntry()?.runtimeStatus}>
+                        {(status) => (
+                          <Tag
+                            class={
+                              status() === "active" ? "border-border-success-base/30 text-text-success-base" : undefined
+                            }
+                            title={installedEntry()?.runtimeError}
+                          >
+                            {language.t(`settings.market.runtime.${status()}` as never)}
+                          </Tag>
+                        )}
+                      </Show>
                       <Show when={outdated(entry)}>
                         <Tag title={updateOf(entry)?.available}>{language.t("settings.market.updateNote")}</Tag>
                       </Show>
@@ -1739,7 +1807,7 @@ export const MarketCatalog: Component<{ directory: string; onInstalled?: () => v
                           installed() ? language.t("settings.market.remove") : language.t("settings.market.install")
                         }
                         icon={busy() ? undefined : installed() ? "trash" : "download"}
-                        onClick={() => (installed() ? uninstall(installedEntry()!) : install(entry))}
+                        onClick={() => (installed() ? requestUninstall(installedEntry()!) : install(entry))}
                       >
                         <Show when={busy()} fallback={installed() ? null : language.t("settings.market.install")}>
                           <span class="flex items-center gap-1.5">

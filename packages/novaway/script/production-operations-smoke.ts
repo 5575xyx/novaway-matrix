@@ -31,9 +31,25 @@ const backend = `http://127.0.0.1:${backendPort}`
 const proxy = `https://localhost:${proxyPort}`
 
 await mkdir(workspace, { recursive: true })
-await Bun.spawn(
+const opensslPath = Bun.which("openssl")
+if (!opensslPath) throw new Error("production operations smoke requires openssl")
+let opensslConfig = process.env.OPENSSL_CONF
+if (!opensslConfig && process.platform === "win32") {
+  const candidates = [
+    path.resolve(path.dirname(opensslPath), "../ssl/openssl.cnf"),
+    path.resolve(path.dirname(opensslPath), "../etc/ssl/openssl.cnf"),
+  ]
+  for (const candidate of candidates) {
+    if (await Bun.file(candidate).exists()) {
+      opensslConfig = candidate
+      break
+    }
+  }
+  if (!opensslConfig) throw new Error(`could not find openssl.cnf next to ${opensslPath}`)
+}
+const certificate = Bun.spawn(
   [
-    "openssl",
+    opensslPath,
     "req",
     "-x509",
     "-newkey",
@@ -50,8 +66,17 @@ await Bun.spawn(
     "-addext",
     "subjectAltName=DNS:localhost",
   ],
-  { stdout: "ignore", stderr: "ignore" },
-).exited
+  {
+    ...(opensslConfig ? { env: { ...process.env, OPENSSL_CONF: opensslConfig } } : {}),
+    stdout: "ignore",
+    stderr: "pipe",
+  },
+)
+const certificateResult = await certificate.exited
+if (certificateResult !== 0) {
+  const error = await new Response(certificate.stderr).text()
+  throw new Error(`could not create TLS smoke certificate: ${error}`)
+}
 
 const start = () =>
   Bun.spawn([binary, "serve", "--hostname=127.0.0.1", `--port=${backendPort}`], {
@@ -91,14 +116,29 @@ const direct = (pathname: string, init: RequestInit = {}) =>
 
 let server = start()
 let tlsProxy: ReturnType<typeof Bun.serve> | undefined
+const stopServer = async () => {
+  if (process.platform === "win32" && server.pid) {
+    await Bun.spawn(["taskkill", "/PID", String(server.pid), "/T", "/F"], {
+      stdout: "ignore",
+      stderr: "ignore",
+    }).exited.catch(() => undefined)
+  } else if (server.exitCode === null) {
+    server.kill()
+  }
+  await server.exited.catch(() => undefined)
+}
 try {
-  await waitFor(async () => {
-    try {
-      return (await direct("/global/health")).ok
-    } catch {
-      return false
-    }
-  }, 60_000, "backend health")
+  await waitFor(
+    async () => {
+      try {
+        return (await direct("/global/health")).ok
+      } catch {
+        return false
+      }
+    },
+    60_000,
+    "backend health",
+  )
 
   const session = await direct("/session", { method: "POST", body: JSON.stringify({ title: "operations smoke" }) })
   if (!session.ok) throw new Error(`could not create backup test session: ${session.status}`)
@@ -121,7 +161,19 @@ try {
 
   const curl = async (pathname: string) => {
     const result = Bun.spawn(
-      ["curl", "--silent", "--show-error", "--insecure", "--user", `${username}:${password}`, `${proxy}${pathname}`],
+      [
+        "curl",
+        "--silent",
+        "--show-error",
+        "--insecure",
+        "--max-time",
+        "10",
+        "--connect-timeout",
+        "5",
+        "--user",
+        `${username}:${password}`,
+        `${proxy}${pathname}`,
+      ],
       { stdout: "pipe", stderr: "pipe" },
     )
     const [code, body, error] = await Promise.all([
@@ -139,13 +191,13 @@ try {
 
   // Stop before copying SQLite so the database and any WAL sidecar form a
   // consistent backup set. Restore the exact set into a fresh process below.
-  server.kill()
-  await server.exited.catch(() => undefined)
-  const checkpoint = Bun.spawn(
-    ["sqlite3", database, "PRAGMA wal_checkpoint(TRUNCATE); VACUUM;"],
-    { stdout: "ignore", stderr: "pipe" },
-  )
-  if ((await checkpoint.exited) !== 0) throw new Error(`SQLite checkpoint failed: ${await new Response(checkpoint.stderr).text()}`)
+  await stopServer()
+  const checkpoint = Bun.spawn(["sqlite3", database, "PRAGMA wal_checkpoint(TRUNCATE); VACUUM;"], {
+    stdout: "ignore",
+    stderr: "pipe",
+  })
+  if ((await checkpoint.exited) !== 0)
+    throw new Error(`SQLite checkpoint failed: ${await new Response(checkpoint.stderr).text()}`)
   await copyFile(database, backup)
   await rm(`${database}-wal`, { force: true })
   await rm(`${database}-shm`, { force: true })
@@ -153,13 +205,17 @@ try {
   await copyFile(backup, database)
 
   server = start()
-  await waitFor(async () => {
-    try {
-      return (await direct("/global/health")).ok
-    } catch {
-      return false
-    }
-  }, 60_000, "health after backup restore")
+  await waitFor(
+    async () => {
+      try {
+        return (await direct("/global/health")).ok
+      } catch {
+        return false
+      }
+    },
+    60_000,
+    "health after backup restore",
+  )
   const [stdoutStat, stderrStat] = await Promise.all([stat(stdoutLog), stat(stderrLog)])
   const logBytes = stdoutStat.size + stderrStat.size
   if (logBytes === 0) throw new Error("production server emitted no captured log output")
@@ -181,7 +237,6 @@ try {
   console.log(`PRODUCTION_LOG_BYTES=${logBytes}`)
 } finally {
   tlsProxy?.stop()
-  server.kill()
-  await server.exited.catch(() => undefined)
+  await stopServer()
   await rm(runRoot, { recursive: true, force: true })
 }

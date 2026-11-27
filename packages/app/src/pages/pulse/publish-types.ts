@@ -41,6 +41,11 @@ export interface PublishProgressEvent {
   result: PublishAccountResult
 }
 
+/** 只返回需要重试的账号，成功账号不会被二次提交。 */
+export function retryablePublishAccountIds(results: PublishAccountResult[]): string[] {
+  return results.filter((item) => item.status === "failed" || item.status === "cancelled").map((item) => item.accountId)
+}
+
 export type PrecheckLevel = "error" | "warning" | "hint"
 
 export interface PrecheckIssue {

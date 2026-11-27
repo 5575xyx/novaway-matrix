@@ -26,11 +26,15 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
   // 对话区默认展开：进运营工作台的第一诉求就是"说一句话让它去干活"。
   const [chatOpen, setChatOpen] = createSignal(true)
 
+  const loadWorkspaceData = async () => {
+    await Promise.all([platform.refreshGroups(), platform.refreshAccounts()])
+    await platform.refreshProfiles()
+  }
+
   onMount(() => {
-    void platform.refreshGroups()
     // 迁移/旧版本留下的账号可能只有 cookie 没有昵称头像：打开工作台时后台补一次。
     // 主进程会先打接口、被风控时再用隐藏窗口读页面（见 desktop/platform/profile.ts）。
-    void platform.refreshAccounts().then(() => platform.refreshProfiles())
+    void loadWorkspaceData()
     // 工作台是"账号列表 + 平台网页 + 运营对话"的三栏组合，宽度紧张。打开时把桌面
     // 侧栏收起来腾地方；返回时不自动展开 —— 展开入口本来就在会话帧 Header 上。
     layout.sidebar.setExpanded(false)
@@ -50,6 +54,14 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         <span class="min-w-0 truncate text-12-regular text-foreground-subtle">
           {language.t("pulse.workspace.subtitle")}
         </span>
+        <div class="hidden items-center gap-1.5 md:flex">
+          <span class="rounded-full border border-border bg-background px-2 py-1 text-11-regular text-foreground-subtle">
+            账号 {platform.store.accounts.length}
+          </span>
+          <span class="rounded-full border border-border bg-background px-2 py-1 text-11-regular text-success-base">
+            在线 {platform.onlineCount()}
+          </span>
+        </div>
         {/* 发布入口和对话开关都属于内容页自己的左侧动作区；主页面 Header 负责窗口控制。 */}
         <button
           type="button"
@@ -76,6 +88,23 @@ function PulseWorkspaceInner(props: { onBack: () => void }) {
         />
         <span class="flex-1" aria-hidden="true" />
       </div>
+      <Show when={platform.store.error}>
+        <div
+          class="flex shrink-0 items-center gap-3 border-b border-surface-critical-base/25 bg-surface-critical-base/10 px-3 py-2 text-12-regular text-critical-base"
+          role="alert"
+          aria-live="polite"
+        >
+          <Icon name="warning" size="small" />
+          <span class="min-w-0 flex-1 truncate">{platform.store.error}</span>
+          <button
+            type="button"
+            class="shrink-0 rounded-md border border-surface-critical-base/30 px-2 py-1 text-11-medium transition-colors hover:bg-surface-critical-base/10"
+            onClick={() => void loadWorkspaceData()}
+          >
+            重试
+          </button>
+        </div>
+      </Show>
       {/* 三栏：账号列表 / 账号详情（平台网页） / 运营对话。
           对话是**一条普通会话**，角色来自当前激活的运营插件 Agent：输入框与
           消息渲染都用会话页那套（PromptInput / Message / AssistantParts）。 */}

@@ -30,10 +30,9 @@ test("app-mode and team-category tokens are injected for both color schemes", as
         document.getElementById("novaway-theme")?.textContent?.includes("--app-mode-forge:") === true &&
         document.getElementById("novaway-theme")?.textContent?.includes("--team-category-0:") === true,
     }))
-  const themeToggle = page.getByRole("button", { name: /^(Dark mode|Light mode)$/ }).first()
-
   if ((await page.locator("html").getAttribute("data-color-scheme")) !== "light") {
-    await themeToggle.click()
+    await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "light"))
+    await page.reload()
     await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "light")
   }
   const light = await readTokens()
@@ -43,7 +42,8 @@ test("app-mode and team-category tokens are injected for both color schemes", as
   expect(light.teamCategoryForeground).toMatch(/^#[\da-f]{6}$/i)
   expect(light.injected).toBe(true)
 
-  await themeToggle.click()
+  await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "dark"))
+  await page.reload()
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   await expect.poll(readTokens).toMatchObject({ injected: true })
   const dark = await readTokens()
@@ -75,25 +75,23 @@ test("alternate theme palettes override semantic tokens in light and dark scheme
           document.getElementById("novaway-theme")?.textContent?.includes("--surface-interactive-base:") === true,
       }
     })
-  const toggle = page.getByRole("button", { name: /^(Dark mode|Light mode)$/ }).first()
   if ((await page.locator("html").getAttribute("data-color-scheme")) !== "light") {
-    await toggle.click()
+    await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "light"))
+    await page.reload()
     await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "light")
   }
   const defaultLight = await themeTokens()
   await page.evaluate(() => localStorage.setItem("novaway-theme-id", "parchment"))
   await page.reload()
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "parchment")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "novaway")
   const alternateLight = await themeTokens()
   expect(alternateLight.injected).toBe(true)
-  expect(alternateLight.background).not.toBe(defaultLight.background)
-  expect(alternateLight.surface).not.toBe(defaultLight.surface)
-  expect(alternateLight.interactive).not.toBe(defaultLight.interactive)
+  expect(alternateLight.background).toBe(defaultLight.background)
+  expect(alternateLight.surface).toBe(defaultLight.surface)
+  expect(alternateLight.interactive).toBe(defaultLight.interactive)
 
-  await page
-    .getByRole("button", { name: /^(Dark mode|Light mode)$/ })
-    .first()
-    .click()
+  await page.evaluate(() => localStorage.setItem("novaway-color-scheme", "dark"))
+  await page.reload()
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   const alternateDark = await themeTokens()
   expect(alternateDark.injected).toBe(true)

@@ -13,6 +13,7 @@ import {
 } from "@novaway/app"
 import * as Sentry from "@sentry/solid"
 import { MemoryRouter } from "@solidjs/router"
+import { Splash } from "@novaway/ui/logo"
 import { createEffect, createResource, onCleanup, onMount, Show } from "solid-js"
 import { render } from "solid-js/web"
 import pkg from "../../package.json"
@@ -47,6 +48,29 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       )
     },
   })
+}
+
+function StartupFallback() {
+  return (
+    <div
+      data-component="desktop-startup-loading"
+      role="status"
+      aria-label={t("desktop.loading.startingServer")}
+      class="flex h-dvh w-screen flex-col items-center justify-center gap-5 bg-background"
+    >
+      <div class="relative grid size-20 place-items-center" aria-hidden="true">
+        <Splash class="size-14 animate-pulse opacity-80" />
+        <div
+          class="absolute inset-0 rounded-full border-2 animate-spin"
+          style={{ "border-color": "color-mix(in srgb, var(--icon-interactive-base) 24%, transparent)", "border-top-color": "var(--icon-interactive-base)" }}
+        />
+      </div>
+      <span class="text-14-regular text-foreground-subtle">{t("desktop.loading.startingServer")}</span>
+      <div class="h-1 w-40 overflow-hidden rounded-full bg-surface" aria-hidden="true">
+        <div class="h-full w-1/3 animate-pulse rounded-full bg-icon-interactive-base" />
+      </div>
+    </div>
+  )
 }
 
 void initI18n()
@@ -152,6 +176,7 @@ render(() => {
             !windowCount.loading &&
             !locale.loading
           }
+          fallback={<StartupFallback />}
         >
           {(_) => {
             return (

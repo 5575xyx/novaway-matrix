@@ -1,5 +1,5 @@
 import { Effect } from "effect"
-import { HttpRouter, HttpServerResponse } from "effect/unstable/http"
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 
 // effect-smol's HttpMiddleware.cors builds OPTIONS preflight responses by
 // spreading allowOrigin() and allowHeaders() into the same record. Both set
@@ -13,7 +13,19 @@ import { HttpRouter, HttpServerResponse } from "effect/unstable/http"
 export const corsVaryFix = HttpRouter.middleware(
   (effect) =>
     Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
       const response = yield* effect
+
+      // Electron's `oc://renderer` page is a secure custom origin. Chromium's
+      // Local Network Access check therefore adds
+      // `Access-Control-Request-Private-Network` when the renderer calls the
+      // loopback sidecar. Without the matching response header Chromium
+      // rejects the actual POST as a generic `Failed to fetch`, even though
+      // the server returned a valid 204 preflight response.
+      if (request.headers["access-control-request-private-network"] === "true") {
+        return HttpServerResponse.setHeader(response, "access-control-allow-private-network", "true")
+      }
+
       const allowOrigin = response.headers["access-control-allow-origin"]
       if (!allowOrigin || allowOrigin === "*") return response
 

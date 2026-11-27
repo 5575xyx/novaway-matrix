@@ -122,10 +122,9 @@ const lastAssistantWithTokens = (messages: Message[]) => {
   }
 }
 
-const build = (messages: Message[] = [], providers: Provider[] = [], compaction?: CompactionConfig): Metrics => {
-  const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? msg.cost : 0), 0)
+const contextFor = (messages: Message[] = [], providers: Provider[] = [], compaction?: CompactionConfig) => {
   const message = lastAssistantWithTokens(messages)
-  if (!message) return { totalCost, context: undefined }
+  if (!message) return undefined
 
   const provider = providers.find((item) => item.id === message.providerID)
   const model = provider?.models[message.modelID]
@@ -133,24 +132,39 @@ const build = (messages: Message[] = [], providers: Provider[] = [], compaction?
   const total = tokenTotal(message)
 
   return {
-    totalCost,
-    context: {
-      message,
-      provider,
-      model,
-      providerLabel: provider?.name ?? message.providerID,
-      modelLabel: model?.name ?? message.modelID,
-      limit,
-      input: message.tokens.input,
-      output: message.tokens.output,
-      reasoning: message.tokens.reasoning,
-      cacheRead: message.tokens.cache.read,
-      cacheWrite: message.tokens.cache.write,
-      total,
-      usage: limit ? Math.round((total / limit) * 100) : null,
-      budget: contextBudget(model?.limit, total, compaction),
-    },
+    message,
+    provider,
+    model,
+    providerLabel: provider?.name ?? message.providerID,
+    modelLabel: model?.name ?? message.modelID,
+    limit,
+    input: message.tokens.input,
+    output: message.tokens.output,
+    reasoning: message.tokens.reasoning,
+    cacheRead: message.tokens.cache.read,
+    cacheWrite: message.tokens.cache.write,
+    total,
+    usage: limit ? Math.round((total / limit) * 100) : null,
+    budget: contextBudget(model?.limit, total, compaction),
   }
+}
+
+export function getSessionTotalCost(messages: readonly Message[] = []) {
+  return messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? msg.cost : 0), 0)
+}
+
+const build = (messages: Message[] = [], providers: Provider[] = [], compaction?: CompactionConfig): Metrics => {
+  const totalCost = getSessionTotalCost(messages)
+  return { totalCost, context: contextFor(messages, providers, compaction) }
+}
+
+/** Compute only the latest context window; use this in live warning UI that doesn't display cost totals. */
+export function getSessionContext(
+  messages: Message[] = [],
+  providers: Provider[] = [],
+  compaction?: CompactionConfig,
+) {
+  return contextFor(messages, providers, compaction)
 }
 
 export function getSessionContextMetrics(

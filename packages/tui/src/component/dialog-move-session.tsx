@@ -70,9 +70,9 @@ export function DialogMoveSession(props: DialogMoveSessionProps) {
     return loadedProject()
   })
 
-  const [directories, { refetch }] = createResource(
+  const [directories, { refetch }] = createResource<ProjectDirectory[] | undefined, string>(
     () => (props.initialRemoving ? undefined : props.projectID),
-    async (projectID, info): Promise<ProjectDirectory[] | undefined> => {
+    async (projectID, info) => {
       try {
         // Git worktrees are the project copies. Listing them costs one git
         // call and makes a later `project.directories` read pick up any that

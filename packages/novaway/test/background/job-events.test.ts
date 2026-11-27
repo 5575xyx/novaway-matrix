@@ -80,6 +80,33 @@ describe("background.job events", () => {
     }),
   )
 
+  it.instance("orders started before completion for an immediate run", () =>
+    Effect.gen(function* () {
+      const jobs = yield* BackgroundJob.Service
+      const bus = yield* Bus.Service
+      const events: string[] = []
+      const completed = yield* Deferred.make<void>()
+
+      const unsubStarted = yield* bus.subscribeCallback(BackgroundJob.Event.Started, () => {
+        events.push("started")
+      })
+      const unsubCompleted = yield* bus.subscribeCallback(BackgroundJob.Event.Completed, () => {
+        events.push("completed")
+        Deferred.doneUnsafe(completed, Effect.void)
+      })
+
+      const job = yield* jobs.start({ type: "test", run: Effect.succeed("instant") })
+      yield* Deferred.await(completed).pipe(Effect.timeout("2 seconds"))
+
+      expect(job.status).toBe("running")
+      expect(events).toEqual(["started", "completed"])
+      expect((yield* jobs.get(job.id))?.status).toBe("completed")
+
+      yield* Effect.sync(unsubStarted)
+      yield* Effect.sync(unsubCompleted)
+    }),
+  )
+
   it.instance("emits background.completed for each terminal state", () =>
     Effect.gen(function* () {
       const jobs = yield* BackgroundJob.Service

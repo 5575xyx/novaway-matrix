@@ -18,6 +18,15 @@ import {
 } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron"
 
+import {
+  downloadNativeSpeechModel,
+  getNativeSpeechBackends,
+  getNativeSpeechModel,
+  getNativeSpeechModelStates,
+  normalizeNativeSpeechLanguage,
+  NativeSpeechSession,
+  type NativeSpeechModelId,
+} from "./speech/native-speech"
 import { copyLocalFileToClipboard, downloadUrlToTempFile } from "./clipboard-file"
 import { getFileIconDataUrl, getInstalledEditors, getOfficeApps, openInEditor } from "./editors"
 
@@ -146,6 +155,92 @@ type Deps = {
 }
 
 export function registerIpcHandlers(deps: Deps) {
+  const nativeSpeechRoot = () => path.join(app.getPath("userData"), "speech-models")
+  const nativeSpeechSessions = new Map<NativeSpeechModelId, NativeSpeechSession>()
+  const nativeSpeechQueues = new Map<NativeSpeechModelId, Promise<unknown>>()
+  app.once("before-quit", () => {
+    for (const session of nativeSpeechSessions.values()) session.dispose()
+    nativeSpeechSessions.clear()
+    nativeSpeechQueues.clear()
+  })
+  ipcMain.handle("native-speech:backends", () => getNativeSpeechBackends())
+  ipcMain.handle("native-speech:models", () => getNativeSpeechModelStates(nativeSpeechRoot()))
+  ipcMain.handle("native-speech:download", (event: IpcMainInvokeEvent, id: NativeSpeechModelId) =>
+    downloadNativeSpeechModel(nativeSpeechRoot(), id, (progress) => {
+      event.sender.send("native-speech:download-progress", { id, progress })
+    }),
+  )
+  const loadNativeSpeechSession = async (id: NativeSpeechModelId) => {
+    const model = getNativeSpeechModel(id)
+    const states = await getNativeSpeechModelStates(nativeSpeechRoot())
+    const state = states.find((item) => item.id === id)
+    if (!state?.downloaded) throw new Error(`请先下载语音模型: ${model.label}`)
+
+    const session = nativeSpeechSessions.get(id) ?? new NativeSpeechSession()
+    nativeSpeechSessions.set(id, session)
+    const loaded = await session.load(state.path)
+    return { model, session, loaded }
+  }
+  const enqueueNativeSpeech = <T>(id: NativeSpeechModelId, task: () => Promise<T>) => {
+    const previous = nativeSpeechQueues.get(id) ?? Promise.resolve()
+    const run = previous.then(task)
+    const queueMarker = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    nativeSpeechQueues.set(id, queueMarker)
+    return run.finally(() => {
+      if (nativeSpeechQueues.get(id) === queueMarker) nativeSpeechQueues.delete(id)
+    })
+  }
+  ipcMain.handle(
+    "native-speech:transcribe",
+    (_event: IpcMainInvokeEvent, id: NativeSpeechModelId, pcm: Float32Array, language: string) =>
+      enqueueNativeSpeech(id, async () => {
+        const { model, session, loaded } = await loadNativeSpeechSession(id)
+        const text = await session.transcribe(pcm, normalizeNativeSpeechLanguage(model, language))
+        return {
+          text,
+          device: {
+            name: loaded.device.name,
+            kind: loaded.device.kind,
+            deviceType: loaded.device.deviceType,
+          },
+        }
+      }),
+  )
+  ipcMain.handle(
+    "native-speech:stream-start",
+    (_event: IpcMainInvokeEvent, id: NativeSpeechModelId, language: string) =>
+      enqueueNativeSpeech(id, async () => {
+        const { model, session, loaded } = await loadNativeSpeechSession(id)
+        await session.startStream(normalizeNativeSpeechLanguage(model, language))
+        return {
+          streaming: loaded.capabilities.supportsStreaming,
+          device: {
+            name: loaded.device.name,
+            kind: loaded.device.kind,
+            deviceType: loaded.device.deviceType,
+          },
+        }
+      }),
+  )
+  ipcMain.handle(
+    "native-speech:stream-feed",
+    (_event: IpcMainInvokeEvent, id: NativeSpeechModelId, pcm: Float32Array) =>
+      enqueueNativeSpeech(id, async () => {
+        const { session } = await loadNativeSpeechSession(id)
+        return session.feedStream(pcm)
+      }),
+  )
+  ipcMain.handle(
+    "native-speech:stream-stop",
+    (_event: IpcMainInvokeEvent, id: NativeSpeechModelId) =>
+      enqueueNativeSpeech(id, async () => {
+        const { session } = await loadNativeSpeechSession(id)
+        return session.finalizeStream()
+      }),
+  )
   ipcMain.handle("kill-sidecar", () => deps.killSidecar())
   ipcMain.handle("await-initialization", (event: IpcMainInvokeEvent) => {
     const send = (step: InitStep) => event.sender.send("init-step", step)
@@ -440,7 +535,8 @@ export function registerIpcHandlers(deps: Deps) {
     const home = os.homedir()
     const xdgData = process.env.XDG_DATA_HOME || path.join(home, ".local", "share")
     const xdgCache = process.env.XDG_CACHE_HOME || path.join(home, ".cache")
-    const configRoot = process.env.NOVAWAY_CONFIG_DIR || path.join(process.env.XDG_CONFIG_HOME || path.join(home, ".config"), "novaway")
+    const configRoot =
+      process.env.NOVAWAY_CONFIG_DIR || path.join(process.env.XDG_CONFIG_HOME || path.join(home, ".config"), "novaway")
     const dataRoot = path.join(xdgData, "novaway")
     return {
       data: dataRoot,
@@ -503,7 +599,9 @@ export function registerIpcHandlers(deps: Deps) {
     const locations = await Promise.all(
       resourceIds.map(async (id): Promise<ResourceLocation> => {
         const summary = await scanResourceDirectory(paths[id], id === "temp" && paths[id] === defaults[id])
-        const exists = await stat(paths[id]).then((info) => info.isDirectory()).catch(() => false)
+        const exists = await stat(paths[id])
+          .then((info) => info.isDirectory())
+          .catch(() => false)
         return {
           id,
           label: resourceLabel[id],
@@ -521,7 +619,11 @@ export function registerIpcHandlers(deps: Deps) {
     }
   }
 
-  const cleanupResourceDirectory = async (root: string, cutoff: number, novaWayOnly = false): Promise<ResourceCleanupResult> => {
+  const cleanupResourceDirectory = async (
+    root: string,
+    cutoff: number,
+    novaWayOnly = false,
+  ): Promise<ResourceCleanupResult> => {
     let deletedFiles = 0
     let deletedBytes = 0
     const visit = async (directory: string): Promise<void> => {
@@ -541,10 +643,12 @@ export function registerIpcHandlers(deps: Deps) {
         }
         const info = await stat(entryPath).catch(() => undefined)
         if (!info?.isFile() || info.mtimeMs >= cutoff) continue
-        await rm(entryPath, { force: true }).then(() => {
-          deletedFiles += 1
-          deletedBytes += info.size
-        }).catch(() => {})
+        await rm(entryPath, { force: true })
+          .then(() => {
+            deletedFiles += 1
+            deletedBytes += info.size
+          })
+          .catch(() => {})
       }
     }
     await visit(root)
@@ -580,11 +684,15 @@ export function registerIpcHandlers(deps: Deps) {
     if (!config.enabled || (config.lastRunAt !== null && Date.now() - config.lastRunAt < interval * 86400000)) return
     const paths = resourcePaths()
     const defaults = resourceDefaults()
-    const result = await Promise.all(["temp", "cache", "logs"].map((id) => cleanupResourceDirectory(
-      paths[id as ResourceLocationId],
-      Date.now() - config.olderThanDays * 86400000,
-      id === "temp" && paths[id as ResourceLocationId] === defaults.temp,
-    )))
+    const result = await Promise.all(
+      ["temp", "cache", "logs"].map((id) =>
+        cleanupResourceDirectory(
+          paths[id as ResourceLocationId],
+          Date.now() - config.olderThanDays * 86400000,
+          id === "temp" && paths[id as ResourceLocationId] === defaults.temp,
+        ),
+      ),
+    )
     resourceStore().set(resourceStoreKey("cleanup"), JSON.stringify({ ...config, lastRunAt: Date.now() }))
     return result
   }
@@ -595,39 +703,53 @@ export function registerIpcHandlers(deps: Deps) {
   armScheduledCleanup()
 
   ipcMain.handle("resource:get-report", () => resourceReport())
-  ipcMain.handle("resource:set-location", async (_event: IpcMainInvokeEvent, id: ResourceLocationId, nextPath: string) => {
-    if (!resourceIds.includes(id) || typeof nextPath !== "string" || !nextPath.trim()) throw new Error("Invalid resource location")
-    const resolved = path.resolve(nextPath)
-    await mkdir(resolved, { recursive: true })
-    const paths = resourcePaths()
-    resourceStore().set(resourceStoreKey("paths"), JSON.stringify({ ...paths, [id]: resolved }))
-    return resourceReport()
-  })
+  ipcMain.handle(
+    "resource:set-location",
+    async (_event: IpcMainInvokeEvent, id: ResourceLocationId, nextPath: string) => {
+      if (!resourceIds.includes(id) || typeof nextPath !== "string" || !nextPath.trim())
+        throw new Error("Invalid resource location")
+      const resolved = path.resolve(nextPath)
+      await mkdir(resolved, { recursive: true })
+      const paths = resourcePaths()
+      resourceStore().set(resourceStoreKey("paths"), JSON.stringify({ ...paths, [id]: resolved }))
+      return resourceReport()
+    },
+  )
   ipcMain.handle("resource:get-cleanup-config", () => readCleanupConfig())
-  ipcMain.handle("resource:set-cleanup-config", (_event: IpcMainInvokeEvent, input: Omit<ResourceCleanupConfig, "lastRunAt">) => {
-    const config: ResourceCleanupConfig = {
-      ...readCleanupConfig(),
-      enabled: input.enabled === true,
-      interval: input.interval === "weekly" ? "weekly" : "daily",
-      olderThanDays: Math.min(365, Math.max(1, Math.floor(Number(input.olderThanDays) || 3))),
-    }
-    resourceStore().set(resourceStoreKey("cleanup"), JSON.stringify(config))
-    armScheduledCleanup()
-    return config
-  })
+  ipcMain.handle(
+    "resource:set-cleanup-config",
+    (_event: IpcMainInvokeEvent, input: Omit<ResourceCleanupConfig, "lastRunAt">) => {
+      const config: ResourceCleanupConfig = {
+        ...readCleanupConfig(),
+        enabled: input.enabled === true,
+        interval: input.interval === "weekly" ? "weekly" : "daily",
+        olderThanDays: Math.min(365, Math.max(1, Math.floor(Number(input.olderThanDays) || 3))),
+      }
+      resourceStore().set(resourceStoreKey("cleanup"), JSON.stringify(config))
+      armScheduledCleanup()
+      return config
+    },
+  )
   ipcMain.handle("resource:clean", async (_event: IpcMainInvokeEvent, olderThanDays: number) => {
     const days = Math.min(365, Math.max(1, Math.floor(Number(olderThanDays) || 3)))
     const paths = resourcePaths()
     const defaults = resourceDefaults()
-    const result = await Promise.all(["temp", "cache", "logs"].map((id) => cleanupResourceDirectory(
-      paths[id as ResourceLocationId],
-      Date.now() - days * 86400000,
-      id === "temp" && paths[id as ResourceLocationId] === defaults.temp,
-    )))
-    const total = result.reduce((summary, item) => ({
-      deletedFiles: summary.deletedFiles + item.deletedFiles,
-      deletedBytes: summary.deletedBytes + item.deletedBytes,
-    }), { deletedFiles: 0, deletedBytes: 0 })
+    const result = await Promise.all(
+      ["temp", "cache", "logs"].map((id) =>
+        cleanupResourceDirectory(
+          paths[id as ResourceLocationId],
+          Date.now() - days * 86400000,
+          id === "temp" && paths[id as ResourceLocationId] === defaults.temp,
+        ),
+      ),
+    )
+    const total = result.reduce(
+      (summary, item) => ({
+        deletedFiles: summary.deletedFiles + item.deletedFiles,
+        deletedBytes: summary.deletedBytes + item.deletedBytes,
+      }),
+      { deletedFiles: 0, deletedBytes: 0 },
+    )
     resourceStore().set(resourceStoreKey("cleanup"), JSON.stringify({ ...readCleanupConfig(), lastRunAt: Date.now() }))
     return total
   })
@@ -783,7 +905,11 @@ export function registerIpcHandlers(deps: Deps) {
   )
 
   ipcMain.handle("open-path", async (_event: IpcMainInvokeEvent, path: string, app?: string) => {
-    if (!app) return shell.openPath(path)
+    if (!app) {
+      const error = await shell.openPath(path)
+      if (error) throw new Error(error)
+      return
+    }
     await new Promise<void>((resolve, reject) => {
       const [cmd, args] =
         process.platform === "darwin" ? (["open", ["-a", app, path]] as const) : ([app, [path]] as const)

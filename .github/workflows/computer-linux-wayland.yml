@@ -1,0 +1,71 @@
+name: computer-linux-wayland
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  wayland-atspi:
+    name: Wayland AT-SPI semantic action smoke test
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Wayland accessibility dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            at-spi2-core \
+            dbus-x11 \
+            gir1.2-atspi-2.0 \
+            gir1.2-gtk-3.0 \
+            python3-gi \
+            weston \
+            wtype
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Run GTK semantic action under headless Wayland
+        env:
+          NOVAWAY_ATSPI_INTEGRATION: "1"
+        run: |
+          mkdir -p "$RUNNER_TEMP/novaway-wayland"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/novaway-xdg"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          dbus-run-session -- bash -euc '
+            weston --backend=headless-backend.so --socket=wayland-1 --idle-time=0 > "$RUNNER_TEMP/novaway-wayland/weston.log" 2>&1 &
+            weston_pid=$!
+            trap "kill $weston_pid || true" EXIT
+            for attempt in $(seq 1 50); do
+              test -S "$XDG_RUNTIME_DIR/wayland-1" && break
+              sleep 0.1
+            done
+            test -S "$XDG_RUNTIME_DIR/wayland-1"
+            export WAYLAND_DISPLAY=wayland-1
+            export GDK_BACKEND=wayland
+            bun test --cwd packages/novaway \
+              test/computer/linux-atspi.integration.test.ts \
+              --timeout 30000 2>&1 | tee "$RUNNER_TEMP/novaway-wayland/test.log"
+          '
+
+      - name: Upload Linux Wayland evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: computer-linux-wayland-evidence
+          path: ${{ runner.temp }}/novaway-wayland
+          if-no-files-found: ignore

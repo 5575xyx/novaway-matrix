@@ -115,7 +115,7 @@ const QuoteChip: Component<{
 }> = (props) => (
   <div
     data-component="prompt-quote-item"
-    title={props.item.text}
+    title={[props.item.comment, props.item.text].filter(Boolean).join("\n\n")}
     class="group flex h-12 max-w-[240px] shrink-0 flex-col gap-0.5 rounded-[6px] bg-panel py-1 pl-2 pr-1 shadow-xs-border transition-colors hover:bg-surface hover:shadow-xs-border-hover"
   >
     <div class="flex min-w-0 items-center gap-1.5">
@@ -133,7 +133,7 @@ const QuoteChip: Component<{
       />
     </div>
     <div class="line-clamp-2 pr-1 text-11-regular text-foreground-subtle">
-      {props.item.text.replace(/\s+/g, " ").trim()}
+      {props.item.comment?.trim() || props.item.text.replace(/\s+/g, " ").trim()}
     </div>
   </div>
 )

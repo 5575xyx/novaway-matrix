@@ -55,6 +55,7 @@ export function RunPlanReview(props: {
   const language = useLanguage()
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
   const [draft, setDraft] = createSignal("")
+  const [showTechnical, setShowTechnical] = createSignal(false)
   // 多队时由用户选归属；默认第一队。只有一队时不必多问。
   const [selectedOwner, setSelectedOwner] = createSignal("")
   const owner = () => selectedOwner() || props.teams[0]?.id || ""
@@ -76,39 +77,61 @@ export function RunPlanReview(props: {
         <span class="text-foreground-subtlest">{t("run.plan.version", { version: String(props.planVersion) })}</span>
       </div>
 
-      {/* 谁来做：团队名、人数、写入范围与依赖，一行一支队。 */}
-      <div class="flex flex-col gap-1">
-        <For each={props.teams}>
-          {(team, index) => (
-            <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
-              <Tag>{"#" + (index() + 1)}</Tag>
-              <span class="text-foreground">{team.name}</span>
-              <Show when={team.memberCount !== undefined}>
-                {(count) => (
-                  <span class="text-foreground-subtlest">
-                    {t("run.plan.members", { count: String(Math.round(Number(count()))) })}
-                  </span>
-                )}
-              </Show>
-              <Show when={team.dependsOn.length > 0}>
-                <span class="text-foreground-subtlest">
-                  {t("run.team.deps", {
-                    deps: team.dependsOn.map((dep) => "#" + (Math.round(Number(dep)) + 1)).join("、"),
-                  })}
-                </span>
-              </Show>
-              <Show when={(team.scope ?? []).length > 0}>
-                <span class="min-w-0 truncate text-foreground-subtlest">
-                  {t("run.team.scope", { paths: (team.scope ?? []).join("、") })}
-                </span>
-              </Show>
-            </div>
-          )}
-        </For>
-        <Show when={props.teams.length === 0}>
-          <span class="text-ui-xs text-warning-base">{t("run.plan.noTeams")}</span>
-        </Show>
+      <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+        <Tag>{t("run.plan.step.goal")}</Tag>
+        <span>→</span>
+        <Tag>{t("run.plan.step.work")}</Tag>
+        <span>→</span>
+        <Tag>{t("run.plan.step.review")}</Tag>
+        <span>→</span>
+        <Tag>{t("run.plan.step.deliver")}</Tag>
       </div>
+
+      <button
+        type="button"
+        class="flex items-center gap-1.5 self-start text-ui-xs text-foreground-subtle transition-colors hover:text-foreground"
+        onClick={() => setShowTechnical((open) => !open)}
+      >
+        <Icon name={showTechnical() ? "chevron-down" : "chevron-right"} size="small" />
+        {showTechnical() ? t("run.plan.technicalHide") : t("run.plan.technical")}
+      </button>
+
+      <Show when={showTechnical()}>
+        {/* 谁来做属于高级调度信息，默认折叠；用户首先确认的是目标和交付。 */}
+        <div class="flex flex-col gap-1 rounded-md border border-border bg-background px-2 py-1.5">
+          <div class="text-ui-xs text-foreground-subtlest">{t("run.plan.teamsTitle")}</div>
+          <For each={props.teams}>
+            {(team, index) => (
+              <div class="flex flex-wrap items-center gap-1.5 text-ui-xs text-foreground-subtle">
+                <Tag>{"#" + (index() + 1)}</Tag>
+                <span class="text-foreground">{team.name}</span>
+                <Show when={team.memberCount !== undefined}>
+                  {(count) => (
+                    <span class="text-foreground-subtlest">
+                      {t("run.plan.members", { count: String(Math.round(Number(count()))) })}
+                    </span>
+                  )}
+                </Show>
+                <Show when={team.dependsOn.length > 0}>
+                  <span class="text-foreground-subtlest">
+                    {t("run.team.deps", {
+                      deps: team.dependsOn.map((dep) => "#" + (Math.round(Number(dep)) + 1)).join("、"),
+                    })}
+                  </span>
+                </Show>
+                <Show when={(team.scope ?? []).length > 0}>
+                  <span class="min-w-0 truncate text-foreground-subtlest">
+                    {t("run.team.scope", { paths: (team.scope ?? []).join("、") })}
+                  </span>
+                </Show>
+              </div>
+            )}
+          </For>
+          <Show when={props.teams.length === 0}>
+            <span class="text-ui-xs text-warning-base">{t("run.plan.noTeams")}</span>
+          </Show>
+        </div>
+      </Show>
 
       <div class="flex flex-wrap items-center gap-1.5 text-ui-xs">
         <Tag title={t("run.policy.hint")}>{props.readOnly ? t("run.plan.readOnly") : t("run.plan.write")}</Tag>

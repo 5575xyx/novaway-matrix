@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@novaway/sdk/v2/client"
-import { getSessionCacheMetrics, getSessionContextMetrics } from "./session-context-metrics"
+import { getSessionCacheMetrics, getSessionContext, getSessionContextMetrics, getSessionTotalCost } from "./session-context-metrics"
 
 const assistant = (
   id: string,
@@ -65,6 +65,58 @@ describe("getSessionContextMetrics", () => {
     expect(metrics.context?.usage).toBe(50)
     expect(metrics.context?.providerLabel).toBe("OpenAI")
     expect(metrics.context?.modelLabel).toBe("GPT-4.1")
+  })
+
+  test("computes the live context window without aggregating historical cost", () => {
+    const messages = [
+      user("u1"),
+      assistant("a1", { input: 30, output: 10, reasoning: 0, read: 5, write: 0 }, 0.5),
+      assistant("a2", { input: 300, output: 100, reasoning: 50, read: 25, write: 25 }, 1.25),
+    ]
+    const providers = [
+      {
+        id: "openai",
+        models: {
+          "gpt-4.1": { name: "GPT-4.1", limit: { context: 1000 } },
+        },
+      },
+    ]
+
+    const live = getSessionContext(messages, providers)
+    const full = getSessionContextMetrics(messages, providers)
+
+    expect(live?.message.id).toBe("a2")
+    expect(live?.total).toBe(500)
+    expect(live?.providerLabel).toBe(full.context?.providerLabel)
+    expect(live?.modelLabel).toBe(full.context?.modelLabel)
+    expect(live?.usage).toBe(full.context?.usage)
+    expect(live?.budget).toEqual(full.context?.budget)
+    expect(full.totalCost).toBe(1.75)
+  })
+
+  test("live context lookup does not iterate a large historical message list", () => {
+    const history = Array.from({ length: 20_000 }, (_, index) => user(`u${index}`))
+    history.push(assistant("latest", { input: 10, output: 2, reasoning: 0, read: 0, write: 0 }, 0))
+    const visited: number[] = []
+    const messages = new Proxy(history, {
+      get(target, property, receiver) {
+        if (property === "reduce") throw new Error("live warning must not aggregate historical costs")
+        if (typeof property === "string" && /^\d+$/.test(property)) visited.push(Number(property))
+        return Reflect.get(target, property, receiver)
+      },
+    })
+
+    expect(getSessionContext(messages, [])?.message.id).toBe("latest")
+    expect(visited).toEqual([history.length - 1])
+  })
+
+  test("aggregates historical cost only when the detail view requests it", () => {
+    const messages = [
+      user("u1"),
+      assistant("a1", { input: 10, output: 2, reasoning: 0, read: 0, write: 0 }, 0.25),
+      assistant("a2", { input: 20, output: 3, reasoning: 1, read: 2, write: 0 }, 0.75),
+    ]
+    expect(getSessionTotalCost(messages)).toBe(1)
   })
 
   test("derives Claude Code style warning/error/blocking thresholds", () => {

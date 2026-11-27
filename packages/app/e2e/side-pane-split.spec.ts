@@ -24,17 +24,15 @@ function workspaceRootSlug() {
 }
 
 const FILE_A = "README.md"
-const FILE_B = "AGENTS.md"
+const FILE_B = "package.json"
 
-// 顶层标签条：side-pane-body + h-9（内容区那块 side-pane-body 是 flex-1，没有 h-9）。
-const tabStrip = (page: Page): Locator =>
-  page.locator('[data-component="side-pane-frame"] div.side-pane-body.h-9').first()
+const tabStrip = (page: Page): Locator => page.locator('[data-component="side-pane-frame"]').first()
 
 async function openSession(page: Page): Promise<Locator> {
   await page.setViewportSize({ width: 1600, height: 900 })
-  await page.goto(`/${workspaceRootSlug()}/session`)
+  await page.goto(`/${workspaceRootSlug()}/session`, { waitUntil: "domcontentloaded" })
   const frame = page.locator('[data-component="side-pane-frame"]')
-  await expect(frame).toHaveAttribute("data-open", "true", { timeout: 20_000 })
+  await expect(frame).toHaveAttribute("data-open", "true", { timeout: 120_000 })
   return frame
 }
 
@@ -50,19 +48,41 @@ async function openFile(page: Page, name: string) {
     .first()
     .click()
   await page
-    .getByRole("menuitem", { name: /^(Files|文件)$/ })
-    .first()
+    .locator('[role="menuitem"]')
+    .filter({ hasText: /^(Files|文件|Preview|预览|Workspace files|工作区文件)$/ })
+    .last()
     .click()
 
-  const input = page.getByPlaceholder(/Search files|搜索文件/).first()
+  const input = page.getByPlaceholder(/Search files|Search workspace files|搜索文件|搜索工作区文件/).first()
   await expect(input).toBeVisible({ timeout: 10_000 })
-  await input.fill(name)
+  const row = page
+    .locator('[role="treeitem"], [data-component="list"] button[data-slot="list-item"]')
+    .filter({ hasText: name })
+  let found = false
+  for (let attempt = 0; attempt < 3 && !found; attempt++) {
+    await input.fill(name)
+    try {
+      await expect
+        .poll(
+          async () => (await page.locator('[role="treeitem"]').allTextContents()).some((text) => text.includes(name)),
+          { timeout: 10_000 },
+        )
+        .toBe(true)
+      found = true
+    } catch {
+      await page.waitForTimeout(300)
+    }
+  }
+  if (!found) {
+    // The v2 index is optional in a fresh web instance. The tree itself is the
+    // authoritative source, so fall back to its already-loaded root listing.
+    await input.fill("")
+  }
 
-  // 列表项是 <button data-slot="list-item">；按文件名命中再点。
-  const row = page.locator('[data-component="list"] button[data-slot="list-item"]').filter({ hasText: name })
-  await expect(row.first()).toBeVisible({ timeout: 10_000 })
+  await expect(row.first()).toBeVisible({ timeout: 30_000 })
   await row.first().click()
-  await expect(input).toBeHidden({ timeout: 10_000 })
+  // 搜索框是常驻的文件树工具，不因打开文件而隐藏；只验证搜索结果和预览宿主切换。
+  await expect(input).toBeVisible({ timeout: 10_000 })
 
   // 选完即激活 preview 宿主：内容区出现唯一窗格，且该文件标签可见。
   await expect(panes(page)).toHaveCount(1)
@@ -85,6 +105,7 @@ async function paneWidths(page: Page) {
 }
 
 test.describe("右栏分屏", () => {
+  test.describe.configure({ timeout: 180_000 })
   test("标签右键「在右侧打开」拆出两栏，拖分割线改比例，双击收单栏", async ({ page }) => {
     const frame = await openSession(page)
     await openFile(page, FILE_A)

@@ -380,6 +380,10 @@
   --app-mode-forge-foreground: #ffffff;
   --app-mode-zen: #0f766e;
   --app-mode-zen-foreground: #ffffff;
+  --app-mode-operations: #ea580c;
+  --app-mode-operations-foreground: #ffffff;
+  --app-mode-workbench: #7c3aed;
+  --app-mode-workbench-foreground: #ffffff;
   /* Team identity colors are separate from the Agent identity palette. */
   --team-category-0: #ede9fe;
   --team-category-0-foreground: #5b21b6;
@@ -711,6 +715,10 @@
     --app-mode-forge-foreground: #0b1220;
     --app-mode-zen: #5eead4;
     --app-mode-zen-foreground: #0b1220;
+    --app-mode-operations: #fb923c;
+    --app-mode-operations-foreground: #1c1917;
+    --app-mode-workbench: #c4b5fd;
+    --app-mode-workbench-foreground: #1e1b4b;
     --team-category-0: #3b2e55;
     --team-category-0-foreground: #ddd6fe;
     --team-category-1: #12364d;

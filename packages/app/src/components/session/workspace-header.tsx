@@ -93,6 +93,7 @@ export function WorkspaceHeader() {
         variant="ghost"
         class="xl:hidden shrink-0"
         aria-label={language.t("sidebar.menu.toggle")}
+        aria-controls="workspace-mobile-sidebar"
         aria-expanded={layout.mobileSidebar.opened()}
         onClick={layout.mobileSidebar.toggle}
       />

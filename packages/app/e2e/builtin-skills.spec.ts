@@ -4,7 +4,7 @@ import { resolve } from "node:path"
 // 本机没有下载 Playwright 自带 Chromium 时用系统 Chrome（与其它 spec 一致）。
 test.use({ channel: "chrome", video: "off", trace: "off" })
 
-const OPS_SKILLS = ["自媒体运营", "选题雷达", "去 AI 味", "数据复盘"]
+const OPS_SKILLS = ["PDF", "浏览器操作", "电脑控制", "技能与插件创建", "持久记忆"]
 
 function workspaceRootSlug() {
   return Buffer.from(resolve(process.cwd(), "..", ".."), "utf8")
@@ -16,10 +16,11 @@ function workspaceRootSlug() {
 
 async function openExtensions(page: Page) {
   await page.goto(`/${workspaceRootSlug()}/session`)
-  // e2e 是干净浏览器 → detectLocale 回退英文，rail 读作 Extensions。
-  const rail = page.locator('[data-component="sidebar-rail-item"][aria-label="Extensions"]').first()
+  // The workspace action is rendered as a full-width button in the current sidebar.
+  const rail = page.getByRole("button", { name: /Extensions|扩展/ }).first()
   await expect(rail).toBeVisible({ timeout: 20_000 })
   await rail.click()
+  await page.getByRole("button", { name: /Installed|已安装/ }).click()
   await expect(page.locator('[data-component="builtin-extension-row"]').first()).toBeVisible({ timeout: 15_000 })
 }
 

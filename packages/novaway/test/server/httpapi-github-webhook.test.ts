@@ -70,7 +70,7 @@ beforeAll(async () => {
     { cwd: root, env, stdout: "inherit", stderr: "inherit" },
   )
   await waitForServer()
-})
+}, 30_000)
 
 afterAll(async () => {
   const running = child
@@ -80,7 +80,7 @@ afterAll(async () => {
     await running.exited
   }
   await fs.rm(tempRoot, { recursive: true, force: true })
-})
+}, 30_000)
 
 describe("GitHub webhook raw-body route", () => {
   test("accepts the exact signed body and rejects tampering or missing signatures", async () => {

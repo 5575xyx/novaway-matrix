@@ -78,11 +78,13 @@ export function workbenchModeFromAgent(agent: WorkbenchAgent): AppModeConfig | u
   const workbench = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
   const id = textOption(workbench.id) ?? group
   if (!id || id === "forge" || RETIRED_APP_MODES.has(id)) return undefined
+  const configuredName = textOption(workbench.name)
+  const name = group === "office" && configuredName === "办公模式" ? "办公工作台" : (configuredName ?? id)
 
   return {
     id,
     group,
-    name: textOption(workbench.name) ?? id,
+    name,
     shortName: textOption(workbench.shortName) ?? id,
     icon: textOption(workbench.icon) ?? "W",
     description: textOption(workbench.description) ?? `${id} 工作台。`,
@@ -1009,7 +1011,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       const mode = store.mode.current
       const visible = !mode
         ? allProjects()
-        : allProjects().filter((project) => (store.mode.projects[pathKey(project.worktree)] ?? mode) === mode)
+        : allProjects().filter((project) => (store.mode.projects[pathKey(project.worktree)] ?? "forge") === mode)
       // 置顶的项目排在最前（多个置顶按置顶时间倒序），其余保持原有顺序。
       const pins = store.pinned?.projects ?? {}
       return [...visible]
@@ -1070,34 +1072,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           continue
         }
 
-        void globalSdk.client.project
-          .update({ projectID: project.id, directory: worktree, icon: { color } })
-          .catch(() => {
-            if (colorRequested.get(worktree) === color) colorRequested.delete(worktree)
-          })
+        const projectID = project.id
+        void globalSync.background.run(() => {
+          if (colorRequested.get(worktree) !== color) return
+          return globalSdk.client.project.update({ projectID, directory: worktree, icon: { color } })
+        }, 4).catch(() => {
+          if (colorRequested.get(worktree) === color) colorRequested.delete(worktree)
+        })
       }
-    })
-
-    let sessionFrame: number | undefined
-    let sessionTimer: number | undefined
-
-    onMount(() => {
-      sessionFrame = requestAnimationFrame(() => {
-        sessionFrame = undefined
-        sessionTimer = window.setTimeout(() => {
-          sessionTimer = undefined
-          void Promise.all(
-            server.projects.list().map((project) => {
-              return globalSync.project.loadSessions(project.worktree)
-            }),
-          )
-        }, 0)
-      })
-    })
-
-    onCleanup(() => {
-      if (sessionFrame !== undefined) cancelAnimationFrame(sessionFrame)
-      if (sessionTimer !== undefined) window.clearTimeout(sessionTimer)
     })
 
     const [projectPickerOpen, setProjectPickerOpen] = createSignal(false)
@@ -1123,19 +1105,40 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
      * `workbench`/`modeGroup` 会被实时合并进左上角切换器。plugin.changed 事件会让
      * global-sync 重拉 Agent，因此安装、启用、停用都不需要重启客户端。
      */
+    const workbenchRequested = new Set<string>()
+
+    const knownDirectories = () =>
+      new Set<string>(
+        [
+          ...server.projects.list().map((project) => project.worktree),
+          ...globalSync.data.project.map((project) => project.worktree),
+          ...globalSync.directories(),
+          globalSync.data.path.worktree,
+          globalSync.data.path.directory,
+        ]
+          .filter((directory): directory is string => Boolean(directory))
+          .map((directory) => pathKey(directory)),
+      )
+
+    createEffect(() => {
+      for (const directory of knownDirectories()) {
+        if (workbenchRequested.has(directory)) continue
+        workbenchRequested.add(directory)
+        void globalSync.background.run(() => globalSync.warmAgents(directory), 2)
+          .catch(() => workbenchRequested.delete(directory))
+      }
+    })
+
     const availableModes = createMemo<AppModeConfig[]>(() => {
+      globalSync.agentRevision()
       const result = [APP_MODES[0]!] as AppModeConfig[]
       const seen = new Set<string>([result[0]!.id])
-      const directories = new Set<string>([
-        ...server.projects.list().map((project) => project.worktree),
-        ...globalSync.data.project.map((project) => project.worktree),
-      ])
+      const directories = knownDirectories()
       for (const directory of directories) {
-        // Bootstrap on demand so a plugin installed after the project was opened
-        // can contribute a workbench without requiring a reload or reopening it.
-        const [child] = globalSync.child(directory, { bootstrap: true })
+        const [child] = globalSync.child(directory, { bootstrap: false })
+        const agents = child.agent as WorkbenchAgent[]
         const byGroup = new Map<string, WorkbenchAgent>()
-        for (const agent of child.agent as WorkbenchAgent[]) {
+        for (const agent of agents) {
           if (agent.mode === "subagent" || agent.hidden || !agent.options) continue
           const group = textOption(agent.options.modeGroup)
           if (!group || group === "forge") continue
@@ -1246,13 +1249,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         select(mode: AppMode) {
           batch(() => {
+            // 工作台只是切换当前视图，不再把所有项目强行改成同一个 mode。
+            // 项目归属在创建/打开时记录，切换后项目和其会话任务自然保持隔离。
             setStore("mode", "current", mode)
             setStore("mode", "hasSelected", true)
-            // 切模式时强制覆盖所有项目的 mode，确保项目列表按新模式过滤正确
-            for (const project of server.projects.list()) {
-              const key = pathKey(project.worktree)
-              setStore("mode", "projects", key, mode)
-            }
           })
         },
         reset() {

@@ -10,7 +10,7 @@ import * as TeamSwitch from "@/team/switch"
 import * as ShareNext from "./share-next"
 
 export interface Interface {
-  readonly create: (input?: Session.CreateParams) => Effect.Effect<Session.Info>
+  readonly create: (input?: Session.CreateParams & { employeeID?: string }) => Effect.Effect<Session.Info>
   readonly share: (sessionID: SessionID) => Effect.Effect<{ url: string }, unknown>
   readonly unshare: (sessionID: SessionID) => Effect.Effect<void, unknown>
 }
@@ -40,7 +40,9 @@ export const layer = Layer.effect(
       yield* sync.run(Session.Event.Updated, { sessionID, info: { share: { url: null } } })
     })
 
-    const create = Effect.fn("SessionShare.create")(function* (input?: Session.CreateParams) {
+    const create: Interface["create"] = Effect.fn("SessionShare.create")(function* (
+      input?: Session.CreateParams & { employeeID?: string },
+    ) {
       const conf = yield* cfg.get()
       const instance = yield* InstanceState.context
       // 默认团队模式（§4.5）只在这里生效：这是「用户新建会话」的唯一入口，
@@ -50,7 +52,9 @@ export const layer = Layer.effect(
         parentID: input?.parentID,
         enabled: instance.scope === "project" && TeamSwitch.enabled(conf.experimental),
         fallback: {
-          mode: conf.experimental?.team_default_mode,
+          // Auto 是项目协作开启时的新会话默认值：主助手仍然决定是否调用专家，
+          // 用户不需要先在输入框里打开一个「团队开关」。显式 off 仍然优先。
+          mode: conf.experimental?.team_default_mode ?? "auto",
           ids: conf.experimental?.team_default_ids,
         },
       })

@@ -22,6 +22,9 @@ export type BuiltinMarketEntry = {
   descriptionKey?: string
   /** 远程目录不可用时仍能展示官方插件头像。 */
   icon?: string
+  /** 官方包的来源和摘要，用于后台自动安装时的完整性校验。 */
+  sourceId?: string
+  sha256?: string
   url: string
   ref?: string
   subdir?: string
@@ -80,20 +83,29 @@ const OFFICIAL_PLUGIN_ICONS: Record<string, string> = {
     "https://gitee.com/NovaWay-AI/novaway-plugins/raw/main/plugins/com.novaway.operations-suite/assets/icon.svg",
 }
 
-export const NOVAWAY_MARKETPLACE_ENTRIES: BuiltinMarketEntry[] = BUILTIN_EXTENSIONS.map((entry) => ({
-  name: entry.name,
-  ...(OFFICIAL_PLUGIN_DISPLAY_NAMES[entry.name] ? { displayName: OFFICIAL_PLUGIN_DISPLAY_NAMES[entry.name] } : {}),
-  ...(OFFICIAL_PLUGIN_DISPLAY_NAME_I18N[entry.name]
-    ? { displayNameI18n: OFFICIAL_PLUGIN_DISPLAY_NAME_I18N[entry.name] }
-    : {}),
-  ...(entry.version ? { version: entry.version } : {}),
-  description: entry.description,
-  ...(entry.descriptionKey ? { descriptionKey: entry.descriptionKey } : {}),
-  ...(OFFICIAL_PLUGIN_ICONS[entry.name] ? { icon: OFFICIAL_PLUGIN_ICONS[entry.name] } : {}),
-  url: entry.url,
-  ...(entry.ref ? { ref: entry.ref } : {}),
-  ...(entry.subdir ? { subdir: entry.subdir } : {}),
-  kind: entry.kind,
-  ...(entry.keywords ? { keywords: entry.keywords } : {}),
-  autoInstall: entry.autoInstall,
-}))
+type BuiltinArtifact = { sourceId?: string; sha256?: string }
+
+export const NOVAWAY_MARKETPLACE_ENTRIES: BuiltinMarketEntry[] = BUILTIN_EXTENSIONS.map((entry) => {
+  // Keep compatibility with an older workspace package symlink while the core
+  // source already exposes these integrity fields.
+  const artifact = entry as typeof entry & BuiltinArtifact
+  return {
+    name: entry.name,
+    ...(OFFICIAL_PLUGIN_DISPLAY_NAMES[entry.name] ? { displayName: OFFICIAL_PLUGIN_DISPLAY_NAMES[entry.name] } : {}),
+    ...(OFFICIAL_PLUGIN_DISPLAY_NAME_I18N[entry.name]
+      ? { displayNameI18n: OFFICIAL_PLUGIN_DISPLAY_NAME_I18N[entry.name] }
+      : {}),
+    ...(entry.version ? { version: entry.version } : {}),
+    description: entry.description,
+    ...(entry.descriptionKey ? { descriptionKey: entry.descriptionKey } : {}),
+    ...(OFFICIAL_PLUGIN_ICONS[entry.name] ? { icon: OFFICIAL_PLUGIN_ICONS[entry.name] } : {}),
+    url: entry.url,
+    ...(artifact.sourceId ? { sourceId: artifact.sourceId } : {}),
+    ...(artifact.sha256 ? { sha256: artifact.sha256 } : {}),
+    ...(entry.ref ? { ref: entry.ref } : {}),
+    ...(entry.subdir ? { subdir: entry.subdir } : {}),
+    kind: entry.kind,
+    ...(entry.keywords ? { keywords: entry.keywords } : {}),
+    autoInstall: entry.autoInstall,
+  }
+})

@@ -1,3 +1,6 @@
+import { createHash, randomUUID } from "node:crypto"
+import { resolve } from "node:path"
+import { getPath as getDatabasePath } from "@/storage/db"
 import { Config } from "@/config/config"
 import { GlobalBus, type GlobalEvent as GlobalBusEvent } from "@/bus/global"
 import { EffectBridge } from "@/effect/bridge"
@@ -15,6 +18,16 @@ import { RootHttpApi } from "../api"
 import { GlobalUpgradeInput } from "../groups/global"
 
 const log = Log.create({ service: "server" })
+let sessionLibrary: string | undefined
+
+function sessionLibraryID() {
+  if (sessionLibrary) return sessionLibrary
+  const file = getDatabasePath()
+  // Identify the library without returning a filesystem path or opening SQLite.
+  return (sessionLibrary = file === ":memory:"
+    ? randomUUID()
+    : createHash("sha256").update(resolve(file)).digest("hex"))
+}
 
 function eventData(data: unknown): Sse.Event {
   return {
@@ -73,7 +86,7 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     const bridge = yield* EffectBridge.make()
 
     const health = Effect.fn("GlobalHttpApi.health")(function* () {
-      return { healthy: true as const, version: InstallationVersion }
+      return { healthy: true as const, version: InstallationVersion, sessionLibrary: sessionLibraryID() }
     })
 
     const event = Effect.fn("GlobalHttpApi.event")(function* () {

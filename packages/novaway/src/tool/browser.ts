@@ -4,6 +4,8 @@ import { Bus } from "@/bus"
 import * as BusEvent from "@/bus/bus-event"
 import { InstanceState } from "@/effect/instance-state"
 import { BrowserService } from "@/browser/browser"
+import { parseCookieText } from "@/browser/cookies"
+import type { BrowserCookieParam } from "@/browser/cdp"
 import * as Tool from "./tool"
 import DESCRIPTION from "./browser.txt"
 
@@ -32,6 +34,10 @@ const FillParameters = Schema.Struct({
   value: Schema.String.annotate({ description: "要填入的文本" }),
 })
 
+const TabParameters = Schema.Struct({
+  targetId: Schema.String.annotate({ description: "browser_tabs 返回的 targetId" }),
+})
+
 const PressParameters = Schema.Struct({
   key: Schema.String.annotate({ description: "按键，例如 Enter 或 Control+A" }),
   ref: Schema.optional(Schema.String).annotate({ description: "可选目标 snapshot ref" }),
@@ -39,6 +45,24 @@ const PressParameters = Schema.Struct({
 
 const ScreenshotParameters = Schema.Struct({
   fullPage: Schema.optional(Schema.Boolean).annotate({ description: "是否全页截图，默认 false" }),
+})
+
+const CookieInput = Schema.Struct({
+  name: Schema.String,
+  value: Schema.String,
+  url: Schema.optional(Schema.String),
+  domain: Schema.optional(Schema.String),
+  path: Schema.optional(Schema.String),
+  secure: Schema.optional(Schema.Boolean),
+  httpOnly: Schema.optional(Schema.Boolean),
+  sameSite: Schema.optional(Schema.Literals(["Strict", "Lax", "None"])),
+  expires: Schema.optional(Schema.Number),
+})
+
+const CookieParameters = Schema.Struct({
+  cookies: Schema.optional(Schema.Array(CookieInput)).annotate({ description: "结构化 Cookie 列表" }),
+  text: Schema.optional(Schema.String).annotate({ description: "JSON Cookie 数组或 Netscape cookies.txt 文本" }),
+  format: Schema.optional(Schema.Literals(["json", "netscape"])),
 })
 
 function permission(urlOrAction: string) {
@@ -52,6 +76,12 @@ function permission(urlOrAction: string) {
 
 function run<A>(effect: Effect.Effect<A, unknown>) {
   return effect.pipe(Effect.orDie)
+}
+
+function parseCookieImport(params: Schema.Schema.Type<typeof CookieParameters>): BrowserCookieParam[] {
+  if (params.cookies?.length) return params.cookies as BrowserCookieParam[]
+  if (!params.text?.trim()) throw new Error("提供 cookies 数组，或提供 JSON/Netscape Cookie 文本")
+  return parseCookieText(params.text, params.format)
 }
 
 export const BrowserNavigateTool = Tool.define(
@@ -98,6 +128,56 @@ export const BrowserSnapshotTool = Tool.define(
               title: `快照 ${result.title}`,
               metadata: { url: result.url, title: result.title, refs: result.refs },
               output: result.text.slice(0, 20_000),
+            }
+          }),
+        ),
+    }
+  }),
+)
+
+export const BrowserTabsTool = Tool.define(
+  "browser_tabs",
+  Effect.gen(function* () {
+    const browser = yield* BrowserService.Service
+    return {
+      description: DESCRIPTION + "\n\n动作：列出当前浏览器窗口中的标签页和 targetId。",
+      parameters: Schema.Struct({}),
+      execute: (_params: {}, ctx: Tool.Context) =>
+        run(
+          Effect.gen(function* () {
+            yield* ctx.ask(permission("tabs"))
+            const tabs = yield* browser.tabs()
+            return {
+              title: `${tabs.length} 个浏览器标签页`,
+              metadata: { tabs },
+              output: tabs.length
+                ? tabs
+                    .map((tab) => `[${tab.targetId}]${tab.active ? " *" : ""} ${tab.title || "(无标题)"} — ${tab.url}`)
+                    .join("\n")
+                : "没有可用的浏览器标签页。",
+            }
+          }),
+        ),
+    }
+  }),
+)
+
+export const BrowserTabSwitchTool = Tool.define(
+  "browser_tab_switch",
+  Effect.gen(function* () {
+    const browser = yield* BrowserService.Service
+    return {
+      description: DESCRIPTION + "\n\n动作：切换到 browser_tabs 返回的标签页。切换后必须重新获取 browser_snapshot。",
+      parameters: TabParameters,
+      execute: (params: Schema.Schema.Type<typeof TabParameters>, ctx: Tool.Context) =>
+        run(
+          Effect.gen(function* () {
+            yield* ctx.ask(permission(`tab:${params.targetId}`))
+            yield* browser.selectTab(params.targetId)
+            return {
+              title: `已切换标签页 ${params.targetId}`,
+              metadata: params,
+              output: `已切换到标签页 ${params.targetId}，请重新获取页面快照。`,
             }
           }),
         ),
@@ -263,6 +343,57 @@ export const BrowserAccessibilityTool = Tool.define(
               title: "无障碍树",
               metadata: {},
               output: tree.slice(0, 20_000),
+            }
+          }),
+        ),
+    }
+  }),
+)
+
+export const BrowserCookieImportTool = Tool.define(
+  "browser_cookie_import",
+  Effect.gen(function* () {
+    const browser = yield* BrowserService.Service
+    return {
+      description:
+        DESCRIPTION +
+        "\n\n动作：把用户明确提供的 Cookie 导入当前浏览器会话。Cookie value 只用于设置，不会写入工具结果；导入后会刷新当前页面。",
+      parameters: CookieParameters,
+      execute: (params: Schema.Schema.Type<typeof CookieParameters>, ctx: Tool.Context) =>
+        run(
+          Effect.gen(function* () {
+            const cookies = parseCookieImport(params)
+            yield* ctx.ask(permission(`import ${cookies.length} cookies`))
+            const result = yield* browser.importCookies(cookies)
+            return {
+              title: "Cookie 已导入",
+              metadata: { count: result.count, reloaded: result.reloaded },
+              output: `已导入 ${result.count} 个 Cookie${result.reloaded ? "，当前页面已刷新" : ""}。`,
+            }
+          }),
+        ),
+    }
+  }),
+)
+
+export const BrowserStatusTool = Tool.define(
+  "browser_status",
+  Effect.gen(function* () {
+    const browser = yield* BrowserService.Service
+    return {
+      description: DESCRIPTION + "\n\n动作：检查浏览器会话是否已连接，以及是否使用持久化 Profile。",
+      parameters: Schema.Struct({}),
+      execute: (_params: {}, ctx: Tool.Context) =>
+        run(
+          Effect.gen(function* () {
+            yield* ctx.ask(permission("status"))
+            const result = yield* browser.status()
+            return {
+              title: result.active ? "浏览器已连接" : "浏览器未启动",
+              metadata: result,
+              output: result.active
+                ? `浏览器已连接（${result.persistent ? "持久化会话" : "临时会话"}）。`
+                : "浏览器尚未启动。",
             }
           }),
         ),

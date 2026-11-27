@@ -250,6 +250,50 @@ export type ElectronAPI = {
   getWslConfig: () => Promise<WslConfig>
   setWslConfig: (config: WslConfig) => Promise<void>
   getDisplayBackend: () => Promise<LinuxDisplayBackend | null>
+  getNativeSpeechBackends: () => Promise<
+    Array<{
+      name: string
+      description: string
+      kind: string
+      deviceType: string
+      deviceId: string | null
+      memoryTotal: number
+      memoryFree: number
+      index: number | null
+    }>
+  >
+  getNativeSpeechModels: () => Promise<
+    Array<{
+      id: string
+      label: string
+      family: string
+      languages: readonly string[]
+      sizeBytes: number
+      fileName: string
+      downloadUrl: string
+      path: string
+      downloaded: boolean
+      bytes: number
+    }>
+  >
+  downloadNativeSpeechModel: (id: string) => Promise<string>
+  onNativeSpeechDownloadProgress: (callback: (event: { id: string; progress: number }) => void) => () => void
+  transcribeNativeSpeech: (
+    id: string,
+    pcm: Float32Array,
+    language: string,
+  ) => Promise<{ text: string; device: { name: string; kind: string; deviceType: string } }>
+  startNativeSpeechStream: (
+    id: string,
+    language: string,
+  ) => Promise<{ streaming: boolean; device: { name: string; kind: string; deviceType: string } }>
+  feedNativeSpeechStream: (
+    id: string,
+    pcm: Float32Array,
+  ) => Promise<{ full: string; committed: string; tentative: string }>
+  stopNativeSpeechStream: (
+    id: string,
+  ) => Promise<{ text: string; committed: string; tentative: string }>
   setDisplayBackend: (backend: LinuxDisplayBackend | null) => Promise<void>
   parseMarkdownCommand: (markdown: string) => Promise<string>
   checkAppExists: (appName: string) => Promise<boolean>

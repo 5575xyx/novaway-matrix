@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"
-import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
+import {
+  estimateRootSessionTotal,
+  hydrateStartupSessionRows,
+  loadRootSessionsWithFallback,
+  SessionListError,
+} from "./global-sync/session-load"
+import type { Session } from "@novaway/sdk/v2/client"
 
 describe("pickDirectoriesToEvict", () => {
   test("keeps pinned stores and evicts idle stores", () => {
@@ -41,7 +47,7 @@ describe("loadRootSessionsWithFallback", () => {
     expect(calls).toEqual([{ directory: "dir", roots: true, limit: 10 }])
   })
 
-  test("falls back to full roots query on limited-query failure", async () => {
+  test("falls back only when a legacy server rejects the limit parameter", async () => {
     const calls: Array<{ directory: string; roots: true; limit?: number }> = []
 
     const result = await loadRootSessionsWithFallback({
@@ -49,7 +55,7 @@ describe("loadRootSessionsWithFallback", () => {
       limit: 25,
       list: async (query) => {
         calls.push(query)
-        if (query.limit) throw new Error("unsupported")
+        if (query.limit) throw new SessionListError(422)
         return { data: [] }
       },
     })
@@ -60,6 +66,37 @@ describe("loadRootSessionsWithFallback", () => {
       { directory: "dir", roots: true, limit: 25 },
       { directory: "dir", roots: true },
     ])
+  })
+
+  test("does not issue an unbounded query after a server failure", async () => {
+    let requests = 0
+    await expect(
+      loadRootSessionsWithFallback({
+        directory: "dir",
+        limit: 25,
+        list: async () => {
+          requests++
+          throw new SessionListError(503)
+        },
+      }),
+    ).rejects.toThrow("503")
+    expect(requests).toBe(1)
+  })
+})
+
+describe("hydrateStartupSessionRows", () => {
+  const cached = [
+    { id: "b", title: "cached title" },
+    { id: "a", title: "previous session" },
+  ] as Session[]
+
+  test("a late cache cannot replace an authoritative empty list", () => {
+    expect(hydrateStartupSessionRows(cached, [], true)).toBeUndefined()
+  })
+
+  test("hydrates remaining rows without overwriting freshly fetched session metadata", () => {
+    const latest = { id: "b", title: "fresh title" } as Session
+    expect(hydrateStartupSessionRows(cached, [latest], false)).toEqual([cached[1], latest])
   })
 })
 

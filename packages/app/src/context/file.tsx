@@ -283,7 +283,15 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
         setLoaded(file, { ...(current ?? {}), type: "text", content })
         return
       }
-      await sdk.client.file.write({ path: file, content })
+      const result = await sdk.client.file.write({ path: file, content })
+      if (result.error) {
+        const error = result.error as { data?: { message?: unknown }; message?: unknown }
+        const message =
+          (typeof error.data?.message === "string" && error.data.message) ||
+          (typeof error.message === "string" && error.message) ||
+          "无法写入该文件"
+        throw new Error(message)
+      }
       const current = store.file[file]?.content
       setLoaded(file, { ...(current ?? {}), type: "text", content })
     }

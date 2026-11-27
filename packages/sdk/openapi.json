@@ -4012,6 +4012,355 @@
         ]
       }
     },
+    "/lsp/diagnostics": {
+      "get": {
+        "tags": ["file"],
+        "operationId": "file.lspDiagnostics",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LSP diagnostics by file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "LSP diagnostics by file"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.lspDiagnostics({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["file"],
+        "operationId": "file.lspDiagnosticsText",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LSP diagnostics by file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "LSP diagnostics by file"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.lspDiagnosticsText({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/lsp/document-symbols": {
+      "get": {
+        "tags": ["file"],
+        "operationId": "file.lspDocumentSymbols",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document symbols",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "description": "Document symbols"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.lspDocumentSymbols({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["file"],
+        "operationId": "file.lspDocumentSymbolsText",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document symbols",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "description": "Document symbols"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.lspDocumentSymbolsText({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/lsp/definition": {
+      "get": {
+        "tags": ["file"],
+        "operationId": "file.lspDefinition",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "line",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "character",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Definitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "description": "Definitions"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.lspDefinition({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["file"],
+        "operationId": "file.lspDefinitionText",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Definitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "description": "Definitions"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "character": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "line", "character", "text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.file.lspDefinitionText({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/file": {
       "get": {
         "tags": ["file"],
@@ -4152,7 +4501,24 @@
       "post": {
         "tags": ["file"],
         "operationId": "file.write",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
         "responses": {
           "200": {
             "description": "Write succeeded",
@@ -13118,10 +13484,29 @@
                       "description": {
                         "type": "string"
                       },
+                      "version": {
+                        "type": "string"
+                      },
                       "location": {
                         "type": "string"
                       },
                       "content": {
+                        "type": "string"
+                      },
+                      "requiredTools": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "permissionRequirements": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "outputContract": {},
+                      "compatibility": {
                         "type": "string"
                       },
                       "builtIn": {
@@ -25943,6 +26328,9 @@
                   "workspaceID": {
                     "type": "string",
                     "pattern": "^wrk"
+                  },
+                  "expertID": {
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false
@@ -26248,6 +26636,9 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "employeeID": {
+                    "type": "string"
                   },
                   "cwd": {
                     "type": "string"
@@ -27668,6 +28059,10 @@
                 "properties": {
                   "approved": {
                     "type": "boolean"
+                  },
+                  "execution": {
+                    "type": "string",
+                    "enum": ["standard", "goal", "long_task"]
                   },
                   "feedback": {
                     "type": "string"
@@ -32164,6 +32559,23 @@
             "required": true
           },
           {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "required": false
+          },
+          {
             "name": "type",
             "in": "query",
             "schema": {
@@ -35931,7 +36343,22 @@
             "description": "Success",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    },
+                    "memoryID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["accepted", "duplicate"],
+                  "additionalProperties": false
+                }
               }
             }
           },
@@ -40907,6 +41334,763 @@
         ]
       }
     },
+    "/expert-center/overview": {
+      "get": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.overview",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expert center overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterOverview"
+                }
+              }
+            }
+          }
+        },
+        "description": "Return user-facing task, expert team, and expert summaries for a workspace.",
+        "summary": "Get expert center overview",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.overview({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/tasks": {
+      "get": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.tasks",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expert center tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpertCenterTaskView"
+                  },
+                  "description": "Expert center tasks"
+                }
+              }
+            }
+          }
+        },
+        "description": "List task summaries without exposing internal assignments or tool arguments.",
+        "summary": "List expert center tasks",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.tasks({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.tasks.create",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Created expert center task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterTaskActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create a user-facing task and its orchestration run.",
+        "summary": "Create an expert center task",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpertCenterTaskCreatePayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.tasks.create({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/tasks/{taskID}": {
+      "get": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.task",
+        "parameters": [
+          {
+            "name": "taskID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expert center task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterTaskView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read the user-facing summary of one orchestration task.",
+        "summary": "Get an expert center task",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.task({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/teams": {
+      "get": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.teams",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expert teams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpertTeamCardView"
+                  },
+                  "description": "Expert teams"
+                }
+              }
+            }
+          }
+        },
+        "description": "List selectable expert team cards and capabilities.",
+        "summary": "List expert teams",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.teams({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/experts": {
+      "get": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.experts",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Experts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpertCardView"
+                  },
+                  "description": "Experts"
+                }
+              }
+            }
+          }
+        },
+        "description": "List selectable experts without exposing prompts or credentials.",
+        "summary": "List experts",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.experts({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/tasks/{taskID}/approve": {
+      "post": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.tasks.approve",
+        "parameters": [
+          {
+            "name": "taskID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved expert center task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterTaskActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Approve the current plan version using the existing run authorization boundary.",
+        "summary": "Approve an expert center task",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpertCenterApprovePayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.tasks.approve({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/tasks/{taskID}/pause": {
+      "post": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.tasks.pause",
+        "parameters": [
+          {
+            "name": "taskID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paused expert center task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterTaskActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Pause a task at a safe orchestration boundary.",
+        "summary": "Pause an expert center task",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.tasks.pause({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/tasks/{taskID}/resume": {
+      "post": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.tasks.resume",
+        "parameters": [
+          {
+            "name": "taskID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumed expert center task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterTaskActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Resume a paused or blocked task through the run state machine.",
+        "summary": "Resume an expert center task",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.tasks.resume({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/tasks/{taskID}/retry": {
+      "post": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.tasks.retry",
+        "parameters": [
+          {
+            "name": "taskID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retried expert center task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterTaskActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retry a task that is paused or waiting for a decision.",
+        "summary": "Retry an expert center task",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.tasks.retry({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/expert-center/tasks/{taskID}/decisions/{decisionID}": {
+      "post": {
+        "tags": ["expert-center"],
+        "operationId": "expert-center.tasks.decision",
+        "parameters": [
+          {
+            "name": "taskID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "decisionID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved expert center decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertCenterTaskActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Record a user decision and continue only through a valid run transition.",
+        "summary": "Resolve an expert center task decision",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpertCenterDecisionPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.expert-center.tasks.decision({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/team/profile": {
       "get": {
         "tags": ["profile"],
@@ -42407,6 +43591,637 @@
         ]
       }
     },
+    "/run/{runID}/assignments": {
+      "get": {
+        "tags": ["Team runs"],
+        "operationId": "run.assignments.list",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run assignments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunAssignmentView"
+                  },
+                  "description": "Run assignments"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "List durable employee dispatch attempts for a run.",
+        "summary": "List employee assignments",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.assignments.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/assignments/{assignmentID}": {
+      "get": {
+        "tags": ["Team runs"],
+        "operationId": "run.assignment.get",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "assignmentID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAssignmentView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read one durable employee dispatch attempt.",
+        "summary": "Get an employee assignment",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.assignment.get({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/assignments/{assignmentID}/heartbeat": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.assignment.heartbeat",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "assignmentID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignment heartbeat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAssignmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Renew a live assignment lease using its central dispatch identity.",
+        "summary": "Renew an employee assignment lease",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAssignmentHeartbeatPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.assignment.heartbeat({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/assignments/{assignmentID}/report": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.assignment.report",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "assignmentID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignment report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAssignmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Record a worker report; verification is a separate operation and is never implied by this call.",
+        "summary": "Submit an employee assignment report",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAssignmentReportPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.assignment.report({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/assignments/{assignmentID}/verify": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.assignment.verify",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "assignmentID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignment verification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAssignmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Apply an independent verification outcome to a reported assignment.",
+        "summary": "Verify an employee assignment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAssignmentVerifyPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.assignment.verify({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/assignments/{assignmentID}/cancel": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.assignment.cancel",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "assignmentID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAssignmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Cancel a live assignment without pretending that its external side effects are known.",
+        "summary": "Cancel an employee assignment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAssignmentCancelPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.assignment.cancel({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/run/{runID}/assignments/{assignmentID}/retry": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.assignment.retry",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "assignmentID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retried assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAssignmentRetryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create an explicit new attempt after a human-reviewed or terminal assignment result.",
+        "summary": "Create a new assignment attempt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAssignmentRetryPayload"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.assignment.retry({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run/{runID}/plan": {
       "post": {
         "tags": ["Team runs"],
@@ -43426,6 +45241,88 @@
         ]
       }
     },
+    "/run/{runID}/pause": {
+      "post": {
+        "tags": ["Team runs"],
+        "operationId": "run.pause",
+        "parameters": [
+          {
+            "name": "runID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paused run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_Conflict"
+                }
+              }
+            }
+          }
+        },
+        "description": "Pause a run at a safe boundary. A run that is already dispatching must be cancelled instead; it is never silently relabeled as paused while work is in flight.",
+        "summary": "Pause a run",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createNovawayClient } from \"@novaway/sdk\n\nconst client = createNovawayClient()\nawait client.run.pause({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/run/{runID}/cancel": {
       "post": {
         "tags": ["Team runs"],
@@ -43943,6 +45840,9 @@
             "$ref": "#/components/schemas/EventSessionRevertChanged"
           },
           {
+            "$ref": "#/components/schemas/EventSuper-agentOutboxPublished1"
+          },
+          {
             "$ref": "#/components/schemas/EventAgentStarted"
           },
           {
@@ -43971,9 +45871,6 @@
           },
           {
             "$ref": "#/components/schemas/EventPlatformWebviewResolved"
-          },
-          {
-            "$ref": "#/components/schemas/EventSuper-agentOutboxPublished1"
           },
           {
             "$ref": "#/components/schemas/EventVcsBranchUpdated"
@@ -46901,6 +48798,9 @@
                 "$ref": "#/components/schemas/EventSessionRevertChanged"
               },
               {
+                "$ref": "#/components/schemas/EventSuper-agentOutboxPublished"
+              },
+              {
                 "$ref": "#/components/schemas/EventAgentStarted"
               },
               {
@@ -46929,9 +48829,6 @@
               },
               {
                 "$ref": "#/components/schemas/EventPlatformWebviewResolved"
-              },
-              {
-                "$ref": "#/components/schemas/EventSuper-agentOutboxPublished"
               },
               {
                 "$ref": "#/components/schemas/EventVcsBranchUpdated"
@@ -48340,6 +50237,18 @@
               },
               "open_in_app": {
                 "type": "boolean"
+              },
+              "persistent_session": {
+                "type": "boolean"
+              },
+              "profile_dir": {
+                "type": "string"
+              },
+              "cdp_url": {
+                "type": "string"
+              },
+              "cookie_file": {
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -48575,6 +50484,32 @@
               "max_steps": {
                 "type": "integer",
                 "exclusiveMinimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "voice": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "language": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["toggle", "hold"]
+              },
+              "engine": {
+                "type": "string",
+                "enum": ["browser", "local"]
+              },
+              "local_endpoint": {
+                "type": "string"
+              },
+              "local_model": {
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -51036,6 +52971,17 @@
                 "enum": ["Infinity", "-Infinity", "NaN"]
               }
             ]
+          },
+          "runtimeStatus": {
+            "type": "string",
+            "enum": ["unloaded", "installed", "activating", "active", "failed", "disabled"]
+          },
+          "runtimeError": {
+            "type": "string"
+          },
+          "runtimeScope": {
+            "type": "string",
+            "enum": ["builtin", "global", "project", "session"]
           },
           "operationId": {
             "type": "string"
@@ -61448,6 +63394,559 @@
         "required": ["team", "members", "tasks", "messages"],
         "additionalProperties": false
       },
+      "TaskVerificationView": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "verified", "partial", "failed"]
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "unverified": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "stale": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["status", "passed", "failed", "unverified", "stale"],
+        "additionalProperties": false
+      },
+      "TaskChangeView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name"],
+        "additionalProperties": false
+      },
+      "ExpertCenterTaskView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["planning", "needs-you", "working", "paused", "completed", "partial", "failed"]
+          },
+          "phase": {
+            "type": "string",
+            "enum": ["understanding", "planning", "working", "reviewing", "delivering"]
+          },
+          "executor": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["auto", "expert", "team"]
+              },
+              "name": {
+                "type": "string"
+              },
+              "count": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "required": ["mode"],
+            "additionalProperties": false
+          },
+          "summary": {
+            "type": "string"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/TaskVerificationView"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskChangeView"
+            }
+          },
+          "nextAction": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "label"],
+            "additionalProperties": false
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "name"],
+              "additionalProperties": false
+            }
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "goal", "state", "phase", "executor", "artifacts", "updatedAt"],
+        "additionalProperties": false
+      },
+      "ExpertTeamCardView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scenarios": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "memberCount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "memberPreview": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": ["name", "role"],
+              "additionalProperties": false
+            }
+          },
+          "autoEligible": {
+            "type": "boolean"
+          },
+          "recommended": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "name", "capabilities", "scenarios", "memberCount", "memberPreview", "autoEligible"],
+        "additionalProperties": false
+      },
+      "ExpertCardView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "name", "available"],
+        "additionalProperties": false
+      },
+      "ExpertCenterOverview": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpertCenterTaskView"
+            }
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpertTeamCardView"
+            }
+          },
+          "experts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpertCardView"
+            }
+          }
+        },
+        "required": ["tasks", "teams", "experts"],
+        "additionalProperties": false
+      },
+      "ExpertCenterTaskCreatePayload": {
+        "type": "object",
+        "properties": {
+          "goal": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["auto", "team"]
+          },
+          "teamID": {
+            "type": "string"
+          },
+          "employeeID": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "brief": {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "constraints": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "context": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["goal"],
+        "additionalProperties": false
+      },
+      "ExpertCenterTaskActionResult": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/ExpertCenterTaskView"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["created", "approved", "paused", "resumed", "retried", "decision"]
+          }
+        },
+        "required": ["task", "action"],
+        "additionalProperties": false
+      },
+      "ExpertCenterApprovePayload": {
+        "type": "object",
+        "properties": {
+          "planVersion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "budget": {
+            "type": "object",
+            "properties": {
+              "tokens": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "cost": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "wallMs": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["planVersion", "budget"],
+        "additionalProperties": false
+      },
+      "ExpertCenterDecisionPayload": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["approve", "dismiss"]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
       "TeamProfileView": {
         "type": "object",
         "properties": {
@@ -63373,6 +65872,9 @@
                 },
                 "version": {
                   "type": "string"
+                },
+                "path": {
+                  "type": "string"
                 }
               },
               "required": ["name", "version"],
@@ -63971,6 +66473,374 @@
         "required": ["seq", "at", "kind", "swappable"],
         "additionalProperties": false
       },
+      "RunAssignmentView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "runID": {
+            "type": "string"
+          },
+          "taskID": {
+            "type": "string"
+          },
+          "employeeID": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "parentAssignmentID": {
+            "type": "string"
+          },
+          "dispatchID": {
+            "type": "string"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "acceptanceIDs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "worktree": {
+            "type": "string"
+          },
+          "promptHash": {
+            "type": "string"
+          },
+          "skillManifestHash": {
+            "type": "string"
+          },
+          "permissionHash": {
+            "type": "string"
+          },
+          "leaseUntil": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "lastHeartbeatAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "heartbeatMisses": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "report": {},
+          "verification": {},
+          "error": {
+            "type": "string"
+          },
+          "deliveredAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "acceptedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "reportedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "verifiedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "cancelledAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "expiredAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "runID",
+          "taskID",
+          "dispatchID",
+          "attempt",
+          "status",
+          "objective",
+          "acceptanceIDs",
+          "heartbeatMisses",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
       "RunDenialView": {
         "type": "object",
         "properties": {
@@ -64085,6 +66955,12 @@
               "$ref": "#/components/schemas/RunBlockerView"
             }
           },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunAssignmentView"
+            }
+          },
           "denials": {
             "type": "array",
             "items": {
@@ -64098,7 +66974,17 @@
             }
           }
         },
-        "required": ["run", "teams", "acceptances", "verifications", "summary", "blockers", "denials", "needsReview"],
+        "required": [
+          "run",
+          "teams",
+          "acceptances",
+          "verifications",
+          "summary",
+          "blockers",
+          "assignments",
+          "denials",
+          "needsReview"
+        ],
         "additionalProperties": false
       },
       "RunMetricsView": {
@@ -64834,6 +67720,191 @@
           }
         },
         "required": ["window", "states", "tokens", "rounds", "rework", "attempts", "blockers", "spend", "unavailable"],
+        "additionalProperties": false
+      },
+      "RunAssignmentHeartbeatPayload": {
+        "type": "object",
+        "properties": {
+          "dispatchID": {
+            "type": "string"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "leaseMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["dispatchID", "attempt", "sessionID"],
+        "additionalProperties": false
+      },
+      "RunAssignmentReportPayload": {
+        "type": "object",
+        "properties": {
+          "dispatchID": {
+            "type": "string"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["succeeded", "failed", "blocked", "needs_review"]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "claims": {
+            "type": "array"
+          },
+          "evidence": {
+            "type": "array"
+          },
+          "artifacts": {
+            "type": "array"
+          },
+          "blockers": {
+            "type": "array"
+          }
+        },
+        "required": ["dispatchID", "attempt", "sessionID", "status"],
+        "additionalProperties": false
+      },
+      "RunAssignmentVerifyPayload": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": ["succeeded", "failed", "needs_review"]
+          },
+          "verification": {
+            "type": "object"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["outcome", "verification"],
+        "additionalProperties": false
+      },
+      "RunAssignmentCancelPayload": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunAssignmentRetryPayload": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string"
+          },
+          "leaseMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunAssignmentRetryResult": {
+        "type": "object",
+        "properties": {
+          "assignment": {
+            "$ref": "#/components/schemas/RunAssignmentView"
+          },
+          "previousAssignmentID": {
+            "type": "string"
+          }
+        },
+        "required": ["assignment", "previousAssignmentID"],
         "additionalProperties": false
       },
       "RunWorktreeCleanup": {
@@ -66218,6 +69289,40 @@
                     "anyOf": [
                       {
                         "$ref": "#/components/schemas/PermissionMode"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "teamMode": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": ["off", "auto", "selected"]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "teamIDs": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "employeeID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
                       },
                       {
                         "type": "null"
@@ -68134,6 +71239,10 @@
               "approved": {
                 "type": "boolean"
               },
+              "execution": {
+                "type": "string",
+                "enum": ["standard", "goal", "long_task"]
+              },
               "feedback": {
                 "type": "string"
               }
@@ -68833,6 +71942,62 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventSuper-agentOutboxPublished": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["super-agent.outbox.published"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "runID": {
+                "type": "string"
+              },
+              "eventID": {
+                "type": "string"
+              },
+              "sequence": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "eventType": {
+                "type": "string"
+              },
+              "payload": {
+                "type": "object"
+              }
+            },
+            "required": ["runID", "eventID", "sequence", "eventType", "payload"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "EventAgentStarted": {
         "type": "object",
         "properties": {
@@ -69246,62 +72411,6 @@
               }
             },
             "required": ["requestID", "ok"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventSuper-agentOutboxPublished": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["super-agent.outbox.published"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "runID": {
-                "type": "string"
-              },
-              "eventID": {
-                "type": "string"
-              },
-              "sequence": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["NaN"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["Infinity"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["-Infinity"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["Infinity", "-Infinity", "NaN"]
-                  }
-                ]
-              },
-              "eventType": {
-                "type": "string"
-              },
-              "payload": {
-                "type": "object"
-              }
-            },
-            "required": ["runID", "eventID", "sequence", "eventType", "payload"],
             "additionalProperties": false
           }
         },
@@ -72355,6 +75464,58 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventSuper-agentOutboxPublished1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["super-agent.outbox.published"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "runID": {
+                "type": "string"
+              },
+              "eventID": {
+                "type": "string"
+              },
+              "sequence": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  }
+                ]
+              },
+              "eventType": {
+                "type": "string"
+              },
+              "payload": {
+                "type": "object"
+              }
+            },
+            "required": ["runID", "eventID", "sequence", "eventType", "payload"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "EventAgentCompleted1": {
         "type": "object",
         "properties": {
@@ -72526,58 +75687,6 @@
               }
             },
             "required": ["id", "sessionID", "action"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "type", "properties"],
-        "additionalProperties": false
-      },
-      "EventSuper-agentOutboxPublished1": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["super-agent.outbox.published"]
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "runID": {
-                "type": "string"
-              },
-              "eventID": {
-                "type": "string"
-              },
-              "sequence": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["NaN"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["Infinity"]
-                  },
-                  {
-                    "type": "string",
-                    "enum": ["-Infinity"]
-                  }
-                ]
-              },
-              "eventType": {
-                "type": "string"
-              },
-              "payload": {
-                "type": "object"
-              }
-            },
-            "required": ["runID", "eventID", "sequence", "eventType", "payload"],
             "additionalProperties": false
           }
         },
@@ -73152,6 +76261,10 @@
     {
       "name": "team",
       "description": "Multi-agent team routes."
+    },
+    {
+      "name": "expert-center",
+      "description": "User-facing expert team workspace projections."
     },
     {
       "name": "profile",

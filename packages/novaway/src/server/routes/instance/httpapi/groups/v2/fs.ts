@@ -27,6 +27,8 @@ const LocationInfoSchema = Schema.Struct({
 export const FsFindQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   query: Schema.String,
+  path: Schema.optional(Schema.String),
+  recursive: Schema.optional(Schema.Literals(["true", "false"])),
   type: Schema.optional(Schema.Literals(["file", "directory"])),
   limit: Schema.optional(Schema.NumberFromString),
 }).annotate({ identifier: "V2FsFindQuery" })

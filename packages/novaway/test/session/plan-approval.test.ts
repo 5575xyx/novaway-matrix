@@ -45,6 +45,18 @@ describe("plan approval", () => {
     }),
   )
 
+  it.instance("returns the selected goal execution mode", () =>
+    Effect.gen(function* () {
+      const approval = yield* PlanApprovalNs.Service
+      const fiber = yield* approval.request({ sessionID, parentID, plan: "p.md" }).pipe(Effect.forkChild)
+      yield* Effect.sleep("20 millis")
+      const [pending] = yield* approval.list()
+      yield* approval.reply({ id: pending!.id, approved: true, execution: "goal" })
+      const decision = yield* Fiber.join(fiber)
+      expect(decision.approved).toBe(true)
+      expect(decision.execution).toBe("goal")
+    }),
+  )
   it.instance("unknown request ids are ignored", () =>
     Effect.gen(function* () {
       const approval = yield* PlanApprovalNs.Service

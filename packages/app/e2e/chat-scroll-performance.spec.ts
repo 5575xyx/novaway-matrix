@@ -55,3 +55,32 @@ test("static long chat timeline scroll baseline", async ({ page }) => {
   console.info("chat-scroll-performance", metrics)
   expect(metrics.frames).toBeGreaterThan(30)
 })
+
+test("Markdown does not redecorate the previous HTML while a new parse is pending", async ({ page }) => {
+  await page.addInitScript(() => {
+    const queryAll = Element.prototype.querySelectorAll
+    Element.prototype.querySelectorAll = function (selectors: string) {
+      if (selectors === "pre" && !this.isConnected && this.querySelector("[data-paint-probe]")) {
+        const data = document.documentElement.dataset
+        data.markdownDecorations = String(Number(data.markdownDecorations ?? 0) + 1)
+      }
+      return queryAll.call(this, selectors)
+    }
+  })
+  await page.goto("/e2e/fixtures/chat-scroll.html?pending-parse", { waitUntil: "domcontentloaded" })
+  const reply = page.locator('[data-component="markdown"]')
+  const decorations = async () => Number(await page.locator("html").getAttribute("data-markdown-decorations"))
+  await expect(reply.locator("[data-paint-probe]")).toHaveText("Visible reply", { timeout: 45_000 })
+  expect(await decorations()).toBeGreaterThan(0)
+  await page.evaluate(() => { document.documentElement.dataset.markdownDecorations = "0" })
+  await page.getByRole("button", { name: "Update text" }).click()
+  await expect(reply).toHaveText("Visible reply")
+  const whilePending = await decorations()
+  await page.getByRole("button", { name: "Finish parsing" }).click()
+  await expect(reply).toHaveText("New reply")
+  console.info("markdown-paint", { whilePending, afterParse: await decorations() })
+  expect(whilePending).toBe(0)
+  expect(await decorations()).toBe(1)
+  await page.getByRole("button", { name: "Clear" }).click()
+  await expect(reply).toBeEmpty()
+})

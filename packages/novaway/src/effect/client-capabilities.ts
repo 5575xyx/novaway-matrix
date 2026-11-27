@@ -33,8 +33,11 @@ export const Names: readonly Name[] = Name.literals
  */
 const LEGACY: Record<string, readonly Name[]> = {
   cli: ["question", "plan", "tui"],
-  app: ["question", "webview"],
-  desktop: ["question", "tui", "webview"],
+  // `app` / `desktop` 都能自己把会话切到计划模式（`permission-mode-select.tsx`、
+  // `prompt-input.tsx` 的「+」菜单），所以它们必须声明 `plan`：否则内核不下发
+  // `plan_enter`，而提示词仍会要求模型调用 `plan_exit` 收尾。
+  app: ["question", "plan", "webview"],
+  desktop: ["question", "plan", "tui", "webview"],
   // ACP speaks the protocol, not a UI: it renders nothing itself.
   acp: [],
 }

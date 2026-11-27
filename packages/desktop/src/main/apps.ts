@@ -56,6 +56,15 @@ async function checkMacosApp(appName: string) {
 }
 
 async function resolveWindowsAppPath(appName: string): Promise<string | null> {
+  const systemRoot = process.env.WINDIR ?? process.env.SystemRoot ?? "C:\\Windows"
+  const systemApps: Record<string, string> = {
+    "explorer.exe": join(systemRoot, "explorer.exe"),
+    "powershell.exe": join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+    "cmd.exe": join(systemRoot, "System32", "cmd.exe"),
+  }
+  const knownSystemApp = systemApps[appName.toLowerCase()]
+  if (knownSystemApp && (await exists(knownSystemApp))) return knownSystemApp
+
   let output: string
   try {
     output = await execFilePromise("where", [appName]).then((r) => r.stdout.toString())

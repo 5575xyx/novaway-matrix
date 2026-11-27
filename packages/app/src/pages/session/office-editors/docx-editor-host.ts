@@ -55,6 +55,11 @@ function loadDocxBundle(): Promise<DocxEditorBundle> {
   return bundlePromise
 }
 
+/** 后台预热 DOCX 编辑器资源，不创建编辑器实例。 */
+export function preloadDocxEditor() {
+  return loadDocxBundle().then(() => undefined)
+}
+
 /**
  * 运行时拼接 bundle URL：加一个随机 query 片段让 esbuild 无法常量折叠。
  * /office/ 由 Vite 中间件原样托管，query 不影响文件内容。

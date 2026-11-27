@@ -15,4 +15,5 @@ Do NOT call this tool when:
 
 Important:
 - This tool requires user approval; they must consent to entering plan mode.
-- In plan mode you may only take read-only actions and write the plan file. Exit plan mode with plan_exit once the plan is ready.
+- The session remembers its explicit permission mode before entering plan mode. Leaving plan mode restores that value, including an inherited/undefined value.
+- In plan mode you may only take read-only actions and write the plan file. Use the `write` tool to create a new plan file; use `read` before `edit` when revising it. Do not use `office_document_edit` or shell to write the plan. Exit plan mode with plan_exit once the plan is ready.

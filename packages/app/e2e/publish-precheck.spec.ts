@@ -96,10 +96,15 @@ async function openPublishDialog(page: Page) {
   })
 
   await page.goto(`/${workspaceRootSlug()}/session`)
-  // 干净浏览器 → 英文界面，rail 读作 Operations。
-  const entry = page.locator('[data-component="sidebar-rail-item"][aria-label="Operations"]').first()
-  await expect(entry).toBeVisible({ timeout: 20_000 })
-  await entry.click()
+  // 运营工作台由已启用插件动态贡献；没有安装该可选插件时跳过发布链路，而不是把缺少插件误报成宿主 UI 失败。
+  const workbench = page.getByRole("combobox", { name: /Switch work mode|切换工作台|切换模式/ })
+  await expect(workbench).toBeVisible({ timeout: 20_000 })
+  await workbench.click()
+  const operations = page.getByRole("option", { name: /Operations|运营/ }).first()
+  if ((await operations.count()) === 0) {
+    test.skip(true, "operations workbench plugin is not installed in this E2E environment")
+  }
+  await operations.click()
 
   const publish = page.locator('[data-slot="pulse-publish-entry"]')
   await expect(publish).toBeVisible({ timeout: 15_000 })

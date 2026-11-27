@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import {
+  discoverGenericEditors,
   parseRegistryDefault,
   resolveEditorPath,
   resolveOfficeAppPath,
@@ -51,18 +52,49 @@ describe("external editor discovery", () => {
     expect(found).toBe("C:\\Program Files\\Editor\\Code.exe")
   })
 
-  it("returns no path when no allowed executable exists", () => {
-    const found = resolveWindowsCommand(
-      "unknown.exe",
+  it("discovers an editor installed through a Windows desktop shortcut", async () => {
+    const system: EditorSystem = {
+      platform: "win32",
+      home: "C:\\Users\\test",
+      env: {},
+      exists: async (path) => path === "E:\\DevelopmentTool\\openidea\\openidea.exe",
+      findCommand: async () => undefined,
+      listShortcuts: async () => [
+        { name: "OpenIDEA", target: "E:\\DevelopmentTool\\openidea\\openidea.exe" },
+      ],
+    }
+    expect(await discoverGenericEditors(system)).toEqual([
       {
-        PATH: "C:\\Apps",
-        PATHEXT: ".EXE;.CMD",
+        id: expect.stringMatching(/^detected:/),
+        name: "OpenIDEA",
+        path: "E:\\DevelopmentTool\\openidea\\openidea.exe",
       },
-      () => false,
-    )
-    expect(found).toBeUndefined()
+    ])
+  })
+
+  it("discovers an unlisted editor executable from PATH", async () => {
+    const system: EditorSystem = {
+      platform: "win32",
+      home: "C:\\Users\\test",
+      env: { PATH: "C:\\Tools" },
+      exists: async (path) => path === "C:\\Tools\\AcmeEditor.exe",
+      findCommand: async () => undefined,
+      listFiles: async (path) =>
+        path === "C:\\Tools"
+          ? ["AcmeEditor.exe", "AcmeEditorUpdater.exe", "ByteCodeGenerator.exe", "UtcDecoderHost.exe", "editorconfig.exe"]
+          : [],
+    }
+    const editors = await discoverGenericEditors(system)
+    expect(editors).toEqual([
+      {
+        id: expect.stringMatching(/^detected:/),
+        name: "AcmeEditor",
+        path: "C:\\Tools\\AcmeEditor.exe",
+      },
+    ])
   })
 })
+
 
 describe("registry App Paths parsing", () => {
   it("reads the default value from Chinese and English reg output", () => {
@@ -159,6 +191,83 @@ describe("office app discovery", () => {
 })
 
 describe("versioned editor installs", () => {
+  it("resolves OpenIDEA from a versioned user installation", async () => {
+    const openidea: EditorDefinition = {
+      id: "openidea",
+      name: "OpenIDEA",
+      commands: { win32: ["openidea.exe"] },
+      fallbackPaths: { win32: ["Programs/OpenIDEA/OpenIDEA.exe"] },
+      versionedPaths: [
+        { roots: ["LOCALAPPDATA"], prefix: "Programs/OpenIDEA", relative: "bin/idea64.exe" },
+      ],
+    }
+    const system: EditorSystem = {
+      platform: "win32",
+      home: "C:\\Users\\test",
+      env: { LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local" },
+      exists: async (path) => path.endsWith("OpenIDEA 2025.1\\bin\\idea64.exe"),
+      findCommand: async () => undefined,
+      queryAppPath: async () => undefined,
+      listDir: async (path) =>
+        path === "C:\\Users\\test\\AppData\\Local\\Programs"
+          ? ["OpenIDEA 2024.3", "OpenIDEA 2025.1"]
+          : [],
+    }
+    expect(await resolveEditorPath(openidea, system)).toBe(
+      "C:\\Users\\test\\AppData\\Local\\Programs\\OpenIDEA 2025.1\\bin\\idea64.exe",
+    )
+  })
+
+  it("resolves Zed from the standard per-user installation directory", async () => {
+    const zed: EditorDefinition = {
+      id: "zed",
+      name: "Zed",
+      commands: {},
+      fallbackPaths: { win32: ["Programs/Zed/Zed.exe"] },
+    }
+    const system: EditorSystem = {
+      platform: "win32",
+      home: "C:\\Users\\test",
+      env: { LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local" },
+      exists: async (path) => path === "C:\\Users\\test\\AppData\\Local\\Programs\\Zed\\Zed.exe",
+      findCommand: async () => undefined,
+      queryAppPath: async () => undefined,
+    }
+    expect(await resolveEditorPath(zed, system)).toBe(
+      "C:\\Users\\test\\AppData\\Local\\Programs\\Zed\\Zed.exe",
+    )
+  })
+
+  it("resolves IntelliJ installations managed by JetBrains Toolbox", async () => {
+    const idea: EditorDefinition = {
+      id: "idea",
+      name: "IntelliJ IDEA",
+      commands: {},
+      versionedPaths: [
+        {
+          roots: ["LOCALAPPDATA"],
+          prefix: "JetBrains/Installations/IntelliJ IDEA",
+          relative: "bin/idea64.exe",
+        },
+      ],
+    }
+    const system: EditorSystem = {
+      platform: "win32",
+      home: "C:\\Users\\test",
+      env: { LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local" },
+      exists: async (path) => path.endsWith("IntelliJ IDEA 2025.3\\bin\\idea64.exe"),
+      findCommand: async () => undefined,
+      queryAppPath: async () => undefined,
+      listDir: async (path) =>
+        path === "C:\\Users\\test\\AppData\\Local\\JetBrains\\Installations"
+          ? ["IntelliJ IDEA 2024.3", "IntelliJ IDEA 2025.3"]
+          : [],
+    }
+    expect(await resolveEditorPath(idea, system)).toBe(
+      "C:\\Users\\test\\AppData\\Local\\JetBrains\\Installations\\IntelliJ IDEA 2025.3\\bin\\idea64.exe",
+    )
+  })
+
   it("finds JetBrains IDEs under Program Files with the newest version", async () => {
     const idea: EditorDefinition = {
       id: "idea",

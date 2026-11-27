@@ -6,6 +6,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout, sidePaneSubagentTabId } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
 import { agentDisplayName } from "@/utils/agent"
 import { agentAvatarSrc } from "@/utils/agent-avatar"
 import {
@@ -80,8 +81,16 @@ export function useAgentsSection(sessionID: () => string): AgentsSection {
     }),
   )
 
-  const timer = setInterval(load, 2000)
-  onCleanup(() => clearInterval(timer))
+  // 团队状态没有推送，只能轮询；但绝大多数会话根本没有团队，空闲期不该每 2 秒问一次。
+  // 活跃档 = 会话在跑 / 已经有成员或任务；其余时间退到 15s，窗口不可见时完全不跑。
+  const hasTeam = () => store.overview.members.length > 0 || store.overview.tasks.length > 0
+  const poll = createAdaptivePoll(load, {
+    fast: 2000,
+    idle: 15_000,
+    active: () => sync.data.session_working(sessionID()) || hasTeam(),
+    immediate: false,
+  })
+  onCleanup(() => poll.stop())
 
   const members = createMemo(() => visibleMembers(store.overview.members))
   // 概览每 2 秒刷新（用量也在变），但成员集合没变时保持同一个 Set，

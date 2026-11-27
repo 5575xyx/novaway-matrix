@@ -6,6 +6,8 @@ import { showToast } from "@novaway/ui/toast"
 import type { SessionTempFile } from "@novaway/sdk/v2"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
+import { useSync } from "@/context/sync"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
 import { buildTempFilesModel, cleanSummary, formatBytes } from "./temp-files-section-model"
 import type { StatusPanelSection } from "./status-panel"
 
@@ -21,6 +23,7 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 export function useTempFilesSection(sessionID: () => string): () => StatusPanelSection | null {
   const sdk = useSDK()
   const language = useLanguage()
+  const sync = useSync()
   const [store, setStore] = createStore({ files: [] as SessionTempFile[], busy: false })
 
   let inflight = false
@@ -38,8 +41,15 @@ export function useTempFilesSection(sessionID: () => string): () => StatusPanelS
   }
 
   load()
-  const timer = setInterval(load, 15_000)
-  onCleanup(() => clearInterval(timer))
+  // 临时文件只在任务跑的时候会新增；任务结束服务端自己会清。空闲期每 15 秒扫一次
+  // 纯属白跑，改成活跃 10s / 空闲 60s，窗口不可见时停表。
+  const poll = createAdaptivePoll(load, {
+    fast: 10_000,
+    idle: 60_000,
+    active: () => store.files.length > 0 || sync.data.session_working(sessionID()),
+    immediate: false,
+  })
+  onCleanup(() => poll.stop())
 
   const model = createMemo(() => buildTempFilesModel(store.files))
 

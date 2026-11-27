@@ -46,6 +46,11 @@ function loadPdfBundle(): Promise<PdfEditorBundle> {
   return bundlePromise
 }
 
+/** 后台预热 PDF 编辑器资源，不创建编辑器实例。 */
+export function preloadPdfEditor() {
+  return loadPdfBundle().then(() => undefined)
+}
+
 /** 运行时拼接 bundle URL：加随机 query 片段让 esbuild 无法常量折叠。 */
 function buildBundleUrl(): string {
   return `${OFFICE_BUNDLE_URL}?novaway=${Math.random().toString(36).slice(2)}`

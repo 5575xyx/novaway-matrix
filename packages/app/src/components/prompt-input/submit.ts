@@ -453,7 +453,15 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       // 新会话的团队选择先记在待定槽位，建会话时一起写进 teamMode/teamIDs ——
       // 第一条消息到达前内核就要知道该不该注入团队目录。
       const team = TeamSelection.pending(projectDirectory)
+      const pendingEmployeeID = team?.mode === "selected" ? team.employeeID : undefined
+      // Keep the directory on the operation itself as well as on the SDK client.
+      // The desktop renderer can recreate the client while a project is being
+      // promoted or while a sidecar reconnects; relying only on the client-level
+      // routing header can then send POST /session to the server's cwd. The
+      // generated SDK maps this field to the workspace-routing query parameter,
+      // which works for POST and avoids relying on a custom request header.
       const createInput = {
+        directory: sessionDirectory,
         permissionMode: input.permissionMode(),
         ...(team ? { teamMode: team.mode } : {}),
         ...(team?.mode === "selected" ? { teamIDs: team.teamIDs } : {}),
@@ -469,6 +477,18 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           return undefined
         })
       if (created) {
+        // employeeID is intentionally not part of Session.CreateInput. Direct
+        // expert assignment is an update after creation; sending it in the
+        // create payload makes the HTTP schema reject the whole request.
+        if (pendingEmployeeID) {
+          await client.session
+            .update({
+              directory: sessionDirectory,
+              sessionID: created.id,
+              employeeID: pendingEmployeeID,
+            } as unknown as Parameters<typeof client.session.update>[0])
+            .catch((error) => console.warn("Failed to assign selected expert", error))
+        }
         seed(sessionDirectory, created)
         // 档位已经写进会话，清掉「新会话待定档位」，否则它会一直盖住全局默认。
         permission.consumePendingMode(projectDirectory)
@@ -523,6 +543,10 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       sync.data.command.some((item) => item.name === commandCandidate.slice(1))
     const durableGoalRequested = input.goalMode?.() === true && input.longTask?.().enabled === true
     let goalExecution = input.goalExecution?.()
+    // A PromptInput can survive a route/session switch. Never reuse a Goal
+    // owned by another session; the current submit must create or send with a
+    // Goal belonging to this session only.
+    if (goalExecution && goalExecution.sessionID !== session.id) goalExecution = undefined
     if (input.goalMode?.() && !goalExecution && mode === "normal" && !customCommandRequested) {
       const created = await input.createGoal?.(text, durableGoalRequested)
       if (!created) return

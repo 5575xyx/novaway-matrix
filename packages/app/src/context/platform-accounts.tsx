@@ -136,6 +136,7 @@ interface PlatformStore {
   groups: AccountGroup[]
   selectedAccountId: string | null
   loading: boolean
+  error: string
 }
 
 const initialStore: PlatformStore = {
@@ -143,6 +144,7 @@ const initialStore: PlatformStore = {
   groups: [DEFAULT_GROUP],
   selectedAccountId: null,
   loading: false,
+  error: "",
 }
 
 interface PlatformAccountsContextValue {
@@ -183,16 +185,28 @@ export function PlatformAccountsProvider(props: { children: any }) {
   const [store, setStore] = createStore<PlatformStore>(initialStore)
 
   const refreshAccounts = async () => {
-    if ((window as any).api?.platform?.getAccounts) {
-      const accounts = await (window as any).api.platform.getAccounts()
-      setStore("accounts", accounts || [])
+    const api = (window as any).api?.platform
+    if (!api?.getAccounts) return
+    try {
+      const accounts = await api.getAccounts()
+      setStore("accounts", Array.isArray(accounts) ? accounts : [])
+      setStore("error", "")
+    } catch (cause) {
+      console.error("[PlatformAccounts] failed to load accounts", cause)
+      setStore("error", cause instanceof Error ? cause.message : "账号列表加载失败，请重试。")
     }
   }
 
   const refreshGroups = async () => {
-    if ((window as any).api?.platform?.getGroups) {
-      const groups = await (window as any).api.platform.getGroups()
-      setStore("groups", groups || [DEFAULT_GROUP])
+    const api = (window as any).api?.platform
+    if (!api?.getGroups) return
+    try {
+      const groups = await api.getGroups()
+      setStore("groups", Array.isArray(groups) && groups.length > 0 ? groups : [DEFAULT_GROUP])
+      setStore("error", "")
+    } catch (cause) {
+      console.error("[PlatformAccounts] failed to load groups", cause)
+      setStore("error", cause instanceof Error ? cause.message : "账号分组加载失败，请重试。")
     }
   }
 

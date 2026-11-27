@@ -1,4 +1,16 @@
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
+import type { Diagnostic } from "@codemirror/lint"
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  lazy,
+  on,
+  onCleanup,
+  Show,
+  type JSX,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { FileSearchHandle } from "@novaway/ui/file"
@@ -28,6 +40,7 @@ import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { usePreview } from "@/context/preview"
 import { useLayout } from "@/context/layout"
+import { useLocal } from "@/context/local"
 import { useSettings } from "@/context/settings"
 import { usePrompt } from "@/context/prompt"
 import { useDialog } from "@novaway/ui/context/dialog"
@@ -55,7 +68,11 @@ import { officeExportTargets } from "@/pages/session/office-export-targets"
 import { saveOfficeEditor, snapshotOfficeEditor } from "@/pages/session/office-editor-session"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 import type { OfficeFilePreviewProps } from "@/pages/session/office-file-preview"
-import { FilePreviewBinaryContent, getFileMediaPreviewFormat } from "@/pages/session/file-preview-binary-content"
+import {
+  FilePreviewBinaryContent,
+  getFileMediaPreviewFormat,
+  preloadSessionFilePreview,
+} from "@/pages/session/file-preview-binary-content"
 import { FilePreviewDiffContent } from "@/pages/session/file-preview-diff-content"
 import { FilePreviewTextFindBar } from "@/pages/session/file-preview-text-find-bar"
 import { FilePreviewTextGotoBar } from "@/pages/session/file-preview-text-goto-bar"
@@ -88,7 +105,6 @@ import {
   isOfficeBinaryPreviewPath,
   isExportableDocumentPath,
   isLegacyPreviewPath,
-  isRichTextPath,
 } from "@/pages/session/office-preview-utils"
 import {
   formatFrontMatterValue,
@@ -97,7 +113,6 @@ import {
   updateFrontMatter,
 } from "@novaway/core/office/text/front-matter"
 import { type RichOp } from "@/pages/session/rich-file-preview"
-import { FilePreviewRichContent } from "@/pages/session/file-preview-rich-content"
 import { CsvGrid } from "@/pages/session/csv-grid"
 import {
   applyTextEdit,
@@ -157,6 +172,8 @@ import {
 import { caretPosition, textStats } from "@novaway/core/office/text/stats"
 import { syntaxLanguageOf } from "@novaway/core/office/text/language"
 import { CodeHighlight } from "@/pages/session/code-highlight"
+import type { CodeEditorHandle } from "@/pages/session/code-editor"
+import { applyInlineReplacement } from "@/pages/session/code-inline-edit"
 import {
   FilePreviewMarkdownLiveContent,
   FilePreviewMarkdownReadContent,
@@ -179,11 +196,51 @@ import {
 
 // 换行符常量：源码里直接写字面换行会变成跨行字符串，读起来也容易出错。
 const NEWLINE = String.fromCharCode(10)
+const codeEditorModule = import("@/pages/session/code-editor")
+const CodeEditor = lazy(() => codeEditorModule.then((module) => ({ default: module.CodeEditor })))
+
+/** 预热右侧文件面板的编辑器代码；实际文件字节仍按用户打开的文件读取。 */
+export function preloadSessionFileModules() {
+  void codeEditorModule
+  preloadSessionFilePreview()
+}
 
 /** 只有真正的 Office 文档才隐藏「改动 / 文件」视图入口。
- * Markdown、HTML、纯文本等代码/普通文件仍然保留原来的预览与 diff 切换。 */
+ * 代码文件使用专用编辑器头部；Markdown、HTML、纯文本等非代码编辑器仍保留原来的预览与 diff 切换。 */
 const isOfficeDocumentPreview = (path: string) =>
   ["docx", "xlsx", "pptx", "pdf", "legacy", "csv"].includes(officeFormatOf(path) ?? "")
+
+/** 代码文件的轻量符号大纲：没有 LSP 时也能提供可用的文件级导航。 */
+type CodeOutlineItem = { line: number; level: number; text: string; kind: string }
+const codeOutlineOf = (text: string): CodeOutlineItem[] => {
+  const items: CodeOutlineItem[] = []
+  text.split(NEWLINE).forEach((line, index) => {
+    const match = line.match(
+      /^\s*(?:export\s+)?(?:default\s+)?(function|class|interface|type|enum|const|let|var|def|func)\s+([A-Za-z_$][\w$]*)/,
+    )
+    if (!match) return
+    const kind = match[1]!
+    const name = match[2]!
+    items.push({
+      line: index + 1,
+      level: kind === "const" || kind === "let" || kind === "var" ? 2 : 1,
+      text: name,
+      kind,
+    })
+  })
+  return items.slice(0, 300)
+}
+
+const inlineErrorText = (error: unknown): string => {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === "string" && error) return error
+  if (typeof error === "object" && error !== null) {
+    const value = error as { data?: { message?: unknown }; name?: unknown }
+    if (typeof value.data?.message === "string" && value.data.message) return value.data.message
+    if (typeof value.name === "string" && value.name) return value.name
+  }
+  return "AI 没有返回可用的修改结果"
+}
 
 /** 纯文本编辑命令的 id：工具栏、快捷键、命令面板共用同一批。 */
 type TextCommandId =
@@ -475,6 +532,7 @@ export function FileTabContent(props: { tab: string }) {
   const prompt = usePrompt()
   const settings = useSettings()
   const sdk = useSDK()
+  const local = useLocal()
   const globalSync = useGlobalSync()
   const [directoryStore] = globalSync.child(sdk.directory, { bootstrap: false })
   const activePluginOfficeExtensions = createMemo(() => pluginOfficeExtensions(directoryStore.plugin_contributions))
@@ -496,6 +554,8 @@ export function FileTabContent(props: { tab: string }) {
   const [officeApps, setOfficeApps] = createSignal<OfficeApp[]>([])
   /** 当前文件的系统关联图标（「系统默认应用」条目用，例如 .docx 显示 Word 图标）。 */
   const [defaultAppIcon, setDefaultAppIcon] = createSignal<string | undefined>()
+  const [systemAppIcons, setSystemAppIcons] = createSignal<Record<string, string>>({})
+  const [terminalApp, setTerminalApp] = createSignal("powershell.exe")
   const preview = usePreview()
   const layout = useLayout()
   const { sessionKey, tabs, view } = useSessionLayout()
@@ -535,6 +595,29 @@ export function FileTabContent(props: { tab: string }) {
       active = false
     })
   })
+  createEffect(() => {
+    if (platform.platform !== "desktop" || !platform.resolveAppPath || !platform.getFileIcon) return
+    let active = true
+    const names = platform.os === "windows" ? ["explorer.exe", "wt.exe", "powershell.exe", "cmd.exe"] : []
+    void (async () => {
+      const icons: Record<string, string> = {}
+      for (const name of names) {
+        const resolved = await platform.resolveAppPath?.(name).catch(() => null)
+        if (!resolved) continue
+        const icon = await platform.getFileIcon?.(resolved).catch(() => null)
+        if (icon) icons[name] = icon
+      }
+      if (!active) return
+      setSystemAppIcons(icons)
+      if (icons["wt.exe"]) setTerminalApp("wt.exe")
+      else if (icons["powershell.exe"]) setTerminalApp("powershell.exe")
+      else if (icons["cmd.exe"]) setTerminalApp("cmd.exe")
+    })()
+    onCleanup(() => {
+      active = false
+    })
+  })
+
   createEffect(() => {
     if (platform.platform !== "desktop" || !platform.getOfficeApps) {
       setOfficeApps([])
@@ -724,10 +807,8 @@ export function FileTabContent(props: { tab: string }) {
   // 两种视图改的都是同一份 draft，不存在第二条写盘通道。
   const isCsv = createMemo(() => /\.csv$/i.test(path() ?? ""))
   const [csvMode, setCsvMode] = createSignal<"grid" | "text">("grid")
-  // .html 走富文本编辑器（设计 + 源码）。
-  const isRichText = createMemo(() => isRichTextPath(path()))
   // HTML/XHTML 也是"网页"：在右栏的浏览器标签里按真实渲染效果预览，
-  // 而不是只给一个代码视图（对齐浏览器预览的入口）。
+  // 但文件本身默认使用代码编辑器；浏览器预览只是一个显式动作。
   const isHtml = createMemo(() => /\.(html?|xhtml)$/i.test(path() ?? ""))
   // Markdown 默认渲染成阅读视图；
   // 点「编辑」才进入源码（或实况）视图。阅读优先，编辑按需。
@@ -853,8 +934,11 @@ export function FileTabContent(props: { tab: string }) {
   const caretInfo = createMemo(() => caretPosition(draft(), caretAt()))
   const editorStats = createMemo(() => textStats(draft()))
   const syncCaret = (element: HTMLTextAreaElement) => {
-    setCaretAt(element.selectionStart)
-    setSelectionLength(element.selectionEnd - element.selectionStart)
+    syncCaretPosition(element.selectionStart, element.selectionEnd)
+  }
+  const syncCaretPosition = (anchor: number, head: number) => {
+    setCaretAt(head)
+    setSelectionLength(Math.abs(head - anchor))
   }
   const highlightLanguage = createMemo(() => syntaxLanguageOf(path()))
   // 有选区时也让文本框自己画字：透明文字的选区只会显示一块底色、看不到字，
@@ -896,12 +980,20 @@ export function FileTabContent(props: { tab: string }) {
     y: number
     selection: SelectedLineRange
   }>()
-  let editorRef: HTMLTextAreaElement | undefined
+  const [selectionMenuComment, setSelectionMenuComment] = createSignal("")
+  const [inlineEditBusy, setInlineEditBusy] = createSignal(false)
+  let inlineEditAbort: (() => void) | undefined
+  onCleanup(() => inlineEditAbort?.())
+  let editorRef: HTMLTextAreaElement | CodeEditorHandle | undefined
   let gutterRef: HTMLDivElement | undefined
   let viewRestoreFrame: number | undefined
   let contentRef: HTMLDivElement | undefined
   let contextCommentInputRef: HTMLTextAreaElement | undefined
   let saveTimer: ReturnType<typeof setTimeout> | undefined
+  // Signals update reactively, but saveEditing awaits a disk read before setting
+  // `saving`. Keep a synchronous guard as well so blur, Ctrl+S, and the debounce
+  // timer cannot start duplicate writes during that gap.
+  let saveInFlight = false
   let findInputRef: HTMLInputElement | undefined
   // 跳转到行：一个很小的输入条，回车定位，Esc 关闭。
   const [gotoOpen, setGotoOpen] = createSignal(false)
@@ -921,14 +1013,6 @@ export function FileTabContent(props: { tab: string }) {
   const [findRegex, setFindRegex] = createSignal(false)
   const [findWholeWord, setFindWholeWord] = createSignal(false)
   const [findActive, setFindActive] = createSignal(0)
-  /**
-   * 富文本（HTML）的查找条在 RichFilePreview 内部（它编辑的是源码视图）。
-   * 头部只有一个「查找」按钮，这里用递增的计数把请求转进去，不再多一个入口。
-   */
-  const [richFindTick, setRichFindTick] = createSignal(0)
-  // HTML 预览默认直接看源码；需要排版预览时从文件头的视图菜单主动切换。
-  const [richMode, setRichMode] = createSignal<"design" | "source">("source")
-  createEffect(on(path, () => setRichMode("source")))
   const selectedLines = createMemo<SelectedLineRange | null>(() => {
     const p = path()
     if (!p) return null
@@ -1149,10 +1233,14 @@ export function FileTabContent(props: { tab: string }) {
 
   const saveEditing = async () => {
     const p = path()
-    if (!p || saving()) return
+    if (!p || saving() || saveInFlight) return
+    saveInFlight = true
     // 跟写期间编辑器里是「打字机还没打完」的内容：禁止自动保存把它写回磁盘。
     // 现在打字机只揭示新增行，草稿不再是磁盘内容的前缀，所以只要两者不一致就不保存。
-    if (liveWrite() && draft() !== contents()) return
+    if (liveWrite() && draft() !== contents()) {
+      saveInFlight = false
+      return
+    }
     if (saveTimer) {
       clearTimeout(saveTimer)
       saveTimer = undefined
@@ -1162,7 +1250,10 @@ export function FileTabContent(props: { tab: string }) {
     const diskNow = await readDiskContent(p)
     if (diskNow !== null && detectSaveConflict(contents(), diskNow, snapshot)) {
       const decision = await promptConflict(p, diskNow, snapshot)
-      if (decision === "cancel") return
+      if (decision === "cancel") {
+        saveInFlight = false
+        return
+      }
       if (decision === "useDisk") {
         // 用磁盘的：重新载入最新内容并丢掉这份草稿（等效「丢弃恢复的草稿」）。
         setConflictDiff(undefined)
@@ -1170,12 +1261,14 @@ export function FileTabContent(props: { tab: string }) {
         setDraft(contents())
         clearDraft(p)
         setSaveError(false)
+        saveInFlight = false
         return
       }
       if (decision === "diff") {
         // 看差异：切到磁盘版本 vs 草稿的对照，暂不写盘；决定权交回常规保存/丢弃。
         setConflictDiff({ before: diskNow, after: snapshot })
         setViewMode("diff")
+        saveInFlight = false
         return
       }
       // keepMine：用草稿覆盖磁盘，继续走下面的写盘。
@@ -1207,6 +1300,7 @@ export function FileTabContent(props: { tab: string }) {
       })
     } finally {
       setSaving(false)
+      saveInFlight = false
     }
   }
 
@@ -1330,7 +1424,7 @@ export function FileTabContent(props: { tab: string }) {
     return "saved"
   })
 
-  const textareaSelection = (element?: HTMLTextAreaElement): SelectedLineRange | undefined => {
+  const textareaSelection = (element?: HTMLTextAreaElement | CodeEditorHandle): SelectedLineRange | undefined => {
     const target = element ?? editorRef
     const value = target?.value ?? draft()
     const rawStart = target?.selectionStart ?? 0
@@ -1370,6 +1464,166 @@ export function FileTabContent(props: { tab: string }) {
     const start = Math.max(1, Math.min(selection.start, selection.end))
     const end = Math.max(selection.start, selection.end)
     return lines.slice(start - 1, end).join(NEWLINE)
+  }
+
+  /**
+   * 在临时会话中请求一份替换代码，并把结果直接写回当前编辑器。
+   * 这是编辑器内的修改，不会把一次性的 inline edit 污染到主会话时间线。
+   */
+  const applyAIInlineEdit = async (selection: SelectedLineRange, comment: string) => {
+    const target = path()
+    const source = editorRef?.value ?? draft()
+    const agent = local.agent.current()?.name
+    const model = local.model.current()
+    if (!target || !source || !agent || !model) {
+      showToast({
+        variant: "error",
+        title: "无法执行 AI 修改",
+        description: "请先打开代码文件，并确认已经选择了可用的模型和 Agent。",
+      })
+      return
+    }
+
+    const start = Math.max(1, Math.min(selection.start, selection.end))
+    const end = Math.max(start, Math.max(selection.start, selection.end))
+    const startOffset = offsetOfLine(source, start)
+    const selectedLineStart = offsetOfLine(source, end)
+    const newlineAt = source.indexOf("\n", selectedLineStart)
+    // 只替换选中的整行，不吞掉选区后面的换行符；这样模型返回的代码
+    // 不需要额外猜测末尾是否要补换行，也能保持原文件的行结构。
+    const endOffset = newlineAt === -1 ? source.length : newlineAt - (source[newlineAt - 1] === "\r" ? 1 : 0)
+    const selected = source.slice(startOffset, endOffset)
+    const instruction = comment.trim() || "按要求改进这段代码。"
+    const promptText = [
+      "你是 NovaWay 代码编辑器的 inline edit 引擎。",
+      "只返回可以直接替换 <selected_code> 内容的完整代码，不要解释，不要 Markdown 说明，不要返回代码围栏。",
+      "不要调用工具，不要读取或修改任何文件；保留原编程语言、必要的缩进和代码风格。",
+      `文件：${target}`,
+      `用户修改要求：${instruction}`,
+      "<selected_code>",
+      selected,
+      "</selected_code>",
+    ].join("\n")
+
+    if (inlineEditBusy()) return
+    setInlineEditBusy(true)
+    const controller = new AbortController()
+    let temporarySessionID: string | undefined
+    const cancel = () => {
+      controller.abort()
+      if (temporarySessionID) void sdk.client.session.abort({ sessionID: temporarySessionID }).catch(() => undefined)
+    }
+    inlineEditAbort = cancel
+    try {
+      const created = await sdk.client.session.create({
+        directory: sdk.directory,
+        title: `Inline edit · ${target}`,
+        agent,
+        model: {
+          id: model.id,
+          providerID: model.provider.id,
+          variant: local.model.variant.current(),
+        },
+      })
+      temporarySessionID = created.data?.id
+      if (!temporarySessionID) throw new Error("临时 AI 会话创建失败")
+
+      await sdk.client.session.promptAsync(
+        {
+          sessionID: temporarySessionID,
+          agent,
+          model: { providerID: model.provider.id, modelID: model.id },
+          variant: local.model.variant.current(),
+          format: { type: "text" },
+          tools: {
+            read: false,
+            glob: false,
+            grep: false,
+            bash: false,
+            shell: false,
+            write: false,
+            edit: false,
+            apply_patch: false,
+            patch: false,
+            task: false,
+          },
+          system: "你只负责生成 inline edit 的替换文本。严禁调用工具、写入文件或输出解释；最终回答必须是完整替换代码。",
+          parts: [{ type: "text", text: promptText }],
+        },
+        { signal: controller.signal },
+      )
+
+      const deadline = Date.now() + 120_000
+      let answer = ""
+      while (Date.now() < deadline) {
+        const messages = await sdk.client.session.messages(
+          { sessionID: temporarySessionID, limit: 100 },
+          { signal: controller.signal },
+        )
+        const entries = messages.data ?? []
+        const assistant = entries
+          .filter((entry) => entry.info.role === "assistant")
+          .sort((left, right) => left.info.time.created - right.info.time.created)
+          .at(-1)
+        if (assistant?.info.role === "assistant") {
+          if (assistant.info.error) throw new Error(inlineErrorText(assistant.info.error))
+          if (typeof assistant.info.time.completed === "number") {
+            answer = assistant.parts
+              .filter((part) => part.type === "text")
+              .map((part) => part.text)
+              .join(NEWLINE)
+            if (!answer.trim()) throw new Error("AI 没有返回可用的修改结果")
+            break
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 450))
+      }
+      if (!answer) throw new Error("AI 修改超时，请稍后重试")
+
+      // 模型运行期间用户可能已经手动编辑或切换了文件；这种情况下不能覆盖新内容。
+      const current = path()
+      const currentSource = editorRef?.value ?? draft()
+      if (current !== target || currentSource !== source) {
+        throw new Error("文件在 AI 修改期间发生了变化，未覆盖你的最新内容")
+      }
+
+      const inline = applyInlineReplacement(source, { start, end }, answer)
+      if (!inline) throw new Error("AI 返回了空的替换代码或修改没有产生变化")
+      const { replacement, start: replacementStart, end: replacementEnd } = inline
+      const next = inline.text
+      const nextEnd = replacementStart + replacement.length
+      recordTextChange(
+        target,
+        { text: source, anchor: replacementStart, head: replacementEnd },
+        { text: next, anchor: replacementStart, head: nextEnd },
+        "command",
+      )
+      bumpHistory()
+      setDraft(next)
+      rememberDraft(target, next)
+      scheduleSave()
+      requestAnimationFrame(() => {
+        if (path() !== target) return
+        const element = editorRef
+        if (!element) return
+        element.focus()
+        element.setSelectionRange(startOffset, nextEnd)
+        syncCaretPosition(startOffset, nextEnd)
+      })
+      showToast({ variant: "success", title: "AI 修改已应用" })
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        showToast({ variant: "error", title: "AI 修改失败", description: inlineErrorText(error) })
+      }
+    } finally {
+      if (temporarySessionID) {
+        await sdk.client.session
+          .delete({ sessionID: temporarySessionID, directory: sdk.directory })
+          .catch(() => undefined)
+      }
+      if (inlineEditAbort === cancel) inlineEditAbort = undefined
+      setInlineEditBusy(false)
+    }
   }
 
   /**
@@ -1472,6 +1726,14 @@ export function FileTabContent(props: { tab: string }) {
     if (!opened) showToast({ variant: "error", title: language.t("session.filePreview.openFailed") })
   }
 
+  const windowsTerminalCommand = (directory: string) => {
+    const app = terminalApp()
+    if (app === "wt.exe") return { command: "wt.exe", args: ["-d", directory] }
+    if (app === "cmd.exe") return { command: "cmd.exe", args: ["/K", "cd", "/d", directory] }
+    const escaped = directory.replaceAll("'", "''")
+    return { command: "powershell.exe", args: ["-NoExit", "-Command", `Set-Location -LiteralPath '${escaped}'`] }
+  }
+
   /** 在文件所在目录打开系统终端（Windows Terminal / macOS Terminal），失败回落集成终端。 */
   const openDirectoryInTerminal = () => {
     const absolute = absolutePath()
@@ -1484,7 +1746,7 @@ export function FileTabContent(props: { tab: string }) {
     }
     const native =
       platform.os === "windows"
-        ? { command: "wt", args: ["-d", directory] }
+        ? windowsTerminalCommand(directory)
         : platform.os === "macos"
           ? { command: "open", args: ["-a", "Terminal", directory] }
           : undefined
@@ -1538,6 +1800,7 @@ export function FileTabContent(props: { tab: string }) {
         items.push({
           id: "show-folder",
           label: language.t("session.filePreview.revealInExplorer"),
+          iconSrc: systemAppIcons()["explorer.exe"],
           icon: "folder",
           divider: items.length > 0 ? "before" : undefined,
           onSelect: () => void platform.showItemInFolder?.(absolute),
@@ -1550,6 +1813,7 @@ export function FileTabContent(props: { tab: string }) {
             ? "session.filePreview.openDirInTerminal.windows"
             : "session.filePreview.openDirInTerminal.other",
         ),
+        iconSrc: systemAppIcons()[terminalApp()],
         icon: "terminal",
         onSelect: openDirectoryInTerminal,
       })
@@ -1604,8 +1868,25 @@ export function FileTabContent(props: { tab: string }) {
       .catch(() => {})
   }
 
+  /** Office 编辑器的结构化选区（正文/单元格/幻灯片元素）加入当前会话。 */
+  const addOfficeSelectionToTask = (text: string, source?: string, comment?: string) => {
+    const p = path()
+    const value = text.trim()
+    if (!p || !value) return
+    prompt.context.add({
+      type: "quote",
+      text: value,
+      label: source ? `${p} · ${source}` : `${p} · ${language.t("session.selection.quoteLabel")}`,
+      path: p,
+      comment,
+    })
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
+    })
+  }
+
   /** 把选中的代码作为「引用」加到主输入框上方（与聊天区选中文字一致）。 */
-  const addSelectionToTask = (selection: SelectedLineRange) => {
+  const addSelectionToTask = (selection: SelectedLineRange, comment?: string) => {
     const p = path()
     if (!p) return
     const start = Math.min(selection.start, selection.end)
@@ -1615,6 +1896,7 @@ export function FileTabContent(props: { tab: string }) {
       text: selectedCode(selection),
       label: `${p} ${start === end ? `第 ${start} 行` : `第 ${start}-${end} 行`}`,
       path: p,
+      comment: comment?.trim() || undefined,
     })
   }
 
@@ -1653,15 +1935,12 @@ export function FileTabContent(props: { tab: string }) {
    * `window.getSelection()` 定位；这里用鼠标落点作为锚点，
    * 与代码编辑器（VS Code）的浮动菜单观感一致。
    */
-  const handleEditorMouseUp = (event: MouseEvent & { currentTarget: HTMLTextAreaElement }) => {
-    // 用 currentTarget 而不是闭包里的 editorRef：标签切换/差异视图来回切时，
-    // ref 可能指向已经被替换掉的旧 textarea，读到的选区会永远是折叠状态。
-    //
-    // 有没有选区要按**字符**判断，不能按行：同一行内选中一段文字时
-    // start/end 都是那一行，按行比较会当成"没有选区"，菜单永远不出现。
-    const element = event.currentTarget
+  const handleEditorMouseUp = (event: MouseEvent) => {
+    // 代码编辑器和旧 textarea 都通过同一个轻量句柄暴露选区，
+    // 因此选区评论、引用和右键菜单不依赖具体编辑器内核。
+    const element = editorRef
     const selected = textareaSelection(element)
-    if (!selected || element.selectionStart === element.selectionEnd) {
+    if (!element || !selected || element.selectionStart === element.selectionEnd) {
       setSelectionMenu(undefined)
       return
     }
@@ -1669,7 +1948,8 @@ export function FileTabContent(props: { tab: string }) {
     const menuWidth = 168
     const left = rect ? Math.max(8, Math.min(event.clientX - rect.left, rect.width - menuWidth - 8)) : event.clientX
     const top = rect ? Math.max(8, Math.min(event.clientY - rect.top + 10, rect.height - 44)) : event.clientY
-    setSelectionMenu({ x: left, y: top, selection: selected! })
+    setSelectionMenuComment("")
+    setSelectionMenu({ x: left, y: top, selection: selected })
   }
 
   const handleEditorMouseDown = () => {
@@ -1677,25 +1957,23 @@ export function FileTabContent(props: { tab: string }) {
     setSelectionMenu(undefined)
   }
 
-  const handleEditorContextMenu = (event: MouseEvent & { currentTarget: HTMLTextAreaElement }) => {
+  const handleEditorContextMenu = (event: MouseEvent) => {
     event.preventDefault()
-    const value = editorRef?.value ?? draft()
-    const rect = editorRef?.getBoundingClientRect()
+    const element = editorRef
+    const value = element?.value ?? draft()
+    const rect = element?.getBoundingClientRect()
     const clickedLine = rect
       ? Math.max(
           1,
           Math.min(
             value.split("\n").length,
-            Math.floor((event.clientY - rect.top + (editorRef?.scrollTop ?? 0)) / 24) + 1,
+            Math.floor((event.clientY - rect.top + (element?.scrollTop ?? 0)) / 24) + 1,
           ),
         )
       : 1
-    // 有选区就用选区，不受右键落点影响（编辑器里也是这个口径）：
-    // 用户选好 6-10 行之后右键很容易点在选区外一点，那时按落点取行
-    // 会把"选中的那几行"变成"鼠标下的那一行"。
-    const element = event.currentTarget
+    // 有选区就用选区，不受右键落点影响（编辑器里也是这个口径）。
     const selected = textareaSelection(element)
-    const hasRange = !!selected && element.selectionStart !== element.selectionEnd
+    const hasRange = !!element && !!selected && element.selectionStart !== element.selectionEnd
     const selection = hasRange ? selected! : { start: clickedLine, end: clickedLine }
     openContextMenu(selection, event.clientX, event.clientY)
   }
@@ -1985,7 +2263,6 @@ export function FileTabContent(props: { tab: string }) {
     const current = path()
     if (!current) return true
     if (isImagePreviewPath(current)) return false
-    if (isRichTextPath(current)) return false
     if (isOfficePreviewPath(current)) return false
     if (current.toLowerCase().endsWith(".csv")) return false
     if (isMarkdown()) return markdownMode() === "source"
@@ -2258,11 +2535,6 @@ export function FileTabContent(props: { tab: string }) {
     }
   }
 
-  const saveRichOps = async (ops: RichOp[]) => {
-    const target = await editOfficeOps(ops)
-    void file.load(target, { force: true })
-  }
-
   /** 兼容 PDF 页面工具通过同一宿主引擎写入，并刷新当前预览 / Lexora 基线。 */
   const applyPdfPageOperation = async (target: string, op: OfficeOp) => {
     if (path() !== target) return
@@ -2361,14 +2633,38 @@ export function FileTabContent(props: { tab: string }) {
   /**
    * 纯文本类文件（代码 / Markdown / 配置）：有 textarea，
    * 撤销走本地栈，写盘走 saveEditing。Office 与图片都不算。
-   * HTML 也不算 —— 它走富文本编辑器，保存在引擎那条路上，本地栈里没有它。
+   * HTML 源文件现在也走同一条代码编辑器链路。
    */
   const textDocument = createMemo(() => {
     const target = path()
     if (!target) return false
     if (state()?.loaded !== true) return false
     if (state()?.content?.type === "binary") return false
-    return !isRichTextPath(target) && !isOfficePreviewPath(target) && !isImagePreviewPath(target)
+    return !isOfficePreviewPath(target) && !isImagePreviewPath(target)
+  })
+
+  /**
+   * 代码 / 纯文本文件进入专用编辑器壳层。
+   * Markdown、CSV 仍然保留自己的阅读 / 表格视图，避免把它们的工作流
+   * 强行变成普通代码文件；其余可编辑文本（包括 txt、配置和无扩展名文本）
+   * 都使用编辑器式头部。
+   */
+  const codeEditor = createMemo(() => textDocument() && !isMarkdown() && !isCsv())
+  const codeLanguageLabel = createMemo(() => {
+    const language = syntaxLanguageOf(path())
+    if (!language) return "Plain Text"
+    return language
+      .split(/[-_]/g)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  })
+  const codeLspStatus = createMemo(() => {
+    const services = directoryStore.lsp ?? []
+    const connected = services.filter((service) => service.status === "connected")
+    const failed = services.filter((service) => service.status === "error")
+    if (connected.length > 0) return { label: `LSP ${connected.length}`, state: "connected" as const }
+    if (failed.length > 0) return { label: "LSP 错误", state: "error" as const }
+    return { label: "LSP 未连接", state: "none" as const }
   })
 
   /**
@@ -2606,6 +2902,45 @@ export function FileTabContent(props: { tab: string }) {
   // 点一条标题就把光标和滚动带到那一行，不用在长文里翻。
   const [outlineOpen, setOutlineOpen] = createSignal(false)
   const outlineItems = createMemo(() => (isMarkdown() ? markdownOutline(draft()) : []))
+  const codeOutlineItems = createMemo(() => (codeEditor() ? codeOutlineOf(draft()) : []))
+  const [lspOutlineItems, setLspOutlineItems] = createSignal<CodeOutlineItem[]>([])
+  const [lspOutlineBusy, setLspOutlineBusy] = createSignal(false)
+  let lspOutlineSequence = 0
+  const loadLspOutline = async () => {
+    const target = path()
+    if (!target || !codeEditor()) return
+    const sequence = ++lspOutlineSequence
+    setLspOutlineBusy(true)
+    try {
+      const url = new URL(`/lsp/document-symbols?directory=${encodeURIComponent(sdk.directory)}`, sdk.url)
+      const response = await sdk.request(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: target, text: draft() }),
+      })
+      if (!response.ok || sequence !== lspOutlineSequence) return
+      const raw = (await response.json()) as Array<Record<string, any>>
+      const flatten = (items: Array<Record<string, any>>, level = 1): CodeOutlineItem[] =>
+        items.flatMap((item) => {
+          const line = Number(item.range?.start?.line ?? item.selectionRange?.start?.line ?? 0) + 1
+          const current = { line, level, text: String(item.name ?? "未命名符号"), kind: String(item.kind ?? "symbol") }
+          const children = Array.isArray(item.children) ? flatten(item.children, Math.min(4, level + 1)) : []
+          return [current, ...children]
+        })
+      setLspOutlineItems(flatten(raw).slice(0, 300))
+    } catch {
+      if (sequence === lspOutlineSequence) setLspOutlineItems([])
+    } finally {
+      if (sequence === lspOutlineSequence) setLspOutlineBusy(false)
+    }
+  }
+  createEffect(() => {
+    if (outlineOpen() && codeEditor()) void loadLspOutline()
+  })
+  createEffect(on(path, () => setLspOutlineItems([])))
+  const visibleOutlineItems = createMemo(() =>
+    codeEditor() ? (lspOutlineItems().length > 0 ? lspOutlineItems() : codeOutlineItems()) : outlineItems(),
+  )
 
   // 换文件时收起：上一个文件的大纲不该留在屏幕上。
   createEffect(on(path, () => setOutlineOpen(false)))
@@ -2880,12 +3215,8 @@ export function FileTabContent(props: { tab: string }) {
     })
   }
 
-  /** 头部「查找」的唯一落点：文本走本地查找条，HTML 转给富文本编辑器的源码查找条。 */
+  /** 头部「查找」的唯一落点：代码文本走本地查找条，结构化文档交给对应编辑器。 */
   const openPanelFind = () => {
-    if (isRichText()) {
-      setRichFindTick((value) => value + 1)
-      return
-    }
     openFind(false)
   }
 
@@ -2919,6 +3250,149 @@ export function FileTabContent(props: { tab: string }) {
     const line = caretPosition(element.value, element.selectionStart).line
     const top = (line - 1) * 24 - element.clientHeight / 2 + 12
     if (top > 0) element.scrollTop = top
+  }
+
+  const handleCodeEditorKeyDown = (event: KeyboardEvent) => {
+    // CodeMirror 的补全键位优先级高于宿主编辑命令：补全弹窗打开时，Tab 接受候选，
+    // 不要被下面的缩进逻辑再次拦截。
+    if (event.defaultPrevented) return
+    if (!editing()) return
+    const accel = event.metaKey || event.ctrlKey
+    if (event.key === "F12") {
+      event.preventDefault()
+      void goToDefinition()
+      return
+    }
+    if (accel && event.key.toLowerCase() === "s") {
+      event.preventDefault()
+      void saveEditing()
+      return
+    }
+    if (accel && event.key.toLowerCase() === "z") {
+      const target = path()
+      const redo = event.shiftKey
+      if (target && (redo ? canRedoText(target) : canUndoText(target))) {
+        event.preventDefault()
+        stepTextHistory(redo ? "redo" : "undo")
+        return
+      }
+    }
+    if (accel && !event.shiftKey && event.key.toLowerCase() === "y") {
+      const target = path()
+      if (target && canRedoText(target)) {
+        event.preventDefault()
+        stepTextHistory("redo")
+        return
+      }
+    }
+    if (accel && event.shiftKey && event.key.toLowerCase() === "p") {
+      event.preventDefault()
+      openPalette()
+      return
+    }
+    if (accel && event.key.toLowerCase() === "f") {
+      event.preventDefault()
+      openFind(false)
+      return
+    }
+    if (accel && event.key.toLowerCase() === "h") {
+      event.preventDefault()
+      openFind(true)
+      return
+    }
+    if (accel && event.key.toLowerCase() === "g") {
+      event.preventDefault()
+      openGoto()
+      return
+    }
+    if (event.key === "Escape" && findOpen()) {
+      event.preventDefault()
+      closeFind()
+      return
+    }
+    if (event.key === "Tab" && !accel && !event.altKey) {
+      event.preventDefault()
+      runEditorCommand(event.shiftKey ? "outdent" : "indent")
+      return
+    }
+    if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault()
+      runEditorCommand(event.key === "ArrowUp" ? "moveUp" : "moveDown")
+      return
+    }
+    if (accel && event.key === "/") {
+      event.preventDefault()
+      runEditorCommand("comment")
+      return
+    }
+    if (accel && event.shiftKey && event.key.toLowerCase() === "k") {
+      event.preventDefault()
+      runEditorCommand("delete")
+      return
+    }
+    if (accel && event.shiftKey && event.key.toLowerCase() === "d") {
+      event.preventDefault()
+      runEditorCommand("duplicate")
+    }
+  }
+
+  const requestLspDiagnostics = async (text: string): Promise<Diagnostic[]> => {
+    const target = path()
+    if (!target) return []
+    try {
+      const url = new URL(`/lsp/diagnostics?directory=${encodeURIComponent(sdk.directory)}`, sdk.url)
+      const response = await sdk.request(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: target, text }),
+      })
+      if (!response.ok) return []
+      const payload = (await response.json()) as Record<string, Array<Record<string, any>>>
+      const current = file.normalize(target).toLowerCase()
+      const entry = Object.entries(payload).find(([key]) => file.normalize(key).toLowerCase() === current)
+      if (!entry) return []
+      const offsetAt = (line: number, character: number) => {
+        const rows = text.split(NEWLINE)
+        return Math.min(
+          text.length,
+          rows.slice(0, Math.max(0, line)).reduce((sum, row) => sum + row.length + 1, 0) + character,
+        )
+      }
+      return entry[1].map((diagnostic) => {
+        const start = diagnostic.range?.start ?? { line: 0, character: 0 }
+        const end = diagnostic.range?.end ?? start
+        const severity: "error" | "warning" | "info" =
+          diagnostic.severity === 1 ? "error" : diagnostic.severity === 2 ? "warning" : "info"
+        return {
+          from: offsetAt(start.line, start.character),
+          to: Math.max(offsetAt(start.line, start.character) + 1, offsetAt(end.line, end.character)),
+          severity,
+          message: String(diagnostic.message ?? "语言服务诊断"),
+        }
+      })
+    } catch {
+      return []
+    }
+  }
+
+  /** CodeMirror 的变更适配到现有 draft / 历史 / 防抖保存链路。 */
+  const handleCodeEditorChange = (next: string, selection: { anchor: number; head: number }) => {
+    const target = path()
+    const previous = draft()
+    if (!target || next === previous) return
+    const anchor = Math.max(0, Math.min(caretAt(), previous.length))
+    const head = Math.max(anchor, Math.min(anchor + selectionLength(), previous.length))
+    recordTextChange(
+      target,
+      { text: previous, anchor, head },
+      { text: next, anchor: selection.anchor, head: selection.head },
+      "typing",
+    )
+    bumpHistory()
+    setDraft(next)
+    syncCaretPosition(selection.anchor, selection.head)
+    if (target) rememberDraft(target, next)
+    scheduleSave()
   }
 
   /** 跳转到第 line 行（1 起）：越界夹到范围内，光标落在行首。 */
@@ -3033,7 +3507,44 @@ export function FileTabContent(props: { tab: string }) {
     openLinkedFile(target)
   }
 
-  // 打开文件是异步的：等目标文件真正加载出来、编辑器挂载后再定位。
+  const goToDefinition = async () => {
+    const target = path()
+    const element = editorRef
+    if (!target || !element) return
+    const position = caretPosition(draft(), element.selectionStart)
+    try {
+      const url = new URL(`/lsp/definition?directory=${encodeURIComponent(sdk.directory)}`, sdk.url)
+      const response = await sdk.request(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          path: target,
+          line: position.line - 1,
+          character: Math.max(0, position.column - 1),
+          text: draft(),
+        }),
+      })
+      if (!response.ok) return
+      const locations = (await response.json()) as Array<Record<string, any>>
+      const first = locations[0]
+      if (!first) {
+        showToast({ title: "没有找到定义" })
+        return
+      }
+      const uri = String(first.uri ?? first.targetUri ?? "")
+      const rawPath = uri.startsWith("file:")
+        ? decodeURIComponent(new URL(uri).pathname).replace(/^\/([A-Za-z]:)/, "$1")
+        : uri
+      const definitionPath = file.normalize(rawPath)
+      const line = Number(first.range?.start?.line ?? first.targetSelectionRange?.start?.line ?? 0) + 1
+      if (!definitionPath) return
+      setPendingJump({ path: definitionPath, line })
+      openLinkedFile(definitionPath)
+    } catch {
+      showToast({ title: "语言服务暂不可用" })
+    }
+  }
+
   // Markdown 打开时默认是阅读视图（没挂 textarea），这里顺带切回源码；
   // 切换视图会重跑本 effect，等编辑器真的挂上再跳。
   createEffect(() => {
@@ -3147,7 +3658,7 @@ export function FileTabContent(props: { tab: string }) {
         setMarkdownMode(markdownMode() === "live" ? "preview" : markdownMode() === "preview" ? "source" : "live")
         return
       case "outline":
-        setMarkdownMode("source")
+        if (!codeEditor()) setMarkdownMode("source")
         setOutlineOpen(!outlineOpen())
         return
       case "notes":
@@ -3356,7 +3867,7 @@ export function FileTabContent(props: { tab: string }) {
   // 预览分支互斥收敛成一个值。原先用 <Switch>/<Match> 做首匹配，
   // 但首匹配的 Solid 实现会在某些恢复/切换路径下抛 switchFunc 错误，整页进错误边界；
   // 这里用同一个值驱动一串 <Show>，语义与首匹配一致，也不再依赖 Switch 的内部 memo。
-  const previewBranch = createMemo<"markdown-live" | "markdown-preview" | "image" | "rich" | "text" | undefined>(() => {
+  const previewBranch = createMemo<"markdown-live" | "markdown-preview" | "image" | "text" | undefined>(() => {
     const current = state()
     if (!current?.loaded) return undefined
     // RTF is ASCII on disk but still belongs to the read-only Office preview, not the code editor.
@@ -3364,7 +3875,6 @@ export function FileTabContent(props: { tab: string }) {
     if (!binary && isMarkdown() && markdownMode() === "live") return "markdown-live"
     if (!binary && isMarkdown() && markdownMode() === "preview") return "markdown-preview"
     if (imageBase64()) return "image"
-    if (!binary && isRichText()) return "rich"
     if (!binary) return "text"
     return undefined
   })
@@ -3677,20 +4187,6 @@ export function FileTabContent(props: { tab: string }) {
         onSelect: () => selectMarkdownMode("source"),
       })
     }
-    if (isRichText()) {
-      views.push({
-        id: "rich-preview",
-        label: language.t("session.filePreview.richPreview"),
-        checked: richMode() === "design",
-        onSelect: () => setRichMode("design"),
-      })
-      views.push({
-        id: "rich-source",
-        label: language.t("session.filePreview.richSource"),
-        checked: richMode() === "source",
-        onSelect: () => setRichMode("source"),
-      })
-    }
     if (isCsv()) {
       views.push({
         id: "csv-grid",
@@ -3712,7 +4208,127 @@ export function FileTabContent(props: { tab: string }) {
    * 「⋯」菜单：低频操作按用途分组。视图切换、撤销/重做已经提到头部，
    * 这里不再重复一遍。
    */
+  const codeEditorMenu = createMemo<PreviewMenuGroup[]>(() => {
+    const editor: PreviewMenuItem[] = [
+      {
+        id: "code-palette",
+        label: "命令面板",
+        hint: "Ctrl+Shift+P",
+        icon: "dot-grid",
+        onSelect: openPalette,
+      },
+      {
+        id: "code-wrap",
+        label: "自动换行",
+        checked: editorWrap(),
+        onSelect: () => setEditorWrap(!editorWrap()),
+      },
+      {
+        id: "code-focus",
+        label: "专注模式",
+        checked: focusMode(),
+        onSelect: () => setFocusMode(!focusMode()),
+      },
+      {
+        id: "code-definition",
+        label: "跳转到定义",
+        hint: "F12",
+        onSelect: () => void goToDefinition(),
+      },
+      {
+        id: "code-diff",
+        label: "查看文件改动",
+        checked: viewMode() === "diff",
+        disabled: !diff(),
+        onSelect: () => setViewMode(viewMode() === "diff" ? "file" : "diff"),
+      },
+      {
+        id: "code-outline",
+        label: "符号大纲",
+        checked: outlineOpen(),
+        onSelect: () => setOutlineOpen(!outlineOpen()),
+      },
+      {
+        id: "code-search-workspace",
+        label: "在工作区搜索",
+        onSelect: () => (workspaceOpen() ? closeWorkspaceSearch() : openWorkspaceSearch()),
+      },
+    ]
+    const code: PreviewMenuItem[] = [
+      {
+        id: "code-format",
+        label: "格式化文档",
+        hint: "Shift+Alt+F",
+        onSelect: () => applyTextCommand("format"),
+      },
+      {
+        id: "code-comment",
+        label: "切换行注释",
+        hint: "Ctrl+/",
+        onSelect: () => runEditorCommand("comment"),
+      },
+      {
+        id: "code-indent",
+        label: "增加缩进",
+        hint: "Tab",
+        onSelect: () => runEditorCommand("indent"),
+      },
+      {
+        id: "code-outdent",
+        label: "减少缩进",
+        hint: "Shift+Tab",
+        onSelect: () => runEditorCommand("outdent"),
+      },
+    ]
+    const file: PreviewMenuItem[] = [
+      {
+        id: "code-reveal",
+        label: "在文件管理器中显示",
+        iconSrc: systemAppIcons()["explorer.exe"],
+        icon: "folder",
+        onSelect: revealInExplorer,
+      },
+      { id: "code-copy-absolute", label: "复制绝对路径", onSelect: () => void copyPath("absolute") },
+      { id: "code-copy-relative", label: "复制相对路径", onSelect: () => void copyPath("relative") },
+      { id: "code-compare", label: "与文件比较", onSelect: compareWithFile },
+      {
+        id: "code-terminal",
+        label: "在当前目录打开终端",
+        iconSrc: systemAppIcons()[terminalApp()],
+        icon: "terminal",
+        onSelect: openDirectoryInTerminal,
+      },
+    ]
+    const groups: PreviewMenuGroup[] = [
+      { label: "编辑器", items: editor },
+      { label: "代码", items: code },
+      { label: "路径与分栏", items: file },
+    ]
+    if (!isOfficeDocumentPreview(path() ?? "")) {
+      groups[2].items.push(
+        {
+          id: "code-split-right",
+          label: "在右侧打开",
+          onSelect: () => layout.sidePane.openSecondary(props.tab, "right"),
+        },
+        {
+          id: "code-split-below",
+          label: "在下方打开",
+          onSelect: () => layout.sidePane.openSecondary(props.tab, "below"),
+        },
+        {
+          id: "code-split-close",
+          label: "关闭分栏",
+          disabled: !layout.sidePane.secondary(),
+          onSelect: () => layout.sidePane.closeSecondary(),
+        },
+      )
+    }
+    return groups
+  })
+
   const headerMenu = createMemo<PreviewMenuGroup[]>(() => {
+    if (codeEditor()) return codeEditorMenu()
     const groups: PreviewMenuGroup[] = []
 
     const reading: PreviewMenuGroup["items"] = []
@@ -3975,7 +4591,7 @@ export function FileTabContent(props: { tab: string }) {
                   canEdit={canEdit()}
                   editLabel={editLabel()}
                   onToggleEditing={toggleEditing}
-                  onFind={editing() && (textDocument() || isRichText()) ? openPanelFind : undefined}
+                  onFind={editing() && textDocument() ? openPanelFind : undefined}
                   onUndo={editing() ? undoStep : undefined}
                   onRedo={editing() ? redoStep : undefined}
                   canUndo={canUndoStep()}
@@ -3996,8 +4612,10 @@ export function FileTabContent(props: { tab: string }) {
                   }
                   openNativeLabel={language.t("session.filePreview.open")}
                   openNativeMenu={officeNativeMenu()}
-                  viewMenu={isOfficeDocumentPreview(current()) ? [] : headerViews()}
+                  viewMenu={isOfficeDocumentPreview(current()) || codeEditor() ? [] : headerViews()}
                   menu={headerMenu()}
+                  mode={codeEditor() ? "code" : "default"}
+                  languageLabel={codeEditor() ? codeLanguageLabel() : undefined}
                   onPreviewInBrowser={isHtml() ? openInBrowser : undefined}
                   treeOpen={!isOfficeDocumentPreview(current()) && layout.sidePane.tree()}
                   onToggleTree={isOfficeDocumentPreview(current()) ? undefined : () => layout.sidePane.toggleTree()}
@@ -4117,21 +4735,6 @@ export function FileTabContent(props: { tab: string }) {
                             onSaveImage={saveImage}
                             officePreviewProps={{}}
                           />
-                        </Show>
-                        <Show when={previewBranch() === "rich" && path()}>
-                          {(currentPath) => (
-                            <FilePreviewRichContent
-                              path={currentPath()}
-                              content={contents()}
-                              readOnly={!editing()}
-                              mode={richMode()}
-                              onModeChange={setRichMode}
-                              findRequest={richFindTick}
-                              onSaveBlock={(block, html) => saveRichOps([{ op: "setBlockHtml", block, html }])}
-                              onSaveOps={saveRichOps}
-                              onSaveSource={(html) => saveRichOps([{ op: "setText", text: html }])}
-                            />
-                          )}
                         </Show>
                         <PluginFilePreviewerHost previewer={activeFilePreviewer()} active={previewBranch() === "text"}>
                           <Show when={previewBranch() === "text"}>
@@ -4262,12 +4865,18 @@ export function FileTabContent(props: { tab: string }) {
                                   <div class="absolute left-3 top-10 max-h-72 w-64 overflow-y-auto rounded-lg border border-border bg-background py-1 shadow-lg">
                                     <div class="px-3 py-1 text-11-regular text-foreground-subtlest">大纲</div>
                                     <Show
-                                      when={outlineItems().length > 0}
+                                      when={visibleOutlineItems().length > 0}
                                       fallback={
-                                        <div class="px-3 py-2 text-11-regular text-foreground-subtlest">还没有标题</div>
+                                        <div class="px-3 py-2 text-11-regular text-foreground-subtlest">
+                                          {codeEditor()
+                                            ? lspOutlineBusy()
+                                              ? "正在读取语言服务符号…"
+                                              : "还没有可导航的符号"
+                                            : "还没有标题"}
+                                        </div>
                                       }
                                     >
-                                      <For each={outlineItems()}>
+                                      <For each={visibleOutlineItems()}>
                                         {(entry) => (
                                           <button
                                             type="button"
@@ -4496,181 +5105,224 @@ export function FileTabContent(props: { tab: string }) {
                                   classList={{ "mx-auto w-full max-w-3xl": focusMode() }}
                                   style={{ zoom: String(fontZoom() / 100) }}
                                 >
-                                  {/* 自动换行后一行会占多个视觉行，行号列的 24px 网格对不上；
-                              隐藏行号是诚实的做法（比错位的行号好）。 */}
-                                  <Show when={!editorWrap()}>
-                                    <div
-                                      ref={(el) => {
-                                        gutterRef = el
-                                      }}
-                                      class="w-12 shrink-0 overflow-hidden bg-background py-4 pr-2 text-right font-mono text-13 leading-6 text-foreground-subtle select-none"
-                                      style={{ "line-height": "24px" }}
-                                    >
-                                      <For each={lineNumbers()}>
-                                        {(line) => (
-                                          <div
-                                            class="h-6"
-                                            style={{ height: "24px", "line-height": "24px" }}
-                                            onContextMenu={(event: MouseEvent) => {
-                                              event.preventDefault()
-                                              openContextMenu({ start: line, end: line }, event.clientX, event.clientY)
-                                            }}
-                                          >
-                                            {line}
-                                          </div>
-                                        )}
-                                      </For>
-                                    </div>
-                                  </Show>
-                                  {/* 着色层和 textarea 叠在同一个盒子里：透明字的 textarea 在上层
-                              负责输入，彩色文字在下层负责观感，滚动位置由 translate 跟上。 */}
-                                  <div class="relative min-w-0 flex-1 bg-background">
-                                    <Show when={!editorWrap() && highlightLanguage() !== undefined}>
-                                      <CodeHighlight
-                                        text={draft()}
-                                        path={path()}
-                                        scrollTop={editorScroll().top}
-                                        scrollLeft={editorScroll().left}
-                                        onSync={setHighlightSynced}
-                                      />
-                                    </Show>
-                                    <textarea
-                                      ref={(el) => {
-                                        editorRef = el
-                                      }}
-                                      class="relative h-full w-full resize-none py-4 pr-4 font-mono text-13 leading-6 outline-none"
-                                      classList={{
-                                        "overflow-x-auto": !editorWrap(),
-                                        "bg-transparent text-transparent": highlightOn(),
-                                        "bg-background": !highlightOn(),
-                                      }}
-                                      style={{ "line-height": "24px", "caret-color": "var(--foreground)" }}
+                                  <Show when={codeEditor()}>
+                                    <CodeEditor
                                       value={draft()}
+                                      path={path()}
                                       readOnly={!editing()}
-                                      wrap={editorWrap() ? "soft" : "off"}
-                                      spellcheck={false}
-                                      onScroll={(event) => {
-                                        const position = {
-                                          top: event.currentTarget.scrollTop,
-                                          left: event.currentTarget.scrollLeft,
-                                        }
+                                      onReady={(handle) => {
+                                        editorRef = handle
+                                        gutterRef = undefined
+                                      }}
+                                      onChange={handleCodeEditorChange}
+                                      onSelectionChange={({ anchor, head }) => syncCaretPosition(anchor, head)}
+                                      onScroll={(position) => {
                                         if (gutterRef) gutterRef.scrollTop = position.top
                                         setEditorScroll(position)
                                       }}
-                                      onInput={(event) => {
-                                        const element = event.currentTarget
-                                        const previous = draft()
-                                        const anchor = Math.max(0, Math.min(caretAt(), previous.length))
-                                        const head = Math.max(
-                                          anchor,
-                                          Math.min(anchor + selectionLength(), previous.length),
-                                        )
-                                        const target = path()
-                                        if (target) {
-                                          recordTextChange(
-                                            target,
-                                            { text: previous, anchor, head },
-                                            {
-                                              text: element.value,
-                                              anchor: element.selectionStart,
-                                              head: element.selectionEnd,
-                                            },
-                                            "typing",
-                                          )
-                                          bumpHistory()
-                                        }
-                                        setDraft(element.value)
-                                        syncCaret(element)
-                                        centerCaret(element)
-                                        if (target) rememberDraft(target, element.value)
-                                        scheduleSave()
-                                      }}
-                                      onSelect={(event) => syncCaret(event.currentTarget)}
+                                      onMouseDown={handleEditorMouseDown}
+                                      onMouseUp={handleEditorMouseUp}
+                                      onContextMenu={handleEditorContextMenu}
+                                      onKeyDown={handleCodeEditorKeyDown}
                                       onBlur={() => {
                                         if (draft() !== contents()) void saveEditing()
                                       }}
-                                      onContextMenu={handleEditorContextMenu}
-                                      onMouseDown={handleEditorMouseDown}
-                                      onMouseUp={handleEditorMouseUp}
-                                      onKeyDown={(event) => {
-                                        if (!editing()) return
-                                        const accel = event.metaKey || event.ctrlKey
-                                        // 撤销 / 重做：跨标签切回来也要能退（原生 textarea 的栈会随卸载丢掉）。
-                                        // 自己没记过这一步时放行给浏览器，保留原生手感。
-                                        if (accel && event.key.toLowerCase() === "z") {
-                                          const target = path()
-                                          const redo = event.shiftKey
-                                          if (target && (redo ? canRedoText(target) : canUndoText(target))) {
-                                            event.preventDefault()
-                                            stepTextHistory(redo ? "redo" : "undo")
-                                            return
-                                          }
-                                        }
-                                        if (accel && !event.shiftKey && event.key.toLowerCase() === "y") {
-                                          const target = path()
-                                          if (target && canRedoText(target)) {
-                                            event.preventDefault()
-                                            stepTextHistory("redo")
-                                            return
-                                          }
-                                        }
-                                        if (accel && event.key.toLowerCase() === "s") {
-                                          event.preventDefault()
-                                          void saveEditing()
-                                          return
-                                        }
-                                        if (accel && event.shiftKey && event.key.toLowerCase() === "p") {
-                                          event.preventDefault()
-                                          openPalette()
-                                          return
-                                        }
-                                        if (accel && event.key.toLowerCase() === "f") {
-                                          event.preventDefault()
-                                          openFind(false)
-                                          return
-                                        }
-                                        if (accel && event.key.toLowerCase() === "h") {
-                                          event.preventDefault()
-                                          openFind(true)
-                                          return
-                                        }
-                                        if (accel && event.key.toLowerCase() === "g") {
-                                          event.preventDefault()
-                                          openGoto()
-                                          return
-                                        }
-                                        if (event.key === "Escape" && findOpen()) {
-                                          event.preventDefault()
-                                          closeFind()
-                                          return
-                                        }
-                                        if (event.key === "Tab" && !accel && !event.altKey) {
-                                          event.preventDefault()
-                                          runEditorCommand(event.shiftKey ? "outdent" : "indent")
-                                          return
-                                        }
-                                        if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-                                          event.preventDefault()
-                                          runEditorCommand(event.key === "ArrowUp" ? "moveUp" : "moveDown")
-                                          return
-                                        }
-                                        if (accel && event.key === "/") {
-                                          event.preventDefault()
-                                          runEditorCommand("comment")
-                                          return
-                                        }
-                                        if (accel && event.shiftKey && event.key.toLowerCase() === "k") {
-                                          event.preventDefault()
-                                          runEditorCommand("delete")
-                                          return
-                                        }
-                                        if (accel && event.shiftKey && event.key.toLowerCase() === "d") {
-                                          event.preventDefault()
-                                          runEditorCommand("duplicate")
-                                        }
-                                      }}
+                                      onRequestDiagnostics={requestLspDiagnostics}
                                     />
-                                  </div>
+                                  </Show>
+                                  <Show when={!codeEditor()}>
+                                    {/* 自动换行后一行会占多个视觉行，行号列的 24px 网格对不上；
+                              隐藏行号是诚实的做法（比错位的行号好）。 */}
+                                    <Show when={!editorWrap()}>
+                                      <div
+                                        ref={(el) => {
+                                          gutterRef = el
+                                        }}
+                                        class="w-12 shrink-0 overflow-hidden bg-background py-4 pr-2 text-right font-mono text-13 leading-6 text-foreground-subtle select-none"
+                                        style={{ "line-height": "24px" }}
+                                      >
+                                        <For each={lineNumbers()}>
+                                          {(line) => (
+                                            <div
+                                              class="h-6"
+                                              classList={{ "bg-surface": line === caretInfo().line }}
+                                              style={{ height: "24px", "line-height": "24px" }}
+                                              onContextMenu={(event: MouseEvent) => {
+                                                event.preventDefault()
+                                                openContextMenu(
+                                                  { start: line, end: line },
+                                                  event.clientX,
+                                                  event.clientY,
+                                                )
+                                              }}
+                                            >
+                                              {line}
+                                            </div>
+                                          )}
+                                        </For>
+                                      </div>
+                                    </Show>
+                                    {/* 着色层和 textarea 叠在同一个盒子里：透明字的 textarea 在上层
+                              负责输入，彩色文字在下层负责观感，滚动位置由 translate 跟上。 */}
+                                    <div class="relative min-w-0 flex-1 bg-background">
+                                      <Show when={!editorWrap()}>
+                                        <div
+                                          class="pointer-events-none absolute inset-x-0 z-0 h-6"
+                                          style={{
+                                            top: `${16 + (caretInfo().line - 1) * 24 - editorScroll().top}px`,
+                                            background:
+                                              "color-mix(in srgb, var(--surface-interactive-weak) 32%, transparent)",
+                                          }}
+                                          aria-hidden="true"
+                                        />
+                                      </Show>
+                                      <Show when={!editorWrap() && highlightLanguage() !== undefined}>
+                                        <CodeHighlight
+                                          text={draft()}
+                                          path={path()}
+                                          scrollTop={editorScroll().top}
+                                          scrollLeft={editorScroll().left}
+                                          onSync={setHighlightSynced}
+                                        />
+                                      </Show>
+                                      <textarea
+                                        ref={(el) => {
+                                          editorRef = el
+                                        }}
+                                        class="relative h-full w-full resize-none py-4 pr-4 font-mono text-13 leading-6 outline-none"
+                                        classList={{
+                                          "overflow-x-auto": !editorWrap(),
+                                          "bg-transparent text-transparent": highlightOn(),
+                                          "bg-transparent": !highlightOn(),
+                                        }}
+                                        style={{ "line-height": "24px", "caret-color": "var(--foreground)" }}
+                                        value={draft()}
+                                        readOnly={!editing()}
+                                        wrap={editorWrap() ? "soft" : "off"}
+                                        spellcheck={false}
+                                        onScroll={(event) => {
+                                          const position = {
+                                            top: event.currentTarget.scrollTop,
+                                            left: event.currentTarget.scrollLeft,
+                                          }
+                                          if (gutterRef) gutterRef.scrollTop = position.top
+                                          setEditorScroll(position)
+                                        }}
+                                        onInput={(event) => {
+                                          const element = event.currentTarget
+                                          const previous = draft()
+                                          const anchor = Math.max(0, Math.min(caretAt(), previous.length))
+                                          const head = Math.max(
+                                            anchor,
+                                            Math.min(anchor + selectionLength(), previous.length),
+                                          )
+                                          const target = path()
+                                          if (target) {
+                                            recordTextChange(
+                                              target,
+                                              { text: previous, anchor, head },
+                                              {
+                                                text: element.value,
+                                                anchor: element.selectionStart,
+                                                head: element.selectionEnd,
+                                              },
+                                              "typing",
+                                            )
+                                            bumpHistory()
+                                          }
+                                          setDraft(element.value)
+                                          syncCaret(element)
+                                          centerCaret(element)
+                                          if (target) rememberDraft(target, element.value)
+                                          scheduleSave()
+                                        }}
+                                        onSelect={(event) => syncCaret(event.currentTarget)}
+                                        onBlur={() => {
+                                          if (draft() !== contents()) void saveEditing()
+                                        }}
+                                        onContextMenu={handleEditorContextMenu}
+                                        onMouseDown={handleEditorMouseDown}
+                                        onMouseUp={handleEditorMouseUp}
+                                        onKeyDown={(event) => {
+                                          if (!editing()) return
+                                          const accel = event.metaKey || event.ctrlKey
+                                          // 撤销 / 重做：跨标签切回来也要能退（原生 textarea 的栈会随卸载丢掉）。
+                                          // 自己没记过这一步时放行给浏览器，保留原生手感。
+                                          if (accel && event.key.toLowerCase() === "z") {
+                                            const target = path()
+                                            const redo = event.shiftKey
+                                            if (target && (redo ? canRedoText(target) : canUndoText(target))) {
+                                              event.preventDefault()
+                                              stepTextHistory(redo ? "redo" : "undo")
+                                              return
+                                            }
+                                          }
+                                          if (accel && !event.shiftKey && event.key.toLowerCase() === "y") {
+                                            const target = path()
+                                            if (target && canRedoText(target)) {
+                                              event.preventDefault()
+                                              stepTextHistory("redo")
+                                              return
+                                            }
+                                          }
+                                          if (accel && event.key.toLowerCase() === "s") {
+                                            event.preventDefault()
+                                            void saveEditing()
+                                            return
+                                          }
+                                          if (accel && event.shiftKey && event.key.toLowerCase() === "p") {
+                                            event.preventDefault()
+                                            openPalette()
+                                            return
+                                          }
+                                          if (accel && event.key.toLowerCase() === "f") {
+                                            event.preventDefault()
+                                            openFind(false)
+                                            return
+                                          }
+                                          if (accel && event.key.toLowerCase() === "h") {
+                                            event.preventDefault()
+                                            openFind(true)
+                                            return
+                                          }
+                                          if (accel && event.key.toLowerCase() === "g") {
+                                            event.preventDefault()
+                                            openGoto()
+                                            return
+                                          }
+                                          if (event.key === "Escape" && findOpen()) {
+                                            event.preventDefault()
+                                            closeFind()
+                                            return
+                                          }
+                                          if (event.key === "Tab" && !accel && !event.altKey) {
+                                            event.preventDefault()
+                                            runEditorCommand(event.shiftKey ? "outdent" : "indent")
+                                            return
+                                          }
+                                          if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+                                            event.preventDefault()
+                                            runEditorCommand(event.key === "ArrowUp" ? "moveUp" : "moveDown")
+                                            return
+                                          }
+                                          if (accel && event.key === "/") {
+                                            event.preventDefault()
+                                            runEditorCommand("comment")
+                                            return
+                                          }
+                                          if (accel && event.shiftKey && event.key.toLowerCase() === "k") {
+                                            event.preventDefault()
+                                            runEditorCommand("delete")
+                                            return
+                                          }
+                                          if (accel && event.shiftKey && event.key.toLowerCase() === "d") {
+                                            event.preventDefault()
+                                            runEditorCommand("duplicate")
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  </Show>
                                 </div>
                               </Show>
                               {/* 底部状态栏：光标行列 + 选区 + 全文统计 + 缩放。
@@ -4689,6 +5341,18 @@ export function FileTabContent(props: { tab: string }) {
                                   }
                                   extra={
                                     <span class="flex items-center gap-3">
+                                      <Show when={codeEditor()}>
+                                        <span
+                                          classList={{
+                                            "text-interactive-base": codeLspStatus().state === "connected",
+                                            "text-critical-base": codeLspStatus().state === "error",
+                                            "text-foreground-subtlest": codeLspStatus().state === "none",
+                                          }}
+                                          title="语言服务状态"
+                                        >
+                                          {codeLspStatus().label}
+                                        </span>
+                                      </Show>
                                       <span>{editorStats().lines} 行</span>
                                       <span>{editorStats().characters} 字符</span>
                                       <span>{editorStats().words} 词</span>
@@ -4727,6 +5391,7 @@ export function FileTabContent(props: { tab: string }) {
                                   onSaveParagraph: saveDocxParagraph,
                                   onSaveCell: saveCell,
                                   onDirty: setOfficeDirty,
+                                  onQuoteSelection: addOfficeSelectionToTask,
                                   beforeOfficeSave: (baseline, target = path()!) => confirmOfficeSave(target, baseline),
                                   writeOfficeBytes: (bytes, expectedBaselineSha256, target = path()!) =>
                                     writeOfficeEditorBytes(target, bytes, expectedBaselineSha256),
@@ -4762,54 +5427,99 @@ export function FileTabContent(props: { tab: string }) {
             {(menu) => (
               <div
                 data-file-selection-menu
-                class="absolute z-50 flex overflow-hidden rounded-lg border border-border bg-popover p-0.5 text-ui-sm text-foreground shadow-[var(--shadow-md)]"
+                class="absolute z-50 w-[min(520px,calc(100%-16px))] rounded-lg border border-border bg-popover p-2 text-ui-sm text-foreground shadow-[var(--shadow-md)]"
                 style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
-                onMouseDown={(event) => event.preventDefault()}
+                onMouseDown={(event) => {
+                  const target = event.target
+                  if (!(target instanceof Element) || !target.closest("textarea, button")) event.preventDefault()
+                }}
               >
-                <button
-                  type="button"
-                  data-action="file-add-to-task"
-                  class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 transition-colors hover:bg-hover"
-                  onClick={() => {
-                    const current = menu()
-                    setSelectionMenu(undefined)
-                    addSelectionToTask(current.selection)
-                  }}
-                >
-                  {language.t("session.selection.addToTask")}
-                </button>
-                <div class="w-px shrink-0 bg-border" />
-                <button
-                  type="button"
-                  data-action="file-ask-side-chat"
-                  class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 transition-colors hover:bg-hover"
-                  onClick={() => {
-                    const current = menu()
-                    setSelectionMenu(undefined)
-                    askSelectionInSideChat(current.selection)
-                  }}
-                >
-                  {language.t("sidePane.sideChat.askSelectionShort")}
-                </button>
-                <div class="w-px shrink-0 bg-border" />
-                <For each={AI_ACTIONS}>
-                  {(action) => (
-                    <button
-                      type="button"
-                      data-action={`file-ai-${action}`}
-                      class="flex items-center whitespace-nowrap rounded-md px-2 py-1.5 text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
-                      onClick={() => {
-                        const current = menu()
-                        setSelectionMenu(undefined)
-                        aiActionInSideChat(action, current.selection)
-                      }}
-                    >
-                      {language.t(`session.selection.ai.${action}`)}
-                    </button>
-                  )}
-                </For>
+                <textarea
+                  value={selectionMenuComment()}
+                  rows={2}
+                  class="mb-1.5 block w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-12-regular text-foreground outline-none placeholder:text-foreground-subtlest focus:border-interactive-base"
+                  placeholder="评论这部分需要怎么修改（可选）"
+                  aria-label="评论这部分需要怎么修改"
+                  onInput={(event) => setSelectionMenuComment(event.currentTarget.value)}
+                />
+                <div class="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    data-action="file-ai-inline-edit"
+                    disabled={inlineEditBusy()}
+                    class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-interactive-base transition-colors hover:bg-hover disabled:cursor-wait disabled:opacity-60"
+                    onClick={() => {
+                      const current = menu()
+                      const instruction = selectionMenuComment().trim() || "按要求改进这段代码。"
+                      setSelectionMenu(undefined)
+                      setSelectionMenuComment("")
+                      void applyAIInlineEdit(current.selection, instruction)
+                    }}
+                  >
+                    {inlineEditBusy() ? "AI 修改中…" : "AI 修改"}
+                  </button>
+                  <div class="w-px shrink-0 bg-border" />
+                  <button
+                    type="button"
+                    data-action="file-add-to-task"
+                    class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 transition-colors hover:bg-hover"
+                    onClick={() => {
+                      const current = menu()
+                      setSelectionMenu(undefined)
+                      addSelectionToTask(current.selection, selectionMenuComment())
+                    }}
+                  >
+                    {language.t("session.selection.addToTask")}
+                  </button>
+                  <div class="w-px shrink-0 bg-border" />
+                  <button
+                    type="button"
+                    data-action="file-ask-side-chat"
+                    class="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 transition-colors hover:bg-hover"
+                    onClick={() => {
+                      const current = menu()
+                      setSelectionMenu(undefined)
+                      askSelectionInSideChat(current.selection)
+                    }}
+                  >
+                    {language.t("sidePane.sideChat.askSelectionShort")}
+                  </button>
+                  <div class="w-px shrink-0 bg-border" />
+                  <For each={AI_ACTIONS}>
+                    {(action) => (
+                      <button
+                        type="button"
+                        data-action={`file-ai-${action}`}
+                        class="flex items-center whitespace-nowrap rounded-md px-2 py-1.5 text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                        onClick={() => {
+                          const current = menu()
+                          setSelectionMenu(undefined)
+                          aiActionInSideChat(action, current.selection)
+                        }}
+                      >
+                        {language.t(`session.selection.ai.${action}`)}
+                      </button>
+                    )}
+                  </For>
+                </div>
               </div>
             )}
+          </Show>
+          <Show when={inlineEditBusy()}>
+            <div
+              data-file-inline-edit-progress
+              class="absolute right-3 top-3 z-50 flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-12-regular text-foreground shadow-[var(--shadow-md)]"
+            >
+              <span class="size-2 animate-pulse rounded-full bg-interactive-base" aria-hidden="true" />
+              <span>AI 修改中…</span>
+              <button
+                type="button"
+                class="rounded-md px-2 py-1 text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                onClick={() => inlineEditAbort?.()}
+              >
+                取消
+              </button>
+            </div>
           </Show>
           <Show when={contextMenu()}>
             {(menu) => (

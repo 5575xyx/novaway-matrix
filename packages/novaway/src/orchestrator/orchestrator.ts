@@ -122,7 +122,9 @@ export const layer = Layer.effect(
     })
 
     return {
-      createPlan: Effect.fn("OrchestratorService.createPlan")(function* (input) {
+      createPlan: Effect.fn("OrchestratorService.createPlan")(function* (
+        input: Parameters<Interface["createPlan"]>[0],
+      ) {
         const now = new Date()
         const plan: OrchestratorPlan = {
           id: generateId(),
@@ -154,7 +156,9 @@ export const layer = Layer.effect(
         return plan
       }),
 
-      executePlan: Effect.fn("OrchestratorService.executePlan")(function* (input) {
+      executePlan: Effect.fn("OrchestratorService.executePlan")(function* (
+        input: Parameters<Interface["executePlan"]>[0],
+      ) {
         const initial = yield* getPlan(input.planId)
         if (!initial) return yield* Effect.die(new Error("Plan not found"))
 

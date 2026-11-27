@@ -2,8 +2,9 @@ import { expect, test } from "./office-test"
 import { readFile, writeFile, unlink, readdir } from "node:fs/promises"
 import { resolve } from "node:path"
 import JSZip from "jszip"
-import { readLegacyDocument } from "@novaway/core/office/legacy/read"
-import { engineFor } from "@novaway/core/office/engine/registry"
+
+let readLegacyDocument!: (data: Uint8Array, extension: string) => Promise<any>
+let engineFor!: (extension: string) => { open: (data: Uint8Array) => Promise<{ ok: boolean }> } | undefined
 
 const samples = process.env.OFFICE_REAL_SAMPLES
 const variants = [
@@ -166,7 +167,15 @@ function pptSample(): Uint8Array {
 }
 
 test.use({ channel: "chrome", video: "off", trace: "off" })
+test.skip(
+  Boolean(process.versions.bun),
+  "Bun cannot strip workspace TypeScript imported from node_modules; run this suite with Node",
+)
 test.beforeAll(async () => {
+  const legacy = await import("@novaway/core/office/legacy/read")
+  const engine = await import("@novaway/core/office/engine/registry")
+  readLegacyDocument = legacy.readLegacyDocument
+  engineFor = engine.engineFor
   if (samples) {
     for (const ext of ["doc", "xls", "ppt"])
       await writeFile(path(ext), await readFile(resolve(samples, `sample.${ext}`)))

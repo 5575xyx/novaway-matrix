@@ -14,6 +14,31 @@ import path from "node:path"
 type Pending = { resolve: (value: any) => void; reject: (error: Error) => void }
 type Listener = (params: any, sessionId?: string) => void
 
+export type BrowserCookie = {
+  name: string
+  value: string
+  domain: string
+  path: string
+  expires?: number
+  size?: number
+  httpOnly?: boolean
+  secure?: boolean
+  session?: boolean
+  sameSite?: string
+}
+
+export type BrowserCookieParam = {
+  name: string
+  value: string
+  url?: string
+  domain?: string
+  path?: string
+  secure?: boolean
+  httpOnly?: boolean
+  sameSite?: "Strict" | "Lax" | "None"
+  expires?: number
+}
+
 class Connection {
   private nextID = 0
   private pending = new Map<number, Pending>()
@@ -89,6 +114,7 @@ class Connection {
 /** 一条 page session：所有动作都通过 flatten 后的 sessionId 发给目标页。 */
 export class CdpPage {
   private subs: Array<() => void> = []
+  private snapshotToken?: string
 
   constructor(
     private connection: Connection,
@@ -118,6 +144,7 @@ export class CdpPage {
   }
 
   async navigate(url: string, timeoutMs = 30_000) {
+    this.snapshotToken = undefined
     const loaded = new Promise<void>((resolve) => {
       const off = this.on("Page.loadEventFired", () => {
         off()
@@ -144,6 +171,12 @@ export class CdpPage {
       )
     }
     return result?.result?.value as T
+  }
+
+  async snapshot<T = any>(expression: string) {
+    const value = await this.evaluate<T & { snapshotToken?: string }>(expression)
+    this.snapshotToken = value?.snapshotToken
+    return value
   }
 
   async title() {
@@ -211,49 +244,94 @@ export class CdpPage {
   }
 
   async clickRef(ref: string) {
+    if (!this.snapshotToken) throw new Error("请先获取 browser_snapshot，再使用 snapshot ref")
     const element = elementExpression(ref)
-    const ok = await this.evaluate<boolean>(
+    const snapshot = this.snapshotToken
+    const point = await this.evaluate<{ x: number; y: number } | null>(
       "(() => { const el = " +
         element +
-        "; if (!el) return false;" +
-        " el.scrollIntoView({ block: 'center', inline: 'center' }); el.click(); return true })()",
+        "; if (!el || (" +
+        (snapshot ? "el.getAttribute('data-nv-snapshot') !== " + JSON.stringify(snapshot) : "false") +
+        ")) return null; if (el.matches(':disabled,[aria-disabled=\"true\"]')) throw new Error('目标元素已禁用'); el.scrollIntoView({ block: 'center', inline: 'center' }); const r = el.getBoundingClientRect(); if (!r.width || !r.height) return null; const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); if (hit && hit !== el && !el.contains(hit)) return null; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()",
     )
-    if (!ok) throw new Error("页面上找不到元素 " + ref)
+    if (!point) throw new Error("页面上的元素已过期或不可见，请重新获取 browser_snapshot: " + ref)
+    // JS click() skips hit testing, pointer capture and several framework handlers. Send a
+    // real CDP mouse sequence so the action behaves like the user's click.
+    await this.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y })
+    await this.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: point.x,
+      y: point.y,
+      button: "left",
+      clickCount: 1,
+    })
+    await this.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x: point.x,
+      y: point.y,
+      button: "left",
+      clickCount: 1,
+    })
   }
 
   async fillRef(ref: string, value: string) {
+    if (!this.snapshotToken) throw new Error("请先获取 browser_snapshot，再使用 snapshot ref")
     const element = elementExpression(ref)
+    const snapshot = JSON.stringify(this.snapshotToken)
     const ok = await this.evaluate<boolean>(
       "(() => { const el = " +
         element +
-        "; if (!el) return false;" +
-        " const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;" +
-        " const setter = Object.getOwnPropertyDescriptor(proto, 'value') && Object.getOwnPropertyDescriptor(proto, 'value').set;" +
-        " el.focus();" +
-        " if (setter) setter.call(el, " +
+        "; if (!el || el.getAttribute('data-nv-snapshot') !== " +
+        snapshot +
+        ") return false; if (el.matches(':disabled,[aria-disabled=\"true\"],[readonly]')) throw new Error('目标输入元素不可编辑'); el.scrollIntoView({ block: 'center', inline: 'center' }); el.focus();" +
+        " el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, inputType: 'insertText', data: " +
+        JSON.stringify(value) +
+        " }));" +
+        " if (el instanceof HTMLSelectElement) { const wanted = " +
+        JSON.stringify(value) +
+        "; const option = Array.from(el.options).find(o => o.value === wanted || o.text === wanted); if (!option) return false; el.value = option.value; }" +
+        " else if (el instanceof HTMLElement && el.isContentEditable) { el.replaceChildren(document.createTextNode(" +
+        JSON.stringify(value) +
+        ")); }" +
+        " else { const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set; if (setter) setter.call(el, " +
         JSON.stringify(value) +
         "); else el.value = " +
         JSON.stringify(value) +
-        ";" +
-        " el.dispatchEvent(new Event('input', { bubbles: true }));" +
-        " el.dispatchEvent(new Event('change', { bubbles: true })); return true })()",
+        "; }" +
+        " el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: " +
+        JSON.stringify(value) +
+        " })); el.dispatchEvent(new Event('change', { bubbles: true })); return true })()",
     )
-    if (!ok) throw new Error("页面上找不到元素 " + ref)
+    if (!ok) throw new Error("页面上的元素已过期、不可编辑或不存在 " + ref)
   }
 
   async press(key: string, ref?: string) {
+    if (ref && !this.snapshotToken) throw new Error("请先获取 browser_snapshot，再使用 snapshot ref")
     if (ref) {
       const ok = await this.evaluate<boolean>(
-        "(() => { const el = " + elementExpression(ref) + "; if (!el) return false; el.focus(); return true })()",
+        "(() => { const el = " +
+          elementExpression(ref) +
+          "; if (!el || el.getAttribute('data-nv-snapshot') !== " +
+          JSON.stringify(this.snapshotToken) +
+          ") return false; el.focus(); return true })()",
       )
-      if (!ok) throw new Error("页面上找不到元素 " + ref)
+      if (!ok) throw new Error("页面上的元素已过期或不存在 " + ref)
     }
     const special: Record<string, { key: string; code: string; windowsVirtualKeyCode: number }> = {
-      Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 },
-      Tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
-      Escape: { key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 },
-      Backspace: { key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 },
-      Space: { key: " ", code: "Space", windowsVirtualKeyCode: 32 },
+      enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 },
+      tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
+      escape: { key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 },
+      backspace: { key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 },
+      delete: { key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 },
+      space: { key: " ", code: "Space", windowsVirtualKeyCode: 32 },
+      arrowup: { key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 },
+      arrowdown: { key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 },
+      arrowleft: { key: "ArrowLeft", code: "ArrowLeft", windowsVirtualKeyCode: 37 },
+      arrowright: { key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 },
+      home: { key: "Home", code: "Home", windowsVirtualKeyCode: 36 },
+      end: { key: "End", code: "End", windowsVirtualKeyCode: 35 },
+      pageup: { key: "PageUp", code: "PageUp", windowsVirtualKeyCode: 33 },
+      pagedown: { key: "PageDown", code: "PageDown", windowsVirtualKeyCode: 34 },
     }
     const parts = key
       .split("+")
@@ -264,18 +342,39 @@ export class CdpPage {
     const modifierMask =
       (modifiers.includes("alt") ? 1 : 0) |
       (modifiers.includes("control") || modifiers.includes("ctrl") ? 2 : 0) |
-      (modifiers.includes("meta") ? 4 : 0) |
+      (modifiers.includes("meta") || modifiers.includes("cmd") ? 4 : 0) |
       (modifiers.includes("shift") ? 8 : 0)
-    const info = special[head] ?? {
-      key: head,
-      code: "Key" + head.toUpperCase(),
-      windowsVirtualKeyCode: head.toUpperCase().charCodeAt(0),
+    const normalized = head.toLowerCase()
+    const info = special[normalized] ?? {
+      key: head.length === 1 ? head : head,
+      code: head.length === 1 ? "Key" + head.toUpperCase() : head,
+      windowsVirtualKeyCode: head.length === 1 ? head.toUpperCase().charCodeAt(0) : 0,
     }
-    await this.send("Input.dispatchKeyEvent", { type: "keyDown", modifiers: modifierMask, ...info })
+    const keyPayload = {
+      type: "keyDown",
+      modifiers: modifierMask,
+      ...info,
+      ...(head.length === 1 && modifierMask === 0 ? { text: head, unmodifiedText: head } : {}),
+    }
+    await this.send("Input.dispatchKeyEvent", keyPayload)
     await this.send("Input.dispatchKeyEvent", { type: "keyUp", modifiers: modifierMask, ...info })
   }
 
+  async cookies() {
+    return this.send<{ cookies: BrowserCookie[] }>("Network.getAllCookies")
+  }
+
+  async setCookies(cookies: readonly BrowserCookieParam[]) {
+    await this.send("Network.setCookies", { cookies })
+  }
+
+  async reload() {
+    this.snapshotToken = undefined
+    await this.send("Page.reload", { ignoreCache: false })
+  }
+
   dispose() {
+    this.snapshotToken = undefined
     for (const off of this.subs) off()
     this.subs = []
   }
@@ -287,10 +386,22 @@ function elementExpression(ref: string) {
   return "document.querySelector(" + JSON.stringify(selector) + ")"
 }
 
+export type BrowserTab = {
+  targetId: string
+  title: string
+  url: string
+  active: boolean
+}
+
 export type CdpSession = {
   page: CdpPage
+  tabs: () => Promise<BrowserTab[]>
+  selectTab: (targetId: string) => Promise<void>
   /** 同浏览器的另一个标签页（PDF 打印等一次性任务用），用完必须 dispose。 */
-  newPage: (viewport?: { width: number; height: number }) => Promise<{ page: CdpPage; dispose: () => Promise<void> }>
+  newPage: (viewport?: {
+    width: number
+    height: number
+  }) => Promise<{ targetId: string; page: CdpPage; dispose: () => Promise<void> }>
   close: () => Promise<void>
 }
 
@@ -347,6 +458,8 @@ export function findChrome() {
 export type ConnectOptions = {
   /** 已运行浏览器的调试地址（http 或 ws） */
   endpoint?: string
+  /** 自启动浏览器使用的 user-data-dir；传入后 Cookie/localStorage 会跨会话保留。 */
+  profileDir?: string
 }
 
 /**
@@ -367,7 +480,12 @@ export async function connect(options: ConnectOptions = {}): Promise<CdpSession>
     if (!binary) {
       throw new Error("没有找到可用的 Chrome/Edge：请安装 Chrome，或用 BROWSER_CDP_URL 指向已有浏览器的调试端口")
     }
-    const profile = fs.mkdtempSync(path.join(os.tmpdir(), "novaway-browser-"))
+    const profile = options.profileDir
+      ? path.resolve(options.profileDir)
+      : process.env.BROWSER_PROFILE_DIR
+        ? path.resolve(process.env.BROWSER_PROFILE_DIR)
+        : fs.mkdtempSync(path.join(os.tmpdir(), "novaway-browser-"))
+    if (options.profileDir || process.env.BROWSER_PROFILE_DIR) fs.mkdirSync(profile, { recursive: true })
     child = spawn(
       binary,
       [
@@ -395,9 +513,7 @@ export async function connect(options: ConnectOptions = {}): Promise<CdpSession>
   }
 
   const connection = await Connection.open(endpoint)
-  /** 在同一个浏览器里开一个新标签页：PDF / 打印这类一次性任务不能占用验证用的页面。 */
-  const openPage = async (viewport = { width: 1440, height: 900 }) => {
-    const { targetId } = await connection.send<{ targetId: string }>("Target.createTarget", { url: "about:blank" })
+  const attachPage = async (targetId: string, closeTarget: boolean, viewport = { width: 1440, height: 900 }) => {
     const attached = await connection.send<{ sessionId: string }>("Target.attachToTarget", {
       targetId,
       flatten: true,
@@ -406,9 +522,11 @@ export async function connect(options: ConnectOptions = {}): Promise<CdpSession>
     await page.enable()
     await page.setViewport(viewport.width, viewport.height)
     return {
+      targetId,
       page,
       dispose: async () => {
         page.dispose()
+        if (!closeTarget) return
         try {
           await connection.send("Target.closeTarget", { targetId })
         } catch {
@@ -418,14 +536,61 @@ export async function connect(options: ConnectOptions = {}): Promise<CdpSession>
     }
   }
 
-  const main = await openPage()
-  const page = main.page
+  /** 在同一个浏览器里开一个新标签页：PDF / 打印等一次性任务用完即关。 */
+  const openPage = async (viewport = { width: 1440, height: 900 }) => {
+    const { targetId } = await connection.send<{ targetId: string }>("Target.createTarget", { url: "about:blank" })
+    return attachPage(targetId, true, viewport)
+  }
+
+  // 连接用户已经打开的 Chrome 时复用现有页面，而不是再开一个空白标签。
+  // 这样 external CDP 才真正代表 Orca 的“使用已有浏览器会话和登录 Cookie”。
+  const main = child
+    ? await openPage()
+    : await (async () => {
+        const targets = await connection.send<{
+          targetInfos: Array<{ targetId: string; type?: string; url?: string }>
+        }>("Target.getTargets")
+        const existing = targets.targetInfos.find(
+          (target) => target.type === "page" && !target.url?.startsWith("devtools://"),
+        )
+        return existing ? attachPage(existing.targetId, false) : openPage()
+      })()
+  let active = main
+  const listTabs = async (): Promise<BrowserTab[]> => {
+    const targets = await connection.send<{
+      targetInfos: Array<{ targetId: string; type?: string; url?: string; title?: string }>
+    }>("Target.getTargets")
+    return targets.targetInfos
+      .filter((target) => target.type === "page" && !target.url?.startsWith("devtools://"))
+      .map((target) => ({
+        targetId: target.targetId,
+        title: target.title ?? "",
+        url: target.url ?? "",
+        active: target.targetId === active.targetId,
+      }))
+  }
+  const selectTab = async (targetId: string) => {
+    if (targetId === active.targetId) return
+    const target = (await listTabs()).find((item) => item.targetId === targetId)
+    if (!target) throw new Error("找不到浏览器标签页 " + targetId)
+    active.page.dispose()
+    active = await attachPage(targetId, false)
+  }
   const newPage = openPage
 
   const close = async () => {
-    await main.dispose()
+    active.page.dispose()
+    // 自启动浏览器由 child.kill() 整体回收；外部浏览器的标签页绝不关闭。
     connection.close()
     child?.kill()
   }
-  return { page, newPage, close }
+  return {
+    get page() {
+      return active.page
+    },
+    tabs: listTabs,
+    selectTab,
+    newPage,
+    close,
+  }
 }

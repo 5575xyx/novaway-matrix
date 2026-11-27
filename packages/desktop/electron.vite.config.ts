@@ -161,7 +161,10 @@ export default defineConfig({
           const target = "./out/main/chunks"
           for (const entry of await fs.readdir(NOVAWAY_SERVER_DIST, { withFileTypes: true })) {
             if (!entry.isFile() || entry.name === "node.js" || entry.name === "node.js.map") continue
-            await fs.writeFile(path.join(target, entry.name), await fs.readFile(path.join(NOVAWAY_SERVER_DIST, entry.name)))
+            await fs.writeFile(
+              path.join(target, entry.name),
+              await fs.readFile(path.join(NOVAWAY_SERVER_DIST, entry.name)),
+            )
           }
         },
       },
@@ -187,7 +190,7 @@ export default defineConfig({
       // desktop 的 renderer 配置独立于 packages/app/vite.config.ts，漏掉 include 时
       // Vite 会把 CJS 原件直接发给浏览器，模块图在第一个 default 导入处就抛
       // "does not provide an export named 'default'"，窗口只剩白屏。
-      include: ["lru_map", "pako", "fuzzysort", "jszip"],
+      include: ["lru_map", "pako", "fuzzysort", "jszip", "@huggingface/transformers"],
       exclude: [
         // workspace 里的 TS/TSX 包交给 vite-plugin-solid 编译（与 packages/app/vite.config.ts
         // 一致）。让 esbuild 预打包会把 `export namespace` 这类 TS 语法误判成非 ESM

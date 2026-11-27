@@ -124,7 +124,7 @@ export interface Interface {
   readonly init: () => Effect.Effect<void>
   readonly status: () => Effect.Effect<Status[]>
   readonly hasClients: (file: string) => Effect.Effect<boolean>
-  readonly touchFile: (input: string, diagnostics?: "document" | "full") => Effect.Effect<void>
+  readonly touchFile: (input: string, diagnostics?: "document" | "full", text?: string) => Effect.Effect<void>
   readonly diagnostics: () => Effect.Effect<Record<string, LSPClient.Diagnostic[]>>
   readonly hover: (input: LocInput) => Effect.Effect<any>
   readonly definition: (input: LocInput) => Effect.Effect<any[]>
@@ -343,14 +343,18 @@ export const layer = Layer.effect(
       })
     })
 
-    const touchFile = Effect.fn("LSP.touchFile")(function* (input: string, diagnostics?: "document" | "full") {
-      log.info("touching file", { file: input })
+    const touchFile = Effect.fn("LSP.touchFile")(function* (
+      input: string,
+      diagnostics?: "document" | "full",
+      text?: string,
+    ) {
+      log.info("touching file", { file: input, inMemory: text !== undefined })
       const clients = yield* getClients(input)
       yield* Effect.promise(() =>
         Promise.all(
           clients.map(async (client) => {
             const after = Date.now()
-            const version = await client.notify.open({ path: input })
+            const version = await client.notify.open({ path: input, text, changed: diagnostics !== undefined })
             if (!diagnostics) return
             return client.waitForDiagnostics({
               path: input,

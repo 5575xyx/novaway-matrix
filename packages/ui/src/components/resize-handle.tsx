@@ -1,4 +1,5 @@
 import { splitProps, type JSX } from "solid-js"
+import { createFrameCoalescer } from "../util/frame-coalesce"
 
 export interface ResizeHandleProps extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "onResize"> {
   direction: "horizontal" | "vertical"
@@ -39,7 +40,13 @@ export function ResizeHandle(props: ResizeHandleProps) {
     document.body.style.userSelect = "none"
     document.body.style.overflow = "hidden"
 
+    // 拖动期间按帧合并：mousemove 在高回报率下每秒可发上千次，逐次写布局会把
+    // 拖拽变成一堆排队中的重算。这里只保证「每帧应用到最后的指针位置」。
+    const applySize = createFrameCoalescer<number>((size) => local.onResize(size))
+
     const finish = () => {
+      // 先落最后一位，避免松手时丢掉尚未进帧的那一档。
+      applySize.flush()
       el?.removeAttribute("data-dragging")
       document.body.style.userSelect = ""
       document.body.style.overflow = ""
@@ -59,7 +66,7 @@ export function ResizeHandle(props: ResizeHandleProps) {
             : pos - start
       current = startSize + delta
       const clamped = Math.min(local.max, Math.max(local.min, current))
-      local.onResize(clamped)
+      applySize.push(clamped)
     }
 
     const onMouseUp = () => {

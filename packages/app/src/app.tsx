@@ -31,6 +31,7 @@ import {
   type ParentProps,
   Show,
   Suspense,
+  untrack,
 } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/context/command"
@@ -61,9 +62,8 @@ import { OfficeAgentProvider } from "@/pages/session/office-agent-context"
 import Layout from "@/pages/layout"
 import { decode64 } from "@/utils/base64"
 import { ErrorPage } from "./pages/error"
-import { useCheckServerHealth } from "./utils/server-health"
+import { type ServerHealth, useCheckServerHealth } from "./utils/server-health"
 import { PluginViewHost, type PluginViewRender } from "@/components/plugin-view-host"
-import PulseWorkspace from "@/pages/pulse/PulseWorkspace"
 import { installPointerTracking } from "@novaway/ui/util/pointer-origin"
 // 「思考过程」图标的思考强度版本：注册一次，所有渲染 message-part 的地方都生效。
 import "@/components/session/reasoning-effort-indicator"
@@ -71,7 +71,36 @@ import "@/components/session/reasoning-effort-indicator"
 const HomeRoute = lazy(() => import("@/pages/home"))
 const loadSession = () => import("@/pages/session")
 const Session = lazy(loadSession)
-const Loading = () => <div class="size-full bg-background" />
+const PulseWorkspace = lazy(() => import("@/pages/pulse/PulseWorkspace"))
+
+const Loading = () => {
+  const language = useLanguage()
+  return (
+    <div
+      data-component="route-loading"
+      role="status"
+      aria-label={language.t("common.loading")}
+      class="flex size-full min-h-[40vh] flex-col items-center justify-center gap-4 bg-background"
+    >
+      <div class="relative grid size-14 place-items-center" aria-hidden="true">
+        <Splash class="size-9 animate-pulse opacity-80" />
+        <div
+          class="absolute inset-0 rounded-full border-2 animate-spin"
+          style={{ "border-color": "color-mix(in srgb, var(--icon-interactive-base) 24%, transparent)", "border-top-color": "var(--icon-interactive-base)" }}
+        />
+      </div>
+      <span class="text-13-regular text-foreground-subtle">{language.t("common.loading")}</span>
+    </div>
+  )
+}
+
+function HomeRouteWithLoading() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <HomeRoute />
+    </Suspense>
+  )
+}
 
 if (typeof location === "object" && /\/session(?:\/|$)/.test(location.pathname)) {
   void loadSession()
@@ -84,7 +113,9 @@ function SessionRoute() {
 
   return (
     <SessionProviders directory={directory}>
-      <Session />
+      <Suspense fallback={<Loading />}>
+        <Session />
+      </Suspense>
     </SessionProviders>
   )
 }
@@ -112,7 +143,7 @@ function PluginSurfaceViewRoute() {
       (item) =>
         item.pluginID === params.pluginID &&
         item.kind === "surface" &&
-        (item.slot === "sidebar.item" || item.slot === "sidebar.footer") &&
+        (item.slot === "sidebar.item" || item.slot === "sidebar.footer" || item.slot === "workbench") &&
         item.status === "active" &&
         item.action !== undefined &&
         typeof item.action === "object" &&
@@ -165,7 +196,9 @@ function PluginSurfaceViewRoute() {
                 />
               }
             >
-              <PulseWorkspace onBack={() => navigate(`/${params.dir}`)} />
+              <Suspense fallback={<Loading />}>
+                <PulseWorkspace onBack={() => navigate(`/${params.dir}`)} />
+              </Suspense>
             </Show>
           </main>
         )
@@ -179,7 +212,9 @@ function GlobalChatSession() {
   // 消息渲染组件依赖 DataProvider（项目路由由 DirectoryLayout 提供）。
   return (
     <DataProvider data={sync.data} directory="global-chat" onSessionHref={(id) => `/global-chat/session/${id}`}>
-      <Session />
+      <Suspense fallback={<Loading />}>
+        <Session />
+      </Suspense>
     </DataProvider>
   )
 }
@@ -221,6 +256,48 @@ declare global {
       minimizeWindow?: () => Promise<void>
       toggleMaximizeWindow?: () => Promise<void>
       closeWindow?: () => Promise<void>
+      getNativeSpeechBackends?: () => Promise<
+        Array<{
+          name: string
+          description: string
+          kind: string
+          deviceType: string
+          deviceId: string | null
+          memoryTotal: number
+          memoryFree: number
+          index: number | null
+        }>
+      >
+      getNativeSpeechModels?: () => Promise<
+        Array<{
+          id: string
+          label: string
+          family: string
+          languages: readonly string[]
+          sizeBytes: number
+          fileName: string
+          downloadUrl: string
+          path: string
+          downloaded: boolean
+          bytes: number
+        }>
+      >
+      downloadNativeSpeechModel?: (id: string) => Promise<string>
+      onNativeSpeechDownloadProgress?: (callback: (event: { id: string; progress: number }) => void) => () => void
+      transcribeNativeSpeech?: (
+        id: string,
+        pcm: Float32Array,
+        language: string,
+      ) => Promise<{ text: string; device: { name: string; kind: string; deviceType: string } }>
+      startNativeSpeechStream?: (
+        id: string,
+        language: string,
+      ) => Promise<{ streaming: boolean; device: { name: string; kind: string; deviceType: string } }>
+      feedNativeSpeechStream?: (
+        id: string,
+        pcm: Float32Array,
+      ) => Promise<{ full: string; committed: string; tentative: string }>
+      stopNativeSpeechStream?: (id: string) => Promise<{ text: string; committed: string; tentative: string }>
       isWindowMaximized?: () => Promise<boolean>
       onWindowMaximizedChange?: (cb: (maximized: boolean) => void) => () => void
       marketplaceDownload?: (url: string) => Promise<string>
@@ -376,7 +453,7 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
   )
 }
 
-function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
+function ConnectionGate(props: { disableHealthCheck?: boolean; children: (health: ServerHealth) => JSX.Element }) {
   const server = useServer()
   const platform = usePlatform()
   const [appIcon, setAppIcon] = createSignal<string>()
@@ -400,9 +477,9 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
   // non-http connections, otherwise fails instantly
   const [startupHealthCheck, healthCheckActions] = createResource(() =>
     props.disableHealthCheck
-      ? true
+      ? { healthy: true } satisfies ServerHealth
       : Effect.gen(function* () {
-          if (!server.current) return true
+          if (!server.current) return { healthy: true } satisfies ServerHealth
           const { http, type } = server.current
 
           // 每次探测之间留一点间隔：失败时 Chromium 会把每条请求都打成
@@ -410,19 +487,22 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
           // 这里的等待同时也是给 sidecar 重启留出的时间。
           while (true) {
             const res = yield* Effect.promise(() => checkServerHealth(http))
-            if (res.healthy) return true
+            if (res.healthy) return res
             if (checkMode() === "background" || type === "http") {
               // 后台模式下再给一次机会：sidecar 崩溃后会被自动重启，
               // 多等一轮能让界面自己恢复，而不是停在「连不上」。
               yield* Effect.sleep("1 second")
               const retry = yield* Effect.promise(() => checkServerHealth(http))
-              if (retry.healthy) return true
-              return false
+              if (retry.healthy) return retry
+              return { healthy: false } satisfies ServerHealth
             }
             yield* Effect.sleep("500 millis")
           }
         }).pipe(
-          Effect.timeoutOrElse({ duration: "10 seconds", orElse: () => Effect.succeed(false) }),
+          Effect.timeoutOrElse({
+            duration: "10 seconds",
+            orElse: () => Effect.succeed({ healthy: false } satisfies ServerHealth),
+          }),
           Effect.ensuring(Effect.sync(() => setCheckMode("background"))),
           Effect.runPromise,
         ),
@@ -436,33 +516,21 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
         </div>
       }
     >
-      {/*<Show
-        when={checkMode() === "blocking" ? !startupHealthCheck.loading : startupHealthCheck.state !== "pending"}
-        fallback={
-          <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background">
-            {splash("w-28 h-28 opacity-80 animate-pulse")}
-          </div>
-        }
-      >*/}
-      {checkMode() === "blocking" ? startupHealthCheck() : startupHealthCheck.latest}
       <Show
-        when={startupHealthCheck()}
+        when={startupHealthCheck()?.healthy}
         fallback={
           <ConnectionError
             onRetry={() => {
               if (checkMode() === "background") void healthCheckActions.refetch()
             }}
             onServerSelected={(key) => {
-              setCheckMode("blocking")
               server.setActive(key)
-              void healthCheckActions.refetch()
             }}
           />
         }
       >
-        {props.children}
+        {props.children(untrack(() => startupHealthCheck()) ?? { healthy: false })}
       </Show>
-      {/*</Show>*/}
     </Suspense>
   )
 }
@@ -550,29 +618,31 @@ export function AppInterface(props: {
       disableHealthCheck={props.disableHealthCheck}
       servers={props.servers}
     >
-      <ConnectionGate disableHealthCheck={props.disableHealthCheck}>
-        <ServerKey>
-          <QueryProvider>
-            <GlobalSDKProvider>
-              <GlobalSyncProvider>
-                <Dynamic
-                  component={props.router ?? Router}
-                  root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
-                >
-                  <Route path="/" component={HomeRoute} />
-                  <Route path="/global-chat/session/:id?" component={GlobalChatRoute} />
-                  <Route path="/pulse" component={() => <Navigate href="/" />} />
-                  <Route path="/:dir" component={DirectoryLayout}>
-                    <Route path="/" component={SessionIndexRoute} />
-                    <Route path="/plugin-view/:pluginID/:viewId" component={PluginSurfaceViewRoute} />
-                    <Route path="/session/:id?" component={SessionRoute} />
-                  </Route>
-                </Dynamic>
-              </GlobalSyncProvider>
-            </GlobalSDKProvider>
-          </QueryProvider>
-        </ServerKey>
-      </ConnectionGate>
+      <ServerKey>
+        <ConnectionGate disableHealthCheck={props.disableHealthCheck}>
+          {(health) => (
+            <QueryProvider>
+              <GlobalSDKProvider>
+                <GlobalSyncProvider sessionCacheIdentity={health.sessionLibrary}>
+                  <Dynamic
+                    component={props.router ?? Router}
+                    root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
+                  >
+                    <Route path="/" component={HomeRouteWithLoading} />
+                    <Route path="/global-chat/session/:id?" component={GlobalChatRoute} />
+                    <Route path="/pulse" component={() => <Navigate href="/" />} />
+                    <Route path="/:dir" component={DirectoryLayout}>
+                      <Route path="/" component={SessionIndexRoute} />
+                      <Route path="/plugin-view/:pluginID/:viewId" component={PluginSurfaceViewRoute} />
+                      <Route path="/session/:id?" component={SessionRoute} />
+                    </Route>
+                  </Dynamic>
+                </GlobalSyncProvider>
+              </GlobalSDKProvider>
+            </QueryProvider>
+          )}
+        </ConnectionGate>
+      </ServerKey>
     </ServerProvider>
   )
 }

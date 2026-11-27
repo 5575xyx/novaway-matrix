@@ -28,16 +28,24 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers,
   reporter,
-  webServer: {
-    command,
-    url: baseURL,
-    reuseExistingServer: reuse,
-    timeout: 120_000,
-    env: {
-      VITE_NOVAWAY_SERVER_HOST: serverHost,
-      VITE_NOVAWAY_SERVER_PORT: serverPort,
+  webServer: [
+    {
+      command: `bun run --cwd ../novaway dev serve --hostname ${serverHost} --port ${serverPort}`,
+      url: `http://${serverHost}:${serverPort}/global/health`,
+      reuseExistingServer: reuse,
+      timeout: 120_000,
     },
-  },
+    {
+      command,
+      url: baseURL,
+      reuseExistingServer: reuse,
+      timeout: 120_000,
+      env: {
+        VITE_NOVAWAY_SERVER_HOST: serverHost,
+        VITE_NOVAWAY_SERVER_PORT: serverPort,
+      },
+    },
+  ],
   use: {
     baseURL,
     trace: "on-first-retry",

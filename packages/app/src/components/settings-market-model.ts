@@ -107,6 +107,9 @@ export type InstalledPackage = {
   files: number
   bytes: number
   installedAt: number
+  runtimeStatus?: "unloaded" | "installed" | "activating" | "active" | "failed" | "disabled"
+  runtimeError?: string
+  runtimeScope?: "builtin" | "global" | "project" | "session"
   previous?: InstallRevision
 }
 

@@ -23,9 +23,14 @@ async function openPublishDialog(page: Page) {
     }
   })
   await page.goto(`/${workspaceRootSlug()}/session`)
-  const entry = page.locator('[data-component="sidebar-rail-item"][aria-label="Operations"]').first()
-  await expect(entry).toBeVisible({ timeout: 20_000 })
-  await entry.click()
+  const workbench = page.getByRole("combobox", { name: /Switch work mode|切换工作台|切换模式/ })
+  await expect(workbench).toBeVisible({ timeout: 20_000 })
+  await workbench.click()
+  const operations = page.getByRole("option", { name: /Operations|运营/ }).first()
+  if ((await operations.count()) === 0) {
+    test.skip(true, "operations workbench plugin is not installed in this E2E environment")
+  }
+  await operations.click()
   const publish = page.locator('[data-slot="pulse-publish-entry"]')
   await expect(publish).toBeVisible({ timeout: 15_000 })
   await publish.click()

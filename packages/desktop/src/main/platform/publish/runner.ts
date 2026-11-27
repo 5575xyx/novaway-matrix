@@ -39,6 +39,21 @@ export interface PublishAccount {
 
 export type ProgressSink = (event: PublishProgressEvent) => void
 
+export type PublishExecutor = (
+  account: PublishAccount,
+  input: PublishInput,
+  report: (result: PublishAccountResult) => void,
+  signal: AbortSignal,
+) => Promise<PublishAccountResult>
+
+export interface RunPublishBatchOptions {
+  /**
+   * 生产环境默认使用 publishToAccount；注入点只用于受控集成测试和本地演练，
+   * 让批次编排可以在不打开第三方平台窗口的情况下验证成功、失败、重试和取消。
+   */
+  execute?: PublishExecutor
+}
+
 /** 大文件 + 弱网：2GB @ 700KB/s 就要 50 分钟，再留转码时间。 */
 const UPLOAD_TIMEOUT_MS = 60 * 60 * 1000
 const SUBMIT_TIMEOUT_MS = 60 * 1000
@@ -357,6 +372,7 @@ export async function runPublishBatch(
   input: PublishInput,
   report: ProgressSink,
   signal: AbortSignal,
+  options: RunPublishBatchOptions = {},
 ): Promise<PublishBatch> {
   const batch: PublishBatch = {
     id: `pub_${Date.now()}`,
@@ -364,13 +380,14 @@ export async function runPublishBatch(
     results: accounts.map((account) => result(account, "pending", 0, "排队中")),
     startedAt: Date.now(),
   }
+  const execute = options.execute ?? publishToAccount
   for (const account of accounts) {
     if (signal.aborted) break
     const index = batch.results.findIndex((item) => item.accountId === account.id)
     batch.results[index] = result(account, "running", 0, "准备中")
     report({ batchId: batch.id, result: batch.results[index] })
 
-    const final = await publishToAccount(
+    const final = await execute(
       account,
       input,
       (progress) => {

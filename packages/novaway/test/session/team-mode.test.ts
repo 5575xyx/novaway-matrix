@@ -58,4 +58,24 @@ describe("session team mode", () => {
       expect(auto.teamIDs).toBeUndefined()
     }),
   )
+
+  it.instance("clears a previous expert when a team is selected", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionNs.Service
+      const teams = yield* TeamService
+      const info = yield* sessions.create({ title: "专家切换" })
+      const team = yield* teams.create({ name: "团队选择", rootSessionID: info.id })
+
+      yield* sessions.setEmployeeID({ sessionID: info.id, employeeID: "emp_previous" })
+      yield* sessions.setTeamMode({ sessionID: info.id, mode: "selected", teamIDs: [team.id] })
+      const selectedTeam = yield* sessions.get(info.id)
+      expect(selectedTeam.teamIDs).toEqual([team.id])
+      expect(selectedTeam.employeeID).toBeUndefined()
+
+      // Auto / off 也不能把一个过期的单专家授权带回下一次派发。
+      yield* sessions.setEmployeeID({ sessionID: info.id, employeeID: "emp_previous" })
+      yield* sessions.setTeamMode({ sessionID: info.id, mode: "auto" })
+      expect((yield* sessions.get(info.id)).employeeID).toBeUndefined()
+    }),
+  )
 })

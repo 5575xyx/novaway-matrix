@@ -13,5 +13,7 @@
 约束：
 - 允许 http/https 与本地 file://（绝对路径也可）。验证刚生成的 HTML 直接用 file://，不必先起 dev server
 - 导航到的本地地址会同步到应用右侧的内置浏览器预览
-- 默认使用本机已安装的 Chrome/Edge 以无窗口方式启动（无需环境变量）；想让工具连你自己开着的浏览器时，设置 BROWSER_CDP_URL
+- 默认使用本机已安装的 Chrome/Edge 以无窗口方式启动，并在当前 Worktree 的 `.novaway/browser/profile` 中保留 Cookie/localStorage；可关闭持久会话获得临时配置
+- 想让工具复用你已经打开的浏览器标签页和登录状态时，设置 BROWSER_CDP_URL，或在 browser.cdp_url 中配置调试地址；外部浏览器不会被 browser_close 关闭
+- Cookie 只通过用户明确提供的 browser_cookie_import 导入，支持结构化 JSON 或 Netscape cookies.txt；工具结果不会回显 value
 - 截图写入当前 Worktree 的 .novaway/browser/evidence/，并作为验证结果直接显示在回复末尾

@@ -193,7 +193,7 @@ export const layer = Layer.effect(
     })
 
     return {
-      fromAnalysis: Effect.fn("DistillService.fromAnalysis")(function* (analysis) {
+      fromAnalysis: Effect.fn("DistillService.fromAnalysis")(function* (analysis: DreamAnalysis) {
         const memories: DistillMemory[] = []
         const patterns: DistillPattern[] = analysis.patterns.map((p) => ({
           name: p.description,

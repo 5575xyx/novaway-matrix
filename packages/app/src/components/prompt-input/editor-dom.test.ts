@@ -96,4 +96,34 @@ describe("prompt-input editor dom", () => {
 
     container.remove()
   })
+
+  test("caret counts nested pasted content, element offsets, mentions and zero-width text", () => {
+    const container = document.createElement("div")
+    const block = document.createElement("div")
+    const text = document.createTextNode("a" + String.fromCharCode(0x200b) + "bc")
+    const pill = document.createElement("span")
+    pill.dataset.type = "file"
+    pill.textContent = "@file"
+    block.append(text, document.createElement("br"), pill)
+    container.append("prefix", block, "last")
+    document.body.appendChild(container)
+    const selection = window.getSelection()!
+    const at = (node: Node, offset: number) => {
+      selection.removeAllRanges()
+      const range = document.createRange()
+      range.setStart(node, offset)
+      range.collapse(true)
+      selection.addRange(range)
+      return getCursorPosition(container)
+    }
+    try {
+      expect(at(text, 2)).toBe(7)
+      expect(at(block, 2)).toBe(10)
+      expect(at(block, 3)).toBe(15)
+      expect(at(container, 3)).toBe(19)
+    } finally {
+      selection.removeAllRanges()
+      container.remove()
+    }
+  })
 })

@@ -1,0 +1,57 @@
+name: computer-linux-atspi
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  atspi:
+    name: Linux AT-SPI desktop smoke test
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install desktop accessibility dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            at-spi2-core \
+            dbus-x11 \
+            gir1.2-atspi-2.0 \
+            gir1.2-gtk-3.0 \
+            python3-gi \
+            scrot \
+            xdotool \
+            xvfb
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Run GTK semantic snapshot and click verification
+        env:
+          NOVAWAY_ATSPI_INTEGRATION: "1"
+        run: |
+          mkdir -p "$RUNNER_TEMP/novaway-atspi"
+          dbus-run-session -- xvfb-run -a bun test --cwd packages/novaway \
+            test/computer/linux-atspi.integration.test.ts \
+            --timeout 30000 2>&1 | tee "$RUNNER_TEMP/novaway-atspi/test.log"
+
+      - name: Upload Linux AT-SPI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: computer-linux-atspi-evidence
+          path: ${{ runner.temp }}/novaway-atspi
+          if-no-files-found: ignore

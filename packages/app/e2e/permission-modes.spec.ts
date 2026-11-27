@@ -18,7 +18,7 @@ function workspaceRootSlug() {
 
 /** 打开权限档位选单：把仓库根当成项目目录，进它的新会话草稿页才有标准输入框。 */
 async function openSelector(page: Page) {
-  await page.goto(`/${workspaceRootSlug()}/session`)
+  await page.goto(`/${workspaceRootSlug()}/session`, { waitUntil: "domcontentloaded" })
   await expect(page.locator(TRIGGER)).toBeVisible({ timeout: 20_000 })
   await page.locator(TRIGGER).click()
   await expect(page.locator(MENU)).toBeVisible()
@@ -61,6 +61,7 @@ test("选中无人值守后，触发器显示该档位", async ({ page }) => {
   await openSelector(page)
   const menu = page.locator(MENU)
   await menu.getByRole("menuitem", { name: /无人值守|Unattended/ }).click()
+  await page.getByRole("button", { name: /启用无人值守|Enable unattended mode/ }).click()
   await expect(page.locator(TRIGGER)).toContainText(/无人值守|Unattended/)
 
   // 选单里当前项应打勾，且说明文字存在。

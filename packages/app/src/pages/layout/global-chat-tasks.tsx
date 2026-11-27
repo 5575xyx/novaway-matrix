@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onMount, Show } from "solid-js"
+import { createMemo, createSignal, For, Show } from "solid-js"
 import { produce } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { TaskRow } from "@/components/session/task-row"
@@ -21,8 +21,6 @@ export function GlobalChatTasks() {
   const navigate = useNavigate()
   const params = useParams()
   const [store] = globalSync.child("global-chat", { bootstrap: false })
-
-  onMount(() => void globalSync.bootstrapInstance("global-chat"))
 
   const sessions = createMemo(() =>
     sortedRootSessionsFrom([store], Date.now(), layout.pinned.sessions(), layout.taskList.sortBy()),

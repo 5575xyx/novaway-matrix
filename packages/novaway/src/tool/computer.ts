@@ -21,6 +21,20 @@ const ScreenshotParameters = Schema.Struct({
   }),
 })
 
+const ClickParameters = Schema.Struct({
+  x: Schema.optional(Schema.Number.annotate({ description: "Absolute screen X coordinate" })),
+  y: Schema.optional(Schema.Number.annotate({ description: "Absolute screen Y coordinate" })),
+  ref: Schema.optional(Schema.String.annotate({ description: "Element ref from the latest computer_snapshot" })),
+  window: Schema.optional(Schema.String.annotate({ description: "Window title or part of it when using ref" })),
+  button: Schema.optional(BUTTON),
+})
+
+const SnapshotParameters = Schema.Struct({
+  window: Schema.optional(Schema.String).annotate({
+    description: "Window title or part of it; omit to inspect the foreground window",
+  }),
+})
+
 const WaitWindowParameters = Schema.Struct({
   title: Schema.String.annotate({ description: "Window title or part of it, e.g. the app name" }),
   timeout_ms: Schema.optional(Schema.Number).annotate({
@@ -34,6 +48,32 @@ const WaitWindowParameters = Schema.Struct({
  * 每个动作都是一步一调用，和浏览器工具同构：
  * 截图 → 点击 → 再截图确认。所有动作都会走权限确认（permission: computer）。
  */
+export const ComputerStatusTool = Tool.define(
+  "computer_status",
+  Effect.gen(function* () {
+    return {
+      description:
+        "Check desktop automation support and available screenshot, mouse, keyboard and semantic snapshot capabilities.",
+      parameters: Schema.Struct({}),
+      execute: (_params: {}, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          yield* ask(ctx, "status", "desktop capabilities")
+          const result = yield* Effect.promise(() => Computer.status())
+          return {
+            title: result.supported ? "Computer control available" : "Computer control unavailable",
+            metadata: result,
+            output: result.supported
+              ? `${result.platform}: ${Object.entries(result.capabilities)
+                  .filter(([, enabled]) => enabled)
+                  .map(([name]) => name)
+                  .join(", ")}`
+              : (result.reason ?? "Desktop automation is unavailable."),
+          }
+        }),
+    }
+  }),
+)
+
 export const ComputerScreenshotTool = Tool.define(
   "computer_screenshot",
   Effect.gen(function* () {
@@ -66,20 +106,91 @@ export const ComputerClickTool = Tool.define(
   "computer_click",
   Effect.gen(function* () {
     return {
-      description: "Click at absolute screen coordinates. Take a screenshot first to find the target.",
-      parameters: Schema.Struct({
-        x: Schema.Number.annotate({ description: "Absolute screen X coordinate" }),
-        y: Schema.Number.annotate({ description: "Absolute screen Y coordinate" }),
-        button: Schema.optional(BUTTON),
-      }),
-      execute: (params: Schema.Schema.Type<any>, ctx: Tool.Context) =>
+      description:
+        "Click a semantic element from computer_snapshot (preferred) or at absolute screen coordinates. Always take a snapshot first when possible; refs are safer than guessing pixels.",
+      parameters: ClickParameters,
+      execute: (params: any, ctx: Tool.Context) =>
         Effect.gen(function* () {
+          if (params.ref) {
+            if (!params.window) throw new Error("window is required when clicking a snapshot ref")
+            yield* ask(ctx, "click", `${params.window}:${params.ref}`)
+            const evidence = yield* Effect.promise(() =>
+              Computer.clickElement(params.window!, params.ref!, params.button),
+            )
+            return {
+              title: "Click " + params.ref,
+              metadata: {
+                target: `${params.window ?? ""}:${params.ref}`,
+                button: params.button ?? "left",
+                verified: Boolean(evidence),
+              },
+              output: `Clicked element ${params.ref}${evidence ? " and captured post-action evidence." : "."}`,
+              attachments: evidence
+                ? [
+                    {
+                      type: "file" as const,
+                      mime: evidence.mime,
+                      url: `data:${evidence.mime};base64,${evidence.base64}`,
+                    },
+                  ]
+                : undefined,
+            }
+          }
+          if (params.x === undefined || params.y === undefined) {
+            throw new Error("Provide either ref + window or both x and y")
+          }
           yield* ask(ctx, "click", params.x + "," + params.y)
-          yield* Effect.promise(() => Computer.click({ x: params.x, y: params.y, button: params.button }))
+          yield* Effect.promise(() => Computer.click({ x: params.x!, y: params.y!, button: params.button }))
+          let evidence: Awaited<ReturnType<typeof Computer.screenshotWindow>> | undefined
+          if (params.window) {
+            evidence = yield* Effect.promise(() => Computer.screenshotWindow(params.window).catch(() => undefined))
+          }
           return {
             title: "Click " + params.x + "," + params.y,
-            metadata: { x: params.x, y: params.y, button: params.button ?? "left" },
-            output: "Clicked at " + params.x + "," + params.y,
+            metadata: {
+              target: `${params.x},${params.y}`,
+              button: params.button ?? "left",
+              verified: Boolean(evidence),
+            },
+            output: `Clicked at ${params.x},${params.y}${evidence ? " and captured post-action evidence." : "."}`,
+            attachments: evidence
+              ? [{ type: "file" as const, mime: evidence.mime, url: `data:${evidence.mime};base64,${evidence.base64}` }]
+              : undefined,
+          }
+        }),
+    }
+  }),
+)
+
+export const ComputerSnapshotTool = Tool.define(
+  "computer_snapshot",
+  Effect.gen(function* () {
+    return {
+      description:
+        "Inspect the foreground desktop window using native accessibility APIs (Windows UI Automation, macOS Accessibility, or Linux AT-SPI). Returns stable element refs, names, roles, enabled state and bounds, plus a window-only screenshot. Prefer computer_snapshot → computer_click(ref) over coordinate guessing.",
+      parameters: SnapshotParameters,
+      execute: (params: Schema.Schema.Type<typeof SnapshotParameters>, ctx: Tool.Context) =>
+        Effect.gen(function* () {
+          yield* ask(ctx, "snapshot", params.window ?? "foreground window")
+          const result = yield* Effect.promise(() => Computer.snapshotWindow(params.window, true))
+          const visible = result.elements.filter((item) => item.name || item.role)
+          const lines = visible.map(
+            (item) =>
+              `[${item.ref}] ${item.role}${item.name ? ` "${item.name.replaceAll('"', "'")}"` : ""}${item.enabled ? "" : " (disabled)"}${item.automationId ? ` id=${item.automationId}` : ""} @ ${item.x},${item.y} ${item.width}x${item.height}`,
+          )
+          return {
+            title: `Desktop snapshot: ${result.window.title}`,
+            metadata: { window: result.window, count: visible.length },
+            output: [`Window: ${result.window.title}`, ...lines].join("\n"),
+            attachments: result.screenshot
+              ? [
+                  {
+                    type: "file" as const,
+                    mime: result.screenshot.mime,
+                    url: `data:${result.screenshot.mime};base64,${result.screenshot.base64}`,
+                  },
+                ]
+              : undefined,
           }
         }),
     }

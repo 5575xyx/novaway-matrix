@@ -1,16 +1,19 @@
-import { onCleanup } from "solid-js"
+import { createEffect, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { GitSnapshotResponses } from "@novaway/sdk/v2"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
+import { gitSnapshotKey, noteGitActivity, readGitSnapshot, subscribeGitSnapshot } from "./git-snapshot-cache"
 
 export type Snapshot = GitSnapshotResponses[200]
 export type Change = Snapshot["changes"][number]
 
 // git 状态没有服务端推送事件，只能定时轮询一次快照。
 export const REFRESH_INTERVAL = 5000
+// 空闲期（30s 内没有任何写入）不必按工作节奏问：一次快照 7 个 git 子进程。
+export const IDLE_REFRESH_INTERVAL = 20_000
 
 // SDK 生成的数字字段带 NaN/Infinity 联合类型，展示前统一归一成整数。
 export const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 0)
@@ -46,8 +49,12 @@ export function useGitSnapshot() {
 
   const refresh = () => {
     if (store.busy || sdk.directory === "global-chat") return
-    void sdk.client.git
-      .snapshot()
+    // 同一目录下多处（composer 分支按钮 / 源代码管理 / 状态面板）共用一次轮询结果：
+    // 服务端每次 snapshot 要起 7 个 git 子进程，重复轮询是纯浪费。
+    void readGitSnapshot({
+      key: gitSnapshotKey(sdk.url, sdk.directory),
+      load: () => sdk.client.git.snapshot(),
+    })
       .then((result) => {
         if (store.error === "" && signature(result.data) === signature(store.snapshot)) return
         setStore({ snapshot: result.data, error: "" })
@@ -127,11 +134,49 @@ export function useGitSnapshot() {
     })
   }
 
-  refresh()
-  const timer = setInterval(() => {
-    if (!store.busy) refresh()
-  }, REFRESH_INTERVAL)
-  onCleanup(() => clearInterval(timer))
+  // 快照的节拍收在缓存层，每个目录只有**一个**共享轮询器：
+  // - 工作区有写入（代理正在改文件）→ 5s；
+  // - 完全空闲 → 20s（服务端一次快照要起 7 个 git 子进程，空闲盲轮询纯烧 CPU）；
+  // - 窗口不可见 → 停表，回到前台补一次。
+  // 写入打点来自 `file.watcher.updated`，是本地事件，不额外产生请求。
+  const key = () => gitSnapshotKey(sdk.url, sdk.directory)
+  const offWatcher = sdk.event.on("file.watcher.updated", (event) => {
+    if (!event.properties?.file) return
+    noteGitActivity(key())
+  })
+  onCleanup(offWatcher)
+
+  // 切目录时换订阅：旧目录没有订阅者后会拆掉定时器，不会两个目录各跑一份。
+  let subscription: { poke: () => void; stop: () => void } | undefined
+  let subscriptionKey = ""
+  const apply = (data: Snapshot | undefined) => {
+    if (store.error === "" && signature(data) === signature(store.snapshot)) return
+    setStore({ snapshot: data, error: "" })
+  }
+  const fail = (err: unknown) => setStore("error", messageOf(err))
+
+  createEffect(
+    on(
+      () => key(),
+      (next) => {
+        if (subscriptionKey === next) return
+        subscription?.stop()
+        subscription = undefined
+        subscriptionKey = next
+        // 全局聊天没有工作区：`/git` 在这里必然 400，别起请求也别冒错误气泡。
+        if (!sdk.directory || sdk.directory === "global-chat") return
+        subscription = subscribeGitSnapshot<Snapshot>({
+          key: next,
+          load: () => sdk.client.git.snapshot(),
+          fast: REFRESH_INTERVAL,
+          idle: IDLE_REFRESH_INTERVAL,
+          onResult: apply,
+          onError: fail,
+        })
+      },
+    ),
+  )
+  onCleanup(() => subscription?.stop())
 
   return {
     snapshot,

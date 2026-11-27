@@ -8,6 +8,7 @@ import { RichFilePreview } from "@/pages/session/rich-file-preview"
 const HTML = "<h1>标题</h1><p>第一段文字</p><p>第二段文字</p>"
 
 const [findTick, setFindTick] = createSignal(0)
+const [mode, setMode] = createSignal<"design" | "source">("design")
 const [saved, setSaved] = createSignal<string[]>([])
 
 render(
@@ -28,6 +29,8 @@ render(
         <RichFilePreview
           path="page.html"
           content={HTML}
+          mode={mode()}
+          onModeChange={setMode}
           findRequest={findTick}
           onSaveSource={async (html) => {
             setSaved((prev) => [...prev, html])

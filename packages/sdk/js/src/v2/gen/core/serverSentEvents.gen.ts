@@ -135,6 +135,7 @@ export const createSseClient = <TData = unknown>({
         const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
 
         let buffer = ""
+        let pendingCR = false
 
         const abortHandler = () => {
           try {
@@ -149,39 +150,55 @@ export const createSseClient = <TData = unknown>({
         try {
           while (true) {
             const { done, value } = await reader.read()
-            if (done) break
-            buffer += value
-            // Normalize line endings: CRLF -> LF, then CR -> LF
-            buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+            if (done) {
+              if (pendingCR) buffer += "\n"
+            } else {
+              let incoming = value
+              if (pendingCR) {
+                incoming = `\r${incoming}`
+                pendingCR = false
+              }
+              if (incoming.endsWith("\r")) {
+                pendingCR = true
+                incoming = incoming.slice(0, -1)
+              }
+              // Normalize only newly read data; preserve a trailing CR across reads.
+              buffer += incoming.replace(/\r\n?/g, "\n")
+            }
 
-            const chunks = buffer.split("\n\n")
-            buffer = chunks.pop() ?? ""
-
-            for (const chunk of chunks) {
-              const lines = chunk.split("\n")
-              const dataLines: Array<string> = []
+            let separator: number
+            while ((separator = buffer.indexOf("\n\n")) >= 0) {
+              const chunk = buffer.slice(0, separator)
+              buffer = buffer.slice(separator + 2)
+              let rawData: string | undefined
               let eventName: string | undefined
 
-              for (const line of lines) {
-                if (line.startsWith("data:")) {
-                  dataLines.push(line.replace(/^data:\s*/, ""))
-                } else if (line.startsWith("event:")) {
-                  eventName = line.replace(/^event:\s*/, "")
-                } else if (line.startsWith("id:")) {
-                  lastEventId = line.replace(/^id:\s*/, "")
-                } else if (line.startsWith("retry:")) {
-                  const parsed = Number.parseInt(line.replace(/^retry:\s*/, ""), 10)
-                  if (!Number.isNaN(parsed)) {
-                    retryDelay = parsed
+              // Global event streams are typically one JSON data line per frame.
+              // Avoid line arrays and per-line dispatch for this common case.
+              if (chunk.startsWith("data:") && !chunk.includes("\n")) {
+                rawData = chunk.slice(5).replace(/^\s*/, "")
+              } else {
+                const lines = chunk.split("\n")
+                const dataLines: string[] = []
+                for (const line of lines) {
+                  if (line.startsWith("data:")) {
+                    dataLines.push(line.replace(/^data:\s*/, ""))
+                  } else if (line.startsWith("event:")) {
+                    eventName = line.replace(/^event:\s*/, "")
+                  } else if (line.startsWith("id:")) {
+                    lastEventId = line.replace(/^id:\s*/, "")
+                  } else if (line.startsWith("retry:")) {
+                    const parsed = Number.parseInt(line.replace(/^retry:\s*/, ""), 10)
+                    if (!Number.isNaN(parsed)) retryDelay = parsed
                   }
                 }
+                if (dataLines.length) rawData = dataLines.join("\n")
               }
 
               let data: unknown
               let parsedJson = false
 
-              if (dataLines.length) {
-                const rawData = dataLines.join("\n")
+              if (rawData !== undefined) {
                 try {
                   data = JSON.parse(rawData)
                   parsedJson = true
@@ -207,10 +224,11 @@ export const createSseClient = <TData = unknown>({
                 retry: retryDelay,
               })
 
-              if (dataLines.length) {
+              if (rawData !== undefined) {
                 yield data as any
               }
             }
+            if (done) break
           }
         } finally {
           signal.removeEventListener("abort", abortHandler)

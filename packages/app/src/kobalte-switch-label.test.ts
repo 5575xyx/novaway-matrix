@@ -22,19 +22,23 @@ function findLabelWrappedSwitches(source: string): number[] {
 }
 
 describe("Kobalte Switch 不能被手写 label 包住", () => {
-  test("app 源码里不存在 label 包 Switch 的写法", async () => {
-    const glob = new Bun.Glob("**/*.tsx")
-    const offenders: string[] = []
-    let scanned = 0
-    for await (const file of glob.scan({ cwd: `${import.meta.dir}/..` })) {
-      scanned++
-      const source = await Bun.file(`${import.meta.dir}/../${file}`).text()
-      if (findLabelWrappedSwitches(source).length > 0) offenders.push(file)
-    }
-    // 扫描器空转会让这条断言永远为真，所以先确认它真的扫到了源码。
-    expect(scanned).toBeGreaterThan(100)
-    expect(offenders).toEqual([])
-  })
+  test(
+    "app 源码里不存在 label 包 Switch 的写法",
+    async () => {
+      const glob = new Bun.Glob("**/*.tsx")
+      const offenders: string[] = []
+      let scanned = 0
+      for await (const file of glob.scan({ cwd: `${import.meta.dir}/..` })) {
+        scanned++
+        const source = await Bun.file(`${import.meta.dir}/../${file}`).text()
+        if (findLabelWrappedSwitches(source).length > 0) offenders.push(file)
+      }
+      // 扫描器空转会让这条断言永远为真，所以先确认它真的扫到了源码。
+      expect(scanned).toBeGreaterThan(100)
+      expect(offenders).toEqual([])
+    },
+    { timeout: 30_000 },
+  )
 
   test("扫描器确实能认出这种写法（防止扫描器本身失效）", () => {
     expect(findLabelWrappedSwitches(`<label><Switch checked={x()} onChange={setX} /></label>`)).toHaveLength(1)

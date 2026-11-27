@@ -74,8 +74,10 @@ export type Platform = {
   /** 在系统文件管理器中显示该文件/文件夹(选中);仅桌面端实现。 */
   showItemInFolder?(path: string): Promise<boolean>
 
-  getInstalledEditors?(): Promise<InstalledEditor[]>
+  /** 解析桌面端应用的真实可执行文件路径，用于系统图标和启动兜底。 */
+  resolveAppPath?(appName: string): Promise<string | null>
 
+  getInstalledEditors?(): Promise<InstalledEditor[]>
   /** 本机已安装、能打开 Office 文档的应用（按 extensions 匹配文件类型）。 */
   getOfficeApps?(): Promise<OfficeApp[]>
 

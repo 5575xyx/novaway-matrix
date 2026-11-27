@@ -210,7 +210,7 @@ export function TerminalPanel(props: { variant?: "frame" | "pane" }) {
       style={{
         height: paneMode() ? "100%" : opened() ? `${pane()}px` : "0px",
         // 终端帧的高度过渡与侧栏/Side Pane 用同一时长，收起展开是同一个节奏。
-        "transition-duration": "var(--transition-panel-ms, 1000ms)",
+        "transition-duration": "var(--transition-panel-ms, 320ms)",
       }}
     >
       <div

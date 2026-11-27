@@ -102,6 +102,9 @@ export const dict: Record<string, string> = {
 
   "ui.tool.action.read.running": "Reading",
   "ui.tool.action.read.done": "Read",
+  "ui.tool.action.file.running": "Editing file",
+  "ui.tool.action.file.done": "Edit file",
+  "ui.tool.action.file.failed": "File edit failed",
   "ui.tool.action.write.running": "Writing",
   "ui.tool.action.write.done": "Wrote",
   "ui.tool.action.write.failed": "Write failed",

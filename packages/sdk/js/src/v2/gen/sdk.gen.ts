@@ -122,6 +122,27 @@ import type {
   ExperimentalWorkspaceSyncListResponses,
   ExperimentalWorkspaceWarpErrors,
   ExperimentalWorkspaceWarpResponses,
+  ExpertCenterApprovePayload,
+  ExpertCenterDecisionPayload,
+  ExpertCenterExpertsResponses,
+  ExpertCenterOverviewResponses,
+  ExpertCenterTaskCreatePayload,
+  ExpertCenterTaskErrors,
+  ExpertCenterTaskResponses,
+  ExpertCenterTasksApproveErrors,
+  ExpertCenterTasksApproveResponses,
+  ExpertCenterTasksCreateErrors,
+  ExpertCenterTasksCreateResponses,
+  ExpertCenterTasksDecisionErrors,
+  ExpertCenterTasksDecisionResponses,
+  ExpertCenterTasksPauseErrors,
+  ExpertCenterTasksPauseResponses,
+  ExpertCenterTasksResponses,
+  ExpertCenterTasksResumeErrors,
+  ExpertCenterTasksResumeResponses,
+  ExpertCenterTasksRetryErrors,
+  ExpertCenterTasksRetryResponses,
+  ExpertCenterTeamsResponses,
   ExtensionContributionsResponses,
   ExtensionIntegrityResponses,
   ExtensionListResponses,
@@ -157,6 +178,12 @@ import type {
   ExtensionToggleErrors,
   ExtensionToggleResponses,
   FileListResponses,
+  FileLspDefinitionResponses,
+  FileLspDefinitionTextResponses,
+  FileLspDiagnosticsResponses,
+  FileLspDiagnosticsTextResponses,
+  FileLspDocumentSymbolsResponses,
+  FileLspDocumentSymbolsTextResponses,
   FilePartInput,
   FilePartSource,
   FileReadErrors,
@@ -201,6 +228,8 @@ import type {
   GlobalHealthResponses,
   GlobalUpgradeErrors,
   GlobalUpgradeResponses,
+  GoalCreateAndLaunchGoalErrors,
+  GoalCreateAndLaunchGoalResponses,
   GoalCreateGoalErrors,
   GoalCreateGoalResponses,
   GoalDeleteGoalErrors,
@@ -209,6 +238,8 @@ import type {
   GoalGetGoalProgressErrors,
   GoalGetGoalProgressResponses,
   GoalGetGoalResponses,
+  GoalLaunchGoalErrors,
+  GoalLaunchGoalResponses,
   GoalListGoalsErrors,
   GoalListGoalsResponses,
   GoalUpdateGoalErrors,
@@ -544,6 +575,25 @@ import type {
   RunAcceptanceAddResponses,
   RunApproveErrors,
   RunApproveResponses,
+  RunAssignmentCancelErrors,
+  RunAssignmentCancelPayload,
+  RunAssignmentCancelResponses,
+  RunAssignmentGetErrors,
+  RunAssignmentGetResponses,
+  RunAssignmentHeartbeatErrors,
+  RunAssignmentHeartbeatPayload,
+  RunAssignmentHeartbeatResponses,
+  RunAssignmentReportErrors,
+  RunAssignmentReportPayload,
+  RunAssignmentReportResponses,
+  RunAssignmentRetryErrors,
+  RunAssignmentRetryPayload,
+  RunAssignmentRetryResponses,
+  RunAssignmentsListErrors,
+  RunAssignmentsListResponses,
+  RunAssignmentVerifyErrors,
+  RunAssignmentVerifyPayload,
+  RunAssignmentVerifyResponses,
   RunBrief,
   RunCancelErrors,
   RunCancelResponses,
@@ -563,6 +613,8 @@ import type {
   RunMetricsResponses,
   RunOpReviewErrors,
   RunOpReviewResponses,
+  RunPauseErrors,
+  RunPauseResponses,
   RunPlanErrors,
   RunPlanResponses,
   RunPolicyErrors,
@@ -820,17 +872,31 @@ import type {
   WorkflowDeleteWorkflowErrors,
   WorkflowDeleteWorkflowResponses,
   WorkflowGetWorkflowErrors,
+  WorkflowGetWorkflowMetricsErrors,
+  WorkflowGetWorkflowMetricsResponses,
   WorkflowGetWorkflowResponses,
+  WorkflowGetWorkflowStateErrors,
+  WorkflowGetWorkflowStateResponses,
+  WorkflowGithubWorkflowWebhookErrors,
+  WorkflowGithubWorkflowWebhookResponses,
+  WorkflowListWorkflowEventsErrors,
+  WorkflowListWorkflowEventsResponses,
   WorkflowListWorkflowRunsErrors,
   WorkflowListWorkflowRunsResponses,
   WorkflowListWorkflowsErrors,
   WorkflowListWorkflowsResponses,
   WorkflowListWorkflowTemplatesErrors,
   WorkflowListWorkflowTemplatesResponses,
+  WorkflowRecordWorkflowEvidenceErrors,
+  WorkflowRecordWorkflowEvidenceResponses,
+  WorkflowRecordWorkflowIntegrationErrors,
+  WorkflowRecordWorkflowIntegrationResponses,
   WorkflowStartWorkflowErrors,
   WorkflowStartWorkflowResponses,
   WorkflowUpdateWorkflowErrors,
   WorkflowUpdateWorkflowResponses,
+  WorkflowUpdateWorkflowStateErrors,
+  WorkflowUpdateWorkflowStateResponses,
   WorktreeCreateErrors,
   WorktreeCreateInput,
   WorktreeCreateResponses,
@@ -3278,6 +3344,195 @@ export class Find extends HeyApiClient {
 }
 
 export class File extends HeyApiClient {
+  public lspDiagnostics<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<FileLspDiagnosticsResponses, unknown, ThrowOnError>({
+      url: "/lsp/diagnostics",
+      ...options,
+      ...params,
+    })
+  }
+
+  public lspDiagnosticsText<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      text?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "text" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<FileLspDiagnosticsTextResponses, unknown, ThrowOnError>({
+      url: "/lsp/diagnostics",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public lspDocumentSymbols<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      path: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "path" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<FileLspDocumentSymbolsResponses, unknown, ThrowOnError>({
+      url: "/lsp/document-symbols",
+      ...options,
+      ...params,
+    })
+  }
+
+  public lspDocumentSymbolsText<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      text?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "text" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<FileLspDocumentSymbolsTextResponses, unknown, ThrowOnError>({
+      url: "/lsp/document-symbols",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public lspDefinition<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      path: string
+      line: string
+      character: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "path" },
+            { in: "query", key: "line" },
+            { in: "query", key: "character" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<FileLspDefinitionResponses, unknown, ThrowOnError>({
+      url: "/lsp/definition",
+      ...options,
+      ...params,
+    })
+  }
+
+  public lspDefinitionText<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      path?: string
+      line?: number
+      character?: number
+      text?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "path" },
+            { in: "body", key: "line" },
+            { in: "body", key: "character" },
+            { in: "body", key: "text" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<FileLspDefinitionTextResponses, unknown, ThrowOnError>({
+      url: "/lsp/definition",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
   /**
    * List files
    *
@@ -3353,6 +3608,8 @@ export class File extends HeyApiClient {
    */
   public write<ThrowOnError extends boolean = false>(
     parameters?: {
+      directory?: string
+      workspace?: string
       path?: string
       content?: string
     },
@@ -3363,6 +3620,8 @@ export class File extends HeyApiClient {
       [
         {
           args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
             { in: "body", key: "path" },
             { in: "body", key: "content" },
           ],
@@ -10397,6 +10656,7 @@ export class PlanApproval extends HeyApiClient {
       directory?: string
       workspace?: string
       approved?: boolean
+      execution?: "standard" | "goal" | "long_task"
       feedback?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -10411,6 +10671,7 @@ export class PlanApproval extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "approved" },
+            { in: "body", key: "execution" },
             { in: "body", key: "feedback" },
           ],
         },
@@ -10621,6 +10882,7 @@ export class Session3 extends HeyApiClient {
       teamMode?: "off" | "auto" | "selected"
       teamIDs?: Array<string>
       workspaceID?: string
+      expertID?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10640,6 +10902,7 @@ export class Session3 extends HeyApiClient {
             { in: "body", key: "teamMode" },
             { in: "body", key: "teamIDs" },
             { in: "body", key: "workspaceID" },
+            { in: "body", key: "expertID" },
           ],
         },
       ],
@@ -10765,6 +11028,7 @@ export class Session3 extends HeyApiClient {
       permissionMode?: PermissionMode
       teamMode?: "off" | "auto" | "selected"
       teamIDs?: Array<string>
+      employeeID?: string
       cwd?: string
       model?: {
         providerID: string
@@ -10790,6 +11054,7 @@ export class Session3 extends HeyApiClient {
             { in: "body", key: "permissionMode" },
             { in: "body", key: "teamMode" },
             { in: "body", key: "teamIDs" },
+            { in: "body", key: "employeeID" },
             { in: "body", key: "cwd" },
             { in: "body", key: "model" },
             { in: "body", key: "time" },
@@ -10956,6 +11221,13 @@ export class Session3 extends HeyApiClient {
       goalExecution?: {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        judgeModel?: string
+        maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
       }
       goalContinuation?: boolean
       messageID?: string
@@ -11512,6 +11784,13 @@ export class Session3 extends HeyApiClient {
       goalExecution?: {
         goalId: string
         maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        judgeModel?: string
+        maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
       }
       goalContinuation?: boolean
       messageID?: string
@@ -13069,6 +13348,8 @@ export class Fs extends HeyApiClient {
       directory?: string
       workspace?: string
       query: string
+      path?: string
+      recursive?: "true" | "false"
       type?: "file" | "directory"
       limit?: string
     },
@@ -13082,6 +13363,8 @@ export class Fs extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "query", key: "query" },
+            { in: "query", key: "path" },
+            { in: "query", key: "recursive" },
             { in: "query", key: "type" },
             { in: "query", key: "limit" },
           ],
@@ -14299,6 +14582,16 @@ export class Goal extends HeyApiClient {
       status?: "pending" | "in_progress"
       deadline?: string
       tags?: Array<string>
+      executionConfig?: {
+        maxIterations: number
+        judgeModel?: string
+        maxTokens?: number
+        maxActiveMs?: number
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
+      }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -14316,12 +14609,116 @@ export class Goal extends HeyApiClient {
             { in: "body", key: "status" },
             { in: "body", key: "deadline" },
             { in: "body", key: "tags" },
+            { in: "body", key: "executionConfig" },
           ],
         },
       ],
     )
     return (options?.client ?? this.client).post<GoalCreateGoalResponses, GoalCreateGoalErrors, ThrowOnError>({
       url: "/session/{sessionId}/goals",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public createAndLaunchGoal<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      idempotencyKey?: string
+      title?: string
+      description?: string
+      priority?: "high" | "medium" | "low"
+      successCriteria?: Array<string>
+      deadline?: string
+      tags?: Array<string>
+      executionConfig?: {
+        maxIterations: number
+        judgeModel?: string
+        maxTokens?: number
+        maxActiveMs?: number
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
+      }
+      text?: string
+      planningMode?: "deterministic" | "model"
+      budget?: {
+        [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "idempotencyKey" },
+            { in: "body", key: "title" },
+            { in: "body", key: "description" },
+            { in: "body", key: "priority" },
+            { in: "body", key: "successCriteria" },
+            { in: "body", key: "deadline" },
+            { in: "body", key: "tags" },
+            { in: "body", key: "executionConfig" },
+            { in: "body", key: "text" },
+            { in: "body", key: "planningMode" },
+            { in: "body", key: "budget" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      GoalCreateAndLaunchGoalResponses,
+      GoalCreateAndLaunchGoalErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/goals/launch",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public launchGoal<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      goalId: string
+      text?: string
+      planningMode?: "deterministic" | "model"
+      budget?: {
+        [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "path", key: "goalId" },
+            { in: "body", key: "text" },
+            { in: "body", key: "planningMode" },
+            { in: "body", key: "budget" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GoalLaunchGoalResponses, GoalLaunchGoalErrors, ThrowOnError>({
+      url: "/session/{sessionId}/goals/{goalId}/launch",
       ...options,
       ...params,
       headers: {
@@ -14388,11 +14785,21 @@ export class Goal extends HeyApiClient {
       goalId: string
       title?: string
       description?: string
-      status?: "pending" | "in_progress" | "paused" | "completed" | "cancelled"
+      status?: "pending" | "in_progress" | "paused" | "cancelled"
       priority?: "high" | "medium" | "low"
       successCriteria?: Array<string>
       deadline?: string
       tags?: Array<string>
+      executionConfig?: {
+        maxIterations: number
+        judgeModel?: string
+        maxTokens?: number
+        maxActiveMs?: number
+        verifier?: "judge" | "agent"
+        evidenceMinBytes?: number
+        mode?: "interactive" | "durable"
+        superAgentRunId?: string
+      }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -14410,6 +14817,7 @@ export class Goal extends HeyApiClient {
             { in: "body", key: "successCriteria" },
             { in: "body", key: "deadline" },
             { in: "body", key: "tags" },
+            { in: "body", key: "executionConfig" },
           ],
         },
       ],
@@ -14453,6 +14861,219 @@ export class Goal extends HeyApiClient {
 }
 
 export class Workflow2 extends HeyApiClient {
+  public githubWorkflowWebhook<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      event?: string
+      deliveryID?: string
+      payload?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "event" },
+            { in: "body", key: "deliveryID" },
+            { in: "body", key: "payload" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      WorkflowGithubWorkflowWebhookResponses,
+      WorkflowGithubWorkflowWebhookErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflow-webhooks/github",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public recordWorkflowEvidence<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      memoryID?: string
+      source?: string
+      evidence?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "memoryID" },
+            { in: "body", key: "source" },
+            { in: "body", key: "evidence" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      WorkflowRecordWorkflowEvidenceResponses,
+      WorkflowRecordWorkflowEvidenceErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflow-evidence",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public recordWorkflowIntegration<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      kind?: "commit" | "pull_request" | "check"
+      payload?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "kind" },
+            { in: "body", key: "payload" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      WorkflowRecordWorkflowIntegrationResponses,
+      WorkflowRecordWorkflowIntegrationErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflow-integrations",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public getWorkflowState<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionId" }] }])
+    return (options?.client ?? this.client).get<
+      WorkflowGetWorkflowStateResponses,
+      WorkflowGetWorkflowStateErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflow-state",
+      ...options,
+      ...params,
+    })
+  }
+
+  public updateWorkflowState<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+      expectedRevision?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      patch?: {
+        route?: string
+        phase?: string
+        verificationStatus?: string
+        deliveryStatus?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionId" },
+            { in: "body", key: "expectedRevision" },
+            { in: "body", key: "patch" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      WorkflowUpdateWorkflowStateResponses,
+      WorkflowUpdateWorkflowStateErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflow-state",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  public listWorkflowEvents<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionId" }] }])
+    return (options?.client ?? this.client).get<
+      WorkflowListWorkflowEventsResponses,
+      WorkflowListWorkflowEventsErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflow-events",
+      ...options,
+      ...params,
+    })
+  }
+
+  public getWorkflowMetrics<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionId" }] }])
+    return (options?.client ?? this.client).get<
+      WorkflowGetWorkflowMetricsResponses,
+      WorkflowGetWorkflowMetricsErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionId}/workflow-metrics",
+      ...options,
+      ...params,
+    })
+  }
+
   public listWorkflows<ThrowOnError extends boolean = false>(
     parameters: {
       sessionId: string
@@ -15007,8 +15628,29 @@ export class SuperAgent extends HeyApiClient {
           text: string
           required?: boolean
         }>
+        plan?: Array<{
+          id: string
+          kind: string
+          title: string
+          objective: string
+          dependencies?: Array<string>
+          input?: unknown
+          acceptanceCriteria?: Array<{
+            id: string
+            text: string
+            required?: boolean
+          }>
+          retryPolicy?: {
+            maxAttempts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            backoffMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            retryable: boolean
+          }
+        }>
+        planningMode?: "deterministic" | "model"
         requestedBy?: string
         source?: "user" | "trigger" | "plugin" | "api" | "agent"
+        goalId?: string
+        sessionId?: string
       }
       budget?: {
         [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -15413,6 +16055,7 @@ export class SuperAgent extends HeyApiClient {
       taskID?: string
       kind?: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
       source?: string
+      acceptanceIDs?: Array<string>
       contentHash?: string
       measured?: string
       expiresAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -15429,6 +16072,7 @@ export class SuperAgent extends HeyApiClient {
             { in: "body", key: "taskID" },
             { in: "body", key: "kind" },
             { in: "body", key: "source" },
+            { in: "body", key: "acceptanceIDs" },
             { in: "body", key: "contentHash" },
             { in: "body", key: "measured" },
             { in: "body", key: "expiresAt" },
@@ -15665,6 +16309,7 @@ export class SuperAgent extends HeyApiClient {
       sourceTaskID?: string
       failedVerificationIDs?: Array<string>
       strategyID?: string
+      input?: unknown
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -15677,6 +16322,7 @@ export class SuperAgent extends HeyApiClient {
             { in: "body", key: "sourceTaskID" },
             { in: "body", key: "failedVerificationIDs" },
             { in: "body", key: "strategyID" },
+            { in: "body", key: "input" },
           ],
         },
       ],
@@ -16440,6 +17086,404 @@ export class Team extends HeyApiClient {
   }
 }
 
+export class Tasks extends HeyApiClient {
+  /**
+   * Create an expert center task
+   *
+   * Create a user-facing task and its orchestration run.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      expertCenterTaskCreatePayload?: ExpertCenterTaskCreatePayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "expertCenterTaskCreatePayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExpertCenterTasksCreateResponses,
+      ExpertCenterTasksCreateErrors,
+      ThrowOnError
+    >({
+      url: "/expert-center/tasks",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Approve an expert center task
+   *
+   * Approve the current plan version using the existing run authorization boundary.
+   */
+  public approve<ThrowOnError extends boolean = false>(
+    parameters: {
+      taskID: string
+      directory?: string
+      workspace?: string
+      expertCenterApprovePayload?: ExpertCenterApprovePayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "taskID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "expertCenterApprovePayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExpertCenterTasksApproveResponses,
+      ExpertCenterTasksApproveErrors,
+      ThrowOnError
+    >({
+      url: "/expert-center/tasks/{taskID}/approve",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Pause an expert center task
+   *
+   * Pause a task at a safe orchestration boundary.
+   */
+  public pause<ThrowOnError extends boolean = false>(
+    parameters: {
+      taskID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "taskID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExpertCenterTasksPauseResponses,
+      ExpertCenterTasksPauseErrors,
+      ThrowOnError
+    >({
+      url: "/expert-center/tasks/{taskID}/pause",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Resume an expert center task
+   *
+   * Resume a paused or blocked task through the run state machine.
+   */
+  public resume<ThrowOnError extends boolean = false>(
+    parameters: {
+      taskID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "taskID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExpertCenterTasksResumeResponses,
+      ExpertCenterTasksResumeErrors,
+      ThrowOnError
+    >({
+      url: "/expert-center/tasks/{taskID}/resume",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Retry an expert center task
+   *
+   * Retry a task that is paused or waiting for a decision.
+   */
+  public retry<ThrowOnError extends boolean = false>(
+    parameters: {
+      taskID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "taskID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExpertCenterTasksRetryResponses,
+      ExpertCenterTasksRetryErrors,
+      ThrowOnError
+    >({
+      url: "/expert-center/tasks/{taskID}/retry",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Resolve an expert center task decision
+   *
+   * Record a user decision and continue only through a valid run transition.
+   */
+  public decision<ThrowOnError extends boolean = false>(
+    parameters: {
+      taskID: string
+      decisionID: string
+      directory?: string
+      workspace?: string
+      expertCenterDecisionPayload?: ExpertCenterDecisionPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "taskID" },
+            { in: "path", key: "decisionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "expertCenterDecisionPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExpertCenterTasksDecisionResponses,
+      ExpertCenterTasksDecisionErrors,
+      ThrowOnError
+    >({
+      url: "/expert-center/tasks/{taskID}/decisions/{decisionID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class ExpertCenter extends HeyApiClient {
+  /**
+   * Get expert center overview
+   *
+   * Return user-facing task, expert team, and expert summaries for a workspace.
+   */
+  public overview<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExpertCenterOverviewResponses, unknown, ThrowOnError>({
+      url: "/expert-center/overview",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List expert center tasks
+   *
+   * List task summaries without exposing internal assignments or tool arguments.
+   */
+  public tasks<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExpertCenterTasksResponses, unknown, ThrowOnError>({
+      url: "/expert-center/tasks",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get an expert center task
+   *
+   * Read the user-facing summary of one orchestration task.
+   */
+  public task<ThrowOnError extends boolean = false>(
+    parameters: {
+      taskID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "taskID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExpertCenterTaskResponses, ExpertCenterTaskErrors, ThrowOnError>({
+      url: "/expert-center/tasks/{taskID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List expert teams
+   *
+   * List selectable expert team cards and capabilities.
+   */
+  public teams<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExpertCenterTeamsResponses, unknown, ThrowOnError>({
+      url: "/expert-center/teams",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List experts
+   *
+   * List selectable experts without exposing prompts or credentials.
+   */
+  public experts<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExpertCenterExpertsResponses, unknown, ThrowOnError>({
+      url: "/expert-center/experts",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _tasks?: Tasks
+  get tasks2(): Tasks {
+    return (this._tasks ??= new Tasks({ client: this.client }))
+  }
+}
+
 export class Profile extends HeyApiClient {
   /**
    * List team templates
@@ -17042,6 +18086,291 @@ export class Mission extends HeyApiClient {
   }
 }
 
+export class Assignments extends HeyApiClient {
+  /**
+   * List employee assignments
+   *
+   * List durable employee dispatch attempts for a run.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunAssignmentsListResponses, RunAssignmentsListErrors, ThrowOnError>({
+      url: "/run/{runID}/assignments",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Assignment extends HeyApiClient {
+  /**
+   * Get an employee assignment
+   *
+   * Read one durable employee dispatch attempt.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      assignmentID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "assignmentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunAssignmentGetResponses, RunAssignmentGetErrors, ThrowOnError>({
+      url: "/run/{runID}/assignments/{assignmentID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Renew an employee assignment lease
+   *
+   * Renew a live assignment lease using its central dispatch identity.
+   */
+  public heartbeat<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      assignmentID: string
+      directory?: string
+      workspace?: string
+      runAssignmentHeartbeatPayload?: RunAssignmentHeartbeatPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "assignmentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "runAssignmentHeartbeatPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      RunAssignmentHeartbeatResponses,
+      RunAssignmentHeartbeatErrors,
+      ThrowOnError
+    >({
+      url: "/run/{runID}/assignments/{assignmentID}/heartbeat",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Submit an employee assignment report
+   *
+   * Record a worker report; verification is a separate operation and is never implied by this call.
+   */
+  public report<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      assignmentID: string
+      directory?: string
+      workspace?: string
+      runAssignmentReportPayload?: RunAssignmentReportPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "assignmentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "runAssignmentReportPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunAssignmentReportResponses, RunAssignmentReportErrors, ThrowOnError>(
+      {
+        url: "/run/{runID}/assignments/{assignmentID}/report",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+
+  /**
+   * Verify an employee assignment
+   *
+   * Apply an independent verification outcome to a reported assignment.
+   */
+  public verify<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      assignmentID: string
+      directory?: string
+      workspace?: string
+      runAssignmentVerifyPayload?: RunAssignmentVerifyPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "assignmentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "runAssignmentVerifyPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunAssignmentVerifyResponses, RunAssignmentVerifyErrors, ThrowOnError>(
+      {
+        url: "/run/{runID}/assignments/{assignmentID}/verify",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+
+  /**
+   * Cancel an employee assignment
+   *
+   * Cancel a live assignment without pretending that its external side effects are known.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      assignmentID: string
+      directory?: string
+      workspace?: string
+      runAssignmentCancelPayload?: RunAssignmentCancelPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "assignmentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "runAssignmentCancelPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunAssignmentCancelResponses, RunAssignmentCancelErrors, ThrowOnError>(
+      {
+        url: "/run/{runID}/assignments/{assignmentID}/cancel",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+
+  /**
+   * Create a new assignment attempt
+   *
+   * Create an explicit new attempt after a human-reviewed or terminal assignment result.
+   */
+  public retry<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      assignmentID: string
+      directory?: string
+      workspace?: string
+      runAssignmentRetryPayload?: RunAssignmentRetryPayload
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "assignmentID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "runAssignmentRetryPayload", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunAssignmentRetryResponses, RunAssignmentRetryErrors, ThrowOnError>({
+      url: "/run/{runID}/assignments/{assignmentID}/retry",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Acceptance extends HeyApiClient {
   /**
    * Add an acceptance line
@@ -17598,6 +18927,38 @@ export class Run2 extends HeyApiClient {
   }
 
   /**
+   * Pause a run
+   *
+   * Pause a run at a safe boundary. A run that is already dispatching must be cancelled instead; it is never silently relabeled as paused while work is in flight.
+   */
+  public pause<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunPauseResponses, RunPauseErrors, ThrowOnError>({
+      url: "/run/{runID}/pause",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Cancel the run
    *
    * Stop dispatching, keep what already happened, then settle the run as cancelled.
@@ -17691,6 +19052,16 @@ export class Run2 extends HeyApiClient {
       ...options,
       ...params,
     })
+  }
+
+  private _assignments?: Assignments
+  get assignments(): Assignments {
+    return (this._assignments ??= new Assignments({ client: this.client }))
+  }
+
+  private _assignment?: Assignment
+  get assignment(): Assignment {
+    return (this._assignment ??= new Assignment({ client: this.client }))
   }
 
   private _acceptance?: Acceptance
@@ -17980,6 +19351,11 @@ export class NovawayClient extends HeyApiClient {
   private _team?: Team
   get team(): Team {
     return (this._team ??= new Team({ client: this.client }))
+  }
+
+  private _expertCenter?: ExpertCenter
+  get expertCenter(): ExpertCenter {
+    return (this._expertCenter ??= new ExpertCenter({ client: this.client }))
   }
 
   private _profile?: Profile

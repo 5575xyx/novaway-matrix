@@ -61,6 +61,8 @@ export type OfficeFilePreviewProps = {
   /** 切换 Lexora 与兼容 PDF 工具前由面板检查 dirty 状态。 */
   onTogglePdfTools?: (open: boolean) => boolean
   onPdfPage?: (page: number) => void
+  /** 在编辑器中选中文字/单元格/幻灯片元素后，添加为会话引用。 */
+  onQuoteSelection?: (text: string, source?: string, comment?: string) => void
   /** 关闭守卫/保活回收对齐的标签路径（旧格式转换编辑时是原始文件路径）。 */
   closeGuardPath?: string
 }
@@ -104,6 +106,7 @@ export const OfficeFilePreview: Component<OfficeFilePreviewProps> = (props) => {
                 path={props.path}
                 base64={props.base64}
                 onDirty={props.onDirty}
+                onQuoteSelection={props.onQuoteSelection}
                 beforeSave={props.beforeOfficeSave}
                 writeBytes={props.writeOfficeBytes}
                 closeGuardPath={props.closeGuardPath ?? props.path}

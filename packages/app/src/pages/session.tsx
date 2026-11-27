@@ -518,6 +518,11 @@ export default function Page() {
     if (isSessionFresh(id)) return true
     return hydrated().has(id)
   })
+  createEffect(() => {
+    const directory = sdk.directory
+    const id = params.id
+    if (timelineReady()) onCleanup(globalSync.markSessionViewVisible(directory, id))
+  })
   // 向 sync 登记"用户正在看这个会话",事件驱动的会话列表裁剪(见 event-reducer)就不会清掉它的消息缓存。
   // 否则每来一次 session.updated 心跳,消息区就整体清空再拉回一次,表现为每隔几秒闪一下。
   createEffect(
@@ -1744,6 +1749,7 @@ export default function Page() {
   const autoScroll = createAutoScroll({
     working: () => true,
     overflowAnchor: "dynamic",
+    resizeHandledExternally: true,
   })
 
   let scrollStateFrame: number | undefined
@@ -1764,6 +1770,13 @@ export default function Page() {
   }
 
   const scheduleScrollState = (el: HTMLDivElement) => {
+    // While following the active reply, the bottom state is known without layout
+    // reads. Content/virtualizer ResizeObserver callbacks can otherwise measure
+    // scrollHeight repeatedly during every streamed text growth.
+    if (!autoScroll.userScrolled()) {
+      if (!ui.scroll.bottom || ui.scroll.jump) setUi("scroll", { bottom: true, jump: false })
+      return
+    }
     scrollStateTarget = el
     if (scrollStateFrame !== undefined) return
 
@@ -2332,6 +2345,13 @@ export default function Page() {
     if (fillFrame !== undefined) cancelAnimationFrame(fillFrame)
   })
 
+  const submitSuggestion = (text: string) => {
+    const value = text.trim()
+    if (!value) return
+    prompt.set([{ type: "text", content: value, start: 0, end: value.length }], value.length)
+    setAutoSubmitKey(sessionAutoSubmitKey(value, "1"))
+  }
+
   const composerRegion = (options: {
     centered: boolean
     embedded?: boolean
@@ -2510,6 +2530,7 @@ export default function Page() {
                             historyShift={historyLoader.shift()}
                             userMessages={historyLoader.userMessages()}
                             anchor={anchor}
+                            onSuggestionSelect={submitSuggestion}
                             setRevealMessage={(fn) => {
                               revealMessage = fn
                             }}

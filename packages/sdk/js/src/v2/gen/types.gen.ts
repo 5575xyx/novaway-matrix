@@ -55,6 +55,7 @@ export type Event =
   | EventProjectUpdated
   | EventSessionCompacted
   | EventSessionRevertChanged
+  | EventSuperAgentOutboxPublished1
   | EventAgentStarted
   | EventAgentCompleted1
   | EventInstallationUpdated
@@ -987,6 +988,7 @@ export type GlobalEvent = {
     | EventProjectUpdated
     | EventSessionCompacted
     | EventSessionRevertChanged
+    | EventSuperAgentOutboxPublished
     | EventAgentStarted
     | EventAgentCompleted
     | EventInstallationUpdated
@@ -1519,6 +1521,10 @@ export type Config = {
   browser?: {
     enabled?: boolean
     open_in_app?: boolean
+    persistent_session?: boolean
+    profile_dir?: string
+    cdp_url?: string
+    cookie_file?: string
   }
   evolution?: {
     enabled?: boolean
@@ -1597,6 +1603,14 @@ export type Config = {
   computer?: {
     enabled?: boolean
     max_steps?: number
+  }
+  voice?: {
+    enabled?: boolean
+    language?: string
+    mode?: "toggle" | "hold"
+    engine?: "browser" | "local"
+    local_endpoint?: string
+    local_model?: string
   }
   sandbox?: {
     enabled?: boolean
@@ -2154,6 +2168,9 @@ export type MarketplaceInstalled = {
   root: string
   files: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
   bytes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  runtimeStatus?: "unloaded" | "installed" | "activating" | "active" | "failed" | "disabled"
+  runtimeError?: string
+  runtimeScope?: "builtin" | "global" | "project" | "session"
   operationId?: string
   previous?: {
     version?: string
@@ -2178,14 +2195,25 @@ export type MarketplaceEntry = {
   name: string
   packageId?: string
   sourceId?: string
+  displayName?: string
+  displayNameI18n?: {
+    [key: string]: string
+  }
   version?: string
   description?: string
+  longDescription?: string
+  author?: string
+  license?: string
+  icon?: string
+  screenshots?: Array<string>
   url: string
   kind?: "zip" | "git"
   sha256?: string
   ref?: string
   subdir?: string
   keywords?: Array<string>
+  categories?: Array<string>
+  marketTypes?: Array<string>
   repository?: string
   runtimeTargets?: Array<string>
   capabilities?: Array<string>
@@ -3807,6 +3835,10 @@ export type WorkspaceWarpError = {
   }
 }
 
+export type EffectHttpApiErrorConflict = {
+  _tag: "Conflict"
+}
+
 export type DynamicWorkflowRunSummary = {
   runId: string
   name?: string
@@ -4023,6 +4055,109 @@ export type TeamDetail = {
   tasks: Array<TeamTaskView>
   usage?: TeamUsageView
   messages: Array<TeamMessageView>
+}
+
+export type TaskVerificationView = {
+  status: "pending" | "verified" | "partial" | "failed"
+  passed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  failed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  unverified: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  stale: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type TaskChangeView = {
+  id: string
+  name: string
+  path?: string
+  version?: string
+}
+
+export type ExpertCenterTaskView = {
+  id: string
+  goal: string
+  state: "planning" | "needs-you" | "working" | "paused" | "completed" | "partial" | "failed"
+  phase: "understanding" | "planning" | "working" | "reviewing" | "delivering"
+  executor: {
+    mode: "auto" | "expert" | "team"
+    name?: string
+    count?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+  summary?: string
+  verification?: TaskVerificationView
+  changes?: Array<TaskChangeView>
+  nextAction?: {
+    kind: string
+    label: string
+  }
+  artifacts: Array<{
+    id: string
+    name: string
+    path?: string
+  }>
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type ExpertTeamCardView = {
+  id: string
+  name: string
+  description?: string
+  capabilities: Array<string>
+  scenarios: Array<string>
+  memberCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  memberPreview: Array<{
+    name: string
+    role: string
+  }>
+  autoEligible: boolean
+  recommended?: boolean
+}
+
+export type ExpertCardView = {
+  id: string
+  name: string
+  role?: string
+  category?: string
+  description?: string
+  available: boolean
+}
+
+export type ExpertCenterOverview = {
+  tasks: Array<ExpertCenterTaskView>
+  teams: Array<ExpertTeamCardView>
+  experts: Array<ExpertCardView>
+}
+
+export type ExpertCenterTaskCreatePayload = {
+  goal: string
+  mode?: "auto" | "team"
+  teamID?: string
+  employeeID?: string
+  sessionID?: string
+  brief?: {
+    scope?: Array<string>
+    files?: Array<string>
+    constraints?: Array<string>
+    context?: string
+  }
+}
+
+export type ExpertCenterTaskActionResult = {
+  task: ExpertCenterTaskView
+  action: "created" | "approved" | "paused" | "resumed" | "retried" | "decision"
+}
+
+export type ExpertCenterApprovePayload = {
+  planVersion: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  budget: {
+    tokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    cost?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    wallMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type ExpertCenterDecisionPayload = {
+  action: "approve" | "dismiss"
+  note?: string
 }
 
 export type TeamProfileView = {
@@ -4246,6 +4381,7 @@ export type RunTeamView = {
   artifacts?: Array<{
     name: string
     version: string
+    path?: string
   }>
   tasks?: Array<RunTaskView>
   members?: Array<RunTeamMemberView>
@@ -4334,6 +4470,39 @@ export type RunBlockerView = {
   swappable: boolean
 }
 
+export type RunAssignmentView = {
+  id: string
+  runID: string
+  taskID: string
+  employeeID?: string
+  sessionID?: string
+  parentAssignmentID?: string
+  dispatchID: string
+  attempt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  status: string
+  objective: string
+  acceptanceIDs: Array<string>
+  worktree?: string
+  promptHash?: string
+  skillManifestHash?: string
+  permissionHash?: string
+  leaseUntil?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  lastHeartbeatAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  heartbeatMisses: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  report?: unknown
+  verification?: unknown
+  error?: string
+  deliveredAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  acceptedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  startedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  reportedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  verifiedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  cancelledAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  expiredAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  updatedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type RunDenialView = {
   tool: string
   reason?: string
@@ -4356,6 +4525,7 @@ export type RunDetail = {
   verifications: Array<RunVerificationView>
   summary: RunSummaryView
   blockers: Array<RunBlockerView>
+  assignments: Array<RunAssignmentView>
   denials: Array<RunDenialView>
   needsReview: Array<RunUnknownOpView>
 }
@@ -4417,8 +4587,45 @@ export type RunMetricsView = {
   }>
 }
 
-export type EffectHttpApiErrorConflict = {
-  _tag: "Conflict"
+export type RunAssignmentHeartbeatPayload = {
+  dispatchID: string
+  attempt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  sessionID: string
+  leaseMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type RunAssignmentReportPayload = {
+  dispatchID: string
+  attempt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  sessionID: string
+  status: "succeeded" | "failed" | "blocked" | "needs_review"
+  summary?: string
+  claims?: Array<unknown>
+  evidence?: Array<unknown>
+  artifacts?: Array<unknown>
+  blockers?: Array<unknown>
+}
+
+export type RunAssignmentVerifyPayload = {
+  outcome: "succeeded" | "failed" | "needs_review"
+  verification: {
+    [key: string]: unknown
+  }
+  error?: string
+}
+
+export type RunAssignmentCancelPayload = {
+  reason?: string
+}
+
+export type RunAssignmentRetryPayload = {
+  objective?: string
+  leaseMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type RunAssignmentRetryResult = {
+  assignment: RunAssignmentView
+  previousAssignmentID: string
 }
 
 export type RunWorktreeCleanup = {
@@ -4679,6 +4886,9 @@ export type SyncEventSessionUpdated = {
       }
       permission?: PermissionRuleset | null
       permissionMode?: PermissionMode | null
+      teamMode?: "off" | "auto" | "selected" | null
+      teamIDs?: Array<string> | null
+      employeeID?: string | null
       revert?: {
         messageID: string
         partID?: string
@@ -5266,6 +5476,7 @@ export type EventPlanApprovalResolved = {
     id: PlanRequestId
     sessionID: string
     approved: boolean
+    execution?: "standard" | "goal" | "long_task"
     feedback?: string
   }
 }
@@ -5492,6 +5703,20 @@ export type EventSessionRevertChanged = {
   properties: {
     sessionID: string
     action: "revert" | "unrevert"
+  }
+}
+
+export type EventSuperAgentOutboxPublished = {
+  id: string
+  type: "super-agent.outbox.published"
+  properties: {
+    runID: string
+    eventID: string
+    sequence: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    eventType: string
+    payload: {
+      [key: string]: unknown
+    }
   }
 }
 
@@ -6586,6 +6811,20 @@ export type EventPluginChanged1 = {
   }
 }
 
+export type EventSuperAgentOutboxPublished1 = {
+  id: string
+  type: "super-agent.outbox.published"
+  properties: {
+    runID: string
+    eventID: string
+    sequence: number | "NaN" | "Infinity" | "-Infinity"
+    eventType: string
+    payload: {
+      [key: string]: unknown
+    }
+  }
+}
+
 export type EventAgentCompleted1 = {
   id: string
   type: "agent.completed"
@@ -6917,6 +7156,7 @@ export type GlobalHealthResponses = {
   200: {
     healthy: true
     version: string
+    sessionLibrary?: string
   }
 }
 
@@ -8536,6 +8776,140 @@ export type FindSymbolsResponses = {
 
 export type FindSymbolsResponse = FindSymbolsResponses[keyof FindSymbolsResponses]
 
+export type FileLspDiagnosticsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/lsp/diagnostics"
+}
+
+export type FileLspDiagnosticsResponses = {
+  /**
+   * LSP diagnostics by file
+   */
+  200: {
+    [key: string]: unknown
+  }
+}
+
+export type FileLspDiagnosticsResponse = FileLspDiagnosticsResponses[keyof FileLspDiagnosticsResponses]
+
+export type FileLspDiagnosticsTextData = {
+  body?: {
+    path: string
+    text: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/lsp/diagnostics"
+}
+
+export type FileLspDiagnosticsTextResponses = {
+  /**
+   * LSP diagnostics by file
+   */
+  200: {
+    [key: string]: unknown
+  }
+}
+
+export type FileLspDiagnosticsTextResponse = FileLspDiagnosticsTextResponses[keyof FileLspDiagnosticsTextResponses]
+
+export type FileLspDocumentSymbolsData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    path: string
+  }
+  url: "/lsp/document-symbols"
+}
+
+export type FileLspDocumentSymbolsResponses = {
+  /**
+   * Document symbols
+   */
+  200: Array<unknown>
+}
+
+export type FileLspDocumentSymbolsResponse = FileLspDocumentSymbolsResponses[keyof FileLspDocumentSymbolsResponses]
+
+export type FileLspDocumentSymbolsTextData = {
+  body?: {
+    path: string
+    text: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/lsp/document-symbols"
+}
+
+export type FileLspDocumentSymbolsTextResponses = {
+  /**
+   * Document symbols
+   */
+  200: Array<unknown>
+}
+
+export type FileLspDocumentSymbolsTextResponse =
+  FileLspDocumentSymbolsTextResponses[keyof FileLspDocumentSymbolsTextResponses]
+
+export type FileLspDefinitionData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    workspace?: string
+    path: string
+    line: string
+    character: string
+  }
+  url: "/lsp/definition"
+}
+
+export type FileLspDefinitionResponses = {
+  /**
+   * Definitions
+   */
+  200: Array<unknown>
+}
+
+export type FileLspDefinitionResponse = FileLspDefinitionResponses[keyof FileLspDefinitionResponses]
+
+export type FileLspDefinitionTextData = {
+  body?: {
+    path: string
+    line: number
+    character: number
+    text: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/lsp/definition"
+}
+
+export type FileLspDefinitionTextResponses = {
+  /**
+   * Definitions
+   */
+  200: Array<unknown>
+}
+
+export type FileLspDefinitionTextResponse = FileLspDefinitionTextResponses[keyof FileLspDefinitionTextResponses]
+
 export type FileListData = {
   body?: never
   path?: never
@@ -8593,7 +8967,10 @@ export type FileWriteData = {
     content: string
   }
   path?: never
-  query?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
   url: "/file/write"
 }
 
@@ -11624,8 +12001,13 @@ export type AppSkillsResponses = {
   200: Array<{
     name: string
     description?: string
+    version?: string
     location: string
     content: string
+    requiredTools?: Array<string>
+    permissionRequirements?: Array<string>
+    outputContract?: unknown
+    compatibility?: string
     builtIn?: boolean
     context?: "inline" | "fork"
     agent?: string
@@ -15382,6 +15764,7 @@ export type SessionCreateData = {
     teamMode?: "off" | "auto" | "selected"
     teamIDs?: Array<string>
     workspaceID?: string
+    expertID?: string
   }
   path?: never
   query?: {
@@ -15514,6 +15897,7 @@ export type SessionUpdateData = {
     permissionMode?: PermissionMode
     teamMode?: "off" | "auto" | "selected"
     teamIDs?: Array<string>
+    employeeID?: string
     cwd?: string
     model?: {
       providerID: string
@@ -15703,6 +16087,13 @@ export type SessionPromptData = {
     goalExecution?: {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      judgeModel?: string
+      maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
     }
     goalContinuation?: boolean
     messageID?: string
@@ -16042,6 +16433,7 @@ export type SessionPlanApprovalListResponse = SessionPlanApprovalListResponses[k
 export type SessionPlanApprovalReplyData = {
   body?: {
     approved: boolean
+    execution?: "standard" | "goal" | "long_task"
     feedback?: string
   }
   path: {
@@ -16475,6 +16867,13 @@ export type SessionPromptAsyncData = {
     goalExecution?: {
       goalId: string
       maxIterations: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      judgeModel?: string
+      maxTokens?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      maxActiveMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
     }
     goalContinuation?: boolean
     messageID?: string
@@ -17803,6 +18202,8 @@ export type V2FsFindData = {
     directory?: string
     workspace?: string
     query: string
+    path?: string
+    recursive?: "true" | "false"
     type?: "file" | "directory"
     limit?: string
   }
@@ -19038,6 +19439,16 @@ export type GoalCreateGoalData = {
     status?: "pending" | "in_progress"
     deadline?: string
     tags?: Array<string>
+    executionConfig?: {
+      maxIterations: number
+      judgeModel?: string
+      maxTokens?: number
+      maxActiveMs?: number
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
+    }
   }
   path: {
     sessionId: string
@@ -19056,6 +19467,86 @@ export type GoalCreateGoalErrors = {
 export type GoalCreateGoalError = GoalCreateGoalErrors[keyof GoalCreateGoalErrors]
 
 export type GoalCreateGoalResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type GoalCreateAndLaunchGoalData = {
+  body?: {
+    idempotencyKey: string
+    title: string
+    description?: string
+    priority?: "high" | "medium" | "low"
+    successCriteria?: Array<string>
+    deadline?: string
+    tags?: Array<string>
+    executionConfig?: {
+      maxIterations: number
+      judgeModel?: string
+      maxTokens?: number
+      maxActiveMs?: number
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
+    }
+    text?: string
+    planningMode?: "deterministic" | "model"
+    budget?: {
+      [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/goals/launch"
+}
+
+export type GoalCreateAndLaunchGoalErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type GoalCreateAndLaunchGoalError = GoalCreateAndLaunchGoalErrors[keyof GoalCreateAndLaunchGoalErrors]
+
+export type GoalCreateAndLaunchGoalResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type GoalLaunchGoalData = {
+  body?: {
+    text?: string
+    planningMode?: "deterministic" | "model"
+    budget?: {
+      [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+  }
+  path: {
+    sessionId: string
+    goalId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/goals/{goalId}/launch"
+}
+
+export type GoalLaunchGoalErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type GoalLaunchGoalError = GoalLaunchGoalErrors[keyof GoalLaunchGoalErrors]
+
+export type GoalLaunchGoalResponses = {
   /**
    * Success
    */
@@ -19118,11 +19609,21 @@ export type GoalUpdateGoalData = {
   body?: {
     title?: string
     description?: string
-    status?: "pending" | "in_progress" | "paused" | "completed" | "cancelled"
+    status?: "pending" | "in_progress" | "paused" | "cancelled"
     priority?: "high" | "medium" | "low"
     successCriteria?: Array<string>
     deadline?: string
     tags?: Array<string>
+    executionConfig?: {
+      maxIterations: number
+      judgeModel?: string
+      maxTokens?: number
+      maxActiveMs?: number
+      verifier?: "judge" | "agent"
+      evidenceMinBytes?: number
+      mode?: "interactive" | "durable"
+      superAgentRunId?: string
+    }
   }
   path: {
     sessionId: string
@@ -19133,6 +19634,10 @@ export type GoalUpdateGoalData = {
 }
 
 export type GoalUpdateGoalErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
   /**
    * NotFoundError
    */
@@ -19173,6 +19678,240 @@ export type GoalGetGoalProgressResponses = {
    */
   200: unknown
 }
+
+export type WorkflowGithubWorkflowWebhookData = {
+  body?: {
+    event: string
+    deliveryID?: string
+    payload: {
+      [key: string]: unknown
+    }
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflow-webhooks/github"
+}
+
+export type WorkflowGithubWorkflowWebhookErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type WorkflowGithubWorkflowWebhookError =
+  WorkflowGithubWorkflowWebhookErrors[keyof WorkflowGithubWorkflowWebhookErrors]
+
+export type WorkflowGithubWorkflowWebhookResponses = {
+  /**
+   * Success
+   */
+  200: {
+    accepted: boolean
+    duplicate: boolean
+    memoryID?: string
+  }
+}
+
+export type WorkflowGithubWorkflowWebhookResponse =
+  WorkflowGithubWorkflowWebhookResponses[keyof WorkflowGithubWorkflowWebhookResponses]
+
+export type WorkflowRecordWorkflowEvidenceData = {
+  body?: {
+    memoryID?: string
+    source: string
+    evidence: {
+      [key: string]: unknown
+    }
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflow-evidence"
+}
+
+export type WorkflowRecordWorkflowEvidenceErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowRecordWorkflowEvidenceResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowRecordWorkflowIntegrationData = {
+  body?: {
+    kind: "commit" | "pull_request" | "check"
+    payload: {
+      [key: string]: unknown
+    }
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflow-integrations"
+}
+
+export type WorkflowRecordWorkflowIntegrationErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowRecordWorkflowIntegrationResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowGetWorkflowStateData = {
+  body?: never
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflow-state"
+}
+
+export type WorkflowGetWorkflowStateErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowGetWorkflowStateResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowUpdateWorkflowStateData = {
+  body?: {
+    expectedRevision: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    patch: {
+      route?: string
+      phase?: string
+      verificationStatus?: string
+      deliveryStatus?: string
+    }
+  }
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflow-state"
+}
+
+export type WorkflowUpdateWorkflowStateErrors = {
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type WorkflowUpdateWorkflowStateError =
+  WorkflowUpdateWorkflowStateErrors[keyof WorkflowUpdateWorkflowStateErrors]
+
+export type WorkflowUpdateWorkflowStateResponses = {
+  /**
+   * Success
+   */
+  200: unknown
+}
+
+export type WorkflowListWorkflowEventsData = {
+  body?: never
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflow-events"
+}
+
+export type WorkflowListWorkflowEventsErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowListWorkflowEventsResponses = {
+  /**
+   * Success
+   */
+  200: Array<unknown>
+}
+
+export type WorkflowListWorkflowEventsResponse =
+  WorkflowListWorkflowEventsResponses[keyof WorkflowListWorkflowEventsResponses]
+
+export type WorkflowGetWorkflowMetricsData = {
+  body?: never
+  path: {
+    sessionId: string
+  }
+  query?: never
+  url: "/session/{sessionId}/workflow-metrics"
+}
+
+export type WorkflowGetWorkflowMetricsErrors = {
+  /**
+   * Error
+   */
+  500: unknown
+}
+
+export type WorkflowGetWorkflowMetricsResponses = {
+  /**
+   * Success
+   */
+  200: {
+    sessionID: string
+    route?: string
+    phase?: string
+    routeDistribution: {
+      [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    phaseDistribution: {
+      [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    escalationCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    questionCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    questionBudget: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    questionMisuseCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    blockedToolCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    verification: {
+      status?: string
+      passed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      failed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      unverified: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    delivery: {
+      status?: string
+      completed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      blocked: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    phaseTransitions: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    firstEventAt?: string
+    lastEventAt?: string
+  }
+}
+
+export type WorkflowGetWorkflowMetricsResponse =
+  WorkflowGetWorkflowMetricsResponses[keyof WorkflowGetWorkflowMetricsResponses]
 
 export type WorkflowListWorkflowsData = {
   body?: never
@@ -19769,8 +20508,29 @@ export type SuperAgentCreateSuperAgentRunData = {
         text: string
         required?: boolean
       }>
+      plan?: Array<{
+        id: string
+        kind: string
+        title: string
+        objective: string
+        dependencies?: Array<string>
+        input?: unknown
+        acceptanceCriteria?: Array<{
+          id: string
+          text: string
+          required?: boolean
+        }>
+        retryPolicy?: {
+          maxAttempts: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          backoffMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          retryable: boolean
+        }
+      }>
+      planningMode?: "deterministic" | "model"
       requestedBy?: string
       source?: "user" | "trigger" | "plugin" | "api" | "agent"
+      goalId?: string
+      sessionId?: string
     }
     budget?: {
       [key: string]: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -20198,6 +20958,7 @@ export type SuperAgentRecordSuperAgentEvidenceData = {
     taskID: string
     kind: "test" | "file" | "http" | "screenshot" | "log" | "artifact" | "human" | "external"
     source: string
+    acceptanceIDs?: Array<string>
     contentHash?: string
     measured?: string
     expiresAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
@@ -20401,6 +21162,7 @@ export type SuperAgentCreateSuperAgentRepairTaskData = {
     sourceTaskID?: string
     failedVerificationIDs: Array<string>
     strategyID: string
+    input?: unknown
   }
   path: {
     runID: string
@@ -21037,6 +21799,337 @@ export type TeamMessageSendResponses = {
 
 export type TeamMessageSendResponse = TeamMessageSendResponses[keyof TeamMessageSendResponses]
 
+export type ExpertCenterOverviewData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/overview"
+}
+
+export type ExpertCenterOverviewResponses = {
+  /**
+   * Expert center overview
+   */
+  200: ExpertCenterOverview
+}
+
+export type ExpertCenterOverviewResponse = ExpertCenterOverviewResponses[keyof ExpertCenterOverviewResponses]
+
+export type ExpertCenterTasksData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks"
+}
+
+export type ExpertCenterTasksResponses = {
+  /**
+   * Expert center tasks
+   */
+  200: Array<ExpertCenterTaskView>
+}
+
+export type ExpertCenterTasksResponse = ExpertCenterTasksResponses[keyof ExpertCenterTasksResponses]
+
+export type ExpertCenterTasksCreateData = {
+  body?: ExpertCenterTaskCreatePayload
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks"
+}
+
+export type ExpertCenterTasksCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExpertCenterTasksCreateError = ExpertCenterTasksCreateErrors[keyof ExpertCenterTasksCreateErrors]
+
+export type ExpertCenterTasksCreateResponses = {
+  /**
+   * Created expert center task
+   */
+  200: ExpertCenterTaskActionResult
+}
+
+export type ExpertCenterTasksCreateResponse = ExpertCenterTasksCreateResponses[keyof ExpertCenterTasksCreateResponses]
+
+export type ExpertCenterTaskData = {
+  body?: never
+  path: {
+    taskID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks/{taskID}"
+}
+
+export type ExpertCenterTaskErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ExpertCenterTaskError = ExpertCenterTaskErrors[keyof ExpertCenterTaskErrors]
+
+export type ExpertCenterTaskResponses = {
+  /**
+   * Expert center task
+   */
+  200: ExpertCenterTaskView
+}
+
+export type ExpertCenterTaskResponse = ExpertCenterTaskResponses[keyof ExpertCenterTaskResponses]
+
+export type ExpertCenterTeamsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/teams"
+}
+
+export type ExpertCenterTeamsResponses = {
+  /**
+   * Expert teams
+   */
+  200: Array<ExpertTeamCardView>
+}
+
+export type ExpertCenterTeamsResponse = ExpertCenterTeamsResponses[keyof ExpertCenterTeamsResponses]
+
+export type ExpertCenterExpertsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/experts"
+}
+
+export type ExpertCenterExpertsResponses = {
+  /**
+   * Experts
+   */
+  200: Array<ExpertCardView>
+}
+
+export type ExpertCenterExpertsResponse = ExpertCenterExpertsResponses[keyof ExpertCenterExpertsResponses]
+
+export type ExpertCenterTasksApproveData = {
+  body?: ExpertCenterApprovePayload
+  path: {
+    taskID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks/{taskID}/approve"
+}
+
+export type ExpertCenterTasksApproveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type ExpertCenterTasksApproveError = ExpertCenterTasksApproveErrors[keyof ExpertCenterTasksApproveErrors]
+
+export type ExpertCenterTasksApproveResponses = {
+  /**
+   * Approved expert center task
+   */
+  200: ExpertCenterTaskActionResult
+}
+
+export type ExpertCenterTasksApproveResponse =
+  ExpertCenterTasksApproveResponses[keyof ExpertCenterTasksApproveResponses]
+
+export type ExpertCenterTasksPauseData = {
+  body?: never
+  path: {
+    taskID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks/{taskID}/pause"
+}
+
+export type ExpertCenterTasksPauseErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type ExpertCenterTasksPauseError = ExpertCenterTasksPauseErrors[keyof ExpertCenterTasksPauseErrors]
+
+export type ExpertCenterTasksPauseResponses = {
+  /**
+   * Paused expert center task
+   */
+  200: ExpertCenterTaskActionResult
+}
+
+export type ExpertCenterTasksPauseResponse = ExpertCenterTasksPauseResponses[keyof ExpertCenterTasksPauseResponses]
+
+export type ExpertCenterTasksResumeData = {
+  body?: never
+  path: {
+    taskID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks/{taskID}/resume"
+}
+
+export type ExpertCenterTasksResumeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type ExpertCenterTasksResumeError = ExpertCenterTasksResumeErrors[keyof ExpertCenterTasksResumeErrors]
+
+export type ExpertCenterTasksResumeResponses = {
+  /**
+   * Resumed expert center task
+   */
+  200: ExpertCenterTaskActionResult
+}
+
+export type ExpertCenterTasksResumeResponse = ExpertCenterTasksResumeResponses[keyof ExpertCenterTasksResumeResponses]
+
+export type ExpertCenterTasksRetryData = {
+  body?: never
+  path: {
+    taskID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks/{taskID}/retry"
+}
+
+export type ExpertCenterTasksRetryErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type ExpertCenterTasksRetryError = ExpertCenterTasksRetryErrors[keyof ExpertCenterTasksRetryErrors]
+
+export type ExpertCenterTasksRetryResponses = {
+  /**
+   * Retried expert center task
+   */
+  200: ExpertCenterTaskActionResult
+}
+
+export type ExpertCenterTasksRetryResponse = ExpertCenterTasksRetryResponses[keyof ExpertCenterTasksRetryResponses]
+
+export type ExpertCenterTasksDecisionData = {
+  body?: ExpertCenterDecisionPayload
+  path: {
+    taskID: string
+    decisionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/expert-center/tasks/{taskID}/decisions/{decisionID}"
+}
+
+export type ExpertCenterTasksDecisionErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type ExpertCenterTasksDecisionError = ExpertCenterTasksDecisionErrors[keyof ExpertCenterTasksDecisionErrors]
+
+export type ExpertCenterTasksDecisionResponses = {
+  /**
+   * Resolved expert center decision
+   */
+  200: ExpertCenterTaskActionResult
+}
+
+export type ExpertCenterTasksDecisionResponse =
+  ExpertCenterTasksDecisionResponses[keyof ExpertCenterTasksDecisionResponses]
+
 export type ProfileListData = {
   body?: never
   path?: never
@@ -21647,6 +22740,262 @@ export type RunDetailResponses = {
 
 export type RunDetailResponse = RunDetailResponses[keyof RunDetailResponses]
 
+export type RunAssignmentsListData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/assignments"
+}
+
+export type RunAssignmentsListErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunAssignmentsListError = RunAssignmentsListErrors[keyof RunAssignmentsListErrors]
+
+export type RunAssignmentsListResponses = {
+  /**
+   * Run assignments
+   */
+  200: Array<RunAssignmentView>
+}
+
+export type RunAssignmentsListResponse = RunAssignmentsListResponses[keyof RunAssignmentsListResponses]
+
+export type RunAssignmentGetData = {
+  body?: never
+  path: {
+    runID: string
+    assignmentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/assignments/{assignmentID}"
+}
+
+export type RunAssignmentGetErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunAssignmentGetError = RunAssignmentGetErrors[keyof RunAssignmentGetErrors]
+
+export type RunAssignmentGetResponses = {
+  /**
+   * Run assignment
+   */
+  200: RunAssignmentView
+}
+
+export type RunAssignmentGetResponse = RunAssignmentGetResponses[keyof RunAssignmentGetResponses]
+
+export type RunAssignmentHeartbeatData = {
+  body?: RunAssignmentHeartbeatPayload
+  path: {
+    runID: string
+    assignmentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/assignments/{assignmentID}/heartbeat"
+}
+
+export type RunAssignmentHeartbeatErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunAssignmentHeartbeatError = RunAssignmentHeartbeatErrors[keyof RunAssignmentHeartbeatErrors]
+
+export type RunAssignmentHeartbeatResponses = {
+  /**
+   * Assignment heartbeat
+   */
+  200: RunAssignmentView
+}
+
+export type RunAssignmentHeartbeatResponse = RunAssignmentHeartbeatResponses[keyof RunAssignmentHeartbeatResponses]
+
+export type RunAssignmentReportData = {
+  body?: RunAssignmentReportPayload
+  path: {
+    runID: string
+    assignmentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/assignments/{assignmentID}/report"
+}
+
+export type RunAssignmentReportErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunAssignmentReportError = RunAssignmentReportErrors[keyof RunAssignmentReportErrors]
+
+export type RunAssignmentReportResponses = {
+  /**
+   * Assignment report
+   */
+  200: RunAssignmentView
+}
+
+export type RunAssignmentReportResponse = RunAssignmentReportResponses[keyof RunAssignmentReportResponses]
+
+export type RunAssignmentVerifyData = {
+  body?: RunAssignmentVerifyPayload
+  path: {
+    runID: string
+    assignmentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/assignments/{assignmentID}/verify"
+}
+
+export type RunAssignmentVerifyErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunAssignmentVerifyError = RunAssignmentVerifyErrors[keyof RunAssignmentVerifyErrors]
+
+export type RunAssignmentVerifyResponses = {
+  /**
+   * Assignment verification
+   */
+  200: RunAssignmentView
+}
+
+export type RunAssignmentVerifyResponse = RunAssignmentVerifyResponses[keyof RunAssignmentVerifyResponses]
+
+export type RunAssignmentCancelData = {
+  body?: RunAssignmentCancelPayload
+  path: {
+    runID: string
+    assignmentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/assignments/{assignmentID}/cancel"
+}
+
+export type RunAssignmentCancelErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunAssignmentCancelError = RunAssignmentCancelErrors[keyof RunAssignmentCancelErrors]
+
+export type RunAssignmentCancelResponses = {
+  /**
+   * Cancelled assignment
+   */
+  200: RunAssignmentView
+}
+
+export type RunAssignmentCancelResponse = RunAssignmentCancelResponses[keyof RunAssignmentCancelResponses]
+
+export type RunAssignmentRetryData = {
+  body?: RunAssignmentRetryPayload
+  path: {
+    runID: string
+    assignmentID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/assignments/{assignmentID}/retry"
+}
+
+export type RunAssignmentRetryErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunAssignmentRetryError = RunAssignmentRetryErrors[keyof RunAssignmentRetryErrors]
+
+export type RunAssignmentRetryResponses = {
+  /**
+   * Retried assignment
+   */
+  200: RunAssignmentRetryResult
+}
+
+export type RunAssignmentRetryResponse = RunAssignmentRetryResponses[keyof RunAssignmentRetryResponses]
+
 export type RunPlanData = {
   body?: {
     teams: Array<{
@@ -21963,6 +23312,44 @@ export type RunDenialsClearResponses = {
 }
 
 export type RunDenialsClearResponse = RunDenialsClearResponses[keyof RunDenialsClearResponses]
+
+export type RunPauseData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/run/{runID}/pause"
+}
+
+export type RunPauseErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+  /**
+   * Conflict
+   */
+  409: EffectHttpApiErrorConflict
+}
+
+export type RunPauseError = RunPauseErrors[keyof RunPauseErrors]
+
+export type RunPauseResponses = {
+  /**
+   * Paused run
+   */
+  200: RunDetail
+}
+
+export type RunPauseResponse = RunPauseResponses[keyof RunPauseResponses]
 
 export type RunCancelData = {
   body?: never

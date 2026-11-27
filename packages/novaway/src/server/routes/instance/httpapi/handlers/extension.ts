@@ -28,6 +28,19 @@ import type { GitEntry, ZipEntry } from "@/extension/marketplace"
 type Change = "added" | "removed" | "upgraded" | "downgraded" | "changed" | "unchanged"
 type Generation = { value: number }
 
+/**
+ * Marketplace records use the distribution id (for example
+ * `com.novaway.office-suite`), while PluginHost persists the manifest id
+ * (`office-suite`). Treat both forms as the same plugin when reconciling the
+ * enabled/disabled ledger. Without this, an old disabled record can keep a
+ * package installed on disk but prevent its workbench Agents from activating.
+ */
+function pluginAliases(value: string) {
+  const unversioned = value.replace(/@[^@/]+$/, "")
+  const short = unversioned.replace(/^com\.novaway\./, "")
+  return new Set([value, unversioned, short, `global:${value}`, `global:${unversioned}`, `global:${short}`])
+}
+
 const toInfo = (
   item: Loaded,
   issues?: Array<{ severity: "error" | "warning"; code: string; message: string }>,
@@ -98,6 +111,37 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
     const refresh = () =>
       Effect.gen(function* () {
         const list = yield* extensions.reload()
+        const context = yield* InstanceState.context
+        const info = yield* config.get()
+        const persisted = PluginStorage.listForInstance(context.directory)
+        const disabled = new Set([
+          ...(info.plugins?.disabled ?? []),
+          ...persisted
+            .filter((item) => item.enabled === 0)
+            .flatMap((item) => [item.plugin_id, `${item.scope}:${item.plugin_id}`]),
+        ])
+        const installed = yield* Effect.promise(() => Marketplace.list()).pipe(
+          Effect.catchCause(() => Effect.succeed([] as Marketplace.Installed[])),
+        )
+        // Marketplace.list() is the local source of truth. Re-scan and activate
+        // installed v2 packages after background provisioning or a hot replacement,
+        // while preserving explicit user-disabled state.
+        yield* Effect.forEach(
+          installed.filter((item) => {
+            const aliases = pluginAliases(item.name)
+            return ![...aliases].some((alias) => disabled.has(alias))
+          }),
+          (item) =>
+            activateInstalledPlugin(item.name, item.root, true).pipe(
+              Effect.catchCause((cause) =>
+                Effect.logWarning("installed plugin refresh failed", {
+                  pluginID: item.name,
+                  cause,
+                }),
+              ),
+            ),
+          { concurrency: 1, discard: true },
+        )
         yield* skills.reload().pipe(Effect.catchCause(() => Effect.succeed([] as never[])))
         return list
       })
@@ -115,10 +159,13 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
         const context = yield* InstanceState.context
         const info = yield* config.get()
         const persisted = PluginStorage.listForInstance(context.directory)
+        const aliases = pluginAliases(pluginID)
         const disabled = [
           ...(info.plugins?.disabled ?? []),
-          ...persisted.filter((item) => item.enabled === 0).map((item) => `${item.scope}:${item.plugin_id}`),
-        ].filter((item) => !enabled || (item !== pluginID && item !== `global:${pluginID}`))
+          ...persisted
+            .filter((item) => item.enabled === 0)
+            .flatMap((item) => [item.plugin_id, `${item.scope}:${item.plugin_id}`]),
+        ].filter((item) => !enabled || !aliases.has(item))
         const discovered = yield* Effect.promise(() =>
           PluginHost.inspect({
             config: Global.Path.config,
@@ -128,11 +175,7 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
             plugins: info.plugin_origins,
             disabled,
             enabled: enabled
-              ? [
-                  pluginID,
-                  `global:${pluginID}`,
-                  ...persisted.flatMap((item) => [item.plugin_id, `${item.scope}:${item.plugin_id}`]),
-                ]
+              ? [...aliases, ...persisted.flatMap((item) => [item.plugin_id, `${item.scope}:${item.plugin_id}`])]
               : [],
           }),
         )
@@ -483,8 +526,66 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
               }
             }
           }
+          const host = yield* runtime.get
+          const runtimeFor = (name: string) => {
+            // Marketplace records use the package id (`com.novaway.office-suite`),
+            // while PluginHost states use the manifest id (`office-suite`) in
+            // `${scope}:${manifest.name}`. Treat both as the same installed package;
+            // otherwise every v2 package is incorrectly shown as "unloaded" even
+            // when its sidebar contribution is already active.
+            const aliases = new Set([
+              name,
+              name.replace(/^com\.novaway\./, ""),
+              name.replace(/@[^@/]+$/, "").replace(/^com\.novaway\./, ""),
+            ])
+            const candidates = host
+              .states()
+              .filter((state) => {
+                const stateName = state.id.slice(state.id.indexOf(":") + 1)
+                return aliases.has(stateName)
+              })
+              .sort((left, right) => {
+                const rank = { active: 0, activating: 1, failed: 2, installed: 3, disabled: 4 } as const
+                return rank[left.status] - rank[right.status]
+              })
+            const state = candidates[0]
+            if (!state) {
+              const persisted = PluginStorage.list().find((item) => {
+                const persistedAliases = new Set([item.plugin_id, item.plugin_id.replace(/^com\.novaway\./, "")])
+                return persistedAliases.has(name) || [...aliases].some((alias) => persistedAliases.has(alias))
+              })
+              if (persisted?.enabled === 1 && persisted.status === "active") {
+                return {
+                  runtimeStatus: "active" as const,
+                  runtimeScope:
+                    persisted.scope === "builtin" ||
+                    persisted.scope === "global" ||
+                    persisted.scope === "project" ||
+                    persisted.scope === "session"
+                      ? persisted.scope
+                      : undefined,
+                }
+              }
+              if (persisted?.status === "disabled" || persisted?.enabled === 0) {
+                return { runtimeStatus: "disabled" as const }
+              }
+              return { runtimeStatus: "unloaded" as const }
+            }
+            const error = state.error instanceof Error ? state.error.message : state.error
+            const [scope] = state.id.split(":", 1)
+            const runtimeScope =
+              scope === "builtin" || scope === "global" || scope === "project" || scope === "session"
+                ? (scope as "builtin" | "global" | "project" | "session")
+                : undefined
+            return {
+              runtimeStatus: state.status,
+              ...(typeof error === "string" && error ? { runtimeError: error.slice(0, 400) } : {}),
+              ...(runtimeScope ? { runtimeScope } : {}),
+            }
+          }
+          const installedWithRuntime = installed.map((item) => ({ ...item, ...runtimeFor(item.name) }))
           return {
-            installed,
+            installed: installedWithRuntime,
             legacy,
             sources,
             novaway,
@@ -708,7 +809,10 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "draining", progress: 30 }))
           deactivated = yield* deactivateInstalledPlugin(targetName, previous.root).pipe(
             Effect.mapError(
-              (error) => new HttpApiError.BadRequest({ message: `无法停用旧插件运行时：${String(error).slice(0, 300)}` } as never),
+              (error) =>
+                new HttpApiError.BadRequest({
+                  message: `无法停用旧插件运行时：${String(error).slice(0, 300)}`,
+                } as never),
             ),
           )
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "validating", progress: 40 }))
@@ -724,8 +828,8 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
             ...(target.permissions ? { permissions: target.permissions } : {}),
             ...(target.dependencies ? { dependencies: target.dependencies } : {}),
             ...(target.conflicts ? { conflicts: target.conflicts } : {}),
-            ...(("ref" in target && target.ref) ? { ref: target.ref } : {}),
-            ...(("subdir" in target && target.subdir) ? { subdir: target.subdir } : {}),
+            ...("ref" in target && target.ref ? { ref: target.ref } : {}),
+            ...("subdir" in target && target.subdir ? { subdir: target.subdir } : {}),
             onProgress: reporter.onProgress,
           }
           replacement =
@@ -733,7 +837,9 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
               ? yield* Effect.promise(() => Marketplace.installZip(input))
               : yield* Effect.promise(() => Marketplace.installGit(input))
           yield* Effect.promise(() => reporter.settle())
-          yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "cleanup-pending", progress: 60 }))
+          yield* Effect.promise(() =>
+            Operations.update(operation.operationId, { phase: "cleanup-pending", progress: 60 }),
+          )
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "replacing", progress: 65 }))
           yield* refresh()
           yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "activating", progress: 80 }))
@@ -743,7 +849,8 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           // not accept the new root.
           const activated = yield* activateInstalledPlugin(targetName, replacement.root).pipe(
             Effect.mapError(
-              (error) => new HttpApiError.BadRequest({ message: `新版本激活失败：${String(error).slice(0, 300)}` } as never),
+              (error) =>
+                new HttpApiError.BadRequest({ message: `新版本激活失败：${String(error).slice(0, 300)}` } as never),
             ),
           )
           if (!activated)
@@ -769,10 +876,14 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
                   if (deactivated) {
                     const restoredActive = yield* activateInstalledPlugin(ctx.params.name, restored.root).pipe(
                       Effect.mapError(
-                        (error) => new HttpApiError.BadRequest({ message: `旧版本恢复激活失败：${String(error).slice(0, 300)}` } as never),
+                        (error) =>
+                          new HttpApiError.BadRequest({
+                            message: `旧版本恢复激活失败：${String(error).slice(0, 300)}`,
+                          } as never),
                       ),
                     )
-                    if (!restoredActive) throw new HttpApiError.BadRequest({ message: "旧版本恢复后无法重新激活" } as never)
+                    if (!restoredActive)
+                      throw new HttpApiError.BadRequest({ message: "旧版本恢复后无法重新激活" } as never)
                   }
                 } catch (error) {
                   recoveryError = error
@@ -781,7 +892,10 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
                 try {
                   const restoredActive = yield* activateInstalledPlugin(ctx.params.name, previous.root).pipe(
                     Effect.mapError(
-                      (error) => new HttpApiError.BadRequest({ message: `旧版本重新激活失败：${String(error).slice(0, 300)}` } as never),
+                      (error) =>
+                        new HttpApiError.BadRequest({
+                          message: `旧版本重新激活失败：${String(error).slice(0, 300)}`,
+                        } as never),
                     ),
                   )
                   if (!restoredActive) throw new HttpApiError.BadRequest({ message: "旧版本重新激活失败" } as never)
@@ -829,7 +943,9 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           )
           const removed = yield* Effect.promise(() => Marketplace.remove(ctx.params.name))
           if (!removed) return yield* Effect.fail(new HttpApiError.NotFound({}))
-          yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "cleanup-pending", progress: 55 }))
+          yield* Effect.promise(() =>
+            Operations.update(operation.operationId, { phase: "cleanup-pending", progress: 55 }),
+          )
           // 内置条目被手动卸载：记下来，别在下次启动时自动装回来。
           yield* Effect.promise(() => Provision.dismiss(target?.name ?? ctx.params.name))
           // 扩展没了，它专属的 venv 也一起删，别留几百 MB 的孤儿目录。
@@ -893,11 +1009,26 @@ export const extensionHandlers = HttpApiBuilder.group(InstanceHttpApi, "extensio
           yield* skills.reload().pipe(Effect.catchCause(() => Effect.succeed([] as never[])))
           const list = yield* extensions.list()
           const match = list.find((item) => item.name === ctx.params.name)
+          const installed = yield* Effect.promise(() => Marketplace.list()).pipe(
+            Effect.catchCause(() => Effect.succeed([] as Marketplace.Installed[])),
+          )
+          const installedMatch = installed.find(
+            (item) => item.name === ctx.params.name || path.basename(item.root) === ctx.params.name,
+          )
+          // v2 marketplace packages may also appear in the legacy extension list.
+          // Do not use that list as proof that the PluginRuntime was updated: always
+          // reconcile the installed package with the v2 host after a toggle. This is
+          // what makes an enabled workbench register its Agent contributions in the
+          // current instance instead of only changing the persisted legacy flag.
+          const activated = yield* activateInstalledPlugin(
+            ctx.params.name,
+            match?.root ?? installedMatch?.root,
+            ctx.payload.enabled,
+          ).pipe(Effect.catchCause(() => Effect.succeed(false)))
+          if (!match && !activated) {
+            return yield* Effect.fail(new HttpApiError.NotFound({}))
+          }
           if (!match) {
-            const handled = yield* activateInstalledPlugin(ctx.params.name, undefined, ctx.payload.enabled).pipe(
-              Effect.catchCause(() => Effect.succeed(false)),
-            )
-            if (!handled) return yield* Effect.fail(new HttpApiError.NotFound({}))
             yield* Effect.promise(() => Operations.update(operation.operationId, { phase: "completed", progress: 100 }))
             yield* publishChanged(ctx.params.name, ctx.payload.enabled)
             return {

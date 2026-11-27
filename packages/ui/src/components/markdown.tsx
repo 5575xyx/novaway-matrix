@@ -7,9 +7,9 @@ import morphdom from "morphdom"
 import { checksum } from "@novaway/core/util/encode"
 import { copyMediaToClipboard } from "../util/clipboard"
 import { downloadFile, filenameFromUrl } from "../util/download"
-import { ComponentProps, createEffect, createResource, createSignal, onCleanup, splitProps } from "solid-js"
+import { ComponentProps, createEffect, createMemo, createResource, createSignal, onCleanup, splitProps } from "solid-js"
 import { isServer } from "solid-js/web"
-import { stream } from "./markdown-stream"
+import { plainStreamingRender, stream } from "./markdown-stream"
 import { dirPath, filePath, urlPattern } from "./markdown-file-path"
 import { chooseIconName } from "./file-icons/choose"
 import sprite from "./file-icons/sprite.svg"
@@ -563,13 +563,26 @@ export function Markdown(
   const i18n = useI18n()
   const dialog = useDialog()
   const [root, setRoot] = createSignal<HTMLDivElement>()
+  let previousPlainRender: ReturnType<typeof plainStreamingRender>
+  const plainRender = createMemo(() => {
+    if (!local.streaming) {
+      previousPlainRender = undefined
+      return undefined
+    }
+    const render = plainStreamingRender(local.text, previousPlainRender)
+    previousPlainRender = render
+    return render
+  })
   const [html] = createResource(
-    () => ({
-      text: local.text,
-      key: local.cacheKey,
-      streaming: local.streaming ?? false,
-    }),
-    async (src) => {
+    () => {
+      if (plainRender()) return false
+      return {
+        text: local.text,
+        key: local.cacheKey,
+        streaming: local.streaming ?? false,
+      }
+    },
+    (src) => {
       if (isServer) return fallback(src.text)
       if (!src.text) return ""
 
@@ -599,6 +612,13 @@ export function Markdown(
     { initialValue: fallback(local.text) },
   )
 
+  // Until an async parse settles, `html.latest` can still be the last rendered value.
+  // The raw text may change many times without changing the HTML we should paint.
+  const displayedHtml = createMemo(() => {
+    if (!local.text) return ""
+    return plainRender()?.html ?? html.latest ?? html() ?? ""
+  })
+
   const openImagePreview = (url: string, alt?: string) => {
     dialog.show(() => <ImagePreview src={url} alt={alt} />)
   }
@@ -609,15 +629,31 @@ export function Markdown(
   let linkOpenCleanup: (() => void) | undefined
   let wikiOpenCleanup: (() => void) | undefined
   let taskCleanup: (() => void) | undefined
+  let previousPlainParagraphCount = 0
+  let previousPlainPrefix = ""
 
   createEffect(() => {
     const container = root()
-    const content = local.text ? (html.latest ?? html() ?? "") : ""
+    const content = displayedHtml()
+    const plain = plainRender()
     if (!container) return
     if (isServer) return
 
     if (!content) {
       container.innerHTML = ""
+      previousPlainParagraphCount = 0
+      previousPlainPrefix = ""
+      return
+    }
+
+    if (
+      plain &&
+      plain.paragraphCount > 0 &&
+      plain.paragraphCount === previousPlainParagraphCount &&
+      content.startsWith(previousPlainPrefix) &&
+      container.lastElementChild instanceof HTMLParagraphElement
+    ) {
+      container.lastElementChild.textContent = plain.tailText
       return
     }
 
@@ -648,6 +684,9 @@ export function Markdown(
         return true
       },
     })
+    previousPlainParagraphCount = plain?.paragraphCount ?? 0
+    const lastParagraphStart = plain ? content.lastIndexOf("<p>") : -1
+    previousPlainPrefix = lastParagraphStart >= 0 ? content.slice(0, lastParagraphStart) : ""
 
     if (!copyCleanup)
       copyCleanup = setupCodeCopy(container, () => ({

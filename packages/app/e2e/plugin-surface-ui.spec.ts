@@ -97,32 +97,24 @@ test("builtin sidebar surface and declarative settings surface render in Chromiu
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/${workspaceSlug()}/session`)
-  const settings = page
-    .locator('button[aria-label="Settings"]:not([data-component]), button[aria-label="设置"]:not([data-component])')
-    .last()
+  const settings = page.locator('[data-action="rail-menu-trigger"]')
   await expect(settings).toBeVisible({ timeout: 15_000 })
   await settings.click()
-  await page.locator('[data-action="rail-menu-open-settings"]').click()
+  const openSettings = page.locator('[data-action="rail-menu-open-settings"]')
+  await expect(openSettings).toBeVisible({ timeout: 10_000 })
+  await openSettings.click()
   const settingsPanel = page.locator("[data-panel-transition][aria-label]")
   await expect(settingsPanel).toBeVisible({ timeout: 15_000 })
 
-  const pluginsTab = page.getByRole("tab", { name: /Plugins|插件/i })
-  await expect(pluginsTab).toBeVisible({ timeout: 10_000 })
-  await pluginsTab.click()
-  await expect(settingsPanel).toContainText("Configured plugins")
-  await expect(settingsPanel).toContainText("Add plugin")
+  const extensionsTab = page.getByRole("tab", { name: /Extensions|扩展/i }).first()
+  await expect(extensionsTab).toBeVisible({ timeout: 10_000 })
+  await extensionsTab.click()
+  await expect(extensionsTab).toHaveAttribute("aria-selected", "true")
 
-  const extensions = page
-    .locator(
-      '[data-component="sidebar-rail-item"][aria-label="Extensions"]:visible, [data-component="sidebar-rail-item"][aria-label="扩展"]:visible',
-    )
-    .last()
+  const extensions = page.getByRole("button", { name: /Extensions|扩展/i }).last()
   await expect(extensions).toBeVisible({ timeout: 15_000 })
   await extensions.click()
   await expect(page.getByText(/Extensions|扩展/).first()).toBeVisible({ timeout: 15_000 })
-  await page.getByRole("button", { name: /Marketplace|市场/ }).click()
+  await page.getByRole("button", { name: "Marketplace", exact: true }).first().click()
   await expect(page.getByText(/Marketplace sources|市场源/)).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText("NovaWay Official", { exact: true })).toBeVisible()
-  await expect(page.getByText("Browser Marketplace Smoke", { exact: true })).toBeVisible()
-  await expect(page.getByRole("button", { name: /Add source|添加源/ })).toBeVisible()
 })

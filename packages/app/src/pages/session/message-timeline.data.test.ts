@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { AssistantMessage, Part, UserMessage } from "@novaway/sdk/v2"
-import { Timeline, TurnFold, TimelineRow, type SummaryDiff } from "./message-timeline.data"
+import { Timeline, TodoGrouping, TurnFold, TimelineRow, type SummaryDiff } from "./message-timeline.data"
 
 type TimelineRowByTag<T extends TimelineRow.TimelineRow["_tag"]> = Extract<TimelineRow.TimelineRow, { _tag: T }>
 
@@ -23,6 +23,68 @@ const assistant = {
 } as AssistantMessage
 
 const parts = (input: Part[]) => input
+
+describe("TodoGrouping.latestSnapshot", () => {
+  const snapshot = (content: string): Part =>
+    ({
+      id: `todo-${content}`,
+      type: "tool",
+      tool: "todowrite",
+      callID: `call-${content}`,
+      sessionID: "ses_test",
+      messageID: `msg-${content}`,
+      state: {
+        status: "completed",
+        input: { todos: [{ content, status: "in_progress" }] },
+        output: "",
+        metadata: {},
+        title: "todowrite",
+        time: { start: 1, end: 2 },
+      },
+    }) as Part
+
+  test("stops at the newest non-empty snapshot instead of scanning older messages", () => {
+    const calls: string[] = []
+    const result = TodoGrouping.latestSnapshot(
+      [{ id: "old" }, { id: "middle" }, { id: "latest" }],
+      (id) => {
+        calls.push(id)
+        return id === "latest" ? [snapshot("current task")] : [snapshot("stale task")]
+      },
+    )
+
+    expect(result.map((todo) => todo.content)).toEqual(["current task"])
+    expect(calls).toEqual(["latest"])
+  })
+
+  test("skips empty newer snapshots and falls back to the newest prior non-empty snapshot", () => {
+    const calls: string[] = []
+    const result = TodoGrouping.latestSnapshot(
+      [{ id: "old" }, { id: "latest" }],
+      (id) => {
+        calls.push(id)
+        if (id === "latest")
+          return [
+            {
+              ...snapshot(""),
+              state: {
+                status: "completed",
+                input: { todos: [] },
+                output: "",
+                metadata: {},
+                title: "todowrite",
+                time: { start: 1, end: 2 },
+              },
+            } as Part,
+          ]
+        return [snapshot("previous task")]
+      },
+    )
+
+    expect(result.map((todo) => todo.content)).toEqual(["previous task"])
+    expect(calls).toEqual(["latest", "old"])
+  })
+})
 
 describe("Timeline.constructMessageRows", () => {
   test("hides synthetic-only user messages while keeping assistant output", () => {
@@ -166,6 +228,38 @@ const fixtureMap = (groups: Part[][]) => {
   return (messageID: string, partID: string) => byID.get(partID)
 }
 
+describe("TodoGrouping.group fast path", () => {
+  test("caches false classifications so stable text rows need no repeated part lookup", () => {
+    const part = textPart("ordinary answer")
+    const row = assistantPartRow([part])
+    const rows = [row]
+    let lookups = 0
+    const getPart = (_messageID: string, partID: string) => {
+      lookups++
+      return partID === part.id ? part : undefined
+    }
+
+    expect(TodoGrouping.group(rows, { getPart })).toBe(rows)
+    expect(lookups).toBe(1)
+    expect(TodoGrouping.group(rows, { getPart })).toBe(rows)
+    expect(lookups).toBe(1)
+  })
+
+  test("caches true classifications for todo-tool rows", () => {
+    const part = toolPart(1000, 2000, "todowrite")
+    const row = assistantPartRow([part])
+    let lookups = 0
+    const getPart = (_messageID: string, partID: string) => {
+      lookups++
+      return partID === part.id ? part : undefined
+    }
+
+    expect(TodoGrouping.hasTodoTool([row], getPart)).toBe(true)
+    expect(TodoGrouping.hasTodoTool([row], getPart)).toBe(true)
+    expect(lookups).toBe(1)
+  })
+})
+
 describe("TurnFold.fold", () => {
   test("completed turn folds process rows and keeps the trailing result text outside", () => {
     const parts = [[toolPart(1000, 2000)], [textPart("result")]]
@@ -188,6 +282,16 @@ describe("TurnFold.fold", () => {
     expect(folded.durationMs).toBe(5000)
     expect(folded.bare).toBeUndefined()
     expect(folded.active).toBeUndefined()
+    expect(TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000, end: 6000 }),
+    })[1]).toBe(folded)
+    const changedTiming = TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000, end: 9000 }),
+    })[1] as TimelineRowByTag<"TurnFold">
+    expect(changedTiming).not.toBe(folded)
+    expect(changedTiming.durationMs).toBe(8000)
   })
 
   test("active turn closes the group above the narration and opens a new one below it", () => {
@@ -315,7 +419,27 @@ describe("TurnFold.fold", () => {
     expect(out.some((row) => row._tag === "TurnFold")).toBe(false)
   })
 
-  test("error row keeps the turn unfolded and in place", () => {
+  test("reuses structural text classification for stable assistant rows", () => {
+    const part = textPart("stable answer")
+    const row = assistantPartRow([part], { last: true })
+    let lookups = 0
+    const options = {
+      getPart: () => {
+        lookups++
+        return part
+      },
+      turnTime: () => ({}),
+    }
+
+    TurnFold.fold([row], options)
+    const firstPassLookups = lookups
+    TurnFold.fold([row], options)
+
+    expect(firstPassLookups).toBe(1)
+    expect(lookups).toBe(firstPassLookups)
+  })
+
+  test("error row stays visible after the process is folded", () => {
     const parts = [[toolPart(1000, 2000)], [textPart("partial")]]
     const rows = [
       assistantPartRow(parts[0]!),
@@ -328,11 +452,12 @@ describe("TurnFold.fold", () => {
       turnTime: () => ({ start: 1000, end: 6000 }),
     })
 
-    expect(out.some((row) => row._tag === "TurnFold")).toBe(false)
+    expect(out.map((row) => row._tag)).toEqual(["TurnFold", "AssistantPart", "Error"])
+    expect((out[0] as TimelineRowByTag<"TurnFold">).rows.map((row) => row._tag)).toEqual(["AssistantPart"])
     expect(out.at(-1)!._tag).toBe("Error")
   })
 
-  test("interrupted turn divider keeps the turn unfolded", () => {
+  test("interrupted turn divider keeps each attempt folded separately", () => {
     const parts = [[toolPart(1000, 2000)], [textPart("result")]]
     const rows = [
       new TimelineRow.TurnDivider({ userMessageID: "msg_user", label: "interrupted" }),
@@ -345,7 +470,22 @@ describe("TurnFold.fold", () => {
       turnTime: () => ({ start: 1000, end: 6000 }),
     })
 
-    expect(out.some((row) => row._tag === "TurnFold")).toBe(false)
+    expect(out.map((row) => row._tag)).toEqual(["TurnDivider", "TurnFold", "AssistantPart"])
+  })
+
+  test("interrupted attempt without a final answer still folds its process", () => {
+    const parts = [[toolPart(1000, 2000)]]
+    const rows = [
+      assistantPartRow(parts[0]!),
+      new TimelineRow.TurnDivider({ userMessageID: "msg_user", label: "interrupted" }),
+    ]
+
+    const out = TurnFold.fold(rows, {
+      getPart: fixtureMap(parts),
+      turnTime: () => ({ start: 1000, end: 2000 }),
+    })
+
+    expect(out.map((row) => row._tag)).toEqual(["TurnFold", "TurnDivider"])
   })
 
   test("tail cards stay outside the fold after the result text", () => {

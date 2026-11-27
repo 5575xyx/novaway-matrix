@@ -16,9 +16,10 @@ import { makeRuntime } from "@/effect/run-service"
 import type { InstanceContext } from "@/project/instance-context"
 
 const DIAGNOSTICS_DEBOUNCE_MS = 150
-const DIAGNOSTICS_DOCUMENT_WAIT_TIMEOUT_MS = 5_000
+const DIAGNOSTICS_DOCUMENT_WAIT_TIMEOUT_MS = 60_000
 const DIAGNOSTICS_FULL_WAIT_TIMEOUT_MS = 10_000
 const DIAGNOSTICS_REQUEST_TIMEOUT_MS = 3_000
+const DIAGNOSTICS_PUSH_SETTLE_TIMEOUT_MS = 750
 
 const INITIALIZE_TIMEOUT_MS = 45_000
 
@@ -548,7 +549,27 @@ export async function create(input: {
 
     while (Date.now() - startedAt < DIAGNOSTICS_DOCUMENT_WAIT_TIMEOUT_MS) {
       const result = await requestDocumentDiagnostics(request.path)
-      if (result.matched) return
+      if (result.matched) {
+        // Pull-capable servers such as rust-analyzer may answer with an empty
+        // report and publish compiler diagnostics shortly afterwards. Do not
+        // return that transient empty result before the push has settled.
+        const current = mergedDiagnostics(request.path)
+        if (current.length > 0) return
+        const remaining = Math.min(
+          DIAGNOSTICS_PUSH_SETTLE_TIMEOUT_MS,
+          DIAGNOSTICS_DOCUMENT_WAIT_TIMEOUT_MS - (Date.now() - startedAt),
+        )
+        if (remaining <= 0) return
+        const pushed = await Promise.race([
+          pushWait,
+          new Promise<false>((resolve) => setTimeout(() => resolve(false), Math.min(remaining, DIAGNOSTICS_PUSH_SETTLE_TIMEOUT_MS))),
+        ])
+        if (pushed) return
+        // An empty pull response is often a transient result while the server
+        // is still compiling the changed document. Retry the pull instead of
+        // treating the empty report as the final diagnostic state.
+        continue
+      }
       const remaining = DIAGNOSTICS_DOCUMENT_WAIT_TIMEOUT_MS - (Date.now() - startedAt)
       if (remaining <= 0) return
       const next = await Promise.race([
@@ -592,11 +613,11 @@ export async function create(input: {
       return connection
     },
     notify: {
-      async open(request: { path: string }) {
+      async open(request: { path: string; text?: string; changed?: boolean }) {
         request.path = Filesystem.normalizePath(
           path.isAbsolute(request.path) ? request.path : path.resolve(input.directory, request.path),
         )
-        const text = await Filesystem.readText(request.path)
+        const text = request.text ?? (await Filesystem.readText(request.path))
         const extension = path.extname(request.path)
         const languageId = LANGUAGE_EXTENSIONS[extension] ?? "plaintext"
 
@@ -665,6 +686,22 @@ export async function create(input: {
           },
         })
         files[request.path] = { version: 0, text }
+        if (request.changed) {
+          // Some servers (notably rust-analyzer) only start compiler-backed
+          // diagnostics after receiving a change notification. The document is
+          // already opened above; replay the current in-memory text as a full
+          // change without touching the user's disk file.
+          const version = 1
+          await connection.sendNotification("textDocument/didChange", {
+            textDocument: {
+              uri: pathToFileURL(request.path).href,
+              version,
+            },
+            contentChanges: [{ text }],
+          })
+          files[request.path] = { version, text }
+          return version
+        }
         return 0
       },
     },

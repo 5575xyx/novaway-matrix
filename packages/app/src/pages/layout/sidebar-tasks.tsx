@@ -1,6 +1,6 @@
 import { type Session } from "@novaway/sdk/v2/client"
-import { createMemo, createSignal, For, Show, type Accessor } from "solid-js"
-import { createStore, produce } from "solid-js/store"
+import { createMemo, createSignal, For, onCleanup, Show, type Accessor } from "solid-js"
+import { produce } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { Icon } from "@novaway/ui/icon"
 import { useGlobalSync } from "@/context/global-sync"
@@ -13,20 +13,21 @@ import { base64Encode } from "@novaway/core/util/encode"
 import { displaySessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { decode64 } from "@/utils/base64"
-import { sessionStatusOf, sortedRootSessionsFrom, withinRecency, requestCloseFramePages } from "./helpers"
+import { roots, sessionStatusOf, sortedRootSessionsFrom, withinRecency, requestCloseFramePages } from "./helpers"
 import { TaskRow } from "@/components/session/task-row"
+import { indexSidebarChildren } from "./sidebar-child-index"
 
 export type TaskFilter = "all" | "running" | "waiting" | "archived"
 
 export type TaskFilterBarId = TaskFilter | "projects"
 
-export function useProjectSessions(project: LocalProject) {
-  const globalSync = useGlobalSync()
-
-  const dirs = createMemo(() => {
+function useProjectDirectories(project: () => LocalProject) {
+  return createMemo(() => {
     const seen = new Set<string>()
     const result: string[] = []
-    for (const dir of [project.worktree, ...(project.sandboxes ?? [])]) {
+    const item = project()
+    for (const dir of [item.worktree, ...(item.sandboxes ?? [])]) {
+      if (!dir) continue
       const key = pathKey(dir)
       if (seen.has(key)) continue
       seen.add(key)
@@ -34,46 +35,46 @@ export function useProjectSessions(project: LocalProject) {
     }
     return result
   })
-  const stores = createMemo(() => dirs().map((dir) => globalSync.child(dir)[0]))
-  const sessions = createMemo(() => sortedRootSessionsFrom(stores(), 0))
-
-  return { dirs, stores, sessions }
 }
 
-export function useProjectTaskList(props: {
+type ProjectTaskListOptions = {
   project: LocalProject
   filter: () => TaskFilter
   archived: () => Session[] | undefined
   sortNow: Accessor<number>
-  /** sessionID → 置顶时间；置顶任务排在最前。 */
   pinned?: () => Record<string, number>
-  /** 侧栏「视图 → 排序方式」。 */
   sort?: Accessor<TaskSortBy>
-  /** 侧栏「视图 → 最近活动」时间窗。 */
   recency?: Accessor<TaskRecency>
-  /**
-   * 「按日期 / 自定义」分组用的小筛子：同一个合并项目要按桶拆成好几段渲染，
-   * 每段只留自己那部分会话。不传就是整段都要。
-   */
-  where?: (session: Session) => boolean
-}) {
+}
+
+export function useProjectTaskList(props: ProjectTaskListOptions) {
   const globalSync = useGlobalSync()
   const permission = usePermission()
   const notification = useNotification()
-  const { stores } = useProjectSessions(props.project)
-
-  return createMemo(() => {
+  const directories = useProjectDirectories(() => props.project)
+  const stores = createMemo(() => directories().map((dir) => globalSync.child(dir, { bootstrap: false })[0]))
+  const sessions = createMemo(() => {
     const filter = props.filter()
-    const where = props.where
-    if (filter === "archived") {
-      return (props.archived() ?? []).filter((s) => !!s.time?.archived && (!where || where(s)))
-    }
-    const roots = sortedRootSessionsFrom(stores(), props.sortNow(), props.pinned?.(), props.sort?.()).filter(
-      (session) => withinRecency(session, props.recency?.() ?? "all", props.sortNow()) && (!where || where(session)),
-    )
-    if (filter === "all") return roots
-    return roots.filter((session) => sessionStatusOf(globalSync, permission, notification, session) === filter)
+    if (filter === "archived") return (props.archived() ?? []).filter((s) => !!s.time?.archived)
+    const now = props.sortNow()
+    const recency = props.recency?.() ?? "all"
+    return sortedRootSessionsFrom(stores(), now, props.pinned?.(), props.sort?.()).filter((session) => {
+      if (!withinRecency(session, recency, now)) return false
+      if (filter === "all") return true
+      const status = sessionStatusOf(globalSync, permission, notification, session)
+      return status === filter || (filter === "running" && status === "failed")
+    })
   })
+  const childrenByParent = createMemo(() =>
+    indexSidebarChildren(sessions(), (dir) => globalSync.child(dir, { bootstrap: false })[0].session),
+  )
+  const listStates = createMemo(() => stores().map((store) => store.sessionList))
+  const retry = () => {
+    directories().forEach((dir, index) => {
+      if (listStates()[index] === "error") void globalSync.project.loadSessions(dir)
+    })
+  }
+  return { sessions, childrenByParent, listStates, retry }
 }
 
 export type TaskCounts = Record<TaskFilter, number>
@@ -114,13 +115,18 @@ export function useTaskCounts(props: {
         seen.add(key)
         dirs.push(dir)
       }
-      const stores = dirs.map((dir) => globalSync.child(dir)[0])
-      for (const session of sortedRootSessionsFrom(stores, props.sortNow(), props.pinned?.())) {
-        if (!withinRecency(session, recency, props.sortNow())) continue
-        counts.all += 1
-        const status = sessionStatusOf(globalSync, permission, notification, session)
-        if (status === "waiting") counts.waiting += 1
-        else if (status === "running" || status === "failed") counts.running += 1
+      const counted = new Set<string>()
+      for (const dir of dirs) {
+        const [store] = globalSync.child(dir, { bootstrap: false })
+        for (const session of roots(store)) {
+          if (counted.has(session.id)) continue
+          counted.add(session.id)
+          if (!withinRecency(session, recency, props.sortNow())) continue
+          counts.all += 1
+          const status = sessionStatusOf(globalSync, permission, notification, session)
+          if (status === "waiting") counts.waiting += 1
+          else if (status === "running" || status === "failed") counts.running += 1
+        }
       }
       // 归档数与下方各项目的归档列表同口径：只数**当前项目目录**里的归档。
       // 曾经直接累加整个归档记录，把已删除工作区/别的项目残留的目录也算进去，
@@ -134,18 +140,14 @@ export function useTaskCounts(props: {
 }
 
 export function ProjectTaskList(props: {
-  project: LocalProject
+  model: ReturnType<typeof useProjectTaskList>
   sidebarExpanded: () => boolean
   prefetchSession: (session: Session, priority?: "high" | "low") => void
   archiveSession: (session: Session) => Promise<void>
   filter: () => TaskFilter
-  archived: () => Session[] | undefined
-  sortNow: Accessor<number>
-  /** sessionID → 置顶时间；置顶任务排在最前。 */
-  pinned?: () => Record<string, number>
-  sort?: Accessor<TaskSortBy>
-  recency?: Accessor<TaskRecency>
-  where?: (session: Session) => boolean
+  childCollapsed: (sessionID: string) => boolean
+  toggleChildren: (sessionID: string) => void
+  bucketSessions?: Accessor<Session[]>
   /**
    * 「按日期 / 自定义」分组时由调用方给的一段头。
    *
@@ -163,7 +165,10 @@ export function ProjectTaskList(props: {
   const params = useParams()
   const navigate = useNavigate()
 
-  const sessions = useProjectTaskList(props)
+  const { sessions: allSessions, childrenByParent, listStates, retry } = props.model
+  const sessions = () => props.bucketSessions?.() ?? allSessions()
+  const loading = () => props.filter() !== "archived" && listStates().some((state) => state === "idle" || state === "loading")
+  const failed = () => props.filter() !== "archived" && listStates().includes("error")
 
   // 任务行的三项操作（重命名 / 归档 / 删除）都写回 globalSync 的会话列表。
   // 直接用会话自己的 directory：任务行可能来自 worktree 的 sandbox，不是项目根。
@@ -194,35 +199,15 @@ export function ProjectTaskList(props: {
     )
   }
 
-  // 任务行还要能下钻到子会话（子智能体会话）。
-  // 之前只渲染根会话，子会话永远不出现，用户看到的是一排平铺条目、分不出层级。
-  const childrenByParent = createMemo(() => {
-    const map = new Map<string, Session[]>()
-    for (const session of sessions()) {
-      const [store] = globalSync.child(session.directory, { bootstrap: false })
-      for (const item of store.session ?? []) {
-        if (!item.parentID) continue
-        const list = map.get(item.parentID)
-        if (list) {
-          if (!list.some((x) => x.id === item.id)) list.push(item)
-        } else {
-          map.set(item.parentID, [item])
-        }
-      }
-    }
-    return map
-  })
-
-  const [collapsed, setCollapsed] = createStore<Record<string, boolean | undefined>>({})
-
   const rowFor = (session: Session, level: number) => {
-    const status = () => sessionStatusOf(globalSync, permission, notification, session)
+    const status = createMemo(() => sessionStatusOf(globalSync, permission, notification, session))
     const [child] = globalSync.child(session.directory, { bootstrap: false })
     const kids = () => childrenByParent().get(session.id) ?? []
     return (
       <TaskRow
         title={() => displaySessionTitle(session.title, language.t("workspace.header.untitled"))}
         status={status}
+        unread={() => notification.session.unseenCount(session.id) > 0}
         branch={() => child.vcs?.branch}
         updated={() => session.time?.updated}
         additions={() => session.summary?.additions ?? 0}
@@ -239,6 +224,7 @@ export function ProjectTaskList(props: {
           layout.mode.all().find((mode) => mode.id === layout.mode.projectMode(session.directory))?.color
         }
         onClick={() => {
+          notification.session.markViewed(session.id)
           // 数据库 / 设置等整帧页面开着时，点任务应当先退出去。
           requestCloseFramePages()
           // 辅助对话 / 子代理会话：点侧栏的树节点应在右侧面板里打开，
@@ -257,8 +243,8 @@ export function ProjectTaskList(props: {
         expander={
           kids().length > 0
             ? {
-                expanded: !collapsed[session.id],
-                toggle: () => setCollapsed(session.id, (value) => !value),
+                expanded: !props.childCollapsed(session.id),
+                toggle: () => props.toggleChildren(session.id),
               }
             : undefined
         }
@@ -287,8 +273,19 @@ export function ProjectTaskList(props: {
 
   return (
     <>
-      <Show when={props.filter() !== "all" && !props.bucket && sessions().length === 0}>
+      <Show when={loading() && sessions().length === 0}>
+        <div class="flex items-center gap-1.5 px-2 py-1.5 text-ui-caption text-foreground-subtle">
+          <Icon name="lu-loader" size="small" class="animate-spin" aria-hidden="true" />
+          <span>{language.t("common.loading")}</span>
+        </div>
+      </Show>
+      <Show when={props.filter() !== "all" && !props.bucket && sessions().length === 0 && !loading() && !failed()}>
         <div class="px-2 py-1.5 text-ui-caption text-foreground-subtle">{language.t("sidebar.filter.empty")}</div>
+      </Show>
+      <Show when={failed() && !props.bucket}>
+        <button type="button" class="px-2 py-1.5 text-ui-caption text-foreground-subtle hover:text-foreground" onClick={retry}>
+          {language.t("sidebar.sessions.retry")}
+        </button>
       </Show>
       <Show when={sessions().length > 0}>
         <Show when={props.bucket}>
@@ -316,7 +313,7 @@ export function ProjectTaskList(props: {
               {(session) => (
                 <>
                   {rowFor(session, 1)}
-                  <Show when={!collapsed[session.id] && (childrenByParent().get(session.id) ?? []).length > 0}>
+                  <Show when={!props.childCollapsed(session.id) && (childrenByParent().get(session.id) ?? []).length > 0}>
                     <For each={childrenByParent().get(session.id) ?? []}>{(child) => rowFor(child, 2)}</For>
                   </Show>
                 </>
@@ -427,25 +424,42 @@ export function TaskFilterBar(props: {
 export function useArchivedSessions(projects: () => LocalProject[]) {
   const globalSDK = useGlobalSDK()
   const [archived, setArchived] = createSignal<Record<string, Session[]>>({})
+  const globalSync = useGlobalSync()
+  const requests = new Map<string, Promise<void>>()
   let version = 0
+  let disposed = false
+  onCleanup(() => { disposed = true; version++ })
 
-  const load = () => {
-    version += 1
-    const current = version
-    void Promise.all(
-      projects().flatMap((project) =>
-        [project.worktree, ...(project.sandboxes ?? [])].map(async (directory) => {
-          const sessions = await globalSDK.client.experimental.session
-            .list({ directory, archived: true, roots: true, limit: 500 })
-            .then((result) => result.data ?? [])
-            .catch(() => [] as Session[])
-          return [directory, sessions] as const
-        }),
-      ),
-    ).then((entries) => {
-      if (current !== version) return
-      setArchived(Object.fromEntries(entries))
-    })
+  const load = (priority: "foreground" | "background" = "foreground") => {
+    const current = ++version
+    const directories = [...new Set(projects().flatMap((project) => [project.worktree, ...(project.sandboxes ?? [])]))]
+    const run = (directory: string) => {
+      const pending = requests.get(directory)
+      if (pending) return pending
+      const request = globalSDK.client.experimental.session
+        .list({ directory, archived: true, roots: true, limit: 500 })
+        .then((result) => {
+          if (!disposed) {
+            setArchived((value) => ({ ...value, [directory]: result.data ?? [] }))
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => requests.delete(directory))
+      requests.set(directory, request)
+      return request
+    }
+    if (priority === "background") {
+      for (const directory of directories) {
+        void globalSync.background.run(() => current === version ? run(directory) : undefined, 5)
+      }
+    } else {
+      // Explicit selection never waits for the idle budget; publish each result
+      // as it arrives instead of waiting for the slowest workspace.
+      void directories.reduce<Promise<unknown>>(
+        (previous, directory) => previous.then(() => current === version ? run(directory) : undefined),
+        Promise.resolve(),
+      )
+    }
   }
 
   return { archived, load }

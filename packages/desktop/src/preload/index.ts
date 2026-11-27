@@ -20,6 +20,18 @@ const api: ElectronAPI = {
   getWslConfig: () => ipcRenderer.invoke("get-wsl-config"),
   setWslConfig: (config) => ipcRenderer.invoke("set-wsl-config", config),
   getDisplayBackend: () => ipcRenderer.invoke("get-display-backend"),
+  getNativeSpeechBackends: () => ipcRenderer.invoke("native-speech:backends"),
+  getNativeSpeechModels: () => ipcRenderer.invoke("native-speech:models"),
+  downloadNativeSpeechModel: (id) => ipcRenderer.invoke("native-speech:download", id),
+  onNativeSpeechDownloadProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, value: { id: string; progress: number }) => callback(value)
+    ipcRenderer.on("native-speech:download-progress", listener)
+    return () => ipcRenderer.removeListener("native-speech:download-progress", listener)
+  },
+  transcribeNativeSpeech: (id, pcm, language) => ipcRenderer.invoke("native-speech:transcribe", id, pcm, language),
+  startNativeSpeechStream: (id, language) => ipcRenderer.invoke("native-speech:stream-start", id, language),
+  feedNativeSpeechStream: (id, pcm) => ipcRenderer.invoke("native-speech:stream-feed", id, pcm),
+  stopNativeSpeechStream: (id) => ipcRenderer.invoke("native-speech:stream-stop", id),
   setDisplayBackend: (backend) => ipcRenderer.invoke("set-display-backend", backend),
   parseMarkdownCommand: (markdown) => ipcRenderer.invoke("parse-markdown", markdown),
   checkAppExists: (appName) => ipcRenderer.invoke("check-app-exists", appName),

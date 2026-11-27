@@ -43,7 +43,6 @@ import {
   createLoadingWindow,
   createMainWindow,
   registerLocalFileProtocol,
-  registerPreviewHttpProtocol,
   registerRendererProtocol,
   setBackgroundColor,
 } from "./windows"
@@ -401,8 +400,20 @@ const main = Effect.gen(function* () {
 
   ensureLoopbackNoProxy()
   useEnvProxy()
-  app.commandLine.appendSwitch("proxy-bypass-list", "<-loopback>")
-  if (!app.isPackaged) app.commandLine.appendSwitch("remote-debugging-port", "9222")
+  // Keep Chromium's implicit loopback bypass: "<-loopback>" removes it and can
+  // send authenticated sidecar requests through the system proxy.
+
+  // Do not reserve a fixed DevTools port during development. A second NovaWay
+  // instance, another Chromium app, or a stale Electron process can already
+  // own the port and Chromium then reports `Cannot start http server for
+  // devtools` during startup. DevTools is optional, so leave it disabled by
+  // default and only opt in when a caller explicitly supplies a port. `0`
+  // lets Chromium choose an available ephemeral port.
+  const remoteDebuggingPort = process.env.NOVAWAY_REMOTE_DEBUGGING_PORT?.trim()
+  if (!app.isPackaged && remoteDebuggingPort && /^\d+$/.test(remoteDebuggingPort)) {
+    const port = Number(remoteDebuggingPort)
+    if (port >= 0 && port <= 65_535) app.commandLine.appendSwitch("remote-debugging-port", remoteDebuggingPort)
+  }
 
   if (!app.requestSingleInstanceLock()) {
     app.quit()
@@ -515,7 +526,9 @@ const main = Effect.gen(function* () {
   app.setAsDefaultProtocolClient("NovaWay")
   registerRendererProtocol()
   registerLocalFileProtocol()
-  registerPreviewHttpProtocol()
+  // Preview HTTP interception is registered lazily when a preview inspector
+  // origin is actually selected. Registering a custom handler for every HTTP
+  // request at startup breaks the normal sidecar transport on Electron/Windows.
   // 应用自定义外观（图标/名称）：启动时套用一次，之后每次变更刷新托盘与窗口。
   applyAppearance()
   onAppearanceChange(() => refreshTray())
@@ -565,6 +578,9 @@ const main = Effect.gen(function* () {
     return yield* Deferred.await(res)
   })
   const hostname = "127.0.0.1"
+  // Keep the renderer URL identical to the IPv4 loopback interface used by the
+  // sidecar. The explicit endpoint is the reliable authenticated transport on
+  // Windows; localhost may resolve to a different loopback family in Chromium.
   const url = `http://${hostname}:${port}`
   const password = randomUUID()
 

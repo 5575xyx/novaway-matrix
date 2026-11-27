@@ -36,6 +36,7 @@ import { ModelID, ProviderID } from "@/provider/schema"
 
 import type { Provider } from "@/provider/provider"
 import { Permission } from "@/permission"
+import { planFile } from "@/permission/plan"
 import { Global } from "@novaway/core/global"
 import { Effect, Layer, Option, Context, Schema, Types } from "effect"
 import { NonNegativeInt, optionalOmitUndefined } from "@novaway/core/schema"
@@ -272,11 +273,10 @@ export const Info = Schema.Struct({
   permissionMode: optionalOmitUndefined(Permission.Mode),
   /**
    * 团队目录注入模式（§4.2）：
-   * - `off`：不注入团队目录，主智能体不会调用 `team_run`；
+   * - `off`：用户明确要求主助手直接处理，不注入团队目录；
    * - `selected`：只注入 `teamIDs` 里的团队；
-   * - `auto`：注入全部 `autoEligible` 团队，允许主智能体自行选择，但每次派发
-   *   都必须先给出计划并**等用户批准**。
-   */
+   * - `auto`：注入 `autoEligible` 团队，允许主智能体按任务需要自行选择；低风险只读
+   *   派发自动批准，写入或外部副作用仍需用户批准。   */
   teamMode: optionalOmitUndefined(Schema.Literals(["off", "auto", "selected"])),
   teamIDs: optionalOmitUndefined(Schema.Array(Schema.String)),
   /**
@@ -460,9 +460,9 @@ export const Event = {
 }
 
 export function plan(input: { slug: string; time: { created: number } }, instance: InstanceContext) {
-  const root = instance.worktree === "/" ? instance.directory : instance.worktree
-  const base = path.join(root, ".novaway", "plans")
-  return path.join(base, [input.time.created, input.slug].join("-") + ".md")
+  // 路径算法只有一份（`Permission.planFile`）：计划模式的写入白名单与拒绝文案
+  // 都要按同一个绝对路径判定，两处漂移会让合法写入被判越界。
+  return planFile({ slug: input.slug, created: input.time.created }, instance)
 }
 
 export const getUsage = (input: { model: Provider.Model; usage: LanguageModelUsage; metadata?: ProviderMetadata }) => {
@@ -595,8 +595,14 @@ export interface Interface {
   readonly setPermission: (input: { sessionID: SessionID; permission: Permission.Ruleset }) => Effect.Effect<void>
   readonly setPermissionMode: (input: {
     sessionID: SessionID
+    mode: Permission.Mode | null | undefined
+  }) => Effect.Effect<void>
+  /** Save the explicit mode that was active before entering plan mode. */
+  readonly setPlanReturnMode: (input: {
+    sessionID: SessionID
     mode: Permission.Mode | undefined
   }) => Effect.Effect<void>
+  readonly planReturnModeOf: (sessionID: SessionID) => Effect.Effect<Permission.Mode | undefined>
   /**
    * 当前生效的权限档位（子会话向上取到根，见实现）。
    * 判定权限/是否需要问人时用它，不要相信创建子会话时拷下来的快照。
@@ -1082,13 +1088,36 @@ const rawLayer: Layer.Layer<
 
     const setPermissionMode = Effect.fn("Session.setPermissionMode")(function* (input: {
       sessionID: SessionID
-      mode: Permission.Mode | undefined
+      mode: Permission.Mode | null | undefined
     }) {
       yield* patch(input.sessionID, {
-        permissionMode: input.mode,
+        permissionMode: input.mode ?? null,
         time: { updated: Date.now() },
       } as Patch)
     })
+
+    const setPlanReturnMode: Interface["setPlanReturnMode"] = Effect.fn("Session.setPlanReturnMode")(function* (input) {
+      yield* db((database) =>
+        database
+          .update(SessionTable)
+          .set({ plan_return_mode: input.mode ?? null, time_updated: Date.now() })
+          .where(eq(SessionTable.id, input.sessionID))
+          .run(),
+      )
+    })
+
+    const planReturnModeOf: Interface["planReturnModeOf"] = Effect.fn("Session.planReturnModeOf")(
+      function* (sessionID) {
+        return yield* db((database) =>
+          database
+            .select({ mode: SessionTable.plan_return_mode })
+            .from(SessionTable)
+            .where(eq(SessionTable.id, sessionID))
+            .limit(1)
+            .all(),
+        ).pipe(Effect.map((rows) => (rows[0]?.mode ?? undefined) as Permission.Mode | undefined))
+      },
+    )
 
     const setTeamMode = Effect.fn("Session.setTeamMode")(function* (input: {
       sessionID: SessionID
@@ -1096,7 +1125,10 @@ const rawLayer: Layer.Layer<
       teamIDs?: readonly string[]
     }) {
       yield* patch(input.sessionID, {
-        // `off` / `auto` 时也清空专家选择，避免旧的 employeeID 变成隐式授权。
+        // `off` / `auto` 时同时清空团队和专家授权：否则从「指定专家」切回
+        // Auto 后，旧 employeeID 仍可能让 team_run 把那个人当成当前选择。
+        // selected + teamIDs 也代表用户点名了团队，不应保留之前点名的单个专家；
+        // selected 且没有 teamIDs 是「指定专家」路径，保留 employeeID。
         teamMode: input.mode ?? null,
         teamIDs: input.mode === "selected" ? [...(input.teamIDs ?? [])] : null,
         ...(input.mode === "selected" && (input.teamIDs?.length ?? 0) === 0 ? {} : { employeeID: null }),
@@ -1266,6 +1298,8 @@ const rawLayer: Layer.Layer<
       setModel,
       setPermission,
       setPermissionMode,
+      setPlanReturnMode,
+      planReturnModeOf,
       permissionModeOf,
       setTeamMode,
       setEmployeeID,

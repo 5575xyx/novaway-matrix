@@ -36,7 +36,7 @@ export const GenerateNarrationTool = Tool.define(
       description:
         "Generate spoken narration audio from text using a configured provider. Reuses existing provider API keys and base URLs.",
       parameters: Parameters,
-      execute: (args: Schema.Schema.Type<typeof Parameters>) =>
+      execute: (args: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const cfg = yield* config.get()
           const candidate = yield* resolveNarrationProvider(cfg, args, auth)
@@ -48,6 +48,15 @@ export const GenerateNarrationTool = Tool.define(
 
           const { bytes, extension, subtitles } = yield* Effect.promise(() => synthesizeSpeech(candidate, args))
           const output = path.resolve(args.output)
+          // 落盘前必须走 `write` 权限：这个工具能写到任意绝对路径，
+          // 不请求权限就等于绕开计划模式与用户的 deny 规则（曾经真的绕过了）。
+          const relative = path.relative(ctx.directory ?? process.cwd(), output) || output
+          yield* ctx.ask({
+            permission: "write",
+            patterns: [relative],
+            always: [relative],
+            metadata: { filepath: output },
+          })
           yield* Effect.promise(() => mkdir(path.dirname(output), { recursive: true }))
           yield* Effect.promise(() => writeFile(output, bytes))
 

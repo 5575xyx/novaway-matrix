@@ -48,6 +48,8 @@ import {
   ComputerKeyTool,
   ComputerMoveTool,
   ComputerScreenshotTool,
+  ComputerSnapshotTool,
+  ComputerStatusTool,
   ComputerScrollTool,
   ComputerTypeTool,
   ComputerWaitForWindowTool,
@@ -63,12 +65,16 @@ import {
   BrowserClickTool,
   BrowserCloseTool,
   BrowserConsoleTool,
+  BrowserCookieImportTool,
   BrowserFillTool,
   BrowserNavigateTool,
   BrowserNetworkTool,
   BrowserPressTool,
   BrowserScreenshotTool,
   BrowserSnapshotTool,
+  BrowserStatusTool,
+  BrowserTabSwitchTool,
+  BrowserTabsTool,
 } from "./browser"
 import { BrowserService } from "@/browser/browser"
 import {
@@ -233,6 +239,7 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   },
   // 电脑操作与人共用一个桌面：既非只读也不幂等（点击可能下单）。
   computer_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true },
+  computer_status: { readOnly: true, concurrencySafe: false, idempotent: true },
   computer_windows: { readOnly: true, concurrencySafe: false, idempotent: true },
   computer_wait_for_window: { readOnly: true, concurrencySafe: false, idempotent: true },
   computer_move: { concurrencySafe: false },
@@ -245,9 +252,13 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   // 「打开 → 看结构 → 截图」三件套不延迟加载：它们是最常见的验证路径，藏起来模型
   // 就会跑去加载同名的外部技能（自己 spawn 一个可见 Chrome 盖住用户桌面）。
   browser_snapshot: { readOnly: true, concurrencySafe: false, idempotent: true },
+  browser_status: { readOnly: true, concurrencySafe: false, idempotent: true },
+  browser_tabs: { readOnly: true, concurrencySafe: false, idempotent: true },
+  browser_tab_switch: { concurrencySafe: false, idempotent: true, deferLoading: true },
   browser_console: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
   browser_network: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
   browser_accessibility: { readOnly: true, concurrencySafe: false, idempotent: true, deferLoading: true },
+  browser_cookie_import: { concurrencySafe: false, destructive: true, deferLoading: true },
   browser_screenshot: { readOnly: true, concurrencySafe: false, idempotent: true },
   browser_navigate: { concurrencySafe: false },
   browser_open: { concurrencySafe: false },
@@ -314,8 +325,15 @@ export const CAPABILITIES: Record<string, Tool.Capabilities> = {
   task: { concurrencySafe: true, interrupt: "block", workspace: false },
   orchestrator: { concurrencySafe: false },
   question: { concurrencySafe: false },
-  plan_exit: { concurrencySafe: false },
-  plan_enter: { concurrencySafe: false, searchHint: "switch to plan mode to design an approach before coding" },
+  // 两个模式开关都不直接改工作区：它们只改会话的权限档位。标 `workspace: false`
+  // 让单写者锁/写串行队列跳过它们 —— `plan_exit` 会等用户点确认，占着写锁等人
+  // 没有意义。workflow 的 phase 门禁也据此直接放行。
+  plan_exit: { concurrencySafe: false, workspace: false },
+  plan_enter: {
+    concurrencySafe: false,
+    workspace: false,
+    searchHint: "switch to plan mode to design an approach before coding",
+  },
   goal: { concurrencySafe: false },
   skill: { concurrencySafe: false },
   todo: { concurrencySafe: false },
@@ -590,6 +608,8 @@ export const layer: Layer.Layer<
     const verifyTool = yield* VerifyTool
     const reviewDocument = yield* ReviewDocumentTool
     const computerScreenshot = yield* ComputerScreenshotTool
+    const computerStatus = yield* ComputerStatusTool
+    const computerSnapshot = yield* ComputerSnapshotTool
     const computerClick = yield* ComputerClickTool
     const computerMove = yield* ComputerMoveTool
     const computerType = yield* ComputerTypeTool
@@ -605,6 +625,9 @@ export const layer: Layer.Layer<
     const generateNarrationTool = yield* GenerateNarrationTool
     const browserNavigate = yield* BrowserNavigateTool
     const browserSnapshot = yield* BrowserSnapshotTool
+    const browserStatus = yield* BrowserStatusTool
+    const browserTabs = yield* BrowserTabsTool
+    const browserTabSwitch = yield* BrowserTabSwitchTool
     const browserClick = yield* BrowserClickTool
     const browserFill = yield* BrowserFillTool
     const browserPress = yield* BrowserPressTool
@@ -612,6 +635,7 @@ export const layer: Layer.Layer<
     const browserConsole = yield* BrowserConsoleTool
     const browserNetwork = yield* BrowserNetworkTool
     const browserAccessibility = yield* BrowserAccessibilityTool
+    const browserCookieImport = yield* BrowserCookieImportTool
     const browserClose = yield* BrowserCloseTool
     const webviewStatus = yield* WebviewStatusTool
     const webviewSnapshot = yield* WebviewSnapshotTool
@@ -847,6 +871,8 @@ export const layer: Layer.Layer<
           run_verification: Tool.init(verifyTool),
           review_document: Tool.init(reviewDocument),
           computer_screenshot: Tool.init(computerScreenshot),
+          computer_status: Tool.init(computerStatus),
+          computer_snapshot: Tool.init(computerSnapshot),
           computer_click: Tool.init(computerClick),
           computer_move: Tool.init(computerMove),
           computer_type: Tool.init(computerType),
@@ -871,6 +897,9 @@ export const layer: Layer.Layer<
           browser_navigate: Tool.init(browserNavigate),
           browser_open: Tool.init(browserNavigate),
           browser_snapshot: Tool.init(browserSnapshot),
+          browser_status: Tool.init(browserStatus),
+          browser_tabs: Tool.init(browserTabs),
+          browser_tab_switch: Tool.init(browserTabSwitch),
           browser_click: Tool.init(browserClick),
           browser_fill: Tool.init(browserFill),
           browser_press: Tool.init(browserPress),
@@ -878,6 +907,7 @@ export const layer: Layer.Layer<
           browser_console: Tool.init(browserConsole),
           browser_network: Tool.init(browserNetwork),
           browser_accessibility: Tool.init(browserAccessibility),
+          browser_cookie_import: Tool.init(browserCookieImport),
           browser_close: Tool.init(browserClose),
           webview_status: Tool.init(webviewStatus),
           webview_snapshot: Tool.init(webviewSnapshot),
@@ -926,6 +956,8 @@ export const layer: Layer.Layer<
           "browser_navigate",
           "browser_open",
           "browser_snapshot",
+          "browser_status",
+          "browser_tabs",
           "browser_screenshot",
           "browser_close",
         ])
@@ -997,6 +1029,8 @@ export const layer: Layer.Layer<
           ...(computerControlEnabled
             ? [
                 tool.computer_screenshot,
+                tool.computer_status,
+                tool.computer_snapshot,
                 tool.computer_click,
                 tool.computer_move,
                 tool.computer_type,
@@ -1014,7 +1048,13 @@ export const layer: Layer.Layer<
           tool.cron_delete,
           tool.cron_list,
           ...(flags.experimentalLspTool ? [tool.lsp] : []),
-          ...(flags.experimentalPlanMode && capabilities.has("plan") ? [tool.plan, tool.plan_enter] : []),
+          // `plan_exit` 是计划模式唯一的出口，恒注册：任何 shell 都能通过权限下拉把
+          // 会话切到 plan mode（与 `experimentalPlanMode` 无关），此时提示词要求模型
+          // 用 `plan_exit` 收尾 —— 工具不存在的话模型只能反复试写计划文件。
+          // 它自己会处理"计划模式未开启"，所以注册进来是安全的。
+          // `plan_enter` 仍走能力协商 + 实验开关：进计划模式需要 UI 主动申请。
+          tool.plan,
+          ...(flags.experimentalPlanMode && capabilities.has("plan") ? [tool.plan_enter] : []),
           tool.generate_image,
           tool.generate_video,
           tool.generate_narration,
@@ -1026,6 +1066,9 @@ export const layer: Layer.Layer<
           tool.browser_navigate,
           tool.browser_open,
           tool.browser_snapshot,
+          tool.browser_status,
+          tool.browser_tabs,
+          tool.browser_tab_switch,
           tool.browser_click,
           tool.browser_fill,
           tool.browser_press,
@@ -1033,6 +1076,7 @@ export const layer: Layer.Layer<
           tool.browser_console,
           tool.browser_network,
           tool.browser_accessibility,
+          tool.browser_cookie_import,
           tool.browser_close,
           ...(webviewEnabled
             ? [

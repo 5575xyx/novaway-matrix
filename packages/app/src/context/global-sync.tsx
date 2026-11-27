@@ -8,28 +8,40 @@ import type {
   Todo,
 } from "@novaway/sdk/v2/client"
 import { showToast } from "@novaway/ui/toast"
-import { batch, createContext, getOwner, onCleanup, onMount, type ParentProps, untrack, useContext } from "solid-js"
+import {
+  batch,
+  createContext,
+  createSignal,
+  getOwner,
+  onCleanup,
+  onMount,
+  type ParentProps,
+  untrack,
+  useContext,
+} from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import type { InitError } from "../pages/error"
 import { useGlobalSDK } from "./global-sdk"
+import { useServer } from "./server"
+import { createBackgroundQueue, scheduleIdle } from "./global-sync/background"
 import {
   bootstrapDirectory,
   bootstrapGlobal,
-  clearProviderRev,
   loadAgentsQuery,
   loadGlobalConfigQuery,
   loadPathQuery,
   loadPluginContributionsQuery,
   loadProjectsQuery,
   loadProvidersQuery,
+  loadSessionActivity,
   projectProviderOverride,
 } from "./global-sync/bootstrap"
 import { createChildStoreManager } from "./global-sync/child-store"
 import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./global-sync/event-reducer"
 import { invalidateMemoryEvolutionQueries } from "./global-sync/memory-evolution-events"
 import { clearSessionPrefetchDirectory } from "./global-sync/session-prefetch"
-import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
+import { estimateRootSessionTotal, loadRootSessionsWithFallback, SessionListError } from "./global-sync/session-load"
 import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
@@ -37,6 +49,8 @@ import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from 
 import { createRefreshQueue } from "./global-sync/queue"
 import { directoryKey } from "./global-sync/utils"
 import { PathKey } from "@/utils/path-key"
+import { createFrameBatch } from "@/utils/frame-batch"
+import { sessionLibraryOf } from "@/utils/server-health"
 
 type GlobalStore = {
   ready: boolean
@@ -80,8 +94,9 @@ function makeQueryOptionsApi(globalSDK: () => NovawayClient, sdkFor: (dir: PathK
 }
 export type QueryOptionsApi = ReturnType<typeof makeQueryOptionsApi>
 
-function createGlobalSync() {
+function createGlobalSync(sessionCacheIdentity?: string) {
   const globalSDK = useGlobalSDK()
+  const server = useServer()
   const language = useLanguage()
   const owner = getOwner()
   if (!owner) throw new Error("GlobalSync must be created within owner")
@@ -89,7 +104,65 @@ function createGlobalSync() {
   const sdkCache = new Map<string, NovawayClient>()
   const booting = new Map<string, Promise<void>>()
   const sessionLoads = new Map<string, Promise<void>>()
-  const sessionMeta = new Map<string, { limit: number }>()
+  const activityLoads = new Map<string, Promise<void>>()
+  const activityLoaded = new Set<string>()
+  const sessionMeta = new Map<string, { limit: number; loadedAt: number }>()
+  // SSE 是实时更新的主路径，但不能成为会话列表一致性的唯一保障：
+  // 连接重连、后台进程重启或事件丢失后，单纯按 limit 跳过刷新会让昨天新建的会话永远不出现在侧栏。
+  const SESSION_REFRESH_TTL = 15_000
+  const background = createBackgroundQueue({ concurrency: 2, schedule: scheduleIdle })
+  onCleanup(background.dispose)
+  const resourceLoads = new Map<string, { label: string; queued: boolean }>()
+  const resourceCompleted = new Set<string>()
+  const resourceFailed = new Map<string, string>()
+  const warmups = new Map<string, Promise<unknown>>()
+  const [resourceRevision, bumpResourceRevision] = createSignal(0)
+  const [failedStartupMessage, setFailedStartupMessage] = createSignal<string>()
+  const [visibleSessionView, setVisibleSessionView] = createSignal<string>()
+  const sessionViewKey = (directory: string, id?: string) => JSON.stringify([directoryKey(directory), id ?? ""])
+
+
+  const beginResourceLoad = (key: string, label: string, queued = false) => {
+    resourceLoads.set(key, { label, queued })
+    resourceCompleted.delete(key)
+    resourceFailed.delete(key)
+    bumpResourceRevision((revision) => revision + 1)
+  }
+
+  const finishResourceLoad = (key: string, success = true) => {
+    const label = resourceLoads.get(key)
+    if (!label) return
+    resourceLoads.delete(key)
+    if (success) resourceCompleted.add(key)
+    else resourceFailed.set(key, label.label)
+    bumpResourceRevision((revision) => revision + 1)
+  }
+
+  function warmResource(key: string, label: string, task: () => Promise<unknown>, priority?: number) {
+    const pending = warmups.get(key)
+    if (pending) return pending
+    const request = background.run(async () => {
+      beginResourceLoad(key, label)
+      try {
+        await task()
+        return true
+      } catch (error) {
+        console.warn("Resource warmup failed", label, error)
+        return false
+      }
+    }, priority).then((success) => {
+      warmups.delete(key)
+      finishResourceLoad(key, success === true)
+      return success
+    })
+    warmups.set(key, request)
+    beginResourceLoad(key, label, true)
+    return request
+  }
+  // Solid child stores are normally sufficient to invalidate the mode memo. Keep
+  // an explicit revision as well because Agent refreshes can happen from an SSE
+  // callback outside the computation that first created a child store.
+  const [agentRevision, bumpAgentRevision] = createSignal(0)
 
   const sdkFor = (directory: string) => {
     const key = directoryKey(directory)
@@ -106,12 +179,17 @@ function createGlobalSync() {
   const queryOptionsApi = makeQueryOptionsApi(() => globalSDK.client, sdkFor)
 
   const [configQuery, providerQuery, pathQuery] = useQueries(() => ({
-    queries: [queryOptionsApi.globalConfig(), queryOptionsApi.providers(null), queryOptionsApi.path(null)],
+    queries: [
+      queryOptionsApi.globalConfig(),
+      // The active workspace releases this fetch only once first-screen data is available.
+      { ...queryOptionsApi.providers(null), enabled: false },
+      queryOptionsApi.path(null),
+    ],
   }))
 
   const [globalStore, setGlobalStore] = createStore<GlobalStore>({
     get ready() {
-      return bootstrap.isPending
+      return !bootstrap.isPending
     },
     project: [],
     session_todo: {},
@@ -161,18 +239,24 @@ function createGlobalSync() {
   const bootstrap = useQuery(() => ({
     queryKey: ["bootstrap"],
     queryFn: async () => {
-      await bootstrapGlobal({
-        globalSDK: globalSDK.client,
-        requestFailedTitle: language.t("common.requestFailed"),
-        translate: language.t,
-        formatMoreCount: (count) => language.t("common.moreCountSuffix", { count }),
-        setGlobalStore: setBootStore,
-        queryClient,
-      })
+      beginResourceLoad("global:critical", "首页核心资源")
+      let success = false
+      try {
+        success = await bootstrapGlobal({
+          globalSDK: globalSDK.client,
+          setGlobalStore: setBootStore,
+          queryClient,
+        })
+        void warmResource("global:providers", "供应商与模型目录", () => loadProviders(), 0)
+      } finally {
+        finishResourceLoad("global:critical", success)
+      }
       bootedAt = Date.now()
       return bootedAt
     },
   }))
+
+  const loadProviders = () => queryClient.fetchQuery({ ...queryOptionsApi.providers(null), staleTime: 30_000 })
 
   const set = ((...input: unknown[]) => {
     if (input[0] === "project" && (Array.isArray(input[1]) || typeof input[1] === "function")) {
@@ -202,11 +286,27 @@ function createGlobalSync() {
     paused,
     key: directoryKey,
     bootstrap: () => queryClient.fetchQuery({ queryKey: ["bootstrap"] }),
-    bootstrapInstance,
+    bootstrapInstance: refreshInstance,
   })
+
+  const [cacheIdentity, setCacheIdentity] = createSignal(sessionCacheIdentity)
+  if (!sessionCacheIdentity) {
+    // Web embeds deliberately skip the blocking health gate. Discover the
+    // namespace in parallel without delaying the real workspace list.
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), 3_000)
+    void globalSDK.client.global.health({ signal: abort.signal }).then((result) => {
+      if (!abort.signal.aborted) setCacheIdentity(sessionLibraryOf(result.data))
+    }).catch(() => undefined).finally(() => clearTimeout(timer))
+    onCleanup(() => { clearTimeout(timer); abort.abort() })
+  }
 
   const children = createChildStoreManager({
     owner,
+    sessionCacheScope: () => {
+      const identity = cacheIdentity()
+      return identity ? JSON.stringify([server.key, identity]) : undefined
+    },
     isBooting: (directory) => booting.has(directory),
     isLoadingSessions: (directory) => sessionLoads.has(directory),
     onBootstrap: (directory) => {
@@ -216,8 +316,8 @@ function createGlobalSync() {
       const key = directoryKey(directory)
       queue.clear(key)
       sessionMeta.delete(key)
+      activityLoaded.delete(key)
       sdkCache.delete(key)
-      clearProviderRev(key)
       clearSessionPrefetchDirectory(key)
     },
     translate: language.t,
@@ -240,78 +340,161 @@ function createGlobalSync() {
     setStore("provider_project", reconcile(data))
   }
 
-  async function loadSessions(directory: string) {
+  function loadSessions(directory: string) {
     const key = directoryKey(directory)
+    if (!key) return Promise.resolve()
     const pending = sessionLoads.get(key)
     if (pending) return pending
 
-    children.pin(key)
-    const [store, setStore] = children.child(directory, { bootstrap: false })
-    const meta = sessionMeta.get(key)
-    if (meta && meta.limit >= store.limit) {
-      const next = trimSessions(store.session, {
-        limit: store.limit,
-        permission: store.permission,
-      })
-      if (next.length !== store.session.length) {
-        setStore("session", reconcile(next, { key: "id" }))
-        cleanupDroppedSessionCaches(store, setStore, next, setSessionTodo)
+    // Reserve before touching reactive state. Desktop IPC and the network race independently.
+    let pinned = false
+    const promise = Promise.resolve().then(async () => {
+      children.pin(key)
+      pinned = true
+      const [store, setStore] = children.ensureChild(directory)
+      const meta = sessionMeta.get(key)
+      const visibleLimit = store.limit
+      if (meta && meta.limit >= visibleLimit && Date.now() - meta.loadedAt < SESSION_REFRESH_TTL) {
+        const next = trimSessions(store.session, { limit: visibleLimit, permission: store.permission })
+        if (next.length !== store.session.length) {
+          setStore("session", reconcile(next, { key: "id" }))
+          cleanupDroppedSessionCaches(store, setStore, next, setSessionTodo, pinnedSessions)
+        }
+        return
       }
-      children.unpin(key)
-      return
-    }
 
-    const limit = Math.max(store.limit + SESSION_RECENT_LIMIT, SESSION_RECENT_LIMIT)
-    const promise = queryClient
-      .fetchQuery({
-        ...queryOptionsApi.sessions(key),
-        queryFn: () =>
-          loadRootSessionsWithFallback({
+      setStore("sessionList", "loading")
+      const limit = Math.max(visibleLimit + SESSION_RECENT_LIMIT, SESSION_RECENT_LIMIT)
+      try {
+        const result = await queryClient.fetchQuery({
+          ...queryOptionsApi.sessions(key),
+          retry: false,
+          queryFn: () => loadRootSessionsWithFallback({
             directory,
             limit,
-            list: (query) => globalSDK.client.session.list(query),
-          })
-            .then((x) => {
-              const nonArchived = (x.data ?? [])
-                .filter((s) => !!s?.id)
-                .filter((s) => !s.time?.archived)
-                .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-              const limit = store.limit
-              const childSessions = store.session.filter((s) => !!s.parentID)
-              const sessions = trimSessions([...nonArchived, ...childSessions], {
-                limit,
-                permission: store.permission,
+            list: async (query) => {
+              const result = await globalSDK.client.session.list(query, {
+                throwOnError: false,
+                signal: AbortSignal.timeout(15_000),
               })
-              batch(() => {
-                setStore(
-                  "sessionTotal",
-                  estimateRootSessionTotal({
-                    count: nonArchived.length,
-                    limit: x.limit,
-                    limited: x.limited,
-                  }),
-                )
-                setStore("session", reconcile(sessions, { key: "id" }))
-                cleanupDroppedSessionCaches(store, setStore, sessions, setSessionTodo)
-              })
-              sessionMeta.set(key, { limit })
-            })
-            .catch((err) => {
-              // 侧栏会话列表是后台刷新,失败只落日志不弹 toast:服务重启/网络抖动的
-              // 瞬时失败会按项目各弹一条,打断正在看聊天的用户;真正不可用时全局
-              // 连接状态已另有提示。
-              console.error("Failed to load sessions", directory, err)
-            })
-            .then(() => null),
-      })
-      .then(() => {})
-
-    sessionLoads.set(key, promise)
-    void promise.finally(() => {
+              if (!result.response.ok) throw new SessionListError(result.response.status)
+              return result
+            },
+          }),
+        })
+        const nonArchived = (result.data ?? [])
+          .filter((s) => s?.id && !s.time?.archived)
+          .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        const childSessions = store.session.filter((s) => !!s.parentID)
+        const sessions = trimSessions([...nonArchived, ...childSessions], {
+          limit: store.limit,
+          permission: store.permission,
+        })
+        sessionMeta.set(key, { limit: visibleLimit, loadedAt: Date.now() })
+        batch(() => {
+          setStore("sessionList", "ready")
+          setStore("sessionListAvailable", true)
+          setStore("sessionTotal", estimateRootSessionTotal({
+            count: nonArchived.length,
+            limit: result.limit,
+            limited: result.limited,
+          }))
+          setStore("session", reconcile(sessions, { key: "id" }))
+          cleanupDroppedSessionCaches(store, setStore, sessions, setSessionTodo, pinnedSessions)
+        })
+        children.setSessions(directory, sessions)
+      } catch (error) {
+        setStore("sessionList", "error")
+        console.warn("Failed to refresh sessions", directory, error)
+      }
+    }).finally(() => {
       sessionLoads.delete(key)
+      if (pinned) children.unpin(key)
+    })
+    sessionLoads.set(key, promise)
+    return promise
+  }
+
+  /**
+   * Reconcile one directory after a plugin installation or activation.
+   *
+   * Marketplace installs can finish before the session's initial bootstrap has
+   * populated its child store.  In that window the workbench picker may already
+   * be visible (from the mode discovery request), while PromptInput still sees
+   * the old agent list and incorrectly tells the user to install the plugin.
+   * Keep this repair path in the shared sync layer so every consumer updates the
+   * same child store instead of maintaining a second, stale agent snapshot.
+   */
+  async function refreshDirectory(directory: string) {
+    const key = directoryKey(directory)
+    if (!key) return
+    const [store, setStore] = children.child(directory, { bootstrap: false })
+    await sdkFor(directory)
+      .extension.reload({ directory })
+      .catch(() => undefined)
+    const [agents, contributions, commands] = await Promise.all([
+      queryClient
+        .invalidateQueries({ queryKey: queryOptionsApi.agents(key).queryKey })
+        .then(() => queryClient.fetchQuery(queryOptionsApi.agents(key)))
+        .catch(() => undefined),
+      queryClient
+        .invalidateQueries({ queryKey: queryOptionsApi.contributions(key).queryKey })
+        .then(() => queryClient.fetchQuery(queryOptionsApi.contributions(key)))
+        .catch(() => undefined),
+      sdkFor(directory)
+        .command.list()
+        .then((response) => response.data ?? [])
+        .catch(() => undefined),
+    ])
+    batch(() => {
+      if (agents) setStore("agent", agents)
+      if (contributions) setStore("plugin_contributions", contributions)
+      if (commands) setStore("command", commands)
+      if (agents) bumpAgentRevision((revision) => revision + 1)
+    })
+  }
+
+  function loadActivity(directory: string) {
+    const key = directoryKey(directory)
+    const pending = activityLoads.get(key)
+    if (pending) return pending
+    if (activityLoaded.has(key)) return Promise.resolve()
+    const request = Promise.resolve().then(async () => {
+      const [store, setStore] = children.ensureChild(directory)
+      const sdk = sdkFor(directory)
+      if (key === "global-chat") {
+        setStore("session_status", reconcile((await sdk.session.status()).data ?? {}))
+      } else {
+        await loadSessionActivity({ sdk, store, setStore })
+      }
+      activityLoaded.add(key)
+    }).finally(() => {
+      activityLoads.delete(key)
       children.unpin(key)
     })
-    return promise
+    children.pin(key)
+    activityLoads.set(key, request)
+    return request
+  }
+
+  function refreshInstance(directory: string) {
+    const key = directoryKey(directory)
+    sessionMeta.delete(key)
+    activityLoaded.delete(key)
+    if (children.children[key]?.[0].status !== "loading") return bootstrapInstance(directory)
+    return background.run(async () => {
+      await loadSessions(directory)
+      await loadActivity(directory)
+    }, 1).then(() => undefined, (error) => { console.warn("Failed to refresh task status", error) })
+  }
+
+  async function warmAgents(directory: string) {
+    const key = directoryKey(directory)
+    if (!key) return
+    const data = await queryClient.ensureQueryData(queryOptionsApi.agents(key))
+    const [store, setStore] = children.ensureChild(directory)
+    if (store.agent === data) return
+    setStore("agent", data)
   }
 
   async function bootstrapInstance(directory: string) {
@@ -321,6 +504,13 @@ function createGlobalSync() {
     if (pending) return pending
 
     children.pin(key)
+    beginResourceLoad(
+      `directory:${key}`,
+      key === "global-chat"
+        ? "全局会话资源"
+        : `工作区：${directory.split(/[\\/]/).filter(Boolean).pop() ?? "当前项目"}`,
+    )
+    let success = false
     const promise = Promise.resolve().then(async () => {
       const child = children.ensureChild(directory)
       const cache = children.vcsCache.get(key)
@@ -328,44 +518,46 @@ function createGlobalSync() {
       const sdk = sdkFor(directory)
       if (directory === "global-chat") {
         await loadSessions(directory)
-        // 无项目聊天也要能选 agent：只取列表用于模型/参数选择，工具在服务端仍被禁用。
-        await queryClient
-          .ensureQueryData(loadAgentsQuery(directory, sdk))
-          .then((data) => child[1]("agent", data))
-          .catch(() => {})
+        success = (await background.run(async () => {
+          const data = await queryClient.ensureQueryData(loadAgentsQuery(directory, sdk))
+          child[1]("agent", data)
+          bumpAgentRevision((revision) => revision + 1)
+          await loadActivity(directory)
+          return true
+        }, 0)) === true && child[0].sessionList !== "error"
         child[1]("status", "complete")
         return
       }
-      await bootstrapDirectory({
+      success = await bootstrapDirectory({
         directory,
         global: {
           config: globalStore.config,
-          path: globalStore.path,
           project: globalStore.project,
-          provider: globalStore.provider,
         },
         sdk,
         store: child[0],
         setStore: child[1],
         vcsCache: cache,
         loadSessions,
+        loadActivity,
+        background: background.run,
         translate: language.t,
         queryClient,
       })
-    })
-
-    booting.set(key, promise)
-    void promise.finally(() => {
+      bumpAgentRevision((revision) => revision + 1)
+    }).catch((error) => {
+      console.warn("Failed to refresh workspace", directory, error)
+    }).finally(() => {
+      finishResourceLoad(`directory:${key}`, success)
       booting.delete(key)
       children.unpin(key)
     })
+    booting.set(key, promise)
     return promise
   }
 
-  const unsub = globalSDK.event.listen((e) => {
-    const directory = e.name
+  const processEvent = (directory: string, event: { type: string; properties?: unknown }) => {
     const key = directoryKey(directory)
-    const event = e.details
     const recent = bootingRoot || Date.now() - bootedAt < 1500
 
     invalidateMemoryEvolutionQueries(queryClient, event)
@@ -405,14 +597,27 @@ function createGlobalSync() {
               store.plugin_contributions.filter((item) => item.pluginID !== props.pluginID),
             )
           }
-          void queryClient
-            .invalidateQueries({ queryKey: queryOptionsApi.agents(projectKey).queryKey })
-            .then(() => queryClient.fetchQuery(queryOptionsApi.agents(projectKey)))
-            .then((data) => setStore("agent", data))
-          void queryClient
-            .invalidateQueries({ queryKey: queryOptionsApi.contributions(projectKey).queryKey })
-            .then(() => queryClient.fetchQuery(queryOptionsApi.contributions(projectKey)))
-            .then((data) => setStore("plugin_contributions", data))
+          void sdkFor(projectDirectory)
+            .extension.reload({ directory: projectDirectory })
+            .catch(() => undefined)
+            .then(() =>
+              queryClient
+                .invalidateQueries({ queryKey: queryOptionsApi.agents(projectKey).queryKey })
+                .then(() => queryClient.fetchQuery(queryOptionsApi.agents(projectKey)))
+                .then((data) => {
+                  setStore("agent", data)
+                  bumpAgentRevision((revision) => revision + 1)
+                }),
+            )
+          void sdkFor(projectDirectory)
+            .extension.contributions({ directory: projectDirectory })
+            .catch(() => undefined)
+            .then(() =>
+              queryClient
+                .invalidateQueries({ queryKey: queryOptionsApi.contributions(projectKey).queryKey })
+                .then(() => queryClient.fetchQuery(queryOptionsApi.contributions(projectKey)))
+                .then((data) => setStore("plugin_contributions", data)),
+            )
           void sdkFor(projectDirectory)
             .command.list()
             .then((response) => setStore("command", response.data ?? []))
@@ -467,7 +672,10 @@ function createGlobalSync() {
         void queryClient
           .invalidateQueries({ queryKey: queryOptionsApi.agents(key).queryKey })
           .then(() => queryClient.fetchQuery(queryOptionsApi.agents(key)))
-          .then((data) => setStore("agent", data))
+          .then((data) => {
+            setStore("agent", data)
+            bumpAgentRevision((revision) => revision + 1)
+          })
       },
       loadCommands: () => {
         void sdkFor(directory)
@@ -487,8 +695,19 @@ function createGlobalSync() {
         void refreshProjectProviders(directory)
       },
     })
+  }
+
+  // Keep event bursts frame-batched while preserving event order.
+  const eventBatch = createFrameBatch<{ directory: string; event: { type: string; properties?: unknown } }>((items) => {
+    batch(() => {
+      for (const item of items) processEvent(item.directory, item.event)
+    })
+  })
+  const unsub = globalSDK.event.listen((event) => {
+    eventBatch.push({ directory: event.name, event: event.details })
   })
 
+  onCleanup(eventBatch.cancel)
   onCleanup(unsub)
   onCleanup(() => {
     queue.dispose()
@@ -523,6 +742,7 @@ function createGlobalSync() {
 
   const projectApi = {
     loadSessions,
+    loadActivity,
     /**
      * 重新拉一次项目元数据（`bootstrap` 是 `data.project` 的唯一来源）。
      *
@@ -567,12 +787,50 @@ function createGlobalSync() {
     get ready() {
       return globalStore.ready
     },
+    warmResource,
+    warmAgents,
+    background,
+    messageLoadFailed(directory: string, id: string) {
+      return failedStartupMessage() === sessionViewKey(directory, id)
+    },
+    setMessageLoadFailed(directory: string, id: string, failed: boolean) {
+      const key = sessionViewKey(directory, id)
+      setFailedStartupMessage((previous) => failed ? key : previous === key ? undefined : previous)
+    },
+    isSessionViewVisible(directory: string, id?: string) {
+      return visibleSessionView() === sessionViewKey(directory, id)
+    },
+    markSessionViewVisible(directory: string, id?: string) {
+      const key = sessionViewKey(directory, id)
+      setVisibleSessionView(key)
+      return () => setVisibleSessionView((visible) => visible === key ? undefined : visible)
+    },
+    loadProviders,
+    get resourceStatus() {
+      resourceRevision()
+      const active = [...resourceLoads.values()].filter((item) => !item.queued).map((item) => item.label)
+      const queued = resourceLoads.size - active.length
+      return {
+        loading: !globalStore.ready || resourceLoads.size > 0,
+        queued,
+        failed: [...resourceFailed.values()],
+        active,
+        completed: resourceCompleted.size,
+        total: resourceLoads.size + resourceCompleted.size + resourceFailed.size,
+      }
+    },
     get error() {
       return globalStore.error
     },
     child: children.child,
+    readDirectory(directory: string) {
+      return children.children[directoryKey(directory)]?.[0]
+    },
+    directories: children.directories,
+    agentRevision,
     peek: children.peek,
     bootstrapInstance,
+    refreshDirectory,
     queryOptions: queryOptionsApi,
     sdkForDirectory: sdkFor,
     // bootstrap,
@@ -594,8 +852,8 @@ function createGlobalSync() {
 
 const GlobalSyncContext = createContext<ReturnType<typeof createGlobalSync>>()
 
-export function GlobalSyncProvider(props: ParentProps) {
-  const value = createGlobalSync()
+export function GlobalSyncProvider(props: ParentProps<{ sessionCacheIdentity?: string }>) {
+  const value = createGlobalSync(props.sessionCacheIdentity)
   return <GlobalSyncContext.Provider value={value}>{props.children}</GlobalSyncContext.Provider>
 }
 

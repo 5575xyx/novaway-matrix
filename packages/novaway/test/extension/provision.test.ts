@@ -115,10 +115,75 @@ describe("extension.provision", () => {
     expect(Generation.current()).toBeGreaterThan(before)
   })
 
+  test("automatically updates an official builtin when the catalog target is newer", async () => {
+    const target: BuiltinExtension = {
+      ...entry,
+      name: "com.novaway.demo",
+      kind: "zip",
+      url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.demo-v1.1.0/com.novaway.demo-1.1.0.zip",
+      version: "1.1.0",
+      sourceId: "com.novaway.demo",
+      sha256: "b".repeat(64),
+      autoUpdate: true,
+    }
+    const current: Installed = {
+      name: target.name,
+      kind: "zip",
+      source: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.demo-v1.0.0/com.novaway.demo-1.0.0.zip",
+      version: "1.0.0",
+      sourceId: target.sourceId,
+      sha256: "a".repeat(64),
+      installedAt: Date.now(),
+      root: "C:/installed/demo",
+      files: 1,
+      bytes: 1,
+    }
+    const fake = deps({
+      entries: [target],
+      list: async () => [current],
+      resolveTarget: async () => target,
+    })
+    const report = await provisionBuiltins({ deps: fake })
+    expect(report.entries[0]).toMatchObject({
+      name: target.name,
+      status: "installed",
+      installedNow: false,
+      updatedNow: true,
+      previousVersion: "1.0.0",
+      targetVersion: "1.1.0",
+      updateStatus: "updated",
+    })
+    expect(fake.counter.installs).toEqual([target.name])
+    expect((await readState())[target.name]).toMatchObject({
+      version: "1.1.0",
+      previousVersion: "1.0.0",
+      targetVersion: "1.1.0",
+      updateStatus: "updated",
+    })
+  })
+
+  test("does not auto-update an untrusted builtin target", async () => {
+    const target: BuiltinExtension = {
+      ...entry,
+      name: "com.novaway.demo",
+      version: "2.0.0",
+      autoUpdate: true,
+      sourceId: "com.novaway.demo",
+      sha256: "b".repeat(64),
+      url: "https://example.com/demo.zip",
+    }
+    const current = { ...installed("C:/installed/demo"), name: target.name, version: "1.0.0" }
+    const fake = deps({ entries: [target], list: async () => [current], resolveTarget: async () => target })
+    const report = await provisionBuiltins({ deps: fake })
+    expect(report.entries[0]?.updatedNow).toBeUndefined()
+    expect(fake.counter.installs).toEqual([])
+  })
+
   test("only the requested entries are provisioned", async () => {
     const other: BuiltinExtension = { ...entry, name: "other-extension" }
     const fake = deps({ entries: [entry, other] })
     const report = await provisionBuiltins({ names: ["other-extension"], deps: fake })
     expect(report.entries.map((item) => item.name)).toEqual(["other-extension"])
   })
+
 })

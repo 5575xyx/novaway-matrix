@@ -14,10 +14,14 @@
  */
 import fs from "node:fs/promises"
 import path from "node:path"
+import semver from "semver"
 import { Global } from "@novaway/core/global"
 import * as Log from "@novaway/core/util/log"
+import { GlobalBus } from "@/bus/global"
 import { autoInstallExtensions, type BuiltinExtension } from "@novaway/core/builtin-extensions"
 import * as Marketplace from "./marketplace"
+import * as Catalog from "./catalog"
+import { NOVAWAY_MARKETPLACE_URLS } from "./catalog"
 import * as Generation from "./generation"
 import * as SkillPython from "@/skill/python-env"
 import { isRecord } from "@/util/record"
@@ -25,6 +29,20 @@ import { isRecord } from "@/util/record"
 const log = Log.create({ service: "extension.provision" })
 
 const STATE_FILE = "extension-provision.json"
+
+function announceBuiltinChange(name: string, enabled = true) {
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      type: "plugin.changed",
+      properties: {
+        pluginID: name,
+        enabled,
+        generation: Generation.current(),
+      },
+    },
+  })
+}
 
 export type EntryStatus = "installed" | "failed" | "skipped"
 
@@ -34,6 +52,12 @@ export type EntryState = {
   attempts: number
   version?: string
   error?: string
+  /** 最近一次自动更新检查的时间。 */
+  checkedAt?: number
+  /** 当前检查结果；用于市场显示更新成功、失败和回滚状态。 */
+  updateStatus?: "current" | "updated" | "failed"
+  previousVersion?: string
+  targetVersion?: string
   /** 用户手动卸载过：不再自动装回。 */
   dismissed?: boolean
 }
@@ -44,6 +68,10 @@ export type EntryReport = {
   name: string
   status: EntryStatus
   installedNow: boolean
+  updatedNow?: boolean
+  previousVersion?: string
+  targetVersion?: string
+  updateStatus?: "current" | "updated" | "failed"
   python?: "ready" | "prepared" | "failed" | "none"
   error?: string
 }
@@ -73,6 +101,12 @@ function parseState(parsed: unknown): State {
       attempts: typeof value.attempts === "number" ? value.attempts : 0,
       ...(typeof value.version === "string" ? { version: value.version } : {}),
       ...(typeof value.error === "string" ? { error: value.error } : {}),
+      ...(typeof value.checkedAt === "number" ? { checkedAt: value.checkedAt } : {}),
+      ...(value.updateStatus === "current" || value.updateStatus === "updated" || value.updateStatus === "failed"
+        ? { updateStatus: value.updateStatus }
+        : {}),
+      ...(typeof value.previousVersion === "string" ? { previousVersion: value.previousVersion } : {}),
+      ...(typeof value.targetVersion === "string" ? { targetVersion: value.targetVersion } : {}),
       ...(value.dismissed === true ? { dismissed: true } : {}),
     }
   }
@@ -116,12 +150,115 @@ export function disabled() {
   return flag === "1" || flag === "true" || flag === "yes"
 }
 
+const OFFICIAL_PACKAGE_PATTERN = /^com\.novaway\.[a-z0-9][a-z0-9-]*$/
+
+function isOfficialArtifact(entry: BuiltinExtension) {
+  if (!OFFICIAL_PACKAGE_PATTERN.test(entry.name)) return false
+  if (entry.sourceId !== entry.name) return false
+  if (!entry.sha256 || !/^[a-f0-9]{64}$/i.test(entry.sha256)) return false
+  try {
+    const url = new URL(entry.url)
+    return (
+      url.protocol === "https:" &&
+      (url.hostname === "gitee.com" || url.hostname === "github.com") &&
+      url.pathname.toLowerCase().includes("novaway-ai/novaway-plugins")
+    )
+  } catch {
+    return false
+  }
+}
+
+function isNewerVersion(target: string | undefined, current: string | undefined) {
+  if (!target) return false
+  if (!current) return true
+  const targetVersion = semver.valid(target)
+  const currentVersion = semver.valid(current)
+  if (targetVersion && currentVersion) return semver.gt(targetVersion, currentVersion)
+  return target !== current
+}
+
+function isNotOlderVersion(target: string | undefined, current: string | undefined) {
+  if (!target || !current) return true
+  const targetVersion = semver.valid(target)
+  const currentVersion = semver.valid(current)
+  if (targetVersion && currentVersion) return semver.gte(targetVersion, currentVersion)
+  return target === current
+}
+
+function targetDiffers(record: Marketplace.Installed, target: BuiltinExtension) {
+  return (
+    record.source !== target.url ||
+    (target.sha256 !== undefined && record.sha256?.toLowerCase() !== target.sha256.toLowerCase()) ||
+    (target.sourceId !== undefined && record.sourceId !== target.sourceId)
+  )
+}
+
+/**
+ * 从官方目录解析当前目标版本。
+ *
+ * 内置清单是离线兜底，官方目录是在线更新源。目录条目必须同时满足
+ * packageId、官方仓库和完整 SHA-256 三个条件，任何异常都回退到内置版本，
+ * 绝不把不可信的远程字段交给自动更新器。
+ */
+let officialCatalogCache: { at: number; entries: Catalog.NovaWayEntry[] } | undefined
+let officialCatalogInFlight: Promise<Catalog.NovaWayEntry[]> | undefined
+const OFFICIAL_CATALOG_CACHE_MS = 5 * 60 * 1000
+
+async function loadOfficialCatalog() {
+  const now = Date.now()
+  if (officialCatalogCache && now - officialCatalogCache.at < OFFICIAL_CATALOG_CACHE_MS) {
+    return officialCatalogCache.entries
+  }
+  if (officialCatalogInFlight) return officialCatalogInFlight
+  officialCatalogInFlight = Marketplace.manifest(NOVAWAY_MARKETPLACE_URLS)
+    .then((raw) => Catalog.parseNovaWay(raw))
+    .catch((error) => {
+      log.warn("official extension catalog refresh failed; using bundled targets", { error: String(error) })
+      return [] as Catalog.NovaWayEntry[]
+    })
+    .then((entries) => {
+      officialCatalogCache = { at: Date.now(), entries }
+      return entries
+    })
+    .finally(() => {
+      officialCatalogInFlight = undefined
+    })
+  return officialCatalogInFlight
+}
+
+async function resolveOfficialTarget(entry: BuiltinExtension): Promise<BuiltinExtension> {
+  if (!entry.autoUpdate) return entry
+  try {
+    const target = (await loadOfficialCatalog()).find((item) => item.packageId === entry.name)
+    if (!target) return entry
+    const resolved: BuiltinExtension = {
+      ...entry,
+      kind: target.kind,
+      url: target.url,
+      ...(target.version ? { version: target.version } : {}),
+      ...(target.ref ? { ref: target.ref } : {}),
+      ...(target.subdir ? { subdir: target.subdir } : {}),
+      sourceId: entry.name,
+      sha256: target.sha256,
+    }
+    return isOfficialArtifact(resolved) ? resolved : entry
+  } catch (error) {
+    log.warn("official extension catalog refresh failed; using bundled target", {
+      name: entry.name,
+      error: String(error),
+    })
+    return entry
+  }
+}
+
 async function install(entry: BuiltinExtension) {
   if (entry.kind === "zip") {
     return Marketplace.installZip({
       name: entry.name,
       url: entry.url,
       ...(entry.version ? { version: entry.version } : {}),
+      ...(entry.sourceId ? { sourceId: entry.sourceId } : {}),
+      ...(entry.sha256 ? { sha256: entry.sha256 } : {}),
     })
   }
   return Marketplace.installGit({
@@ -130,6 +267,8 @@ async function install(entry: BuiltinExtension) {
     ...(entry.ref ? { ref: entry.ref } : {}),
     ...(entry.subdir ? { subdir: entry.subdir } : {}),
     ...(entry.version ? { version: entry.version } : {}),
+    ...(entry.sourceId ? { sourceId: entry.sourceId } : {}),
+    ...(entry.sha256 ? { sha256: entry.sha256 } : {}),
   })
 }
 
@@ -156,7 +295,9 @@ async function preparePython(root: string): Promise<EntryReport["python"]> {
 export type ProvisionDeps = {
   entries: readonly BuiltinExtension[]
   list: () => Promise<Marketplace.Installed[]>
-  install: (entry: BuiltinExtension) => Promise<{ root: string }>
+  install: (entry: BuiltinExtension) => Promise<{ root: string; version?: string }>
+  /** Resolve a fresh target without making third-party packages eligible for updates. */
+  resolveTarget?: (entry: BuiltinExtension) => Promise<BuiltinExtension>
   preparePython: (root: string) => Promise<EntryReport["python"]>
   bump: () => void
 }
@@ -165,6 +306,7 @@ const realDeps: ProvisionDeps = {
   entries: autoInstallExtensions(),
   list: () => Marketplace.list(),
   install,
+  resolveTarget: resolveOfficialTarget,
   preparePython,
   bump: Generation.bump,
 }
@@ -176,14 +318,32 @@ async function provisionOne(
   deps: ProvisionDeps,
 ): Promise<{ report: EntryReport; state: EntryState }> {
   const record = installed.find((item) => item.name === entry.name)
+  const target = deps.resolveTarget ? await deps.resolveTarget(entry) : entry
   let root = record?.root
   let installedNow = false
+  let updatedNow = false
+  let previousVersion: string | undefined
 
   if (!root) {
-    log.info("installing builtin extension", { name: entry.name, url: entry.url })
-    const result = await deps.install(entry)
+    log.info("installing builtin extension", { name: target.name, url: target.url })
+    const result = await deps.install(target)
     root = result.root
     installedNow = true
+  } else if (target.autoUpdate && isOfficialArtifact(target)) {
+    const needsUpdate =
+      isNewerVersion(target.version, record?.version) ||
+      (isNotOlderVersion(target.version, record?.version) && record ? targetDiffers(record, target) : false)
+    if (needsUpdate) {
+      previousVersion = record?.version
+      log.info("updating official builtin extension", {
+        name: target.name,
+        from: record?.version,
+        to: target.version,
+      })
+      const result = await deps.install(target)
+      root = result.root
+      updatedNow = true
+    }
   }
 
   let python: EntryReport["python"] = "none"
@@ -193,27 +353,77 @@ async function provisionOne(
     log.warn("preparing python environment failed", { name: entry.name, error: String(error) })
     python = "failed"
   }
-  if (installedNow) deps.bump()
+  if (installedNow || updatedNow) {
+    deps.bump()
+    announceBuiltinChange(entry.name)
+  }
 
+  const checkedAt = Date.now()
+  const updateStatus = updatedNow ? "updated" : "current"
+  const report: EntryReport = {
+    name: entry.name,
+    status: "installed",
+    installedNow,
+    ...(updatedNow ? { updatedNow, previousVersion, targetVersion: target.version } : {}),
+    ...(target.autoUpdate && record ? { updateStatus } : {}),
+    python,
+  }
   return {
-    report: { name: entry.name, status: "installed", installedNow, python },
+    report,
     state: {
       status: "installed",
-      at: Date.now(),
+      at: checkedAt,
       attempts: 0,
-      ...(entry.version ? { version: entry.version } : {}),
+      ...(target.version ? { version: target.version } : {}),
+      ...(target.autoUpdate
+        ? {
+            checkedAt,
+            updateStatus,
+            ...(previousVersion ? { previousVersion } : {}),
+            ...(target.version ? { targetVersion: target.version } : {}),
+          }
+        : {}),
     },
   }
 }
 
 let inFlight: Promise<Report> | undefined
 let started = false
+let scheduler: ReturnType<typeof setInterval> | undefined
+
+export const AUTO_UPDATE_INTERVAL_MS = 30 * 60 * 1000
+
+function startScheduler() {
+  if (scheduler || disabled()) return
+  scheduler = setInterval(() => {
+    if (inFlight) return
+    inFlight = provisionBuiltins()
+      .catch((error) => {
+        log.warn("scheduled official extension update failed", { error: String(error) })
+        return { entries: [] } satisfies Report
+      })
+      .finally(() => {
+        inFlight = undefined
+      })
+    // A background maintenance timer must never keep a CLI/server process alive.
+    scheduler?.unref?.()
+  }, AUTO_UPDATE_INTERVAL_MS)
+  scheduler.unref?.()
+}
+
+/** Stop the background updater, primarily for embedded hosts and tests. */
+export function stopProvisioning() {
+  if (scheduler) clearInterval(scheduler)
+  scheduler = undefined
+  inFlight = undefined
+  started = false
+}
 
 /**
  * 执行一轮自动准备。
  *
- * 幂等：已装的条目只做 Python 补齐；`dismissed` 的条目跳过。
- * 绝不抛异常 —— 它通常在服务启动后后台跑。
+ * 幂等：已装的条目只做 Python 补齐，并在官方目标版本变化时自动更新；
+ * `dismissed` 的条目跳过。绝不抛异常 —— 它通常在服务启动后后台跑。
  */
 export async function provisionBuiltins(options: { names?: string[]; deps?: ProvisionDeps } = {}): Promise<Report> {
   const deps = options.deps ?? realDeps
@@ -235,16 +445,34 @@ export async function provisionBuiltins(options: { names?: string[]; deps?: Prov
       const { report, state: next } = await provisionOne(entry, installed, deps)
       state[entry.name] = next
       reports.push(report)
-      log.info("builtin extension ready", { name: entry.name, python: report.python })
+      log.info("builtin extension ready", {
+        name: entry.name,
+        python: report.python,
+        ...(report.updatedNow ? { updated: true, from: report.previousVersion, to: report.targetVersion } : {}),
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       state[entry.name] = {
         status: "failed",
         at: Date.now(),
         attempts: (previous?.attempts ?? 0) + 1,
+        ...(previous?.version ? { version: previous.version } : {}),
+        ...(entry.autoUpdate
+          ? {
+              checkedAt: Date.now(),
+              updateStatus: "failed" as const,
+              ...(entry.version ? { targetVersion: entry.version } : {}),
+            }
+          : {}),
         error: message.slice(0, 500),
       }
-      reports.push({ name: entry.name, status: "failed", installedNow: false, error: message })
+      reports.push({
+        name: entry.name,
+        status: "failed",
+        installedNow: false,
+        ...(entry.autoUpdate ? { updateStatus: "failed" as const, targetVersion: entry.version } : {}),
+        error: message,
+      })
       log.warn("builtin extension provisioning failed", { name: entry.name, error: message })
     }
   }
@@ -253,7 +481,7 @@ export async function provisionBuiltins(options: { names?: string[]; deps?: Prov
 }
 
 /**
- * 服务启动后调用：后台跑一轮，不阻塞监听。
+ * 服务启动后调用：后台跑一轮，不阻塞监听，并每 30 分钟检查官方更新。
  *
  * 同一进程只跑一次；被 `NOVAWAY_DISABLE_AUTOPROVISION=1` 关掉（测试与
  * 「离线机器」部署用）。
@@ -273,6 +501,7 @@ export function startProvisioning() {
     })
     .finally(() => {
       inFlight = undefined
+      startScheduler()
     })
   return inFlight
 }

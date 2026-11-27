@@ -28,6 +28,14 @@ export const agentAvatarSeeds = [
   "violet",
   "sapphire",
   "mint",
+  "sunset",
+  "lavender",
+  "cobalt",
+  "sand",
+  "rosewood",
+  "skyline",
+  "tangerine",
+  "forest",
 ] as const
 
 /**

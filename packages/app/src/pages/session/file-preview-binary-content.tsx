@@ -1,11 +1,24 @@
-import { Match, Switch } from "solid-js"
+import { lazy, Match, Suspense, Switch } from "solid-js"
 import { useLanguage } from "@/context/language"
-import { OfficeFilePreview, type OfficeFilePreviewProps } from "@/pages/session/office-file-preview"
+import type { OfficeFilePreviewProps } from "@/pages/session/office-file-preview"
 import { OfficePreviewFailureState } from "@/pages/session/office-preview-failure"
 import { OfficeRibbonBar, OfficeRibbonProvider } from "@/pages/session/office-ribbon"
 import { isImagePreviewPath, isOfficePreviewPath } from "@/pages/session/office-preview-utils"
 
 export type FileMediaPreviewKind = "audio" | "video"
+
+/**
+ * 预览分发器按需加载：它连带 `@novaway/core/office/pdf/engine`（pdf-lib ~750KB）
+ * 与 Lexora 编辑器宿主，属于「只有真的打开文件才需要」的重量级依赖。
+ * 静态引入会让每次进入会话都先解析这坨代码，首帧和切换会话都被拖慢。
+ */
+const officeFilePreviewModule = import("@/pages/session/office-file-preview")
+const OfficeFilePreview = lazy(() => officeFilePreviewModule.then((mod) => ({ default: mod.OfficeFilePreview })))
+
+/** 在会话页后台预热右侧文件预览模块，避免第一次打开 Office 文件时才下载代码块。 */
+export function preloadSessionFilePreview() {
+  void officeFilePreviewModule
+}
 
 const MEDIA_PREVIEW_FORMATS: Readonly<Record<string, { kind: FileMediaPreviewKind; mimeType: string }>> = {
   mp4: { kind: "video", mimeType: "video/mp4" },
@@ -33,6 +46,15 @@ export function fileMediaPreviewSource(url: string | undefined) {
   return url || undefined
 }
 
+/** 预览分片下载期间的占位：与数据加载中的样式保持一致，避免出现空白跳变。 */
+function OfficePreviewLoading(props: { label: string }) {
+  return (
+    <div class="flex h-full items-center justify-center px-6 text-12-regular text-foreground-subtle">
+      {props.label}...
+    </div>
+  )
+}
+
 export function FilePreviewBinaryContent(props: {
   path: () => string | undefined
   loaded: () => boolean
@@ -58,7 +80,9 @@ export function FilePreviewBinaryContent(props: {
   return (
     <Switch>
       <Match when={showImage() && props.imageBase64()}>
-        <OfficeFilePreview path={props.path()!} base64={props.imageBase64()!} onSaveImage={props.onSaveImage} />
+        <Suspense fallback={<OfficePreviewLoading label={props.loadingLabel} />}>
+          <OfficeFilePreview path={props.path()!} base64={props.imageBase64()!} onSaveImage={props.onSaveImage} />
+        </Suspense>
       </Match>
       <Match when={props.loaded() && media()}>
         <Switch>
@@ -109,7 +133,9 @@ export function FilePreviewBinaryContent(props: {
             {(value) => (
               <OfficeRibbonProvider>
                 <OfficeRibbonBar />
-                <OfficeFilePreview path={props.path()!} base64={value()} {...props.officePreviewProps} />
+                <Suspense fallback={<OfficePreviewLoading label={props.loadingLabel} />}>
+                  <OfficeFilePreview path={props.path()!} base64={value()} {...props.officePreviewProps} />
+                </Suspense>
               </OfficeRibbonProvider>
             )}
           </Match>

@@ -50,7 +50,10 @@ function AccountItem(props: {
 
   return (
     <div
-      class="relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-150"
+      role="button"
+      tabIndex={0}
+      aria-pressed={props.isSelected}
+      class="relative flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 transition-all duration-150"
       classList={{
         "bg-hover": props.isSelected,
         "hover:bg-hover": !props.isSelected,
@@ -61,6 +64,12 @@ function AccountItem(props: {
           : undefined
       }
       onClick={props.onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          props.onSelect()
+        }
+      }}
       onContextMenu={handleContextMenu}
     >
       <div class="relative size-8 shrink-0 rounded-full bg-background-alt flex items-center justify-center overflow-hidden">
@@ -99,6 +108,7 @@ function AccountItem(props: {
           onClick={() => setShowMenu(false)}
         >
           <button
+            type="button"
             class="w-full px-3 py-1.5 text-left text-12-regular text-foreground hover:bg-hover flex items-center gap-2"
             onClick={() => handleMenuAction("check")}
           >
@@ -106,6 +116,7 @@ function AccountItem(props: {
             检测登录状态
           </button>
           <button
+            type="button"
             class="w-full px-3 py-1.5 text-left text-12-regular text-critical-base hover:bg-hover flex items-center gap-2"
             onClick={() => handleMenuAction("remove")}
           >
@@ -181,6 +192,9 @@ export function PulseSidebar() {
       <div class="shrink-0 p-2 border-b border-border">
         <div class="flex gap-1.5">
           <button
+            type="button"
+            aria-label="打开账号管理器"
+            title="打开账号管理器"
             class="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-[8px] border border-border text-13-medium text-foreground transition-all duration-150 hover:bg-hover hover:border-interactive-hover"
             onClick={openAccountManager}
           >
@@ -188,6 +202,9 @@ export function PulseSidebar() {
             账号管理器
           </button>
           <button
+            type="button"
+            aria-label="添加账号"
+            title="添加账号"
             class="shrink-0 size-9 rounded-[8px] border border-border bg-background flex items-center justify-center text-foreground transition-all duration-150 hover:bg-hover hover:border-interactive-hover"
             onClick={openAddAccount}
           >
@@ -206,6 +223,7 @@ export function PulseSidebar() {
             return (
               <div class="mx-1.5 mb-1">
                 <button
+                  type="button"
                   class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-12-regular text-foreground-subtle hover:bg-hover transition-colors"
                   onClick={() => toggleGroup(group.id)}
                 >
@@ -249,6 +267,7 @@ export function PulseSidebar() {
 
       <div class="shrink-0 border-t border-border p-2">
         <button
+          type="button"
           class="flex w-full items-center justify-center gap-1.5 rounded-[8px] px-3 py-2 text-12-medium text-foreground-subtle transition-all duration-150 hover:bg-hover hover:text-foreground border border-border disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={platform.store.loading}
           onClick={async () => {

@@ -1,9 +1,10 @@
-import { For, on, onCleanup, Show, Suspense, createEffect, createMemo, createSignal, type JSX } from "solid-js"
+import { For, on, onCleanup, onMount, Show, Suspense, createEffect, createMemo, createSignal, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { showToast } from "@novaway/ui/toast"
 import { ResizeHandle } from "@novaway/ui/resize-handle"
+import { createFrameCoalescer } from "@novaway/ui/util/frame-coalesce"
 import { WindowControls } from "@/components/window-controls"
 import { ContextMenu } from "@novaway/ui/context-menu"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
@@ -40,11 +41,12 @@ import {
 import { createSessionTabs, getTabReorderIndex, resolveFileHostCleanup, type Sizing } from "@/pages/session/helpers"
 import { confirmOfficeEditorClose } from "@/pages/session/office-editor-session"
 import { disposeOfficeEditorsForDirectory, reconcileOfficeEditors } from "@/pages/session/office-editor-keepalive"
-import { FileTabContent } from "@/pages/session/file-tabs"
+import { FileTabContent, preloadSessionFileModules } from "@/pages/session/file-tabs"
 import { forgetTextHistory } from "@/pages/session/text-history"
 import { PreviewPanel } from "@/pages/session/preview-panel"
 import { SidePaneSessionPanel } from "@/pages/session/side-pane-session"
 import { SidePaneBackgroundOutput } from "@/pages/session/side-pane-background"
+import { GitSourceControlPanel } from "@/pages/session/git-source-control"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
@@ -52,11 +54,12 @@ import { hijackLiveFollow } from "@/pages/session/live-follow"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { drainQueuedOpenFiles, queuedOpenFiles } from "@/pages/layout/open-files"
 import { WorkspaceFileTree } from "@/pages/layout/workspace-file-tree"
+import { preloadOfficeEditorFor } from "@/pages/session/office-editor-host"
 import { isOfficePreviewPath } from "@/pages/session/office-preview-utils"
 
 const sidePaneTabs: Array<{
   id: SidePaneTab
-  icon: "folder" | "tree-structure" | "browser" | "terminal" | "review" | "task"
+  icon: "folder" | "tree-structure" | "browser" | "terminal" | "review" | "task" | "branch"
   labelKey: string
 }> = [
   // 工作区文本文件与 Office 文件分开承载：Office 编辑器不带工作区文件树。
@@ -117,6 +120,20 @@ export function SessionSidePanel(props: {
   const dialog = useDialog()
   const { params, sessionKey, tabs } = useSessionLayout()
 
+  // 右侧面板的编辑器代码在会话页挂载后静默预热；文件内容仍只在用户真正打开时读取。
+  onMount(preloadSessionFileModules)
+  const preloadedOfficePaths = new Set<string>()
+  createEffect(() => {
+    for (const tab of layout.sidePane.tabs()) {
+      const path = file.pathFromTab(tab)
+      if (!path || !isOfficePreviewPath(path) || preloadedOfficePaths.has(path)) continue
+      preloadedOfficePaths.add(path)
+      void preloadOfficeEditorFor(path)?.catch(() => {
+        preloadedOfficePaths.delete(path)
+      })
+    }
+  })
+
   /**
    * 切到另一条任务时，如果右侧正停着上一条任务的辅助对话，把那个标签收起来
    * （辅助对话属于某条主线，切走了就不该继续挂在眼前）。
@@ -129,7 +146,10 @@ export function SessionSidePanel(props: {
       (id) => {
         const active = layout.sidePane.activeSessionTab()
         if (!active || active.kind !== "sideChat") return
-        if ((id ?? "") === active.parentID) return
+        // Route params can settle one render after the session layout. Do not close a
+        // freshly-created side chat while either side of the parent relationship is
+        // still empty; compare only once both identities are available.
+        if (!id || !active.parentID || id === active.parentID) return
         layout.sidePane.closeSession(active.id)
       },
     ),
@@ -341,6 +361,12 @@ export function SessionSidePanel(props: {
   const [store, setStore] = createStore({
     activeSidePaneDraggable: undefined as string | undefined,
   })
+  const [fileTreeView, setFileTreeView] = createSignal<"files" | "git">("files")
+
+  // 收起工作区文件树后，下次打开回到默认的文件视图，而不是保留 Git 子视图。
+  createEffect(() => {
+    if (!layout.sidePane.tree()) setFileTreeView("files")
+  })
 
   createEffect(() => {
     if (!file.ready()) return
@@ -412,11 +438,19 @@ export function SessionSidePanel(props: {
       style={{ width: `${layout.sidePane.tree() ? layout.sidePane.treeWidth() : 0}px` }}
     >
       <div class="relative flex h-full min-h-0 w-full min-w-0 flex-col">
-        <WorkspaceFileTree
-          directory={sdk.directory}
-          sessionKey={sessionKey}
-          onCollapse={() => layout.sidePane.setTree(false)}
-        />
+        <Show
+          when={fileTreeView() === "files"}
+          fallback={
+            <GitSourceControlPanel onOpenFile={props.focusReviewDiff} onBack={() => setFileTreeView("files")} />
+          }
+        >
+          <WorkspaceFileTree
+            directory={sdk.directory}
+            sessionKey={sessionKey}
+            onOpenGit={() => setFileTreeView("git")}
+            active={() => layout.sidePane.tree()}
+          />
+        </Show>
         <Show when={layout.sidePane.tree()}>
           <ResizeHandle
             direction="horizontal"
@@ -595,7 +629,7 @@ export function SessionSidePanel(props: {
         // 收起时连边框一起删掉：只把颜色设透明的话 1px 边框还在，
         // 面板「宽度 0」实测会剩 2px（左右边框），动画收不到底、还会留一条竖线。
         "border-width": open() ? undefined : "0px",
-        "transition-duration": "var(--transition-panel-ms, 1000ms)",
+        "transition-duration": "var(--transition-panel-ms, 320ms)",
         "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
       }}
       data-component="side-pane-frame"
@@ -750,15 +784,19 @@ function SidePaneDivider(props: { axis: SidePaneSplitAxis; onRatio: (ratio: numb
     event.preventDefault()
     const rect = host.getBoundingClientRect()
     setDragging(true)
+    // 与分隔条手柄同一套策略：pointermove 逐次写比例会把每帧的重排堆成队列，
+    // 合并到 rAF 后渲染次数跟刷新率对齐，最终比例不变。
+    const applyRatio = createFrameCoalescer<number>((ratio) => props.onRatio(ratio))
     const move = (moveEvent: PointerEvent) => {
       // 次要窗格在右/下，所以分割线往左/上拖 = 次要窗格变大。
       const ratio =
         props.axis === "below"
           ? (rect.bottom - moveEvent.clientY) / rect.height
           : (rect.right - moveEvent.clientX) / rect.width
-      props.onRatio(ratio)
+      applyRatio.push(ratio)
     }
     const up = () => {
+      applyRatio.flush()
       endDrag = undefined
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
@@ -944,6 +982,7 @@ function SidePaneTabTrigger(props: { tab: SidePaneTab; workspaceAvailable: boole
   const disabled = () => !props.workspaceAvailable && sidePaneTabs.some((item) => item.id === props.tab)
   return (
     <div
+      data-component="side-pane-tab"
       use:sortable
       class="shrink-0"
       classList={{

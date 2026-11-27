@@ -35,14 +35,16 @@ const HIERARCHY_GUIDE_BACKGROUND = "repeating-linear-gradient(to right, transpar
 /**
  * 右侧面板里的工作区文件树。
  *
- * 左侧「文件」视图只留最近打开 + 变更清单，整棵树搬到这里；变更筛选在左栏，
- * 树本身永远展示完整目录。数据层与左栏共用 `createWorkspaceFiles`。
+ * 左侧「文件」视图只留最近打开 + 变更清单，整棵树搬到这里；变更筛选也放在树工具栏，
+ * 数据层与左栏共用 `createWorkspaceFiles`。
  */
 export function WorkspaceFileTree(props: {
   directory: string
   sessionKey: () => string
-  /** 内嵌在「工作区文件」面板时提供：收起这棵树的入口。 */
-  onCollapse?: () => void
+  /** 打开当前工作区的 Git 源代码管理子视图。 */
+  onOpenGit?: () => void
+  /** 树是否真的可见（面板收起时只是宽度为 0，仍在 DOM 里）：不可见就不轮询。 */
+  active?: () => boolean
 }) {
   const language = useLanguage()
   const layout = useLayout()
@@ -52,7 +54,7 @@ export function WorkspaceFileTree(props: {
   const preview = usePreview()
   const sideChat = useSideChat()
   const file = useFile()
-  const files = createWorkspaceFiles(() => props.directory)
+  const files = createWorkspaceFiles(() => props.directory, { active: props.active, prewarmRoot: true })
   const sessionTabs = layout.tabs(props.sessionKey)
   const [query, setQuery] = createSignal("")
   const [searchResults, setSearchResults] = createSignal<WorkspaceEntry[]>([])
@@ -65,6 +67,8 @@ export function WorkspaceFileTree(props: {
   const [refreshing, setRefreshing] = createSignal(false)
   const [installedEditors, setInstalledEditors] = createSignal<InstalledEditor[]>([])
   const [officeApps, setOfficeApps] = createSignal<OfficeApp[]>([])
+  const [systemAppIcons, setSystemAppIcons] = createSignal<Record<string, string>>({})
+  const [terminalApp, setTerminalApp] = createSignal("powershell.exe")
   const [editorsAvailable, setEditorsAvailable] = createSignal(false)
   const editorConnection = () => server.current
   const canOpenInLocalEditor = () => platform.platform === "desktop" && server.isLocal()
@@ -87,6 +91,31 @@ export function WorkspaceFileTree(props: {
   const workspaceName = () => workspaceTreeName(props.directory, language.t("sidebar.tree.title"))
 
   createEffect(() => {
+    if (props.active && !props.active()) return
+    if (platform.platform !== "desktop" || !platform.resolveAppPath || !platform.getFileIcon) return
+    let active = true
+    const names = platform.os === "windows" ? ["explorer.exe", "wt.exe", "powershell.exe", "cmd.exe"] : []
+    void (async () => {
+      const icons: Record<string, string> = {}
+      for (const name of names) {
+        const resolved = await platform.resolveAppPath?.(name).catch(() => null)
+        if (!resolved) continue
+        const icon = await platform.getFileIcon?.(resolved).catch(() => null)
+        if (icon) icons[name] = icon
+      }
+      if (!active) return
+      setSystemAppIcons(icons)
+      if (icons["wt.exe"]) setTerminalApp("wt.exe")
+      else if (icons["powershell.exe"]) setTerminalApp("powershell.exe")
+      else if (icons["cmd.exe"]) setTerminalApp("cmd.exe")
+    })()
+    onCleanup(() => {
+      active = false
+    })
+  })
+
+  createEffect(() => {
+    if (props.active && !props.active()) return
     if (!platform.getInstalledEditors || platform.platform !== "desktop") return
     let active = true
     void platform
@@ -107,6 +136,7 @@ export function WorkspaceFileTree(props: {
   })
 
   createEffect(() => {
+    if (props.active && !props.active()) return
     if (!platform.getOfficeApps || platform.platform !== "desktop") return
     let active = true
     void platform
@@ -151,6 +181,7 @@ export function WorkspaceFileTree(props: {
 
   // 打开/切换文件时把树同步到该文件：展开父链并滚动到对应行。
   createEffect(() => {
+    if (props.active && !props.active()) return
     const active = sessionTabs.active()
     const path = active ? file.pathFromTab(active) : undefined
     if (!path || query().trim() || changedOnly()) return
@@ -169,6 +200,7 @@ export function WorkspaceFileTree(props: {
 
   // 根目录已有缓存时刷新失败只提示，不把整棵树换成错误页。
   createEffect(() => {
+    if (props.active && !props.active()) return
     const error = files.rootError()
     if (!error || !files.rootLoaded() || lastRootError === error) return
     lastRootError = error
@@ -401,6 +433,14 @@ export function WorkspaceFileTree(props: {
     })
   }
 
+  const windowsTerminalCommand = (directory: string) => {
+    const app = terminalApp()
+    if (app === "wt.exe") return { command: "wt.exe", args: ["-d", directory] }
+    if (app === "cmd.exe") return { command: "cmd.exe", args: ["/K", "cd", "/d", directory] }
+    const escaped = directory.replaceAll("'", "''")
+    return { command: "powershell.exe", args: ["-NoExit", "-Command", `Set-Location -LiteralPath '${escaped}'`] }
+  }
+
   /** 在文件所在目录打开系统终端（Windows Terminal / macOS Terminal），失败回落集成终端。 */
   const openParentInTerminal = (entry: WorkspaceEntry) => {
     const directory =
@@ -415,7 +455,7 @@ export function WorkspaceFileTree(props: {
       !canOpenInLocalEditor() || !platform.os
         ? undefined
         : platform.os === "windows"
-          ? { command: "wt", args: ["-d", directory] }
+          ? windowsTerminalCommand(directory)
           : platform.os === "macos"
             ? { command: "open", args: ["-a", "Terminal", directory] }
             : undefined
@@ -788,7 +828,9 @@ export function WorkspaceFileTree(props: {
                         class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
                         onSelect={() => openParentInTerminal(p.entry)}
                       >
-                        <Icon name="terminal" size="small" />
+                        <Show when={systemAppIcons()[terminalApp()]} fallback={<Icon name="terminal" size="small" />}>
+                          <img src={systemAppIcons()[terminalApp()]} alt="" class="size-4 shrink-0 object-contain" draggable={false} />
+                        </Show>
                         {language.t(
                           platform.os === "windows"
                             ? "session.filePreview.openDirInTerminal.windows"
@@ -814,7 +856,9 @@ export function WorkspaceFileTree(props: {
               class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
               onSelect={() => revealInExplorer(p.entry)}
             >
-              <Icon name="folder" size="small" />
+              <Show when={systemAppIcons()["explorer.exe"]} fallback={<Icon name="folder" size="small" />}>
+                <img src={systemAppIcons()["explorer.exe"]} alt="" class="size-4 shrink-0 object-contain" draggable={false} />
+              </Show>
               {language.t("session.filePreview.revealInExplorer")}
             </ContextMenu.Item>
             <Show when={p.entry.type === "dir"}>
@@ -822,7 +866,9 @@ export function WorkspaceFileTree(props: {
                 class="flex items-center gap-2 px-2 py-1.5 text-12-medium text-foreground rounded-md hover:bg-hover cursor-pointer outline-none"
                 onSelect={() => openInTerminal(p.entry)}
               >
-                <Icon name="terminal" size="small" />
+                <Show when={systemAppIcons()[terminalApp()]} fallback={<Icon name="terminal" size="small" />}>
+                  <img src={systemAppIcons()[terminalApp()]} alt="" class="size-4 shrink-0 object-contain" draggable={false} />
+                </Show>
                 {language.t("sidebar.tree.openTerminal")}
               </ContextMenu.Item>
             </Show>
@@ -945,23 +991,30 @@ export function WorkspaceFileTree(props: {
               <DropdownMenu.Item onSelect={() => copyText(props.directory)}>
                 <DropdownMenu.ItemLabel>{language.t("session.filePreview.copyAbsolutePath")}</DropdownMenu.ItemLabel>
               </DropdownMenu.Item>
+              <DropdownMenu.Separator />
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu>
+        <IconButton
+          icon={changedOnly() ? "review-active" : "review"}
+          size="small"
+          variant="ghost"
+          data-action="workspace-file-changed-only"
+          aria-pressed={changedOnly()}
+          classList={{
+            "text-interactive-base": changedOnly(),
+            "text-foreground-subtlest": !changedOnly(),
+          }}
+          title={language.t(changedOnly() ? "sidebar.tree.showAll" : "sidebar.tree.changedOnly")}
+          aria-label={language.t(changedOnly() ? "sidebar.tree.showAll" : "sidebar.tree.changedOnly")}
+          onClick={() => setChangedOnly(!changedOnly())}
+        />
         <button
           type="button"
-          class={[
-            "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors",
-            changedOnly()
-              ? "bg-hover text-foreground"
-              : "text-foreground-subtlest hover:bg-hover hover:text-foreground",
-          ].join(" ")}
-          aria-pressed={changedOnly()}
-          aria-label={language.t(changedOnly() ? "sidebar.tree.showAll" : "sidebar.tree.changedOnly")}
-          title={language.t(changedOnly() ? "sidebar.tree.showAll" : "sidebar.tree.changedOnly")}
-          disabled={!files.gitStatusAvailable() || files.kinds().size === 0}
-          classList={{ "opacity-40 cursor-not-allowed": !files.gitStatusAvailable() || files.kinds().size === 0 }}
-          onClick={() => setChangedOnly(!changedOnly())}
+          class="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtlest transition-colors hover:bg-hover hover:text-foreground"
+          aria-label={language.t("sidePane.tab.git")}
+          title={language.t("sidePane.tab.git")}
+          onClick={() => props.onOpenGit?.()}
         >
           <Icon name="branch" size="small" />
         </button>
@@ -985,17 +1038,6 @@ export function WorkspaceFileTree(props: {
         >
           <Icon name="refresh" size="small" class={refreshing() ? "animate-spin" : undefined} />
         </button>
-        <Show when={props.onCollapse}>
-          <IconButton
-            icon="chevron-left"
-            size="small"
-            variant="ghost"
-            data-action="side-pane-file-tree-close"
-            title={language.t("sidePane.tree.hide")}
-            aria-label={language.t("sidePane.tree.hide")}
-            onClick={() => props.onCollapse?.()}
-          />
-        </Show>
       </div>
       <div class="shrink-0 border-b border-border px-2 py-1.5">
         <div class="flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2">

@@ -12,26 +12,46 @@ export const fsHandlers = HttpApiBuilder.group(InstanceHttpApi, "v2.fs", (handle
     const svc = yield* File.Service
 
     const fsFind = Effect.fn("V2FsHttpApi.find")(function* (ctx: {
-      query: { query: string; type?: "file" | "directory"; limit?: number }
+      query: {
+        query: string
+        path?: string
+        recursive?: "true" | "false"
+        type?: "file" | "directory"
+        limit?: number
+      }
     }) {
       const instance = yield* InstanceState.context
-      const workspaceID = yield* InstanceState.workspaceID
+      // Local directory-routed requests do not always have a control-plane
+      // WorkspaceRef. The filesystem search is still valid without a workspace
+      // id; only include it when the route context provides one.
+      const workspaceID = yield* InstanceState.workspaceID.pipe(Effect.catch(() => Effect.succeed(undefined)))
       const limit = ctx.query.limit ?? 20
-      const all = yield* svc.search({
-        query: ctx.query.query,
-        limit,
-        ...(ctx.query.type ? { type: ctx.query.type } : {}),
-      })
-      const dirs =
-        ctx.query.type === "directory"
-          ? new Set(all)
-          : new Set(
-              yield* svc.search({
-                query: ctx.query.query,
-                limit,
-                type: "directory",
-              }),
-            )
+      const query = ctx.query.query.trim().toLowerCase()
+      const results: Array<{ path: string; type: "file" | "directory" }> = []
+      const pending = [ctx.query.path ?? ""]
+      const visited = new Set<string>()
+      const recursive = ctx.query.recursive !== "false"
+
+      // Do not use File.search here. Its fuzzy index performs a full workspace
+      // scan on a cold instance, which can block the UI while large workspaces
+      // are still bootstrapping. The directory API already respects .gitignore;
+      // walk only non-ignored directories and stop once the result limit is met.
+      while (pending.length > 0 && visited.size < 2048 && results.length < limit) {
+        const dir = pending.shift()!
+        if (visited.has(dir)) continue
+        visited.add(dir)
+        const nodes = yield* svc.list(dir).pipe(Effect.catch(() => Effect.succeed([])))
+        for (const node of nodes) {
+          if (node.ignored) continue
+          const matches = !query || node.path.toLowerCase().includes(query)
+          if (matches && (!ctx.query.type || node.type === ctx.query.type)) {
+            results.push({ path: node.path, type: node.type })
+            if (results.length >= limit) break
+          }
+          if (recursive && node.type === "directory") pending.push(node.path)
+        }
+      }
+      const all = results
       return {
         location: {
           directory: instance.directory,
@@ -41,9 +61,9 @@ export const fsHandlers = HttpApiBuilder.group(InstanceHttpApi, "v2.fs", (handle
             directory: instance.project.worktree,
           },
         },
-        data: all.map((path) => ({
-          path,
-          type: (dirs.has(path) ? "directory" : "file") as "directory" | "file",
+        data: all.map((entry) => ({
+          path: entry.path,
+          type: entry.type,
         })),
       }
     })

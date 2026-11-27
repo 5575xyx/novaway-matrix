@@ -16,10 +16,10 @@ import { createWorkspaceFiles } from "./workspace-files-store"
  * 整棵文件树已经搬到右侧面板，
  * 左栏只留"我改了哪些文件"这种一眼能看完的清单，头部按钮负责打开右侧树。
  */
-export function SidebarFiles(props: { directory: string; sessionKey: () => string }) {
+export function SidebarFiles(props: { directory: string; sessionKey: () => string; active?: () => boolean }) {
   const language = useLanguage()
   const layout = useLayout()
-  const files = createWorkspaceFiles(() => props.directory)
+  const files = createWorkspaceFiles(() => props.directory, { active: props.active })
   const recent = () => RecentFiles.recent(props.directory)
   const [showRecent, setShowRecent] = createSignal(true)
 

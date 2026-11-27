@@ -12,4 +12,6 @@ export {
 
 // Keep the state helpers importable in the SSR/unit-test environment. The header UI
 // uses client-only router/popover primitives, so load that view only when rendered.
-export const WorkflowStatus = lazy(() => import("./workflow-status-view").then(({ WorkflowStatus }) => ({ default: WorkflowStatus })))
+export const WorkflowStatus = lazy(() =>
+  import("./workflow-status-view").then(({ WorkflowStatus }) => ({ default: WorkflowStatus })),
+)

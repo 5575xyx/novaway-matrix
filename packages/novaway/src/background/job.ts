@@ -46,6 +46,8 @@ export const Event = {
 type Active = {
   info: Info
   done: Deferred.Deferred<Info>
+  /** Holds the worker behind the durable `started` lifecycle event. */
+  ready: Deferred.Deferred<void>
   fiber?: Fiber.Fiber<void, unknown>
   /** 可选的协作式取消钩子。先让任务自己收尾（例如终止子进程），再打断 fiber。 */
   cancel?: Effect.Effect<void>
@@ -320,24 +322,33 @@ export const layer = Layer.effect(
             s.jobs,
             Effect.fnUntraced(function* (jobs) {
               const existing = jobs.get(id)
-              if (existing?.info.status === "running") return [snapshot(existing), jobs] as const
-              const fiber = yield* restore(input.run).pipe(
-                Effect.matchCauseEffect({
-                  onSuccess: (value) => {
-                    const outcome = runOutcome(value)
-                    return finish(id, outcome.failed ? "error" : "completed", {
-                      output: outcome.output,
-                      ...(outcome.failed ? { error: outcome.failed } : {}),
-                    })
-                  },
-                  onFailure: (cause) =>
-                    finish(id, Cause.hasInterruptsOnly(cause) ? "cancelled" : "error", {
-                      error: errorText(Cause.squash(cause)),
-                    }),
-                }),
-                Effect.asVoid,
-                Effect.forkIn(s.scope, { startImmediately: true }),
-              )
+              if (existing?.info.status === "running")
+                return [{ info: snapshot(existing), started: false as boolean }, jobs] as const
+              // Do not let an immediately-completing run overtake the start
+              // record. Without this gate, `Effect.succeed(...)` (and short
+              // shell commands) can publish `completed` before `started` has
+              // been persisted, leaving the database stuck at `running` and
+              // making event-driven clients render the wrong final state.
+              const ready = yield* Deferred.make<void>()
+              const fiber = yield* restore(
+                Deferred.await(ready).pipe(
+                  Effect.andThen(input.run),
+                  Effect.matchCauseEffect({
+                    onSuccess: (value) => {
+                      const outcome = runOutcome(value)
+                      return finish(id, outcome.failed ? "error" : "completed", {
+                        output: outcome.output,
+                        ...(outcome.failed ? { error: outcome.failed } : {}),
+                      })
+                    },
+                    onFailure: (cause) =>
+                      finish(id, Cause.hasInterruptsOnly(cause) ? "cancelled" : "error", {
+                        error: errorText(Cause.squash(cause)),
+                      }),
+                  }),
+                  Effect.asVoid,
+                ),
+              ).pipe(Effect.forkIn(s.scope, { startImmediately: true }))
               const job = {
                 info: {
                   id,
@@ -348,15 +359,32 @@ export const layer = Layer.effect(
                   metadata: input.metadata,
                 },
                 done,
+                ready,
                 fiber,
                 ...(input.cancel ? { cancel: input.cancel } : {}),
               }
-              return [snapshot(job), new Map(jobs).set(id, job)] as const
+              return [{ info: snapshot(job), started: true as boolean }, new Map(jobs).set(id, job)] as const
             }),
           )
-          yield* Effect.sync(() => persist(result))
-          yield* bus.publish(Event.Started, { info: result })
-          return result
+          if (!result.started) return result.info
+          // The worker is gated until the durable `started` lifecycle event
+          // is visible. Release it only after that event so fast jobs cannot
+          // reorder lifecycle events or leave the persisted row at `running`.
+          return yield* Effect.gen(function* () {
+            yield* Effect.sync(() => persist(result.info))
+            yield* bus.publish(Event.Started, { info: result.info })
+            return result.info
+          }).pipe(
+            // Never strand a worker behind the gate if persistence or event
+            // delivery fails. The start call itself is uninterruptible, but
+            // its dependencies can still fail.
+            Effect.ensuring(
+              Effect.gen(function* () {
+                const active = (yield* SynchronizedRef.get(s.jobs)).get(result.info.id)
+                if (active) yield* Deferred.succeed(active.ready, undefined).pipe(Effect.ignore)
+              }),
+            ),
+          )
         }),
       )
     })

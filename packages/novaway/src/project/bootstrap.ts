@@ -105,7 +105,9 @@ export const layer = Layer.effect(
         (item) =>
           item.adapter === "v2" &&
           item.status === "installed" &&
-          (item.scope === "builtin" || enabled.includes(`${item.scope}:${item.id}`)),
+          (item.scope === "builtin" ||
+            (item.scope === "global" && !disabled.includes(item.id) && !disabled.includes(`${item.scope}:${item.id}`)) ||
+            enabled.includes(`${item.scope}:${item.id}`)),
       )
       yield* Effect.forEach(
         enabledInstances,

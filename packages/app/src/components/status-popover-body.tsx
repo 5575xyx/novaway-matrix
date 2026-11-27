@@ -399,7 +399,6 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
             </Show>
           </div>
         </Tabs.Content>
-
       </Tabs>
     </div>
   )

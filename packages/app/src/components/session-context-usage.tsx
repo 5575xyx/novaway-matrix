@@ -1,4 +1,4 @@
-import { Show, createMemo } from "solid-js"
+import { Show, createMemo, createSignal } from "solid-js"
 import { Popover } from "@novaway/ui/popover"
 import { ProgressCircle } from "@novaway/ui/progress-circle"
 
@@ -6,7 +6,7 @@ import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 import { CacheUsageBody } from "@/components/cache-usage-panel"
-import { getSessionContextMetrics } from "@/components/session/session-context-metrics"
+import { getSessionContext, getSessionTotalCost } from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
 // 输入框工具条上的会话上下文占用入口（触发器在
@@ -18,6 +18,7 @@ export function SessionContextUsage() {
   const language = useLanguage()
   const providers = useProviders()
   const { params } = useSessionLayout()
+  const [open, setOpen] = createSignal(false)
 
   const usd = createMemo(
     () =>
@@ -28,13 +29,14 @@ export function SessionContextUsage() {
   )
 
   const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
-  const metrics = createMemo(() => getSessionContextMetrics(messages(), providers.all(), sync.data.config?.compaction))
-  const context = createMemo(() => metrics().context)
-  const cost = () => usd().format(metrics().totalCost)
+  const context = createMemo(() => getSessionContext(messages(), providers.all(), sync.data.config?.compaction))
+  const cost = createMemo(() => (open() ? usd().format(getSessionTotalCost(messages())) : ""))
 
   return (
     <Show when={params.id}>
       <Popover
+        open={open()}
+        onOpenChange={setOpen}
         placement="top-end"
         gutter={8}
         triggerAs="button"

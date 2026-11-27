@@ -300,6 +300,16 @@ export const Info = Schema.Struct({
   permission: Schema.optional(ConfigPermission.Info),
   permission_auto: Schema.optional(ConfigPermission.AutoInfo),
   computer: Schema.optional(ConfigComputer.Info),
+  voice: Schema.optional(
+    Schema.Struct({
+      enabled: Schema.optional(Schema.Boolean),
+      language: Schema.optional(Schema.String),
+      mode: Schema.optional(Schema.Literals(["toggle", "hold"])),
+      engine: Schema.optional(Schema.Literals(["browser", "local"])),
+      local_endpoint: Schema.optional(Schema.String),
+      local_model: Schema.optional(Schema.String),
+    }),
+  ).annotate({ description: "Voice dictation settings for the composer" }),
   sandbox: Schema.optional(ConfigSandbox.Info),
   arena: Schema.optional(ConfigArena.Info),
   channels: Schema.optional(ConfigChannels.Info).annotate({
@@ -391,7 +401,7 @@ export const Info = Schema.Struct({
       }),
       team_default_mode: Schema.optional(Schema.Literals(["off", "auto", "selected"])).annotate({
         description:
-          "新会话的默认团队模式（指定团队 | Auto），只决定选择器的初始值：用户仍可随时改。显式选择的会话、子会话不受影响；总控关闭时不生效。",
+          "新会话的默认团队模式（指定团队 | Auto）。未设置时默认 Auto：主助手按需决定是否调用专家；用户仍可显式选择主助手直处理或指定执行者。显式选择的会话、子会话不受影响；总控关闭时不生效。",
       }),
       team_default_ids: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
         description: "`team_default_mode: selected` 时默认点名哪些团队。为空等于不启用默认值。",

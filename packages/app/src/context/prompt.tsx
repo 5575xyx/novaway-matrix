@@ -62,6 +62,8 @@ export type QuoteContextItem = {
   label?: string
   /** 文件引用时的路径（发给模型时保留来源）。 */
   path?: string
+  /** 用户针对该引用写下的修改要求。 */
+  comment?: string
 }
 
 export type ContextItem = FileContextItem | QuoteContextItem
@@ -117,7 +119,11 @@ function clonePrompt(prompt: Prompt): Prompt {
 }
 
 function contextItemKey(item: ContextItem) {
-  if (item.type === "quote") return `quote:${checksum(item.text) ?? item.text}`
+  if (item.type === "quote") {
+    const comment = item.comment?.trim()
+    const path = item.path ?? ""
+    return `quote:${path}:${checksum(item.text) ?? item.text}:${checksum(comment ?? "") ?? comment ?? ""}`
+  }
   const start = item.selection?.startLine
   const end = item.selection?.endLine
   const key = `${item.type}:${item.path}:${start}:${end}`

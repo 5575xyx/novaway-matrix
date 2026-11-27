@@ -5,16 +5,19 @@ import {
   createResource,
   createSignal,
   For,
+  lazy,
   on,
   onCleanup,
   onMount,
   ParentProps,
   Show,
+  Suspense,
   untrack,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { createMediaQuery } from "@solid-primitives/media"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
-import { useLayout, LocalProject, sidePaneSideChatTabId } from "@/context/layout"
+import { useLayout, LocalProject, sidePaneSideChatTabId, type AppModeConfig } from "@/context/layout"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { ElicitationDialog } from "@/components/elicitation-dialog"
 import { createMountTransition } from "@/utils/mount-transition"
@@ -56,6 +59,7 @@ import {
   clearSessionPrefetchInflight,
   clearSessionPrefetch,
   getSessionPrefetch,
+  INITIAL_SESSION_MESSAGE_LIMIT,
   isSessionPrefetchCurrent,
   runSessionPrefetch,
   setSessionPrefetch,
@@ -73,15 +77,15 @@ import { setSessionHandoff } from "@/pages/session/handoff"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { useTheme, type ColorScheme } from "@novaway/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
-import { DialogSettings, isSettingsTab, type SettingsTab } from "@/components/dialog-settings"
 import { DialogCreateProject } from "@/components/dialog-create-project"
 import { DialogAddWorkspace } from "@/components/dialog-add-workspace"
+import { isSettingsTab, type SettingsTab } from "@/components/settings-tab"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
 import { applyPath, backPath, forwardPath, type TitlebarHistory } from "@/components/titlebar-history"
-import { DatabasePage } from "@/pages/database"
 import { useServer } from "@/context/server"
 import { workspacePanelRadiusPx } from "@/utils/workspace-chrome"
 import { useLanguage, type Locale } from "@/context/language"
+import { NOVAWAY_MARKETPLACE_ENTRIES } from "@/constants/novaway-marketplace"
 import { pathKey } from "@/utils/path-key"
 import {
   CLOSE_FRAME_PAGES_EVENT,
@@ -89,10 +93,8 @@ import {
   effectiveWorkspaceOrder,
   errorMessage,
   latestRootSession,
-  sessionStatusOf,
   sortedRootSessions,
   TASK_DATE_BUCKETS,
-  withinRecency,
 } from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
@@ -114,18 +116,60 @@ import {
   ProjectTaskList,
   TaskFilterBar,
   useArchivedSessions,
+  useProjectTaskList,
   useTaskCounts,
   type TaskFilter,
 } from "./layout/sidebar-tasks"
 import { SidebarContent } from "./layout/sidebar-shell"
 import { SidebarRail, SidebarRailButton, type SidebarRailItem } from "./layout/sidebar-rail"
-import { ExtensionsPage } from "./extensions"
-import { TeamPage } from "./team"
-import { ArenaPage } from "./arena"
 import { GlobalChatTasks } from "./layout/global-chat-tasks"
 
-import { AutomationPage } from "./automation"
-import { KnowledgePage } from "./knowledge"
+const DialogSettings = lazy(() =>
+  import("@/components/dialog-settings").then((module) => ({ default: module.DialogSettings })),
+)
+const DatabasePage = lazy(() => import("./database").then((module) => ({ default: module.DatabasePage })))
+const ExtensionsPage = lazy(() => import("./extensions").then((module) => ({ default: module.ExtensionsPage })))
+const TeamPage = lazy(() => import("./team").then((module) => ({ default: module.TeamPage })))
+const ArenaPage = lazy(() => import("./arena").then((module) => ({ default: module.ArenaPage })))
+const AutomationPage = lazy(() => import("./automation").then((module) => ({ default: module.AutomationPage })))
+const KnowledgePage = lazy(() => import("./knowledge").then((module) => ({ default: module.KnowledgePage })))
+
+const frameWarmups = [
+  ["settings", "设置", DialogSettings.preload],
+  ["database", "数据库", DatabasePage.preload],
+  ["extensions", "插件市场", ExtensionsPage.preload],
+  ["team", "团队", TeamPage.preload],
+  ["knowledge", "知识库", KnowledgePage.preload],
+  ["arena", "模型竞技场", ArenaPage.preload],
+  ["automation", "自动化", AutomationPage.preload],
+] as const
+
+const SettingsFrameFallback = () => (
+  <div class="flex size-full min-h-0 flex-col bg-background">
+    <div class="flex shrink-0 items-center gap-2 border-b border-border px-6 py-4 text-12-regular text-foreground-subtle sm:px-10">
+      <Icon name="refresh" size="small" class="animate-spin text-icon-interactive-base" />
+      <span>正在打开设置…</span>
+    </div>
+    <div class="flex min-h-0 flex-1">
+      <div class="hidden w-52 shrink-0 flex-col gap-2 border-r border-border p-4 sm:flex">
+        <div class="h-8 w-24 animate-pulse rounded bg-surface" />
+        <div class="mt-3 h-4 w-16 animate-pulse rounded bg-surface" />
+        <div class="h-9 w-full animate-pulse rounded-lg bg-surface" />
+        <div class="h-9 w-full animate-pulse rounded-lg bg-surface" />
+        <div class="h-9 w-full animate-pulse rounded-lg bg-surface" />
+      </div>
+      <div class="flex min-w-0 flex-1 flex-col gap-4 p-6 sm:p-10">
+        <div class="h-6 w-40 animate-pulse rounded bg-surface" />
+        <div class="h-4 w-72 animate-pulse rounded bg-surface" />
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div class="h-36 animate-pulse rounded-2xl bg-surface" />
+          <div class="h-36 animate-pulse rounded-2xl bg-surface" />
+          <div class="h-36 animate-pulse rounded-2xl bg-surface" />
+        </div>
+      </div>
+    </div>
+  </div>
+)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -362,7 +406,7 @@ export default function Layout(props: ParentProps) {
       setExtensionUpdateCount(0)
       return
     }
-    void globalSDK.client.extension
+    return globalSDK.client.extension
       .marketplaceCatalog({ directory })
       .then((result) => {
         const updates = (result.data as unknown as { updates?: Array<{ state?: string }> } | undefined)?.updates ?? []
@@ -370,11 +414,18 @@ export default function Layout(props: ParentProps) {
       })
       .catch(() => undefined)
   }
-  createEffect(on(currentDir, refreshExtensionUpdates, { defer: true }))
-  onMount(() => {
-    const timer = setInterval(refreshExtensionUpdates, 10 * 60 * 1000)
-    onCleanup(() => clearInterval(timer))
-  })
+  const [interactionIdle, setInteractionIdle] = createSignal(true)
+  let interactionTimer: ReturnType<typeof setTimeout> | undefined
+  const deferWarmupsForInput = () => {
+    setInteractionIdle(false)
+    clearTimeout(interactionTimer)
+    interactionTimer = setTimeout(() => setInteractionIdle(true), 120)
+  }
+  for (const event of ["pointerdown", "keydown", "wheel"] as const) {
+    makeEventListener(window, event, deferWarmupsForInput, { capture: true, passive: true })
+  }
+  onCleanup(() => clearTimeout(interactionTimer))
+
   const modeStyle = createMemo(() => {
     const mode = layout.mode.all().find((item) => item.id === layout.mode.current())
     if (!mode) return {}
@@ -961,6 +1012,112 @@ export default function Layout(props: ParentProps) {
     return projects.find((p) => p.worktree === root)
   })
 
+  let officeProvisioning: Promise<void> | undefined
+
+  /**
+   * 工作台切换是用户明确表达「现在要办公」的时机。启动时的全量自动装配
+   * 是顺序执行的，办公插件可能排在其它官方插件之后，导致模式已经出现但
+   * 当前 Agent 快照里还没有办公插件。这里针对性触发一次后台安装/激活，
+   * 不阻塞模式切换，也不弹出安装页面；装好后主动刷新所有已知目录。
+   */
+  const ensureOfficePlugin = (directories: readonly string[]) => {
+    const entry = NOVAWAY_MARKETPLACE_ENTRIES.find((item) => item.name === "com.novaway.office-suite")
+    if (!entry || officeProvisioning) return
+
+    const refreshDirectories = [...new Set(["global-chat", directories[0]].filter(Boolean))]
+    const requestDirectory = "global-chat"
+    const installedNames = new Set([entry.name, entry.name.replace(/^com\.novaway\./, "")])
+
+    officeProvisioning = globalSDK.client.extension
+      .marketplaceCatalog({ directory: requestDirectory })
+      .then((response) => {
+        const installed = response.data?.installed ?? []
+        if (installed.some((item) => installedNames.has(item.name))) return
+        return globalSDK.client.extension.marketplaceInstall({
+          directory: requestDirectory,
+          kind: entry.kind,
+          name: entry.name,
+          url: entry.url,
+          ...(entry.version ? { version: entry.version } : {}),
+          ...(entry.sha256 ? { sha256: entry.sha256 } : {}),
+          ...(entry.sourceId ? { sourceId: entry.sourceId } : {}),
+        })
+      })
+      .catch((error) => {
+        // 自动装配失败不影响工作台切换；下次切换或启动自动装配会继续重试。
+        console.warn("[workbench] office plugin provisioning failed", error)
+      })
+      .then(() => Promise.all(refreshDirectories.map((directory) => globalSync.refreshDirectory(directory))))
+      .then(() => undefined)
+      .finally(() => {
+        officeProvisioning = undefined
+      })
+  }
+
+  const selectWorkbench = (mode: AppModeConfig) => {
+    // 先保存旧工作台的目录：切换后项目列表会立即按新工作台过滤，不能再从过滤后的列表取。
+    const candidates = Array.from(
+      new Set([currentDir(), ...layout.projects.all().map((project) => project.worktree)].filter(Boolean)),
+    ) as string[]
+
+    if (mode.group === "office") void ensureOfficePlugin(candidates)
+
+    layout.mode.select(mode.id)
+
+    if (mode.id === "operations") {
+      // 运营工作台没有运营项目时也不能落到空白首页：优先打开插件声明的工作台 Surface，
+      // 账号矩阵、平台页面和运营对话都由这个 Surface 统一承载。
+      const openSurface = (directory: string) => {
+        const contribution = globalSync.child(directory, { bootstrap: false })[0].plugin_contributions.find((item) => {
+          if (item.kind !== "surface" || item.status !== "active") return false
+          const action = parsePluginSurfaceAction(item.action)
+          return action?.type === "view" && action.viewId === "operations-workbench"
+        })
+        if (!contribution) return false
+        navigate(pluginSurfaceViewPath(base64Encode(directory), contribution.pluginID, "operations-workbench"))
+        return true
+      }
+
+      for (const directory of candidates) {
+        if (openSurface(directory)) return
+      }
+
+      // 某些目录尚未完成 child store bootstrap，先补齐插件贡献后再打开 Surface。
+      const bootstrapDirectory = candidates[0]
+      if (bootstrapDirectory) {
+        void globalSync.bootstrapInstance(bootstrapDirectory).then(() => {
+          if (layout.mode.current() !== mode.id) return
+          openSurface(bootstrapDirectory)
+        })
+        return
+      }
+    }
+
+    // 从运营 Surface 切回普通工作台时，离开插件页面并进入新工作台的第一个项目。
+    const next = layout.projects.list()[0]
+    navigate(next ? `/${base64Encode(next.worktree)}/session` : "/")
+  }
+
+  let modeRedirectKey = ""
+  createEffect(() => {
+    const mode = layout.mode.current()
+    const directory = currentDir()
+    if (!mode || !directory || !pageReady() || !layoutReady()) return
+    if (mode === "operations" && location.pathname.includes("/plugin-view/")) return
+
+    const project = currentProject()
+    if (project) {
+      modeRedirectKey = ""
+      return
+    }
+
+    const next = layout.projects.list()[0]
+    const target = next ? `/${base64Encode(next.worktree)}/session` : "/"
+    if (modeRedirectKey === `${mode}:${target}`) return
+    modeRedirectKey = `${mode}:${target}`
+    navigateWithSidebarReset(target)
+  })
+
   const [autoselecting] = createResource(async () => {
     await ready.promise
     await layout.ready.promise
@@ -1046,7 +1203,7 @@ export default function Layout(props: ParentProps) {
 
     const result: Session[] = []
     for (const dir of dirs) {
-      const [dirStore] = globalSync.child(dir, { bootstrap: true })
+      const [dirStore] = globalSync.child(dir, { bootstrap: false })
       const dirSessions = sortedRootSessions(dirStore, now)
       result.push(...dirSessions)
     }
@@ -1060,8 +1217,8 @@ export default function Layout(props: ParentProps) {
     running: number
   }
 
-  const prefetchChunk = 200
-  const prefetchConcurrency = 2
+  const prefetchChunk = INITIAL_SESSION_MESSAGE_LIMIT
+  const prefetchConcurrency = 1
   const prefetchPendingLimit = 10
   const span = 4
   const prefetchToken = { value: 0 }
@@ -1151,7 +1308,7 @@ export default function Layout(props: ParentProps) {
       directory,
       sessionID,
       task: (rev) =>
-        retry(() => globalSDK.client.session.messages({ directory, sessionID, limit: prefetchChunk }))
+        retry(() => globalSDK.client.session.messages({ directory, sessionID, limit: prefetchChunk }, { signal: AbortSignal.timeout(15_000) }))
           .then((messages) => {
             if (prefetchToken.value !== token) return
             if (!isSessionPrefetchCurrent(directory, sessionID, rev)) return
@@ -1225,7 +1382,10 @@ export default function Layout(props: ParentProps) {
 
     const token = prefetchToken.value
 
-    void prefetchMessages(directory, sessionID, token).finally(() => {
+    void globalSync.background.run(() => {
+      if (prefetchToken.value !== token || params.id === sessionID) return
+      return prefetchMessages(directory, sessionID, token)
+    }, 4).finally(() => {
       q.running -= 1
       q.inflight.delete(sessionID)
       pumpPrefetch(directory)
@@ -1317,9 +1477,6 @@ export default function Layout(props: ParentProps) {
     const session = sessions[targetIndex]
     if (!session) return
 
-    prefetchSession(session, "high")
-    warm(sessions, targetIndex)
-
     navigateToSession(session)
   }
 
@@ -1369,9 +1526,6 @@ export default function Layout(props: ParentProps) {
       const session = sessions[index]
       if (!session) continue
       if (notification.session.unseenCount(session.id) === 0) continue
-
-      prefetchSession(session, "high")
-      warm(sessions, index)
 
       navigateToSession(session)
       return
@@ -1668,6 +1822,7 @@ export default function Layout(props: ParentProps) {
 
   function connectProvider() {
     const run = ++dialogRun
+    void globalSync.loadProviders().catch(() => undefined)
     void import("@/components/dialog-select-provider").then((x) => {
       if (dialogDead || dialogRun !== run) return
       void dialog.show(() => <x.DialogSelectProvider />)
@@ -1869,10 +2024,16 @@ export default function Layout(props: ParentProps) {
     return root
   }
 
+  let projectNavigation = 0
+
   async function navigateToProject(directory: string | undefined) {
     if (!directory) return
+    const epoch = ++projectNavigation
+    const from = location.pathname
+    const stillCurrent = () => projectNavigation === epoch && location.pathname === from
     const root = projectRoot(directory)
     server.projects.touch(root)
+    const primaryList = globalSync.project.loadSessions(root)
     const project = layout.projects.list().find((item) => item.worktree === root)
     let dirs = project
       ? effectiveWorkspaceOrder(root, [root, ...(project.sandboxes ?? [])], store.workspaceOrder[root])
@@ -1891,7 +2052,7 @@ export default function Layout(props: ParentProps) {
       return canOpen(target)
     }
     const openSession = async (target: { directory: string; id: string }) => {
-      if (!canOpen(target.directory)) return false
+      if (!stillCurrent() || !canOpen(target.directory)) return false
       const [data] = globalSync.child(target.directory, { bootstrap: false })
       if (data.session.some((item) => item.id === target.id)) {
         setStore("lastProjectSession", root, { directory: target.directory, id: target.id, at: Date.now() })
@@ -1902,7 +2063,7 @@ export default function Layout(props: ParentProps) {
         .get({ sessionID: target.id })
         .then((x) => x.data)
         .catch(() => undefined)
-      if (!resolved?.directory) return false
+      if (!stillCurrent() || !resolved?.directory) return false
       if (!canOpen(resolved.directory)) return false
       setStore("lastProjectSession", root, { directory: resolved.directory, id: resolved.id, at: Date.now() })
       navigateWithSidebarReset(`/${base64Encode(resolved.directory)}/session/${resolved.id}`)
@@ -1917,35 +2078,23 @@ export default function Layout(props: ParentProps) {
         const opened = await openSession(projectSession)
         if (opened) return
       }
+      if (!stillCurrent()) return
       clearLastProjectSession(root)
     }
 
-    // 本地已有会话就直接跳（同步命中缓存，不再是「等一次 session.list 才动」）。
-    const latest = latestRootSession(
+    // Prefer the cached directory lists. On a cold target, reuse the one
+    // bounded request already started above, not a full scan of all worktrees.
+    const latest = () => latestRootSession(
       dirs.map((item) => globalSync.child(item, { bootstrap: false })[0]),
       Date.now(),
     )
-    if (latest && (await openSession(latest))) {
-      return
-    }
-
-    const fetched = latestRootSession(
-      await Promise.all(
-        dirs.map(async (item) => ({
-          path: { directory: item },
-          session: await globalSDK.client.session
-            .list({ directory: item })
-            .then((x) => x.data ?? [])
-            .catch(() => []),
-        })),
-      ),
-      Date.now(),
-    )
-    if (fetched && (await openSession(fetched))) {
-      return
-    }
-
-    navigateWithSidebarReset(`/${base64Encode(root)}/session`)
+    const cached = latest()
+    if (cached && await openSession(cached)) return
+    await primaryList
+    if (!stillCurrent()) return
+    const fetched = latest()
+    if (fetched && await openSession(fetched)) return
+    if (stillCurrent()) navigateWithSidebarReset(`/${base64Encode(root)}/session`)
   }
 
   function navigateToSession(session: Session | undefined) {
@@ -2519,31 +2668,67 @@ export default function Layout(props: ParentProps) {
     document.documentElement.style.setProperty("--dialog-left-margin", `${dialogLeft}px`)
   })
 
-  const loadedSessionDirs = new Set<string>()
+  // The active workspace gets the foreground lane; at home, show the most
+  // recently opened workspace alongside global chat before speculative work.
+  const sessionDirectory = () => isGlobalChatRoute() ? "global-chat" : currentDir()
+  const foregroundDirectories = createMemo(() => {
+    const active = sessionDirectory()
+    const root = active && active !== "global-chat"
+      ? currentProject()?.worktree
+      : layout.projects.list()[0]?.worktree
+    return [...new Set([active, root].filter((dir): dir is string => !!dir).map(pathKey))]
+  }, [], { equals: (a, b) => a.length === b.length && a.every((dir, index) => dir === b[index]) })
+  createEffect(on(foregroundDirectories, (dirs) => {
+    for (const directory of dirs) void globalSync.project.loadSessions(directory)
+  }))
 
-  createEffect(
-    on(
-      visibleSessionDirs,
-      (dirs) => {
-        if (dirs.length === 0) {
-          loadedSessionDirs.clear()
-          return
-        }
+  const firstScreenReady = createMemo(() => {
+    if (!pageReady() || !layoutReady() || !globalSync.ready || location.pathname === "/") return false
+    if (foregroundDirectories().some((directory) => {
+      const [child] = globalSync.child(directory, { bootstrap: false })
+      return !child.sessionListAvailable && child.sessionList !== "error"
+    })) return false
+    const id = params.id
+    const directory = sessionDirectory()
+    if (!directory || !/\/session(?:\/|$)/.test(location.pathname)) return true
+    return globalSync.isSessionViewVisible(directory, id) || !!id && globalSync.messageLoadFailed(directory, id)
+  })
+  createEffect(() => globalSync.background.setOpen(firstScreenReady() && interactionIdle()))
 
-        const next = new Set(dirs)
-        for (const directory of next) {
-          if (loadedSessionDirs.has(directory)) continue
-          void globalSync.project.loadSessions(directory)
-        }
+  const pendingSidebarLists = new Set<string>()
+  createEffect(() => {
+    const projects = layout.projects.list()
+    const foreground = new Set(foregroundDirectories())
+    const directories = new Set([
+      ...visibleSessionDirs(),
+      "global-chat",
+      ...projects.flatMap((project) => [project.worktree, ...(project.sandboxes ?? [])]),
+    ].filter(Boolean).map(pathKey))
+    for (const directory of directories) {
+      if (foreground.has(directory) || pendingSidebarLists.has(directory)) continue
+      const [child] = globalSync.child(directory, { bootstrap: false })
+      if (child.sessionList === "error") continue
+      pendingSidebarLists.add(directory)
+      void globalSync.warmResource(`sidebar:${directory}`, `会话列表：${getFilename(directory)}`, async () => {
+        await globalSync.project.loadSessions(directory)
+        if (child.sessionList === "error") throw new Error("Session list unavailable")
+      }, 1).then((success) => {
+        if (success) return globalSync.background.run(() => globalSync.project.loadActivity(directory), 2).catch(() => undefined)
+      })
+    }
+  })
 
-        loadedSessionDirs.clear()
-        for (const directory of next) {
-          loadedSessionDirs.add(directory)
-        }
-      },
-      { defer: true },
-    ),
-  )
+  onMount(() => {
+    for (const [key, label, load] of frameWarmups) void globalSync.warmResource(`page:${key}`, label, load, 3)
+    const timer = setInterval(() => void globalSync.background.run(refreshExtensionUpdates, 3), 10 * 60 * 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+  createEffect(on(currentDir, (directory) => {
+    if (!directory) return
+    void globalSync.background.run(() => {
+      if (untrack(currentDir) === directory) return refreshExtensionUpdates()
+    }, 3)
+  }))
 
   function workspaceIds(project: LocalProject | undefined) {
     if (!project) return []
@@ -2630,13 +2815,56 @@ export default function Layout(props: ParentProps) {
       dialog.show(() => <DialogDeleteWorkspace root={root} directory={directory} />),
   }
 
+  // Match the CSS xl breakpoint; a hidden DOM tree still runs effects.
+  const desktopSidebar = createMediaQuery("(min-width: 80rem)")
+  const mobileSidebarOpen = () => !desktopSidebar() && layout.mobileSidebar.opened()
+  const mobileSidebarTransition = createMountTransition(mobileSidebarOpen, 200)
+  let mobileSidebarNav: HTMLElement | undefined
+  let mobileSidebarOpener: HTMLElement | undefined
+  createEffect(() => {
+    if (desktopSidebar()) layout.mobileSidebar.hide()
+  })
+  createEffect(on(mobileSidebarOpen, (open) => {
+    if (!open) return
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active.getAttribute("aria-controls") === "workspace-mobile-sidebar") {
+      mobileSidebarOpener = active
+      queueMicrotask(() => {
+        if (mobileSidebarOpen()) mobileSidebarNav?.focus({ preventScroll: true })
+      })
+    }
+  }))
+  const closeMobileDrawer = () => {
+    layout.mobileSidebar.hide()
+    if (!desktopSidebar() && mobileSidebarOpener?.isConnected) mobileSidebarOpener.focus({ preventScroll: true })
+    mobileSidebarOpener = undefined
+  }
+
+  // Keep view state and archive requests when the drawer unmounts or the viewport changes.
+  const projectList = () => layout.projects.list()
+  const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
+  const { archived, load: loadArchived } = useArchivedSessions(projectList)
+  const [bucketCollapsed, setBucketCollapsed] = createStore<Record<string, boolean | undefined>>({})
+  const [childCollapsed, setChildCollapsed] = createStore<Record<string, boolean | undefined>>({})
+  const bucketExpanded = (key: string) => bucketCollapsed[key] !== true
+  const toggleBucket = (key: string) => setBucketCollapsed(key, (value) => !value)
+  const taskListView = {
+    sidebarExpanded: () => layout.sidebar.expanded(),
+    prefetchSession,
+    archiveSession,
+    filter: taskFilter,
+    childCollapsed: (id: string) => childCollapsed[id] === true,
+    toggleChildren: (id: string) => setChildCollapsed(id, (value) => !value),
+  }
+  let archivedLoaded = false
+  createEffect(() => {
+    if (archivedLoaded || (!desktopSidebar() && !mobileSidebarOpen()) || projectList().length === 0) return
+    archivedLoaded = true
+    loadArchived("background")
+  })
+
   const SidebarPanel = (panelProps: { mobile?: boolean; merged?: boolean }) => {
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
-    const projectList = () => layout.projects.list()
-    // 已经预热过的项目（悬停一次即可），避免反复触发 loadSessions。
-    const warmedProjects = new Set<string>()
-    const [taskFilter, setTaskFilter] = createSignal<TaskFilter>("all")
-    const { archived, load: loadArchived } = useArchivedSessions(() => projectList())
     // 侧栏「视图」菜单的两档口径：
     // - 工作区筛（选中单个工作区时只显示它，"all" 显示全部）
     // - 分组方式（"workspace" = 每个项目一个可折叠分组；"none" = 摊平成一张列表）
@@ -2674,19 +2902,16 @@ export default function Layout(props: ParentProps) {
       TASK_DATE_BUCKETS.map((bucket) => ({
         key: bucket,
         label: language.t(`sidebar.bucket.${bucket}`),
-        where: (session: Session) => dateBucketOf(session, sortNow()) === bucket,
       })),
     )
     const customBuckets = createMemo(() => [
       ...layout.taskList.groups().map((group) => ({
         key: group.id,
         label: group.name,
-        where: (session: Session) => layout.taskList.groupOf(session.id) === group.id,
       })),
       {
         key: "unassigned",
         label: language.t("sidebar.task.group.unassigned"),
-        where: (session: Session) => !layout.taskList.groupOf(session.id),
       },
     ])
     const bucketList = createMemo(() => {
@@ -2695,6 +2920,52 @@ export default function Layout(props: ParentProps) {
       if (mode === "custom") return customBuckets()
       return []
     })
+    const MergedTaskLists = () => {
+      const model = useProjectTaskList({
+        get project() { return mergedProject() },
+        filter: taskFilter,
+        archived: mergedArchived,
+        sortNow,
+        pinned: layout.pinned.sessions,
+        sort: layout.taskList.sortBy,
+        recency: layout.taskList.recency,
+      })
+      const byBucket = createMemo(() => {
+        const groups = new Map<string, Session[]>()
+        const mode = layout.taskList.groupBy()
+        if (mode !== "date" && mode !== "custom") return groups
+        const now = mode === "date" ? sortNow() : 0
+        for (const session of model.sessions()) {
+          const key = mode === "date" ? dateBucketOf(session, now) : layout.taskList.groupOf(session.id) || "unassigned"
+          const group = groups.get(key)
+          if (group) group.push(session)
+          else groups.set(key, [session])
+        }
+        return groups
+      })
+      const empty: Session[] = []
+      return (
+        <>
+          <Show when={layout.taskList.groupBy() === "none"}>
+            <ProjectTaskList {...taskListView} model={model} />
+          </Show>
+          <For each={bucketList()}>
+            {(bucket) => (
+              <ProjectTaskList
+                {...taskListView}
+                model={model}
+                bucketSessions={() => byBucket().get(bucket.key) ?? empty}
+                bucket={{
+                  label: bucket.label,
+                  expanded: () => bucketExpanded(bucket.key),
+                  onToggle: () => toggleBucket(bucket.key),
+                }}
+              />
+            )}
+          </For>
+        </>
+      )
+    }
     // 「视图 → 工作区」当前选中项在菜单触发器上的回显。筛掉的项目已被关掉时
     // 不显示空名字，而是说明它已经不在了。
     const workspaceViewLabel = createMemo(() => {
@@ -2712,17 +2983,11 @@ export default function Layout(props: ParentProps) {
       sortNow,
       recency: layout.taskList.recency,
     })
-    let archivedLoaded = false
-    createEffect(() => {
-      if (archivedLoaded || projectList().length === 0) return
-      archivedLoaded = true
-      loadArchived()
-    })
 
     // 分支隔离提示：只在"当前分支库一条会话都没有"时提醒，正常用起来后不再占位置。
     const branchChannel = createMemo(() => branchChannelOf(server.version()))
     const showLibraryHint = createMemo(
-      () => !!branchChannel() && projectList().length > 0 && taskCounts().all === 0 && taskCounts().archived === 0,
+      () => firstScreenReady() && !!branchChannel() && projectList().length > 0 && taskCounts().all === 0 && taskCounts().archived === 0,
     )
 
     const treeDirectory = createMemo(() => resolveWorkspaceTreeDirectory(currentDir(), currentProject()?.worktree))
@@ -2730,6 +2995,17 @@ export default function Layout(props: ParentProps) {
     const treeOpen = createMemo(() => layout.sidebarView.current() === "tree")
     // 桌面端 macOS 的红绿灯压在这一带左上角，需要让出安全区。
     const isMacDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
+    const resourceLoadingTooltip = createMemo(() => {
+      const status = globalSync.resourceStatus
+      if (!status.loading && !status.failed.length) return "资源加载完成"
+      const progress = status.total > 0 ? `已完成 ${status.completed}/${status.total}` : "正在准备资源"
+      const active = status.active.length > 0 ? `\n正在加载：${status.active.join("、")}` : ""
+      const failed = status.failed.length ? `
+加载失败：${status.failed.join("、")}` : ""
+      const queued = status.queued ? `
+待加载：${status.queued} 项` : ""
+      return `${progress}${active}${queued}${failed}`
+    })
 
     return (
       <div
@@ -2778,7 +3054,7 @@ export default function Layout(props: ParentProps) {
           {/* 模式切换放在顶带左侧的留白里：它是全局作用域最重的选择（决定整个工作台的能力面），
               顶带这一行原本只有右上角一个收起按钮，logo 右边这片空白正好放它（用户指定的位置）。
               用胶囊形态，不额外撑出一条工具栏。 */}
-          <ModeSwitchButton compact onSelect={(mode) => layout.mode.select(mode.id)} />
+          <ModeSwitchButton compact onSelect={selectWorkbench} />
           {/* 更新入口：紧挨着 logo 所在的那条图标栏。
               检查中 → 灰色"检查中"；查到新版本 → 绿色"更新 vX"（点一下开始下载）；
               下载中 → 绿色进度条 + 百分比（进度由主进程推，切页面继续走）；
@@ -2826,6 +3102,23 @@ export default function Layout(props: ParentProps) {
               </button>
             </Tooltip>
           </Show>
+          <Tooltip value={resourceLoadingTooltip()} placement="bottom">
+            <span
+              data-component="global-resource-load-indicator"
+              class="flex size-7 shrink-0 items-center justify-center rounded-md text-icon-interactive-base transition-colors hover:bg-hover"
+              aria-label={resourceLoadingTooltip()}
+              aria-live="polite"
+            >
+              <Show
+                when={globalSync.resourceStatus.loading}
+                fallback={globalSync.resourceStatus.failed.length
+                  ? <Icon name="lu-x" size="small" class="text-icon-critical-base" aria-hidden="true" />
+                  : <Icon name="check" size="small" class="text-icon-success-base" aria-hidden="true" />}
+              >
+                <Icon name="lu-loader" size="small" class="animate-spin" aria-hidden="true" />
+              </Show>
+            </span>
+          </Tooltip>
           {/* 导航控件（设置 → 通用 → 高级 → 导航控件）：前进/后退就放在工作模式选择右边，
               和模式胶囊同一行。以前这两个按钮只在全局标题栏存在，标题栏移除后开关就"没反应"了；
               现在由这里承接，关掉开关整组消失。 */}
@@ -2872,24 +3165,29 @@ export default function Layout(props: ParentProps) {
               icon="close"
               variant="ghost"
               aria-label={language.t("sidebar.menu.toggle")}
-              onClick={() => layout.mobileSidebar.hide()}
+              onClick={closeMobileDrawer}
             />
           </Show>
         </div>
 
-        {/* 动作区：整宽「新建任务」+ 自动化 + 整宽「搜索」。两个整宽入口
-            取代原来那行把图标挤在一起的 icon-only 工具条。 */}
+        {/* 动作区：新建任务 / 扩展 / 自动化 / 搜索 四行完全同构。
+            四条入口都必须是「图标 + flex-1 左对齐文字」：按钮基样式
+            （[data-component="button"]）在产物里是无层规则，优先级高于
+            Tailwind 的 justify-start，只写 justify-start 会被 justify-content:center
+            覆盖成居中对齐；靠 flex-1 的标签撑满剩余宽度才真正贴左，与下方
+            自动化/搜索保持一致。
+            也不要在这些入口上传自定义 data-component —— Button 会用它替换掉
+            "button"，整套几何（高度/gap/内边距/图标配色）随之失效。 */}
         <div class="flex shrink-0 flex-col gap-1 px-2 pb-2">
           <Button
-            data-component="sidebar-new-task"
-            variant="primary"
+            variant="ghost"
             size="large"
-            class="w-full justify-start gap-2"
-            icon="plus-small"
+            class="w-full justify-start gap-2 text-foreground"
             aria-label={language.t("sidebar.newTask")}
             onClick={startNewTask}
           >
-            {language.t("sidebar.newTask")}
+            <Icon name="plus-small" size="small" class="shrink-0 text-icon-interactive-base" />
+            <span class="min-w-0 flex-1 truncate text-left">{language.t("sidebar.newTask")}</span>
           </Button>
           <Button
             variant="ghost"
@@ -3227,46 +3525,9 @@ export default function Layout(props: ParentProps) {
                   </div>
                 }
               >
-                {/* 「视图 → 分组方式 = 不分组」：所有可见工作区的任务摊平成一张列表。
-                    mergedProject 只是给 ProjectTaskList 喂目录集合，分组头不渲染。 */}
-                <Show when={layout.taskList.groupBy() === "none"}>
-                  <ProjectTaskList
-                    project={mergedProject()}
-                    sidebarExpanded={() => layout.sidebar.expanded()}
-                    prefetchSession={prefetchSession}
-                    archiveSession={archiveSession}
-                    filter={taskFilter}
-                    archived={mergedArchived}
-                    sortNow={sortNow}
-                    pinned={layout.pinned.sessions}
-                    sort={layout.taskList.sortBy}
-                    recency={layout.taskList.recency}
-                  />
+                <Show when={!isGrouped()}>
+                  <MergedTaskLists />
                 </Show>
-                {/* 「按日期 / 自定义」：每段一个 ProjectTaskList，段头与计数由它自己出，
-                    空段直接不渲染（四段日期里"没有半年前的任务"时不该挂一个空标题）。 */}
-                <For each={bucketList()}>
-                  {(bucket) => (
-                    <ProjectTaskList
-                      project={mergedProject()}
-                      sidebarExpanded={() => layout.sidebar.expanded()}
-                      prefetchSession={prefetchSession}
-                      archiveSession={archiveSession}
-                      filter={taskFilter}
-                      archived={mergedArchived}
-                      sortNow={sortNow}
-                      pinned={layout.pinned.sessions}
-                      sort={layout.taskList.sortBy}
-                      recency={layout.taskList.recency}
-                      where={bucket.where}
-                      bucket={{
-                        label: bucket.label,
-                        expanded: () => bucketExpanded(bucket.key),
-                        onToggle: () => toggleBucket(bucket.key),
-                      }}
-                    />
-                  )}
-                </For>
                 <For each={groupedProjects()}>
                   {(proj) => {
                     // 展开态直接读持久化的 store，不要用本地 signal 快照：
@@ -3277,45 +3538,27 @@ export default function Layout(props: ParentProps) {
                     const projectArchived = () =>
                       [proj.worktree, ...(proj.sandboxes ?? [])].flatMap((directory) => archived()[directory] ?? [])
                     const projectName = () => proj.name || getFilename(proj.worktree)
-                    // 项目行右侧的数量。口径与列表一致：按当前分段筛，只数根会话
-                    // （子会话是父行下面的树节点，单独计数会让"项目有几件事"变得含糊）。
-                    const projectTaskCount = (project: LocalProject) => {
-                      const filter = taskFilter()
-                      const dirs = [project.worktree, ...(project.sandboxes ?? [])]
-                      if (filter === "archived") {
-                        return dirs.flatMap((directory) => archived()[directory] ?? []).length
-                      }
-                      let total = 0
-                      for (const directory of dirs) {
-                        const sessions = globalSync.child(directory, { bootstrap: false })[0].session ?? []
-                        for (const session of sessions) {
-                          if (session.parentID || session.time?.archived) continue
-                          // 与下方列表同口径：「视图 → 最近活动」筛掉的会话不计入徽章，
-                          // 否则数字说"5"、列表只有 2 行。
-                          if (!withinRecency(session, layout.taskList.recency(), sortNow())) continue
-                          if (filter === "all") {
-                            total += 1
-                            continue
-                          }
-                          const status = sessionStatusOf(globalSync, permission, notification, session)
-                          if (filter === "running" ? status === "running" || status === "failed" : status === filter) {
-                            total += 1
-                          }
-                        }
-                      }
-                      return total
-                    }
+                    const model = useProjectTaskList({
+                      project: proj,
+                      filter: taskFilter,
+                      archived: projectArchived,
+                      sortNow,
+                      pinned: layout.pinned.sessions,
+                      sort: layout.taskList.sortBy,
+                      recency: layout.taskList.recency,
+                    })
+                    const workspaceLoading = () => model.listStates().includes("loading")
+                    const projectTaskCount = () => model.sessions().length
+                    const loadProjectSessions = () => globalSync.project.loadSessions(proj.worktree)
                     const toggleExpand = () => {
+                      if (!isExpanded()) void loadProjectSessions()
                       setStore("projectExpanded", proj.worktree, !isExpanded())
                     }
-                    // 悬停即预热：把目标项目的会话列表和子 store 提前拉起来。
-                    // 点下去时 lastProjectSession / latest 都已在本地缓存里，
-                    // 切项目不再先等一次 network。
+                    let warmPending = false
                     const warmProject = () => {
-                      if (warmedProjects.has(proj.worktree)) return
-                      warmedProjects.add(proj.worktree)
-                      globalSync.child(proj.worktree, { bootstrap: false })
-                      void globalSync.project.loadSessions(proj.worktree)
+                      if (!firstScreenReady() || warmPending) return
+                      warmPending = true
+                      void globalSync.background.run(loadProjectSessions, 2).finally(() => { warmPending = false })
                     }
                     return (
                       <div class="mt-1">
@@ -3349,6 +3592,14 @@ export default function Layout(props: ParentProps) {
                             }}
                           >
                             <Icon name="folder" size="small" class="shrink-0 text-foreground-subtle" />
+                            <Show when={workspaceLoading()}>
+                              <Icon
+                                name="lu-loader"
+                                size="small"
+                                class="shrink-0 animate-spin text-foreground-subtle"
+                                aria-hidden="true"
+                              />
+                            </Show>
                             <Show when={layout.pinned.project(proj.worktree)}>
                               <Icon name="pin" size="small" class="shrink-0 text-foreground-subtlest" />
                             </Show>
@@ -3357,9 +3608,9 @@ export default function Layout(props: ParentProps) {
                             </span>
                             {/* 项目有多少任务：分组头右侧的圆角计数
                                 （只用缩进不写数字的话，收起时完全看不出里面有东西）。 */}
-                            <Show when={(projectTaskCount(proj) ?? 0) > 0}>
+                            <Show when={projectTaskCount() > 0}>
                               <span class="ml-auto shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-ui-xs font-medium leading-none text-foreground-subtle tabular-nums">
-                                {projectTaskCount(proj)}
+                                {projectTaskCount()}
                               </span>
                             </Show>
                             <span class="flex-1 min-w-0" />
@@ -3380,18 +3631,7 @@ export default function Layout(props: ParentProps) {
                         </div>
                         <Show when={isExpanded()}>
                           <div class="flex flex-col gap-0.5 sidebar-group-enter">
-                            <ProjectTaskList
-                              project={proj}
-                              sidebarExpanded={() => layout.sidebar.expanded()}
-                              prefetchSession={prefetchSession}
-                              archiveSession={archiveSession}
-                              filter={taskFilter}
-                              archived={projectArchived}
-                              sortNow={sortNow}
-                              pinned={layout.pinned.sessions}
-                              sort={layout.taskList.sortBy}
-                              recency={layout.taskList.recency}
-                            />
+                            <ProjectTaskList {...taskListView} model={model} />
                           </div>
                         </Show>
                       </div>
@@ -3493,6 +3733,7 @@ export default function Layout(props: ParentProps) {
               <SidebarFiles
                 directory={treeDirectory()}
                 sessionKey={() => `${params.dir}${params.id ? "/" + params.id : ""}`}
+                active={() => treeOpen()}
               />
             </div>
           </div>
@@ -3606,6 +3847,9 @@ export default function Layout(props: ParentProps) {
       if (!contribution.title) continue
       const action = parsePluginSurfaceAction(contribution.action)
       if (!action) continue
+      // 运营工作台由顶部工作台切换器打开，不再占用左侧图标栏。
+      // 保留这个兼容判断，让旧版仍声明 sidebar.item 的已安装插件也立即隐藏。
+      if (action.type === "view" && action.viewId === "operations-workbench") continue
       const viewPath =
         action.type === "view" ? pluginSurfaceViewPath(directorySlug, contribution.pluginID, action.viewId) : undefined
       items.push({
@@ -3706,7 +3950,6 @@ export default function Layout(props: ParentProps) {
       // 所有整帧页面只覆盖主工作区的内容区域；主页面 Header（包括唯一一组窗控）始终保留。
       // 页面自身从 Header 下方开始渲染，避免打开设置/扩展/数据库时再盖住主帧顶栏。
     >
-      {autoselecting() ?? ""}
       {/* 主页面 Header 自己承载唯一的窗口控制按钮。打开设置、扩展市场、数据库等页面时，
           只覆盖 Header 下方的内容区域，不再额外绘制或遮挡另一组窗控。 */}
       <div class="flex-1 min-h-0 min-w-0 flex">
@@ -3715,13 +3958,13 @@ export default function Layout(props: ParentProps) {
             {/* 常驻 + 宽度过渡：收起时只把**右侧会话面板**宽度归 0（而不是整块卸载），
                 折叠/展开才有动画；最左侧的图标条（logo + 数据库/知识库/…）始终在。
                 宽度是布局量，不会像 transform 那样在动画期间移动元素边界。 */}
-            <Show when={showSidebar()}>
+            <Show when={showSidebar() && desktopSidebar()}>
               <nav
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
                 data-component="sidebar-nav-desktop"
                 classList={{
                   "hidden xl:block": true,
-                  "transition-[width] will-change-[width] motion-reduce:transition-none": true,
+                  "transition-[width] will-change-[width] motion-reduce:transition-none": layoutReady(),
                   // 侧栏是 flush 的：不设边框与圆角，直接铺在窗口根色上（侧栏
                   // 不作为一个「帧」，4px 外留白只给右侧主工作区）。
                   "absolute inset-y-0 left-0": true,
@@ -3731,7 +3974,7 @@ export default function Layout(props: ParentProps) {
                 style={{
                   width: `${side()}px`,
                   "--mode-accent": modeAccent(),
-                  "transition-duration": "var(--transition-panel-ms, 1000ms)",
+                  "transition-duration": "var(--transition-panel-ms, 320ms)",
                   "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
                 }}
               >
@@ -3781,7 +4024,7 @@ export default function Layout(props: ParentProps) {
                     class="@container relative h-full min-w-0 overflow-hidden transition-[width] will-change-[width] motion-reduce:transition-none"
                     style={{
                       width: layout.sidebar.expanded() ? `${panel()}px` : "0px",
-                      "transition-duration": "var(--transition-panel-ms, 1000ms)",
+                      "transition-duration": "var(--transition-panel-ms, 320ms)",
                       "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
                     }}
                     aria-hidden={!layout.sidebar.expanded()}
@@ -3793,7 +4036,7 @@ export default function Layout(props: ParentProps) {
               </nav>
             </Show>
 
-            <Show when={showSidebar() && layout.sidebar.expanded()}>
+            <Show when={showSidebar() && desktopSidebar() && layout.sidebar.expanded()}>
               <div
                 class="hidden xl:block absolute inset-y-1 z-30 w-0 overflow-visible"
                 style={{ left: `${side() + 4}px` }}
@@ -3814,29 +4057,40 @@ export default function Layout(props: ParentProps) {
               </div>
             </Show>
 
-            <Show when={showSidebar()}>
+            <Show when={showSidebar() && !desktopSidebar()}>
               <div class="xl:hidden">
                 <div
                   classList={{
                     "fixed inset-x-0 top-0 bottom-0 z-40 transition-opacity duration-200": true,
-                    "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
-                    "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
+                    "opacity-100 pointer-events-auto": mobileSidebarOpen(),
+                    "opacity-0 pointer-events-none": !mobileSidebarOpen(),
                   }}
                   onClick={(e) => {
-                    if (e.target === e.currentTarget) layout.mobileSidebar.hide()
+                    if (e.target === e.currentTarget) closeMobileDrawer()
                   }}
                 />
                 <nav
                   aria-label={language.t("sidebar.nav.projectsAndSessions")}
+                  id="workspace-mobile-sidebar"
                   data-component="sidebar-nav-mobile"
+                  ref={(el) => { mobileSidebarNav = el }}
+                  tabIndex={-1}
+                  aria-hidden={!mobileSidebarOpen()}
+                  inert={!mobileSidebarOpen()}
                   classList={{
                     "@container fixed top-0 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border bg-background transition-transform duration-200 ease-out": true,
-                    "translate-x-0": layout.mobileSidebar.opened(),
-                    "-translate-x-full": !layout.mobileSidebar.opened(),
+                    "translate-x-0": mobileSidebarOpen(),
+                    "-translate-x-full": !mobileSidebarOpen(),
                   }}
                   onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Escape" || e.defaultPrevented) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    closeMobileDrawer()
+                  }}
                 >
-                  {sidebarContent(true)}
+                  <Show when={mobileSidebarTransition.mounted()}>{sidebarContent(true)}</Show>
                 </nav>
               </div>
             </Show>
@@ -3847,7 +4101,7 @@ export default function Layout(props: ParentProps) {
                 "xl:inset-y-1 xl:right-1 xl:left-[var(--main-left)]": true,
                 "z-20": true,
                 // 与侧栏宽度用同一个时长/缓动，两边才会同步（否则侧栏收完了主区还在滑）。
-                "transition-[left] will-change-[left] motion-reduce:transition-none": !state.sizing,
+                "transition-[left] will-change-[left] motion-reduce:transition-none": layoutReady() && !state.sizing,
               }}
               style={{
                 // 侧栏现在是 flush 的（左/上/下贴边，见上面 nav 的注释），4px 间隙由会话侧自己的
@@ -3855,7 +4109,7 @@ export default function Layout(props: ParentProps) {
                 "--main-left": showSidebar() ? `${side()}px` : "0px",
                 "--frame-page-right": framePageRight(),
                 "--frame-page-bottom": framePageBottom(),
-                "transition-duration": "var(--transition-panel-ms, 1000ms)",
+                "transition-duration": "var(--transition-panel-ms, 320ms)",
                 "transition-timing-function": "var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1))",
               }}
             >
@@ -3863,126 +4117,134 @@ export default function Layout(props: ParentProps) {
                   展开时收起入口归侧栏顶带）。原先浮在这里的那个 chevron 只有 24px，
                   还正好压在 Header 标题上，既难点中又遮住标题。 */}
               <main class="size-full overflow-x-hidden flex flex-col items-start min-w-0">
-                <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-                  {props.children}
-                </Show>
+                <Suspense fallback={
+                  <div data-component="route-loading" class="grid size-full place-items-center" role="status" aria-label={language.t("common.loading")}>
+                    <Icon name="lu-loader" size="small" class="animate-spin text-foreground-subtle" aria-hidden="true" />
+                  </div>
+                }>
+                  <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
+                    {props.children}
+                  </Show>
+                </Suspense>
               </main>
 
               {/* 内容页面只覆盖主工作区的内容区域；会话 Header 和唯一的窗口控制按钮始终保留。 */}
-              <Show when={settingsTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={settingsTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("command.settings.open")}
-                  aria-hidden={settingsTransition.closing()}
-                  inert={settingsTransition.closing()}
-                >
-                  {/* 内容面板从会话 Header 下方开始，主 Header 和唯一的窗控始终可见。 */}
-                  <DialogSettings
-                    initialTab={state.settings.initialTab}
-                    directory={state.settings.directory}
-                    onBack={closeSettings}
-                  />
-                </section>
-              </Show>
-              <Show when={knowledgeTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={knowledgeTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("sidebar.knowledge")}
-                  aria-hidden={knowledgeTransition.closing()}
-                  inert={knowledgeTransition.closing()}
-                >
-                  <div class="flex-1 min-h-0">
-                    <KnowledgePage onBack={closeKnowledgePage} />
-                  </div>
-                </section>
-              </Show>
-              <Show when={automationTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={automationTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("sidebar.automation")}
-                  aria-hidden={automationTransition.closing()}
-                  inert={automationTransition.closing()}
-                >
-                  <div class="flex-1 min-h-0">
-                    <AutomationPage onBack={closeAutomationPage} />
-                  </div>
-                </section>
-              </Show>
-              <Show when={extensionsTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={extensionsTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("sidebar.extensions")}
-                  aria-hidden={extensionsTransition.closing()}
-                  inert={extensionsTransition.closing()}
-                >
-                  <div class="flex-1 min-h-0">
-                    <ExtensionsPage directory={currentDir()} onBack={closeExtensionsPage} />
-                  </div>
-                </section>
-              </Show>
-              <Show when={teamTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={teamTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("sidebar.team")}
-                  aria-hidden={teamTransition.closing()}
-                  inert={teamTransition.closing()}
-                >
-                  <div class="flex-1 min-h-0">
-                    <TeamPage
-                      directory={currentDir()}
-                      onBack={closeTeamPage}
-                      onManageAgents={() => openSettingsFromExtensions("agents")}
-                      onOpenSession={(sessionID) => {
-                        closeTeamPage()
-                        if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
-                      }}
+              <Suspense fallback={<SettingsFrameFallback />}>
+                <Show when={settingsTransition.mounted()}>
+                  <section
+                    data-panel-transition
+                    data-state={settingsTransition.closing() ? "closed" : "open"}
+                    class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                    aria-label={language.t("command.settings.open")}
+                    aria-hidden={settingsTransition.closing()}
+                    inert={settingsTransition.closing()}
+                  >
+                    {/* 内容面板从会话 Header 下方开始，主 Header 和唯一的窗控始终可见。 */}
+                    <DialogSettings
+                      initialTab={state.settings.initialTab}
+                      directory={state.settings.directory}
+                      onBack={closeSettings}
                     />
-                  </div>
-                </section>
-              </Show>
-              <Show when={arenaTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={arenaTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("arena.title")}
-                  aria-hidden={arenaTransition.closing()}
-                  inert={arenaTransition.closing()}
-                >
-                  <div class="flex-1 min-h-0">
-                    <ArenaPage
-                      directory={currentDir()}
-                      onBack={closeArenaPage}
-                      onOpenSession={(sessionID) => {
-                        closeArenaPage()
-                        if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
-                      }}
-                    />
-                  </div>
-                </section>
-              </Show>
-              <Show when={databaseTransition.mounted()}>
-                <section
-                  data-panel-transition
-                  data-state={databaseTransition.closing() ? "closed" : "open"}
-                  class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
-                  aria-label={language.t("command.database.open")}
-                  aria-hidden={databaseTransition.closing()}
-                  inert={databaseTransition.closing()}
-                >
-                  <DatabasePage onBack={closeDatabasePage} />
-                </section>
-              </Show>
+                  </section>
+                </Show>
+                <Show when={knowledgeTransition.mounted()}>
+                  <section
+                    data-panel-transition
+                    data-state={knowledgeTransition.closing() ? "closed" : "open"}
+                    class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                    aria-label={language.t("sidebar.knowledge")}
+                    aria-hidden={knowledgeTransition.closing()}
+                    inert={knowledgeTransition.closing()}
+                  >
+                    <div class="flex-1 min-h-0">
+                      <KnowledgePage onBack={closeKnowledgePage} />
+                    </div>
+                  </section>
+                </Show>
+                <Show when={automationTransition.mounted()}>
+                  <section
+                    data-panel-transition
+                    data-state={automationTransition.closing() ? "closed" : "open"}
+                    class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                    aria-label={language.t("sidebar.automation")}
+                    aria-hidden={automationTransition.closing()}
+                    inert={automationTransition.closing()}
+                  >
+                    <div class="flex-1 min-h-0">
+                      <AutomationPage onBack={closeAutomationPage} />
+                    </div>
+                  </section>
+                </Show>
+                <Show when={extensionsTransition.mounted()}>
+                  <section
+                    data-panel-transition
+                    data-state={extensionsTransition.closing() ? "closed" : "open"}
+                    class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                    aria-label={language.t("sidebar.extensions")}
+                    aria-hidden={extensionsTransition.closing()}
+                    inert={extensionsTransition.closing()}
+                  >
+                    <div class="flex-1 min-h-0">
+                      <ExtensionsPage directory={currentDir()} onBack={closeExtensionsPage} />
+                    </div>
+                  </section>
+                </Show>
+                <Show when={teamTransition.mounted()}>
+                  <section
+                    data-panel-transition
+                    data-state={teamTransition.closing() ? "closed" : "open"}
+                    class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                    aria-label={language.t("sidebar.team")}
+                    aria-hidden={teamTransition.closing()}
+                    inert={teamTransition.closing()}
+                  >
+                    <div class="flex-1 min-h-0">
+                      <TeamPage
+                        directory={currentDir()}
+                        onBack={closeTeamPage}
+                        onManageAgents={() => openSettingsFromExtensions("agents")}
+                        onOpenSession={(sessionID) => {
+                          closeTeamPage()
+                          if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
+                        }}
+                      />
+                    </div>
+                  </section>
+                </Show>
+                <Show when={arenaTransition.mounted()}>
+                  <section
+                    data-panel-transition
+                    data-state={arenaTransition.closing() ? "closed" : "open"}
+                    class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                    aria-label={language.t("arena.title")}
+                    aria-hidden={arenaTransition.closing()}
+                    inert={arenaTransition.closing()}
+                  >
+                    <div class="flex-1 min-h-0">
+                      <ArenaPage
+                        directory={currentDir()}
+                        onBack={closeArenaPage}
+                        onOpenSession={(sessionID) => {
+                          closeArenaPage()
+                          if (params.dir) navigate(`/${params.dir}/session/${sessionID}`)
+                        }}
+                      />
+                    </div>
+                  </section>
+                </Show>
+                <Show when={databaseTransition.mounted()}>
+                  <section
+                    data-panel-transition
+                    data-state={databaseTransition.closing() ? "closed" : "open"}
+                    class="absolute left-1 top-12 frame-page-panel z-50 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--workspace-panel-radius)] border border-border bg-background"
+                    aria-label={language.t("command.database.open")}
+                    aria-hidden={databaseTransition.closing()}
+                    inert={databaseTransition.closing()}
+                  >
+                    <DatabasePage onBack={closeDatabasePage} />
+                  </section>
+                </Show>
+              </Suspense>
             </div>
           </div>
         </div>

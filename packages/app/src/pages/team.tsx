@@ -24,10 +24,15 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, 
 import { PageHeader } from "@/components/page-header"
 import { TeamDrilldown } from "@/components/team-drilldown"
 import { buildDrill, type DrillAcceptance } from "@/components/team-drilldown.logic"
-import { MemberStack, TeamAvatar } from "@/components/team-avatar"
+import { MemberStack } from "@/components/team-avatar"
+import { ExecutorAvatar } from "@/components/executor-avatar"
 import { TeamGraph } from "@/components/team-graph"
 import { TeamModelPicker } from "@/components/team-model-picker"
 import { RunConsole } from "@/components/run-console"
+import { ExpertCenter } from "@/components/expert-center"
+import { ExpertDirectory } from "@/components/expert-directory"
+import { ExpertTeamCard } from "@/components/expert-team-card"
+import { ExpertCard } from "@/components/expert-card"
 import type { GraphLaneInput } from "@/components/team-graph.layout"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
@@ -126,13 +131,17 @@ function compactTokens(value: number | string | undefined) {
  * 成员本质上就是会话（`session`），所以每张成员卡片都能直接跳到它的会话
  * 看完整工具调用记录；团队页负责「调度」，会话页负责「过程」。
  */
-export const TeamPage: Component<{
+type TeamPageProps = {
   directory: string
   onBack: () => void
   onOpenSession: (sessionID: string) => void
+  /** 从旧组织管理返回统一的专家与专家团目录。 */
+  onOpenDirectory?: (section?: "all" | "teams" | "experts") => void
   /** 打开设置 → AI 员工，新建或调整角色后再回来组队。 */
   onManageAgents?: () => void
-}> = (props) => {
+}
+
+const TeamOrganizationPage: Component<TeamPageProps> = (props) => {
   const sdk = useGlobalSDK()
   const language = useLanguage()
   const dialog = useDialog()
@@ -158,11 +167,12 @@ export const TeamPage: Component<{
   // 这支团队的运行历史（§4.1）：按团队筛，不拉全量再自己比对。
   const [teamRuns, setTeamRuns] = createSignal<RunView[]>([])
   // 默认模式（§4.5）：只决定新会话选择器的初始值，不改已有会话。
-  const [teamDefaultMode, setTeamDefaultMode] = createSignal<"off" | "auto" | "selected">("off")
+  const [teamDefaultMode, setTeamDefaultMode] = createSignal<"off" | "auto" | "selected">("auto")
   const [teamDefaultIDs, setTeamDefaultIDs] = createSignal<string[]>([])
   const [controlBusy, setControlBusy] = createSignal(false)
   // 运行设置默认收起：总控开关在，并发与默认模式收进「设置」，不占左栏。
   const [showControl, setShowControl] = createSignal(false)
+  const [managementFocus, setManagementFocus] = createSignal<"teams" | "experts" | "profiles">("teams")
   // 工作线视图：默认看图，聊天退到第二个页签 —— 团队页首先回答「它干成了什么」。
   const [view, setView] = createSignal<"lines" | "chat">("lines")
   // 选中的工作线（一次运行）与它的详情：图画的就是这一次。
@@ -224,7 +234,9 @@ export const TeamPage: Component<{
     void loadProfiles()
     void loadControl()
     // 成员回复是后台跑完才写回来的；轮询让群聊在没有推送的情况下也能更新。
+    // 窗口不可见时跳过，切回来后的第一个 tick 会补上。
     const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return
       const id = selected()
       if (!id) return
       void loadDetail(id, true)
@@ -416,7 +428,7 @@ export const TeamPage: Component<{
       // 缺省即开：只有显式 false 才算关闭，与 TeamSwitch.enabled 的口径一致。
       setOrchestrationOn(experimental?.team_orchestration !== false)
       setTeamConcurrency(experimental?.team_concurrency ?? 3)
-      setTeamDefaultMode(experimental?.team_default_mode ?? "off")
+      setTeamDefaultMode(experimental?.team_default_mode ?? "auto")
       setTeamDefaultIDs([...(experimental?.team_default_ids ?? [])])
     } catch {
       // 读不到就按默认值显示；不要因为一次读取失败把开关画成「关闭」。
@@ -611,7 +623,70 @@ export const TeamPage: Component<{
   return (
     <div class="flex h-full min-h-0 flex-col bg-background">
       {/* 顶行只留返回 + 标题：右上角是窗口自绘的窗控条，页面动作放在左边栏顶部。 */}
-      <PageHeader onBack={() => props.onBack()} title={t("team.title")} />
+      <PageHeader
+        onBack={() => props.onBack()}
+        title={t("expertCenter.directory.manageTitle")}
+        actions={
+          <Show when={props.onOpenDirectory}>
+            <Button variant="ghost" size="small" onClick={() => props.onOpenDirectory?.("teams")}>
+              <Icon name="lu-users" size="small" />
+              <span class="hidden sm:inline">{t("expertCenter.directory.title")}</span>
+            </Button>
+          </Show>
+        }
+      />
+
+      <div
+        data-component="executor-management"
+        class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4 py-2"
+      >
+        <button
+          type="button"
+          data-action="executor-management-teams"
+          class="shrink-0 rounded-md px-2.5 py-1 text-ui-xs transition-colors hover:bg-hover"
+          classList={{
+            "bg-surface text-foreground": managementFocus() === "teams",
+            "text-foreground-subtle": managementFocus() !== "teams",
+          }}
+          onClick={() => setManagementFocus("teams")}
+        >
+          <Icon name="lu-users" size="small" class="mr-1 inline-block align-text-bottom" />
+          {t("expertCenter.directory.teams")}
+        </button>
+        <button
+          type="button"
+          data-action="executor-management-experts"
+          class="shrink-0 rounded-md px-2.5 py-1 text-ui-xs transition-colors hover:bg-hover"
+          classList={{
+            "bg-surface text-foreground": managementFocus() === "experts",
+            "text-foreground-subtle": managementFocus() !== "experts",
+          }}
+          onClick={() => {
+            setManagementFocus("experts")
+            openEmployees()
+          }}
+        >
+          {t("expertCenter.directory.experts")}
+        </button>
+        <button
+          type="button"
+          data-action="executor-management-profiles"
+          class="shrink-0 rounded-md px-2.5 py-1 text-ui-xs transition-colors hover:bg-hover"
+          classList={{
+            "bg-surface text-foreground": managementFocus() === "profiles",
+            "text-foreground-subtle": managementFocus() !== "profiles",
+          }}
+          onClick={() => {
+            setManagementFocus("profiles")
+            openProfiles()
+          }}
+        >
+          {t("team.profiles.title")}
+        </button>
+        <span class="ml-auto hidden text-ui-xs text-foreground-subtlest md:inline">
+          {t("expertCenter.directory.hint")}
+        </span>
+      </div>
 
       <Show when={error()}>
         <div class="shrink-0 border-b border-border px-4 py-1.5 text-ui-xs text-critical-base">{error()}</div>
@@ -772,7 +847,7 @@ export const TeamPage: Component<{
                   classList={{ "bg-selected": team.id === selected() }}
                   onClick={() => setSelected(team.id)}
                 >
-                  <TeamAvatar name={team.name} />
+                  <ExecutorAvatar kind="team" name={team.name} />
                   <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span class="truncate text-ui-base text-foreground">{team.name}</span>
                     <span class="truncate text-ui-xs text-foreground-subtle">
@@ -843,15 +918,52 @@ export const TeamPage: Component<{
                     </Button>
                   </div>
 
+                  <ExpertTeamCard
+                    team={{
+                      id: team().team.id,
+                      name: team().team.name,
+                      description: team().team.description,
+                      capabilities: team().team.autoEligible ? [t("team.auto.on")] : [],
+                      memberCount: team().members.length,
+                      memberPreview: team().members.map((member) => ({
+                        name: memberLabel(member, agents()),
+                        role: member.role === "lead" ? t("team.coordinator") : member.role,
+                      })),
+                      autoEligible: team().team.autoEligible,
+                    }}
+                  />
+                  <div class="mt-3">
+                    <div class="mb-2 text-ui-xs font-medium text-foreground-subtle">{t("team.members.directory")}</div>
+                    <div class="grid gap-2 sm:grid-cols-2">
+                      <For each={team().members}>
+                        {(member) => (
+                          <ExpertCard
+                            expert={{
+                              id: member.sessionID,
+                              name: memberLabel(member, agents()),
+                              role: member.role === "lead" ? t("team.coordinator") : member.role,
+                              category: (() => {
+                                const agent = agents().find((item) => item.name === member.agent)
+                                return agent ? agentCategory(agent) : undefined
+                              })(),
+                              avatarUrl: agentAvatarOf(member.agent, agents()),
+                              available: member.status !== "archived",
+                            }}
+                          />
+                        )}
+                      </For>
+                    </div>
+                  </div>
+
                   <div class="mt-3 flex flex-wrap items-center gap-1.5">
                     <For each={team().members}>
                       {(member) => (
                         <div class="flex items-center gap-1.5 rounded-full border border-border py-0.5 pl-0.5 pr-2">
-                          <img
-                            src={agentAvatarOf(member.agent, agents())}
-                            alt=""
-                            draggable={false}
-                            class="size-5 shrink-0 rounded-full object-cover"
+                          <ExecutorAvatar
+                            kind="expert"
+                            name={memberLabel(member, agents())}
+                            avatarUrl={agentAvatarOf(member.agent, agents())}
+                            class="size-5 shrink-0 rounded-full"
                           />
                           <button
                             type="button"
@@ -1117,6 +1229,93 @@ export const TeamPage: Component<{
   )
 }
 
+export const TeamPage: Component<TeamPageProps> = (props) => {
+  const [surface, setSurface] = createSignal<"workbench" | "directory" | "organization">("workbench")
+  const [directorySection, setDirectorySection] = createSignal<"all" | "teams" | "experts">("all")
+  const sdk = useGlobalSDK()
+  const dialog = useDialog()
+  const [directoryAgents, setDirectoryAgents] = createSignal<Agent[]>([])
+  const directoryContext = createMemo(() => ({ directory: props.directory }))
+
+  const loadDirectoryAgents = async () => {
+    try {
+      const result = await sdk.client.app.agents()
+      setDirectoryAgents((result.data ?? []).filter((agent) => !agent.hidden))
+    } catch {
+      // Use the built-in build role if the role catalog is temporarily unavailable.
+    }
+  }
+
+  return (
+    <Show
+      when={surface() === "workbench"}
+      fallback={
+        <Show
+          when={surface() === "directory"}
+          fallback={
+            <TeamOrganizationPage
+              {...props}
+              onBack={() => setSurface("workbench")}
+              onOpenDirectory={(section) => {
+                setDirectorySection(section ?? "all")
+                setSurface("directory")
+              }}
+            />
+          }
+        >
+          <Show when={directoryContext()} keyed>
+            {(context) => (
+              <ExpertDirectory
+                directory={context.directory}
+                initialSection={directorySection()}
+                onBack={() => setSurface("workbench")}
+                onManage={() => setSurface("organization")}
+                onCreateExpert={(onChanged) => {
+                  const directory = context.directory
+                  void loadDirectoryAgents()
+                  dialog.show(() => (
+                    <DialogEmployees
+                      directory={directory}
+                      agents={directoryAgents()}
+                      createOnly
+                      onChanged={onChanged}
+                    />
+                  ))
+                }}
+                onCreateTeam={(onChanged) => {
+                  const directory = context.directory
+                  void loadDirectoryAgents()
+                  dialog.show(() => (
+                    <DialogProfiles
+                      directory={directory}
+                      agents={directoryAgents()}
+                      employees={[]}
+                      createOnly
+                      onChanged={onChanged}
+                    />
+                  ))
+                }}
+                onOpenSession={props.onOpenSession}
+              />
+            )}
+          </Show>
+        </Show>
+      }
+    >
+      <ExpertCenter
+        directory={props.directory}
+        onBack={props.onBack}
+        onManageOrganization={() => setSurface("organization")}
+        onOpenExpertDirectory={(section) => {
+          setDirectorySection(section)
+          setSurface("directory")
+        }}
+        onOpenSession={props.onOpenSession}
+      />
+    </Show>
+  )
+}
+
 function MessageRow(props: { message: TeamMessageView }) {
   const language = useLanguage()
   const now = Date.now()
@@ -1153,7 +1352,7 @@ function MessageRow(props: { message: TeamMessageView }) {
  * 「人」是模板引用的一层：没有它，模板只能引用播种出来的五个内置员工。
  * 归档的语义写清楚在界面上 —— 不在新团队里出现，但已经建好的模板与已跑的运行不受影响。
  */
-function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged: () => void }) {
+function DialogEmployees(props: { directory: string; agents: Agent[]; createOnly?: boolean; onChanged: () => void }) {
   const dialog = useDialog()
   const language = useLanguage()
   const sdk = useGlobalSDK()
@@ -1161,8 +1360,13 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
 
   const [list, setList] = createSignal<TeamEmployeeView[]>([])
   const [name, setName] = createSignal("")
-  const [job, setJob] = createSignal(props.agents[0]?.name ?? "build")
+  const [chosenJob, setJob] = createSignal<string>()
+  const job = () =>
+    chosenJob() ?? props.agents.find((agent) => agent.name === "build")?.name ?? props.agents[0]?.name ?? "build"
+  const [model, setModel] = createSignal("")
+  const [skills, setSkills] = createSignal("")
   const [duty, setDuty] = createSignal("")
+  const [tier, setTier] = createSignal("")
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal("")
   // 编辑中的行：不弹第二层对话框，展开在原行下面，改完就能看到同一份列表。
@@ -1210,10 +1414,12 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
   }
 
   onMount(() => {
-    void load()
+    if (!props.createOnly) void load()
   })
 
   const create = async () => {
+    if (busy()) return
+    const dialogID = dialog.active?.id
     if (!name().trim() || !job().trim()) {
       setError(t("team.employees.nameRequired"))
       return
@@ -1224,13 +1430,25 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
         directory: props.directory,
         name: name().trim(),
         job: job().trim(),
+        // 创建时即可配置完整的覆盖项，避免用户必须先添加再编辑一次。
+        model: model().trim() || undefined,
+        skills: skills()
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
         // 职责/提示词是可选的覆盖项：写在这里的东西会进这个人的提示词。
         prompt: duty().trim() || undefined,
+        tier: tier().trim() || undefined,
       })
       setName("")
+      setModel("")
+      setSkills("")
       setDuty("")
+      setTier("")
       setError("")
-      await load()
+      if (props.createOnly) {
+        if (dialog.active?.id === dialogID) dialog.close()
+      } else await load()
       props.onChanged()
     } catch (err) {
       setError(errorMessage(err))
@@ -1324,11 +1542,15 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
   const factsHint = (entry: TeamEmployeeRecordView) => entry.caveats.join("，")
 
   return (
-    <Dialog title={t("team.employees.title")}>
+    <Dialog title={t(props.createOnly ? "expertCenter.directory.addExpert" : "team.employees.title")}>
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
-        <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.employees.hint")}</div>
+        <Show when={!props.createOnly}>
+          <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.employees.hint")}</div>
+        </Show>
         <Show when={error()}>
-          <div class="text-12-regular text-critical-base">{error()}</div>
+          <div role="alert" class="text-12-regular text-critical-base">
+            {error()}
+          </div>
         </Show>
 
         <div class="flex flex-col gap-2">
@@ -1336,11 +1558,11 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
             {(employee) => (
               <div class="rounded-lg border border-border">
                 <div class="flex items-center gap-2 px-3 py-2">
-                  <img
-                    src={agentAvatarOf(employee.job, props.agents)}
-                    alt=""
-                    draggable={false}
-                    class="size-8 shrink-0 rounded-lg object-cover"
+                  <ExecutorAvatar
+                    kind="expert"
+                    name={employee.name}
+                    avatarUrl={agentAvatarOf(employee.name, props.agents)}
+                    class="size-8 shrink-0 rounded-lg"
                   />
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
@@ -1457,40 +1679,83 @@ function DialogEmployees(props: { directory: string; agents: Agent[]; onChanged:
           </For>
         </div>
 
-        <div class="flex flex-col gap-2 border-t border-border pt-3">
-          <label class="text-13-medium text-foreground">{t("team.employees.add")}</label>
+        <form
+          class="flex flex-col gap-2"
+          classList={{ "border-t border-border pt-3": !props.createOnly }}
+          onSubmit={(event) => {
+            event.preventDefault()
+            void create()
+          }}
+        >
+          <Show when={!props.createOnly}>
+            <span class="text-13-medium text-foreground">{t("team.employees.add")}</span>
+          </Show>
           <div class="flex gap-2">
             <input
               class="flex h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
               value={name()}
               placeholder={t("team.employees.namePlaceholder")}
+              aria-label={t("team.employees.nameLabel")}
+              autofocus={props.createOnly}
               onInput={(event) => setName(event.currentTarget.value)}
             />
             <select
               class="h-9 shrink-0 rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
+              aria-label={t("team.employees.jobLabel")}
               value={job()}
               onChange={(event) => setJob(event.currentTarget.value)}
             >
-              <For each={props.agents}>
-                {(agent) => <option value={agent.name}>{agentLabel(agent.name, props.agents)}</option>}
+              <For each={props.agents} fallback={<option value="build">{agentLabel("build", props.agents)}</option>}>
+                {(agent) => (
+                  <option value={agent.name} selected={agent.name === job()}>
+                    {agentLabel(agent.name, props.agents)}
+                  </option>
+                )}
               </For>
+            </select>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <TeamModelPicker
+              value={model() || undefined}
+              label={t("team.model")}
+              inheritLabel={t("team.model.system")}
+              onSelect={(value) => setModel(value ?? "")}
+            />
+            <select
+              class="h-8 min-w-0 rounded-[8px] border border-border bg-surface px-2 text-ui-xs text-foreground outline-none focus:border-interactive-focus"
+              aria-label={t("team.employees.tier.label")}
+              value={tier()}
+              onChange={(event) => setTier(event.currentTarget.value)}
+            >
+              <option value="">{t("team.employees.tier.none")}</option>
+              <option value="fast">{t("team.employees.tier.fast")}</option>
+              <option value="standard">{t("team.employees.tier.standard")}</option>
+              <option value="deep">{t("team.employees.tier.deep")}</option>
             </select>
           </div>
           <input
             class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
+            value={skills()}
+            placeholder={t("team.employees.skillsPlaceholder")}
+            aria-label={t("team.employees.skillsLabel")}
+            onInput={(event) => setSkills(event.currentTarget.value)}
+          />
+          <textarea
+            class="min-h-20 w-full resize-y rounded-[8px] border border-border bg-surface px-3 py-2 text-14-regular text-foreground outline-none focus:border-interactive-focus"
             value={duty()}
             placeholder={t("team.employees.dutyPlaceholder")}
+            aria-label={t("team.employees.dutyLabel")}
             onInput={(event) => setDuty(event.currentTarget.value)}
           />
           <div class="flex items-center justify-end gap-1.5">
-            <Button variant="ghost" size="small" onClick={() => dialog.close()}>
-              {t("common.close")}
+            <Button type="button" variant="ghost" size="small" onClick={() => dialog.close()}>
+              {t(props.createOnly ? "common.cancel" : "common.close")}
             </Button>
-            <Button variant="primary" size="small" disabled={busy()} onClick={() => void create()}>
+            <Button type="submit" variant="primary" size="small" disabled={busy()}>
               {t("team.employees.addAction")}
             </Button>
           </div>
-        </div>
+        </form>
       </div>
     </Dialog>
   )
@@ -1509,6 +1774,7 @@ function DialogProfiles(props: {
   directory: string
   agents: Agent[]
   employees: TeamEmployeeView[]
+  createOnly?: boolean
   onChanged: () => void
 }) {
   const dialog = useDialog()
@@ -1519,7 +1785,9 @@ function DialogProfiles(props: {
   const [list, setList] = createSignal<TeamProfileView[]>([])
   // 员工可能刚在员工库里建好：对话框自己再拉一次，不依赖页面打开那一刻的快照。
   const [people, setPeople] = createSignal<TeamEmployeeView[]>(props.employees)
-  const [form, setForm] = createSignal(false)
+  const [form, setForm] = createSignal(props.createOnly ?? false)
+  const [peopleLoading, setPeopleLoading] = createSignal(true)
+  const [peopleFailed, setPeopleFailed] = createSignal(false)
   const [editing, setEditing] = createSignal<string>()
   const [draft, setDraft] = createSignal({
     name: "",
@@ -1532,16 +1800,21 @@ function DialogProfiles(props: {
   const [error, setError] = createSignal("")
 
   const load = async () => {
+    setPeopleLoading(true)
     try {
       const [result, employees] = await Promise.all([
-        sdk.client.profile.list({ directory: props.directory }),
+        props.createOnly ? undefined : sdk.client.profile.list({ directory: props.directory }),
         sdk.client.employee.list({ directory: props.directory }),
       ])
-      setList((result.data ?? []) as TeamProfileView[])
+      setList((result?.data ?? []) as TeamProfileView[])
       setPeople((employees.data ?? []) as TeamEmployeeView[])
+      setPeopleFailed(false)
       setError("")
     } catch (err) {
+      setPeopleFailed(true)
       setError(errorMessage(err))
+    } finally {
+      setPeopleLoading(false)
     }
   }
 
@@ -1604,6 +1877,8 @@ function DialogProfiles(props: {
   }
 
   const submit = async () => {
+    if (busy() || peopleLoading() || peopleFailed()) return
+    const dialogID = dialog.active?.id
     const value = draft()
     const name = value.name.trim()
     if (!name || !value.captain) {
@@ -1635,9 +1910,13 @@ function DialogProfiles(props: {
           members,
         })
       }
-      setForm(false)
       setError("")
-      await load()
+      if (props.createOnly) {
+        if (dialog.active?.id === dialogID) dialog.close()
+      } else {
+        setForm(false)
+        await load()
+      }
       props.onChanged()
     } catch (err) {
       setError(errorMessage(err))
@@ -1662,11 +1941,13 @@ function DialogProfiles(props: {
   }
 
   return (
-    <Dialog title={t("team.profiles.title")}>
+    <Dialog title={t(props.createOnly ? "expertCenter.directory.createTeam" : "team.profiles.title")}>
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
         <div class="text-12-regular leading-relaxed text-foreground-subtle">{t("team.profiles.hint")}</div>
         <Show when={error()}>
-          <div class="text-12-regular text-critical-base">{error()}</div>
+          <div role="alert" class="text-12-regular text-critical-base">
+            {error()}
+          </div>
         </Show>
 
         <Show when={!form()}>
@@ -1748,10 +2029,20 @@ function DialogProfiles(props: {
         </Show>
 
         <Show when={form()}>
-          <div class="flex flex-col gap-3 border-t border-border pt-3">
+          <form
+            class="flex flex-col gap-3 border-t border-border pt-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit()
+            }}
+          >
             <div class="flex flex-col gap-1">
-              <label class="text-13-medium text-foreground">{t("team.profiles.name")}</label>
+              <label class="text-13-medium text-foreground" for="profile-name">
+                {t("team.profiles.name")}
+              </label>
               <input
+                id="profile-name"
+                autofocus={props.createOnly}
                 class="flex h-9 w-full rounded-[8px] border border-border bg-surface px-3 text-14-regular text-foreground outline-none focus:border-interactive-focus"
                 value={draft().name}
                 placeholder={t("team.profiles.namePlaceholder")}
@@ -1771,8 +2062,21 @@ function DialogProfiles(props: {
               <label class="text-13-medium text-foreground">{t("team.profiles.members")}</label>
               <div class="text-ui-xs text-foreground-subtle">{t("team.profiles.membersHint")}</div>
               <Show
-                when={people().length > 0}
-                fallback={<div class="text-ui-xs text-foreground-subtle">{t("team.profiles.noEmployees")}</div>}
+                when={!peopleLoading() && !peopleFailed() && people().length > 0}
+                fallback={
+                  <Show
+                    when={!peopleLoading() && peopleFailed()}
+                    fallback={
+                      <div class="text-ui-xs text-foreground-subtle" role="status">
+                        {t(peopleLoading() ? "workbench.loading" : "team.profiles.noEmployees")}
+                      </div>
+                    }
+                  >
+                    <Button type="button" variant="secondary" size="small" onClick={() => void load()}>
+                      {t("expertCenter.directory.retry")}
+                    </Button>
+                  </Show>
+                }
               >
                 <div class="flex max-h-64 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
                   <For each={people()}>
@@ -1781,15 +2085,16 @@ function DialogProfiles(props: {
                         <input
                           type="checkbox"
                           class="shrink-0"
+                          aria-label={employee.name}
                           checked={picked(employee.id)}
                           disabled={employee.archived && !picked(employee.id)}
                           onChange={() => toggleMember(employee.id)}
                         />
-                        <img
-                          src={agentAvatarOf(employee.job, props.agents)}
-                          alt=""
-                          draggable={false}
-                          class="size-6 shrink-0 rounded-md object-cover"
+                        <ExecutorAvatar
+                          kind="expert"
+                          name={employee.name}
+                          avatarUrl={agentAvatarOf(employee.name, props.agents)}
+                          class="size-6 shrink-0 rounded-md"
                         />
                         <span
                           classList={{
@@ -1818,8 +2123,11 @@ function DialogProfiles(props: {
               </Show>
             </div>
             <div class="flex flex-col gap-1">
-              <label class="text-13-medium text-foreground">{t("team.profiles.captain")}</label>
+              <label class="text-13-medium text-foreground" for="profile-captain">
+                {t("team.profiles.captain")}
+              </label>
               <select
+                id="profile-captain"
                 class="h-9 w-full rounded-[8px] border border-border bg-surface px-2 text-14-regular text-foreground outline-none"
                 value={draft().captain}
                 onChange={(event) => setDraft({ ...draft(), captain: event.currentTarget.value })}
@@ -1833,14 +2141,24 @@ function DialogProfiles(props: {
               </select>
             </div>
             <div class="flex items-center justify-end gap-1.5">
-              <Button variant="ghost" size="small" onClick={() => setForm(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="small"
+                onClick={() => (props.createOnly ? dialog.close() : setForm(false))}
+              >
                 {t("common.cancel")}
               </Button>
-              <Button variant="primary" size="small" disabled={busy()} onClick={() => void submit()}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="small"
+                disabled={busy() || peopleLoading() || peopleFailed()}
+              >
                 {editing() ? t("common.save") : t("team.profiles.create")}
               </Button>
             </div>
-          </div>
+          </form>
         </Show>
       </div>
     </Dialog>
@@ -1979,11 +2297,11 @@ function DialogCreateTeam(props: {
                     title={name}
                     onClick={() => toggle(name)}
                   >
-                    <img
-                      src={agentAvatarOf(name, props.agents)}
-                      alt=""
-                      draggable={false}
-                      class="size-4 shrink-0 rounded-full object-cover"
+                    <ExecutorAvatar
+                      kind="expert"
+                      name={name}
+                      avatarUrl={agentAvatarOf(name, props.agents)}
+                      class="size-4 shrink-0 rounded-full"
                     />
                     <span class="max-w-28 truncate">{agentLabel(name, props.agents)}</span>
                     <Icon name="close-small" size="small" class="text-foreground-subtle" />
@@ -2005,11 +2323,11 @@ function DialogCreateTeam(props: {
                   title={agent.name}
                   onClick={() => toggle(agent.name)}
                 >
-                  <img
-                    src={agentAvatar(agent.name, agent.options)}
-                    alt=""
-                    draggable={false}
-                    class="size-7 shrink-0 rounded-lg object-cover"
+                  <ExecutorAvatar
+                    kind="expert"
+                    name={agent.name}
+                    avatarUrl={agentAvatar(agent.name, agent.options)}
+                    class="size-7 shrink-0 rounded-lg"
                   />
                   <span class="flex min-w-0 flex-1 flex-col">
                     <span class="truncate text-ui-base text-foreground">{agentLabel(agent.name, props.agents)}</span>

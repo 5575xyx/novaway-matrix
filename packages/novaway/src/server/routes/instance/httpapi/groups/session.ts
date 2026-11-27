@@ -131,6 +131,7 @@ export const PlanApprovalPending = Schema.Struct({
 
 export const PlanApprovalReplyPayload = Schema.Struct({
   approved: Schema.Boolean,
+  execution: Schema.optional(Schema.Literals(["standard", "goal", "long_task"])),
   feedback: Schema.optional(Schema.String),
 })
 

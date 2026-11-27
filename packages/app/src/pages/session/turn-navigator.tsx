@@ -7,6 +7,7 @@ import { useSync } from "@/context/sync"
 const PREVIEW_CHARS = 220
 const PREVIEW_PARAGRAPHS = 2
 const emptyParts: PartType[] = []
+const emptyAssistantMessages: AssistantMessage[] = []
 
 function collapseWhitespace(text: string) {
   return text.replace(/\s+/gu, " ").trim()
@@ -58,6 +59,22 @@ export function TurnNavigator(props: {
     ),
   )
 
+  // Build the parent lookup once when the message list changes. Previously every
+  // navigator bar filtered the full session history on every part update, turning
+  // each streamed token into hundreds of redundant scans and allocations.
+  const assistantMessagesByParent = createMemo(() => {
+    const id = props.sessionID()
+    const result = new Map<string, AssistantMessage[]>()
+    if (!id) return result
+    for (const message of sync.data.message[id] ?? []) {
+      if (message.role !== "assistant" || !message.parentID) continue
+      const list = result.get(message.parentID) ?? []
+      list.push(message)
+      result.set(message.parentID, list)
+    }
+    return result
+  })
+
   const busy = createMemo(() => {
     const id = props.sessionID()
     if (!id) return false
@@ -76,19 +93,20 @@ export function TurnNavigator(props: {
   // 鼠标指上条区才伸长,平时保持短条不占视觉。
   const extended = createMemo(() => stripHover() || hovered() !== undefined)
 
+  const itemOrder = createMemo(() => new Map(items().map((message, index) => [message.id, index])))
+
   const computeActive = () => {
     const root = props.scrollRoot()
-    const list = items()
-    if (!root || list.length === 0) {
+    const order = itemOrder()
+    if (!root || order.size === 0) {
       setActiveId(undefined)
       return
     }
 
-    const ids = new Set(list.map((message) => message.id))
     const positions = new Map<string, { top: number; bottom: number }>()
     for (const el of root.querySelectorAll<HTMLElement>("[data-message-id]")) {
       const id = el.dataset.messageId
-      if (!id || !ids.has(id)) continue
+      if (!id || !order.has(id)) continue
       const rect = el.getBoundingClientRect()
       const prev = positions.get(id)
       positions.set(id, {
@@ -99,18 +117,32 @@ export function TurnNavigator(props: {
 
     const box = root.getBoundingClientRect()
     const line = box.top + 100
-    const ordered = list.flatMap((message) => {
-      const position = positions.get(message.id)
-      return position ? [{ id: message.id, top: position.top, bottom: position.bottom }] : []
-    })
-    const visible = ordered.filter((item) => item.bottom > box.top && item.top < box.bottom)
-    const hit = visible.find((item) => item.top <= line && item.bottom >= line)
-    const next =
-      hit?.id ??
-      [...visible].sort((a, b) => Math.abs(a.top - line) - Math.abs(b.top - line))[0]?.id ??
-      ordered.filter((item) => item.top <= line).at(-1)?.id ??
-      ordered[0]?.id
-    setActiveId(next)
+    let hit: string | undefined
+    let closest: string | undefined
+    let closestDistance = Infinity
+    let before: string | undefined
+    let beforeIndex = -1
+    let first: string | undefined
+    let firstIndex = Infinity
+    for (const [id, position] of positions) {
+      const index = order.get(id)!
+      if (index < firstIndex) {
+        first = id
+        firstIndex = index
+      }
+      if (position.bottom <= box.top || position.top >= box.bottom) continue
+      if (position.top <= line && position.bottom >= line) hit = id
+      const distance = Math.abs(position.top - line)
+      if (distance < closestDistance) {
+        closest = id
+        closestDistance = distance
+      }
+      if (position.top <= line && index > beforeIndex) {
+        before = id
+        beforeIndex = index
+      }
+    }
+    setActiveId(hit ?? closest ?? before ?? first)
   }
 
   createEffect(() => {
@@ -174,9 +206,9 @@ export function TurnNavigator(props: {
               {(message, index) => (
                 <TurnNavigatorBar
                   message={message}
-                  sessionID={props.sessionID}
                   index={index()}
                   setSize={items().length}
+                  assistantMessages={() => assistantMessagesByParent().get(message.id) ?? emptyAssistantMessages}
                   isActive={activeIndex() === index()}
                   isRunning={busy() && index() === items().length - 1}
                   extended={extended()}
@@ -201,9 +233,9 @@ export function TurnNavigator(props: {
 
 function TurnNavigatorBar(props: {
   message: UserMessage
-  sessionID: Accessor<string | undefined>
   index: number
   setSize: number
+  assistantMessages: Accessor<AssistantMessage[]>
   isActive: boolean
   isRunning: boolean
   extended: boolean
@@ -228,17 +260,10 @@ function TurnNavigatorBar(props: {
   )
 
   const assistantPreview = createMemo(() => {
-    const id = props.sessionID()
-    const texts = id
-      ? (sync.data.message[id] ?? [])
-          .filter(
-            (message): message is AssistantMessage =>
-              message.role === "assistant" && message.parentID === props.message.id,
-          )
-          .flatMap((message) => getMsgParts(message.id))
-          .filter((part): part is Extract<PartType, { type: "text" }> => part.type === "text" && !part.synthetic)
-          .map((part) => part.text)
-      : []
+    const texts = props.assistantMessages()
+      .flatMap((message) => getMsgParts(message.id))
+      .filter((part): part is Extract<PartType, { type: "text" }> => part.type === "text" && !part.synthetic)
+      .map((part) => part.text)
     if (texts.some(Boolean)) return { kind: "text" as const, text: previewText(texts, "") }
     if (props.isRunning) return { kind: "running" as const, text: "助手仍在回复中…" }
     return { kind: "empty" as const, text: "暂无回复内容" }

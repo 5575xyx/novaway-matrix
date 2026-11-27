@@ -24,6 +24,7 @@ import {
 import { Icon } from "@novaway/ui/icon"
 import { Spinner } from "@novaway/ui/spinner"
 import { showToast } from "@novaway/ui/toast"
+import { ConfirmDialog } from "@/components/dialog-confirm"
 import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
@@ -34,7 +35,7 @@ import {
   slideElementLabel,
   type SlideElementAnchor,
 } from "@/utils/element-comment"
-import { base64ToBytes } from "@/pages/session/office-file-preview"
+import { base64ToBytes } from "@/pages/session/office-preview-utils"
 import { rememberZoom, zoomOf } from "@/pages/session/editor-memory"
 import { PREVIEW_ACTIVE_CLASS, RIBBON_BUTTON, RibbonRow, useOfficeRibbonTabs } from "@/pages/session/office-ribbon"
 import {
@@ -313,6 +314,9 @@ export const PptxFilePreview: Component<{
     mediaUrlCache,
     externalMedia: "block",
   })
+
+  /** 删除形状确认中的目标。 */
+  const [pendingDeleteShape, setPendingDeleteShape] = createSignal<string>()
 
   /** 页面操作：删页后停在原来的位置，调顺序后光标跟着这一页走。 */
   const [slideBusy, setSlideBusy] = createSignal(false)
@@ -685,10 +689,16 @@ export const PptxFilePreview: Component<{
     }
   }
 
-  /** 删除形状：会先确认一次，删掉的字节仍在宿主撤销栈里。 */
-  const deleteShape = async (shapeId: string) => {
+  /** 删除形状：统一使用 NovaWay 确认弹窗，删掉的字节仍在宿主撤销栈里。 */
+  const deleteShape = (shapeId: string) => {
     if (!props.path || saving()) return
-    if (typeof window !== "undefined" && !window.confirm("删除这个形状？可以从撤销按钮恢复。")) return
+    setPendingDeleteShape(shapeId)
+  }
+
+  const confirmDeleteShape = async () => {
+    const shapeId = pendingDeleteShape()
+    setPendingDeleteShape(undefined)
+    if (!shapeId || !props.path || saving()) return
     const ok = await runEdit({ structure: [{ op: "deleteShape", slide: page() + 1, shapeId }] }, "删除形状")
     if (ok) {
       setTarget(undefined)
@@ -1175,6 +1185,15 @@ export const PptxFilePreview: Component<{
     >
       {(value) => (
         <div class="relative flex h-full min-h-0 flex-col">
+          <ConfirmDialog
+            open={pendingDeleteShape() !== undefined}
+            variant="danger"
+            title="删除形状"
+            description="确定删除这个形状吗？删除后仍可以使用撤销按钮恢复。"
+            confirmText="删除"
+            onConfirm={() => void confirmDeleteShape()}
+            onClose={() => setPendingDeleteShape(undefined)}
+          />
           <div class="flex min-h-0 flex-1">
             {/* 缩略图栏 */}
             <div class="w-36 shrink-0 overflow-y-auto border-r border-border bg-panel p-2">

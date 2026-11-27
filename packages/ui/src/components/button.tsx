@@ -6,7 +6,7 @@ export interface ButtonProps
   extends ComponentProps<typeof Kobalte>,
     Pick<ComponentProps<"button">, "class" | "classList" | "children"> {
   size?: "small" | "normal" | "large"
-  variant?: "primary" | "secondary" | "ghost"
+  variant?: "primary" | "secondary" | "ghost" | "destructive"
   icon?: IconProps["name"]
 }
 
@@ -15,7 +15,7 @@ export function Button(props: ButtonProps) {
   return (
     <Kobalte
       {...rest}
-      data-component="button"
+      data-component={(rest as { "data-component"?: string })["data-component"] ?? "button"}
       data-pressable
       data-size={split.size || "normal"}
       data-variant={split.variant || "secondary"}

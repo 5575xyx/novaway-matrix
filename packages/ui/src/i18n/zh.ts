@@ -96,6 +96,9 @@ export const dict = {
 
   "ui.tool.action.read.running": "读取中",
   "ui.tool.action.read.done": "已读取",
+  "ui.tool.action.file.running": "编辑文件中",
+  "ui.tool.action.file.done": "编辑文件",
+  "ui.tool.action.file.failed": "编辑文件失败",
   "ui.tool.action.write.running": "写入中",
   "ui.tool.action.write.done": "已写入",
   "ui.tool.action.write.failed": "写入失败",

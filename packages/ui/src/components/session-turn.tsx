@@ -388,6 +388,7 @@ export function SessionTurn(
         onScroll={autoScroll.handleScroll}
         data-slot="session-turn-content"
         class={props.classes?.content}
+        style={{ height: "auto", overflow: "visible" }}
       >
         <div onClick={autoScroll.handleInteraction}>
           <Show when={message()}>

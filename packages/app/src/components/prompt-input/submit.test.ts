@@ -20,6 +20,7 @@ const optimisticSeeded: boolean[] = []
 const storedSessions: Record<string, Array<{ id: string; title?: string }>> = {}
 const promoted: Array<{ directory: string; sessionID: string }> = []
 const sentShell: string[] = []
+const prompted: Array<{ sessionID: string; goalExecution?: unknown }> = []
 const createdWorktrees: string[] = []
 const syncedDirectories: string[] = []
 
@@ -58,7 +59,10 @@ const clientFor = (directory: string) => {
         return { data: undefined }
       },
       prompt: async () => ({ data: undefined }),
-      promptAsync: async () => ({ data: undefined }),
+      promptAsync: async (input: { sessionID: string; goalExecution?: unknown }) => {
+        prompted.push(input)
+        return { data: undefined }
+      },
       command: async () => ({ data: undefined }),
       abort: async () => ({ data: undefined }),
     },
@@ -245,6 +249,7 @@ beforeEach(() => {
   params = {}
   directory = "/repo/main"
   sentShell.length = 0
+  prompted.length = 0
   createdWorktrees.length = 0
   syncedDirectories.length = 0
   selected = "/repo/worktree-a"
@@ -384,6 +389,79 @@ describe("prompt submit worktree selection", () => {
     expect(enabledAutoAccept).toEqual([{ sessionID: "session-1", directory: "global-chat" }])
     expect(sentShell).toEqual([])
     expect(promoted).toEqual([{ directory: "global-chat", sessionID: "session-1" }])
+  })
+
+  test("does not reuse a goal from another session", async () => {
+    params = { id: "session-current" }
+    let created = 0
+    const submit = createPromptSubmit({
+      info: () => ({ id: "session-current" }),
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      permissionMode: () => "default",
+      mode: () => "normal",
+      working: () => false,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      goalMode: () => true,
+      longTask: () => ({ enabled: false }),
+      goalMaxIterations: () => 10,
+      goalExecution: () => ({ sessionID: "session-old", goalId: "old-goal", title: "old" }),
+      createGoal: async () => {
+        created += 1
+        return { goalId: "current-goal", title: "current" }
+      },
+    })
+
+    await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(created).toBe(1)
+    expect(prompted).toHaveLength(1)
+    expect(prompted[0]).toMatchObject({
+      sessionID: "session-current",
+      goalExecution: { goalId: "current-goal", maxIterations: 10, title: "current" },
+    })
+  })
+
+  test("passes durable goal execution to the session prompt after launch", async () => {
+    params = { id: "session-current" }
+    const submit = createPromptSubmit({
+      info: () => ({ id: "session-current" }),
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      permissionMode: () => "default",
+      mode: () => "normal",
+      working: () => false,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      goalMode: () => true,
+      longTask: () => ({ enabled: true }),
+      goalMaxIterations: () => 0,
+      createGoal: async (_text, durable) => {
+        expect(durable).toBe(true)
+        return { goalId: "durable-goal", title: "durable" }
+      },
+    })
+
+    await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(prompted[0]).toMatchObject({
+      goalExecution: { goalId: "durable-goal", maxIterations: 0, title: "durable" },
+    })
   })
 
   test("seeds new sessions before optimistic prompts are added", async () => {

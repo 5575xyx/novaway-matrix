@@ -8,6 +8,8 @@ export interface AutoScrollOptions {
   onUserInteracted?: () => void
   overflowAnchor?: "none" | "auto" | "dynamic"
   bottomThreshold?: number
+  /** The consumer already owns resize-driven anchoring, e.g. a virtualized list. */
+  resizeHandledExternally?: boolean
 }
 
 export function createAutoScroll(options: AutoScrollOptions) {
@@ -17,6 +19,18 @@ export function createAutoScroll(options: AutoScrollOptions) {
   let auto: { top: number; time: number } | undefined
 
   const threshold = () => options.bottomThreshold ?? 10
+  let measuredMaxScrollTop = 0
+
+  const measureMaxScrollTop = (el: HTMLElement) => {
+    measuredMaxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
+    return measuredMaxScrollTop
+  }
+
+  const distanceFromBottom = (el: HTMLElement) => {
+    return measuredMaxScrollTop - el.scrollTop
+  }
+
+  const canScroll = () => measuredMaxScrollTop > 1
 
   const [store, setStore] = createStore({
     contentRef: undefined as HTMLElement | undefined,
@@ -26,29 +40,29 @@ export function createAutoScroll(options: AutoScrollOptions) {
 
   const active = () => options.working() || settling
 
-  const distanceFromBottom = (el: HTMLElement) => {
-    return el.scrollHeight - el.clientHeight - el.scrollTop
-  }
-
-  const canScroll = (el: HTMLElement) => {
-    return el.scrollHeight - el.clientHeight > 1
-  }
-
   // Browsers can dispatch scroll events asynchronously. If new content arrives
   // between us calling `scrollTo()` and the subsequent `scroll` event firing,
   // the handler can see a non-zero `distanceFromBottom` and incorrectly assume
   // the user scrolled.
-  const markAuto = (el: HTMLElement) => {
+  const markAuto = () => {
     auto = {
-      top: Math.max(0, el.scrollHeight - el.clientHeight),
+      top: measuredMaxScrollTop,
       time: Date.now(),
     }
 
-    if (autoTimer) clearTimeout(autoTimer)
-    autoTimer = setTimeout(() => {
+    // Refresh the timestamp/target on every follow, but keep only one expiry
+    // timer alive instead of clearing and reallocating one for each resize tick.
+    if (autoTimer) return
+    const expire = () => {
+      const remaining = 1500 - (Date.now() - (auto?.time ?? 0))
+      if (remaining > 0) {
+        autoTimer = setTimeout(expire, remaining)
+        return
+      }
       auto = undefined
       autoTimer = undefined
-    }, 1500)
+    }
+    autoTimer = setTimeout(expire, 1500)
   }
 
   const isAuto = (el: HTMLElement) => {
@@ -66,14 +80,14 @@ export function createAutoScroll(options: AutoScrollOptions) {
   const scrollToBottomNow = (behavior: ScrollBehavior) => {
     const el = store.scrollRef
     if (!el) return
-    markAuto(el)
+    markAuto()
     if (behavior === "smooth") {
-      el.scrollTo({ top: el.scrollHeight, behavior })
+      el.scrollTo({ top: measuredMaxScrollTop, behavior })
       return
     }
 
     // `scrollTop` assignment bypasses any CSS `scroll-behavior: smooth`.
-    el.scrollTop = el.scrollHeight
+    el.scrollTop = measuredMaxScrollTop
   }
 
   const scrollToBottom = (force: boolean) => {
@@ -88,7 +102,7 @@ export function createAutoScroll(options: AutoScrollOptions) {
 
     const distance = distanceFromBottom(el)
     if (distance < 2) {
-      markAuto(el)
+      markAuto()
       return
     }
 
@@ -100,7 +114,7 @@ export function createAutoScroll(options: AutoScrollOptions) {
   const stop = () => {
     const el = store.scrollRef
     if (!el) return
-    if (!canScroll(el)) {
+    if (!canScroll()) {
       if (store.userScrolled) setStore("userScrolled", false)
       return
     }
@@ -126,19 +140,18 @@ export function createAutoScroll(options: AutoScrollOptions) {
     const el = store.scrollRef
     if (!el) return
 
-    if (!canScroll(el)) {
+    // Auto-follow scroll events are already identified by their target offset.
+    // Check that marker before reading scrollHeight, which can force layout on
+    // every virtualizer-driven update while assistant text is streaming.
+    if (!store.userScrolled && isAuto(el)) return
+
+    if (!canScroll()) {
       if (store.userScrolled) setStore("userScrolled", false)
       return
     }
 
     if (distanceFromBottom(el) < threshold()) {
       if (store.userScrolled) setStore("userScrolled", false)
-      return
-    }
-
-    // Ignore scroll events triggered by our own scrollToBottom calls.
-    if (!store.userScrolled && isAuto(el)) {
-      scrollToBottom(false)
       return
     }
 
@@ -170,13 +183,15 @@ export function createAutoScroll(options: AutoScrollOptions) {
   }
 
   createResizeObserver(
-    () => store.contentRef,
+    () => [store.contentRef, store.scrollRef],
     () => {
       const el = store.scrollRef
-      if (el && !canScroll(el)) {
+      if (el) measureMaxScrollTop(el)
+      if (el && !canScroll()) {
         if (store.userScrolled) setStore("userScrolled", false)
         return
       }
+      if (options.resizeHandledExternally) return
       if (!active()) return
       if (store.userScrolled) return
       // ResizeObserver fires after layout, before paint.
@@ -221,7 +236,10 @@ export function createAutoScroll(options: AutoScrollOptions) {
   })
 
   return {
-    scrollRef: (el: HTMLElement | undefined) => setStore("scrollRef", el),
+    scrollRef: (el: HTMLElement | undefined) => {
+      if (el) measureMaxScrollTop(el)
+      setStore("scrollRef", el)
+    },
     contentRef: (el: HTMLElement | undefined) => setStore("contentRef", el),
     handleScroll,
     handleInteraction,

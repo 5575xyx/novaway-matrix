@@ -620,3 +620,157 @@ export interface OfficeEngine<TState> {
     options?: OfficeEngineOptions,
   ): Promise<OfficeResult<Uint8Array>>
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 路径 → 文档格式
+//
+// 这一段刻意**不引用任何渲染引擎**：`registry.ts` 会把 docx / xlsx / pptx / pdf /
+// legacy 引擎都静态拉进来，其中 pdf 引擎连带整包 pdf-lib（约 750KB）。但 UI 里
+// 判断「这个文件该用哪个编辑器」的场景非常多（附件、拖拽、标签、图标），它们只
+// 需要扩展名映射。业务代码从这里取判断函数，只有真要读写文档时才从 `registry.ts`
+// 取 `engineFor`。插件动态注册的格式仍走同一张扩展名表：`registry.ts` 注册时写进来。
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DocumentKind = "document" | "spreadsheet" | "presentation" | "pdf" | "markdown" | "plaintext" | "richtext"
+
+const KIND_BY_EXTENSION: Record<string, DocumentKind> = {
+  docx: "document",
+  docm: "document",
+  dotx: "document",
+  dotm: "document",
+  doc: "document",
+  odt: "document",
+  rtf: "document",
+  xlsx: "spreadsheet",
+  xlsm: "spreadsheet",
+  xltx: "spreadsheet",
+  xltm: "spreadsheet",
+  xls: "spreadsheet",
+  ods: "spreadsheet",
+  csv: "spreadsheet",
+  pptx: "presentation",
+  pptm: "presentation",
+  potx: "presentation",
+  potm: "presentation",
+  ppsx: "presentation",
+  ppsm: "presentation",
+  ppt: "presentation",
+  odp: "presentation",
+  pdf: "pdf",
+  md: "markdown",
+  markdown: "markdown",
+  mdown: "markdown",
+  mkd: "markdown",
+  mdx: "markdown",
+  html: "richtext",
+  htm: "richtext",
+  xhtml: "richtext",
+  shtml: "richtext",
+}
+
+/**
+ * 带宏 / 模板的 OOXML 变体：包的内部结构和 docx / xlsx / pptx 完全一致，
+ * 只多一个 vbaProject.bin（或少几张示例页）。直接复用同一条引擎 ——
+ * 宏那部分我们一个字节都不碰，原样复制回去。
+ */
+const OOXML_ALIASES: Record<string, OfficeFormat> = {
+  docm: "docx",
+  dotx: "docx",
+  dotm: "docx",
+  xlsm: "xlsx",
+  xltx: "xlsx",
+  xltm: "xlsx",
+  pptm: "pptx",
+  potx: "pptx",
+  potm: "pptx",
+  ppsx: "pptx",
+  ppsm: "pptx",
+}
+
+/** 只读的旧格式：解析器认识，但没有写出引擎。 */
+const LEGACY_EXTENSIONS = new Set(["odt", "ods", "odp", "rtf", "doc", "xls", "ppt"])
+
+/** 扩展名 → 格式（含插件动态注册的格式）。 */
+const EXTENSION_REGISTRY = new Map<string, string>()
+/** 格式 → 文档类别（动态格式的 kind 由注册时给出）。 */
+const KIND_BY_FORMAT = new Map<string, DocumentKind>()
+
+const normalizeExtension = (extension: string) => extension.replace(/^\./, "").toLowerCase()
+
+/** 供 `registry.ts` 在注册 / 注销引擎时同步扩展名映射。 */
+export function setExtensionFormat(extension: string, format: string) {
+  EXTENSION_REGISTRY.set(normalizeExtension(extension), format)
+}
+
+export function deleteExtensionsOfFormat(format: string) {
+  for (const [extension, owner] of EXTENSION_REGISTRY) {
+    if (owner === format) EXTENSION_REGISTRY.delete(extension)
+  }
+}
+
+export function setFormatKind(format: string, kind: DocumentKind) {
+  KIND_BY_FORMAT.set(format, kind)
+}
+
+export function deleteFormatKind(format: string) {
+  KIND_BY_FORMAT.delete(format)
+}
+
+export function formatKind(format: string): DocumentKind | undefined {
+  return KIND_BY_FORMAT.get(format)
+}
+
+export function extensionOf(path: string): string {
+  const name = path.split(/[\/]/).pop() ?? path
+  const dot = name.lastIndexOf(".")
+  return dot <= 0 ? "" : name.slice(dot + 1).toLowerCase()
+}
+
+export function kindOfPath(path: string): DocumentKind {
+  const extension = extensionOf(path)
+  const builtinKind = KIND_BY_EXTENSION[extension]
+  if (builtinKind) return builtinKind
+  const dynamic = EXTENSION_REGISTRY.get(extension)
+  if (dynamic) return KIND_BY_FORMAT.get(dynamic) ?? "plaintext"
+  return "plaintext"
+}
+
+/** 新建文档时的默认扩展名。 */
+export function defaultExtension(kind: DocumentKind): string {
+  switch (kind) {
+    case "document":
+      return "docx"
+    case "spreadsheet":
+      return "xlsx"
+    case "presentation":
+      return "pptx"
+    case "pdf":
+      return "pdf"
+    case "markdown":
+      return "md"
+    case "richtext":
+      return "html"
+    default:
+      return "txt"
+  }
+}
+
+export function officeFormatOf(path: string): OfficeFormat | undefined {
+  const extension = extensionOf(path)
+  const registered = EXTENSION_REGISTRY.get(extension)
+  if (registered) return registered as OfficeFormat
+  const alias = OOXML_ALIASES[extension]
+  if (alias) return alias
+  const kind = kindOfPath(path)
+  if (kind === "document" && extension === "docx") return "docx"
+  if (kind === "presentation" && extension === "pptx") return "pptx"
+  if (kind === "spreadsheet" && extension === "xlsx") return "xlsx"
+  // CSV 也归「表格」：一行一条记录，AI 需要按 A1 坐标改某个格子。
+  if (kind === "spreadsheet" && extension === "csv") return "csv"
+  if (kind === "pdf") return "pdf"
+  if (LEGACY_EXTENSIONS.has(extension)) return "legacy"
+  if (kind === "richtext") return "html"
+  if (kind === "markdown") return "markdown"
+  if (kind === "plaintext") return "text"
+  return undefined
+}

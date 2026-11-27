@@ -57,7 +57,12 @@ const configLayer = TestConfig.layer({
   directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".novaway")])),
 })
 
-const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Layer<Config.Service> = configLayer) =>
+const registryLayer = (
+  flags: Partial<RuntimeFlags.Info> = {},
+  config = configLayer,
+  /** 客户端声明的能力；默认走环境变量解析，测试里用显式层覆盖（错误的类型走推断）。 */
+  capabilities = ClientCapabilities.defaultLayer,
+) =>
   ToolRegistry.layer
     .pipe(
       Layer.provide(Layer.merge(config, PluginRuntimeService.defaultLayer)),
@@ -95,7 +100,7 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}, config: Layer.Lay
       Layer.provide(McpLayer),
       Layer.provide(EvolutionLayer),
       Layer.provide(Database.defaultLayer),
-      Layer.provide(ClientCapabilities.defaultLayer),
+      Layer.provide(capabilities),
     )
 
 const deferConfig = TestConfig.layer({
@@ -157,6 +162,17 @@ const it = testEffect(
     PluginRuntimeService.defaultLayer,
   ) as any,
 )
+const mainOnly = testEffect(
+  Layer.mergeAll(
+    registryLayer(),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+    Session.defaultLayer,
+    SessionStatus.defaultLayer,
+    BackgroundJob.defaultLayer,
+  ) as any,
+)
 const scout = testEffect(
   Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer, Auth.defaultLayer) as any,
 )
@@ -171,6 +187,52 @@ const plain = testEffect(
 const background = testEffect(
   Layer.mergeAll(
     registryLayer({ experimentalBackgroundSubagents: true }),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+  ) as any,
+)
+
+/**
+ * 能力协商矩阵。`plan_exit` 与 `plan_enter` 的注册条件**故意不对称**：
+ * 出口恒在（任何 shell 都能从权限下拉切到计划模式，出不来就是死路），
+ * 入口仍要客户端主动声明能力 —— 进计划模式需要 UI 接收并渲染审批。
+ */
+const acp = testEffect(
+  Layer.mergeAll(
+    registryLayer({}, configLayer, ClientCapabilities.layer({ client: "acp", capabilities: [] })),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+  ) as any,
+)
+const planClient = testEffect(
+  Layer.mergeAll(
+    registryLayer({}, configLayer, ClientCapabilities.layer({ client: "desktop", capabilities: ["question", "plan"] })),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+  ) as any,
+)
+const planClientExperimental = testEffect(
+  Layer.mergeAll(
+    registryLayer(
+      { experimentalPlanMode: true },
+      configLayer,
+      ClientCapabilities.layer({ client: "desktop", capabilities: ["question", "plan"] }),
+    ),
+    node,
+    Agent.defaultLayer,
+    Auth.defaultLayer,
+  ) as any,
+)
+const noPlanClientExperimental = testEffect(
+  Layer.mergeAll(
+    registryLayer(
+      { experimentalPlanMode: true },
+      configLayer,
+      ClientCapabilities.layer({ client: "headless", capabilities: [] }),
+    ),
     node,
     Agent.defaultLayer,
     Auth.defaultLayer,
@@ -252,8 +314,39 @@ describe("deferred tools", () => {
       const ids = (yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })).map((tool) => tool.id)
       // 关闭 = 连入口都没有，而不是「调了才发现不能用」。
       expect(ids).not.toContain("team_run")
-      // 其它团队工具（团队本身的增删查）不受总控影响：那是会话管理，不是编排。
+      // 总控关闭时所有协作入口都隐藏，避免模型绕过 team_run 自行建团队或只建看板。
+      for (const id of ["team_create", "team_list", "task_create", "task_list"]) {
+        expect(ids).not.toContain(id)
+      }
       expect(ids).toContain("read")
+    }),
+  )
+
+  mainOnly.instance("hides collaboration tools in an explicit main-assistant-only session", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const agent = yield* Agent.Service
+      const build = (yield* agent.get("build"))!
+      const session = yield* Session.Service
+      const chat = yield* session.create({ title: "main-only", teamMode: "off" })
+      const ref = { providerID: ProviderID.make("test"), modelID: ModelID.make("test-model") }
+
+      const ids = (yield* registry.tools({ ...ref, agent: build, sessionID: chat.id })).map((tool) => tool.id)
+      for (const id of ["team_run", "team_create", "team_list", "task_create", "task_list", "agent_message"]) {
+        expect(ids).not.toContain(id)
+      }
+      expect(ids).toContain("read")
+
+      // 没有团队模式的历史会话也按主助手处理，避免旧会话绕过新边界。
+      const legacy = yield* session.create({ title: "legacy" })
+      const legacyIDs = (yield* registry.tools({ ...ref, agent: build, sessionID: legacy.id })).map((tool) => tool.id)
+      expect(legacyIDs).not.toContain("team_run")
+      expect(legacyIDs).not.toContain("team_create")
+
+      const automatic = yield* session.create({ title: "automatic", teamMode: "auto" })
+      const automaticIDs = (yield* registry.tools({ ...ref, agent: build, sessionID: automatic.id })).map((tool) => tool.id)
+      expect(automaticIDs).toContain("team_run")
+      expect(automaticIDs).toContain("team_create")
     }),
   )
 
@@ -358,6 +451,17 @@ describe("tool.registry", () => {
 
       expect(ids).not.toContain("repo_clone")
       expect(ids).not.toContain("repo_overview")
+    }),
+  )
+
+  // 任何 shell 都能从权限下拉把会话切到计划模式，此时提示词要求模型用 plan_exit
+  // 收尾。出口工具不能受能力协商/实验开关影响，否则模型只能反复试写计划文件。
+  it.instance("always offers plan_exit so plan mode can always be left", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+
+      expect(ids).toContain("plan_exit")
     }),
   )
 
@@ -755,6 +859,48 @@ describe("tool.registry", () => {
       const registry = yield* ToolRegistry.Service
       const ids = yield* registry.ids()
       expect(ids).toContain("cowsay")
+    }),
+  )
+})
+
+describe("plan mode tool surface", () => {
+  // ACP 客户端不声明任何能力（`LEGACY.acp = []`）：它渲染不了审批 UI，
+  // 所以拿不到 `plan_enter`；但它仍然拿到 `plan_exit` —— 会话一旦被配置成
+  // 计划档，模型必须有办法收尾，否则就是线上那条"反复试写十轮"的死路。
+  acp.instance("a client without capabilities still gets plan_exit but not plan_enter", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+      expect(ids).toContain("plan_exit")
+      expect(ids).not.toContain("plan_enter")
+    }),
+  )
+
+  planClient.instance("declaring the plan capability is not enough without the flag", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+      expect(ids).toContain("plan_exit")
+      expect(ids).not.toContain("plan_enter")
+    }),
+  )
+
+  planClientExperimental.instance("plan_enter shows up once capability and flag agree", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+      expect(ids).toContain("plan_enter")
+      expect(ids).toContain("plan_exit")
+    }),
+  )
+
+  noPlanClientExperimental.instance("the flag alone does not hand out plan_enter", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+      expect(ids).not.toContain("plan_enter")
+      // 出口依旧在：能力协商不该影响"能不能离开计划模式"。
+      expect(ids).toContain("plan_exit")
     }),
   )
 })

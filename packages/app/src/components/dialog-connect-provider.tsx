@@ -830,19 +830,9 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
   return (
     <Dialog
       title={
-        <IconButton
-          tabIndex={-1}
-          icon="arrow-left"
-          variant="ghost"
-          onClick={goBack}
-          aria-label={language.t("common.goBack")}
-        />
-      }
-    >
-      <div class="flex flex-col gap-6 px-2.5 pb-3">
-        <div class="px-2.5 flex gap-4 items-center">
+        <div class="flex min-w-0 items-center gap-3">
           <ProviderIcon id={props.provider} class="size-5 shrink-0 icon-strong-base" />
-          <div class="text-16-medium text-foreground">
+          <span class="truncate">
             <Switch>
               <Match when={isAddKey}>{`添加密钥 - ${provider().name}`}</Match>
               <Match when={props.provider === "anthropic" && method()?.label?.toLowerCase().includes("max")}>
@@ -850,56 +840,75 @@ export function DialogConnectProvider(props: { provider: string; mode?: "connect
               </Match>
               <Match when={true}>{language.t("provider.connect.title", { provider: provider().name })}</Match>
             </Switch>
-          </div>
+          </span>
         </div>
-        <div class="px-2.5 pb-10 flex flex-col gap-6">
-          <div onKeyDown={handleKey} tabIndex={0} autofocus={store.methodIndex === undefined ? true : undefined}>
-            <Switch>
-              <Match when={loading()}>
-                <div class="text-14-regular text-foreground">
-                  <div class="flex items-center gap-x-2">
-                    <Spinner />
-                    <span>{language.t("provider.connect.status.inProgress")}</span>
-                  </div>
+      }
+      action={
+        <div class="flex items-center gap-1">
+          <IconButton
+            tabIndex={-1}
+            icon="arrow-left"
+            variant="ghost"
+            onClick={goBack}
+            aria-label={language.t("common.goBack")}
+          />
+          <IconButton
+            tabIndex={-1}
+            icon="close"
+            variant="ghost"
+            onClick={() => dialog.close()}
+            aria-label={language.t("ui.common.close")}
+          />
+        </div>
+      }
+    >
+      <div class="flex flex-col gap-6 px-5 pb-5 pt-4">
+        <div onKeyDown={handleKey} tabIndex={0} autofocus={store.methodIndex === undefined ? true : undefined}>
+          <Switch>
+            <Match when={loading()}>
+              <div class="text-14-regular text-foreground">
+                <div class="flex items-center gap-x-2">
+                  <Spinner />
+                  <span>{language.t("provider.connect.status.inProgress")}</span>
                 </div>
-              </Match>
-              <Match when={store.methodIndex === undefined}>
-                <MethodSelection />
-              </Match>
-              <Match when={store.state === "pending"}>
-                <div class="text-14-regular text-foreground">
-                  <div class="flex items-center gap-x-2">
-                    <Spinner />
-                    <span>{language.t("provider.connect.status.inProgress")}</span>
-                  </div>
+              </div>
+            </Match>
+            <Match when={store.methodIndex === undefined}>
+              <MethodSelection />
+            </Match>
+            <Match when={store.state === "pending"}>
+              <div class="text-14-regular text-foreground">
+                <div class="flex items-center gap-x-2">
+                  <Spinner />
+                  <span>{language.t("provider.connect.status.inProgress")}</span>
                 </div>
-              </Match>
-              <Match when={store.state === "prompt"}>
-                <OAuthPromptsView />
-              </Match>
-              <Match when={store.state === "error"}>
-                <div class="text-14-regular text-foreground">
-                  <div class="flex items-center gap-x-2">
-                    <Icon name="circle-ban-sign" class="text-icon-critical-base" />
-                    <span>{language.t("provider.connect.status.failed", { error: store.error ?? "" })}</span>
-                  </div>
+              </div>
+            </Match>
+            <Match when={store.state === "prompt"}>
+              <OAuthPromptsView />
+            </Match>
+            <Match when={store.state === "error"}>
+              <div class="text-14-regular text-foreground">
+                <div class="flex items-center gap-x-2">
+                  <Icon name="circle-ban-sign" class="text-icon-critical-base" />
+                  <span>{language.t("provider.connect.status.failed", { error: store.error ?? "" })}</span>
                 </div>
-              </Match>
-              <Match when={method()?.type === "api"}>
-                <ApiAuthView />
-              </Match>
-              <Match when={method()?.type === "oauth"}>
-                <Switch>
-                  <Match when={store.authorization?.method === "code"}>
-                    <OAuthCodeView />
-                  </Match>
-                  <Match when={store.authorization?.method === "auto"}>
-                    <OAuthAutoView />
-                  </Match>
-                </Switch>
-              </Match>
-            </Switch>
-          </div>
+              </div>
+            </Match>
+            <Match when={method()?.type === "api"}>
+              <ApiAuthView />
+            </Match>
+            <Match when={method()?.type === "oauth"}>
+              <Switch>
+                <Match when={store.authorization?.method === "code"}>
+                  <OAuthCodeView />
+                </Match>
+                <Match when={store.authorization?.method === "auto"}>
+                  <OAuthAutoView />
+                </Match>
+              </Switch>
+            </Match>
+          </Switch>
         </div>
       </div>
     </Dialog>

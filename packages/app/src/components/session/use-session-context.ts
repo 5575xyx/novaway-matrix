@@ -5,7 +5,7 @@ import { useSync } from "@/context/sync"
 import { useProviders } from "@/hooks/use-providers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { same } from "@/utils/same"
-import { getSessionContextMetrics } from "./session-context-metrics"
+import { getSessionContext } from "./session-context-metrics"
 import { estimateSessionContextBreakdown } from "./session-context-breakdown"
 
 const emptyMessages: Message[] = []
@@ -50,8 +50,7 @@ export function useSessionContextData() {
   })
 
   const compaction = createMemo(() => sync.data.config?.compaction)
-  const metrics = createMemo(() => getSessionContextMetrics(messages(), providers.all(), compaction()))
-  const ctx = createMemo(() => metrics().context)
+  const ctx = createMemo(() => getSessionContext(messages(), providers.all(), compaction()))
 
   const breakdown = createMemo(
     on(
@@ -69,5 +68,5 @@ export function useSessionContextData() {
     ),
   )
 
-  return { info, messages, userMessages, visibleUserMessages, systemPrompt, metrics, ctx, breakdown }
+  return { info, messages, userMessages, visibleUserMessages, systemPrompt, ctx, breakdown }
 }

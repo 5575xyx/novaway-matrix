@@ -7,6 +7,11 @@ function sessionTreeRequest<T>(
   include: (item: T) => boolean = () => true,
 ) {
   if (!sessionID) return
+  const direct = request[sessionID]?.find(include)
+  if (direct) return direct
+  // Most rows have no pending requests. Do not rebuild the session tree for
+  // every visible task merely to discover that there is nothing to look up.
+  if (!Object.values(request).some((items) => items?.length)) return
 
   const map = session.reduce((acc, item) => {
     if (!item.parentID) return acc
@@ -28,7 +33,7 @@ function sessionTreeRequest<T>(
     }
   }
 
-  const id = ids.find((id) => request[id]?.some(include))
+  const id = ids.find((id) => id !== sessionID && request[id]?.some(include))
   if (!id) return
   return request[id]?.find(include)
 }

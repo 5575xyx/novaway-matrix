@@ -18,6 +18,7 @@ import { usePlatformAccounts, PLATFORM_LIST, type PlatformAccount } from "@/cont
 import { PlatformIcon } from "@/components/platform-icon"
 import { useSDK } from "@/context/sdk"
 import { PUBLISH_KIND_LABEL, supportsPublish, type PublishKind } from "@/pages/pulse/publish-capabilities"
+import { retryablePublishAccountIds } from "@/pages/pulse/publish-types"
 import type { PrecheckIssue, PublishAccountResult, PublishBatch } from "@/pages/pulse/publish-types"
 
 const KINDS: PublishKind[] = ["video", "image_text", "article"]
@@ -366,6 +367,57 @@ export function PublishModal(props: { accountId?: string }) {
     }
   }
 
+  const retryFailed = async () => {
+    const retryIds = retryablePublishAccountIds(Object.values(results()))
+    const retryAccounts = platform.store.accounts.filter((account) => retryIds.includes(account.id))
+    if (retryAccounts.length === 0) return
+
+    setError("")
+    const input = buildInput()
+    const check = await platform.publishPrecheck(
+      retryAccounts.map((account) => account.platform),
+      input,
+    )
+    setIssues(check.issues)
+    if (!check.ok) {
+      setError("预检未通过，按提示改完再重试")
+      return
+    }
+    if (check.issues.some((issue) => issue.level === "warning")) setAcknowledged(true)
+
+    setResults((previous) => ({
+      ...previous,
+      ...Object.fromEntries(
+        retryAccounts.map((account) => [
+          account.id,
+          {
+            accountId: account.id,
+            platform: account.platform,
+            nickname: account.nickname,
+            status: "pending" as const,
+            progress: 0,
+            message: "等待重试",
+            updatedAt: Date.now(),
+          },
+        ]),
+      ),
+    }))
+    setPhase("running")
+    try {
+      const result = await platform.publishBatch(
+        retryAccounts.map((account) => account.id),
+        input,
+      )
+      if (!result.ok) {
+        setError(result.error || "重试发布失败")
+        setPhase("compose")
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      setPhase("compose")
+    }
+  }
+
   // 进度按 results 展示而不是按当前勾选：关掉弹窗再打开时勾选已经清空，
   // 但主进程那一批还在跑，进度仍要看得见。
   const progressRows = createMemo(() => Object.values(results()))
@@ -377,8 +429,7 @@ export function PublishModal(props: { accountId?: string }) {
   }
 
   const successCount = () => Object.values(results()).filter((item) => item.status === "success").length
-  const failedCount = () =>
-    Object.values(results()).filter((item) => item.status === "failed" || item.status === "cancelled").length
+  const failedCount = () => retryablePublishAccountIds(Object.values(results())).length
 
   const addPluginAccount = async (driverID: string) => {
     setPluginBusy(true)
@@ -485,6 +536,15 @@ export function PublishModal(props: { accountId?: string }) {
             </button>
           </Show>
           <Show when={phase() === "done"}>
+            <Show when={failedCount() > 0}>
+              <button
+                type="button"
+                class="rounded-[8px] border border-warning-base/40 bg-surface-warning-weak px-4 py-2 text-13-medium text-warning-base transition-colors hover:bg-surface-warning-weak/80"
+                onClick={() => void retryFailed()}
+              >
+                重试失败账号（{failedCount()}）
+              </button>
+            </Show>
             <button
               type="button"
               class="rounded-[8px] border border-border bg-background px-4 py-2 text-13-medium text-foreground transition-colors hover:bg-hover"

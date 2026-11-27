@@ -49,6 +49,8 @@ export const SessionTable = sqliteTable(
     }>(),
     permission: text({ mode: "json" }).$type<Permission.Ruleset>(),
     permission_mode: text(),
+    /** Permission mode to restore after leaving plan mode. */
+    plan_return_mode: text(),
     /** 团队目录注入模式：off / auto / selected。 */
     team_mode: text(),
     /** `selected` 模式下注入的团队 ID。 */

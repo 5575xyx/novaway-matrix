@@ -1,9 +1,12 @@
 import path from "node:path"
+import nodeFs from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import { InstanceState } from "@/effect/instance-state"
+import { Config } from "@/config/config"
 import { NodeFileSystem } from "@effect/platform-node"
 import { Context, Effect, FileSystem, Layer, Schema } from "effect"
-import { connect, type CdpSession } from "./cdp"
+import { connect, type BrowserCookieParam, type BrowserTab, type CdpSession } from "./cdp"
+import { parseCookieText } from "./cookies"
 import { redactSecrets, redactUrl } from "./redact"
 
 export type SnapshotRef = {
@@ -11,10 +14,14 @@ export type SnapshotRef = {
   role: string
   name: string
   tag: string
+  disabled?: boolean
+  value?: string
+  type?: string
 }
 
 type State = {
   session?: CdpSession
+  persistent?: boolean
   console: string[]
   network: Array<{ method: string; url: string; status?: number }>
 }
@@ -52,7 +59,12 @@ export interface Interface {
   readonly console: () => Effect.Effect<string[], BrowserError>
   readonly network: () => Effect.Effect<Array<{ method: string; url: string; status?: number }>, BrowserError>
   readonly accessibility: () => Effect.Effect<string, BrowserError>
-  readonly status: () => Effect.Effect<{ active: boolean }, BrowserError>
+  readonly tabs: () => Effect.Effect<BrowserTab[], BrowserError>
+  readonly selectTab: (targetId: string) => Effect.Effect<void, BrowserError>
+  readonly importCookies: (
+    cookies: readonly BrowserCookieParam[],
+  ) => Effect.Effect<{ count: number; reloaded: boolean }, BrowserError>
+  readonly status: () => Effect.Effect<{ active: boolean; persistent: boolean }, BrowserError>
   readonly close: () => Effect.Effect<void>
 }
 
@@ -69,7 +81,11 @@ function browserError(code: string, message: string) {
  * 而属性会随页面一起消失，天然不会指错元素。
  */
 const SNAPSHOT_SCRIPT = `(() => {
-  document.querySelectorAll("[data-nv-ref]").forEach((el) => el.removeAttribute("data-nv-ref"))
+  const snapshotToken = "s" + Date.now().toString(36) + Math.random().toString(36).slice(2)
+  document.querySelectorAll("[data-nv-ref]").forEach((el) => {
+    el.removeAttribute("data-nv-ref")
+    el.removeAttribute("data-nv-snapshot")
+  })
   const nodes = document.querySelectorAll('a[href],button,input,textarea,select,summary,[role],[tabindex]:not([tabindex="-1"]),[contenteditable="true"]')
   const refs = []
   let index = 0
@@ -80,13 +96,23 @@ const SNAPSHOT_SCRIPT = `(() => {
     if (style.visibility === "hidden" || style.display === "none") continue
     const ref = "e" + ++index
     el.setAttribute("data-nv-ref", ref)
+    el.setAttribute("data-nv-snapshot", snapshotToken)
+    const disabled = el.matches(":disabled,[aria-disabled=\"true\"]")
     const name = (
       el.getAttribute("aria-label") ||
       el.getAttribute("placeholder") ||
       el.getAttribute("title") ||
-      (el.textContent || "").replace(/\s+/g, " ").trim()
+      (el.textContent || "").replace(/\\s+/g, " ").trim()
     ).slice(0, 120)
-    refs.push({ ref, tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || el.tagName.toLowerCase(), name })
+    refs.push({
+      ref,
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute("role") || el.tagName.toLowerCase(),
+      name,
+      disabled,
+      value: "value" in el ? String(el.value || "").slice(0, 200) : undefined,
+      type: el.getAttribute("type") || undefined,
+    })
   }
   const active = document.activeElement
   const focusVisible =
@@ -98,6 +124,7 @@ const SNAPSHOT_SCRIPT = `(() => {
           return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none"
         })()
   return {
+    snapshotToken,
     text: (document.body ? document.body.innerText : "").slice(0, 2000000),
     overflow: document.documentElement.scrollWidth > window.innerWidth,
     focusVisible,
@@ -117,18 +144,50 @@ export const layer = Layer.effect(
       }),
     )
 
+    const configOption = yield* Effect.serviceOption(Config.Service)
+
     const getSession = Effect.fnUntraced(function* () {
       const current = yield* InstanceState.get(state)
       if (current.session) return current.session
+      const context = yield* InstanceState.context
+      const config = configOption._tag === "Some" ? yield* configOption.value.get() : undefined
+      const browserConfig = config?.browser
+      const endpoint = process.env.BROWSER_CDP_URL || browserConfig?.cdp_url
+      const persistent = process.env.BROWSER_EPHEMERAL !== "1" && browserConfig?.persistent_session !== false
+      const configuredProfile = browserConfig?.profile_dir
+        ? path.isAbsolute(browserConfig.profile_dir)
+          ? browserConfig.profile_dir
+          : path.join(context.worktree, browserConfig.profile_dir)
+        : path.join(context.worktree, ".novaway", "browser", "profile")
       const session = yield* Effect.tryPromise({
         try: () =>
           connect({
-            endpoint: process.env.BROWSER_CDP_URL || undefined,
+            endpoint,
+            profileDir: endpoint || !persistent ? undefined : configuredProfile,
           }),
         catch: (cause) =>
           browserError("BROWSER_UNAVAILABLE", cause instanceof Error ? cause.message : "Browser 初始化失败"),
       })
+      if (browserConfig?.cookie_file) {
+        const cookieFile = path.isAbsolute(browserConfig.cookie_file)
+          ? browserConfig.cookie_file
+          : path.join(context.worktree, browserConfig.cookie_file)
+        yield* Effect.tryPromise({
+          try: async () => {
+            const text = await nodeFs.readFile(cookieFile, "utf8")
+            const cookies = parseCookieText(text)
+            if (cookies.length > 500) throw new Error("Cookie 文件最多允许 500 个 Cookie")
+            if (cookies.length) await session.page.setCookies(cookies)
+          },
+          catch: (cause) =>
+            browserError(
+              "BROWSER_ACTION_FAILED",
+              cause instanceof Error ? `Cookie 文件导入失败：${cause.message}` : "Cookie 文件导入失败",
+            ),
+        })
+      }
       current.session = session
+      current.persistent = persistent
       session.page.on("Runtime.consoleAPICalled", (params: any) => {
         const text = (params?.args ?? [])
           .map((arg: any) => arg?.value ?? arg?.description ?? "")
@@ -266,21 +325,48 @@ export const layer = Layer.effect(
       )
     })
 
+    const importCookies = Effect.fn("Browser.importCookies")(function* (cookies: readonly BrowserCookieParam[]) {
+      if (cookies.length === 0) return { count: 0, reloaded: false }
+      if (cookies.length > 500) return yield* browserError("BROWSER_ACTION_FAILED", "一次最多导入 500 个 Cookie")
+      const page = yield* getPage()
+      yield* Effect.tryPromise({
+        try: async () => {
+          await page.setCookies(cookies)
+          const url = await page.currentUrl()
+          if (url.startsWith("http://") || url.startsWith("https://")) await page.reload()
+        },
+        catch: (cause) =>
+          browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "Cookie 导入失败"),
+      })
+      return { count: cookies.length, reloaded: true }
+    })
+
     const status = Effect.fn("Browser.status")(function* () {
       const current = yield* InstanceState.get(state)
-      return { active: Boolean(current.session) }
+      return { active: Boolean(current.session), persistent: current.persistent === true }
     })
 
     const snapshot = Effect.fn("Browser.snapshot")(function* () {
       return yield* usePage(async (page) => {
-        const data = await page.evaluate<{
+        const data = await page.snapshot<{
+          snapshotToken: string
           text: string
           overflow: boolean
           focusVisible: boolean
           refs: SnapshotRef[]
         }>(SNAPSHOT_SCRIPT)
         const refs = data?.refs ?? []
-        const lines = refs.map((item) => "[" + item.ref + "] " + item.role + (item.name ? ' "' + item.name + '"' : ""))
+        const lines = refs.map(
+          (item) =>
+            "[" +
+            item.ref +
+            "] " +
+            item.role +
+            (item.name ? ' "' + item.name + '"' : "") +
+            (item.type ? " type=" + item.type : "") +
+            (item.value ? ' value="' + item.value + '"' : "") +
+            (item.disabled ? " (disabled)" : ""),
+        )
         return {
           url: await page.currentUrl(),
           title: await page.title(),
@@ -320,6 +406,25 @@ export const layer = Layer.effect(
       console: () => InstanceState.get(state).pipe(Effect.map((value) => [...value.console])),
       network: () => InstanceState.get(state).pipe(Effect.map((value) => value.network.map((entry) => ({ ...entry })))),
       accessibility: () => usePage((page) => page.accessibility(), "Browser 无障碍快照失败"),
+      tabs: () =>
+        Effect.gen(function* () {
+          const session = yield* getSession()
+          return yield* Effect.tryPromise({
+            try: () => session.tabs(),
+            catch: (cause) =>
+              browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "读取浏览器标签页失败"),
+          })
+        }),
+      selectTab: (targetId) =>
+        Effect.gen(function* () {
+          const session = yield* getSession()
+          yield* Effect.tryPromise({
+            try: () => session.selectTab(targetId),
+            catch: (cause) =>
+              browserError("BROWSER_ACTION_FAILED", cause instanceof Error ? cause.message : "切换浏览器标签页失败"),
+          })
+        }),
+      importCookies,
       status,
       close,
     })
@@ -330,6 +435,7 @@ function closeState(state: State) {
   return Effect.promise(async () => {
     const session = state.session
     state.session = undefined
+    state.persistent = undefined
     state.console.length = 0
     state.network.length = 0
     if (session) await session.close().catch(() => undefined)

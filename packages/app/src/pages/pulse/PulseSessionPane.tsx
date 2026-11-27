@@ -147,8 +147,11 @@ export function PulseSessionPane(props: { directory: string }) {
   )
 
   // 兜底轮询：工作台不是路由级会话页，偶尔收不到实时事件（同 side-pane-session）。
+  // 窗口在后台时不刷：每次 force sync 都会重拉整页消息，后台跑只是白耗 CPU 与带宽，
+  // 切回来继续刷即可（下一次 tick 就会追上）。
   onMount(() => {
     const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
       const id = sessionID()
       if (!id) return
       void sync.session.sync(id, { force: true }).catch(() => undefined)

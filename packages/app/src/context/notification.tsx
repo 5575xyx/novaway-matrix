@@ -13,6 +13,9 @@ import { decode64 } from "@/utils/base64"
 import { EventSessionError } from "@novaway/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
+import { shouldNotifyTeamRun } from "./notification.logic"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
+
 
 type NotificationBase = {
   directory?: string
@@ -31,7 +34,22 @@ type ErrorNotification = NotificationBase & {
   error: EventSessionError["properties"]["error"]
 }
 
-export type Notification = TurnCompleteNotification | ErrorNotification
+type PlanApprovalNotification = NotificationBase & {
+  type: "plan-approval"
+  requestID: string
+}
+
+type TeamRunNotification = NotificationBase & {
+  type: "team-run"
+  runID: string
+  state: "done" | "partial" | "failed" | "needs_review" | "blocked"
+  goal: string
+}
+
+export type Notification = TurnCompleteNotification | ErrorNotification | PlanApprovalNotification | TeamRunNotification
+
+const isErrorNotification = (notification: Notification) =>
+  notification.type === "error" || (notification.type === "team-run" && notification.state === "failed")
 
 type NotificationIndex = {
   session: {
@@ -86,7 +104,7 @@ function buildNotificationIndex(list: Notification[]) {
         const unseen = index.session.unseen[notification.session] ?? []
         index.session.unseen[notification.session] = [...unseen, notification]
         index.session.unseenCount[notification.session] = unseen.length + 1
-        if (notification.type === "error") index.session.unseenHasError[notification.session] = true
+        if (isErrorNotification(notification)) index.session.unseenHasError[notification.session] = true
       }
     }
 
@@ -97,7 +115,7 @@ function buildNotificationIndex(list: Notification[]) {
         const unseen = index.project.unseen[notification.directory] ?? []
         index.project.unseen[notification.directory] = [...unseen, notification]
         index.project.unseenCount[notification.directory] = unseen.length + 1
-        if (notification.type === "error") index.project.unseenHasError[notification.directory] = true
+        if (isErrorNotification(notification)) index.project.unseenHasError[notification.directory] = true
       }
     }
   })
@@ -140,7 +158,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         scope,
         "unseenHasError",
         key,
-        unseen.some((notification) => notification.type === "error"),
+        unseen.some(isErrorNotification),
       )
     }
 
@@ -150,7 +168,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         if (!notification.viewed) {
           setIndex("session", "unseen", notification.session, (unseen = []) => [...unseen, notification])
           setIndex("session", "unseenCount", notification.session, (count = 0) => count + 1)
-          if (notification.type === "error") setIndex("session", "unseenHasError", notification.session, true)
+          if (isErrorNotification(notification)) setIndex("session", "unseenHasError", notification.session, true)
         }
       }
 
@@ -159,7 +177,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         if (!notification.viewed) {
           setIndex("project", "unseen", notification.directory, (unseen = []) => [...unseen, notification])
           setIndex("project", "unseenCount", notification.directory, (count = 0) => count + 1)
-          if (notification.type === "error") setIndex("project", "unseenHasError", notification.directory, true)
+          if (isErrorNotification(notification)) setIndex("project", "unseenHasError", notification.directory, true)
         }
       }
     }
@@ -353,6 +371,74 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       })
     }
 
+    const teamRunStates = new Map<string, string>()
+    const teamRunInitialized = new Set<string>()
+
+    /**
+     * Team runs do not share the session event stream. Poll their durable list
+     * at a low frequency and notify only on a state edge, so a long-running
+     * task does not produce one notification per refresh.
+     */
+    const pollTeamRuns = async (directory: string) => {
+      try {
+        const result = await globalSDK.client.run.list({ directory })
+        const runs = result.data ?? []
+        const firstPoll = !teamRunInitialized.has(directory)
+        for (const run of runs) {
+          const key = `${directory}:${run.id}`
+          const state = String(run.state)
+          const previous = teamRunStates.get(key)
+          teamRunStates.set(key, state)
+          if (
+            !shouldNotifyTeamRun({
+              initialized: !firstPoll,
+              previous,
+              state,
+            })
+          ) continue
+
+          const kind = state as TeamRunNotification["state"]
+          const goal = typeof run.goal === "string" ? run.goal : run.id
+          const viewed = viewedInCurrentSession(directory)
+          const href = `/${base64Encode(directory)}`
+          append({
+            directory,
+            time: Date.now(),
+            viewed,
+            type: "team-run",
+            runID: run.id,
+            state: kind,
+            goal,
+            metadata: { kind: "team-run", runID: run.id, state },
+          })
+          if (!viewed && !watching(directory)) {
+            const title = language.t(`notification.teamRun.${state}.title` as never)
+            const description = language.t("notification.teamRun.description", { goal } as never)
+            if (state === "failed") {
+              if (settings.notifications.errors()) void platform.notify(title, description, href)
+            } else if (settings.notifications.agent()) {
+              void platform.notify(title, description, href)
+            }
+          }
+        }
+        teamRunInitialized.add(directory)
+      } catch {
+        // A transient offline/error response must not create a false failure notification.
+      }
+    }
+
+    createEffect(() => {
+      const directory = currentDirectory()
+      if (!directory) return
+      const poll = createAdaptivePoll(() => void pollTeamRuns(directory), {
+        fast: 5000,
+        active: () => true,
+        // 通知不需要在后台窗口持续唤醒；事件监听仍然保持实时。
+        visible: () => typeof document === "undefined" || document.visibilityState === "visible",
+      })
+      onCleanup(() => poll.stop())
+    })
+
     const unsub = globalSDK.event.listen((e) => {
       const event = e.details
       const directory = e.name
@@ -400,6 +486,16 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         },
         unseenHasError(session: string) {
           return index.session.unseenHasError[session] ?? false
+        },
+        planApproval(directory: string, session: string, requestID: string, plan: string) {
+          if (!directory || !session || !requestID) return
+          if (store.list.some((item) => item.type === "plan-approval" && item.requestID === requestID)) return
+          const viewed = watching(directory, session)
+          append({ directory, session, time: Date.now(), viewed, type: "plan-approval", requestID, metadata: { plan } })
+          if (!viewed) {
+            const href = `/${base64Encode(directory)}/session/${session}`
+            if (settings.notifications.agent()) void platform.notify("计划等待审阅", plan || session, href)
+          }
         },
         markViewed(session: string) {
           const unseen = index.session.unseen[session] ?? empty

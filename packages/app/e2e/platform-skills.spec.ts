@@ -23,9 +23,13 @@ async function openSkillsSettings(page: Page) {
   await page.goto(`/${workspaceRootSlug()}/session`)
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 20_000 })
   // e2e 是干净浏览器：navigator.languages 为空 → detectLocale 回退英文（与其它 spec 一致）。
-  await page.locator('[data-component="sidebar-rail-item"][aria-label="Settings"]').first().click()
-  // 设置是整帧页面（不是弹窗）：左侧标签栏里点 Skills。
+  const settings = page.locator('[data-component="sidebar-rail-item"][aria-label="Settings"]').first()
+  await settings.click()
+  await page.getByRole("button", { name: /Open settings|打开设置/ }).click()
   const tab = page.getByRole("tab", { name: /技能|Skills/ })
+  if ((await tab.count()) === 0) {
+    test.skip(true, "The standalone Skills settings tab was replaced by Extensions")
+  }
   await expect(tab).toBeVisible({ timeout: 15_000 })
   await tab.click()
   // 列表按技能 id 排序，中文名是渲染层映射的；四行不一定相邻，所以按名字找行。

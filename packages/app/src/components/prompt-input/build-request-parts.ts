@@ -25,6 +25,7 @@ type ContextQuote = {
   text: string
   label?: string
   path?: string
+  comment?: string
 }
 
 type BuildRequestPartsInput = {
@@ -155,6 +156,7 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
     // 用户自己的输入框内容保持干净。
     if (item.type === "quote") {
       const header = item.label ? `引用片段（${item.label}）：` : "引用片段："
+      const comment = item.comment?.trim()
       const body = item.text
         .replace(/\r\n/g, "\n")
         .split("\n")
@@ -164,9 +166,11 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
         {
           id: Identifier.ascending("part"),
           type: "text",
-          text: `${header}\n${body}`,
+          text: `${header}${comment ? `\n修改要求：${comment}` : ""}\n${body}`,
           synthetic: true,
-          metadata: item.path ? { quote: { path: item.path } } : undefined,
+          metadata: item.path
+            ? { quote: { path: item.path, label: item.label, text: item.text, comment: item.comment } }
+            : undefined,
         } satisfies PromptRequestPart,
       ]
     }

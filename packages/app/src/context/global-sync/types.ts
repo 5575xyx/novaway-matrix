@@ -47,6 +47,8 @@ export type State = {
   plugin_contributions: PluginContributionsResponse
   config: Config
   path: Path
+  sessionList: "idle" | "loading" | "ready" | "error"
+  sessionListAvailable: boolean
   session: Session[]
   sessionTotal: number
   session_status: {
@@ -81,9 +83,6 @@ export type State = {
   }
   part: {
     [messageID: string]: Part[]
-  }
-  part_text_accum_delta: {
-    [partID: string]: string
   }
 }
 

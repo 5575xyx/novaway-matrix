@@ -61,13 +61,13 @@ export function useSideChat() {
     const existing = Object.values(layout.sidePane.dynamicTabs()).filter(
       (tab) => tab.kind === "sideChat" && tab.parentID === parentID,
     )
+    const title = seed?.text?.slice(0, 60) || language.t("sidePane.sideChat.title", { index: existing.length + 1 })
     try {
-      const created = await sdk.client.session
-        .create({
-          ...(parentID ? { parentID } : {}),
-          ...(seed?.text ? { title: seed.text.slice(0, 60) } : {}),
-        })
-        .then((result) => result.data)
+      const response = await sdk.request(new URL(`/session?directory=${encodeURIComponent(sdk.directory)}`, sdk.url), {
+        method: "POST",
+      })
+      if (!response.ok) throw new Error(`session.create failed (${response.status})`)
+      const created = (await response.json()) as { id?: string }
       if (!created?.id) throw new Error("session.create returned no id")
       const tab: SidePaneSessionTab = {
         id: sidePaneSideChatTabId(created.id),
@@ -75,7 +75,7 @@ export function useSideChat() {
         sessionID: created.id,
         parentID,
         // 标题先给占位（会话还没生成标题），用户问第一句后由服务端命名。
-        title: language.t("sidePane.sideChat.title", { index: existing.length + 1 }),
+        title,
       }
       // 用当前选中的 agent/model 发一条种子消息：面板里没有模型选择器，
       // 沿用主线正在用的那个才符合"继承主对话上下文"的预期。

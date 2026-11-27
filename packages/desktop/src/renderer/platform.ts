@@ -14,6 +14,36 @@ import { webviewZoom } from "./webview-zoom"
 
 const deepLinkEvent = "NovaWay:deep-link"
 
+function alternateLoopbackURL(input: RequestInfo | URL): string | undefined {
+  if (input instanceof Request) return undefined
+  const raw = input instanceof URL ? input.toString() : input
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== "http:") return undefined
+    if (url.hostname === "localhost") url.hostname = "127.0.0.1"
+    else if (url.hostname === "127.0.0.1") url.hostname = "localhost"
+    else return undefined
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
+async function fetchWithLoopbackFallback(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const alternate = alternateLoopbackURL(input)
+  if (!alternate) return fetch(input, init)
+
+  const timeout = AbortSignal.timeout(1500)
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+
+  try {
+    return await fetch(input, { ...init, signal })
+  } catch (error) {
+    if (init?.signal?.aborted) throw error
+    return fetch(alternate, init)
+  }
+}
+
 export const emitDeepLinks = (urls: string[]) => {
   if (urls.length === 0) return
   window.__NOVAWAY__ ??= {}
@@ -175,6 +205,11 @@ export function createPlatform(): Platform {
     openLink(url: string) {
       window.api.openLink(url)
     },
+
+    resolveAppPath(appName: string) {
+      return window.api.resolveAppPath(appName)
+    },
+
     async openPath(path: string, app?: string) {
       if (os === "windows") {
         const resolvedApp = app ? await window.api.resolveAppPath(app).catch(() => null) : null
@@ -210,8 +245,15 @@ export function createPlatform(): Platform {
     getFileIcon: (path) => window.api.getFileIcon(path),
 
     async openInEditor(editorId, path, kind, connection) {
+      // The kernel may run inside WSL while Electron and the target editor run
+      // on Windows.  Passing `/home/...` directly to Word, Excel, VS Code, etc.
+      // makes the process start without a usable document (or fail outright).
+      // Keep this conversion in the shared native-editor path so the preview
+      // header and the workspace tree behave identically.
+      const resolvedPath =
+        os === "windows" && (await isWslEnabled()) ? await window.api.wslPath(path, "windows").catch(() => path) : path
       if (connection.type === "sidecar" && connection.variant === "base") {
-        return window.api.openInEditor(editorId, path, kind)
+        return window.api.openInEditor(editorId, resolvedPath, kind)
       }
       if (connection.type !== "http") return false
       let url: URL
@@ -221,7 +263,7 @@ export function createPlatform(): Platform {
         return false
       }
       if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1" && url.hostname !== "::1") return false
-      return window.api.openInEditor(editorId, path, kind)
+      return window.api.openInEditor(editorId, resolvedPath, kind)
     },
 
     back() {
@@ -279,8 +321,8 @@ export function createPlatform(): Platform {
     },
 
     fetch: (input, init) => {
-      if (input instanceof Request) return fetch(input)
-      return fetch(input, init)
+      if (input instanceof Request) return fetch(input, init)
+      return fetchWithLoopbackFallback(input, init)
     },
 
     getWslEnabled: () => isWslEnabled(),

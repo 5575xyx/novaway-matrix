@@ -1,7 +1,9 @@
-import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import type { GitSnapshotResponses } from "@novaway/sdk/v2"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
+import { gitSnapshotKey, readGitSnapshot } from "@/pages/session/git-snapshot-cache"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
 
 export type WorkspaceEntry = { path: string; name: string; type: "file" | "dir"; ignored?: boolean }
 export type ChangeKind = "add" | "del" | "mix"
@@ -91,6 +93,23 @@ const colorForStatus = (status: GitStatus) => ({
 const REFRESH_INTERVAL = 5000
 /** watcher 事件通常成串到达（保存一次可能 add+change），合并成一帧再刷。 */
 const WATCH_DEBOUNCE_MS = 120
+const SEARCH_REQUEST_TIMEOUT_MS = 30_000
+const fsFindInFlight = new Map<string, Promise<{ data?: Array<{ path: string; type: "file" | "directory" }> }>>()
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("workspace search timed out")), timeoutMs)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
 
 const norm = (value: string) => value.replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase()
 
@@ -99,8 +118,12 @@ const mergeKind = (a: ChangeKind | undefined, b: ChangeKind): ChangeKind => (!a 
 /**
  * 工作区文件的两份视图（左侧「变更」列表 / 右侧文件树）共用的数据层：
  * 目录内容、git 快照、watcher 与轮询都收在这里，避免两块面板各自开一套轮询。
+ *
+ * `active` 决定这一份数据要不要在后台跑轮询：两块面板都是常驻 DOM、靠位移/宽度
+ * 过渡来「隐藏」的，所以挂载 ≠ 可见。不可见时继续轮询只会白起 git 子进程和目录
+ * 请求（空闲聊天时也在跑），重新可见时再补一次即可。
  */
-export function createWorkspaceFiles(directory: () => string) {
+export function createWorkspaceFiles(directory: () => string, options?: { active?: () => boolean; prewarmRoot?: boolean }) {
   const globalSync = useGlobalSync()
   const globalSDK = useGlobalSDK()
   const [openDirs, setOpenDirs] = createSignal<Record<string, WorkspaceEntry[]>>({})
@@ -111,27 +134,79 @@ export function createWorkspaceFiles(directory: () => string) {
   /** 根目录失败：有缓存时只做非阻塞提示，不盖掉整棵树。 */
   const [rootError, setRootError] = createSignal<string>()
   const sdk = () => globalSync.sdkForDirectory(directory())
+  const polling = () =>
+    (options?.active?.() ?? true) && (typeof document === "undefined" || document.visibilityState === "visible")
 
-  // 切目录或同目录重复读取时，旧请求不得覆盖更新的树状态。
+  type FsFindEntry = { path: string; type: "file" | "directory" }
+  type FsFindResult = { data?: FsFindEntry[] }
+  const requestFsFind = async (input: {
+    path?: string
+    query: string
+    recursive?: "true" | "false"
+    limit: number
+  }): Promise<FsFindResult> => {
+    const key = [globalSDK.url, directory(), input.path ?? "", input.query, input.recursive ?? "", input.limit].join(
+      "\u0000",
+    )
+    const pending = fsFindInFlight.get(key)
+    if (pending) return pending
+
+    const request = (async () => {
+      const url = new URL("/api/fs/find", globalSDK.url)
+      url.searchParams.set("directory", directory())
+      if (input.path !== undefined) url.searchParams.set("path", input.path)
+      url.searchParams.set("query", input.query)
+      if (input.recursive !== undefined) url.searchParams.set("recursive", input.recursive)
+      url.searchParams.set("limit", String(input.limit))
+      const response = await globalSDK.request(url)
+      if (!response.ok) throw new Error(`filesystem search failed (${response.status})`)
+      return (await response.json()) as FsFindResult
+    })()
+    fsFindInFlight.set(key, request)
+    request.then(
+      () => {
+        if (fsFindInFlight.get(key) === request) fsFindInFlight.delete(key)
+      },
+      () => {
+        if (fsFindInFlight.get(key) === request) fsFindInFlight.delete(key)
+      },
+    )
+    return request
+  }
   let requestGen = 0
   const dirRequestGen = new Map<string, number>()
 
-  const refresh = () => {
+  /**
+   * `fresh` 跳过共享缓存的 TTL：watcher 的 `.git/` 事件是「刚刚发生了 git 操作」的
+   * 明确信号，这时候必须拿真数据，不能复用几秒前的快照。其余轮询路径走缓存。
+   */
+  const refresh = (fresh = false) => {
     if (!directory()) return
     const gen = requestGen
-    void sdk()
-      .git.snapshot()
-      .then((r) => {
-        if (gen !== requestGen) return
-        setSnapshot(r.data)
-        setGitStatusAvailable(true)
+    try {
+      void readGitSnapshot({
+        key: gitSnapshotKey(globalSDK.url, directory()),
+        load: () => sdk().git.snapshot(),
+        maxAgeMs: fresh ? 0 : undefined,
       })
-      .catch(() => {
-        // 不是 git 仓库时快照必然失败：变更清单保持为空即可。
-        if (gen !== requestGen) return
-        setSnapshot(undefined)
-        setGitStatusAvailable(false)
-      })
+        .then((r) => {
+          if (gen !== requestGen) return
+          setSnapshot(r.data)
+          setGitStatusAvailable(true)
+        })
+        .catch(() => {
+          // 不是 git 仓库时快照必然失败：变更清单保持为空即可。
+          if (gen !== requestGen) return
+          setSnapshot(undefined)
+          setGitStatusAvailable(false)
+        })
+    } catch {
+      // A workspace tree must remain usable even if the optional Git client is
+      // unavailable during server/client bootstrap.
+      if (gen !== requestGen) return
+      setSnapshot(undefined)
+      setGitStatusAvailable(false)
+    }
   }
 
   // 轮询每 5s 重拉一次，如果每次都生成新条目对象，`<For>` 会按引用把整列按钮
@@ -170,11 +245,14 @@ export function createWorkspaceFiles(directory: () => string) {
     const dirGen = (dirRequestGen.get(dir) ?? 0) + 1
     dirRequestGen.set(dir, dirGen)
     if (dir && !openDirs()[dir] && dirStates()[dir] !== "error") setDirState(dir, "loading")
-    void sdk()
-      .file.list({ path: dir })
+    return withTimeout(requestFsFind({ path: dir, query: "", recursive: "false", limit: 200 }), SEARCH_REQUEST_TIMEOUT_MS)
       .then((r) => {
         if (gen !== requestGen || dirGen !== dirRequestGen.get(dir)) return
-        setOpenDirs((prev) => ({ ...prev, [dir]: entriesOf(r.data) }))
+        const entries = (r.data ?? []).map((entry) => {
+          const path = entry.path.replaceAll("\\", "/")
+          return stableEntry(entry.type === "directory" ? "dir" : "file", path, path.split("/").pop() ?? path)
+        })
+        setOpenDirs((prev) => ({ ...prev, [dir]: entries }))
         if (dir) setDirState(dir, undefined)
         if (dir === "") {
           setRootError(undefined)
@@ -189,6 +267,19 @@ export function createWorkspaceFiles(directory: () => string) {
           setRootLoaded(true)
         }
       })
+  }
+
+  let rootRequest: { directory: string; promise: Promise<void> } | undefined
+  const ensureRoot = () => {
+    const value = directory()
+    if (rootRequest?.directory === value) return rootRequest.promise
+    if (rootLoaded() && !rootError()) return
+    const promise = syncDir("")?.finally(() => {
+      if (rootRequest?.promise === promise) rootRequest = undefined
+    })
+    if (!promise) return
+    rootRequest = { directory: value, promise }
+    return promise
   }
 
   const reloadDirs = () => {
@@ -218,6 +309,8 @@ export function createWorkspaceFiles(directory: () => string) {
     loadDir(dir)
   }
 
+  let lastWatchAt = 0
+
   createEffect(() => {
     // 依赖 directory()：切项目时重建订阅，事件只处理当前项目的。
     const root = directory()
@@ -226,6 +319,8 @@ export function createWorkspaceFiles(directory: () => string) {
     let timer: ReturnType<typeof setTimeout> | undefined
 
     const schedule = () => {
+      // 面板不可见时不跟着 watcher 拉目录：重新可见时统一补一次（见下面的自适应轮询）。
+      if (!polling()) return
       if (timer) return
       timer = setTimeout(() => {
         timer = undefined
@@ -238,6 +333,7 @@ export function createWorkspaceFiles(directory: () => string) {
     const unsub = globalSDK.event.listen((event) => {
       if (norm(event.name) !== normalized) return
       if (event.details.type !== "file.watcher.updated") return
+      lastWatchAt = Date.now()
       const data =
         typeof event.details.properties === "object" && event.details.properties
           ? (event.details.properties as Record<string, unknown>)
@@ -245,7 +341,7 @@ export function createWorkspaceFiles(directory: () => string) {
       const file = typeof data?.file === "string" ? data.file.replaceAll("\\", "/") : ""
       if (file.startsWith(".git/")) {
         // .git 内部变化只影响变更标记（索引/引用），目录内容没变。
-        refresh()
+        if (polling()) refresh(true)
         return
       }
       schedule()
@@ -257,28 +353,81 @@ export function createWorkspaceFiles(directory: () => string) {
     })
   })
 
-  const timer = setInterval(() => {
-    refresh()
-    reloadDirs()
-  }, REFRESH_INTERVAL)
-  onCleanup(() => clearInterval(timer))
+  // 目录内容的新鲜度同样不必按固定节拍：有 watcher 事件（刚写过盘）时 5s 一回，
+  // 静置 15s 后降到 15s 一拍。面板不可见 / 窗口不可见时完全不跑，
+  // 由 createAdaptivePoll 在恢复可见时补一次。
+  const poll = createAdaptivePoll(
+    () => {
+      refresh()
+      reloadDirs()
+    },
+    {
+      fast: REFRESH_INTERVAL,
+      idle: 15_000,
+      active: () => Date.now() - lastWatchAt < 15_000,
+      visible: () => polling(),
+      immediate: false,
+    },
+  )
+  onCleanup(() => poll.stop())
+
+  // document.visibilityState 不是响应式的，窗口从后台切回来要单独补一次。
+  if (typeof document !== "undefined") {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return
+      if (!polling()) return
+      const value = directory()
+      if (!value) return
+      if (loadedFor !== value) {
+        loadedFor = value
+        refresh()
+        loadDir("")
+        return
+      }
+      refresh()
+      reloadDirs()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    onCleanup(() => document.removeEventListener("visibilitychange", onVisibilityChange))
+  }
 
   let loadedFor: string | undefined
+  let activeDirectory: string | undefined
+  let disposed = false
+  onCleanup(() => { disposed = true; requestGen++ })
   createEffect(() => {
-    // 目录切换：作废旧请求、清空树，然后重新拉。同一个目录重复触发时直接跳过，
-    // 避免挂载时拉两遍。
+    // 文件树和变更列表都是常驻 DOM，但绝大多数时间不可见。不要在会话页
+    // 初次挂载时就启动 git/fs 请求；等用户真正打开文件视图再加载，避免空闲
+    // 状态下两个 createWorkspaceFiles 实例同时抢占主线程和后端资源。
     const value = directory()
-    if (!value || value === loadedFor) return
+    const visible = polling()
+    if (!value) return
+
+    // 目录切换时立即作废旧请求，即使新目录当前不可见，也不能让旧响应污染新树。
+    if (value !== activeDirectory) {
+      activeDirectory = value
+      loadedFor = undefined
+      requestGen++
+      dirRequestGen.clear()
+      setOpenDirs({})
+      setDirStates({})
+      setRootError(undefined)
+      setRootLoaded(false)
+      setSnapshot(undefined)
+      setGitStatusAvailable(false)
+      if (options?.prewarmRoot && !visible) {
+        const generation = requestGen
+        void globalSync.background.run(() => {
+          if (disposed || generation !== requestGen || directory() !== value || rootError()) return
+          return ensureRoot()
+        }, 2)
+      }
+    }
+
+    if (!visible || loadedFor === value) return
     loadedFor = value
-    requestGen++
-    dirRequestGen.clear()
-    setOpenDirs({})
-    setDirStates({})
-    setRootError(undefined)
-    setSnapshot(undefined)
-    setGitStatusAvailable(false)
     refresh()
-    loadDir("")
+    void ensureRoot()
   })
 
   const changedFiles = createMemo(() => [
@@ -327,15 +476,48 @@ export function createWorkspaceFiles(directory: () => string) {
   const searchFiles = async (query: string) => {
     const value = query.trim()
     if (!value) return []
+
+    // The find index is optional in the web host and can be unavailable while a
+    // workspace is still bootstrapping. Keep search useful by searching the
+    // directories already loaded by the tree (plus Git changes) instead of
+    // turning a transient index error into a blank/error state.
+    const localFallback = async () => {
+      const needle = value.toLowerCase()
+      const entries = [...Object.values(openDirs()).flat(), ...changedEntries()]
+      const unique = new Map(entries.map((entry) => [entry.path.toLowerCase(), entry]))
+      const matches = () =>
+        [...unique.values()].filter(
+          (entry) => entry.name.toLowerCase().includes(needle) || entry.path.toLowerCase().includes(needle),
+        )
+      if (matches().length > 0) return matches()
+
+      // A failed initial directory request should not make search permanently
+      // unusable. Retry the root listing once; this is cheap and covers the
+      // common case where the index is unavailable but the filesystem API is up.
+      try {
+        const root = await withTimeout(sdk().file.list({ path: "" }), SEARCH_REQUEST_TIMEOUT_MS)
+        const rootEntries = entriesOf(root.data)
+        return rootEntries.filter(
+          (entry) => entry.name.toLowerCase().includes(needle) || entry.path.toLowerCase().includes(needle),
+        )
+      } catch {
+        return []
+      }
+    }
+
     try {
-      const [rankedResults, fileResults, directoryResults] = await Promise.all([
-        sdk().find.files({ query: value, limit: 200 }),
-        sdk().find.files({ query: value, type: "file", limit: 200 }),
-        sdk().find.files({ query: value, type: "directory", limit: 200 }),
-      ])
-      return searchEntries(fileResults.data ?? [], directoryResults.data ?? [], rankedResults.data)
+      // Use the v2 filesystem route. The legacy /find/file endpoint relies on
+      // the global fuzzy index and can block while a large workspace is being
+      // scanned; v2 returns one typed result set and carries the workspace
+      // directory explicitly.
+      const result = await withTimeout(requestFsFind({ query: value, limit: 200 }), SEARCH_REQUEST_TIMEOUT_MS)
+      return (result.data ?? []).map((entry) => ({
+        path: entry.path.replaceAll("\\", "/"),
+        name: entry.path.replaceAll("\\", "/").split("/").pop() ?? entry.path,
+        type: entry.type === "directory" ? ("dir" as const) : ("file" as const),
+      }))
     } catch {
-      return undefined
+      return localFallback()
     }
   }
 

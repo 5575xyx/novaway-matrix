@@ -92,6 +92,7 @@ export function toPartialRow(info: DeepPartial<Session.Info>) {
     // 用户在输入框选的团队/ Auto 永远不会出现在模型眼里。
     team_mode: grab(info, "teamMode"),
     team_ids: grab(info, "teamIDs"),
+    employee_id: grab(info, "employeeID"),
     time_created: grab(info, "time", (v) => grab(v, "created")),
     time_updated: grab(info, "time", (v) => grab(v, "updated")),
     time_compacting: grab(info, "time", (v) => grab(v, "compacting")),

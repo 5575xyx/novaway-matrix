@@ -9,21 +9,21 @@ test.describe("主题品牌色与工具语义色", () => {
     await expect.poll(() => page.locator("html").getAttribute("data-color-scheme")).toBe("light")
   })
 
-  test("parchment switches schemes and migrates the retired theme", async ({ page }, testInfo) => {
+  test("retired themes migrate to NovaWay while color schemes remain switchable", async ({ page }, testInfo) => {
     await page.locator('[data-action="parchment"]').click()
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "parchment")
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "novaway")
     const light = await readColors(page)
-    await page.screenshot({ path: testInfo.outputPath("parchment-light.png"), fullPage: true })
+    await page.screenshot({ path: testInfo.outputPath("migrated-theme-light.png"), fullPage: true })
     await page.locator('[data-action="dark"]').click()
     await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
     const dark = await readColors(page)
     expect(dark.background).not.toBe(light.background)
     expect(dark.semantic).not.toEqual(light.semantic)
-    await page.screenshot({ path: testInfo.outputPath("parchment-dark.png"), fullPage: true })
+    await page.screenshot({ path: testInfo.outputPath("migrated-theme-dark.png"), fullPage: true })
     await page.evaluate(() => localStorage.setItem("novaway-theme-id", "everforest"))
     await page.reload()
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "parchment")
-    await expect.poll(() => page.evaluate(() => localStorage.getItem("novaway-theme-id"))).toBe("parchment")
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "novaway")
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("novaway-theme-id"))).toBe("novaway")
   })
 
   const expectCardStripes = (stripes: string[], colors: string[]) => {
@@ -167,30 +167,8 @@ test.describe("主题品牌色与工具语义色", () => {
     expect(await readColors(page)).toEqual(light)
 
     await page.locator('[data-action="parchment"]').click()
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "parchment")
-    const parchment = await readColors(page)
-    await page.screenshot({ path: testInfo.outputPath("theme-parchment.png"), fullPage: true })
-    expect(parchment.background).not.toBe(light.background)
-    expect(parchment.providers[0]).not.toBe(light.providers[0])
-    expect(parchment.models).not.toEqual(light.models)
-    expect(parchment.platformMark).not.toBe(parchment.platform)
-    expect(parchment.interactiveUtility).toBe(parchment.interactiveReference)
-    expect(parchment.interactiveIconUtility).toBe(parchment.interactiveIconReference)
-    expect(parchment.interactiveIconUtility).toBe(parchment.semantic[4])
-    expect(parchment.interactiveBorderUtility).toBe(parchment.interactiveBorderReference)
-    expect(parchment.semanticUtilities).toEqual(parchment.semanticReferences)
-    expect(parchment.statusDots).toEqual([
-      parchment.semantic[0],
-      parchment.semantic[1],
-      parchment.semantic[2],
-      parchment.semantic[4],
-    ])
-    expect(parchment.toastIcons).toEqual([parchment.semantic[0], parchment.semantic[2], parchment.semantic[3]])
-    expect(parchment.toastProgress).toEqual([parchment.semantic[0], parchment.semantic[2], parchment.semantic[3]])
-    expect(parchment.errorCard).toBe(parchment.semantic[2])
-    expect(parchment.semanticCards).toEqual([parchment.semantic[0], parchment.semantic[1], parchment.semantic[2]])
-    expect(parchment.semanticCardAccents).toEqual(parchment.semanticCards)
-    expectCardStripes(parchment.semanticCardStripes, parchment.semanticCards)
-    expect(new Set(parchment.semantic).size).toBeGreaterThanOrEqual(4)
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "novaway")
+    await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "light")
+    expect(await readColors(page)).toEqual(light)
   })
 })

@@ -1,24 +1,17 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import type { Session } from "@novaway/sdk/v2/client"
+import { indexSidebarChildren } from "./sidebar-child-index"
 
 const layoutSource = readFileSync(join(import.meta.dir, "..", "layout.tsx"), "utf8")
 const tasksSource = readFileSync(join(import.meta.dir, "sidebar-tasks.tsx"), "utf8")
 
 describe("task filter drives the project badge", () => {
-  test("exposes a single filtered list to the rows", () => {
-    expect(tasksSource).toContain("export function useProjectTaskList")
-    expect(tasksSource).toContain("const sessions = useProjectTaskList(props)")
-  })
-
-  // 项目行的计数徽章已去掉（项目行只有图标 + 名称，没有「N 个任务」），
-  // 筛选状态改由列表本身与 TaskFilterBar 表达。这里改为断言「徽章确实不再渲染」，
-  // 并保留「不许用未过滤的 sessions().length 凑数」这条原始意图。
-  test("project rows no longer render a task-count badge", () => {
-    expect(layoutSource).not.toContain('language.t("sidebar.project.count"')
-    expect(layoutSource).not.toContain("{ count: sessions().length }")
-    // 项目列表本身仍在（改为直接渲染 <ProjectTaskList>，不再在项目行上算徽章）
-    expect(layoutSource).toContain("<ProjectTaskList")
+  test("uses the same filtered list for project counts and task rows", () => {
+    expect(layoutSource).toContain("const projectTaskCount = () => model.sessions().length")
+    expect(layoutSource).toContain("<ProjectTaskList {...taskListView} model={model} />")
+    expect(tasksSource).toContain("props.bucketSessions?.() ?? allSessions()")
   })
 
   test("asks for help when a non-default filter matches nothing", () => {
@@ -46,5 +39,45 @@ describe("sidebar project entry points", () => {
     expect(layoutSource).toContain('aria-label={language.t("sidebar.newTask")}')
     expect(layoutSource).toContain("opacity-0 group-hover:opacity-100 focus-visible:opacity-100")
     expect(layoutSource).toContain("navigateWithSidebarReset(`/${base64Encode(proj.worktree)}/session`)")
+  })
+})
+
+const session = (id: string, directory: string, parentID?: string): Session => ({
+  id,
+  directory,
+  parentID,
+  projectID: "project",
+  scope: "project",
+  slug: id,
+  title: id,
+  version: "test",
+  time: { created: 0, updated: 0 },
+})
+
+describe("sidebar child index", () => {
+  test("reads each normalized directory once for 200 root tasks and preserves parent and child order", () => {
+    const workspace = "C:/workspace"
+    const sandbox = "/workspace-sandbox"
+    const roots = Array.from({ length: 200 }, (_, index) =>
+      session(`root-${index}`, index % 2 === 0 ? workspace : ["C:", "workspace", ""].join(String.fromCharCode(92))),
+    )
+    const first = session("child-first", workspace, "root-0")
+    const second = session("child-second", workspace, "root-0")
+    const last = session("child-sandbox", sandbox, "root-0")
+    const sandboxChild = session("child-other-parent", sandbox, "sandbox-root")
+    const rows = new Map([
+      [workspace, [...roots, first, second, session(first.id, workspace, "root-0")]],
+      [sandbox, [session(first.id, sandbox, "root-0"), last, sandboxChild]],
+    ])
+    const reads: string[] = []
+    const indexed = indexSidebarChildren([...roots, session("sandbox-root", sandbox)], (directory) => {
+      reads.push(directory)
+      return rows.get(directory)
+    })
+    expect(reads).toEqual([workspace, sandbox])
+    expect(indexed.get("root-0")).toEqual([first, second, last])
+    expect(indexed.get("root-0")?.[0]).toBe(first)
+    expect(indexed.get("sandbox-root")).toEqual([sandboxChild])
+    expect(indexed.has("root-1")).toBe(false)
   })
 })

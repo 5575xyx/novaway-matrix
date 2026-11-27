@@ -22,6 +22,10 @@ export type BuiltinExtension = {
   url: string
   ref?: string
   subdir?: string
+  /** 官方来源标识；自动更新只接受官方包 ID。 */
+  sourceId?: string
+  /** 归档的 SHA-256；自动更新时必须存在并校验。 */
+  sha256?: string
   keywords?: string[]
   /**
    * 首次启动自动安装。
@@ -29,6 +33,11 @@ export type BuiltinExtension = {
    * - `false`：只在市场里展示，用户点了才装。
    */
   autoInstall: boolean
+  /**
+   * 后台自动更新。
+   * 只对 NovaWay 官方、可验证摘要的条目开启；第三方扩展默认关闭。
+   */
+  autoUpdate?: boolean
 }
 
 export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
@@ -38,8 +47,11 @@ export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
     description: "NovaWay Agency AI 员工：184 个专业 Agent。",
     kind: "zip",
     url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.agency-agents-v1.0.0/com.novaway.agency-agents-1.0.0.zip",
+    sourceId: "com.novaway.agency-agents",
+    sha256: "c456e8ba7e7da42238830ecf05d8691eb35bafcf0a1844f37454d127d573f912",
     keywords: ["agent", "ai-employee", "agency"],
     autoInstall: true,
+    autoUpdate: true,
   },
   {
     name: "com.novaway.mcp-suite",
@@ -47,8 +59,23 @@ export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
     description: "NovaWay 官方 MCP 基础连接器。",
     kind: "zip",
     url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.mcp-suite-v1.0.0/com.novaway.mcp-suite-1.0.0.zip",
+    sourceId: "com.novaway.mcp-suite",
+    sha256: "230644cdfaed718965c3d43beb797b57d7fd2c17f95258404b6bf1714783be9a",
     keywords: ["mcp", "browser", "context7"],
     autoInstall: true,
+    autoUpdate: true,
+  },
+  {
+    name: "com.novaway.powersnexus",
+    version: "1.1.4",
+    description: "PowersNexus 工程技能库：统一 L0-L4 路由和验证流程。",
+    kind: "zip",
+    url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.powersnexus-v1.1.4/com.novaway.powersnexus-1.1.4.zip",
+    sourceId: "com.novaway.powersnexus",
+    sha256: "105939ed03f307257ccff66a1256b3b6ac7aca797257b05ea2944669baea3941",
+    keywords: ["skill", "workflow", "tdd", "debugging"],
+    autoInstall: true,
+    autoUpdate: true,
   },
   {
     name: "com.novaway.office-suite",
@@ -56,8 +83,11 @@ export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
     description: "NovaWay 办公工作台。",
     kind: "zip",
     url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.office-suite-v0.3.1/com.novaway.office-suite-0.3.1.zip",
+    sourceId: "com.novaway.office-suite",
+    sha256: "e645481e4bf825248e4e1d7f53b97b6b1f417ccaa95008469dd275914a50c44b",
     keywords: ["office", "workbench", "ppt", "docx"],
     autoInstall: true,
+    autoUpdate: true,
   },
   {
     name: "com.novaway.operations-suite",
@@ -65,8 +95,11 @@ export const BUILTIN_EXTENSIONS: readonly BuiltinExtension[] = [
     description: "NovaWay 运营工作台：选题、创作、预检、发布和数据复盘。",
     kind: "zip",
     url: "https://gitee.com/NovaWay-AI/novaway-plugins/releases/download/com.novaway.operations-suite-v1.0.2/com.novaway.operations-suite-1.0.2.zip",
+    sourceId: "com.novaway.operations-suite",
+    sha256: "d3eeabd6701797cb5d115506611ffa952ac3d970dcae3df15d18616cb078a9ec",
     keywords: ["operations", "marketing", "social-media", "content", "workbench"],
     autoInstall: true,
+    autoUpdate: true,
   },
 ]
 

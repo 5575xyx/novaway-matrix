@@ -104,6 +104,11 @@ export function createOfficeEditorLifecycle(options: {
       return bytes
     },
     dirty: () => dirty,
+    assistant: {
+      async reference() {
+        return editor?.assistant?.reference() ?? null
+      },
+    },
     dispose() {
       if (controller.signal.aborted) return
       controller.abort()

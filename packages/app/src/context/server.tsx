@@ -3,6 +3,7 @@ import { type Accessor, batch, createEffect, createMemo, onCleanup } from "solid
 import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { useCheckServerHealth } from "@/utils/server-health"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
 
 type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
@@ -172,11 +173,14 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
           })
       }
 
-      run()
-      const interval = setInterval(run, HEALTH_POLL_INTERVAL_MS)
+      const poll = createAdaptivePoll(run, {
+        fast: HEALTH_POLL_INTERVAL_MS,
+        active: () => true,
+        visible: () => typeof document === "undefined" || document.visibilityState === "visible",
+      })
       return () => {
         alive = false
-        clearInterval(interval)
+        poll.stop()
       }
     }
 

@@ -37,7 +37,8 @@
     "electron-window-state": "^5.0.3",
     "marked": "^15",
     "pdfjs-dist": "5.7.284",
-    "qs": "6.15.2"
+    "qs": "6.15.2",
+    "transcribe-cpp": "0.4.2"
   },
   "devDependencies": {
     "@actions/artifact": "4.0.0",

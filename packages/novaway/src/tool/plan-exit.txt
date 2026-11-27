@@ -1,6 +1,12 @@
 Use this tool when the plan is complete and ready for the user to approve before implementation.
 
-This tool asks whether to exit plan permission mode. The current agent remains unchanged.
+This tool shows the plan preview and offers four choices:
+- Start execution: restore the permission mode that was active before plan mode and implement normally.
+- Goal-driven execution: restore the previous permission mode, create an interactive goal, and continue working toward it in the current session.
+- Start a long-running task: restore the previous permission mode, then run the approved plan through the persistent goal runner with background execution and verification.
+- Continue planning: remain in plan mode and keep refining the plan.
+
+The current agent remains unchanged.
 
 Call this tool:
 - After you have written a complete plan to the plan file

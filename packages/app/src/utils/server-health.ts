@@ -2,7 +2,14 @@ import { usePlatform } from "@/context/platform"
 import type { ServerConnection } from "@/context/server"
 import { createSdkForServer } from "./server"
 
-export type ServerHealth = { healthy: boolean; version?: string }
+export type ServerHealth = { healthy: boolean; version?: string; sessionLibrary?: string }
+
+
+export function sessionLibraryOf(data: unknown) {
+  if (data && typeof data === "object" && "sessionLibrary" in data && typeof data.sessionLibrary === "string") {
+    return data.sessionLibrary
+  }
+}
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -87,7 +94,11 @@ export async function checkServerHealth(
       signal,
     })
       .global.health()
-      .then((x) => (x.error ? next(count, x.error) : { healthy: x.data?.healthy === true, version: x.data?.version }))
+      .then((x) => {
+        if (x.error) return next(count, x.error)
+        const data = x.data
+        return { healthy: data?.healthy === true, version: data?.version, sessionLibrary: sessionLibraryOf(data) }
+      })
       .catch((error) => next(count, error))
   return attempt(0).finally(() => timeout?.clear?.())
 }

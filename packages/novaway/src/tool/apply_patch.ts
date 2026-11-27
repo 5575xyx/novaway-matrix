@@ -252,13 +252,29 @@ export const ApplyPatchTool = Tool.define(
       }))
 
       // Check permissions if needed
-      const relativePaths = fileChanges.map((c) => path.relative(root, c.filePath).replaceAll("\\", "/"))
+      //
+      // 移动（`*** Move to:`）会同时在两个路径上动手：删掉源文件、写到目标文件。
+      // 只报源路径等于给"把计划目录里的文件挪到 src/"开了后门 —— 目标路径也必须
+      // 参与判定，否则计划模式下的一次移动就能把内容落到计划目录之外。
+      const relativePathOf = (target: string) => path.relative(root, target).replaceAll("\\", "/")
+      const relativePaths = fileChanges.flatMap((change) =>
+        change.movePath
+          ? [relativePathOf(change.filePath), relativePathOf(change.movePath)]
+          : [relativePathOf(change.filePath)],
+      )
       yield* ctx.ask({
         permission: "edit",
         patterns: relativePaths,
         always: ["*"],
         metadata: {
           filepath: relativePaths.join(", "),
+          // Keep canonical absolute targets alongside the human-readable
+          // relative label. Plan-mode permission checks must validate every
+          // source and destination of a patch/move, even when the session
+          // runs from a subdirectory of the worktree.
+          filepaths: fileChanges.flatMap((change) =>
+            change.movePath ? [change.filePath, change.movePath] : [change.filePath],
+          ),
           diff: totalDiff,
           files,
         },

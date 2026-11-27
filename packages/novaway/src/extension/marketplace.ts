@@ -256,15 +256,22 @@ export function verify(data: Buffer, expected: string | undefined) {
 /** Fetch a JSON manifest, trying each URL in order and returning the first that parses. */
 export async function manifest(urls: readonly string[], signal?: AbortSignal): Promise<unknown> {
   let lastError: unknown
-  for (const url of urls) {
-    try {
-      const response = await fetch(url, { signal, redirect: "follow" })
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
-      return JSON.parse(await response.text()) as unknown
-    } catch (error) {
-      lastError = error
-      log.warn("marketplace manifest failed", { url, error: String(error) })
+  const controller = signal ? undefined : new AbortController()
+  const timeout = signal ? undefined : setTimeout(() => controller?.abort(), 8_000)
+  const requestSignal = signal ?? controller?.signal
+  try {
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, { signal: requestSignal, redirect: "follow" })
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+        return JSON.parse(await response.text()) as unknown
+      } catch (error) {
+        lastError = error
+        log.warn("marketplace manifest failed", { url, error: String(error) })
+      }
     }
+  } finally {
+    if (timeout) clearTimeout(timeout)
   }
   throw lastError instanceof Error ? lastError : new Error("no marketplace manifest reachable")
 }

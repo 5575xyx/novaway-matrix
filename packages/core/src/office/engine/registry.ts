@@ -1,8 +1,9 @@
 /**
- * 文件类型识别与引擎注册。
+ * 引擎注册表：把「格式」绑到具体的读写实现上。
  *
- * 扩展名决定「用哪个编辑器」，
- * 而不是靠内容嗅探。未知扩展名当纯文本处理，交给文本编辑器。
+ * 只做判断、不需要引擎的场景（附件 / 拖拽 / 图标 / 标签）请用 `./formats`：
+ * 本模块会静态引入 docx / xlsx / pptx / pdf / legacy 等引擎，其中 pdf 引擎连带
+ * 整包 pdf-lib（约 750KB）。渲染进程的入口包不该为了「查个扩展名」付这笔钱。
  */
 
 import type { OfficeFormat } from "./contract"
@@ -15,43 +16,16 @@ import { xlsxEngine } from "./xlsx"
 import { richEngine } from "../rich/engine"
 import { markdownEngine, textEngine } from "../text/engine"
 import type { OfficeEngine } from "./contract"
+import {
+  deleteExtensionsOfFormat,
+  deleteFormatKind,
+  setExtensionFormat,
+  setFormatKind,
+  type DocumentKind,
+} from "./contract"
 
-export type DocumentKind = "document" | "spreadsheet" | "presentation" | "pdf" | "markdown" | "plaintext" | "richtext"
-
-const KIND_BY_EXTENSION: Record<string, DocumentKind> = {
-  docx: "document",
-  docm: "document",
-  dotx: "document",
-  dotm: "document",
-  doc: "document",
-  odt: "document",
-  rtf: "document",
-  xlsx: "spreadsheet",
-  xlsm: "spreadsheet",
-  xltx: "spreadsheet",
-  xltm: "spreadsheet",
-  xls: "spreadsheet",
-  ods: "spreadsheet",
-  csv: "spreadsheet",
-  pptx: "presentation",
-  pptm: "presentation",
-  potx: "presentation",
-  potm: "presentation",
-  ppsx: "presentation",
-  ppsm: "presentation",
-  ppt: "presentation",
-  odp: "presentation",
-  pdf: "pdf",
-  md: "markdown",
-  markdown: "markdown",
-  mdown: "markdown",
-  mkd: "markdown",
-  mdx: "markdown",
-  html: "richtext",
-  htm: "richtext",
-  xhtml: "richtext",
-  shtml: "richtext",
-}
+export type { DocumentKind }
+export { defaultExtension, extensionOf, kindOfPath, officeFormatOf } from "./contract"
 
 export type OfficeEngineRegistration = {
   format: string
@@ -62,7 +36,6 @@ export type OfficeEngineRegistration = {
 }
 
 const ENGINE_REGISTRY = new Map<string, OfficeEngineRegistration>()
-const EXTENSION_REGISTRY = new Map<string, string>()
 
 export function registerOfficeEngine(registration: OfficeEngineRegistration): { dispose: () => void } {
   const normalized = {
@@ -71,23 +44,20 @@ export function registerOfficeEngine(registration: OfficeEngineRegistration): { 
   }
   const previous = ENGINE_REGISTRY.get(registration.format)
   ENGINE_REGISTRY.set(registration.format, normalized)
-  for (const extension of normalized.extensions) EXTENSION_REGISTRY.set(extension, registration.format)
-  for (const [alias, format] of Object.entries(normalized.aliases ?? {})) {
-    EXTENSION_REGISTRY.set(alias.replace(/^\./, "").toLowerCase(), format)
-  }
+  setFormatKind(registration.format, normalized.kind)
+  for (const extension of normalized.extensions) setExtensionFormat(extension, registration.format)
+  for (const [alias, format] of Object.entries(normalized.aliases ?? {})) setExtensionFormat(alias, format)
   return {
     dispose() {
       if (ENGINE_REGISTRY.get(registration.format) !== normalized) return
       ENGINE_REGISTRY.delete(registration.format)
-      for (const [extension, format] of EXTENSION_REGISTRY) {
-        if (format === registration.format) EXTENSION_REGISTRY.delete(extension)
-      }
+      deleteFormatKind(registration.format)
+      deleteExtensionsOfFormat(registration.format)
       if (previous) {
         ENGINE_REGISTRY.set(registration.format, previous)
-        for (const extension of previous.extensions) EXTENSION_REGISTRY.set(extension, registration.format)
-        for (const [alias, format] of Object.entries(previous.aliases ?? {})) {
-          EXTENSION_REGISTRY.set(alias.replace(/^\./, "").toLowerCase(), format)
-        }
+        setFormatKind(registration.format, previous.kind)
+        for (const extension of previous.extensions) setExtensionFormat(extension, registration.format)
+        for (const [alias, format] of Object.entries(previous.aliases ?? {})) setExtensionFormat(alias, format)
       }
     },
   }
@@ -103,41 +73,6 @@ function registerBuiltIn(
   registerOfficeEngine({ format, kind, extensions, aliases, engine })
 }
 
-export function extensionOf(path: string): string {
-  const name = path.split(/[\/]/).pop() ?? path
-  const dot = name.lastIndexOf(".")
-  return dot <= 0 ? "" : name.slice(dot + 1).toLowerCase()
-}
-
-export function kindOfPath(path: string): DocumentKind {
-  const extension = extensionOf(path)
-  const builtinKind = KIND_BY_EXTENSION[extension]
-  if (builtinKind) return builtinKind
-  const dynamic = EXTENSION_REGISTRY.get(extension)
-  if (dynamic) return ENGINE_REGISTRY.get(dynamic)?.kind ?? "plaintext"
-  return "plaintext"
-}
-
-/** 新建文档时的默认扩展名。 */
-export function defaultExtension(kind: DocumentKind): string {
-  switch (kind) {
-    case "document":
-      return "docx"
-    case "spreadsheet":
-      return "xlsx"
-    case "presentation":
-      return "pptx"
-    case "pdf":
-      return "pdf"
-    case "markdown":
-      return "md"
-    case "richtext":
-      return "html"
-    default:
-      return "txt"
-  }
-}
-
 /**
  * 已实现的编辑引擎。
  * PDF 走页面级编辑（删页 / 调序 / 旋转 / 叠加文字图片 / 批注 / 填表），
@@ -145,48 +80,6 @@ export function defaultExtension(kind: DocumentKind): string {
  */
 export function engineFor(format: OfficeFormat | string): OfficeEngine<unknown> | undefined {
   return ENGINE_REGISTRY.get(format)?.engine
-}
-
-/**
- * 带宏 / 模板的 OOXML 变体：包的内部结构和 docx / xlsx / pptx 完全一致，
- * 只多一个 vbaProject.bin（或少几张示例页）。直接复用同一条引擎 ——
- * 宏那部分我们一个字节都不碰，原样复制回去。
- */
-const OOXML_ALIASES: Record<string, OfficeFormat> = {
-  docm: "docx",
-  dotx: "docx",
-  dotm: "docx",
-  xlsm: "xlsx",
-  xltx: "xlsx",
-  xltm: "xlsx",
-  pptm: "pptx",
-  potx: "pptx",
-  potm: "pptx",
-  ppsx: "pptx",
-  ppsm: "pptx",
-}
-
-/** 只读的旧格式：解析器认识，但没有写出引擎。 */
-const LEGACY_EXTENSIONS = new Set(["odt", "ods", "odp", "rtf", "doc", "xls", "ppt"])
-
-export function officeFormatOf(path: string): OfficeFormat | undefined {
-  const extension = extensionOf(path)
-  const registered = EXTENSION_REGISTRY.get(extension)
-  if (registered) return registered as OfficeFormat
-  const alias = OOXML_ALIASES[extension]
-  if (alias) return alias
-  const kind = kindOfPath(path)
-  if (kind === "document" && extension === "docx") return "docx"
-  if (kind === "presentation" && extension === "pptx") return "pptx"
-  if (kind === "spreadsheet" && extension === "xlsx") return "xlsx"
-  // CSV 也归「表格」：一行一条记录，AI 需要按 A1 坐标改某个格子。
-  if (kind === "spreadsheet" && extension === "csv") return "csv"
-  if (kind === "pdf") return "pdf"
-  if (LEGACY_EXTENSIONS.has(extension)) return "legacy"
-  if (kind === "richtext") return "html"
-  if (kind === "markdown") return "markdown"
-  if (kind === "plaintext") return "text"
-  return undefined
 }
 
 // Keep the historical built-in behavior in the same registry used by plugins.

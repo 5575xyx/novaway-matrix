@@ -1,10 +1,9 @@
 /**
  * 文件预览统一外壳。
  *
- * 右栏只有一行头部，永远不换行：左边是文件名与保存状态，右边是
- * 「撤销 · 重做 · 保存 · 查找 · 视图▾ · 阅读·编辑 · ⋯」。动词只有这一处入口 ——
- * 撤销/重做/保存直接摆在手上，视图切换单独成下拉，导出、打印、低频命令
- * 仍然按分组收在「⋯」里。窄面板下文件名先截断，控件永不溢出。
+ * 普通文件使用一行紧凑头部；代码文件通过 `mode="code"` 使用编辑器式头部，
+ * 不再显示「视图 / 编辑」这类与代码编辑无关的入口。高频动作直接摆在手上，
+ * 低频动作按类型收进一个菜单。窄面板下文件名先截断，控件永不溢出。
  */
 import { For, Show } from "solid-js"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
@@ -66,6 +65,10 @@ export type FilePreviewHeaderProps = {
   menu: PreviewMenuGroup[]
   /** 文件名旁边的小徽标，例如「改动」「只读」。 */
   badge?: string
+  /** 代码文件使用编辑器专用头部：不显示通用的「视图 / 编辑」入口。 */
+  mode?: "default" | "code"
+  /** 代码编辑器右侧显示的语言标识，例如 TypeScript。 */
+  languageLabel?: string
   /** 内嵌文件树右栏的开关：宿主提供时才渲染按钮。 */
   treeOpen?: boolean
   onToggleTree?: () => void
@@ -97,6 +100,7 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
   }
   const groups = () => props.menu.filter((group) => group.items.length > 0)
   const views = () => props.viewMenu ?? []
+  const defaultNativeItem = () => props.openNativeMenu?.find((item) => item.id === "default")
   const dirty = () => props.saveStatus === "dirty" || props.saveStatus === "error"
 
   return (
@@ -104,6 +108,7 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
       class="flex h-10 shrink-0 items-center gap-1.5 overflow-hidden border-b border-border px-2.5"
       data-print-hide
       data-component="file-preview-header"
+      data-editor-mode={props.mode ?? "default"}
     >
       {/* 文件树开关放在最左：树展开时它贴着树与预览的分界，收起后仍留在同一位置，
           不会跟着右侧动作区一起漂走。 */}
@@ -142,6 +147,11 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
         <span class="min-w-0 truncate text-ui-sm font-medium text-foreground" title={props.path}>
           {filename()}
         </span>
+        <Show when={props.mode === "code" && props.languageLabel}>
+          <span class="shrink-0 rounded bg-surface px-1.5 py-px font-mono text-11-regular text-foreground-subtlest">
+            {props.languageLabel}
+          </span>
+        </Show>
         <Show when={props.badge}>
           <span class="shrink-0 rounded-full bg-surface px-1.5 py-px text-ui-xs text-foreground-subtle">
             {props.badge}
@@ -216,10 +226,21 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
               <button
                 type="button"
                 data-action="file-preview-open-native"
-                class="h-full px-2 text-ui-xs text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                class="flex h-full w-6 items-center justify-center text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground"
+                aria-label={props.openNativeLabel ?? "用默认应用打开"}
+                title={props.openNativeLabel ?? "用默认应用打开"}
                 onClick={() => props.onOpenNative?.()}
               >
-                {props.openNativeLabel ?? "用默认应用打开"}
+                <MenuItemIcon
+                  item={
+                    defaultNativeItem() ?? {
+                      id: "default",
+                      label: props.openNativeLabel ?? "用默认应用打开",
+                      icon: "lu-arrow-up-right",
+                      onSelect: () => {},
+                    }
+                  }
+                />
               </button>
             </Show>
             <DropdownMenu gutter={4} placement="bottom-end">
@@ -268,7 +289,7 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
             onClick={() => props.onFind?.()}
           />
         </Show>
-        <Show when={views().length > 1}>
+        <Show when={props.mode !== "code" && views().length > 1}>
           <DropdownMenu gutter={4} placement="bottom-end">
             <DropdownMenu.Trigger
               as={IconButton}
@@ -286,7 +307,7 @@ export function FilePreviewHeader(props: FilePreviewHeaderProps) {
             </DropdownMenu.Portal>
           </DropdownMenu>
         </Show>
-        <Show when={props.canEdit}>
+        <Show when={props.mode !== "code" && props.canEdit}>
           <button
             type="button"
             data-action="file-preview-toggle-edit"

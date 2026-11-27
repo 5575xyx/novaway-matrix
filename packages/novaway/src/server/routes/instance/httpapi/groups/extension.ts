@@ -137,6 +137,11 @@ export const MarketplaceInstalled = Schema.Struct({
   root: Schema.String,
   files: Schema.Number,
   bytes: Schema.Number,
+  runtimeStatus: Schema.optional(
+    Schema.Literals(["unloaded", "installed", "activating", "active", "failed", "disabled"]),
+  ),
+  runtimeError: Schema.optional(Schema.String),
+  runtimeScope: Schema.optional(Schema.Literals(["builtin", "global", "project", "session"])),
   operationId: Schema.optional(Schema.String),
   /** The install this one replaced, so the UI can say "updated from v1.2". */
   previous: Schema.optional(

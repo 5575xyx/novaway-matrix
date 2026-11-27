@@ -117,6 +117,85 @@ function getDiagnostics(
   return diagnostics.filter((d) => d.severity === 1).slice(0, 3)
 }
 
+/**
+ * Tool metadata is sent once while a tool is running and again when it finishes.
+ * Keep the renderer tolerant of either shape so a streamed metadata update cannot
+ * make the completed row lose its file name or its diff.
+ */
+function filePathOf(metadata: Record<string, any> | undefined, input: Record<string, any>, title?: string) {
+  const candidates = [
+    metadata?.filediff?.file,
+    metadata?.filediff?.filePath,
+    metadata?.fileDiff?.file,
+    metadata?.fileDiff?.filePath,
+    metadata?.filepath,
+    metadata?.filePath,
+    metadata?.path,
+    metadata?.file,
+    metadata?.filename,
+    input.filePath,
+    input.file_path,
+    input.filepath,
+    input.path,
+    input.file,
+    input.filename,
+    title,
+  ]
+  return candidates.find((value): value is string => typeof value === "string" && value.length > 0) ?? ""
+}
+
+function fileDiffOf(metadata: Record<string, any> | undefined, input: Record<string, any>, title?: string) {
+  const direct = metadata?.filediff
+  if (direct && typeof direct === "object") return direct
+
+  const file = filePathOf(metadata, input, title)
+  const patch = metadata?.diff
+  if (typeof file === "string" && typeof patch === "string" && patch) {
+    return {
+      file,
+      patch,
+      additions: Number(metadata?.additions) || 0,
+      deletions: Number(metadata?.deletions) || 0,
+    }
+  }
+
+  return undefined
+}
+
+function fileDiffView(filediff: Record<string, any> | undefined, input: Record<string, any>, filePath: string) {
+  const hasPatch = typeof filediff?.patch === "string" && filediff.patch.length > 0
+  const before =
+    !hasPatch && typeof filediff?.before === "string" ? filediff.before : !hasPatch ? input.oldString : undefined
+  const after =
+    !hasPatch && typeof filediff?.after === "string" ? filediff.after : !hasPatch ? input.newString : undefined
+
+  // Prefer complete contents when available. This bypasses patch parsing and
+  // guarantees Pierre receives a real diff model with deletion/addition lines.
+  if (!hasPatch && (typeof before === "string" || typeof after === "string")) {
+    return fromContents({
+      file: filePath,
+      before: typeof before === "string" ? before : "",
+      after: typeof after === "string" ? after : "",
+      additions: Number(filediff?.additions) || undefined,
+      deletions: Number(filediff?.deletions) || undefined,
+      status: "modified",
+    }).fileDiff
+  }
+
+  if (!filediff || !filePath) return undefined
+  try {
+    return normalize({
+      file: filediff.file || filePath,
+      patch: typeof filediff.patch === "string" ? filediff.patch : undefined,
+      additions: Number(filediff.additions) || 0,
+      deletions: Number(filediff.deletions) || 0,
+      status: "modified",
+    }).fileDiff
+  } catch {
+    return undefined
+  }
+}
+
 function DiagnosticsDisplay(props: { diagnostics: Diagnostic[] }): JSX.Element {
   const i18n = useI18n()
   return (
@@ -175,7 +254,9 @@ export type PartComponent = Component<MessagePartProps>
 
 export const PART_MAPPING: Record<string, PartComponent | undefined> = {}
 
-const TEXT_RENDER_PACE_MS = 24
+const TEXT_RENDER_PACE_MS = 8
+// Catch up immediately once text falls behind, without rendering every delta synchronously.
+const TEXT_RENDER_CATCHUP_BACKLOG = 0
 const TEXT_RENDER_SNAP = /[\s.,!?;:)\]]/
 
 function step(size: number) {
@@ -218,6 +299,11 @@ function createPacedValue(getValue: () => string, live?: () => boolean) {
       return
     }
     if (!text.startsWith(shown) || text.length <= shown.length) {
+      sync(text)
+      return
+    }
+    const backlog = text.length - shown.length
+    if (backlog > TEXT_RENDER_CATCHUP_BACKLOG) {
       sync(text)
       return
     }
@@ -293,7 +379,7 @@ function getDirectory(path: string | undefined) {
 }
 
 import type { IconProps } from "./icon"
-import { normalize } from "./session-diff"
+import { fromContents, normalize } from "./session-diff"
 
 export type ToolInfo = {
   icon: IconProps["name"]
@@ -1057,19 +1143,15 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
       <Collapsible.Trigger>
         <div
           data-component="context-tool-group-trigger"
+          data-tone={status().tone}
           class="relative rounded-[10px] px-3 py-2 transition-colors hover:bg-surface-interactive-weak"
         >
           <span
             data-slot="context-tool-group-title"
             class="min-w-0 flex items-center gap-2 text-14-medium text-foreground"
           >
-            <span
-              data-slot="tool-status-icon"
-              data-tone={status().tone}
-              aria-hidden="true"
-              classList={{ "animate-spin": status().tone === "active" }}
-            >
-              <Icon name={status().icon} size="small" />
+            <span data-slot="tool-status-icon" data-tone={status().tone} aria-hidden="true">
+              <Icon name={status().icon} size="small" class={status().tone === "active" ? "animate-spin" : undefined} />
             </span>
             <span
               data-slot="tool-badge-icon"
@@ -1161,6 +1243,24 @@ export function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
   )
 }
 
+function quoteAttachmentOf(
+  part: PartType,
+): { path?: string; label?: string; text?: string; comment?: string } | undefined {
+  if (part.type !== "text" || !part.synthetic) return undefined
+  const metadata = (part as TextPart & { metadata?: unknown }).metadata
+  if (!metadata || typeof metadata !== "object") return undefined
+  const raw = (metadata as Record<string, unknown>).quote
+  if (!raw || typeof raw !== "object") return undefined
+  const quote = raw as Record<string, unknown>
+  if (typeof quote.path !== "string" && typeof quote.label !== "string") return undefined
+  return {
+    path: typeof quote.path === "string" ? quote.path : undefined,
+    label: typeof quote.label === "string" ? quote.label : undefined,
+    text: typeof quote.text === "string" ? quote.text : undefined,
+    comment: typeof quote.comment === "string" ? quote.comment : undefined,
+  }
+}
+
 export function UserMessageDisplay(props: { message: UserMessage; parts: PartType[]; actions?: UserActions }) {
   const data = useData()
   const dialog = useDialog()
@@ -1183,6 +1283,13 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
   const attachments = createMemo(() => files().filter(attached))
 
   const inlineFiles = createMemo(() => files().filter(inline))
+
+  const quoteAttachments = createMemo(() =>
+    props.parts.flatMap((part) => {
+      const quote = quoteAttachmentOf(part)
+      return quote ? [quote] : []
+    }),
+  )
 
   const agents = createMemo(() => (props.parts?.filter((p) => p.type === "agent") as AgentPart[]) ?? [])
 
@@ -1236,8 +1343,32 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
 
   return (
     <div data-component="user-message" data-timeline-part-id={textPart()?.id}>
-      <Show when={attachments().length > 0}>
+      <Show when={attachments().length > 0 || quoteAttachments().length > 0}>
         <div data-slot="user-message-attachments">
+          <For each={quoteAttachments()}>
+            {(quote) => (
+              <div
+                data-slot="user-message-attachment"
+                data-type="quote"
+                title={[quote.comment, quote.text].filter(Boolean).join("\n\n") || quote.label}
+              >
+                <div data-slot="user-message-attachment-file">
+                  <Icon name="quote" />
+                  <div data-slot="user-message-attachment-quote-body">
+                    <span data-slot="user-message-attachment-name">
+                      {quote.label || quote.path || i18n.t("ui.message.attachment.alt")}
+                    </span>
+                    <Show when={quote.comment}>
+                      <span data-slot="user-message-attachment-comment">{quote.comment}</span>
+                    </Show>
+                    <Show when={!quote.comment && quote.text}>
+                      <span data-slot="user-message-attachment-comment">{quote.text}</span>
+                    </Show>
+                  </div>
+                </div>
+              </div>
+            )}
+          </For>
           <For each={attachments()}>
             {(file) => {
               const type = kind(file)
@@ -1403,6 +1534,8 @@ export interface ToolProps {
   input: Record<string, any>
   metadata: Record<string, any>
   tool: string
+  /** Backend result title; file tools use it as a final path fallback. */
+  title?: string
   sessionID?: string
   output?: string
   status?: string
@@ -1529,6 +1662,10 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
     if (typeof value === "string" && value) return value
     return taskId()
   })
+  const toolTitle = createMemo(() => {
+    const value = (part().state as { title?: unknown }).title
+    return typeof value === "string" && value.length > 0 ? value : undefined
+  })
 
   const render = createMemo(() => ToolRegistry.render(part().tool) ?? GenericTool)
 
@@ -1559,13 +1696,12 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
         data-status={toolStatus().tone}
         data-timeline-part-id={part().id}
       >
-        <span
-          data-slot="tool-status-icon"
-          data-tone={toolStatus().tone}
-          aria-hidden="true"
-          classList={{ "animate-spin": toolStatus().tone === "active" }}
-        >
-          <Icon name={toolStatus().icon} size="small" />
+        <span data-slot="tool-status-icon" data-tone={toolStatus().tone} aria-hidden="true">
+          <Icon
+            name={toolStatus().icon}
+            size="small"
+            class={toolStatus().tone === "active" ? "animate-spin" : undefined}
+          />
         </span>
         <Switch>
           <Match when={part().state.status === "error" && (part().state as any).error}>
@@ -1587,6 +1723,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   component={render()}
                   input={input()}
                   tool={part().tool}
+                  title={toolTitle()}
                   sessionID={part().sessionID}
                   metadata={partMetadata()}
                   // @ts-expect-error 错误态没有 output 字段
@@ -1612,6 +1749,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               component={render()}
               input={input()}
               tool={part().tool}
+              title={toolTitle()}
               sessionID={part().sessionID}
               metadata={partMetadata()}
               // @ts-expect-error
@@ -2329,30 +2467,26 @@ ToolRegistry.register({
     const i18n = useI18n()
     const fileComponent = useFileComponent()
     const diagnostics = createMemo(() => getDiagnostics(props.metadata.diagnostics, props.input.filePath))
-    const path = createMemo(() => props.metadata?.filediff?.file || props.input.filePath || "")
-    const filename = () => getFilename(props.input.filePath ?? "")
+    const filediff = createMemo(() => fileDiffOf(props.metadata, props.input, props.title))
+    const path = createMemo(() => filePathOf(props.metadata, props.input, props.title))
+    const filename = () => getFilename(path())
     const pending = () => props.status === "pending" || props.status === "running"
+    const diff = createMemo(() => fileDiffView(filediff(), props.input, path()))
 
     const fileCompProps = createMemo(() => {
-      try {
-        if (props.metadata?.filediff) {
-          const diff = normalize({
-            ...props.metadata?.filediff,
-            status: "modified",
-          })
-          const fileDiff = diff.fileDiff
-          if (fileDiff) return { fileDiff, hunkSeparators: fileDiff.isPartial ? "simple" : "line-info-basic" }
-        }
-      } catch {}
+      const fileDiff = diff()
+      if (fileDiff) {
+        return { fileDiff, hunkSeparators: fileDiff.isPartial ? "simple" : "line-info-basic" }
+      }
 
       return {
         before: {
-          name: props.metadata?.filediff?.file || props.input.filePath,
-          contents: props.metadata?.filediff?.before || props.input.oldString || "",
+          name: path(),
+          contents: props.input.oldString || "",
         },
         after: {
-          name: props.metadata?.filediff?.file || props.input.filePath,
-          contents: props.metadata?.filediff?.after || props.input.newString || "",
+          name: path(),
+          contents: props.input.newString || "",
         },
       }
     })
@@ -2367,38 +2501,50 @@ ToolRegistry.register({
           trigger={
             <div data-component="edit-trigger">
               <span data-slot="tool-badge-icon">
-                <Icon name="lu-square-pen" size="small" />
+                <Show when={pending()} fallback={<Icon name="lu-square-pen" size="small" />}>
+                  <Icon name="lu-loader" size="small" class="animate-spin" aria-hidden="true" />
+                </Show>
               </span>
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
-                  <span data-slot="message-part-title-text">
+                  <span
+                    data-slot="message-part-title-text"
+                    style={{
+                      color:
+                        props.status === "error"
+                          ? "var(--icon-critical-base)"
+                          : pending()
+                            ? undefined
+                            : "var(--icon-success-base)",
+                    }}
+                  >
                     <TextShimmer
                       text={i18n.t(
                         props.status === "error"
-                          ? "ui.tool.action.edit.failed"
+                          ? "ui.tool.action.file.failed"
                           : pending()
-                            ? "ui.tool.action.edit.running"
-                            : "ui.tool.action.edit.done",
+                            ? "ui.tool.action.file.running"
+                            : "ui.tool.action.file.done",
                       )}
                       active={pending()}
                     />
                   </span>
-                  <Show when={!pending()}>
+                  <Show when={filename()}>
                     {/* 文件名会被省略，悬停看全路径。 */}
-                    <span data-slot="message-part-title-filename" title={props.input.filePath}>
+                    <span data-slot="message-part-title-filename" title={path()}>
                       {filename()}
                     </span>
                   </Show>
                 </div>
-                <Show when={!pending() && props.input.filePath?.includes("/")}>
+                <Show when={!pending() && path().includes("/")}>
                   <div data-slot="message-part-path">
-                    <span data-slot="message-part-directory">{getDirectory(props.input.filePath!)}</span>
+                    <span data-slot="message-part-directory">{getDirectory(path())}</span>
                   </div>
                 </Show>
               </div>
               <div data-slot="message-part-actions">
-                <Show when={!pending() && props.metadata.filediff}>
-                  <DiffChanges changes={props.metadata.filediff} />
+                <Show when={!pending() && filediff()}>
+                  <DiffChanges changes={filediff()!} />
                 </Show>
               </div>
             </div>
@@ -2408,8 +2554,8 @@ ToolRegistry.register({
             <ToolFileAccordion
               path={path()}
               actions={
-                <Show when={!pending() && props.metadata.filediff}>
-                  <DiffChanges changes={props.metadata.filediff!} />
+                <Show when={!pending() && filediff()}>
+                  <DiffChanges changes={filediff()!} />
                 </Show>
               }
             >
@@ -2431,15 +2577,17 @@ ToolRegistry.register({
     const i18n = useI18n()
     const fileComponent = useFileComponent()
     const diagnostics = createMemo(() => getDiagnostics(props.metadata.diagnostics, props.input.filePath))
-    const path = createMemo(() => props.input.filePath || "")
-    const filename = () => getFilename(props.input.filePath ?? "")
+    const filediff = createMemo(() => fileDiffOf(props.metadata, props.input, props.title))
+    const path = createMemo(() => filePathOf(props.metadata, props.input, props.title))
+    const filename = () => getFilename(path())
     const pending = () => props.status === "pending" || props.status === "running"
     const lineCount = createMemo(() => {
-      if (props.metadata.filediff) return null
+      if (filediff()) return null
       const content = props.input.content
       if (!content) return null
       return content.split("\n").length
     })
+    const fileDiff = createMemo(() => fileDiffView(filediff(), props.input, path()))
     return (
       <div data-component="write-tool">
         <BasicTool
@@ -2450,61 +2598,85 @@ ToolRegistry.register({
           trigger={
             <div data-component="write-trigger">
               <span data-slot="tool-badge-icon">
-                <Icon name="lu-file-plus" size="small" />
+                <Show when={pending()} fallback={<Icon name="lu-file-plus" size="small" />}>
+                  <Icon name="lu-loader" size="small" class="animate-spin" aria-hidden="true" />
+                </Show>
               </span>
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
-                  <span data-slot="message-part-title-text">
+                  <span
+                    data-slot="message-part-title-text"
+                    style={{
+                      color:
+                        props.status === "error"
+                          ? "var(--icon-critical-base)"
+                          : pending()
+                            ? undefined
+                            : "var(--icon-success-base)",
+                    }}
+                  >
                     <TextShimmer
                       text={i18n.t(
                         props.status === "error"
-                          ? "ui.tool.action.write.failed"
+                          ? "ui.tool.action.file.failed"
                           : pending()
-                            ? "ui.tool.action.write.running"
-                            : "ui.tool.action.write.done",
+                            ? "ui.tool.action.file.running"
+                            : "ui.tool.action.file.done",
                       )}
                       active={pending()}
                     />
                   </span>
-                  <Show when={!pending()}>
+                  <Show when={filename()}>
                     {/* 文件名会被省略，悬停看全路径。 */}
-                    <span data-slot="message-part-title-filename" title={props.input.filePath}>
+                    <span data-slot="message-part-title-filename" title={path()}>
                       {filename()}
                     </span>
                   </Show>
                 </div>
-                <Show when={!pending() && props.input.filePath?.includes("/")}>
+                <Show when={!pending() && path().includes("/")}>
                   <div data-slot="message-part-path">
-                    <span data-slot="message-part-directory">{getDirectory(props.input.filePath!)}</span>
+                    <span data-slot="message-part-directory">{getDirectory(path())}</span>
                   </div>
                 </Show>
               </div>
-              <Show when={props.metadata.filediff || lineCount()}>
+              <Show when={filediff() || lineCount()}>
                 <div data-slot="message-part-actions">
-                  <DiffChanges
-                    changes={
-                      props.metadata.filediff ? props.metadata.filediff! : { additions: lineCount()!, deletions: 0 }
-                    }
-                  />
+                  <DiffChanges changes={filediff() ? filediff()! : { additions: lineCount()!, deletions: 0 }} />
                 </div>
               </Show>
             </div>
           }
         >
-          <Show when={props.input.content && path()}>
+          <Show when={path() && (fileDiff() || typeof props.input.content === "string")}>
             <ToolFileAccordion path={path()}>
-              <div data-component="write-content">
-                <Dynamic
-                  component={fileComponent}
-                  mode="text"
-                  file={{
-                    name: props.input.filePath,
-                    contents: props.input.content,
-                    cacheKey: checksum(props.input.content),
-                  }}
-                  overflow="wrap"
-                />
-              </div>
+              <Show
+                when={fileDiff()}
+                fallback={
+                  <div data-component="write-content">
+                    <Dynamic
+                      component={fileComponent}
+                      mode="text"
+                      file={{
+                        name: path(),
+                        contents: props.input.content ?? "",
+                        cacheKey: checksum(props.input.content ?? ""),
+                      }}
+                      overflow="wrap"
+                    />
+                  </div>
+                }
+              >
+                {(diff) => (
+                  <div data-component="edit-content">
+                    <Dynamic
+                      component={fileComponent}
+                      mode="diff"
+                      fileDiff={diff()}
+                      hunkSeparators={diff()!.isPartial ? "simple" : "line-info-basic"}
+                    />
+                  </div>
+                )}
+              </Show>
             </ToolFileAccordion>
           </Show>
           <DiagnosticsDisplay diagnostics={diagnostics()} />
@@ -2520,6 +2692,26 @@ ToolRegistry.register({
     const i18n = useI18n()
     const fileComponent = useFileComponent()
     const files = createMemo(() => patchFiles(props.metadata.files))
+    const fileChips = createMemo(() => {
+      if (files().length) {
+        return files().map((f) => ({ path: f.relativePath, additions: f.additions, deletions: f.deletions }))
+      }
+      // A failed or older call may have file paths but no parsed diff to render.
+      const saved = props.metadata.filepaths
+      if (Array.isArray(saved)) {
+        const paths = saved.filter((path): path is string => typeof path === "string" && !!path.trim())
+        if (paths.length) return [...new Set(paths)].map((path) => ({ path }))
+      }
+      const patch = props.input.patchText
+      if (typeof patch === "string") {
+        const paths = Array.from(patch.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm), (match) =>
+          match[1].trim(),
+        )
+        if (paths.length) return [...new Set(paths)].filter(Boolean).map((path) => ({ path }))
+      }
+      const path = filePathOf(props.metadata, props.input)
+      return path ? [{ path }] : []
+    })
     const pending = createMemo(() => props.status === "pending" || props.status === "running")
     const single = createMemo(() => {
       const list = files()
@@ -2554,19 +2746,17 @@ ToolRegistry.register({
               badge={{ color: "orange" }}
               defer={props.deferContent !== false}
               trigger={{
-                title: i18n.t(props.status === "error" ? "ui.tool.action.patch.failed" : "ui.tool.patch"),
+                title: i18n.t(
+                  props.status === "error"
+                    ? "ui.tool.action.file.failed"
+                    : pending()
+                      ? "ui.tool.action.file.running"
+                      : "ui.tool.action.file.done",
+                ),
                 // 文件名逐个列出来（`编辑 [icon] a.ts [icon] b.ts +2`），
                 // 而不是只写"N 个文件"——用户扫一眼就知道动了什么，不用展开。
                 // 右侧再给汇总增删。
-                detail: (
-                  <ToolFileChips
-                    files={files().map((f) => ({
-                      path: f.relativePath,
-                      additions: f.additions,
-                      deletions: f.deletions,
-                    }))}
-                  />
-                ),
+                detail: <ToolFileChips files={fileChips()} />,
                 action: (
                   <DiffChanges changes={files().map((f) => ({ additions: f.additions, deletions: f.deletions }))} />
                 ),
@@ -2668,7 +2858,9 @@ ToolRegistry.register({
             trigger={
               <div data-component="edit-trigger">
                 <span data-slot="tool-badge-icon">
-                  <Icon name="code-lines" size="small" />
+                  <Show when={pending()} fallback={<Icon name="lu-square-pen" size="small" />}>
+                    <Icon name="lu-loader" size="small" class="animate-spin" aria-hidden="true" />
+                  </Show>
                 </span>
                 <div data-slot="message-part-title-area">
                   <div data-slot="message-part-title">
@@ -2676,17 +2868,17 @@ ToolRegistry.register({
                       <TextShimmer
                         text={i18n.t(
                           props.status === "error"
-                            ? "ui.tool.action.patch.failed"
+                            ? "ui.tool.action.file.failed"
                             : pending()
-                              ? "ui.tool.action.patch.running"
-                              : "ui.tool.action.patch.done",
+                              ? "ui.tool.action.file.running"
+                              : "ui.tool.action.file.done",
                         )}
                         active={pending()}
                       />
                     </span>
-                    <Show when={!pending()}>
-                      <span data-slot="message-part-title-filename">{getFilename(single()!.relativePath)}</span>
-                    </Show>
+                    <span data-slot="message-part-title-filename" title={single()!.relativePath}>
+                      {getFilename(single()!.relativePath)}
+                    </span>
                   </div>
                   <Show when={!pending() && single()!.relativePath.includes("/")}>
                     <div data-slot="message-part-path">

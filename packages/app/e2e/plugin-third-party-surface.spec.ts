@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-const directory = process.env.SURFACE_E2E_DIRECTORY
-if (!directory) throw new Error("SURFACE_E2E_DIRECTORY is required")
+const directory = process.env.SURFACE_E2E_DIRECTORY ?? ""
 const slug = Buffer.from(directory, "utf8")
   .toString("base64")
   .replace(/\+/g, "-")
@@ -61,6 +60,8 @@ function rendererMessages(sessionID: string) {
     },
   ]
 }
+
+test.skip(!directory, "SURFACE_E2E_DIRECTORY is not configured")
 
 test("third-party Surface complete Chromium golden path", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })

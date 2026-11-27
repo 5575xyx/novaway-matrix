@@ -69,7 +69,9 @@ const portListenerPids = async () => {
 
 const killPortListeners = async () => {
   for (const pid of await portListenerPids()) {
-    await Bun.spawn(["taskkill", "/PID", pid, "/T", "/F"], { stdout: "ignore", stderr: "ignore" }).exited.catch(() => undefined)
+    await Bun.spawn(["taskkill", "/PID", pid, "/T", "/F"], { stdout: "ignore", stderr: "ignore" }).exited.catch(
+      () => undefined,
+    )
   }
 }
 
@@ -125,19 +127,61 @@ try {
     60_000,
     "health",
   ).catch((error) => {
-    const detail = initialHealth ? ` (last response ${initialHealth.status}: ${initialHealth.body})` : " (no HTTP response)"
+    const detail = initialHealth
+      ? ` (last response ${initialHealth.status}: ${initialHealth.body})`
+      : " (no HTTP response)"
     throw new Error(`${error.message}${detail}`)
   })
   const authenticatedHealth = await request("/global/health")
-  if (!authenticatedHealth.ok) throw new Error(`expected authenticated health to return 200, got ${authenticatedHealth.status}`)
+  if (!authenticatedHealth.ok)
+    throw new Error(`expected authenticated health to return 200, got ${authenticatedHealth.status}`)
   const unauthenticated = await fetch(`${base}/global/health`)
-  if (unauthenticated.status !== 401) throw new Error(`expected unauthenticated health to return 401, got ${unauthenticated.status}`)
+  if (unauthenticated.status !== 401)
+    throw new Error(`expected unauthenticated health to return 401, got ${unauthenticated.status}`)
   const wrongCredentials = await fetch(`${base}/global/health`, {
     headers: { authorization: `Basic ${Buffer.from(`${username}:wrong-password`).toString("base64")}` },
   })
-  if (wrongCredentials.status !== 401) throw new Error(`expected wrong credentials to return 401, got ${wrongCredentials.status}`)
+  if (wrongCredentials.status !== 401)
+    throw new Error(`expected wrong credentials to return 401, got ${wrongCredentials.status}`)
 
-  const sessionResponse = await request("/session", { method: "POST", body: JSON.stringify({ title: "production smoke" }) })
+  const employeeResponse = await request("/team/employee", {
+    method: "POST",
+    body: JSON.stringify({ name: "Production smoke expert", job: "build" }),
+  })
+  const employee = (await employeeResponse.json()) as { id?: string }
+  if (!employeeResponse.ok || !employee.id) throw new Error(`could not create smoke expert: ${employeeResponse.status}`)
+  const openExpert = (title: string) =>
+    request("/session", { method: "POST", body: JSON.stringify({ title, expertID: employee.id }) })
+  type ExpertConversation = { id?: string; employeeID?: string; teamMode?: string; teamIDs?: string[] }
+  const hasExpert = (session: ExpertConversation) =>
+    session.employeeID === employee.id && session.teamMode === "selected" && session.teamIDs?.length === 0
+  const opened = await openExpert("Production smoke expert conversation")
+  const expertConversation = (await opened.json()) as ExpertConversation
+  if (!opened.ok || !expertConversation.id || !hasExpert(expertConversation)) {
+    throw new Error(`expert session was not created with its selection: ${opened.status}`)
+  }
+  const archived = await request(`/team/employee/${employee.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ archived: true }),
+  })
+  if (!archived.ok) throw new Error(`could not archive smoke expert: ${archived.status}`)
+  const rejectedTitle = "This archived expert session must not exist"
+  const rejected = await openExpert(rejectedTitle)
+  if (rejected.status !== 400) throw new Error(`expected archived expert launch to return 400, got ${rejected.status}`)
+  const listedSessions = await request(`/session?directory=${encodeURIComponent(directory)}`)
+  const listed = (await listedSessions.json()) as { id: string; title: string }[]
+  if (
+    !listedSessions.ok ||
+    !listed.some((item) => item.id === expertConversation.id) ||
+    listed.some((item) => item.title === rejectedTitle)
+  ) {
+    throw new Error("expert launch did not preserve the expected session list")
+  }
+
+  const sessionResponse = await request("/session", {
+    method: "POST",
+    body: JSON.stringify({ title: "production smoke" }),
+  })
   const session = (await sessionResponse.json()) as { id: string }
   if (!session.id) throw new Error("production smoke did not create a session")
   const launchResponse = await request(`/session/${session.id}/goals/launch`, {
@@ -172,7 +216,10 @@ try {
     body: JSON.stringify({ expectedVersion: run.graph.version, graph }),
   })
   await waitFor(
-    async () => ((await request(`/super-agent/runs/${run.id}`)).json() as Promise<{ status: string }>).then((item) => item.status === "needs_review"),
+    async () =>
+      ((await request(`/super-agent/runs/${run.id}`)).json() as Promise<{ status: string }>).then(
+        (item) => item.status === "needs_review",
+      ),
     60_000,
     "durable verification required",
   )
@@ -187,14 +234,18 @@ try {
       measured: "pass",
     }),
   })
-  if (!evidenceResponse.ok) throw new Error(`production smoke could not record criterion evidence: ${evidenceResponse.status}`)
+  if (!evidenceResponse.ok)
+    throw new Error(`production smoke could not record criterion evidence: ${evidenceResponse.status}`)
   const verificationResponse = await request(`/super-agent/runs/${run.id}/verify-finish`, {
     method: "POST",
     body: JSON.stringify({ verifierID: "builtin.test", summary: "production durable smoke verified" }),
   })
   if (!verificationResponse.ok) throw new Error(`production smoke could not verify run: ${verificationResponse.status}`)
   await waitFor(
-    async () => ((await request(`/super-agent/runs/${run.id}`)).json() as Promise<{ status: string }>).then((item) => item.status === "completed"),
+    async () =>
+      ((await request(`/super-agent/runs/${run.id}`)).json() as Promise<{ status: string }>).then(
+        (item) => item.status === "completed",
+      ),
     60_000,
     "durable completion",
   )
@@ -203,14 +254,21 @@ try {
 
   const restartRunResponse = await request("/super-agent/runs", {
     method: "POST",
-    body: JSON.stringify({ goal: { text: "recover an interrupted production operation", acceptanceCriteria: [], sessionId: session.id } }),
+    body: JSON.stringify({
+      goal: { text: "recover an interrupted production operation", acceptanceCriteria: [], sessionId: session.id },
+    }),
   })
-  const restartRun = (await restartRunResponse.json()) as { id: string; graph: { version: number; rootTaskID: string; nodes: unknown[] } }
+  const restartRun = (await restartRunResponse.json()) as {
+    id: string
+    graph: { version: number; rootTaskID: string; nodes: unknown[] }
+  }
   const restartGraph = {
     ...restartRun.graph,
     nodes: restartRun.graph.nodes.map((node) => {
       const item = node as { id: string }
-      return item.id === restartRun.graph.rootTaskID ? { ...item, input: { tool: "sleep", input: { duration_ms: 10_000 } } } : item
+      return item.id === restartRun.graph.rootTaskID
+        ? { ...item, input: { tool: "sleep", input: { duration_ms: 10_000 } } }
+        : item
     }),
   }
   await request(`/super-agent/runs/${restartRun.id}/graph`, {
@@ -220,7 +278,9 @@ try {
   await request(`/super-agent/runs/${restartRun.id}/start`, { method: "POST" })
   await waitFor(
     async () => {
-      const events = (await (await request(`/super-agent/runs/${restartRun.id}/events`)).json()) as Array<{ type: string }>
+      const events = (await (await request(`/super-agent/runs/${restartRun.id}/events`)).json()) as Array<{
+        type: string
+      }>
       return events.some((event) => event.type === "tool_operation_started")
     },
     30_000,
@@ -243,14 +303,23 @@ try {
     60_000,
     "health after restart",
   ).catch((error) => {
-    const detail = restartHealth ? ` (last response ${restartHealth.status}: ${restartHealth.body})` : " (no HTTP response)"
+    const detail = restartHealth
+      ? ` (last response ${restartHealth.status}: ${restartHealth.body})`
+      : " (no HTTP response)"
     throw new Error(`${error.message}${detail}`)
   })
   await waitFor(
-    async () => ((await request(`/super-agent/runs/${restartRun.id}`)).json() as Promise<{ status: string }>).then((item) => item.status === "needs_review"),
+    async () =>
+      ((await request(`/super-agent/runs/${restartRun.id}`)).json() as Promise<{ status: string }>).then(
+        (item) => item.status === "needs_review",
+      ),
     30_000,
     "safe recovery review state",
   )
+  const restoredExpert = await request(`/session/${expertConversation.id}`)
+  if (!restoredExpert.ok || !hasExpert((await restoredExpert.json()) as ExpertConversation)) {
+    throw new Error("expert session selection was not preserved after restart")
+  }
 
   const evidence = {
     binary: path.relative(root, binary).replaceAll("\\", "/"),
@@ -259,6 +328,7 @@ try {
     auth: { unauthenticated: 401, wrongCredentials: 401, authenticated: 200 },
     flow: "completed",
     restartRecovery: "needs_review",
+    expertConversation: { create: "selected", archivedLaunch: 400, orphanSession: false, persistedAfterRestart: true },
     createdAt: new Date().toISOString(),
   }
   await writeFile(

@@ -1,0 +1,150 @@
+{
+  "$schema": "../../catalog/schema/manifest.schema.json",
+  "apiVersion": 2,
+  "name": "operations-suite",
+  "version": "1.0.2",
+  "description": "NovaWay 运营工作台：选题、创作、预检、发布和数据复盘。",
+  "kind": "declarative",
+  "categories": [
+    "productivity",
+    "marketing",
+    "automation",
+    "social",
+    "workbench"
+  ],
+  "activationEvents": [
+    "onStartup"
+  ],
+  "contributes": {
+    "agents": [
+      {
+        "id": "pulse-orchestrator",
+        "description": "运营工作台主智能体：分析运营意图，协调选题、创作、预检、发布和数据复盘技能。",
+        "mode": "primary",
+        "prompt": {
+          "file": "./agents/pulse-orchestrator.txt"
+        },
+        "permission": {
+          "*": "ask",
+          "question": "allow",
+          "read": "allow",
+          "mcp": {
+            "wechat-official": "allow"
+          },
+          "skill": {
+            "*": "deny",
+            "operations-suite_account-review": "allow",
+            "operations-suite_humanize-writing": "allow",
+            "operations-suite_media-ops": "allow",
+            "operations-suite_topic-radar": "allow",
+            "operations-suite_wxgzh-ops": "allow",
+            "operations-suite_xiaohongshu-ops": "allow"
+          }
+        },
+        "options": {
+          "displayName": "运营主智能体",
+          "category": "运营模式",
+          "modeGroup": "operations",
+          "workbench": {
+            "id": "operations",
+            "name": "运营工作台",
+            "shortName": "运营",
+            "icon": "O",
+            "description": "选题、创作、预检、发布和数据复盘的一体化运营工作台。",
+            "color": "var(--app-mode-operations, var(--app-mode-workbench))",
+            "foreground": "var(--app-mode-operations-foreground, var(--app-mode-workbench-foreground))"
+          },
+          "scene": "overview",
+          "defaultSkill": "operations-suite_media-ops"
+        },
+        "tools": [
+          "operations-suite_workbench-status"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "id": "account-review",
+        "description": "Use when the user wants to review social media account performance or asks for 复盘、数据、播放量、完播率、涨粉 or account diagnosis.",
+        "source": {
+          "file": "./skills/account-review/SKILL.md"
+        }
+      },
+      {
+        "id": "humanize-writing",
+        "description": "Use when the user wants copy rewritten to sound human, asks for 去 AI 味, or wants platform-native copy for 小红书、抖音、视频号、B站 or 公众号.",
+        "source": {
+          "file": "./skills/humanize-writing/SKILL.md"
+        }
+      },
+      {
+        "id": "media-ops",
+        "description": "Use for social-media topic selection, platform-native writing, pre-publish checks, publishing and account review across 抖音、小红书、视频号、快手、B站 and 公众号.",
+        "source": {
+          "file": "./skills/media-ops/SKILL.md"
+        }
+      },
+      {
+        "id": "topic-radar",
+        "description": "Use for social-media topic ideas, hot-list research, competitor or viral-post teardown, content calendars and growth directions.",
+        "source": {
+          "file": "./skills/topic-radar/SKILL.md"
+        }
+      },
+      {
+        "id": "wxgzh-ops",
+        "description": "Use whenever the user wants to create, format or publish content to a WeChat Official Account / 微信公众号.",
+        "source": {
+          "file": "./skills/wxgzh-ops/SKILL.md"
+        }
+      },
+      {
+        "id": "xiaohongshu-ops",
+        "description": "Use whenever the user wants to operate Xiaohongshu / 小红书, including login, publishing, search, comments, likes, favorites or analysis.",
+        "source": {
+          "file": "./skills/xiaohongshu-ops/SKILL.md"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "id": "workbench-status",
+        "description": "Report the installed Operations Workbench capabilities.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "entry": "./tools/workbench-status.mjs"
+      }
+    ],
+    "commands": [
+      {
+        "id": "operations-workbench-check",
+        "description": "Check the installed Operations Workbench Agent and Skills.",
+        "template": "检查运营工作台当前已安装的 Agent、Skill 和辅助资源。",
+        "agent": "operations-suite_pulse-orchestrator"
+      }
+    ],
+    "surfaces": [
+      {
+        "id": "operations-workbench",
+        "slot": "sidebar.item",
+        "title": "运营工作台",
+        "icon": "globe",
+        "order": 45,
+        "action": {
+          "type": "view",
+          "viewId": "operations-workbench",
+          "render": {
+            "type": "builtin",
+            "component": "operations-workbench"
+          }
+        }
+      }
+    ]
+  },
+  "engines": {
+    "novaway": ">=0.0.0"
+  }
+}

@@ -98,6 +98,16 @@ export type TimelineRowMap = {
   }
 }
 
+const isQuoteTextPart = (part: Part): boolean => {
+  if (part.type !== "text" || !part.synthetic) return false
+  const metadata = (part as Part & { metadata?: unknown }).metadata
+  if (!metadata || typeof metadata !== "object") return false
+  const quote = (metadata as Record<string, unknown>).quote
+  if (!quote || typeof quote !== "object") return false
+  const value = quote as Record<string, unknown>
+  return typeof value.path === "string" || typeof value.label === "string"
+}
+
 export namespace TimelineRow {
   export class CommentStrip extends Data.TaggedClass("CommentStrip")<{
     userMessageID: string
@@ -292,7 +302,8 @@ export namespace Timeline {
     const userParts = getMessageParts(userMessage.id)
     const comments = userParts.flatMap((p) => MessageComment.fromPart(p) ?? [])
     const visibleUserContent = userParts.some((part) => {
-      if (part.type === "text") return !part.synthetic && !part.ignored && part.text.trim().length > 0
+      if (part.type === "text")
+        return isQuoteTextPart(part) || (!part.synthetic && !part.ignored && part.text.trim().length > 0)
       return part.type === "file" || part.type === "agent"
     })
     const compaction = userParts.some((p) => p.type === "compaction")
@@ -558,23 +569,42 @@ export namespace TurnFold {
     return refs.map((ref) => options.getPart(ref.messageID, ref.partID)).filter((part): part is Part => !!part)
   }
 
-  /** 面向用户的交互卡（提问 / 文档评审）始终留在折叠区外，用户随时能点。 */
-  const interactive = (row: TimelineRow.TimelineRow, options: FoldOptions) => {
-    if (row._tag !== "AssistantPart") return false
-    return partsOf(row.group, options).some(
-      (part) => part.type === "tool" && (part.tool === "question" || part.tool === "review_document"),
-    )
-  }
+  type AssistantPartClassification = { narration: boolean; interactive: boolean }
+  const assistantPartClassification = new WeakMap<TimelineRow.AssistantPart, AssistantPartClassification>()
 
-  /** 只有正文的组 = 模型在说话，不属于"过程"，运行中的轮次要留在容器外。 */
-  const narration = (row: TimelineRow.TimelineRow, options: FoldOptions) => {
-    if (row._tag !== "AssistantPart") return false
+  // Part type/tool identity is immutable for a part ID; keep structural classification with its stable row.
+  const classifyAssistantPart = (row: TimelineRow.AssistantPart, options: FoldOptions) => {
+    const cached = assistantPartClassification.get(row)
+    if (cached) return cached
     const parts = partsOf(row.group, options)
-    return parts.length > 0 && parts.every((part) => part.type === "text")
+    const value = {
+      narration: parts.length > 0 && parts.every((part) => part.type === "text"),
+      interactive: parts.some(
+        (part) =>
+          part.type === "tool" &&
+          (part.tool === "question" || part.tool === "plan_exit" || part.tool === "review_document"),
+      ),
+    }
+    assistantPartClassification.set(row, value)
+    return value
   }
 
-  /** 分桶结果:同一轮的行 + 该轮的 userMessageID(结构性行可能没有 id)。 */
+  const interactive = (row: TimelineRow.TimelineRow, options: FoldOptions) =>
+    row._tag === "AssistantPart" && classifyAssistantPart(row, options).interactive
+
+  const narration = (row: TimelineRow.TimelineRow, options: FoldOptions) =>
+    row._tag === "AssistantPart" && classifyAssistantPart(row, options).narration
+
   type Bucket = { id: string | undefined; rows: TimelineRow.TimelineRow[] }
+  type CompletedBucketCache = {
+    rows: TimelineRow.TimelineRow[]
+    turnStart: number | undefined
+    turnEnd: number | undefined
+    folded: TimelineRow.TimelineRow[]
+  }
+  // Completed turns do not change during the active tail's token stream. Cache their fold
+  // projection by a weak reference to the first row; active turns are never cached.
+  const completedBucketCache = new WeakMap<TimelineRow.TimelineRow, CompletedBucketCache>()
 
   /** 切段结果:一段连续的过程行(折成容器),或一行留在容器外的内容。 */
   type Piece = { _tag: "Process"; rows: TimelineRow.TimelineRow[] } | { _tag: "Outside"; row: TimelineRow.TimelineRow }
@@ -638,22 +668,28 @@ export namespace TurnFold {
    * 两层都要有,不是二选一:大容器管"这轮跑完了没",里面的段管"哪句正文对应哪段过程"。
    * 只有一段(中间没插正文)时不再套第二层折叠头,直接平铺。
    * 提问/评审卡始终露在外面(用户随时要点),待办清单卡也留在外面当进度面板。
-   * `undefined` = 保持原样:没有收尾正文(最后一次动作露出来更有用),或压根没有过程可折。
+   * `allowIncomplete` 用于被中断的尝试：即使模型没有来得及输出收尾正文，
+   * 过程仍然要聚合成 Orca 风格的摘要，不能因为中断就退回一条工具卡一条工具卡。
+   * `undefined` = 保持原样:压根没有过程可折。
    */
   const foldCompletedRows = (
     rows: TimelineRow.TimelineRow[],
     userMessageID: string,
     options: FoldOptions,
+    allowIncomplete = false,
   ): TimelineRow.TimelineRow[] | undefined => {
     let cut = rows.length
     while (cut > 0 && TAIL_TAGS.has(rows[cut - 1]!._tag)) cut -= 1
+    const isInside = (row: TimelineRow.TimelineRow) =>
+      PROCESS_TAGS.has(row._tag) && row._tag !== "TodoOverview" && !interactive(row, options)
+
     // 再往前的连续纯文本组 = 这一轮给用户看的那句结论。
     let start = cut
     while (start > 0 && narration(rows[start - 1]!, options)) start -= 1
-    if (start === cut) return undefined
+    // 正常完成的轮次需要一段收尾正文来界定过程；中断尝试没有这个正文，
+    // 但仍应把已有的过程行折起来。这里让 start 保持在 cut，下面会收集整段过程。
+    if (start === cut && !allowIncomplete) return undefined
 
-    const isInside = (row: TimelineRow.TimelineRow) =>
-      PROCESS_TAGS.has(row._tag) && row._tag !== "TodoOverview" && !interactive(row, options)
     const inside = rows.slice(0, start).filter(isInside)
     if (inside.length === 0) return undefined
 
@@ -766,8 +802,11 @@ export namespace TurnFold {
     active: boolean,
     options: FoldOptions,
     thinking?: TimelineRow.Thinking,
+    allowIncomplete = false,
   ): TimelineRow.TimelineRow[] | undefined =>
-    active ? foldActiveRows(rows, userMessageID, options, thinking) : foldCompletedRows(rows, userMessageID, options)
+    active
+      ? foldActiveRows(rows, userMessageID, options, thinking)
+      : foldCompletedRows(rows, userMessageID, options, allowIncomplete)
 
   /**
    * 待办分区内部走同一套切段:讲一句、跑一段,正文和过程一一对应,而不是整段过程堆在清单项里。
@@ -824,16 +863,55 @@ export namespace TurnFold {
       const body = bucket.rows
       const userMessageID = bucket.id
       if (userMessageID === undefined) return body
-      // 出错或被中断/压缩的轮次:保持原样,让用户看得到发生了什么。
-      if (body.some((row) => row._tag === "Error" || row._tag === "TurnDivider")) return body
 
       const active = options.isTurnActive?.(userMessageID) === true
-      // 轮首那条实时工作指示不进容器:它的标题/起始时间提升到常驻容器里,
-      // 由渲染层画成容器底部的一行,避免容器头部和它各显示一个计时。
+      const turnTime = options.turnTime(userMessageID)
+      const cacheKey = body[0]
+      const cached = cacheKey && !active ? completedBucketCache.get(cacheKey) : undefined
+      if (
+        cached &&
+        cached.rows.length === body.length &&
+        cached.rows.every((row, index) => row === body[index]) &&
+        cached.turnStart === turnTime.start &&
+        cached.turnEnd === turnTime.end
+      ) return cached.folded
+
+      const remember = (folded: TimelineRow.TimelineRow[]) => {
+        if (cacheKey && !active) {
+          completedBucketCache.set(cacheKey, {
+            rows: [...body],
+            turnStart: turnTime.start,
+            turnEnd: turnTime.end,
+            folded,
+          })
+        }
+        return folded
+      }
+
+      // Error and retry dividers are hard boundaries; fold each attempt independently.
+      if (body.some((row) => row._tag === "Error" || row._tag === "TurnDivider")) {
+        const folded: TimelineRow.TimelineRow[] = []
+        let segment: TimelineRow.TimelineRow[] = []
+        const flush = () => {
+          if (segment.length === 0) return
+          folded.push(...(foldRows(segment, userMessageID, false, options, undefined, true) ?? segment))
+          segment = []
+        }
+        for (const row of body) {
+          if (row._tag === "Error" || row._tag === "TurnDivider") {
+            flush()
+            folded.push(row)
+          } else {
+            segment.push(row)
+          }
+        }
+        flush()
+        return remember(folded)
+      }
+
       const thinking = body.find((row): row is TimelineRow.Thinking => row._tag === "Thinking")
-      // 清单分区先各自切段,再随整轮一起切:分区内外都是"讲一句、跑一段"。
       const rows = body.map((row) => (row._tag === "TodoOverview" ? foldSections(row, userMessageID, options) : row))
-      return foldRows(rows, userMessageID, active, options, thinking) ?? rows
+      return remember(foldRows(rows, userMessageID, active, options, thinking) ?? rows)
     }
 
     return buckets.flatMap((bucket) => foldBucket(bucket))
@@ -857,7 +935,7 @@ export namespace TodoGrouping {
   // 计入"产出"的工具:写文件类。按去重后的 filePath 计数。
   const OUTPUT_TOOLS = new Set(["write", "edit", "multiedit", "patch"])
 
-  type SnapshotTodo = { id: string; content: string; status: string; focused?: boolean }
+  export type SnapshotTodo = { id: string; content: string; status: string; focused?: boolean }
 
   const isTodoToolPart = (part: Part): part is Extract<Part, { type: "tool" }> =>
     part.type === "tool" && TODO_TOOL_IDS.has(part.tool)
@@ -890,6 +968,26 @@ export namespace TodoGrouping {
     if (fromMetadata && fromMetadata.length > 0) return fromMetadata
     const fromInput = collect(state.input?.todos)
     if (fromInput) return fromInput
+    return []
+  }
+
+  /**
+   * 读取最近一份非空待办快照。聊天历史可能很长，但通常最新的快照就在末尾；
+   * 从后向前找到第一份有效快照后即可停止，避免每次 UI 更新都扫描整段历史。
+   */
+  export function latestSnapshot(
+    messages: readonly { id: string }[],
+    partsForMessage: (messageID: string) => readonly Part[],
+  ): SnapshotTodo[] {
+    for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
+      const parts = partsForMessage(messages[messageIndex]!.id)
+      for (let partIndex = parts.length - 1; partIndex >= 0; partIndex--) {
+        const part = parts[partIndex]!
+        if (!isTodoToolPart(part)) continue
+        const snapshot = snapshotOf(part)
+        if (snapshot.length > 0) return snapshot
+      }
+    }
     return []
   }
 
@@ -929,10 +1027,24 @@ export namespace TodoGrouping {
     liveStatus?: (content: string) => string | undefined
   }
 
+  const assistantHasTodoTool = new WeakMap<TimelineRow.AssistantPart, boolean>()
+  const rowHasTodoTool = (row: TimelineRow.AssistantPart, getPart: (messageID: string, partID: string) => Part | undefined) => {
+    const cached = assistantHasTodoTool.get(row)
+    if (cached !== undefined) return cached
+    const result = groupPartsOf(row.group, getPart).some(isTodoToolPart)
+    assistantHasTodoTool.set(row, result)
+    return result
+  }
+
+  export function hasTodoTool(
+    rows: TimelineRow.TimelineRow[],
+    getPart: (messageID: string, partID: string) => Part | undefined,
+  ) {
+    return rows.some((row) => row._tag === "AssistantPart" && rowHasTodoTool(row, getPart))
+  }
+
   export function group(rows: TimelineRow.TimelineRow[], options: GroupOptions): TimelineRow.TimelineRow[] {
-    const hasTodoTool = rows.some(
-      (row) => row._tag === "AssistantPart" && groupPartsOf(row.group, options.getPart).some(isTodoToolPart),
-    )
+    const hasTodoTool = TodoGrouping.hasTodoTool(rows, options.getPart)
     // 快路径:整个会话没有用过待办工具,原样返回,零开销。
     if (!hasTodoTool) return rows
 
@@ -966,33 +1078,59 @@ export namespace TodoGrouping {
         const segment = segments.get(bucket.todoID) ?? 0
         segments.set(bucket.todoID, segment + 1)
         const title = titleByID.get(bucket.todoID) ?? ""
-        sections.push(
-          new TimelineRow.TodoSection({
-            todoID: bucket.todoID,
-            segment,
-            title,
-            status: options.liveStatus?.(title) ?? snapshotStatusByID.get(bucket.todoID) ?? "pending",
-            rows: bucket.rows,
-            durationMs:
-              bucket.start !== undefined && bucket.end !== undefined && bucket.end >= bucket.start
-                ? bucket.end - bucket.start
-                : undefined,
-            outputCount: bucket.outputs.size,
-            startedAt: bucket.start,
-            endedAt: bucket.end,
-          }),
-        )
+        const nextSection = new TimelineRow.TodoSection({
+          todoID: bucket.todoID,
+          segment,
+          title,
+          status: options.liveStatus?.(title) ?? snapshotStatusByID.get(bucket.todoID) ?? "pending",
+          rows: bucket.rows,
+          durationMs:
+            bucket.start !== undefined && bucket.end !== undefined && bucket.end >= bucket.start
+              ? bucket.end - bucket.start
+              : undefined,
+          outputCount: bucket.outputs.size,
+          startedAt: bucket.start,
+          endedAt: bucket.end,
+        })
+        // 聚焦快照可能把前一个并行 lane 的空占位重新指向同一待办。
+        // 用新产生的执行区间替换紧邻的空占位，避免同一待办在清单里出现两个同名分区。
+        const previous = sections.at(-1)
+        if (previous?.todoID === bucket.todoID && previous.rows.length === 0 && bucket.rows.length > 0) {
+          sections[sections.length - 1] = new TimelineRow.TodoSection({
+            todoID: nextSection.todoID,
+            segment: previous.segment,
+            title: nextSection.title,
+            status: nextSection.status,
+            rows: nextSection.rows,
+            durationMs: nextSection.durationMs,
+            outputCount: nextSection.outputCount,
+            startedAt:
+              previous.startedAt === undefined || nextSection.startedAt === undefined
+                ? (previous.startedAt ?? nextSection.startedAt)
+                : Math.min(previous.startedAt, nextSection.startedAt),
+            endedAt:
+              previous.endedAt === undefined || nextSection.endedAt === undefined
+                ? (previous.endedAt ?? nextSection.endedAt)
+                : Math.max(previous.endedAt, nextSection.endedAt),
+          })
+          continue
+        }
+        sections.push(nextSection)
       }
     }
 
     for (const row of rows) {
       if (row._tag === "AssistantPart") {
         const parts = groupPartsOf(row.group, options.getPart)
-        // question / review_document 是面向用户的交互点:永远渲染在聊天区顶层,
+        // question / plan_exit / review_document 是面向用户的交互点:永远渲染在聊天区顶层,
         // 绝不能被吸进折叠的待办区间(否则被卡住等用户点时卡片会被藏起来)。
         // 它们像用户消息一样断开区间。
         if (
-          parts.some((part) => part.type === "tool" && (part.tool === "question" || part.tool === "review_document"))
+          parts.some(
+            (part) =>
+              part.type === "tool" &&
+              (part.tool === "question" || part.tool === "plan_exit" || part.tool === "review_document"),
+          )
         ) {
           flush()
           out.push(row)

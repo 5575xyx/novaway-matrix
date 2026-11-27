@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onMount, Show, type Component } from "solid-js"
+import { createEffect, createSignal, For, Show, type Component } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Switch } from "@novaway/ui/switch"
@@ -33,9 +33,7 @@ type ExtensionInfo = {
 const text = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 function officialMetadataOf(name: string): BuiltinMarketEntry | undefined {
-  return NOVAWAY_MARKETPLACE_ENTRIES.find(
-    (entry) => name === entry.name || name.startsWith(`${entry.name}@`),
-  )
+  return NOVAWAY_MARKETPLACE_ENTRIES.find((entry) => name === entry.name || name.startsWith(`${entry.name}@`))
 }
 
 function iconMirrorOf(url: string | undefined): string | undefined {
@@ -47,7 +45,8 @@ function iconMirrorOf(url: string | undefined): string | undefined {
 
 const InstalledExtensionIcon: Component<{ src?: string; seed: string }> = (props) => {
   const [attempt, setAttempt] = createSignal(0)
-  const source = () => [props.src, iconMirrorOf(props.src)].filter((value): value is string => Boolean(value))[attempt()]
+  const source = () =>
+    [props.src, iconMirrorOf(props.src)].filter((value): value is string => Boolean(value))[attempt()]
   return (
     <Show when={source()} fallback={<AppIcon seed={props.seed} fallback="mcp" size="sm" class="mt-0.5" />}>
       <img
@@ -114,8 +113,6 @@ export const InstalledExtensions: Component<{ directory: string; refreshKey?: nu
       .finally(() => setLoading(false))
   }
 
-  onMount(load)
-  // Re-read the installed list after a marketplace install/uninstall.
   createEffect(() => {
     props.refreshKey
     load()
@@ -134,10 +131,13 @@ export const InstalledExtensions: Component<{ directory: string; refreshKey?: nu
   }
 
   const toggle = (item: ExtensionInfo, enabled: boolean) => {
+    if (busy()) return
+    setBusy(true)
     void sdk.client.extension
       .toggle({ directory: props.directory, name: item.name, enabled })
       .then(() => load())
       .catch((error: unknown) => showToast({ title: language.t("common.requestFailed"), description: text(error) }))
+      .finally(() => setBusy(false))
   }
 
   return (
@@ -151,68 +151,73 @@ export const InstalledExtensions: Component<{ directory: string; refreshKey?: nu
       }
     >
       <Show when={items().length > 0}>
-      <section>
-        <div class="flex items-center gap-2 px-1 pb-4">
-          <div class="min-w-0 flex-1">
-            <div class="text-13-medium text-foreground">{language.t("settings.extensions.installed")}</div>
-            <div class="mt-0.5 text-12-regular text-foreground-subtle">
-              {language.t("settings.extensions.installedHint")}
+        <section>
+          <div class="flex items-center gap-2 px-1 pb-4">
+            <div class="min-w-0 flex-1">
+              <div class="text-13-medium text-foreground">{language.t("settings.extensions.installed")}</div>
+              <div class="mt-0.5 text-12-regular text-foreground-subtle">
+                {language.t("settings.extensions.installedHint")}
+              </div>
             </div>
+            <Button variant="ghost" size="small" disabled={busy()} onClick={reload}>
+              <Icon name="refresh" size="small" />
+              {language.t("settings.extensions.reload")}
+            </Button>
           </div>
-          <Button variant="ghost" size="small" disabled={busy()} onClick={reload}>
-            <Icon name="refresh" size="small" />
-            {language.t("settings.extensions.reload")}
-          </Button>
-        </div>
-        <div class="divide-y divide-border/60 rounded-2xl border border-border px-5">
-          <For each={items()}>
-            {(item) => {
-              const displayName = displayNameOf(item, language.intl())
-              return (
-                <div class="flex min-w-0 items-center gap-4 py-5 transition-colors hover:bg-hover/30">
-                  <InstalledExtensionIcon src={iconOf(item)} seed={displayName} />
-                  <div class="min-w-0 flex-1">
-                    <div class="flex min-w-0 items-center gap-2">
-                      <span class="min-w-0 truncate text-ui-base text-foreground">{displayName}</span>
-                      <Show when={item.version}>
-                        <Tag>{item.version}</Tag>
+          <div class="divide-y divide-border/60 rounded-2xl border border-border px-5">
+            <For each={items()}>
+              {(item) => {
+                const displayName = displayNameOf(item, language.intl())
+                return (
+                  <div class="flex min-w-0 items-center gap-4 py-5 transition-colors hover:bg-hover/30">
+                    <InstalledExtensionIcon src={iconOf(item)} seed={displayName} />
+                    <div class="min-w-0 flex-1">
+                      <div class="flex min-w-0 items-center gap-2">
+                        <span class="min-w-0 truncate text-ui-base text-foreground">{displayName}</span>
+                        <Show when={item.version}>
+                          <Tag>{item.version}</Tag>
+                        </Show>
+                        <Tag>{item.source}</Tag>
+                        <Show when={item.status && item.status !== "unchanged"}>
+                          <Tag>{language.t(`settings.extensions.status.${item.status}`)}</Tag>
+                        </Show>
+                      </div>
+                      <Show when={descriptionOf(item)}>
+                        <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{descriptionOf(item)}</div>
                       </Show>
-                      <Tag>{item.source}</Tag>
-                      <Show when={item.status && item.status !== "unchanged"}>
-                        <Tag>{language.t(`settings.extensions.status.${item.status}`)}</Tag>
+                      <Show when={item.error}>
+                        <div class="mt-0.5 truncate text-ui-xs text-critical-base">{item.error}</div>
                       </Show>
+                      <For each={item.issues ?? []}>
+                        {(issue) => (
+                          <div
+                            class="mt-0.5 truncate text-ui-xs"
+                            classList={{
+                              "text-critical-base": issue.severity === "error",
+                              "text-warning-base": issue.severity !== "error",
+                            }}
+                            title={issue.code}
+                          >
+                            {issue.message}
+                          </div>
+                        )}
+                      </For>
+                      <div class="mt-0.5 truncate font-mono text-ui-xs text-foreground-subtlest">{item.root}</div>
                     </div>
-                    <Show when={descriptionOf(item)}>
-                      <div class="mt-0.5 truncate text-ui-xs text-foreground-subtle">{descriptionOf(item)}</div>
-                    </Show>
-                    <Show when={item.error}>
-                      <div class="mt-0.5 truncate text-ui-xs text-critical-base">{item.error}</div>
-                    </Show>
-                    <For each={item.issues ?? []}>
-                      {(issue) => (
-                        <div
-                          class="mt-0.5 truncate text-ui-xs"
-                          classList={{
-                            "text-critical-base": issue.severity === "error",
-                            "text-warning-base": issue.severity !== "error",
-                          }}
-                          title={issue.code}
-                        >
-                          {issue.message}
-                        </div>
-                      )}
-                    </For>
-                    <div class="mt-0.5 truncate font-mono text-ui-xs text-foreground-subtlest">{item.root}</div>
+                    <Switch
+                      disabled={busy()}
+                      checked={item.enabled}
+                      onChange={(value: boolean) => toggle(item, value)}
+                      hideLabel
+                    >
+                      {displayName}
+                    </Switch>
                   </div>
-                  <Switch checked={item.enabled} onChange={(value: boolean) => toggle(item, value)} hideLabel>
-                    {displayName}
-                  </Switch>
-                </div>
-              )
-            }}
-          </For>
-        </div>
-      </section>
+                )
+              }}
+            </For>
+          </div>
+        </section>
       </Show>
     </Show>
   )

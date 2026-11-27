@@ -1,6 +1,6 @@
 import { Agent } from "@/agent/agent"
 import { Provider } from "@/provider/provider"
-import { generateObject, type ModelMessage } from "ai"
+import { generateObject, generateText, type ModelMessage } from "ai"
 import { InstanceStore } from "@/project/instance-store"
 import { Project } from "@/project/project"
 import { InstanceRef } from "@/effect/instance-ref"
@@ -281,6 +281,18 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         })
       }
       if (ctx.payload.permissionMode !== undefined) {
+        const before = current.permissionMode
+        if (ctx.payload.permissionMode === "plan") {
+          // Preserve the explicit value. If the session inherited its mode,
+          // leaving plan mode will restore that inherited state.
+          if (before !== "plan") {
+            yield* session.setPlanReturnMode({ sessionID: ctx.params.sessionID, mode: before })
+          }
+        } else {
+          // A manual mode change is an explicit choice to leave the plan; it
+          // must not leave a stale return target for the next plan cycle.
+          yield* session.setPlanReturnMode({ sessionID: ctx.params.sessionID, mode: undefined })
+        }
         yield* session.setPermissionMode({
           sessionID: ctx.params.sessionID,
           mode: ctx.payload.permissionMode,
@@ -403,6 +415,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       const ok = yield* service.reply({
         id: ctx.params.requestID as never,
         approved: ctx.payload.approved,
+        ...(ctx.payload.execution ? { execution: ctx.payload.execution } : {}),
         ...(ctx.payload.feedback ? { feedback: ctx.payload.feedback } : {}),
       })
       return ok
@@ -536,13 +549,15 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     })
 
     const suggestions = Effect.fn("SessionHttpApi.suggestions")(function* (ctx: { params: { sessionID: SessionID } }) {
-      const messages = yield* SessionError.mapStorageNotFound(session.messages({ sessionID: ctx.params.sessionID }))
-      const assistantIndex = messages.findLastIndex((message) => message.info.role === "assistant")
+      const historyMessages = yield* SessionError.mapStorageNotFound(
+        session.messages({ sessionID: ctx.params.sessionID }),
+      )
+      const assistantIndex = historyMessages.findLastIndex((message) => message.info.role === "assistant")
       if (assistantIndex < 0) return []
-      const assistant = messages[assistantIndex]!
+      const assistant = historyMessages[assistantIndex]!
       if (assistant.info.role !== "assistant" || assistant.info.time.completed === undefined || assistant.info.error)
         return []
-      const user = messages.slice(0, assistantIndex).findLast((message) => message.info.role === "user")
+      const user = historyMessages.slice(0, assistantIndex).findLast((message) => message.info.role === "user")
       if (!user || user.info.role !== "user" || user.info.id !== assistant.info.parentID) return []
       const model = yield* provider
         .getModel(assistant.info.providerID, assistant.info.modelID)
@@ -560,26 +575,50 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       const answer = text(assistant.parts)
       if (!question || !answer) return []
       const Output = Schema.Struct({ suggestions: Schema.Array(Schema.String) })
-      const result = yield* Effect.tryPromise(() =>
-        generateObject({
-          model: language,
-          temperature: 0.35,
-          maxOutputTokens: 300,
-          schema: Object.assign(Schema.toStandardSchemaV1(Output), Schema.toStandardJSONSchemaV1(Output)),
-          messages: [
-            {
-              role: "system",
-              content:
-                "根据最近一轮用户问题和 AI 完整答复，提出 2 到 4 个自然、具体、彼此不同的下一步问题。问题必须贴合当前内容，不要重复已回答的问题，不要虚构事实；若没有自然的后续问题则返回空数组。只生成用户能直接点击发送的问题，使用与上下文一致的语言。",
-            },
-            {
-              role: "user",
-              content: `<question>\n${question.slice(-5000)}\n</question>\n<answer>\n${answer.slice(-8000)}\n</answer>`,
-            },
-          ] satisfies ModelMessage[],
-        }).then((value) => value.object as { suggestions: string[] }),
-      ).pipe(Effect.catch(() => Effect.succeed({ suggestions: [] })))
-      return result.suggestions
+      const messages: ModelMessage[] = [
+        {
+          role: "system",
+          content:
+            "根据最近一轮用户问题和 AI 完整答复，提出 2 到 4 个自然、具体、彼此不同的下一步问题。问题必须贴合当前内容，不要重复已回答的问题，不要虚构事实；若没有自然的后续问题则返回空数组。只生成用户能直接点击发送的问题，使用与上下文一致的语言。若以普通文本返回，请只输出 JSON 字符串数组，不要输出 Markdown 或其他文字。",
+        },
+        {
+          role: "user",
+          content: `<question>\n${question.slice(-5000)}\n</question>\n<answer>\n${answer.slice(-8000)}\n</answer>`,
+        },
+      ]
+      const parseTextSuggestions = (raw: string) => {
+        const match = raw.match(/\[[\s\S]*\]/)
+        if (!match) return []
+        try {
+          const parsed: unknown = JSON.parse(match[0])
+          return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
+        } catch {
+          return []
+        }
+      }
+      const result = yield* Effect.tryPromise(async () => {
+        try {
+          const value = await generateObject({
+            model: language,
+            temperature: 0.35,
+            maxOutputTokens: 300,
+            schema: Object.assign(Schema.toStandardSchemaV1(Output), Schema.toStandardJSONSchemaV1(Output)),
+            messages,
+          })
+          return value.object.suggestions
+        } catch {
+          // Some lightweight/custom models do not implement structured output.
+          // Retry as plain JSON so the feature still works with those models.
+          const value = await generateText({
+            model: language,
+            temperature: 0.35,
+            maxOutputTokens: 300,
+            messages,
+          })
+          return parseTextSuggestions(value.text)
+        }
+      }).pipe(Effect.catch(() => Effect.succeed([] as string[])))
+      return result
         .map((item) => item.trim())
         .filter(Boolean)
         .slice(0, 4)

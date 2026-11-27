@@ -1,3 +1,4 @@
+import { agentAvatarSrc } from "@novaway/ui/util/agent-avatar"
 import { For, Show, type Component, type JSX } from "solid-js"
 
 /**
@@ -34,12 +35,12 @@ export function teamInitials(name: string) {
   return trimmed.slice(0, 2)
 }
 
-/** 团队头像：按队名稳定着色，同一支队每次打开都是同一个颜色。 */
+/** 团队头像：按队名稳定着色，并使用独立的 AI 角色图形，避免团队卡片看起来像普通文件夹。 */
 export const TeamAvatar: Component<{ name: string; class?: string }> = (props) => {
   const category = () => hash(props.name) % CATEGORY_COUNT
   return (
     <span
-      class={`grid size-9 shrink-0 place-items-center rounded-[10px] text-ui-xs font-medium ring-1 ring-inset ring-border ${props.class ?? ""}`}
+      class={`relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-[10px] text-ui-xs font-medium ring-1 ring-inset ring-border ${props.class ?? ""}`}
       style={
         {
           background: `var(--team-category-${category()})`,
@@ -48,7 +49,14 @@ export const TeamAvatar: Component<{ name: string; class?: string }> = (props) =
       }
       aria-hidden="true"
     >
-      {teamInitials(props.name)}
+      <img
+        src={agentAvatarSrc(`team-avatar:${props.name}`)}
+        alt=""
+        class="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+        draggable={false}
+      />
+      <span class="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/10" />
+      <span class="sr-only">{teamInitials(props.name)}</span>
     </span>
   )
 }

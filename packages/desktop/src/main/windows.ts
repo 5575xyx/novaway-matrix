@@ -13,7 +13,7 @@ const root = dirname(fileURLToPath(import.meta.url))
 const rendererRoot = join(root, "../renderer")
 const clipboardWritePermission = "clipboard-sanitized-write"
 const notificationPermission = "notifications"
-const rendererPermissions = new Set([clipboardWritePermission, notificationPermission])
+const rendererPermissions = new Set([clipboardWritePermission, notificationPermission, "media"])
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -109,6 +109,10 @@ export function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
+      // 关掉内置拼写检查。Chromium 的拼写检查服务会在 contentEditable 输入框里
+      // 每次敲键都做一次词典查询与标记重算，长文本时能明显感觉到输入延迟；
+      // 中文输入法（以及中英混排）本来也不需要英文词典。
+      spellcheck: false,
     },
   })
 
@@ -178,6 +182,7 @@ export function createLoadingWindow() {
       preload: join(root, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      spellcheck: false,
     },
   })
 
@@ -258,6 +263,7 @@ let previewHttpRegistered = false
 
 export function setPreviewInspectorOrigin(origin: string) {
   previewOrigin = origin || ""
+  if (previewOrigin) registerPreviewHttpProtocol()
 }
 
 /** dev server 预览是跨源 iframe，本地协议塞不进去，只能在网络层改文档响应。
@@ -338,11 +344,11 @@ function isHtmlResponse(response: Response, source: string): boolean {
 
 /** 把 <script src> 拼进文档。latin1 与字节一一对应，解码只为做大小写不敏感的
  * 标签查找，拼回去按字节，所以 GBK 这类非 UTF-8 编码的文档不会被改坏。
- * 返回 Uint8Array 而非 Buffer：Buffer 的底层 ArrayBuffer 可能被池化带偏移，不能直接当 BodyInit */
-function injectInspectorTag(body: Buffer): Uint8Array<ArrayBuffer> {
+ * 返回独立的 ArrayBuffer：Buffer 的底层 ArrayBuffer 可能被池化带偏移，不能直接当 BodyInit */
+function injectInspectorTag(body: Buffer): ArrayBuffer {
   const tag = `<script src="${LOCAL_FILE_PROTOCOL}://${LOCAL_FILE_HOST}${INSPECTOR_PATH}"></script>`
   const text = body.toString("latin1")
-  const splice = (offset: number): Uint8Array<ArrayBuffer> =>
+  const splice = (offset: number): ArrayBuffer =>
     toBytes(`${text.slice(0, offset)}${tag}${text.slice(offset)}`)
 
   const closing = text.match(/<\/body\s*>/i)
@@ -354,12 +360,12 @@ function injectInspectorTag(body: Buffer): Uint8Array<ArrayBuffer> {
   return toBytes(`${tag}${text}`)
 }
 
-function toBytes(text: string): Uint8Array<ArrayBuffer> {
+function toBytes(text: string): ArrayBuffer {
   const buffer = Buffer.from(text, "latin1")
   // 必须落在新建的 ArrayBuffer 上：ArrayBufferLike（可能是池化视图）不满足 BodyInit 的类型
   const bytes = new Uint8Array(new ArrayBuffer(buffer.byteLength))
   bytes.set(buffer)
-  return bytes
+  return bytes.buffer
 }
 
 function resolveLocalFileTarget(requestUrl: string): string | undefined {
@@ -405,12 +411,14 @@ function allowRendererPermissions(win: BrowserWindow) {
   win.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
     callback(
       rendererPermissions.has(permission) &&
+        (permission !== "media" || ("mediaTypes" in details && details.mediaTypes?.includes("audio") === true)) &&
         isTrustedRendererUrl(details.requestingUrl) &&
         webContents.id === win.webContents.id,
     )
   })
   win.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
     if (!rendererPermissions.has(permission)) return false
+    if (permission === "media" && details.mediaType !== "audio") return false
     if (webContents && webContents.id !== win.webContents.id) return false
     return isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
   })

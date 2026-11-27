@@ -21,6 +21,8 @@ export interface DialogProps extends ParentProps {
   fit?: boolean
   /** 默认开启开合动效（弹窗始终带 fade + zoom-95）。 */
   transition?: boolean
+  /** 统一弹窗视觉变体，供确认/危险操作使用。 */
+  variant?: "default" | "danger" | "uninstall"
 }
 
 export function Dialog(props: DialogProps) {
@@ -31,6 +33,7 @@ export function Dialog(props: DialogProps) {
       data-component="dialog"
       data-fit={props.fit ? true : undefined}
       data-size={props.size || "normal"}
+      data-variant={props.variant || "default"}
       data-transition={transition() ? true : undefined}
     >
       <div data-slot="dialog-container">

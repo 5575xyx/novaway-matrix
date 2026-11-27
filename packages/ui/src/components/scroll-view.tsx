@@ -1,4 +1,4 @@
-import { onMount, splitProps, type ComponentProps, Show, mergeProps } from "solid-js"
+import { createEffect, onMount, splitProps, type ComponentProps, Show, mergeProps } from "solid-js"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { createStore } from "solid-js/store"
 import { useI18n } from "../context/i18n"
@@ -6,6 +6,8 @@ import { useI18n } from "../context/i18n"
 export interface ScrollViewProps extends ComponentProps<"div"> {
   viewportRef?: (el: HTMLDivElement) => void
   orientation?: "vertical" | "horizontal" // currently only vertical is fully implemented for thumb
+  /** Hide the visual scrollbar while keeping the viewport scrollable. */
+  hideScrollbar?: boolean
 }
 
 export const scrollKey = (event: Pick<KeyboardEvent, "key" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey">) => {
@@ -32,7 +34,7 @@ export function ScrollView(props: ScrollViewProps) {
   const merged = mergeProps({ orientation: "vertical" }, props)
   const [local, events, rest] = splitProps(
     merged,
-    ["class", "children", "viewportRef", "orientation", "style"],
+    ["class", "children", "viewportRef", "orientation", "style", "hideScrollbar"],
     [
       "onScroll",
       "onWheel",
@@ -64,7 +66,7 @@ export function ScrollView(props: ScrollViewProps) {
   const showThumb = () => state.showThumb
 
   const updateThumb = () => {
-    if (!viewportRef) return
+    if (!viewportRef || local.hideScrollbar) return
     const { scrollTop, scrollHeight, clientHeight } = viewportRef
 
     if (scrollHeight <= clientHeight || scrollHeight === 0) {
@@ -72,7 +74,6 @@ export function ScrollView(props: ScrollViewProps) {
       return
     }
 
-    setState("showThumb", true)
     const trackPadding = 8
     const trackHeight = clientHeight - trackPadding * 2
 
@@ -89,8 +90,7 @@ export function ScrollView(props: ScrollViewProps) {
     // Ensure thumb stays within bounds (shouldn't be necessary due to math above, but good for safety)
     const boundedTop = trackPadding + Math.max(0, Math.min(top, maxThumbTop))
 
-    setState("thumbHeight", height)
-    setState("thumbTop", boundedTop)
+    setState({ showThumb: true, thumbHeight: height, thumbTop: boundedTop })
   }
 
   onMount(() => {
@@ -98,9 +98,13 @@ export function ScrollView(props: ScrollViewProps) {
       local.viewportRef(viewportRef)
     }
 
-    createResizeObserver([viewportRef, viewportRef.firstElementChild], updateThumb)
-
-    updateThumb()
+    // A hidden thumb must not measure the viewport or invalidate Solid state on every scroll.
+    // Create its observer only while the thumb is enabled; toggling off disposes the effect.
+    createEffect(() => {
+      if (local.hideScrollbar) return
+      createResizeObserver([viewportRef, viewportRef.firstElementChild], updateThumb)
+      updateThumb()
+    })
   })
 
   let startY = 0
@@ -185,7 +189,7 @@ export function ScrollView(props: ScrollViewProps) {
   return (
     <div
       ref={rootRef}
-      class={`scroll-view ${local.class || ""}`}
+      class={`scroll-view ${local.class || ""} ${local.hideScrollbar ? "scroll-view--hide-scrollbar" : ""}`}
       style={local.style}
       onPointerEnter={() => setState("isHovered", true)}
       onPointerLeave={() => setState("isHovered", false)}
@@ -218,7 +222,7 @@ export function ScrollView(props: ScrollViewProps) {
       </div>
 
       {/* Thumb Overlay */}
-      <Show when={showThumb()}>
+      <Show when={showThumb() && !local.hideScrollbar}>
         <div
           ref={thumbRef}
           onPointerDown={onThumbPointerDown}

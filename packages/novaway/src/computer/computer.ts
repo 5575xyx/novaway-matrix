@@ -4,7 +4,7 @@
  * 不引入原生模块（robotjs / nut.js 都要按平台编译），改用系统自带能力：
  * - Windows：PowerShell + user32（鼠标/键盘/截图）+ SendKeys
  * - macOS：screencapture + System Events（osascript）
- * - Linux：xdotool + 常见截图工具（gnome-screenshot / scrot / imagemagick / grim）
+ * - Linux：AT-SPI 语义树 + xdotool；Wayland 控件优先通过 AT-SPI Action 执行，不依赖坐标注入
  */
 import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
@@ -20,7 +20,14 @@ export type ComputerPlatform = "windows" | "macos" | "linux" | "unsupported"
 export type ComputerStatus = {
   supported: boolean
   platform: ComputerPlatform
-  capabilities: { screenshot: boolean; mouse: boolean; keyboard: boolean; windows: boolean }
+  capabilities: {
+    screenshot: boolean
+    mouse: boolean
+    keyboard: boolean
+    windows: boolean
+    semanticSnapshot: boolean
+    actionVerification: boolean
+  }
   reason?: string
 }
 
@@ -39,6 +46,32 @@ export type Screenshot = {
 }
 export type WindowInfo = { title: string; id?: string; pid?: number }
 export type MouseButton = "left" | "right" | "middle"
+
+/**
+ * 可操作桌面元素。坐标始终是屏幕绝对坐标，避免截图坐标和窗口坐标混用。
+ * ref 只在本次快照有效；动作前若页面发生变化会重新快照并拒绝旧 ref。
+ */
+export type ComputerElement = {
+  ref: string
+  name: string
+  role: string
+  enabled: boolean
+  x: number
+  y: number
+  width: number
+  height: number
+  automationId?: string
+}
+
+export type ComputerSnapshot = {
+  window: WindowInfo
+  elements: ComputerElement[]
+  /** 便于消息流直接展示的窗口截图。 */
+  screenshot?: Screenshot
+}
+
+const snapshotCache = new Map<string, { at: number; snapshot: ComputerSnapshot }>()
+const SNAPSHOT_TTL = 5_000
 
 export function platform(): ComputerPlatform {
   if (process.platform === "win32") return "windows"
@@ -66,31 +99,67 @@ export async function status(): Promise<ComputerStatus> {
     value = {
       supported: true,
       platform: current,
-      capabilities: { screenshot: true, mouse: true, keyboard: true, windows: true },
+      capabilities: {
+        screenshot: true,
+        mouse: true,
+        keyboard: true,
+        windows: true,
+        semanticSnapshot: true,
+        actionVerification: true,
+      },
     }
   } else if (current === "macos") {
     const cliclick = await which("cliclick")
     value = {
       supported: true,
       platform: current,
-      capabilities: { screenshot: true, mouse: true, keyboard: true, windows: true },
+      capabilities: {
+        screenshot: true,
+        mouse: true,
+        keyboard: true,
+        windows: true,
+        semanticSnapshot: true,
+        actionVerification: true,
+      },
       ...(cliclick ? {} : { reason: "Scrolling needs cliclick (brew install cliclick); other actions work." }),
     }
   } else if (current === "linux") {
     const xdotool = await which("xdotool")
+    const wtype = await which("wtype")
+    const atspi = await linuxAccessibilityAvailable()
     const shot =
       (await which("gnome-screenshot")) || (await which("scrot")) || (await which("import")) || (await which("grim"))
     value = {
-      supported: Boolean(xdotool || shot),
+      supported: Boolean(xdotool || wtype || shot || atspi),
       platform: current,
-      capabilities: { screenshot: Boolean(shot), mouse: xdotool, keyboard: xdotool, windows: xdotool },
-      ...(xdotool ? {} : { reason: "xdotool is required: sudo apt install xdotool" }),
+      capabilities: {
+        screenshot: Boolean(shot),
+        mouse: xdotool,
+        keyboard: Boolean(xdotool || wtype),
+        windows: xdotool,
+        semanticSnapshot: atspi,
+        actionVerification: atspi,
+      },
+      ...(!xdotool && atspi
+        ? { reason: "Wayland-safe semantic actions are available; coordinate mouse actions need xdotool or XWayland." }
+        : !xdotool && !wtype
+          ? { reason: "Coordinate input needs xdotool/XWayland; text input also supports wtype on Wayland." }
+          : !atspi
+            ? { reason: "Optional semantic snapshots require python3-gi and gir1.2-atspi-2.0" }
+            : {}),
     }
   } else {
     value = {
       supported: false,
       platform: current,
-      capabilities: { screenshot: false, mouse: false, keyboard: false, windows: false },
+      capabilities: {
+        screenshot: false,
+        mouse: false,
+        keyboard: false,
+        windows: false,
+        semanticSnapshot: false,
+        actionVerification: false,
+      },
       reason: "Unsupported platform",
     }
   }
@@ -333,16 +402,158 @@ async function windowsScreenshotWindow(title: string): Promise<Screenshot> {
 
 async function windowsWindows(): Promise<WindowInfo[]> {
   const raw = await powershell(
-    "Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object Id, MainWindowTitle | ConvertTo-Json -Compress",
+    "Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object Id, MainWindowHandle, MainWindowTitle | ConvertTo-Json -Compress",
   )
   try {
     const parsed = JSON.parse(raw || "[]")
     const list = Array.isArray(parsed) ? parsed : [parsed]
     return list
       .filter((item: any) => item?.MainWindowTitle)
-      .map((item: any) => ({ title: String(item.MainWindowTitle), pid: Number(item.Id) }))
+      .map((item: any) => ({
+        title: String(item.MainWindowTitle),
+        id: item.MainWindowHandle ? String(item.MainWindowHandle) : undefined,
+        pid: Number(item.Id),
+      }))
   } catch {
     return []
+  }
+}
+
+async function windowsSnapshot(title?: string): Promise<ComputerSnapshot> {
+  const needle = (title ?? "").replace(/'/g, "''")
+  const nl = String.fromCharCode(10)
+  const script = [
+    "Add-Type -AssemblyName UIAutomationClient",
+    "Add-Type -AssemblyName UIAutomationTypes",
+    "Add-Type -AssemblyName System.Windows.Forms",
+    'Add-Type -TypeDefinition @"',
+    "using System; using System.Runtime.InteropServices;",
+    'public static class NovaForeground { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); }',
+    '"@',
+    "$target = $null",
+    "$needle = '" + needle + "'",
+    "if ($needle) { $target = Get-Process | Where-Object { $_.MainWindowTitle -and $_.MainWindowTitle -like ('*' + $needle + '*') } | Select-Object -First 1 }",
+    "if (-not $target) { $h = [NovaForeground]::GetForegroundWindow(); $pid = 0; [NovaForeground]::GetWindowThreadProcessId($h, [ref]$pid) | Out-Null; $target = Get-Process -Id $pid -ErrorAction SilentlyContinue }",
+    "if (-not $target -or $target.MainWindowHandle -eq 0) { Write-Output 'NOVA_UIA_WINDOW_NOT_FOUND'; return }",
+    "$root = [Windows.Automation.AutomationElement]::FromHandle($target.MainWindowHandle)",
+    "if (-not $root) { Write-Output 'NOVA_UIA_ROOT_NOT_FOUND'; return }",
+    "$walker = [Windows.Automation.TreeWalker]::new([Windows.Automation.AutomationElement]::ControlViewCondition)",
+    "$items = New-Object System.Collections.Generic.List[object]; $next = 0",
+    "function Visit([Windows.Automation.AutomationElement]$element, [int]$depth) {",
+    "  if (-not $element -or $depth -gt 10 -or $items.Count -ge 300) { return }",
+    "  try { $c = $element.Current; $r = $c.BoundingRectangle; $name = [string]$c.Name; $role = [string]$c.ControlType.ProgrammaticName; $visible = $r.Width -gt 1 -and $r.Height -gt 1; if ($visible -and ($name -or $role)) { $script:next++; $items.Add([PSCustomObject]@{ ref=('e' + $script:next); name=$name; role=$role; enabled=[bool]$c.IsEnabled; x=[math]::Round($r.X); y=[math]::Round($r.Y); width=[math]::Round($r.Width); height=[math]::Round($r.Height); automationId=[string]$c.AutomationId }) | Out-Null } } catch {}",
+    "  try { $child = $walker.GetFirstChild($element); while ($child) { Visit $child ($depth + 1); $child = $walker.GetNextSibling($child) } } catch {}",
+    "}",
+    "Visit $root 0",
+    "[PSCustomObject]@{ title=$target.MainWindowTitle; id=[string]$target.MainWindowHandle; pid=[int]$target.Id; elements=@($items) } | ConvertTo-Json -Compress -Depth 4",
+  ].join(nl)
+  const raw = await powershell(script, 30_000)
+  if (raw.includes("NOVA_UIA_WINDOW_NOT_FOUND")) throw new Error("No desktop window matched the requested title")
+  if (raw.includes("NOVA_UIA_ROOT_NOT_FOUND")) throw new Error("The desktop window has no accessibility tree")
+  let value: any
+  try {
+    value = JSON.parse(raw.trim())
+  } catch {
+    throw new Error("Windows UI Automation returned invalid JSON")
+  }
+  const window: WindowInfo = {
+    title: String(value?.title ?? title ?? ""),
+    id: value?.id ? String(value.id) : undefined,
+    pid: Number(value?.pid) || undefined,
+  }
+  const elements = Array.isArray(value?.elements)
+    ? value.elements
+        .map((item: any) => ({
+          ref: String(item.ref),
+          name: String(item.name ?? ""),
+          role: String(item.role ?? "").replace(/^.*\./, ""),
+          enabled: item.enabled !== false,
+          x: Number(item.x) || 0,
+          y: Number(item.y) || 0,
+          width: Number(item.width) || 0,
+          height: Number(item.height) || 0,
+          ...(item.automationId ? { automationId: String(item.automationId) } : {}),
+        }))
+        .filter((item: ComputerElement) => item.width > 0 && item.height > 0)
+    : []
+  const snapshot: ComputerSnapshot = { window, elements }
+  snapshotCache.set(window.title.toLowerCase(), { at: Date.now(), snapshot })
+  return snapshot
+}
+
+export async function snapshotWindow(title?: string, includeScreenshot = true): Promise<ComputerSnapshot> {
+  const current = platform()
+  if (current !== "windows" && current !== "macos" && current !== "linux") {
+    throw new Error(
+      "Semantic desktop snapshots currently require Windows UI Automation, macOS Accessibility, or Linux AT-SPI",
+    )
+  }
+  const snapshot =
+    current === "windows"
+      ? await windowsSnapshot(title)
+      : current === "macos"
+        ? await macSnapshot(title)
+        : await linuxSnapshot(title)
+  if (includeScreenshot) {
+    try {
+      snapshot.screenshot = await screenshotWindow(snapshot.window.title)
+    } catch {
+      try {
+        snapshot.screenshot = await screenshot()
+      } catch {
+        // AT-SPI snapshots remain useful on minimal Wayland sessions without a screenshot portal.
+      }
+    }
+  }
+  return snapshot
+}
+
+function elementFromSnapshot(window: string, ref: string) {
+  const entry = [...snapshotCache.values()].find((value) =>
+    value.snapshot.window.title.toLowerCase().includes(window.toLowerCase()),
+  )
+  if (!entry || Date.now() - entry.at > SNAPSHOT_TTL) return undefined
+  return entry.snapshot.elements.find((element) => element.ref === ref)
+}
+
+export async function clickElement(window: string, ref: string, button: MouseButton = "left") {
+  const element = elementFromSnapshot(window, ref)
+  if (!element) throw new Error(`Element ${ref} is stale; take computer_snapshot again`)
+  // Re-read the accessibility tree immediately before acting. This catches dialogs,
+  // rerenders and window changes that happened inside the 5s snapshot TTL.
+  const liveSnapshot = await (
+    platform() === "macos"
+      ? macSnapshot(window)
+      : platform() === "linux"
+        ? linuxSnapshot(window)
+        : windowsSnapshot(window)
+  ).catch(() => undefined)
+  const live = liveSnapshot?.elements.find((candidate) =>
+    element.automationId && candidate.automationId
+      ? candidate.automationId === element.automationId && candidate.role === element.role
+      : candidate.role === element.role &&
+        candidate.name === element.name &&
+        Math.abs(candidate.x - element.x) < 8 &&
+        Math.abs(candidate.y - element.y) < 8,
+  )
+  if (!live) throw new Error(`Element ${ref} changed; take computer_snapshot again`)
+  if (!live.enabled) throw new Error(`Element ${ref} is disabled`)
+  if (platform() === "linux" && button === "left") {
+    try {
+      await linuxAccessibilityAction(window, live)
+    } catch {
+      await click({ x: live.x + live.width / 2, y: live.y + live.height / 2, button })
+    }
+  } else {
+    await click({ x: live.x + live.width / 2, y: live.y + live.height / 2, button })
+  }
+  // Orca returns post-action visual evidence when the target window still exists. A
+  // dialog may close the old window, so verification is best-effort and never hides
+  // a successful click behind a screenshot error.
+  try {
+    return await screenshotWindow(window)
+  } catch {
+    return undefined
   }
 }
 
@@ -451,9 +662,401 @@ async function macWindows(): Promise<WindowInfo[]> {
     .map((title) => ({ title }))
 }
 
-// ---------------------------------------------------------------------------
-// Linux
-// ---------------------------------------------------------------------------
+async function macSnapshot(title?: string): Promise<ComputerSnapshot> {
+  const raw = await osascript(
+    [
+      "on clean(value)",
+      "set AppleScript's text item delimiters to {tab, return, linefeed}",
+      "set value to every text item of (value as text)",
+      'set AppleScript\'s text item delimiters to " "',
+      "set value to value as text",
+      'set AppleScript\'s text item delimiters to ""',
+      "return value",
+      "end clean",
+      "on run argv",
+      "set needle to item 1 of argv",
+      'tell application "System Events"',
+      "set targetProcess to missing value",
+      'if needle is "" then',
+      "set targetProcess to first process whose frontmost is true",
+      "else",
+      "repeat with candidate in (every process whose background only is false)",
+      "try",
+      "if (name of candidate as text) contains needle then",
+      "set targetProcess to contents of candidate",
+      "exit repeat",
+      "end if",
+      "end try",
+      "end repeat",
+      "end if",
+      'if targetProcess is missing value then return "NOVA_MAC_WINDOW_NOT_FOUND"',
+      'if (count of windows of targetProcess) is 0 then return "NOVA_MAC_WINDOW_NOT_FOUND"',
+      "set targetWindow to first window of targetProcess",
+      'set rows to {"NOVA_MAC_WINDOW|" & (name of targetWindow as text)}',
+      "repeat with elementRef in (entire contents of targetWindow)",
+      "if (count of rows) is greater than or equal to 301 then exit repeat",
+      "try",
+      "set elementItem to contents of elementRef",
+      "set elementRole to my clean(role of elementItem as text)",
+      "set elementName to my clean(name of elementItem as text)",
+      "set elementPosition to position of elementItem",
+      "set elementSize to size of elementItem",
+      'set elementEnabled to "true"',
+      "try",
+      'if (enabled of elementItem) is false then set elementEnabled to "false"',
+      "end try",
+      "set end of rows to elementRole & tab & elementName & tab & (item 1 of elementPosition as text) & tab & (item 2 of elementPosition as text) & tab & (item 1 of elementSize as text) & tab & (item 2 of elementSize as text) & tab & elementEnabled",
+      "end try",
+      "end repeat",
+      "set AppleScript's text item delimiters to linefeed",
+      "set resultText to rows as text",
+      'set AppleScript\'s text item delimiters to ""',
+      "return resultText",
+      "end tell",
+      "end run",
+    ],
+    [title ?? ""],
+  )
+  if (raw.includes("NOVA_MAC_WINDOW_NOT_FOUND")) throw new Error("No macOS window matched the requested title")
+  const rows = raw.trim().split(/\r?\n/).filter(Boolean)
+  const header = rows.shift()?.split("|")
+  const window: WindowInfo = { title: header?.slice(1).join("|") || title || "" }
+  const elements = rows
+    .map((row, index) => {
+      const [role, name, x, y, width, height, enabled] = row.split("\t")
+      return {
+        ref: "e" + (index + 1),
+        name: name ?? "",
+        role: role ?? "",
+        enabled: enabled !== "false",
+        x: Number(x) || 0,
+        y: Number(y) || 0,
+        width: Number(width) || 0,
+        height: Number(height) || 0,
+      }
+    })
+    .filter((item) => item.width > 0 && item.height > 0)
+  const snapshot: ComputerSnapshot = { window, elements }
+  snapshotCache.set(window.title.toLowerCase(), { at: Date.now(), snapshot })
+  return snapshot
+}
+
+export const LINUX_ATSPI_SCRIPT = String.raw`
+import json, sys
+try:
+    import gi
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi
+except Exception as exc:
+    print("NOVA_ATSPI_UNAVAILABLE:" + str(exc))
+    sys.exit(2)
+needle = (sys.argv[1] if len(sys.argv) > 1 else "").lower()
+desktop = Atspi.get_desktop(0)
+
+def children(node):
+    try:
+        return [node.get_child_at_index(i) for i in range(node.get_child_count())]
+    except Exception:
+        return []
+
+def label(node):
+    try:
+        return (node.get_name() or "").replace("\\t", " ").replace("\\n", " ")[:160]
+    except Exception:
+        return ""
+
+def role(node):
+    try:
+        return (node.get_role_name() or "").replace("\\t", " ")
+    except Exception:
+        return ""
+
+def find_window(node):
+    current_role = role(node).lower()
+    current_name = label(node)
+    if current_role == "window" and (not needle or needle in current_name.lower()):
+        return node
+    for child in children(node):
+        found = find_window(child)
+        if found is not None:
+            return found
+    return None
+
+window = None
+for app in children(desktop):
+    window = find_window(app)
+    if window is not None:
+        break
+if window is None:
+    print("NOVA_ATSPI_WINDOW_NOT_FOUND")
+    sys.exit(3)
+
+items = []
+def visit(node, depth=0):
+    if len(items) >= 300 or depth > 10:
+        return
+    try:
+        ext = node.get_extents(Atspi.CoordType.SCREEN)
+        x, y, width, height = int(ext.x), int(ext.y), int(ext.width), int(ext.height)
+        if width > 1 and height > 1:
+            enabled = True
+            try:
+                enabled = not node.get_state_set().contains(Atspi.StateType.DISABLED)
+            except Exception:
+                pass
+            items.append({"name": label(node), "role": role(node), "enabled": enabled, "x": x, "y": y, "width": width, "height": height})
+    except Exception:
+        pass
+    for child in children(node):
+        visit(child, depth + 1)
+
+visit(window)
+print(json.dumps({"title": label(window), "elements": items}, ensure_ascii=False))
+`
+
+const LINUX_ATSPI_ACTION_SCRIPT = String.raw`
+import sys
+try:
+    import gi
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi
+except Exception as exc:
+    print("NOVA_ATSPI_UNAVAILABLE:" + str(exc))
+    sys.exit(2)
+needle = (sys.argv[1] if len(sys.argv) > 1 else "").lower()
+target_name = sys.argv[2] if len(sys.argv) > 2 else ""
+target_role = sys.argv[3] if len(sys.argv) > 3 else ""
+target_x = int(sys.argv[4]) if len(sys.argv) > 4 else 0
+target_y = int(sys.argv[5]) if len(sys.argv) > 5 else 0
+
+def children(node):
+    try:
+        return [node.get_child_at_index(i) for i in range(node.get_child_count())]
+    except Exception:
+        return []
+
+def label(node):
+    try:
+        return (node.get_name() or "").replace("\\t", " ").replace("\\n", " ")[:160]
+    except Exception:
+        return ""
+
+def role(node):
+    try:
+        return (node.get_role_name() or "").replace("\\t", " ")
+    except Exception:
+        return ""
+
+def find_window(node):
+    if role(node).lower() == "window" and (not needle or needle in label(node).lower()):
+        return node
+    for child in children(node):
+        found = find_window(child)
+        if found is not None:
+            return found
+    return None
+
+def find_target(node):
+    current_name = label(node)
+    current_role = role(node)
+    try:
+        ext = node.get_extents(Atspi.CoordType.SCREEN)
+        close_enough = abs(int(ext.x) - target_x) < 8 and abs(int(ext.y) - target_y) < 8
+    except Exception:
+        close_enough = False
+    if current_name == target_name and current_role == target_role and close_enough:
+        return node
+    for child in children(node):
+        found = find_target(child)
+        if found is not None:
+            return found
+    return None
+
+desktop = Atspi.get_desktop(0)
+window = None
+for app in children(desktop):
+    window = find_window(app)
+    if window is not None:
+        break
+if window is None:
+    print("NOVA_ATSPI_WINDOW_NOT_FOUND")
+    sys.exit(3)
+target = find_target(window)
+if target is None:
+    print("NOVA_ATSPI_TARGET_NOT_FOUND")
+    sys.exit(4)
+try:
+    action = target.get_action()
+    name_reader = getattr(action, "get_action_name", None) or getattr(action, "get_name", None)
+    for index in range(action.get_n_actions()):
+        name = (name_reader(index) if name_reader else "").lower()
+        if name in ("click", "press", "activate", "toggle"):
+            action.do_action(index)
+            print("NOVA_ATSPI_ACTION_OK")
+            sys.exit(0)
+except Exception:
+    pass
+print("NOVA_ATSPI_ACTION_UNAVAILABLE")
+sys.exit(5)
+`
+
+const LINUX_ATSPI_WINDOWS_SCRIPT = String.raw`
+import json
+try:
+    import gi
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi
+except Exception as exc:
+    print("NOVA_ATSPI_UNAVAILABLE:" + str(exc))
+    raise SystemExit(2)
+
+def children(node):
+    try:
+        return [node.get_child_at_index(i) for i in range(node.get_child_count())]
+    except Exception:
+        return []
+
+def title(node):
+    try:
+        return (node.get_name() or "").replace("\\t", " ").replace("\\n", " ")[:240]
+    except Exception:
+        return ""
+
+def role(node):
+    try:
+        return (node.get_role_name() or "").lower()
+    except Exception:
+        return ""
+
+items = []
+def visit(node):
+    if len(items) >= 100:
+        return
+    if role(node) == "window" and title(node):
+        items.append({"title": title(node)})
+    for child in children(node):
+        visit(child)
+
+visit(Atspi.get_desktop(0))
+print(json.dumps(items, ensure_ascii=False))
+`
+
+async function linuxWindows(): Promise<WindowInfo[]> {
+  const raw = await exec("python3", ["-c", LINUX_ATSPI_WINDOWS_SCRIPT], {
+    timeout: 10_000,
+    maxBuffer: 4 * 1024 * 1024,
+  }).then((result) => result.stdout ?? "")
+  if (raw.includes("NOVA_ATSPI_UNAVAILABLE")) return []
+  try {
+    const value = JSON.parse(raw.trim())
+    return Array.isArray(value)
+      ? value
+          .filter((item): item is { title: string } => typeof item?.title === "string")
+          .map((item) => ({ title: item.title }))
+      : []
+  } catch {
+    return []
+  }
+}
+
+async function linuxAccessibilityAction(window: string, element: ComputerElement) {
+  const raw = await exec(
+    "python3",
+    [
+      "-c",
+      LINUX_ATSPI_ACTION_SCRIPT,
+      window,
+      element.name,
+      element.role,
+      String(Math.round(element.x)),
+      String(Math.round(element.y)),
+    ],
+    { timeout: 15_000, maxBuffer: 4 * 1024 * 1024 },
+  ).then((result) => result.stdout ?? "")
+  if (!raw.includes("NOVA_ATSPI_ACTION_OK")) throw new Error("Linux AT-SPI action was unavailable")
+}
+
+async function linuxAccessibilityAvailable() {
+  if (!(await which("python3"))) return false
+  try {
+    await exec("python3", ["-c", 'import gi; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi'], {
+      timeout: 5_000,
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function linuxSnapshot(title?: string): Promise<ComputerSnapshot> {
+  const raw = await exec("python3", ["-c", LINUX_ATSPI_SCRIPT, title ?? ""], {
+    timeout: 30_000,
+    maxBuffer: 32 * 1024 * 1024,
+  }).then((result) => result.stdout ?? "")
+  if (raw.includes("NOVA_ATSPI_UNAVAILABLE")) {
+    throw new Error("Linux AT-SPI is unavailable; install python3-gi and gir1.2-atspi-2.0")
+  }
+  if (raw.includes("NOVA_ATSPI_WINDOW_NOT_FOUND"))
+    throw new Error("No Linux accessibility window matched the requested title")
+  let value: any
+  try {
+    value = JSON.parse(raw.trim())
+  } catch {
+    throw new Error("Linux AT-SPI returned invalid JSON")
+  }
+  const window: WindowInfo = { title: String(value?.title ?? title ?? "") }
+  const elements = Array.isArray(value?.elements)
+    ? value.elements
+        .map((item: any, index: number) => ({
+          ref: "e" + (index + 1),
+          name: String(item.name ?? ""),
+          role: String(item.role ?? ""),
+          enabled: item.enabled !== false,
+          x: Number(item.x) || 0,
+          y: Number(item.y) || 0,
+          width: Number(item.width) || 0,
+          height: Number(item.height) || 0,
+        }))
+        .filter((item: ComputerElement) => item.width > 0 && item.height > 0)
+    : []
+  const snapshot: ComputerSnapshot = { window, elements }
+  snapshotCache.set(window.title.toLowerCase(), { at: Date.now(), snapshot })
+  return snapshot
+}
+
+async function linuxWtypeKey(combo: string) {
+  const parts = combo
+    .split("+")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+  const key = parts.pop() ?? ""
+  const modifiers = parts.filter((item) => ["ctrl", "control", "alt", "shift", "meta", "cmd", "super"].includes(item))
+  const modifierName = (item: string) =>
+    item === "ctrl" || item === "control" ? "ctrl" : item === "cmd" || item === "super" ? "super" : item
+  const keyName: Record<string, string> = {
+    enter: "Return",
+    return: "Return",
+    tab: "Tab",
+    escape: "Escape",
+    esc: "Escape",
+    backspace: "BackSpace",
+    delete: "Delete",
+    space: "space",
+    up: "Up",
+    down: "Down",
+    left: "Left",
+    right: "Right",
+    home: "Home",
+    end: "End",
+    pageup: "Page_Up",
+    pagedown: "Page_Down",
+  }
+  const args: string[] = []
+  for (const modifier of modifiers) args.push("-M", modifierName(modifier))
+  args.push("-k", keyName[key] ?? key)
+  for (const modifier of modifiers) args.push("-m", modifierName(modifier))
+  await exec("wtype", args, { timeout: TIMEOUT })
+}
 
 async function xdotool(args: string[]) {
   const result = await exec("xdotool", args, { timeout: TIMEOUT })
@@ -568,7 +1171,11 @@ export async function type(text: string) {
       [text],
     )
   }
-  if (current === "linux") return xdotool(["type", "--clearmodifiers", "--", text])
+  if (current === "linux") {
+    if (await which("xdotool")) return xdotool(["type", "--clearmodifiers", "--", text])
+    if (await which("wtype")) return exec("wtype", ["--", text], { timeout: TIMEOUT })
+    throw new Error("Typing on Linux requires xdotool or wtype")
+  }
   throw new Error("Typing is not supported on this platform")
 }
 
@@ -596,16 +1203,20 @@ export async function key(combo: string) {
     return osascript(['tell application "System Events" to keystroke "' + last + '"' + using])
   }
   if (current === "linux") {
-    const value = combo
-      .split("+")
-      .map((item) => {
-        const part = item.trim().toLowerCase()
-        if (part === "ctrl" || part === "control") return "ctrl"
-        if (part === "meta" || part === "cmd" || part === "command") return "super"
-        return part
-      })
-      .join("+")
-    return xdotool(["key", "--clearmodifiers", value])
+    if (await which("xdotool")) {
+      const value = combo
+        .split("+")
+        .map((item) => {
+          const part = item.trim().toLowerCase()
+          if (part === "ctrl" || part === "control") return "ctrl"
+          if (part === "meta" || part === "cmd" || part === "command") return "super"
+          return part
+        })
+        .join("+")
+      return xdotool(["key", "--clearmodifiers", value])
+    }
+    if (await which("wtype")) return linuxWtypeKey(combo)
+    throw new Error("Key press on Linux requires xdotool or wtype")
   }
   throw new Error("Key press is not supported on this platform")
 }
@@ -615,6 +1226,7 @@ export async function windows(): Promise<WindowInfo[]> {
   if (current === "windows") return windowsWindows()
   if (current === "macos") return macWindows()
   if (current === "linux") {
+    if (process.env.WAYLAND_DISPLAY || !(await which("xdotool"))) return linuxWindows()
     const raw = await xdotool(["search", "--onlyvisible", "--name", ""])
     const ids = raw
       .split(/\s+/)

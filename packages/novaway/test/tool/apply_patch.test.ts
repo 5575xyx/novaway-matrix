@@ -631,3 +631,32 @@ EOF`
     }),
   )
 })
+
+describe("tool.apply_patch plan mode boundary", () => {
+  /**
+   * 计划模式的白名单是"每一个目标都必须是计划目录里的 .md"。
+   * `*** Move to:` 会同时删源、写目标 —— 只报源路径等于给
+   * "把计划目录里的文件挪到 src/" 留了后门：源是合法 .md，内容却落到计划目录之外。
+   * 这条断言锁住"目标路径也参与判定"。
+   */
+  it.instance(
+    "a move reports the destination path to the permission layer",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const { ctx, calls } = makeCtx()
+        const original = path.join(test.directory, ".novaway", "plans", "x.md")
+        yield* makeDir(path.dirname(original))
+        yield* seed(original, "plan\n")
+
+        const patchText =
+          "*** Begin Patch\n*** Update File: .novaway/plans/x.md\n*** Move to: src/a.ts\n@@\n-plan\n+code\n*** End Patch"
+
+        yield* execute({ patchText }, ctx)
+
+        expect(calls.length).toBe(1)
+        expect(calls[0].patterns).toEqual([".novaway/plans/x.md", "src/a.ts"])
+      }),
+    { git: true },
+  )
+})

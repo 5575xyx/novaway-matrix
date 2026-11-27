@@ -64,7 +64,9 @@ export function preferAppEnv(userDataPath: string) {
     NOVAWAY_CLIENT: "desktop",
     // 桌面壳能做的、普通浏览器标签页做不到的：内嵌 webview（运营工作台那块已登录的
     // 平台页面）。内核据此决定要不要注入 webview_* 工具。
-    NOVAWAY_CLIENT_CAPABILITIES: "question,tui,webview",
+    // `plan`：桌面壳自带计划模式的 UI（权限下拉 / 「+」菜单都能切档），少了它内核
+    // 不下发 plan 相关的工具与提示词，「切到计划模式」就变成了只读死路。
+    NOVAWAY_CLIENT_CAPABILITIES: "question,plan,tui,webview",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
     // 桌面应用图标目录：内置 app-icon 技能把生成的 PNG 落在这里，
     // 设置「通用 → 应用图标与名称」的图标墙会立即列出、可切换复用。

@@ -16,7 +16,9 @@ import { useFile } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
+import { useSync } from "@/context/sync"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
 import type { StatusPanelSection } from "./status-panel"
 
 const text = (error: unknown) => (error instanceof Error ? error.message : String(error))
@@ -42,6 +44,7 @@ const toPending = (item: DocumentReviewPending1): ReviewPending => ({
 export function useDocumentReviewSection(sessionID: () => string): () => StatusPanelSection | null {
   const sdk = useSDK()
   const language = useLanguage()
+  const sync = useSync()
   const file = useFile()
   const layout = useLayout()
   const { tabs } = useSessionLayout()
@@ -101,10 +104,17 @@ export function useDocumentReviewSection(sessionID: () => string): () => StatusP
     offResolved()
   })
 
-  const poll = setInterval(load, 2000)
+  // 实时事件（requested / resolved）已经覆盖主路径，轮询只兜"漏事件/重载页面"。
+  // 因此按需调档：有在跑的会话、或手上还有待评审文档时才 2 秒一问；否则 20 秒。
+  const poll = createAdaptivePoll(load, {
+    fast: 2000,
+    idle: 20_000,
+    active: () => store.items.length > 0 || sync.data.session_working(sessionID()),
+    immediate: false,
+  })
   const clock = setInterval(() => setNow(Date.now()), 15_000)
   onCleanup(() => {
-    clearInterval(poll)
+    poll.stop()
     clearInterval(clock)
   })
 

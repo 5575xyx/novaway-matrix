@@ -71,7 +71,12 @@ import { takeAsyncResults } from "@/hook/exec"
 import { Service as ToolLockServiceService, defaultLayer as ToolLockServiceLayer } from "@/tool/lock"
 import { Service as AgentMailboxService, defaultLayer as AgentMailboxLayer } from "@/team/mailbox"
 import * as TeamOpLog from "@/team/op-log"
-import { Service as TeamOpLogService, defaultLayer as TeamOpLogLayer, idempotencyKey } from "@/team/op-log"
+import {
+  Service as TeamOpLogService,
+  defaultLayer as TeamOpLogLayer,
+  idempotencyKey,
+  legacyIdempotencyKey,
+} from "@/team/op-log"
 import * as TeamDenials from "@/team/denials"
 import { Service as TeamWriterService, defaultLayer as TeamWriterLayer } from "@/team/writer"
 import { Service as TeamRunService } from "@/team/run"
@@ -249,6 +254,102 @@ function latestTodoFocusPosition(messages: MessageV2.WithParts[]): number | unde
 
 const hasTodoToolCall = (message: MessageV2.WithParts) =>
   message.parts.some((part) => part.type === "tool" && TODO_TOOL_IDS.has(part.tool))
+
+/** 能写计划文件的工具 id（`patch` 是 `apply_patch` 的历史别名）。 */
+const PLAN_WRITE_TOOL_IDS = new Set(["write", "edit", "apply_patch", "patch"])
+
+/**
+ * 计划模式提示词里"模型到底能不能做这件事"的两条判据。
+ *
+ * 提示词要求模型做它做不到的事，模型只会去试旁路（write → edit → bash），
+ * 最后什么都没写成 —— 本次线上事故就是这个形状。所以注入前先算清楚：
+ * - `canExitPlan`：`plan_exit` 是否真的会下发到本会话。`plan_exit` 恒注册
+ *   （见 tool/registry），还要排除两类下发不到的情况：`global` scope（不给任何
+ *   工具）与 agent 自带的工具白/黑名单；
+ * - `canWritePlan`：是否有写工具能落盘计划文件。同理排除 `global` scope 与
+ *   白/黑名单；`explore` 这类只读 agent 的白名单里没有写工具，就得改成"把计划
+ *   写在回复里"。
+ *
+ * 纯函数 + 导出：判据被 QA 的单测锁住，改口径时不可能悄悄漂移。
+ */
+export function planReminderFacts(input: {
+  scope: string
+  agent: { tools?: readonly string[]; disallowedTools?: readonly string[] } | undefined
+}): { canExitPlan: boolean; canWritePlan: boolean } {
+  const scope = input.scope !== "global"
+  const tools = input.agent?.tools
+  const disallowed = input.agent?.disallowedTools ?? []
+  const allowlist = tools?.length ? tools : undefined
+  const canExitPlan = scope && (!allowlist || allowlist.includes("plan_exit")) && !disallowed.includes("plan_exit")
+  const canWritePlan =
+    scope &&
+    (!allowlist || allowlist.some((tool) => PLAN_WRITE_TOOL_IDS.has(tool))) &&
+    !disallowed.some((tool) => PLAN_WRITE_TOOL_IDS.has(tool))
+  return { canExitPlan, canWritePlan }
+}
+
+/** 这条用户消息是不是系统自己插的（没有任何人类输入的内容）。 */
+function isSyntheticUser(message: MessageV2.WithParts) {
+  if (message.info.role !== "user") return false
+  const texts = message.parts.filter((part) => part.type === "text")
+  return texts.length > 0 && texts.every((part) => part.type === "text" && part.synthetic === true)
+}
+
+/**
+ * 这个工具调用是不是"计划真的被批准了"。
+ *
+ * `plan_exit` 的返回值就是判据：批准时 `metadata.execution` 是 `standard`（普通实施）、
+ * `goal`（当前会话的普通目标）或 `long_task`（持久化长期任务）。
+ * - `Continue planning` / non-execution choice → tool completes with `approvalState: "continue"` but no execution metadata；
+ * - 计划模式本来没开（模型自己乱调）→ 工具**成功返回**但 metadata 是空对象。
+ *   只判 `status === "completed"` 会把这种误判成批准，所以必须看 metadata。
+ */
+function isApprovedPlanExit(part: MessageV2.Part) {
+  if (part.type !== "tool" || part.tool !== "plan_exit") return false
+  if (part.state.status !== "completed") return false
+  const execution = part.state.metadata.execution
+  return execution === "standard" || execution === "goal" || execution === "long_task"
+}
+
+function interactiveGoalFromPlanExit(part: MessageV2.Part) {
+  if (part.type !== "tool" || part.tool !== "plan_exit" || part.state.status !== "completed") return undefined
+  const metadata = part.state.metadata as Record<string, unknown>
+  if (metadata.execution !== "goal" || typeof metadata.goalID !== "string" || !metadata.goalID) return undefined
+  return {
+    goalId: metadata.goalID,
+    maxIterations: typeof metadata.maxIterations === "number" ? metadata.maxIterations : 20,
+  }
+}
+
+/**
+ * 这条用户消息之前的那一轮，是不是以一次成功的 `plan_exit` 收尾（用户刚批准计划）。
+ *
+ * 只看紧邻的那条助手消息：更早的 `plan_exit` 属于上一轮规划，与本次用户消息无关。
+ * 用于把「批准后进入实施」钉在 phase 上 —— `beginTurn` 会按 plan_exit 注入的合成
+ * 消息重新分类（判成 l1 → grill-me），不覆盖就会把刚批准的第一次写入拦一次。
+ *
+ * 两个前提，缺一就会误覆盖：
+ * 1. 当前这条用户消息必须是**合成的**：用户自己敲了新话，说明"批准"已经不是这一轮
+ *    的直接原因，工作流该按新话重新分类；
+ * 2. `plan_exit` 必须是真正的批准（见 `isApprovedPlanExit`）。
+ */
+export function approvedByPlanExit(
+  messages: readonly MessageV2.WithParts[],
+  userMessage: MessageV2.WithParts | undefined,
+) {
+  if (!userMessage) return false
+  if (!isSyntheticUser(userMessage)) return false
+  const index = messages.findIndex((message) => message.info.id === userMessage.info.id)
+  if (index < 0) return false
+  for (let cursor = index - 1; cursor >= 0; cursor--) {
+    const message = messages[cursor]
+    if (!message) return false
+    // 走到更早的用户消息还没见到 plan_exit，说明中间已经换过一轮了。
+    if (message.info.role === "user") return false
+    if (message.parts.some(isApprovedPlanExit)) return true
+  }
+  return false
+}
 
 /**
  * Periodic "you have not touched the todo list in a while" nudge.
@@ -1075,8 +1176,18 @@ export const layer = Layer.effect(
       const userMessage = input.messages.findLast((msg) => msg.info.role === "user")
       if (!userMessage) return input.messages
 
+      // 计划模式下的 phase 由权限模式决定：`beginTurn` 照样会按消息分类写一个 phase，
+      // 但模型此刻是在"计划模式"里做事，渲染成 grill-me / implementation 会误导它
+      // （"已经进入实施了，为什么写文件还被拒"）。
+      const mode =
+        (yield* sessions.permissionModeOf(input.session.id).pipe(Effect.catch(() => Effect.succeed(undefined)))) ??
+        input.session.permissionMode
+      const planMode = mode === "plan"
       const policy = workflowPolicy ? yield* workflowPolicy.get(input.session.id) : undefined
-      if (policy && !userMessage.parts.some((part) => part.type === "text" && part.text.includes("<novaway-workflow-state>"))) {
+      if (
+        policy &&
+        !userMessage.parts.some((part) => part.type === "text" && part.text.includes("<novaway-workflow-state>"))
+      ) {
         const part = yield* sessions.updatePart({
           id: PartID.ascending(),
           messageID: userMessage.info.id,
@@ -1085,7 +1196,7 @@ export const layer = Layer.effect(
           synthetic: true,
           text: [
             "<novaway-workflow-state>",
-            `route=${policy.route}; phase=${policy.phase}; route_locked=${policy.routeLocked}`,
+            `route=${policy.route}; phase=${planMode ? "plan" : policy.phase}; route_locked=${policy.routeLocked}`,
             `question_calls=${policy.questionCalls}; question_budget=${policy.questionBudget}`,
             `verification=${policy.verificationStatus}; delivery=${policy.deliveryStatus}`,
             "Follow this host-owned route. Escalate rather than downgrading when complexity appears.",
@@ -1359,16 +1470,43 @@ export const layer = Layer.effect(
         taskBoardSignatures.delete(input.session.id)
       }
 
-
-      const mode =
-        (yield* sessions.permissionModeOf(input.session.id).pipe(Effect.catch(() => Effect.succeed(undefined)))) ??
-        input.session.permissionMode
       if (mode !== "plan") return input.messages
+      // 子会话（子代理 / 团队成员）继承根会话的计划模式时不再重复注入这套提示词：
+      // 它们要写的计划文件不是用户要看的那一个，`plan_exit` 在子会话里也只会变成
+      // "向父会话要审批"。用户显式把子会话切进计划模式时（档位落在本会话上）照常注入。
+      if (input.session.parentID && input.session.permissionMode !== "plan") return input.messages
 
       const ctx = yield* InstanceState.context
       const plan = Session.plan(input.session, ctx)
       const exists = yield* fsys.existsSafe(plan)
       if (!exists) yield* fsys.ensureDir(path.dirname(plan)).pipe(Effect.catch(Effect.die))
+      // 注入的条件必须和"工具是否真的下发"一致：要求模型调用一个不在工具列表里的
+      // 工具、或把计划写进一个它没有权限写的文件，它只会反复试旁路。判据在
+      // `planReminderFacts`（已导出，单测锁住），这里只取结果。
+      const { canExitPlan, canWritePlan } = planReminderFacts({
+        scope: input.session.scope,
+        agent: input.agent,
+      })
+      const handoff = canExitPlan
+        ? `### Phase 5: Call plan_exit tool
+At the very end of your turn, once you have asked the user questions and are happy with your final plan file - you should always call plan_exit to indicate to the user that you are done planning.
+This is critical - your turn should only end with either asking the user a question or calling plan_exit. Do not stop unless it's for these 2 reasons.
+
+**Important:** Use question tool to clarify requirements/approach, use plan_exit to request plan approval. Do NOT use question tool to ask "Is this plan okay?" - that's what plan_exit does.`
+        : `### Phase 5: Hand the plan back
+This session cannot call plan_exit. End the turn with a short message naming the plan file and stating what the user should approve; the user leaves plan mode from the UI.`
+      const finalPlan = canWritePlan
+        ? `Final Plan
+Goal: Write your final plan to the plan file (the only file you can edit).
+- Use the \`write\` tool to create the plan when it does not exist; use \`read\` before \`edit\` when updating it
+- Do not use \`office_document_edit\` or shell to write the plan; the normal file tools are the supported path
+- Include only your recommended approach, not all alternatives
+- Ensure that the plan file is concise enough to scan quickly, but detailed enough to execute effectively
+- Include the paths of critical files to be modified
+- Include a verification section describing how to test the changes end-to-end (run the code, use MCP tools, run tests)`
+        : `Final Plan
+Goal: Present your final plan in your reply.
+This session has no file-writing tool, so do not try to create or edit the plan file (including via shell). Put the complete plan in your message: only the recommended approach, the critical files to modify, and a verification section describing how to test the changes end-to-end (run the code, use MCP tools, run tests).`
       const part = yield* sessions.updatePart({
         id: PartID.ascending(),
         messageID: userMessage.info.id,
@@ -1378,7 +1516,15 @@ export const layer = Layer.effect(
 Plan mode is active. The user wants planning without implementation. Do not make project changes or run mutating tools; the permission system enforces the read-only boundary.
 
 ## Plan File Info:
-${exists ? `A plan file already exists at ${plan}. You may read and update it.` : `No plan file exists yet. Create the plan at ${plan}.`}
+${
+  exists
+    ? canWritePlan
+      ? `A plan file already exists at ${plan}. You may read and update it.`
+      : `A plan file already exists at ${plan}. You may read it, but this session cannot write files, so present the plan in your reply instead of editing it.`
+    : canWritePlan
+      ? `No plan file exists yet. Create the plan at ${plan}.`
+      : `You cannot write files in this session; present the plan in your reply instead of creating ${plan}.`
+}
 Keep the plan concise and actionable. Do not implement it until the user explicitly changes the permission mode.
 
 ## Plan Workflow
@@ -1429,18 +1575,9 @@ Goal: Review the plan(s) from Phase 2 and ensure alignment with the user's inten
 2. Ensure that the plans align with the user's original request
 3. Use question tool to clarify any remaining questions with the user
 
-### Phase 4: Final Plan
-Goal: Write your final plan to the plan file (the only file you can edit).
-- Include only your recommended approach, not all alternatives
-- Ensure that the plan file is concise enough to scan quickly, but detailed enough to execute effectively
-- Include the paths of critical files to be modified
-- Include a verification section describing how to test the changes end-to-end (run the code, use MCP tools, run tests)
+### Phase 4: ${finalPlan}
 
-### Phase 5: Call plan_exit tool
-At the very end of your turn, once you have asked the user questions and are happy with your final plan file - you should always call plan_exit to indicate to the user that you are done planning.
-This is critical - your turn should only end with either asking the user a question or calling plan_exit. Do not stop unless it's for these 2 reasons.
-
-**Important:** Use question tool to clarify requirements/approach, use plan_exit to request plan approval. Do NOT use question tool to ask "Is this plan okay?" - that's what plan_exit does.
+${handoff}
 
 NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.
 </system-reminder>`,
@@ -1568,7 +1705,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                       typeof args === "object" &&
                       args !== null &&
                       (args as Record<string, unknown>).subagent_type === "verification"
+                    // 计划模式是本次会话的权威裁决：能写什么由 permission 层判定
+                    // （只放行计划目录下的 markdown 与只读 shell），phase 门禁必须让位，
+                    // 否则「写计划文件」和「phase 不许写」互相否决，计划一个字节也落不了盘。
+                    const permissionMode =
+                      (yield* sessions
+                        .permissionModeOf(ctx.sessionID)
+                        .pipe(Effect.catch(() => Effect.succeed(undefined)))) ?? input.session.permissionMode
+                    const planMode = permissionMode === "plan"
                     if (
+                      !planMode &&
                       policy?.phase === "verification" &&
                       !isVerificationTask &&
                       item.capabilities?.workspace !== false &&
@@ -1581,16 +1727,28 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                       )
                     }
                     if (policy) {
-                      const decision = checkTool(policy.phase, {
-                        id: item.id,
-                        workspace: typeof item.capabilities?.workspace === "boolean" ? item.capabilities.workspace : undefined,
-                        readOnly: typeof item.capabilities?.readOnly === "boolean" ? item.capabilities.readOnly : undefined,
-                      }, isVerificationTask)
+                      const decision = checkTool(
+                        policy.phase,
+                        {
+                          id: item.id,
+                          workspace:
+                            typeof item.capabilities?.workspace === "boolean" ? item.capabilities.workspace : undefined,
+                          readOnly:
+                            typeof item.capabilities?.readOnly === "boolean" ? item.capabilities.readOnly : undefined,
+                        },
+                        isVerificationTask,
+                        { permissionMode },
+                      )
                       if (!decision.allowed) {
-                        yield* Effect.fail(new Error(`Workflow phase ${policy.phase} forbids tool ${item.id}: ${decision.reason}`))
+                        yield* Effect.fail(
+                          new Error(`Workflow phase ${policy.phase} forbids tool ${item.id}: ${decision.reason}`),
+                        )
                       }
                     }
-                    if (item.id === "question") {
+                    if (item.id === "question" && ["intake", "grill-me"].includes(policy?.phase ?? "")) {
+                      // grill-me is the initial clarification gate. A later question
+                      // must not rewind an implementation/plan turn and suddenly
+                      // revoke the write tools that were already authorized.
                       yield* workflowPolicy.setPhase({ sessionID: ctx.sessionID, phase: "grill-me" })
                     } else if (
                       item.id === "task" &&
@@ -1600,7 +1758,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                     ) {
                       yield* workflowPolicy.setPhase({ sessionID: ctx.sessionID, phase: "verification" })
                       yield* workflowPolicy.setVerification({ sessionID: ctx.sessionID, status: "pending" })
-                    } else if (item.id !== "skill") {
+                    } else if (item.id !== "skill" && !planMode) {
+                      // 计划模式不推进 phase：探索/写计划都属于规划阶段，退出计划模式后
+                      // 若 phase 已被推到 implementation，门禁就形同虚设。
                       yield* workflowPolicy.setPhase({ sessionID: ctx.sessionID, phase: "implementation" })
                     }
                   }
@@ -1674,6 +1834,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                           sessionID: ctx.sessionID,
                           tool: item.id,
                           idempotencyKey: idempotencyKey({ scope: opScope, tool: item.id, args: effective }),
+                          legacyIdempotencyKey: legacyIdempotencyKey({
+                            scope: opScope,
+                            tool: item.id,
+                            args: effective,
+                          }),
                           // 只记定位信息：参数里常有 token/路径，落库即泄露。
                           effect: { callID: ctx.callID },
                         })
@@ -3426,7 +3591,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
                 : undefined,
             verifier: input.goalExecution.verifier,
             evidenceMinBytes:
-              input.goalExecution.evidenceMinBytes !== undefined && Number.isFinite(input.goalExecution.evidenceMinBytes)
+              input.goalExecution.evidenceMinBytes !== undefined &&
+              Number.isFinite(input.goalExecution.evidenceMinBytes)
                 ? Math.min(10_000_000, Math.max(0, Math.floor(input.goalExecution.evidenceMinBytes)))
                 : undefined,
             mode: input.goalExecution.mode,
@@ -3979,11 +4145,13 @@ ${text}
 
         const lastUserMessage = msgs.findLast((msg) => msg.info.role === "user")
         const workflowState = workflowPolicy
-          ? yield* workflowPolicy.beginTurn({
-              sessionID,
-              turnID: lastUser.id,
-              text: lastUserMessage ? textFromParts(lastUserMessage.parts) : "",
-            }).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+          ? yield* workflowPolicy
+              .beginTurn({
+                sessionID,
+                turnID: lastUser.id,
+                text: lastUserMessage ? textFromParts(lastUserMessage.parts) : "",
+              })
+              .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
           : undefined
         // 编排内的子会话不是用户新开的一轮对话：它已经通过运行计划获得了
         // 明确的执行档位。若仍按成员提示词重新分类，普通「把文件写好」会被
@@ -3991,16 +4159,36 @@ ${text}
         // 运行策略是主权威：可写团队会话进入 implementation，只读验证会话
         // 进入 verification；普通会话仍完全沿用用户工作流分类。
         const executionScope = teamOps ? yield* teamOps.scopeOf(sessionID) : undefined
+        // 覆盖之后日志要打"生效中的 phase"：`workflowState` 是 `beginTurn` 的快照，
+        // 覆盖不会回写它。照旧打快照值会让日志与门禁的判断对不上（门禁看的是库里
+        // 的新值），排查时反而被误导。
+        let effectivePhase = workflowState?.phase
         if (workflowPolicy && workflowState && executionScope) {
           const executionPhase = executionScope.readOnly === false ? "implementation" : "verification"
-          if (workflowState.phase !== executionPhase) {
+          if (effectivePhase !== executionPhase) {
             yield* workflowPolicy.setPhase({ sessionID, phase: executionPhase })
+            effectivePhase = executionPhase
+          }
+        }
+        // 计划刚被批准：用户的授权是主权威，`beginTurn` 按 plan_exit 注入的合成消息
+        // 分类出的 grill-me 让位。否则用户刚点完「开始执行」，模型第一个写工具就被
+        // 工作流门禁拦一次 —— 与上面运行策略同理。团队会话按自己的运行策略走。
+        //
+        // 还要求"会话此刻确实已经不在计划模式"：用户批准后又把模式切回 plan 时，
+        // 这条覆盖会让门禁在计划模式下放行写工具 —— 权限模式才是计划模式的权威。
+        if (workflowPolicy && workflowState && !executionScope && approvedByPlanExit(msgs, lastUserMessage)) {
+          const currentMode =
+            (yield* sessions.permissionModeOf(sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))) ??
+            session.permissionMode
+          if (currentMode !== "plan" && effectivePhase !== "implementation") {
+            yield* workflowPolicy.setPhase({ sessionID, phase: "implementation" })
+            effectivePhase = "implementation"
           }
         }
         if (workflowState) {
           yield* slog.info("workflow policy", {
             route: workflowState.route,
-            phase: workflowState.phase,
+            phase: effectivePhase,
             questionBudget: workflowState.questionBudget,
           })
         }
@@ -4127,9 +4315,10 @@ ${text}
                 .filter(Boolean)
                 .join("\n")
             : ""
-          const looksLikeNakedQuestion = /(?:请告诉我|请提供|你希望|请选择|是否需要|哪一个|哪个方案|需要确认)[^。！？\n]*[？?]\s*$/i.test(
-            assistantText,
-          )
+          const looksLikeNakedQuestion =
+            /(?:请告诉我|请提供|你希望|请选择|是否需要|哪一个|哪个方案|需要确认)[^。！？\n]*[？?]\s*$/i.test(
+              assistantText,
+            )
           const policy = workflowPolicy ? yield* workflowPolicy.get(sessionID) : undefined
           if (
             workflowPolicy &&
@@ -4941,7 +5130,10 @@ ${text}
           yield* workflowPolicy.setPhase({ sessionID, phase: "completed" })
           yield* workflowPolicy.setDelivery({
             sessionID,
-            status: current.verificationStatus === "passed" || current.verificationStatus === "not_required" ? "completed" : "blocked",
+            status:
+              current.verificationStatus === "passed" || current.verificationStatus === "not_required"
+                ? "completed"
+                : "blocked",
           })
         }
       }
@@ -4960,7 +5152,7 @@ ${text}
       }
 
       const goalService = yield* getGoalService()
-      const goalLeaseOwner = input.goalExecution ? `novaway:${ulid()}` : undefined
+      let goalLeaseOwner = input.goalExecution ? `novaway:${ulid()}` : undefined
       if (input.goalExecution && goalService && goalLeaseOwner) {
         const claimed = yield* goalService.claimRun({
           goalId: input.goalExecution.goalId,
@@ -4972,382 +5164,402 @@ ${text}
 
       try {
         let result = yield* state.ensureRunning(
-        input.sessionID,
-        lastAssistant(input.sessionID),
-        runLoop(input.sessionID, input.resume ? { reason: input.reason } : undefined) as any,
-      )
-      if (input.resume) return result
-      const activeSession = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
-      if (activeSession.scope === "global") return result
-
-      // 目标驱动自主循环:每轮结束后用裁判模型判断活动目标是否达成,未达成则
-      // 顺序(不 fork)追加一轮,受硬性 max_iterations 上限约束防跑飞。默认关闭。
-      const cfg = yield* config.get().pipe(Effect.catch(() => Effect.succeed({} as any)))
-      const goalCfg = ConfigGoal.resolve(cfg.goal)
-      const goalExecution = input.goalExecution
-      if (!goalExecution && (!goalCfg.enabled || goalCfg.max_iterations <= 0)) return result
-      // 目标循环自己发起的续跑不再嵌套一层目标循环,否则内层会重复裁判和计数。
-      if (input.goalContinuation) return result
-      if (!goalService) return result
-      if (goalExecution) {
-        const goal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
-        if (!goal || goal.status !== "in_progress") return result
-        // Durable goals are owned by the Super-Agent task graph. The initial
-        // user message is still sent to the session, but never start a second
-        // interactive Goal loop for the same target.
-        if (goal.executionConfig?.mode === "durable") return result
-      }
-
-      const maxIterations = goalExecution?.maxIterations ?? goalCfg.max_iterations
-      // 0 means model-driven automatic continuation, but production execution still
-      // needs a hard circuit breaker. User budgets and the judge usually stop earlier.
-      const iterationLimit = maxIterations > 0 ? maxIterations : MAX_AUTOMATIC_GOAL_ITERATIONS
-      const automaticByRounds = maxIterations <= 0
-      // Explicit durable runs carry their persisted settings; interactive/configured
-      // runs fall back to the workspace Goal configuration.
-      const judgeModelRef = goalExecution?.judgeModel ?? goalCfg.judge_model
-      const verifier = goalExecution?.verifier ?? goalCfg.verifier
-      const evidenceMinBytes = goalExecution?.evidenceMinBytes ?? goalCfg.evidence_min_bytes
-      const budgetLimits = {
-        maxTokens: goalExecution?.maxTokens ?? goalCfg.max_tokens ?? (goalExecution ? DEFAULT_GOAL_MAX_TOKENS : undefined),
-        maxActiveMs:
-          goalExecution?.maxActiveMs ?? goalCfg.max_active_ms ?? (goalExecution ? DEFAULT_GOAL_MAX_ACTIVE_MS : undefined),
-      }
-      const budgetEnabled = budgetLimits.maxTokens !== undefined || budgetLimits.maxActiveMs !== undefined
-      const readSessionTokens = () =>
-        Effect.sync(() => {
-          const row = Database.use((db) =>
-            db
-              .select({
-                input: SessionTable.tokens_input,
-                output: SessionTable.tokens_output,
-                reasoning: SessionTable.tokens_reasoning,
-                cacheRead: SessionTable.tokens_cache_read,
-                cacheWrite: SessionTable.tokens_cache_write,
-              })
-              .from(SessionTable)
-              .where(eq(SessionTable.id, input.sessionID))
-              .get(),
-          )
-          return row ? row.input + row.output + row.reasoning + row.cacheRead + row.cacheWrite : 0
-        }).pipe(Effect.catch(() => Effect.succeed(0)))
-      let tokensSeen = budgetEnabled ? yield* readSessionTokens() : 0
-      let iterations = 0
-      const pauseGoals = (goals: readonly any[], message: string) =>
-        Effect.gen(function* () {
-          for (const goal of goals) {
-            if (goal.status !== "in_progress") continue
-            yield* goalService
-              .update({ goalId: goal.id, sessionId: input.sessionID, status: "paused" })
-              .pipe(Effect.catch(() => Effect.void))
-          }
-          yield* bus.publish(Session.Event.Error, {
-            sessionID: input.sessionID,
-            error: new NamedError.Unknown({ message }).toObject(),
-          })
-        })
-      while (iterations < iterationLimit) {
-        if (
-          yield* state.assertNotBusy(input.sessionID).pipe(
-            Effect.as(false),
-            Effect.catch(() => Effect.succeed(true)),
-          )
+          input.sessionID,
+          lastAssistant(input.sessionID),
+          runLoop(input.sessionID, input.resume ? { reason: input.reason } : undefined) as any,
         )
-          break
-        const goals = yield* goalService.list(input.sessionID).pipe(Effect.catch(() => Effect.succeed([] as any[])))
-        const active = goals
-          .filter((g: any) =>
-            goalExecution
-              ? g.id === goalExecution.goalId && g.status === "in_progress"
-              : g.status === "in_progress",
-          )
-          // One prompt owns one goal run. Never let an older unrelated goal
-          // contaminate this judge or consume this run's budget.
-          .sort((a: any, b: any) => Number(b.updatedAt) - Number(a.updatedAt))
-          .slice(0, 1)
-        if (active.length === 0) break
-        if (goalExecution && goalLeaseOwner) {
-          const renewed = yield* goalService.renewRun({
-            goalId: goalExecution.goalId,
-            sessionId: input.sessionID,
-            owner: goalLeaseOwner,
-          })
-          if (!renewed) break
-        }
-        // 预算按最早的活动目标归属,并从目标创建时刻起算;跨进程重启沿用同一行。
-        const budgetOwner = active[0]
-        if (budgetEnabled) {
-          const budget = yield* goalService
-            .budget({ goalId: budgetOwner.id, sessionId: input.sessionID, startedAt: Number(budgetOwner.createdAt) })
-            .pipe(Effect.catch(() => Effect.succeed(undefined)))
-          const permit = budget
-            ? GoalBudget.allowGoalContinuation({ budget, limits: budgetLimits, now: Date.now() })
-            : { allowed: true as const }
-          if (!permit.allowed) {
-            yield* bus.publish(Session.Event.Error, {
-              sessionID: input.sessionID,
-              error: new NamedError.Unknown({
-                message: `目标预算已用尽(${permit.reason}):${permit.detail}。已停止追加轮次并暂停目标;恢复前请先调高预算或缩小目标。`,
-              }).toObject(),
+        if (input.resume) return result
+        const activeSession = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+        if (activeSession.scope === "global") return result
+
+        let goalExecution = input.goalExecution
+        if (!goalExecution) {
+          const requestedPart = result.parts.findLast((part) => part.type === "tool" && part.tool === "plan_exit")
+          const requested = requestedPart ? interactiveGoalFromPlanExit(requestedPart) : undefined
+          if (requested) {
+            goalExecution = requested
+            const owner = `novaway:${ulid()}`
+            goalLeaseOwner = owner
+            if (!goalService) return result
+            const claimed = yield* goalService.claimRun({
+              goalId: requested.goalId,
+              sessionId: input.sessionID,
+              owner,
             })
-            for (const goal of active) {
+            if (!claimed) return yield* Effect.die(new Error("Goal is already running in another NovaWay instance."))
+          }
+        }
+
+        // 目标驱动自主循环:每轮结束后用裁判模型判断活动目标是否达成,未达成则
+        // 顺序(不 fork)追加一轮,受硬性 max_iterations 上限约束防跑飞。默认关闭。
+        const cfg = yield* config.get().pipe(Effect.catch(() => Effect.succeed({} as any)))
+        const goalCfg = ConfigGoal.resolve(cfg.goal)
+        if (!goalExecution && (!goalCfg.enabled || goalCfg.max_iterations <= 0)) return result
+        // 目标循环自己发起的续跑不再嵌套一层目标循环,否则内层会重复裁判和计数。
+        if (input.goalContinuation) return result
+        if (!goalService) return result
+        if (goalExecution) {
+          const goal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+          if (!goal || goal.status !== "in_progress") return result
+          // Durable goals are owned by the Super-Agent task graph. The initial
+          // user message is still sent to the session, but never start a second
+          // interactive Goal loop for the same target.
+          if (goal.executionConfig?.mode === "durable") return result
+        }
+
+        const maxIterations = goalExecution?.maxIterations ?? goalCfg.max_iterations
+        // 0 means model-driven automatic continuation, but production execution still
+        // needs a hard circuit breaker. User budgets and the judge usually stop earlier.
+        const iterationLimit = maxIterations > 0 ? maxIterations : MAX_AUTOMATIC_GOAL_ITERATIONS
+        const automaticByRounds = maxIterations <= 0
+        // Explicit durable runs carry their persisted settings; interactive/configured
+        // runs fall back to the workspace Goal configuration.
+        const judgeModelRef = goalExecution?.judgeModel ?? goalCfg.judge_model
+        const verifier = goalExecution?.verifier ?? goalCfg.verifier
+        const evidenceMinBytes = goalExecution?.evidenceMinBytes ?? goalCfg.evidence_min_bytes
+        const budgetLimits = {
+          maxTokens:
+            goalExecution?.maxTokens ?? goalCfg.max_tokens ?? (goalExecution ? DEFAULT_GOAL_MAX_TOKENS : undefined),
+          maxActiveMs:
+            goalExecution?.maxActiveMs ??
+            goalCfg.max_active_ms ??
+            (goalExecution ? DEFAULT_GOAL_MAX_ACTIVE_MS : undefined),
+        }
+        const budgetEnabled = budgetLimits.maxTokens !== undefined || budgetLimits.maxActiveMs !== undefined
+        const readSessionTokens = () =>
+          Effect.sync(() => {
+            const row = Database.use((db) =>
+              db
+                .select({
+                  input: SessionTable.tokens_input,
+                  output: SessionTable.tokens_output,
+                  reasoning: SessionTable.tokens_reasoning,
+                  cacheRead: SessionTable.tokens_cache_read,
+                  cacheWrite: SessionTable.tokens_cache_write,
+                })
+                .from(SessionTable)
+                .where(eq(SessionTable.id, input.sessionID))
+                .get(),
+            )
+            return row ? row.input + row.output + row.reasoning + row.cacheRead + row.cacheWrite : 0
+          }).pipe(Effect.catch(() => Effect.succeed(0)))
+        let tokensSeen = budgetEnabled ? yield* readSessionTokens() : 0
+        let iterations = 0
+        const pauseGoals = (goals: readonly any[], message: string) =>
+          Effect.gen(function* () {
+            for (const goal of goals) {
               if (goal.status !== "in_progress") continue
               yield* goalService
                 .update({ goalId: goal.id, sessionId: input.sessionID, status: "paused" })
                 .pipe(Effect.catch(() => Effect.void))
             }
-            break
-          }
-        }
-        if (
-          yield* state.assertNotBusy(input.sessionID).pipe(
-            Effect.as(false),
-            Effect.catch(() => Effect.succeed(true)),
-          )
-        )
-          break
-
-        const msgs = yield* sessions
-          .messages({ sessionID: input.sessionID })
-          .pipe(Effect.catch(() => Effect.succeed([])))
-        const since = Number(budgetOwner.createdAt)
-        const goalMsgs = msgs.filter((message) => message.info.time.created >= since)
-        const lastAssistantMsg = [...goalMsgs].reverse().find((m) => m.info.role === "assistant")
-        const lastUserMsg = [...goalMsgs].reverse().find((m) => m.info.role === "user")
-        if (!lastAssistantMsg || lastAssistantMsg.info.role !== "assistant") break
-        if (lastAssistantMsg.info.error) break
-
-        // 独立验证(verifier=agent):非平凡改动必须有只读 verification 子代理在最后
-        // 一次编辑之后给出的 PASS 证据,才允许判定目标完成。低于阈值时仍交给裁判模型。
-        // 多目标会话里只有显式 goalExecution 才走验证子代理,避免用一份报告给多个目标背书。
-        const verifierGoalId = goalExecution?.goalId ?? (active.length === 1 ? active[0].id : undefined)
-        let verdict: Schema.Schema.Type<typeof GoalJudgeResult> | null = null
-        if (verifier === "agent" && verifierGoalId) {
-          const since = Number(budgetOwner.createdAt)
-          const edits = collectEdits(msgs, { since, cwd: activeSession.directory })
-          if (isNonTrivial(edits)) {
-            const verifications: VerificationObservation[] = []
-            for (const child of yield* sessions.children(input.sessionID)) {
-              if (child.agent !== "verification" || child.time.created < since) continue
-              const history = yield* MessageV2.filterCompactedEffect(child.id).pipe(
-                Effect.catchCause(() => Effect.succeed([] as MessageV2.WithParts[])),
-              )
-              const completed = history.filter(
-                (message) => message.info.role === "assistant" && message.info.time.completed !== undefined,
-              )
-              const last = completed.at(-1)
-              if (!last) {
-                const running = (yield* status.get(child.id)).type !== "idle"
-                verifications.push({
-                  verdict: "UNVERIFIED",
-                  completedAt: running ? 0 : Date.now(),
-                  running,
-                  summary: running ? "verification is still running" : "verification produced no final report",
-                })
-                continue
-              }
-              const text = completed
-                .flatMap((message) => message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])))
-                .join("\n")
-              const report = parseVerificationReport(text)
-              const bytes = new TextEncoder().encode(text).length
-              const enough = bytes >= evidenceMinBytes
-              const info = last.info
-              verifications.push({
-                verdict: enough ? report.verdict : "UNVERIFIED",
-                completedAt: info.role === "assistant" ? (info.time.completed ?? info.time.created) : info.time.created,
-                summary: enough
-                  ? report.violations.length > 0
-                    ? report.violations.join("; ")
-                    : `evidence ${bytes} bytes`
-                  : `verification report is ${bytes} bytes, below the required ${evidenceMinBytes}`,
-              })
-            }
-            const decision = evaluateVerificationGate({
-              edits,
-              verifications,
-              userText: textFromParts(lastUserMsg?.parts ?? []),
+            yield* bus.publish(Session.Event.Error, {
+              sessionID: input.sessionID,
+              error: new NamedError.Unknown({ message }).toObject(),
             })
-            if (decision.action === "satisfied") {
-              verdict =
-                decision.verdict === "PASS"
-                  ? {
-                      goalMet: true,
-                      reasoning: "独立 verification 子代理在最后一次编辑之后给出 VERDICT: PASS。",
-                      completedGoalIds: [verifierGoalId],
-                    }
-                  : {
-                      goalMet: false,
-                      reasoning: "独立 verification 子代理只给出 PARTIAL。",
-                      completedGoalIds: [],
-                      nextAction: "独立验证只给出 PARTIAL:先补齐未能验证的部分,再重新验证并给出 VERDICT: PASS。",
-                    }
-            } else if (decision.action === "require") {
-              verdict = {
-                goalMet: false,
-                reasoning: `独立验证未通过(${decision.reason})。`,
-                completedGoalIds: [],
-                nextAction: decision.message,
-              }
-            }
-          }
-        }
-        if (!verdict) {
-          // 裁判模型:优先配置 judge_model("provider/model"),否则复用当轮 assistant 模型。
-          const judgeRef = (() => {
-            if (judgeModelRef && judgeModelRef.includes("/")) {
-              const [providerID, ...rest] = judgeModelRef.split("/")
-              return { providerID: ProviderID.make(providerID), modelID: rest.join("/") as ModelID }
-            }
-            return {
-              providerID: lastAssistantMsg.info.providerID as ProviderID,
-              modelID: lastAssistantMsg.info.modelID as ModelID,
-            }
-          })()
-          const judgeModel = yield* provider
-            .getModel(judgeRef.providerID, judgeRef.modelID)
-            .pipe(Effect.catch(() => Effect.succeed(undefined)))
-          if (!judgeModel) {
-            yield* pauseGoals(
-              active,
-              `目标已暂停：找不到可用的目标裁判模型 ${judgeRef.providerID}/${judgeRef.modelID}。请检查模型配置后重试。`,
+          })
+        while (iterations < iterationLimit) {
+          if (
+            yield* state.assertNotBusy(input.sessionID).pipe(
+              Effect.as(false),
+              Effect.catch(() => Effect.succeed(true)),
             )
+          )
             break
-          }
-
-          const goalsText = active
-            .map((g: any) => {
-              const criteria =
-                Array.isArray(g.successCriteria) && g.successCriteria.length
-                  ? `\n  成功标准: ${g.successCriteria.join("; ")}`
-                  : "\n  成功标准: 用户原始目标要求可验证地完成"
-              return `- ID: ${g.id}\n  标题: ${g.title}${criteria}`
+          const goals = yield* goalService.list(input.sessionID).pipe(Effect.catch(() => Effect.succeed([] as any[])))
+          const active = goals
+            .filter((g: any) =>
+              goalExecution ? g.id === goalExecution.goalId && g.status === "in_progress" : g.status === "in_progress",
+            )
+            // One prompt owns one goal run. Never let an older unrelated goal
+            // contaminate this judge or consume this run's budget.
+            .sort((a: any, b: any) => Number(b.updatedAt) - Number(a.updatedAt))
+            .slice(0, 1)
+          if (active.length === 0) break
+          if (goalExecution && goalLeaseOwner) {
+            const renewed = yield* goalService.renewRun({
+              goalId: goalExecution.goalId,
+              sessionId: input.sessionID,
+              owner: goalLeaseOwner,
             })
-            .join("\n")
-          const evidence = [
-            `用户请求: ${textFromParts(lastUserMsg?.parts ?? [])}`,
-            `助手本轮总结: ${textFromParts(lastAssistantMsg.parts)}`,
-            ...goalMsgs.flatMap((message) =>
-              message.parts.flatMap((part) => {
-                if (part.type !== "tool") return []
-                const state = part.state
-                const output = state.status === "completed" ? state.output : undefined
-                return [`工具 ${part.tool}: 状态 ${state.status}${output ? `; 输出: ${output}` : ""}`]
-              }),
-            ),
-          ]
-            .join("\n")
-            .slice(-MAX_GOAL_JUDGE_EVIDENCE_CHARS)
-
-          const judged = yield* inferGoalJudge({ model: judgeModel, goalsText, evidence }).pipe(
-            Effect.map((value) => ({ ok: true as const, value })),
-            Effect.catchCause((cause) => Effect.succeed({ ok: false as const, error: Cause.pretty(cause) })),
+            if (!renewed) break
+          }
+          // 预算按最早的活动目标归属,并从目标创建时刻起算;跨进程重启沿用同一行。
+          const budgetOwner = active[0]
+          if (budgetEnabled) {
+            const budget = yield* goalService
+              .budget({ goalId: budgetOwner.id, sessionId: input.sessionID, startedAt: Number(budgetOwner.createdAt) })
+              .pipe(Effect.catch(() => Effect.succeed(undefined)))
+            const permit = budget
+              ? GoalBudget.allowGoalContinuation({ budget, limits: budgetLimits, now: Date.now() })
+              : { allowed: true as const }
+            if (!permit.allowed) {
+              yield* bus.publish(Session.Event.Error, {
+                sessionID: input.sessionID,
+                error: new NamedError.Unknown({
+                  message: `目标预算已用尽(${permit.reason}):${permit.detail}。已停止追加轮次并暂停目标;恢复前请先调高预算或缩小目标。`,
+                }).toObject(),
+              })
+              for (const goal of active) {
+                if (goal.status !== "in_progress") continue
+                yield* goalService
+                  .update({ goalId: goal.id, sessionId: input.sessionID, status: "paused" })
+                  .pipe(Effect.catch(() => Effect.void))
+              }
+              break
+            }
+          }
+          if (
+            yield* state.assertNotBusy(input.sessionID).pipe(
+              Effect.as(false),
+              Effect.catch(() => Effect.succeed(true)),
+            )
           )
-          if (!judged.ok) {
-            yield* pauseGoals(active, `目标已暂停：目标裁判调用失败。${judged.error}`)
+            break
+
+          const msgs = yield* sessions
+            .messages({ sessionID: input.sessionID })
+            .pipe(Effect.catch(() => Effect.succeed([])))
+          const since = Number(budgetOwner.createdAt)
+          const goalMsgs = msgs.filter((message) => message.info.time.created >= since)
+          const lastAssistantMsg = [...goalMsgs].reverse().find((m) => m.info.role === "assistant")
+          const lastUserMsg = [...goalMsgs].reverse().find((m) => m.info.role === "user")
+          if (!lastAssistantMsg || lastAssistantMsg.info.role !== "assistant") break
+          if (lastAssistantMsg.info.error) break
+
+          // 独立验证(verifier=agent):非平凡改动必须有只读 verification 子代理在最后
+          // 一次编辑之后给出的 PASS 证据,才允许判定目标完成。低于阈值时仍交给裁判模型。
+          // 多目标会话里只有显式 goalExecution 才走验证子代理,避免用一份报告给多个目标背书。
+          const verifierGoalId = goalExecution?.goalId ?? (active.length === 1 ? active[0].id : undefined)
+          let verdict: Schema.Schema.Type<typeof GoalJudgeResult> | null = null
+          if (verifier === "agent" && verifierGoalId) {
+            const since = Number(budgetOwner.createdAt)
+            const edits = collectEdits(msgs, { since, cwd: activeSession.directory })
+            if (isNonTrivial(edits)) {
+              const verifications: VerificationObservation[] = []
+              for (const child of yield* sessions.children(input.sessionID)) {
+                if (child.agent !== "verification" || child.time.created < since) continue
+                const history = yield* MessageV2.filterCompactedEffect(child.id).pipe(
+                  Effect.catchCause(() => Effect.succeed([] as MessageV2.WithParts[])),
+                )
+                const completed = history.filter(
+                  (message) => message.info.role === "assistant" && message.info.time.completed !== undefined,
+                )
+                const last = completed.at(-1)
+                if (!last) {
+                  const running = (yield* status.get(child.id)).type !== "idle"
+                  verifications.push({
+                    verdict: "UNVERIFIED",
+                    completedAt: running ? 0 : Date.now(),
+                    running,
+                    summary: running ? "verification is still running" : "verification produced no final report",
+                  })
+                  continue
+                }
+                const text = completed
+                  .flatMap((message) => message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])))
+                  .join("\n")
+                const report = parseVerificationReport(text)
+                const bytes = new TextEncoder().encode(text).length
+                const enough = bytes >= evidenceMinBytes
+                const info = last.info
+                verifications.push({
+                  verdict: enough ? report.verdict : "UNVERIFIED",
+                  completedAt:
+                    info.role === "assistant" ? (info.time.completed ?? info.time.created) : info.time.created,
+                  summary: enough
+                    ? report.violations.length > 0
+                      ? report.violations.join("; ")
+                      : `evidence ${bytes} bytes`
+                    : `verification report is ${bytes} bytes, below the required ${evidenceMinBytes}`,
+                })
+              }
+              const decision = evaluateVerificationGate({
+                edits,
+                verifications,
+                userText: textFromParts(lastUserMsg?.parts ?? []),
+              })
+              if (decision.action === "satisfied") {
+                verdict =
+                  decision.verdict === "PASS"
+                    ? {
+                        goalMet: true,
+                        reasoning: "独立 verification 子代理在最后一次编辑之后给出 VERDICT: PASS。",
+                        completedGoalIds: [verifierGoalId],
+                      }
+                    : {
+                        goalMet: false,
+                        reasoning: "独立 verification 子代理只给出 PARTIAL。",
+                        completedGoalIds: [],
+                        nextAction: "独立验证只给出 PARTIAL:先补齐未能验证的部分,再重新验证并给出 VERDICT: PASS。",
+                      }
+              } else if (decision.action === "require") {
+                verdict = {
+                  goalMet: false,
+                  reasoning: `独立验证未通过(${decision.reason})。`,
+                  completedGoalIds: [],
+                  nextAction: decision.message,
+                }
+              }
+            }
+          }
+          if (!verdict) {
+            // 裁判模型:优先配置 judge_model("provider/model"),否则复用当轮 assistant 模型。
+            const judgeRef = (() => {
+              if (judgeModelRef && judgeModelRef.includes("/")) {
+                const [providerID, ...rest] = judgeModelRef.split("/")
+                return { providerID: ProviderID.make(providerID), modelID: rest.join("/") as ModelID }
+              }
+              return {
+                providerID: lastAssistantMsg.info.providerID as ProviderID,
+                modelID: lastAssistantMsg.info.modelID as ModelID,
+              }
+            })()
+            const judgeModel = yield* provider
+              .getModel(judgeRef.providerID, judgeRef.modelID)
+              .pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (!judgeModel) {
+              yield* pauseGoals(
+                active,
+                `目标已暂停：找不到可用的目标裁判模型 ${judgeRef.providerID}/${judgeRef.modelID}。请检查模型配置后重试。`,
+              )
+              break
+            }
+
+            const goalsText = active
+              .map((g: any) => {
+                const criteria =
+                  Array.isArray(g.successCriteria) && g.successCriteria.length
+                    ? `\n  成功标准: ${g.successCriteria.join("; ")}`
+                    : "\n  成功标准: 用户原始目标要求可验证地完成"
+                return `- ID: ${g.id}\n  标题: ${g.title}${criteria}`
+              })
+              .join("\n")
+            const evidence = [
+              `用户请求: ${textFromParts(lastUserMsg?.parts ?? [])}`,
+              `助手本轮总结: ${textFromParts(lastAssistantMsg.parts)}`,
+              ...goalMsgs.flatMap((message) =>
+                message.parts.flatMap((part) => {
+                  if (part.type !== "tool") return []
+                  const state = part.state
+                  const output = state.status === "completed" ? state.output : undefined
+                  return [`工具 ${part.tool}: 状态 ${state.status}${output ? `; 输出: ${output}` : ""}`]
+                }),
+              ),
+            ]
+              .join("\n")
+              .slice(-MAX_GOAL_JUDGE_EVIDENCE_CHARS)
+
+            const judged = yield* inferGoalJudge({ model: judgeModel, goalsText, evidence }).pipe(
+              Effect.map((value) => ({ ok: true as const, value })),
+              Effect.catchCause((cause) => Effect.succeed({ ok: false as const, error: Cause.pretty(cause) })),
+            )
+            if (!judged.ok) {
+              yield* pauseGoals(active, `目标已暂停：目标裁判调用失败。${judged.error}`)
+              break
+            }
+            verdict = judged.value
+          }
+          if (!verdict) break
+          // Treat the judge as untrusted input: it may only complete the goal it
+          // was shown, and a completion verdict without a concrete completion list
+          // is never accepted. Missing nextAction gets a safe retry instruction.
+          const activeIDs = new Set(active.map((goal: any) => goal.id))
+          const completedGoalIds = verdict.completedGoalIds.filter((id) => activeIDs.has(id))
+          const allActiveCompleted = active.every((goal: any) => completedGoalIds.includes(goal.id))
+          verdict = {
+            ...verdict,
+            goalMet: verdict.goalMet && allActiveCompleted,
+            completedGoalIds,
+            nextAction:
+              verdict.goalMet && allActiveCompleted
+                ? verdict.nextAction
+                : verdict.nextAction?.trim() || "继续完成当前目标，并逐项核验成功标准，最后给出可复核证据。",
+          }
+          if (!verdict.goalMet && verdict.nextAction === undefined) {
+            yield* pauseGoals(active, "目标裁判没有返回下一步行动，目标已暂停，请重新提交或补充验收标准。")
             break
           }
-          verdict = judged.value
-        }
-        if (!verdict) break
-        // Treat the judge as untrusted input: it may only complete the goal it
-        // was shown, and a completion verdict without a concrete completion list
-        // is never accepted. Missing nextAction gets a safe retry instruction.
-        const activeIDs = new Set(active.map((goal: any) => goal.id))
-        const completedGoalIds = verdict.completedGoalIds.filter((id) => activeIDs.has(id))
-        const allActiveCompleted = active.every((goal: any) => completedGoalIds.includes(goal.id))
-        verdict = {
-          ...verdict,
-          goalMet: verdict.goalMet && allActiveCompleted,
-          completedGoalIds,
-          nextAction:
-            verdict.goalMet && allActiveCompleted
-              ? verdict.nextAction
-              : verdict.nextAction?.trim() || "继续完成当前目标，并逐项核验成功标准，最后给出可复核证据。",
-        }
-        if (!verdict.goalMet && verdict.nextAction === undefined) {
-          yield* pauseGoals(active, "目标裁判没有返回下一步行动，目标已暂停，请重新提交或补充验收标准。")
-          break
-        }
-        if (goalExecution) {
-          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
-          if (!currentGoal || currentGoal.status !== "in_progress") break
-        }
-        if (
-          yield* state.assertNotBusy(input.sessionID).pipe(
-            Effect.as(false),
-            Effect.catch(() => Effect.succeed(true)),
-          )
-        )
-          break
-        if (goalExecution) {
-          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
-          if (!currentGoal || currentGoal.status !== "in_progress") break
-        }
-
-        for (const goalId of verdict.completedGoalIds) {
-          if (!active.some((goal: any) => goal.id === goalId)) continue
-          yield* goalService
-            .update({ goalId, sessionId: input.sessionID, status: "completed" })
-            .pipe(Effect.catch(() => Effect.void))
-        }
-        if (verdict.goalMet) {
           if (goalExecution) {
+            const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+            if (!currentGoal || currentGoal.status !== "in_progress") break
+          }
+          if (
+            yield* state.assertNotBusy(input.sessionID).pipe(
+              Effect.as(false),
+              Effect.catch(() => Effect.succeed(true)),
+            )
+          )
+            break
+          if (goalExecution) {
+            const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+            if (!currentGoal || currentGoal.status !== "in_progress") break
+          }
+
+          for (const goalId of verdict.completedGoalIds) {
+            if (!active.some((goal: any) => goal.id === goalId)) continue
             yield* goalService
-              .update({ goalId: goalExecution.goalId, sessionId: input.sessionID, status: "completed" })
+              .update({ goalId, sessionId: input.sessionID, status: "completed" })
               .pipe(Effect.catch(() => Effect.void))
           }
-          break
-        }
-        if (verdict.completedGoalIds.length > 0) {
+          if (verdict.goalMet) {
+            if (goalExecution) {
+              yield* goalService
+                .update({ goalId: goalExecution.goalId, sessionId: input.sessionID, status: "completed" })
+                .pipe(Effect.catch(() => Effect.void))
+            }
+            break
+          }
+          if (verdict.completedGoalIds.length > 0) {
+            iterations++
+            continue
+          }
+          if (goalExecution) {
+            const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+            if (!currentGoal || currentGoal.status !== "in_progress") break
+          }
+
           iterations++
-          continue
-        }
-        if (goalExecution) {
-          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
-          if (!currentGoal || currentGoal.status !== "in_progress") break
+          const nextText = verdict.nextAction?.trim() || "继续完成当前目标,并核验其成功标准。"
+          const user = lastUserMsg?.info.role === "user" ? lastUserMsg.info : undefined
+          result = yield* prompt({
+            sessionID: input.sessionID,
+            agent: user?.agent,
+            model: user?.model ? { providerID: user.model.providerID, modelID: user.model.modelID } : undefined,
+            goalContinuation: true,
+            parts: [{ type: "text", text: nextText }],
+          })
+          if (budgetEnabled) {
+            // session 行由 step-finish 投影累计,跨重启单调;这里只记本轮增量。
+            const tokensNow = yield* readSessionTokens()
+            const spent = Math.max(0, tokensNow - tokensSeen)
+            tokensSeen = tokensNow
+            yield* goalService
+              .chargeBudget({ goalId: budgetOwner.id, sessionId: input.sessionID, tokens: spent })
+              .pipe(Effect.catch(() => Effect.void))
+          }
+          if (goalExecution) {
+            const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
+            if (!currentGoal || currentGoal.status !== "in_progress") break
+          }
         }
 
-        iterations++
-        const nextText = verdict.nextAction?.trim() || "继续完成当前目标,并核验其成功标准。"
-        const user = lastUserMsg?.info.role === "user" ? lastUserMsg.info : undefined
-        result = yield* prompt({
-          sessionID: input.sessionID,
-          agent: user?.agent,
-          model: user?.model ? { providerID: user.model.providerID, modelID: user.model.modelID } : undefined,
-          goalContinuation: true,
-          parts: [{ type: "text", text: nextText }],
-        })
-        if (budgetEnabled) {
-          // session 行由 step-finish 投影累计,跨重启单调;这里只记本轮增量。
-          const tokensNow = yield* readSessionTokens()
-          const spent = Math.max(0, tokensNow - tokensSeen)
-          tokensSeen = tokensNow
-          yield* goalService
-            .chargeBudget({ goalId: budgetOwner.id, sessionId: input.sessionID, tokens: spent })
-            .pipe(Effect.catch(() => Effect.void))
-        }
-        if (goalExecution) {
-          const currentGoal = yield* goalService.get({ goalId: goalExecution.goalId, sessionId: input.sessionID })
-          if (!currentGoal || currentGoal.status !== "in_progress") break
-        }
-      }
-
-      if (automaticByRounds && iterations >= iterationLimit) {
-        const remaining = yield* goalService.list(input.sessionID).pipe(Effect.catch(() => Effect.succeed([] as any[])))
-        const unfinished = remaining.filter(
-          (goal: any) =>
-            goal.status === "in_progress" && (!goalExecution || goal.id === goalExecution.goalId),
-        )
-        if (unfinished.length > 0) {
-          yield* pauseGoals(
-            unfinished,
-            `目标已暂停：自动模式达到安全上限 ${MAX_AUTOMATIC_GOAL_ITERATIONS} 轮。请检查当前进展后继续。`,
+        if (automaticByRounds && iterations >= iterationLimit) {
+          const remaining = yield* goalService
+            .list(input.sessionID)
+            .pipe(Effect.catch(() => Effect.succeed([] as any[])))
+          const unfinished = remaining.filter(
+            (goal: any) => goal.status === "in_progress" && (!goalExecution || goal.id === goalExecution.goalId),
           )
+          if (unfinished.length > 0) {
+            yield* pauseGoals(
+              unfinished,
+              `目标已暂停：自动模式达到安全上限 ${MAX_AUTOMATIC_GOAL_ITERATIONS} 轮。请检查当前进展后继续。`,
+            )
+          }
         }
-      }
 
-      return result
+        return result
       } finally {
         if (goalService && goalLeaseOwner && input.goalExecution) {
           yield* goalService

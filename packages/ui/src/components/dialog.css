@@ -185,6 +185,47 @@
   }
 }
 
+[data-component="dialog"][data-variant="danger"],
+[data-component="dialog"][data-variant="uninstall"] {
+  [data-slot="dialog-content"] {
+    border-color: color-mix(in oklab, var(--border-critical, var(--popover-border)) 55%, var(--popover-border));
+  }
+
+  [data-slot="dialog-title"] {
+    color: var(--foreground);
+  }
+}
+
+[data-component="dialog"][data-variant="uninstall"] {
+  [data-slot="dialog-content"] {
+    width: min(calc(100vw - 32px), 440px);
+    min-height: 0;
+  }
+
+  [data-slot="dialog-header"] {
+    padding: 18px 20px 14px;
+    border-bottom: 0;
+    background: var(--popover);
+  }
+
+  [data-slot="dialog-body"] {
+    flex: none;
+    overflow: visible;
+  }
+
+  [data-slot="dialog-footer"] {
+    position: static;
+    padding: 16px 20px 20px;
+    border-top: 0;
+    background: var(--popover);
+  }
+}
+
+[data-component="dialog"][data-fit] [data-slot="dialog-content"] {
+  /* 紧凑弹窗按内容收缩，不再被通用工作区高度撑大。 */
+  height: auto;
+}
+
 [data-component="dialog"][data-transition] [data-slot="dialog-content"] {
   animation: contentHide var(--transition-overlay-ms, 180ms) ease-in forwards;
 

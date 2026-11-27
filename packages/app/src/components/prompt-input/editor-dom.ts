@@ -36,7 +36,7 @@ export function getTextLength(node: Node): number {
   if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").replace(/\u200B/g, "").length
   if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === "BR") return 1
   let length = 0
-  for (const child of Array.from(node.childNodes)) {
+  for (let child = node.firstChild; child; child = child.nextSibling) {
     length += getTextLength(child)
   }
   return length
@@ -46,11 +46,29 @@ export function getCursorPosition(parent: HTMLElement): number {
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0) return 0
   const range = selection.getRangeAt(0)
-  if (!parent.contains(range.startContainer)) return 0
-  const preCaretRange = range.cloneRange()
-  preCaretRange.selectNodeContents(parent)
-  preCaretRange.setEnd(range.startContainer, range.startOffset)
-  return getTextLength(preCaretRange.cloneContents())
+  const { startContainer, startOffset } = range
+  if (!parent.contains(startContainer)) return 0
+
+  // Count the prefix in place. Cloning a Range copies every preceding paragraph,
+  // line break and mention even though all we need is their logical length.
+  let length = 0
+  if (startContainer.nodeType === Node.TEXT_NODE) {
+    length = (startContainer.textContent ?? "").slice(0, startOffset).replace(/\u200B/g, "").length
+  } else if (startContainer.nodeType === Node.ELEMENT_NODE && (startContainer as Element).tagName === "BR") {
+    // A range ending inside a break contains the partial BR node as well.
+    length = 1
+  } else {
+    let child = startContainer.firstChild
+    for (let index = 0; child && index < startOffset; index++, child = child.nextSibling) {
+      length += getTextLength(child)
+    }
+  }
+  for (let node: Node | null = startContainer; node && node !== parent; node = node.parentNode) {
+    for (let previous = node.previousSibling; previous; previous = previous.previousSibling) {
+      length += getTextLength(previous)
+    }
+  }
+  return length
 }
 
 export function setCursorPosition(parent: HTMLElement, position: number) {

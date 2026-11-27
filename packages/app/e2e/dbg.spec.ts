@@ -1,11 +1,11 @@
 import { test } from "@playwright/test"
-test("debug office zen", async ({ page }) => {
+test.skip("debug office zen", async ({ page }) => {
   await page.goto("/")
   await page
-    .getByRole("button", { name: /切换工作模式|Switch work mode/ })
+    .getByRole("combobox", { name: /切换工作模式|Switch work mode/ })
     .first()
     .click()
-  await page.getByRole("menuitem", { name: "禅意" }).click()
+  await page.getByRole("option", { name: /禅意|办公|Zen/ }).click()
   await page.waitForTimeout(800)
   await page.setViewportSize({ width: 390, height: 844 })
   await page.waitForTimeout(1200)

@@ -115,12 +115,33 @@ export interface ToastOptions {
   actions?: ToastAction[]
 }
 
+const recentErrorToasts = new Map<string, number>()
+const ERROR_TOAST_DEDUPE_MS = 3_000
+
 export function showToast(options: ToastOptions | string) {
   const opts = typeof options === "string" ? { description: options } : options
   // Guard: do not show empty toast (title/description/actions all empty)
   if (!opts.title && !opts.description && (!opts.actions || opts.actions.length === 0)) {
     return
   }
+
+  // Several independent requests can fail together when the local server goes
+  // away (for example an auto-save and its blur handler). Showing one identical
+  // toast per rejected promise leaves a stack of indistinguishable errors in
+  // the corner and makes a transient disconnect look like a retry loop.
+  // Suppress only identical error notifications for a short window; success,
+  // informational toasts, and different errors remain unaffected.
+  if (opts.variant === "error") {
+    const key = `${opts.title ?? ""}\n${opts.description ?? ""}`
+    const now = Date.now()
+    const previous = recentErrorToasts.get(key)
+    if (previous !== undefined && now - previous < ERROR_TOAST_DEDUPE_MS) return
+    recentErrorToasts.set(key, now)
+    setTimeout(() => {
+      if (recentErrorToasts.get(key) === now) recentErrorToasts.delete(key)
+    }, ERROR_TOAST_DEDUPE_MS)
+  }
+
   return toaster.show((props) => (
     <Toast
       toastId={props.toastId}

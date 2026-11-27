@@ -91,7 +91,6 @@ const baseState = (input: Partial<State> = {}) =>
     message: {},
     backgroundJob: {},
     part: {},
-    part_text_accum_delta: {},
     ...input,
   }) as State
 
@@ -736,4 +735,22 @@ describe("applyDirectoryEvent", () => {
     expect(Object.keys(store.backgroundJob)).toEqual(["s1"])
     expect(store.backgroundJob["s1"]).toHaveLength(1)
   })
+})
+
+test("text deltas append to the current part value and extend a corrected snapshot", () => {
+  const [store, setStore] = createStore(baseState({ part: { msg: [textPart("prt", "ses", "msg")] } }))
+  const apply = (type: string, properties: unknown) => applyDirectoryEvent({
+    event: { type, properties }, store, setStore, directory: "/tmp", push() {}, loadLsp() {},
+  })
+  const append = (delta: string) => apply("message.part.delta", {
+    messageID: "msg", partID: "prt", field: "text", delta,
+  })
+  append(" existing suffix")
+  expect(store.part.msg?.[0]).toMatchObject({ text: "prt existing suffix" })
+
+  apply("message.part.updated", { part: { ...textPart("prt", "ses", "msg"), text: "replacement" } })
+  expect(store.part.msg?.[0]).toMatchObject({ text: "replacement" })
+  append(" one")
+  append(" two")
+  expect(store.part.msg?.[0]).toMatchObject({ text: "replacement one two" })
 })

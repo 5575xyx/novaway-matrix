@@ -1,6 +1,7 @@
 import type { Session } from "@novaway/sdk/v2/client"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
+import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { A, useNavigate, useParams } from "@solidjs/router"
 import { type Accessor, createMemo, createSignal, type JSX, Match, Show, Switch } from "solid-js"
@@ -200,10 +201,12 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
               >
                 <Switch>
                   <Match when={isWorking()}>
-                    <div class="relative size-[15px] flex items-center justify-center">
-                      <div class="absolute inset-0 rounded-full border-[1.5px] border-interactive-base animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] opacity-75" />
-                      <div class="size-1.5 rounded-full bg-surface-interactive-base" />
-                    </div>
+                    <Icon
+                      name="lu-loader"
+                      size="small"
+                      class="animate-spin text-foreground-subtlest"
+                      aria-label={language.t("sidebar.filter.running")}
+                    />
                   </Match>
                   <Match when={hasPermissions()}>
                     <div class="size-1.5 rounded-full bg-surface-warning-base" />
@@ -212,7 +215,10 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                     <div class="size-1.5 rounded-full bg-surface-critical-base" />
                   </Match>
                   <Match when={unseenCount() > 0}>
-                    <div class="size-1.5 rounded-full bg-surface-interactive-base" />
+                    <div
+                      class="size-[15px] rounded-full border-[1.5px] border-warning-selected"
+                      aria-label={language.t("notification.session.responseReady.title")}
+                    />
                   </Match>
                 </Switch>
               </div>

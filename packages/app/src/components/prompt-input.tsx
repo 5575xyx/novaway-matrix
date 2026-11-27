@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from "@solidjs/router"
+import type { Config } from "@novaway/sdk/v2/client"
 import { base64Encode } from "@novaway/core/util/encode"
 import { getFilename } from "@novaway/core/util/path"
 import { useFilteredList } from "@novaway/ui/hooks"
@@ -33,6 +34,7 @@ import { appModeIsGroup, useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useGlobalSync } from "@/context/global-sync"
+import { readVoiceSettingsStorage } from "./voice-settings-storage"
 import { useComments } from "@/context/comments"
 import { showToast } from "@novaway/ui/toast"
 import { Button } from "@novaway/ui/button"
@@ -50,7 +52,7 @@ import { IconButton } from "@novaway/ui/icon-button"
 import { Select } from "@novaway/ui/select"
 import { Switch } from "@novaway/ui/switch"
 import { PermissionModeSelect } from "@/components/permission-mode-select"
-import { TeamModeSelect } from "@/components/team-mode-select"
+import { TeamModeHoverSelect } from "@/components/team-mode-select"
 import { SessionBackgroundTrigger } from "@/components/session-background-trigger"
 import type { Session } from "@novaway/sdk/v2"
 import { useDialog } from "@novaway/ui/context/dialog"
@@ -102,6 +104,7 @@ import { DEFAULT_AGENT } from "@/context/agent-permission"
 import { transformOfficePrompt } from "@/pages/session/office-agent-prompt"
 import { Dialog as KobalteDialog } from "@kobalte/core/dialog"
 import { Dialog } from "@novaway/ui/dialog"
+import { PromptVoiceDictation } from "@/components/prompt-voice-dictation"
 
 interface PromptInputProps {
   class?: string
@@ -184,11 +187,16 @@ function AddMenuItem(props: {
           "bg-surface-success-weak text-success-base": props.tone === "success",
         }}
       >
-        <Show when={props.glyph} fallback={<Icon
-            name={props.icon ?? "plus-small"}
-            size="small"
-            class={props.tone === "success" ? "text-success-base" : undefined}
-          />}>
+        <Show
+          when={props.glyph}
+          fallback={
+            <Icon
+              name={props.icon ?? "plus-small"}
+              size="small"
+              class={props.tone === "success" ? "text-success-base" : undefined}
+            />
+          }
+        >
           {props.glyph}
         </Show>
       </span>
@@ -377,6 +385,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     installedOfficeAgent(local.agent.list(), office.activeID(), local.agent.current()?.name),
   )
   const officeUnavailable = createMemo(() => !props.agent && officeWorkbenchMode() && !officeAgent())
+  let officeRefreshDirectory: string | undefined
+
+  createEffect(() => {
+    if (!officeUnavailable()) {
+      officeRefreshDirectory = undefined
+      return
+    }
+    // The marketplace can complete before the session's initial agent snapshot
+    // is populated.  Refresh the shared directory store once so an installed
+    // Office Suite is activated and visible here instead of showing the
+    // misleading "install plugin" placeholder indefinitely.
+    if (officeRefreshDirectory === sdk.directory) return
+    officeRefreshDirectory = sdk.directory
+    void globalSync.refreshDirectory(sdk.directory)
+  })
 
   createEffect(() => {
     if (!officeWorkbenchMode()) return
@@ -421,12 +444,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     }
   }
 
-  const queueScroll = (count = 2) => {
-    requestAnimationFrame(() => {
-      scrollCursorIntoView()
-      if (count > 1) queueScroll(count - 1)
-    })
+  let cursorScrollFrame: number | undefined
+  let cursorScrollFrames = 0
+  const scrollTick = () => {
+    cursorScrollFrame = undefined
+    scrollCursorIntoView()
+    if (--cursorScrollFrames > 0) cursorScrollFrame = requestAnimationFrame(scrollTick)
   }
+  const queueScroll = () => {
+    // Keep the existing second settle frame, but coalesce overlapping inputs/paste/focus.
+    cursorScrollFrames = 2
+    if (cursorScrollFrame === undefined) cursorScrollFrame = requestAnimationFrame(scrollTick)
+  }
+  onCleanup(() => {
+    if (cursorScrollFrame !== undefined) cancelAnimationFrame(cursorScrollFrame)
+  })
 
   const activeFileTab = createSessionTabs({
     tabs,
@@ -513,17 +545,23 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     if (!id) return undefined
     return persisted(
       Persist.session(sdk.directory, id, "goal-execution"),
-      createStore<{ goalId: string; title: string; launchKey?: string }>({ goalId: "", title: "" }),
+      createStore<{ goalId: string; title: string; launchKey?: string; startedAt?: number }>({
+        goalId: "",
+        title: "",
+      }),
     )
   })
   const persistedGoal = createMemo(() => goalPersistence()?.[0])
-  const setPersistedGoal = (value: { goalId: string; title: string; launchKey?: string }) => {
+  const setPersistedGoal = (value: { goalId: string; title: string; launchKey?: string; startedAt?: number }) => {
     goalPersistence()?.[1](value)
   }
   // 目标模式计时使用这一枚时钟；普通工作状态统一由聊天区域底部显示。
   const [workNow, setWorkNow] = createSignal(Date.now())
   const [goalConfigOpen, setGoalConfigOpen] = createSignal(false)
   const [goalBudgetOpen, setGoalBudgetOpen] = createSignal(false)
+  const [goalBudgetIndex, setGoalBudgetIndex] = createSignal(0)
+  const goalBudgetValues = [20, 50, 100, 200, 500, 0]
+  let goalBudgetTrigger: HTMLButtonElement | undefined
   let goalLongTaskContent: HTMLElement | undefined
   let goalIterationContent: HTMLElement | undefined
   const [store, setStore] = createStore<{
@@ -542,9 +580,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     goalMode: boolean
     goalStartedAt?: number
     goalPaused: boolean
+    goalCancelling: boolean
     goalText?: string
     goalMaxIterations: number
-    goalExecution?: { sessionID: string; goalId: string; title: string }
+    goalExecution?: { sessionID: string; goalId: string; title: string; startedAt?: number }
     goalState?: {
       status: string
       progress: number
@@ -573,6 +612,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     goalRunning: false,
     goalMode: false,
     goalPaused: false,
+    goalCancelling: false,
     goalMaxIterations: 0,
     goalExecution: undefined,
     longTaskEnabled: false,
@@ -638,6 +678,29 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   }
   const computerControlVisible = () =>
     computerExperimental().computer_control === true && computerExperimental().computer_control_composer === true
+  const [voiceStorageRevision, setVoiceStorageRevision] = createSignal(0)
+  const onVoiceStorageChange = () => setVoiceStorageRevision((revision) => revision + 1)
+  window.addEventListener("novaway-voice-settings", onVoiceStorageChange)
+  onCleanup(() => window.removeEventListener("novaway-voice-settings", onVoiceStorageChange))
+  const voiceConfig = createMemo(() => {
+    voiceStorageRevision()
+    return {
+      ...((globalSync.data.config as Config & { voice?: Record<string, unknown> }).voice ?? {}),
+      ...readVoiceSettingsStorage(),
+    }
+  })
+  const voiceEnabled = createMemo(() => voiceConfig().enabled === true)
+  const voiceMode = createMemo<"toggle" | "hold">(() => (voiceConfig().mode === "hold" ? "hold" : "toggle"))
+  const voiceLanguage = createMemo(
+    () => (voiceConfig().language as string | undefined) || (language.locale().startsWith("zh") ? "zh-CN" : "en-US"),
+  )
+  const voiceEngine = createMemo<"browser" | "local">(() => (voiceConfig().engine === "local" ? "local" : "browser"))
+  const voiceEndpoint = createMemo(() => (voiceConfig().local_endpoint as string | undefined) ?? "")
+  const voiceModel = createMemo(
+    () =>
+      (voiceConfig().local_model as string | undefined) ||
+      (voiceEndpoint().trim() ? "whisper-1" : "Xenova/whisper-tiny"),
+  )
   const computerActions = () => [
     {
       icon: "eye" as const,
@@ -675,7 +738,30 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   createEffect(() => {
-    setGoalSessionID(sessionID())
+    const id = sessionID()
+    setGoalSessionID(id)
+    const execution = store.goalExecution
+    if (!id || !execution || execution.sessionID === id) return
+    // Goal state is session-scoped. Never let a goal from the previous route
+    // suppress creation of a new goal in the current session.
+    setStore({
+      goalExecution: undefined,
+      goalState: undefined,
+      goalRunning: false,
+      goalPaused: false,
+      goalCancelling: false,
+      goalStartedAt: undefined,
+      longTaskRun: undefined,
+      goalMode: false,
+      longTaskEnabled: false,
+    })
+  })
+
+  createEffect(() => {
+    const execution = activeGoal()
+    if (!execution) return
+    const startedAt = execution.startedAt ?? persistedGoal()?.startedAt
+    if (startedAt && store.goalStartedAt !== startedAt) setStore("goalStartedAt", startedAt)
   })
 
   const buttonsSpring = useSpring(() => (store.mode === "normal" ? 1 : 0), { visualDuration: 0.2, bounce: 0 })
@@ -713,10 +799,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             id: string
             status: string
             progress: number
+            createdAt?: string | number
             executionConfig?: { mode?: string; superAgentRunId?: string }
           }
         | undefined
       if (!goal || goal.id !== execution.goalId) return
+      const createdAt =
+        typeof goal.createdAt === "number"
+          ? goal.createdAt
+          : typeof goal.createdAt === "string"
+            ? Date.parse(goal.createdAt)
+            : undefined
+      if (!store.goalStartedAt && createdAt && Number.isFinite(createdAt)) setStore("goalStartedAt", createdAt)
       const runID = goal.executionConfig?.superAgentRunId
       const runDetail = runID
         ? await sdk
@@ -764,8 +858,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       if (goal.status === "paused") setStore("goalPaused", true)
       if (goal.status === "completed" || goal.status === "cancelled") {
         setStore("goalExecution", undefined)
-        setPersistedGoal({ goalId: "", title: "" })
-        setStore({ goalRunning: false, goalPaused: false, goalStartedAt: undefined })
+        setPersistedGoal({ goalId: "", title: "", launchKey: undefined, startedAt: undefined })
+        setStore({ goalRunning: false, goalPaused: false, goalCancelling: false, goalStartedAt: undefined })
         return
       }
     }
@@ -778,35 +872,53 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
   const stopGoalMode = async () => {
     const execution = activeGoal()
-    if (!execution) return
-    setStore("goalRunning", false)
-    setStore("goalExecution", undefined)
-    setStore("goalState", { status: "cancelled", progress: store.goalState?.progress ?? 0 })
+    if (!execution || store.goalCancelling) return
+    setStore("goalCancelling", true)
     const runID = store.goalState?.superAgentRunId
-    if (runID) {
-      await sdk
-        .request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/cancel`, {
+    try {
+      if (runID) {
+        const response = await sdk.request(`${sdk.url}/super-agent/runs/${encodeURIComponent(runID)}/cancel`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-novaway-directory": sdk.directory },
           body: JSON.stringify({}),
         })
-        .catch(() => {})
-    }
-    await abort(execution.sessionID)
-    setStore({ goalStartedAt: undefined, goalPaused: false, longTaskRun: undefined })
-    await globalSync
-      .sdkForDirectory(sdk.directory)
-      .goal.updateGoal({
+        // A run that has already disappeared is reconciled by the Goal update
+        // below. Any other failure must remain visible and retryable.
+        if (!response.ok && response.status !== 404) throw new Error(`HTTP ${response.status}`)
+      }
+      await abort(execution.sessionID).catch(() => {})
+      await globalSync.sdkForDirectory(sdk.directory).goal.updateGoal({
         sessionId: execution.sessionID,
         goalId: execution.goalId,
         status: "cancelled",
       })
-      .catch(() => {})
-    setPersistedGoal({ goalId: "", title: "" })
+      setStore({
+        goalRunning: false,
+        goalExecution: undefined,
+        goalState: { status: "cancelled", progress: store.goalState?.progress ?? 0 },
+        goalStartedAt: undefined,
+        goalPaused: false,
+        goalCancelling: false,
+        longTaskRun: undefined,
+      })
+      setPersistedGoal({ goalId: "", title: "", launchKey: undefined, startedAt: undefined })
+    } catch (error) {
+      setStore("goalCancelling", false)
+      showToast({
+        title: language.t("prompt.goal.cancelFailed" as never),
+        description: `${language.t("prompt.goal.cancelFailedDescription" as never)}${
+          error instanceof Error && error.message ? ` (${error.message})` : ""
+        }`,
+        variant: "error",
+      })
+    }
   }
   const openGoalMode = () => {
     if (globalChat()) {
-      showToast({ title: "目标模式不可用", description: "请在项目会话中创建目标。" })
+      showToast({
+        title: language.t("prompt.goal.unavailableTitle" as never),
+        description: language.t("prompt.goal.unavailableDescription" as never),
+      })
       return
     }
     if (store.goalMode) {
@@ -820,7 +932,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     const id = sessionID()
     const title = text.trim().split("\n")[0]?.slice(0, 120) ?? ""
     if (globalChat()) {
-      showToast({ title: "目标模式不可用", description: "请在项目会话中创建目标。" })
+      showToast({
+        title: language.t("prompt.goal.unavailableTitle" as never),
+        description: language.t("prompt.goal.unavailableDescription" as never),
+      })
       return undefined
     }
     if (!id || !title || store.goalSaving) return undefined
@@ -830,7 +945,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         .split("\n")
         .map((item) => item.trim())
         .filter(Boolean)
-      if (successCriteria.length === 0) successCriteria.push("按用户请求完成目标，并提供可复核的完成证据")
+      if (successCriteria.length === 0) successCriteria.push(language.t("prompt.goal.defaultCriteria" as never))
       const executionConfig = {
         maxIterations: store.goalMaxIterations,
         mode: durable ? "durable" : "interactive",
@@ -864,9 +979,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         const result = (await response.json().catch(() => undefined)) as
           | { goal?: { id?: string }; run?: { id?: string; status?: string } }
           | undefined
-        if (!response.ok) throw new Error(`创建并启动长期目标失败（HTTP ${response.status}）`)
+        if (!response.ok) throw new Error(language.t("prompt.goal.launchFailed" as never, { status: response.status }))
         createdGoal = result?.goal
-        if (!result?.run?.id) throw new Error("长期目标启动后未返回任务 ID")
+        if (!result?.run?.id) throw new Error(language.t("prompt.goal.runIdMissing" as never))
         setStore("longTaskRun", { id: result.run.id, status: result.run.status ?? "running" })
       } else {
         const created = await sdk.request(`${sdk.url}/session/${encodeURIComponent(id)}/goals`, {
@@ -880,17 +995,19 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             executionConfig,
           }),
         })
-        if (!created.ok) throw new Error(`创建目标失败（HTTP ${created.status}）`)
+        if (!created.ok) throw new Error(language.t("prompt.goal.createFailed" as never, { status: created.status }))
         createdGoal = (await created.json()) as { id?: string } | undefined
       }
-      if (!createdGoal?.id) throw new Error("创建目标后未返回目标 ID")
-      setStore("goalExecution", { sessionID: id, goalId: createdGoal.id, title })
-      setPersistedGoal({ goalId: createdGoal.id, title })
+      if (!createdGoal?.id) throw new Error(language.t("prompt.goal.idMissing" as never))
+      const startedAt = Date.now()
+      setStore("goalExecution", { sessionID: id, goalId: createdGoal.id, title, startedAt })
+      setPersistedGoal({ goalId: createdGoal.id, title, startedAt })
       setStore("goalState", { status: "in_progress", progress: 0 })
       setStore({
         goalRunning: true,
-        goalStartedAt: Date.now(),
+        goalStartedAt: startedAt,
         goalPaused: false,
+        goalCancelling: false,
         goalMode: false,
         goalText: text.trim(),
       })
@@ -915,12 +1032,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
    * popover-content 的 overflow:hidden 裁剪；父级 Popover 需要把这些节点当作内容区，
    * 否则点浮层里的搜索框/文件时会先被 outside 判定关掉。
    */
-  const [addSubmenu, setAddSubmenu] = createSignal<"workspace" | null>(null)
-  const flyouts: { workspace?: HTMLElement } = {}
-  const openSubmenu = (name: "workspace") => {
+  const [addSubmenu, setAddSubmenu] = createSignal<"workspace" | "expert" | null>(null)
+  const flyouts: { workspace?: HTMLElement; expert?: HTMLElement } = {}
+  const openSubmenu = (name: "workspace" | "expert") => {
     setAddSubmenu(name)
   }
-  const closeSubmenu = (name: "workspace") => {
+  const closeSubmenu = (name: "workspace" | "expert") => {
     setAddSubmenu((current) => (current === name ? null : current))
   }
 
@@ -943,7 +1060,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
   const commentCount = createMemo(() => {
     if (store.mode === "shell") return 0
-    return prompt.context.items().filter((item) => item.type === "file" && !!item.comment?.trim()).length
+    return prompt.context.items().filter((item) => !!item.comment?.trim()).length
   })
   const blank = createMemo(() => {
     const text = prompt
@@ -1013,7 +1130,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const suggest = createMemo(() => !hasUserPrompt())
 
   const placeholder = createMemo(() => {
-    if (officeUnavailable()) return "请先从插件市场安装并启用此场景的办公插件"
+    if (officeUnavailable()) return "办公插件正在后台准备，请稍候…"
     if (officeWorkbenchMode() && store.mode === "normal" && commentCount() === 0)
       return office.activeAction().placeholder
     return promptPlaceholder({
@@ -1170,6 +1287,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const setEditorText = (text: string) => {
     clearEditor()
     editorRef.textContent = text
+  }
+
+  const insertVoiceText = (text: string) => {
+    const spoken = text.trim()
+    if (!spoken || !editorRef) return
+    const current = (editorRef.textContent ?? "").replace(/​/g, "").trimEnd()
+    const separator = current && /^[㐀-鿿]/.test(spoken) && /[㐀-鿿，。！？、；：]$/.test(current) ? "" : " "
+    const next = current ? `${current}${separator}${spoken}` : spoken
+    setEditorText(next)
+    setCursorPosition(editorRef, next.length)
+    handleInput()
+    restoreFocus()
   }
 
   const focusEditorEnd = () => {
@@ -2394,27 +2523,43 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               >
                 <Icon name="target" size="small" class="shrink-0 text-text-interactive-base" />
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-12-medium text-foreground">目标：{goal().title}</div>
+                  <div class="truncate text-12-medium text-foreground">
+                    {language.t("prompt.goal.title" as never, { title: goal().title })}
+                  </div>
                   <div class="text-11-regular text-foreground-subtle">
                     {store.goalState?.runStatus === "needs_review"
-                      ? "需要复核"
+                      ? language.t("prompt.goal.status.review" as never)
                       : store.goalPaused
-                        ? "已暂停"
+                        ? language.t("prompt.goal.status.paused" as never)
                         : store.goalState?.executionMode === "durable"
-                          ? "长期执行中"
-                          : "持续执行中"}
+                          ? language.t("prompt.goal.status.longRunning" as never)
+                          : language.t("prompt.goal.status.running" as never)}
                     {goalElapsed() ? ` · ${goalElapsed()}` : ""}
                     <Show when={store.goalState?.review}>
-                      {(review) => ` · 证据 ${review().evidence} · 未通过 ${review().unverified}`}
+                      {(review) =>
+                        ` · ${language.t("prompt.goal.evidence" as never, { count: review().evidence })} · ${language.t(
+                          "prompt.goal.unverified" as never,
+                          { count: review().unverified },
+                        )}`
+                      }
                     </Show>
-                    <Show when={!store.goalState?.review && store.goalState}>{(state) => ` · ${state().progress}%`}</Show>
+                    <Show when={!store.goalState?.review && store.goalState}>
+                      {(state) => ` · ${state().progress}%`}
+                    </Show>
                   </div>
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="small"
-                  aria-label={store.goalState?.runStatus === "needs_review" ? "目标需要复核" : store.goalPaused ? "继续目标" : "暂停目标"}
+                  aria-label={
+                    store.goalState?.runStatus === "needs_review"
+                      ? language.t("prompt.goal.action.review" as never)
+                      : store.goalPaused
+                        ? language.t("prompt.goal.action.resume" as never)
+                        : language.t("prompt.goal.action.pause" as never)
+                  }
+                  disabled={store.goalCancelling}
                   onClick={async () => {
                     if (store.goalState?.runStatus === "needs_review") {
                       const runID = store.goalState.superAgentRunId
@@ -2430,9 +2575,16 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         })
                         .catch(() => undefined)
                       if (!response?.ok) {
-                        showToast({ title: "目标复核失败", description: "验证服务暂时不可用，请稍后重试。", variant: "error" })
+                        showToast({
+                          title: language.t("prompt.goal.reviewFailed" as never),
+                          description: language.t("prompt.goal.reviewFailedDescription" as never),
+                          variant: "error",
+                        })
                       } else {
-                        showToast({ title: "已重新验证目标", description: "正在刷新最新 Evidence 和 Verification 结果。" })
+                        showToast({
+                          title: language.t("prompt.goal.reviewStarted" as never),
+                          description: language.t("prompt.goal.reviewStartedDescription" as never),
+                        })
                       }
                       return
                     }
@@ -2451,8 +2603,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           .catch(() => false)
                         if (!pausedRun) {
                           showToast({
-                            title: "长期目标暂停失败",
-                            description: "长期任务没有确认暂停，请稍后重试。",
+                            title: language.t("prompt.goal.pauseFailed" as never),
+                            description: language.t("prompt.goal.pauseFailedDescription" as never),
                             variant: "error",
                           })
                           return
@@ -2465,8 +2617,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         .catch(() => false)
                       if (!updated) {
                         showToast({
-                          title: "目标暂停失败",
-                          description: "服务端没有确认目标状态，请稍后重试。",
+                          title: language.t("prompt.goal.pauseFailed" as never),
+                          description: language.t("prompt.goal.pauseFailedDescription" as never),
                           variant: "error",
                         })
                         return
@@ -2486,8 +2638,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         .catch(() => false)
                       if (!resumedRun) {
                         showToast({
-                          title: "长期目标恢复失败",
-                          description: "长期任务没有确认恢复，请稍后重试。",
+                          title: language.t("prompt.goal.resumeFailed" as never),
+                          description: language.t("prompt.goal.resumeFailedDescription" as never),
                           variant: "error",
                         })
                         return
@@ -2500,8 +2652,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       .catch(() => false)
                     if (!resumed) {
                       showToast({
-                        title: "目标恢复失败",
-                        description: "服务端没有确认目标状态，请稍后重试。",
+                        title: language.t("prompt.goal.resumeFailed" as never),
+                        description: language.t("prompt.goal.resumeFailedDescription" as never),
                         variant: "error",
                       })
                       return
@@ -2513,12 +2665,17 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     queueMicrotask(() => void handleSubmit(new Event("submit", { cancelable: true })))
                   }}
                 >
-                  {store.goalState?.runStatus === "needs_review" ? "复核" : store.goalPaused ? "继续" : "暂停"}
+                  {store.goalState?.runStatus === "needs_review"
+                    ? language.t("prompt.goal.action.review" as never)
+                    : store.goalPaused
+                      ? language.t("prompt.goal.action.resume" as never)
+                      : language.t("prompt.goal.action.pause" as never)}
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="small"
+                  disabled={store.goalCancelling}
                   onClick={async () => {
                     const text = store.goalText || goal().title
                     prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
@@ -2526,10 +2683,18 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     requestAnimationFrame(() => editorRef?.focus())
                   }}
                 >
-                  编辑目标
+                  {language.t("prompt.goal.action.edit" as never)}
                 </Button>
-                <Button type="button" variant="ghost" size="small" onClick={() => void stopGoalMode()}>
-                  取消
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="small"
+                  disabled={store.goalCancelling}
+                  onClick={() => void stopGoalMode()}
+                >
+                  {store.goalCancelling
+                    ? language.t("prompt.goal.action.cancelling" as never)
+                    : language.t("prompt.goal.action.cancel" as never)}
                 </Button>
               </div>
             )}
@@ -2715,11 +2880,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </div>
               </Popover>
             </Show>
-            {/* 团队派发入口：紧贴「电脑控制」右侧 —— 两者都是"这一轮交给谁/用什么能力"的开关，
-                放同一行比塞进底栏（模式和用量之间）更好找。没有可选团队时它自己不渲染。 */}
-            <Show when={!globalChat()}>
-              <TeamModeSelect sessionID={sessionID()} />
-            </Show>
             <div class="flex-1 min-w-0" />
           </div>
         </Show>
@@ -2740,7 +2900,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             if (!shellRef?.contains(target)) return
             if (
               target.closest(
-                '[data-action="prompt-add"], [data-action="prompt-attach"], [data-action="prompt-submit"], [data-action="prompt-optimize"], [data-action="prompt-optimize-undo"], [data-action="prompt-background"], [data-action="prompt-permission-mode"], [data-action="prompt-context-usage"], [data-action="prompt-model"], [data-action="prompt-thinking"], [data-action="prompt-team-mode"]',
+                '[data-action="prompt-add"], [data-action="prompt-attach"], [data-action="prompt-submit"], [data-action="prompt-optimize"], [data-action="prompt-optimize-undo"], [data-action="prompt-background"], [data-action="prompt-permission-mode"], [data-action="prompt-context-usage"], [data-action="prompt-model"], [data-action="prompt-thinking"], [data-action="prompt-expert"]',
               )
             ) {
               return
@@ -2821,6 +2981,17 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             />
 
             <div class="relative z-20 flex items-center gap-1 pointer-events-auto">
+              <Show when={!globalChat()}>
+                <PromptVoiceDictation
+                  enabled={voiceEnabled() && store.mode === "normal" && !store.optimizing}
+                  language={voiceLanguage()}
+                  mode={voiceMode()}
+                  engine={voiceEngine()}
+                  endpoint={voiceEndpoint()}
+                  model={voiceModel()}
+                  onText={insertVoiceText}
+                />
+              </Show>
               <Show when={store.optimizeSnapshot !== null && !store.optimizing}>
                 <Tooltip placement="top" value="撤销优化，恢复原文">
                   <Button
@@ -2933,14 +3104,24 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     }
                   }}
                   outsideIgnore={() => [goalLongTaskContent, goalIterationContent]}
-                  triggerAs="button"
-                  triggerProps={{
-                    type: "button",
-                    "aria-label": language.t("prompt.goal.label" as never),
-                    class:
-                      "group/goal flex h-8 shrink-0 appearance-none items-center gap-1.5 px-2.5 text-12-medium text-success-base transition-opacity hover:opacity-80",
-                    style: { background: "transparent", border: "none", color: "var(--text-success-base)" },
-                  }}
+                  triggerAs="div"
+                  triggerProps={
+                    {
+                      role: "button",
+                      tabIndex: 0,
+                      "data-action": "prompt-goal-config",
+                      "aria-label": language.t("prompt.goal.label" as never),
+                      "aria-expanded": goalConfigOpen(),
+                      class:
+                        "group/goal flex h-8 shrink-0 items-center gap-1.5 appearance-none px-2.5 text-12-medium text-success-base transition-opacity hover:opacity-80",
+                      onKeyDown: (event: KeyboardEvent) => {
+                        if (event.key !== "Enter" && event.key !== " ") return
+                        if (event.target !== event.currentTarget) return
+                        event.preventDefault()
+                        setGoalConfigOpen((open) => !open)
+                      },
+                    } as Record<string, unknown>
+                  }
                   trigger={
                     <>
                       <Icon name="target" size="small" class="shrink-0 text-success-base" />
@@ -2951,11 +3132,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           size="small"
                           class="transition-opacity text-success-base group-hover/goal:opacity-0"
                         />
-                        <span
-                          role="button"
-                          tabindex="0"
+                        <button
+                          type="button"
                           aria-label={language.t("prompt.goal.remove" as never)}
-                          class="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover/goal:opacity-100 hover:text-critical-base"
+                          class="absolute inset-0 flex size-4 items-center justify-center rounded opacity-0 transition-opacity group-hover/goal:opacity-100 hover:text-critical-base focus-visible:opacity-100 focus-visible:outline-none"
                           onClick={(event) => {
                             event.preventDefault()
                             event.stopPropagation()
@@ -2972,16 +3152,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                               })
                             }
                           }}
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter" && event.key !== " ") return
-                            event.preventDefault()
-                            event.stopPropagation()
-                            if (activeGoal()) void stopGoalMode()
-                            else setStore({ goalMode: false, longTaskEnabled: false, goalText: undefined })
-                          }}
                         >
-                          <Icon name="close-small" size="small" class="text-success-base group-hover/goal:text-critical-base" />
-                        </span>
+                          <Icon
+                            name="close-small"
+                            size="small"
+                            class="text-success-base group-hover/goal:text-critical-base"
+                          />
+                        </button>
                       </span>
                     </>
                   }
@@ -3000,14 +3177,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         <button
                           type="button"
                           class={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-hover ${
-                            store.longTaskEnabled ? "text-foreground-subtle" : "bg-surface-success-weak text-success-base"
+                            store.longTaskEnabled
+                              ? "text-foreground-subtle"
+                              : "bg-surface-success-weak text-success-base"
                           }`}
+                          data-action="prompt-goal-normal"
                           onClick={() => setStore({ goalMode: true, longTaskEnabled: false })}
                         >
                           <Icon name="target" size="small" class="shrink-0 text-success-base" />
-                          <span class="min-w-0 flex-1 text-12-medium">
-                            {language.t("prompt.goal.normal" as never)}
-                          </span>
+                          <span class="min-w-0 flex-1 text-12-medium">{language.t("prompt.goal.normal" as never)}</span>
                           <Show when={!store.longTaskEnabled}>
                             <Icon name="check" size="small" class="text-success-base" />
                           </Show>
@@ -3064,6 +3242,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                               ? "bg-surface-success-weak text-success-base"
                               : "text-foreground-subtle"
                           }`}
+                          data-action="prompt-goal-long-task"
                           onClick={() => setStore({ goalMode: true, longTaskEnabled: true })}
                         >
                           <Icon name="task" size="small" class="shrink-0" />
@@ -3076,63 +3255,147 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </button>
                       }
                     >
-                      <div class="w-72 p-3">
+                      <div data-component="prompt-goal-long-task" class="w-72 p-3">
                         <div class="mb-2 text-12-medium text-foreground">
                           {language.t("prompt.goal.longTask" as never)}
                         </div>
                         <p class="mb-3 text-11-regular leading-4 text-foreground-subtle">
-                          本次目标会进入后台长期执行，可跨重启恢复、暂停、继续并进行最终验收。
+                          {language.t("prompt.goal.longTaskDescription" as never)}
                         </p>
                         <label class="block">
-                          <span class="mb-1 block text-11-medium text-foreground-subtle">验收标准（每行一条）</span>
+                          <span class="mb-1 block text-11-medium text-foreground-subtle">
+                            {language.t("prompt.goal.criteriaLabel" as never)}
+                          </span>
                           <textarea
                             class="h-16 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-11-regular text-foreground outline-none focus:border-border-focus"
-                            placeholder="例如：完成后运行测试；提供生成文件路径"
+                            placeholder={language.t("prompt.goal.criteriaPlaceholder" as never)}
                             value={store.longTaskCriteria}
                             onInput={(event) => setStore("longTaskCriteria", event.currentTarget.value)}
                           />
                         </label>
                         <label class="mt-2 block">
-                          <span class="mb-1 block text-11-medium text-foreground-subtle">工具预算</span>
+                          <span class="mb-1 block text-11-medium text-foreground-subtle">
+                            {language.t("prompt.goal.budgetLabel" as never)}
+                          </span>
                           <div class="relative w-full">
                             <button
+                              ref={(element) => (goalBudgetTrigger = element)}
                               type="button"
                               class="flex h-8 w-full items-center justify-between rounded-[7px] border border-border bg-background px-2.5 text-left text-11-regular text-foreground transition-colors hover:border-border-hover hover:bg-hover focus-visible:border-border-focus focus-visible:outline-none"
                               aria-haspopup="listbox"
                               aria-expanded={goalBudgetOpen()}
+                              aria-controls="prompt-goal-budget-listbox"
                               onClick={(event) => {
                                 event.stopPropagation()
-                                setGoalBudgetOpen((open) => !open)
+                                setGoalBudgetOpen((open) => {
+                                  if (!open)
+                                    setGoalBudgetIndex(Math.max(0, goalBudgetValues.indexOf(store.longTaskToolBudget)))
+                                  return !open
+                                })
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  if (!goalBudgetOpen()) return
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  setGoalBudgetOpen(false)
+                                  requestAnimationFrame(() => goalBudgetTrigger?.focus())
+                                  return
+                                }
+                                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  const direction = event.key === "ArrowDown" ? 1 : -1
+                                  if (!goalBudgetOpen()) {
+                                    setGoalBudgetIndex(Math.max(0, goalBudgetValues.indexOf(store.longTaskToolBudget)))
+                                    setGoalBudgetOpen(true)
+                                    return
+                                  }
+                                  setGoalBudgetIndex(
+                                    (index) => (index + direction + goalBudgetValues.length) % goalBudgetValues.length,
+                                  )
+                                  return
+                                }
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  if (!goalBudgetOpen()) {
+                                    setGoalBudgetIndex(Math.max(0, goalBudgetValues.indexOf(store.longTaskToolBudget)))
+                                    setGoalBudgetOpen(true)
+                                    return
+                                  }
+                                  const value = goalBudgetValues[goalBudgetIndex()]
+                                  if (value === undefined) return
+                                  setStore("longTaskToolBudget", value)
+                                  setGoalBudgetOpen(false)
+                                }
                               }}
                             >
                               <span class="min-w-0 truncate">
-                                {store.longTaskToolBudget === 0 ? "自动（不设固定上限）" : `${store.longTaskToolBudget} 次`}
+                                {store.longTaskToolBudget === 0
+                                  ? language.t("prompt.goal.budgetAuto" as never)
+                                  : language.t("prompt.goal.budgetCalls" as never, { count: store.longTaskToolBudget })}
                               </span>
-                              <Icon name="chevron-down" size="small" class="ml-2 size-4 shrink-0 text-foreground-subtle" />
+                              <Icon
+                                name="chevron-down"
+                                size="small"
+                                class="ml-2 size-4 shrink-0 text-foreground-subtle"
+                              />
                             </button>
                             <Show when={goalBudgetOpen()}>
                               <div
+                                id="prompt-goal-budget-listbox"
                                 role="listbox"
+                                aria-label={language.t("prompt.goal.budgetLabel" as never)}
                                 class="absolute left-0 top-[calc(100%+4px)] z-30 w-full overflow-hidden rounded-lg border border-border bg-background p-1 shadow-lg"
                               >
-                                <For each={[20, 50, 100, 200, 500, 0]}>
-                                  {(value) => (
+                                <For each={goalBudgetValues}>
+                                  {(value, index) => (
                                     <button
                                       type="button"
                                       role="option"
+                                      tabIndex={goalBudgetIndex() === index() ? 0 : -1}
                                       aria-selected={store.longTaskToolBudget === value}
-                                      class={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-11-regular transition-colors hover:bg-hover ${
+                                      class={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-11-regular transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none ${
                                         store.longTaskToolBudget === value
                                           ? "bg-surface-success-weak text-success-base"
                                           : "text-foreground"
                                       }`}
+                                      onFocus={() => setGoalBudgetIndex(index())}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Escape") {
+                                          event.preventDefault()
+                                          setGoalBudgetOpen(false)
+                                          requestAnimationFrame(() => goalBudgetTrigger?.focus())
+                                          return
+                                        }
+                                        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+                                        event.preventDefault()
+                                        const direction = event.key === "ArrowDown" ? 1 : -1
+                                        setGoalBudgetIndex(
+                                          (current) =>
+                                            (current + direction + goalBudgetValues.length) % goalBudgetValues.length,
+                                        )
+                                        requestAnimationFrame(() => {
+                                          const next = document.querySelector<HTMLButtonElement>(
+                                            `#prompt-goal-budget-listbox [role="option"][tabindex="0"]`,
+                                          )
+                                          next?.focus()
+                                        })
+                                      }}
                                       onClick={(event) => {
                                         event.stopPropagation()
+                                        setGoalBudgetIndex(index())
                                         setStore("longTaskToolBudget", value)
                                         setGoalBudgetOpen(false)
+                                        requestAnimationFrame(() => goalBudgetTrigger?.focus())
                                       }}
                                     >
-                                      <span>{value === 0 ? "自动（不设固定上限）" : `${value} 次`}</span>
+                                      <span>
+                                        {value === 0
+                                          ? language.t("prompt.goal.budgetAuto" as never)
+                                          : language.t("prompt.goal.budgetCalls" as never, { count: value })}
+                                      </span>
                                       <Show when={store.longTaskToolBudget === value}>
                                         <Icon name="check-small" size="small" class="size-4 shrink-0" />
                                       </Show>
@@ -3142,7 +3405,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                               </div>
                             </Show>
                           </div>
-                          <span class="mt-1 block text-10-regular text-foreground-subtlest">最大工具调用数</span>
+                          <span class="mt-1 block text-10-regular text-foreground-subtlest">
+                            {language.t("prompt.goal.budgetHint" as never)}
+                          </span>
                         </label>
                       </div>
                     </HoverCard>
@@ -3347,7 +3612,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   }}
                   gutter={6}
                   // 子级浮层被 portal 到 body，不在 popover-content 里，得显式让父级认作“内部”。
-                  outsideIgnore={() => [flyouts.workspace]}
+                  outsideIgnore={() => [flyouts.workspace, flyouts.expert].filter(Boolean) as HTMLElement[]}
                   triggerAs="button"
                   placement="top-start"
                   triggerProps={
@@ -3478,6 +3743,22 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       />
                     </AddMenuGroup>
                     <AddMenuGroup label="这一轮怎么跑">
+                      <Show when={!globalChat()}>
+                        <TeamModeHoverSelect
+                          sessionID={sessionID()}
+                          contentRef={(element) => (flyouts.expert = element)}
+                          trigger={
+                            <AddMenuItem
+                              action="prompt-expert"
+                              icon="brain"
+                              title={language.t("team.mode.menuTitle")}
+                              description={language.t("team.mode.menuDescription")}
+                              hint="▸"
+                              onSelect={() => undefined}
+                            />
+                          }
+                        />
+                      </Show>
                       <AddMenuItem
                         action="prompt-plan-mode"
                         icon="checklist"
@@ -3492,8 +3773,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       <AddMenuItem
                         action="prompt-goal-mode"
                         icon="target"
-                        title="目标模式"
-                        description="围绕本轮输入的目标持续推进"
+                        title={language.t("prompt.goal.menuTitle" as never)}
+                        description={language.t("prompt.goal.menuDescription" as never)}
                         active={store.goalMode}
                         tone="success"
                         onSelect={() => {

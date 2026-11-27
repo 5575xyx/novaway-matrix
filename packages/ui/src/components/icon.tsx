@@ -51,6 +51,7 @@ const icons = {
   browser: `<path d="M2 2H18V18H2V2Z" stroke="currentColor" stroke-linecap="square"/><path d="M2 6.5H18" stroke="currentColor" stroke-linecap="square"/><path d="M4.75 4.25H5.75M7.5 4.25H8.5" stroke="currentColor" stroke-linecap="square"/>`,
   "browser-active": `<path d="M2 2H18V18H2V2Z" fill="currentColor" fill-opacity="0.1"/><path d="M2 2H18V18H2V2Z" stroke="currentColor" stroke-linecap="square"/><path d="M2 6.5H18" stroke="currentColor" stroke-linecap="square"/><path d="M4.75 4.25H5.75M7.5 4.25H8.5" stroke="currentColor" stroke-linecap="square"/>`,
   "magnifying-glass": `<path d="M13 13L10.6418 10.6418M11.9552 7.47761C11.9552 9.95053 9.95053 11.9552 7.47761 11.9552C5.0047 11.9552 3 9.95053 3 7.47761C3 5.0047 5.0047 3 7.47761 3C9.95053 3 11.9552 5.0047 11.9552 7.47761Z" stroke="currentColor" stroke-linecap="square" vector-effect="non-scaling-stroke"/>`,
+  microphone: `<rect x="6" y="2" width="8" height="11" rx="4" stroke="currentColor"/><path d="M3.5 10.5C3.5 14.09 6.41 17 10 17C13.59 17 16.5 14.09 16.5 10.5M10 17V19M7 19H13" stroke="currentColor" stroke-linecap="round"/>`,
   "plus-small": `<path d="M9.99984 5.41699V10.0003M9.99984 10.0003V14.5837M9.99984 10.0003H5.4165M9.99984 10.0003H14.5832" stroke="currentColor" stroke-linecap="square"/>`,
   plus: `<path d="M9.9987 2.20703V9.9987M9.9987 9.9987V17.7904M9.9987 9.9987H2.20703M9.9987 9.9987H17.7904" stroke="currentColor" stroke-linecap="square"/>`,
   minus: `<path d="M2.20703 9.9987H17.7904" stroke="currentColor" stroke-linecap="square"/>`,

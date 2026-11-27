@@ -1,6 +1,7 @@
 import type { Config } from "@novaway/sdk/v2/client"
 import { Switch } from "@novaway/ui/switch"
 import { Tag } from "@novaway/ui/tag"
+import { TextField } from "@novaway/ui/text-field"
 import { createMemo, type Component } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
@@ -28,6 +29,10 @@ export const SettingsBrowser: Component = () => {
 
   const enabled = createMemo(() => entry()["enabled"] !== false)
   const openInApp = createMemo(() => browserEmbeddedEnabled({ browser: entry() }))
+  const persistentSession = createMemo(() => entry()["persistent_session"] !== false)
+  const cookieFile = createMemo(() =>
+    typeof entry()["cookie_file"] === "string" ? String(entry()["cookie_file"]) : "",
+  )
 
   const update = (value: boolean) =>
     globalSync.updateConfig({
@@ -37,6 +42,16 @@ export const SettingsBrowser: Component = () => {
   const updateOpenInApp = (value: boolean) =>
     globalSync.updateConfig({
       browser: { ...entry(), open_in_app: value },
+    } as Config)
+
+  const updatePersistentSession = (value: boolean) =>
+    globalSync.updateConfig({
+      browser: { ...entry(), persistent_session: value },
+    } as Config)
+
+  const updateCookieFile = (value: string) =>
+    globalSync.updateConfig({
+      browser: { ...entry(), cookie_file: value.trim() || undefined },
     } as Config)
 
   return (
@@ -61,6 +76,32 @@ export const SettingsBrowser: Component = () => {
             <Switch checked={openInApp()} onChange={updateOpenInApp} hideLabel>
               {language.t("settings.browser.openInApp.title" as never)}
             </Switch>
+          }
+        />
+        <SettingsRow
+          label={language.t("settings.browser.persistent.title" as never)}
+          description={language.t("settings.browser.persistent.description" as never)}
+          control={
+            <Switch checked={persistentSession()} onChange={updatePersistentSession} hideLabel>
+              {language.t("settings.browser.persistent.title" as never)}
+            </Switch>
+          }
+        />
+        <SettingsRow
+          layout="wide"
+          label={language.t("settings.browser.cookieFile.title" as never)}
+          description={language.t("settings.browser.cookieFile.description" as never)}
+          control={
+            <TextField
+              value={cookieFile()}
+              onChange={updateCookieFile}
+              placeholder="C:\\path\\to\\cookies.txt"
+              label={language.t("settings.browser.cookieFile.title" as never)}
+              hideLabel
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+            />
           }
         />
         <SettingsRow

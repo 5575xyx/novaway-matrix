@@ -1,4 +1,4 @@
-import { afterEach, describe, expect } from "bun:test"
+import { afterEach, describe, expect, type TestOptions } from "bun:test"
 import { BlobReader, BlobWriter, TextReader, ZipReader, ZipWriter } from "@zip.js/zip.js"
 import { ConfigProvider, Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
@@ -22,6 +22,8 @@ import { errorMessage } from "../../src/util/error"
 import { extractOfficeDocumentText } from "../../src/util/office-document"
 import { TestLLMServer } from "../lib/llm-server"
 import path from "path"
+import { Database } from "@/storage/db"
+import { TeamRunOpTable } from "@/team/run.sql"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -324,7 +326,11 @@ function httpapiInstance<A, E>(
   )
 }
 
-function serverPathParity<A, E>(name: string, scenario: (serverPath: ServerPath) => Effect.Effect<A, E, TestScope>) {
+function serverPathParity<A, E>(
+  name: string,
+  scenario: (serverPath: ServerPath) => Effect.Effect<A, E, TestScope>,
+  options?: TestOptions,
+) {
   it.live(
     name,
     Effect.gen(function* () {
@@ -333,6 +339,7 @@ function serverPathParity<A, E>(name: string, scenario: (serverPath: ServerPath)
       const raw = yield* scenario("raw")
       expect(raw).toEqual(standard)
     }),
+    options,
   )
 }
 
@@ -457,7 +464,9 @@ describe("HttpApi SDK", () => {
       const log = yield* call(() => sdk.app.log({ service: "httpapi-sdk-test", level: "info", message: "hello" }))
 
       expect(health.response.status).toBe(200)
-      expect(health.data).toMatchObject({ healthy: true })
+      expect(health.data).toMatchObject({ healthy: true, sessionLibrary: expect.stringMatching(/^[a-f0-9-]{36,64}$/) })
+      const nextHealth = yield* call(() => sdk.global.health())
+      expect(nextHealth.data).toEqual(health.data)
       expect(yield* firstEvent((signal) => sdk.global.event({ signal }))).toMatchObject({
         payload: { type: "server.connected" },
       })
@@ -944,40 +953,207 @@ describe("HttpApi SDK", () => {
     ),
   )
 
-  serverPathParity("matches generated SDK prompt streaming through fake LLM", (serverPath) =>
-    withFakeLlm(serverPath, ({ sdk, llm }) =>
-      Effect.gen(function* () {
-        yield* llm.text("fake world", { usage: { input: 11, output: 7 } })
-        const session = yield* capture(() =>
-          sdk.session.create({
-            title: "llm prompt",
-            permission: [{ permission: "*", pattern: "*", action: "allow" }],
-          }),
-        )
-        const sessionID = String(record(session.data).id)
-        const prompt = yield* capture(() =>
-          sdk.session.prompt({
-            sessionID,
-            agent: "build",
-            model: { providerID: "test", modelID: "test-model" },
-            parts: [{ type: "text", text: "hello llm" }],
-          }),
-        )
-        const messages = yield* capture(() => sdk.session.messages({ sessionID }))
-        const inputs = yield* llm.inputs
+  serverPathParity(
+    "matches generated SDK prompt streaming through fake LLM",
+    (serverPath) =>
+      withFakeLlm(serverPath, ({ sdk, llm }) =>
+        Effect.gen(function* () {
+          yield* llm.text("fake world", { usage: { input: 11, output: 7 } })
+          const session = yield* capture(() =>
+            sdk.session.create({
+              title: "llm prompt",
+              permission: [{ permission: "*", pattern: "*", action: "allow" }],
+            }),
+          )
+          const sessionID = String(record(session.data).id)
+          const prompt = yield* capture(() =>
+            sdk.session.prompt({
+              sessionID,
+              agent: "build",
+              model: { providerID: "test", modelID: "test-model" },
+              parts: [{ type: "text", text: "hello llm" }],
+            }),
+          )
+          const messages = yield* capture(() => sdk.session.messages({ sessionID }))
+          const inputs = yield* llm.inputs
 
-        return {
-          statuses: statuses({ session, prompt, messages }),
-          calls: inputs.length,
-          requestedModel: inputs[0]?.model,
-          responseText: JSON.stringify(prompt.data).includes("fake world"),
-          persistedText: JSON.stringify(messages.data).includes("fake world"),
-          userText: JSON.stringify(messages.data).includes("hello llm"),
-        }
+          return {
+            statuses: statuses({ session, prompt, messages }),
+            calls: inputs.length,
+            requestedModel: inputs[0]?.model,
+            responseText: JSON.stringify(prompt.data ?? "").includes("fake world"),
+            persistedText: JSON.stringify(messages.data ?? "").includes("fake world"),
+            userText: JSON.stringify(messages.data ?? "").includes("hello llm"),
+          }
+        }),
+      ),
+    { timeout: 20_000 },
+  )
+
+  httpapi(
+    "creates a selected expert conversation atomically and rejects stale selections without saving",
+    withProject("default", {}, ({ sdk, directory }) =>
+      Effect.gen(function* () {
+        const expert = yield* capture(() => sdk.employee.create({ directory, name: "Atomic expert", job: "build" }))
+        expect(expert.status).toBe(200)
+        const expertID = String(record(expert.data).id)
+        const created = yield* capture(() => sdk.session.create({ directory, expertID, title: "Expert conversation" }))
+        expect(created.status).toBe(200)
+        const sessionID = String(record(created.data).id)
+        const selection = { employeeID: expertID, teamMode: "selected", teamIDs: [] }
+        expect(created.data).toMatchObject(selection)
+        const saved = yield* capture(() => sdk.session.get({ directory, sessionID }))
+        expect(saved.status).toBe(200)
+        expect(saved.data).toMatchObject(selection)
+
+        const rejectedTitle = "Rejected expert conversation"
+        const invalid = yield* capture(() =>
+          sdk.session.create({ directory, expertID: "emp_missing", title: rejectedTitle }),
+        )
+        const ambiguous = yield* capture(() =>
+          sdk.session.create({ directory, expertID, teamIDs: ["team-other"], title: rejectedTitle }),
+        )
+        const off = yield* capture(() =>
+          sdk.session.create({ directory, expertID, teamMode: "off", title: rejectedTitle }),
+        )
+        const child = yield* capture(() =>
+          sdk.session.create({ directory, expertID, parentID: sessionID, title: rejectedTitle }),
+        )
+        expect([invalid.status, ambiguous.status, off.status, child.status]).toEqual([400, 400, 400, 400])
+        const archived = yield* capture(() => sdk.employee.update({ directory, employeeID: expertID, archived: true }))
+        expect(archived.status).toBe(200)
+        const stale = yield* capture(() => sdk.session.create({ directory, expertID, title: rejectedTitle }))
+        expect(stale.status).toBe(400)
+        const sessions = yield* call(() => sdk.session.list({ directory }, { throwOnError: true }))
+        expect(sessions.data.map((entry) => entry.id)).toEqual([sessionID])
       }),
     ),
   )
 
+  httpapi(
+    "supports expert center task lifecycle actions",
+    withProject("default", {}, ({ sdk, directory }) =>
+      Effect.gen(function* () {
+        const session = yield* capture(() => sdk.session.create({ title: "expert center lifecycle" }))
+        const sessionID = String(record(session.data).id)
+        const mismatchedDirectory = yield* tmpdirScoped({ git: true })
+        const mismatched = yield* capture(() =>
+          sdk.expertCenter.tasks2.create({
+            directory: mismatchedDirectory,
+            expertCenterTaskCreatePayload: { goal: "Different workspace", employeeID: "employee-other", sessionID },
+          }),
+        )
+        expect(mismatched.status).toBe(404)
+        const ambiguous = yield* capture(() =>
+          sdk.expertCenter.tasks2.create({
+            directory,
+            expertCenterTaskCreatePayload: {
+              goal: "Two selections",
+              teamID: "team-test",
+              employeeID: "employee-test",
+              sessionID,
+            },
+          }),
+        )
+        expect(ambiguous.status).toBe(400)
+        const created = yield* capture(() =>
+          sdk.expertCenter.tasks2.create({
+            directory,
+            expertCenterTaskCreatePayload: {
+              goal: "expert center lifecycle",
+              mode: "auto",
+              employeeID: "employee-test",
+              sessionID,
+            },
+          }),
+        )
+        expect(created.status).toBe(200)
+        const taskID = String(record(record(created.data).task).id)
+        const runDetail = yield* capture(() => sdk.run.detail({ runID: taskID, directory }))
+        expect(runDetail.status).toBe(200)
+        const taskSessionID = String(record(record(runDetail.data).run).sessionID)
+        const attributed = yield* capture(() => sdk.session.get({ sessionID: taskSessionID, directory }))
+        expect(attributed.status).toBe(200)
+        expect(record(attributed.data).employeeID).toBe("employee-test")
+        expect(record(attributed.data).teamMode).toBe("selected")
+        expect(record(attributed.data).teamIDs).toEqual([])
+        const unapproved = yield* capture(() => sdk.expertCenter.tasks2.resume({ taskID, directory }))
+        expect(unapproved.status).toBe(409)
+
+        const approved = yield* capture(() =>
+          sdk.expertCenter.tasks2.approve({
+            taskID,
+            directory,
+            expertCenterApprovePayload: { planVersion: 0, budget: {} },
+          }),
+        )
+        expect(approved.status).toBe(200)
+        expect(record(record(approved.data).task).state).toBe("working")
+
+        const concurrentPauses = yield* Effect.promise(() =>
+          Promise.all([
+            sdk.expertCenter.tasks2.pause({ taskID, directory }),
+            sdk.expertCenter.tasks2.pause({ taskID, directory }),
+          ]),
+        )
+        expect(concurrentPauses.map((result) => result.response.status).sort()).toEqual([200, 409])
+
+        const resumedAfterRace = yield* capture(() => sdk.expertCenter.tasks2.resume({ taskID, directory }))
+        expect(resumedAfterRace.status).toBe(200)
+
+        const paused = yield* capture(() => sdk.expertCenter.tasks2.pause({ taskID, directory }))
+        expect(paused.status).toBe(200)
+        expect(record(record(paused.data).task).state).toBe("paused")
+
+        const resumed = yield* capture(() => sdk.expertCenter.tasks2.resume({ taskID, directory }))
+        expect(resumed.status).toBe(200)
+        expect(record(record(resumed.data).task).state).toBe("working")
+
+        const pausedAgain = yield* capture(() => sdk.expertCenter.tasks2.pause({ taskID, directory }))
+        expect(pausedAgain.status).toBe(200)
+        const retried = yield* capture(() => sdk.expertCenter.tasks2.retry({ taskID, directory }))
+        expect(retried.status).toBe(200)
+        expect(record(record(retried.data).task).state).toBe("working")
+
+        const decision = yield* capture(() =>
+          sdk.expertCenter.tasks2.decision({
+            taskID,
+            decisionID: "decision-test",
+            directory,
+            expertCenterDecisionPayload: { action: "dismiss" },
+          }),
+        )
+        expect(decision.status).toBe(200)
+        expect(record(record(decision.data).task).state).toBe("paused")
+
+        yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .insert(TeamRunOpTable)
+              .values({
+                id: "op_expert_center_review",
+                run_id: taskID,
+                tool: "document-export",
+                idempotency_key: "review-required",
+                started_at: Date.now(),
+                outcome: "unknown",
+              })
+              .run(),
+          ),
+        )
+        const needsReview = yield* capture(() => sdk.expertCenter.tasks2.retry({ taskID, directory }))
+        expect(needsReview.status).toBe(409)
+        const reapprove = yield* capture(() =>
+          sdk.expertCenter.tasks2.approve({
+            taskID,
+            directory,
+            expertCenterApprovePayload: { planVersion: 0, budget: {} },
+          }),
+        )
+        expect(reapprove.status).toBe(409)
+      }),
+    ),
+  )
   httpapi(
     "includes project skills in REST API prompt context",
     withFakeLlmProject("default", { setup: writeProjectSkill }, ({ sdk, llm }) =>

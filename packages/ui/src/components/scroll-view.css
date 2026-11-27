@@ -57,6 +57,16 @@
   background-color: var(--border-hover);
 }
 
+.scroll-view--hide-scrollbar .scroll-view__viewport {
+  scrollbar-width: none;
+}
+
+.scroll-view--hide-scrollbar .scroll-view__viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 .scroll-view__thumb[data-visible="true"] {
   opacity: 1;
 }

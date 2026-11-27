@@ -83,16 +83,16 @@
   right: var(--frame-page-right, 8px);
   bottom: var(--frame-page-bottom, 8px);
   transition:
-    right var(--transition-panel-ms, 1000ms) var(--transition-panel-ease),
-    bottom var(--transition-panel-ms, 1000ms) var(--transition-panel-ease);
+    right var(--transition-panel-ms, 320ms) var(--transition-panel-ease),
+    bottom var(--transition-panel-ms, 320ms) var(--transition-panel-ease);
 }
 
 [data-panel-transition][data-state="open"] {
-  animation: panel-overlay-in var(--transition-panel-ms, 1000ms) var(--transition-panel-ease) both;
+  animation: panel-overlay-in var(--transition-panel-ms, 320ms) var(--transition-panel-ease) both;
 }
 
 [data-panel-transition][data-state="closed"] {
-  animation: panel-overlay-out var(--transition-panel-ms, 1000ms) ease-in both;
+  animation: panel-overlay-out var(--transition-panel-ms, 320ms) ease-in both;
   pointer-events: none;
 }
 
@@ -100,7 +100,7 @@
  * 这是整层位移（跟侧栏、Side Pane 同级的面板级动作），所以跟它们用同一时长，
  * 切视图时三个动作才是一个节奏。分段控件上的小指示器仍保持 200ms（微交互）。 */
 .sidebar-view-layer {
-  transition-duration: var(--transition-panel-ms, 1000ms);
+  transition-duration: var(--transition-panel-ms, 320ms);
   transition-timing-function: var(--transition-panel-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
@@ -196,6 +196,21 @@
   transform: rotate(-90deg);
 }
 
+/* 助手正文本身不是独立的滚动容器：消息高度应随内容自然展开，滚动统一交给会话列表。
+ * 这里单独兜底，避免正文卡片或 text-part 在不同主题/平台上出现第二条滚动条。
+ */
+[data-slot="session-turn-assistant-content"],
+[data-slot="session-turn-assistant-content"] [data-component="text-part"],
+[data-slot="session-turn-assistant-content"] [data-slot="text-part-body"],
+[data-slot="session-turn-assistant-content"] [data-component="markdown"] {
+  overflow: visible !important;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* 正文按原型用 13px / 1.6；思考块与工具输出保持自己的字号。 */
 [data-slot="session-turn-assistant-content"] [data-component="text-part"] [data-component="markdown"] {
   font-size: var(--font-size-ui-caption);
@@ -211,12 +226,6 @@
 /* 正文与思考、工具、问题卡片共用同一条内容左边界，不再为非正文内容预留头像空位。 */
 [data-timeline-row="AssistantPart"] [data-slot="assistant-avatar-spacer"] {
   display: none;
-}
-
-/* 过程行也与正文共用左边界；保留紧凑间距，不再额外向右缩进。 */
-[data-component="turn-fold-rows"] {
-  padding-left: 0 !important;
-  border-left: 0 !important;
 }
 
 /* 正文不属于工具/思考的头像时间线：与「执行 N 步」摘要使用同一左列。 */
@@ -266,6 +275,142 @@
   margin: 2px 0 10px;
   padding-left: 12px;
   border-left: 1px solid var(--border);
+}
+
+/* Orca 风格的运行组：组头是可展开的轻量摘要，明细才沿左侧引导线展开。
+   不给整个过程包大卡片，避免连续工具调用变成一堆嵌套面板。 */
+[data-component="turn-fold"] {
+  min-width: 0;
+  width: 100%;
+}
+
+[data-component="turn-fold-trigger"] {
+  min-height: 29px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground-subtle);
+  padding: 4px 6px;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+[data-component="turn-fold-trigger"]:hover,
+[data-component="turn-fold-trigger"]:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: var(--foreground);
+  transform: translateX(1px);
+  box-shadow: none;
+}
+
+[data-component="turn-fold"][data-open="true"] [data-component="turn-fold-trigger"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--foreground);
+  box-shadow: none;
+}
+
+[data-component="turn-fold-trigger"]:hover > span,
+[data-component="turn-fold-trigger"]:focus-visible > span {
+  color: var(--foreground) !important;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="accordion-trigger"]:hover,
+[data-slot="session-turn-assistant-content"] [data-slot="accordion-trigger"]:focus-visible,
+[data-slot="side-pane-assistant"] [data-slot="accordion-trigger"]:hover,
+[data-slot="side-pane-assistant"] [data-slot="accordion-trigger"]:focus-visible {
+  background: transparent !important;
+  color: var(--foreground) !important;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="accordion-trigger"]:hover *,
+[data-slot="session-turn-assistant-content"] [data-slot="accordion-trigger"]:focus-visible *,
+[data-slot="side-pane-assistant"] [data-slot="accordion-trigger"]:hover *,
+[data-slot="side-pane-assistant"] [data-slot="accordion-trigger"]:focus-visible * {
+  color: var(--foreground) !important;
+}
+
+/* 所有可展开的思考 / 工具 / 上下文卡片统一用「字体和图标变深」反馈，
+   不改变卡片背景，避免悬停时整块区域突然变色。 */
+[data-slot="session-turn-assistant-content"] [data-slot="collapsible-trigger"]:hover,
+[data-slot="session-turn-assistant-content"] [data-slot="collapsible-trigger"]:focus-visible,
+[data-slot="side-pane-assistant"] [data-slot="collapsible-trigger"]:hover,
+[data-slot="side-pane-assistant"] [data-slot="collapsible-trigger"]:focus-visible,
+[data-slot="session-turn-assistant-content"] [data-component="context-tool-group-trigger"]:hover,
+[data-slot="side-pane-assistant"] [data-component="context-tool-group-trigger"]:hover {
+  background: transparent !important;
+  color: var(--foreground) !important;
+}
+
+[data-slot="session-turn-assistant-content"] [data-slot="collapsible-trigger"]:hover [data-component="tool-trigger"] *,
+[data-slot="session-turn-assistant-content"]
+  [data-slot="collapsible-trigger"]:focus-visible
+  [data-component="tool-trigger"]
+  *,
+[data-slot="side-pane-assistant"] [data-slot="collapsible-trigger"]:hover [data-component="tool-trigger"] *,
+[data-slot="side-pane-assistant"] [data-slot="collapsible-trigger"]:focus-visible [data-component="tool-trigger"] * {
+  color: var(--foreground) !important;
+}
+
+[data-slot="session-turn-assistant-content"]
+  [data-slot="collapsible-trigger"]:hover
+  :is([data-component="reasoning-part-trigger"], [data-slot="collapsible-arrow"], [data-slot="tool-badge-icon"]),
+[data-slot="session-turn-assistant-content"]
+  [data-slot="collapsible-trigger"]:focus-visible
+  :is([data-component="reasoning-part-trigger"], [data-slot="collapsible-arrow"], [data-slot="tool-badge-icon"]),
+[data-slot="side-pane-assistant"]
+  [data-slot="collapsible-trigger"]:hover
+  :is([data-component="reasoning-part-trigger"], [data-slot="collapsible-arrow"], [data-slot="tool-badge-icon"]),
+[data-slot="side-pane-assistant"]
+  [data-slot="collapsible-trigger"]:focus-visible
+  :is([data-component="reasoning-part-trigger"], [data-slot="collapsible-arrow"], [data-slot="tool-badge-icon"]) {
+  color: var(--foreground) !important;
+}
+
+[data-slot="session-turn-assistant-content"]
+  [data-slot="collapsible-trigger"]:hover
+  [data-component="reasoning-part-trigger"]
+  *,
+[data-slot="session-turn-assistant-content"]
+  [data-slot="collapsible-trigger"]:focus-visible
+  [data-component="reasoning-part-trigger"]
+  *,
+[data-slot="side-pane-assistant"] [data-slot="collapsible-trigger"]:hover [data-component="reasoning-part-trigger"] *,
+[data-slot="side-pane-assistant"]
+  [data-slot="collapsible-trigger"]:focus-visible
+  [data-component="reasoning-part-trigger"]
+  *,
+[data-slot="session-turn-assistant-content"]
+  [data-slot="collapsible-trigger"]:hover
+  [data-component="context-tool-group-trigger"]
+  :not(:where([data-slot="tool-status-icon"], [data-slot="tool-status-icon"] *)),
+[data-slot="session-turn-assistant-content"]
+  [data-slot="collapsible-trigger"]:focus-visible
+  [data-component="context-tool-group-trigger"]
+  :not(:where([data-slot="tool-status-icon"], [data-slot="tool-status-icon"] *)),
+[data-slot="side-pane-assistant"]
+  [data-slot="collapsible-trigger"]:hover
+  [data-component="context-tool-group-trigger"]
+  :not(:where([data-slot="tool-status-icon"], [data-slot="tool-status-icon"] *)),
+[data-slot="side-pane-assistant"]
+  [data-slot="collapsible-trigger"]:focus-visible
+  [data-component="context-tool-group-trigger"]
+  :not(:where([data-slot="tool-status-icon"], [data-slot="tool-status-icon"] *)) {
+  color: var(--foreground) !important;
+}
+[data-component="turn-fold-trigger"] > span:nth-child(2) {
+  font-size: var(--font-size-ui-base);
+  line-height: var(--line-height-large);
+  letter-spacing: var(--letter-spacing-normal);
+}
+
+[data-component="turn-fold-detail"] {
+  min-width: 0;
+  margin-left: 8px;
 }
 
 /* 行自带聊天区的左右留白，容器已经提供缩进，去掉才能和引导线对齐。 */
@@ -338,22 +483,15 @@
   place-items: center;
   position: absolute;
   left: 0;
-  top: 1px;
-  width: 14px;
-  height: 14px;
-  color: var(--icon-success-base);
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  line-height: 0;
 }
 
 [data-tool-density="compact"] [data-slot="tool-badge-icon"] {
   display: none;
-}
-
-[data-tool-density="compact"] [data-slot="tool-status-icon"][data-tone="error"] {
-  color: var(--icon-critical-base);
-}
-
-[data-tool-density="compact"] [data-slot="tool-status-icon"][data-tone="active"] {
-  color: var(--foreground-subtle);
 }
 
 /* 文件名 / 目录 / 路径 / URL 收成圆角 chip：一眼看出动的是哪个文件，
@@ -457,67 +595,56 @@
   padding: 8px 10px !important;
 }
 
-/* ===== 右侧面板（子代理 / 辅助对话）：复用主聊天区的 A1 卡片语言 =====
+/* ===== 右侧面板（子代理 / 辅助对话）：复用主聊天区的过程分组与卡片语言 =====
  *
- * AssistantParts 的输出是一串同级节点；外面这层 flex 容器把它们变成独立卡片项，
- * 因而和主时间线一样：贴内容、左缘对齐、右缘参差、块间 8px。
+ * 右侧面板使用和主时间线相同的过程折叠（TurnFoldView）与 MessagePart。
+ * 这里仅负责把面板本身的外壳铺满，避免旧版 AssistantParts 的逐条卡片样式
+ * 覆盖主会话的「执行 N 步」分组。
  */
 [data-slot="side-pane-assistant"] {
   width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 8px;
 }
 
-[data-slot="side-pane-assistant"] > [data-component] {
-  width: fit-content;
+[data-slot="side-pane-assistant"] > [data-component="side-pane-turn"] {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   margin: 0;
 }
 
-/* 工具 / 上下文聚合：更紧凑的小卡片，和主聊天区一致。 */
-[data-slot="side-pane-assistant"] > [data-component="tool-part-wrapper"],
-[data-slot="side-pane-assistant"] > [data-component="collapsible"].tool-collapsible {
-  border-radius: 8px;
-  padding: 6px 10px;
+[data-slot="side-pane-assistant"] [data-component="turn-fold"] {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-slot="side-pane-assistant"] [data-component="turn-fold-rows"] {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-slot="side-pane-assistant"] [data-slot="session-turn-assistant-content"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 [data-slot="side-pane-assistant"]
-  > [data-component="tool-part-wrapper"]
-  [data-component="tool-trigger"]
-  :is([data-slot="basic-tool-tool-title"], [data-slot="basic-tool-tool-subtitle"], [data-slot="basic-tool-tool-arg"]) {
-  font-size: var(--font-size-ui-sm);
-  line-height: var(--line-height-large);
-}
-
-/* 正文与主聊天区同字号：13px / 1.6。 */
-[data-slot="side-pane-assistant"] > [data-component="text-part"] {
-  margin: 0;
-}
-
-[data-slot="side-pane-assistant"] > [data-component="text-part"] [data-component="markdown"] {
+  [data-slot="session-turn-assistant-content"]
+  [data-component="text-part"]
+  [data-component="markdown"] {
   font-size: var(--font-size-ui-caption);
   line-height: 1.6;
-}
-
-/* 卡片已经提供内边距，内部再套一层 task-tool-card / 上下文触发器会变成双层留白。 */
-[data-slot="side-pane-assistant"] > [data-component="tool-part-wrapper"] [data-component="task-tool-card"] {
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-[data-slot="side-pane-assistant"]
-  > [data-component="collapsible"].tool-collapsible
-  [data-component="context-tool-group-trigger"] {
-  padding: 0;
 }
 
 /* 侧栏品牌字标 `NovaWay`。
@@ -551,27 +678,11 @@
   }
 }
 
-/* 项目分组展开：列表整体轻微下落淡入。收起仍是瞬时的（高度需要实测，
- * 这里不引入 grid-template-rows 那一套，展开时给一次短促的入场就够读）。 */
-@keyframes sidebar-group-in {
-  from {
-    opacity: 0;
-    transform: translateY(-3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
+/* 项目任务列表可能在首屏之后随 session list 异步到达；此时给整组播放入场动画
+ * 会让后台加载完成看起来像侧栏样式/位置又变了一次。列表保持稳定落位，
+ * 交互展开/收起仍由分组自身的状态表达。 */
 .sidebar-group-enter {
-  animation: sidebar-group-in 160ms ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sidebar-group-enter {
-    animation: none;
-  }
+  animation: none;
 }
 
 /* 不用 fill 模式：动画结束后回到自然样式（transform: none），
@@ -625,6 +736,48 @@
     background-color: var(--border-hover);
     border-radius: 9999px;
   }
+}
+
+/* 会话正文使用外层统一滚动，正文旁不再显示第二条滚动条。
+ * 仍保留 viewport 的滚动能力，只隐藏视觉上的原生滚动条和自绘 thumb。
+ */
+.session-timeline-scroll {
+  .scroll-view__viewport {
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .scroll-view__thumb {
+    display: none;
+  }
+}
+
+/* 直接命中会话时间线的实际滚动节点。某些 Windows WebView 不接受上面的
+ * 普通 scrollbar 规则，必须同时把原生滚动条尺寸压为 0；滚动能力仍保留。
+ */
+[data-component="message-timeline"] > .scroll-view > .scroll-view__viewport {
+  scrollbar-width: none !important;
+  scrollbar-color: transparent transparent !important;
+
+  &::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+    background: transparent !important;
+  }
+}
+
+[data-component="message-timeline"] > .scroll-view > .scroll-view__thumb {
+  display: none !important;
+}
+
+/* 兼容仍使用旧 SessionTurn 外壳的会话视图：正文卡片不创建自己的 viewport。 */
+[data-component="session-turn"] > [data-slot="session-turn-content"] {
+  height: auto !important;
+  overflow: visible !important;
 }
 
 /* ===== 状态面板收起态：实时滚动播报 =====
@@ -1120,9 +1273,12 @@
   }
 }
 
+/* TaskRow uses a loader icon for running sessions. Keep its wrapper neutral so
+ * the old breathing-dot styling cannot paint a blue block behind the spinner. */
 [data-component="task-row"] [data-task-status="running"] {
-  background-color: var(--icon-interactive-base) !important;
-  animation: task-running-breathe 1.35s ease-in-out infinite;
+  background: transparent !important;
+  animation: none !important;
+  box-shadow: none !important;
 }
 
 [data-component="todo-status"][data-status="running"] {
@@ -1573,12 +1729,13 @@
   max-width: 240px !important;
 }
 
-/* 工具摘要只保留“调用了什么工具”；路径、参数、增删统计等详情在展开后查看。 */
+/* 工具摘要只保留动作和编辑目标文件名；目录、参数及增删详情在展开后查看。 */
 [data-tool-density="compact"] [data-slot="basic-tool-tool-subtitle"],
 [data-tool-density="compact"] [data-slot="basic-tool-tool-arg"],
-[data-tool-density="compact"] [data-slot="basic-tool-tool-detail"],
+[data-tool-density="compact"]
+  [data-component="tool-part-wrapper"]:not([data-tool="apply_patch"])
+  [data-slot="basic-tool-tool-detail"],
 [data-tool-density="compact"] [data-slot="basic-tool-tool-action"],
-[data-tool-density="compact"] [data-slot="message-part-title-filename"],
 [data-tool-density="compact"] [data-slot="message-part-path"],
 [data-tool-density="compact"] [data-slot="message-part-actions"] {
   display: none !important;
@@ -1600,7 +1757,6 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-
 
 [data-component="tool-part-wrapper"][data-tool="memory"] [data-slot="basic-tool-tool-info-main"] {
   flex-wrap: nowrap !important;
@@ -1939,6 +2095,32 @@
 @container (max-width: 470px) {
   [data-component="prompt-auto-accept"] [data-slot="permission-mode-label"] {
     display: none;
+  }
+}
+
+/* 专家中心的双栏切换按实际面板宽度，而不是浏览器视口判断。工作区常与编辑器/侧栏并排，
+   视口很宽时专家中心仍可能只剩 330px；这时必须先堆叠任务列表和详情，避免横向滚动。 */
+.expert-workbench-layout {
+  flex-direction: column;
+}
+
+.expert-workbench-sidebar {
+  width: 100%;
+  height: min(46vh, 22rem);
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+@container expert-workbench (min-width: 720px) {
+  .expert-workbench-layout {
+    flex-direction: row;
+  }
+
+  .expert-workbench-sidebar {
+    width: 18rem;
+    height: auto;
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
   }
 }
 
@@ -2470,26 +2652,6 @@
   border-bottom: 1px solid color-mix(in srgb, var(--border-interactive-base) 5%, var(--border));
 }
 
-[data-component="sidebar-new-task"] {
-  border: 1px solid color-mix(in srgb, var(--border-interactive-base) 35%, transparent);
-  box-shadow:
-    0 1px 0 color-mix(in srgb, var(--surface-highlight-base) 18%, transparent) inset,
-    0 8px 20px -14px color-mix(in srgb, var(--surface-interactive-base) 70%, transparent);
-  letter-spacing: 0.01em;
-  transition:
-    transform 160ms ease,
-    box-shadow 180ms ease,
-    filter 180ms ease;
-}
-
-[data-component="sidebar-new-task"]:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
-  box-shadow:
-    0 1px 0 color-mix(in srgb, var(--surface-highlight-base) 22%, transparent) inset,
-    0 10px 24px -12px color-mix(in srgb, var(--surface-interactive-base) 80%, transparent);
-}
-
 [data-component="sidebar-panel-slot"] {
   background: linear-gradient(
     180deg,
@@ -2532,7 +2694,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-component="sidebar-new-task"],
   [data-component="side-pane-empty"] .side-pane-launcher-button {
     transition: none;
   }
@@ -2542,4 +2703,275 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* The long-task budget menu is intentionally allowed to extend below its
+   hover card; the default hover-card body clips overflow for normal cards. */
+[data-component="hover-card-content"]:has([data-component="prompt-goal-long-task"]) [data-slot="hover-card-body"] {
+  overflow: visible;
+}
+
+[data-component="git-source-control"] .source-control-row-action {
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+[data-component="git-source-control"] .source-control-file:hover .source-control-row-action,
+[data-component="git-source-control"] .source-control-row-action:focus-visible {
+  opacity: 1;
+}
+
+[data-component="git-source-control"] .source-control-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* 主会话计划审批：计划文档专用卡，不复用 question 的问卷样式。 */
+[data-component="plan-approval-card"] {
+  position: relative;
+  overflow: hidden;
+  width: min(100%, 760px);
+  border: 1px solid color-mix(in srgb, var(--border-interactive-base) 32%, var(--border));
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-interactive-base) 10%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface) 82%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--text-strong) 5%, transparent),
+    0 10px 28px color-mix(in srgb, var(--text-strong) 8%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+}
+
+[data-component="plan-approval-card"]::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(var(--icon-interactive-base), var(--icon-success-base));
+  content: "";
+}
+
+[data-slot="plan-approval-card-head"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-interactive-base) 5%, transparent);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+[data-slot="plan-approval-card-kind"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text-strong);
+}
+
+[data-slot="plan-approval-card-kind"] > svg {
+  color: var(--icon-interactive-base);
+}
+
+[data-slot="plan-approval-card-status"] {
+  margin-left: auto;
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+[data-slot="plan-approval-card-path-row"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 14px 0 18px;
+}
+
+[data-slot="plan-approval-card-path"] {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 68%, var(--surface-interactive-base));
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-slot="plan-approval-card-path-row"] .plan-approval-open-plan {
+  flex: 0 0 auto;
+  color: var(--text-interactive-base);
+  white-space: nowrap;
+}
+
+[data-slot="plan-approval-card-path-row"] .plan-approval-open-plan:hover {
+  color: var(--text-strong);
+}
+
+[data-slot="plan-approval-card-body"] {
+  position: relative;
+  min-height: 192px;
+  padding-bottom: 14px;
+}
+
+[data-slot="plan-approval-card-preview"] {
+  max-height: 360px;
+  margin: 10px 14px 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--surface) 78%, transparent);
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+[data-slot="plan-approval-card-action-layer"] {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  background: color-mix(in srgb, var(--surface) 56%, transparent);
+  backdrop-filter: blur(12px) saturate(1.08);
+}
+
+[data-slot="plan-approval-card-actions"] {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+[data-slot="plan-approval-card-feedback"] {
+  display: flex;
+  width: min(100%, 560px);
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--border-interactive-base) 38%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text-strong) 10%, transparent);
+  backdrop-filter: blur(14px) saturate(1.12);
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action {
+  display: flex;
+  min-height: 78px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  text-align: left;
+  white-space: normal;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--text-strong) 10%, transparent);
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action-hint {
+  color: color-mix(in srgb, currentColor 68%, transparent);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action-standard {
+  border-color: color-mix(in srgb, var(--border-interactive-base) 68%, var(--border));
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action-goal {
+  border-color: color-mix(in srgb, var(--icon-success-base) 48%, var(--border));
+  color: var(--icon-success-base);
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action-long-task {
+  border-color: var(--border-warning-selected);
+  color: var(--text-strong);
+}
+
+[data-slot="plan-approval-card-actions"] .plan-approval-action-continue {
+  border-color: color-mix(in srgb, var(--border) 82%, var(--text-subtle));
+  color: var(--text-subtle);
+}
+
+@media (max-width: 640px) {
+  [data-slot="plan-approval-card-body"] {
+    min-height: 380px;
+  }
+
+  [data-slot="plan-approval-card-actions"] {
+    grid-template-columns: 1fr;
+  }
+
+  [data-slot="plan-approval-card-actions"] .plan-approval-action {
+    min-height: 0;
+  }
+}
+
+[data-component="plan-approval-card"][data-state="approved"],
+[data-component="plan-approval-card"][data-state="continue"] {
+  opacity: 0.82;
+}
+
+/* 文件编辑结果的颜色必须优先于过程卡 hover 的通用 foreground 覆盖。
+   标题和 TextShimmer 内层都显式着色，避免鼠标悬停时成功绿被冲掉。 */
+[data-component="tool-part-wrapper"][data-tool="edit"][data-status="done"] [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-tool="write"][data-status="done"] [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-tool="apply_patch"][data-status="done"] [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-tool="edit"][data-status="done"] [data-slot="message-part-title-text"] *,
+[data-component="tool-part-wrapper"][data-tool="write"][data-status="done"] [data-slot="message-part-title-text"] *,
+[data-component="tool-part-wrapper"][data-tool="apply_patch"][data-status="done"]
+  [data-slot="message-part-title-text"]
+  * {
+  color: var(--icon-success-base) !important;
+}
+
+[data-component="tool-part-wrapper"][data-tool="edit"][data-status="error"] [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-tool="write"][data-status="error"] [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-tool="apply_patch"][data-status="error"]
+  [data-slot="message-part-title-text"],
+[data-component="tool-part-wrapper"][data-tool="edit"][data-status="error"] [data-slot="message-part-title-text"] *,
+[data-component="tool-part-wrapper"][data-tool="write"][data-status="error"] [data-slot="message-part-title-text"] *,
+[data-component="tool-part-wrapper"][data-tool="apply_patch"][data-status="error"]
+  [data-slot="message-part-title-text"]
+  * {
+  color: var(--icon-critical-base) !important;
 }

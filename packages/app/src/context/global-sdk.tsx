@@ -7,6 +7,7 @@ import { authTokenFromCredentials, createSdkForServer } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { useServer } from "./server"
+import { createStreamEventQueue, createStreamHeartbeat } from "./stream-events"
 
 const isAbortError = (error: unknown) =>
   error !== null && typeof error === "object" && "name" in error && error.name === "AbortError"
@@ -42,59 +43,27 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
       [key: string]: Event
     }>()
 
-    type Queued = { directory: string; payload: Event }
-    const FLUSH_FRAME_MS = 16
-    const STREAM_YIELD_MS = 8
+    // Coalesce bursty packets before updating long timelines; this caps redundant UI commits.
+    const FLUSH_FRAME_MS = 32
+    const STREAM_YIELD_MS = 64
     const RECONNECT_DELAY_MS = 250
-
-    let queue: Queued[] = []
-    let buffer: Queued[] = []
-    const coalesced = new Map<string, number>()
-    const staleDeltas = new Set<string>()
+    const queue = createStreamEventQueue()
     let timer: ReturnType<typeof setTimeout> | undefined
     let last = 0
 
-    const deltaKey = (directory: string, messageID: string, partID: string) => `${directory}:${messageID}:${partID}`
-
-    const key = (directory: string, payload: Event) => {
-      if (payload.type === "session.status") return `session.status:${directory}:${payload.properties.sessionID}`
-      if (payload.type === "lsp.updated") return `lsp.updated:${directory}`
-      if (payload.type === "message.part.updated") {
-        const part = payload.properties.part
-        return `message.part.updated:${directory}:${part.messageID}:${part.id}`
-      }
-    }
-
     const flush = () => {
-      if (timer) clearTimeout(timer)
+      if (timer !== undefined) clearTimeout(timer)
       timer = undefined
-
-      if (queue.length === 0) return
-
-      const events = queue
-      const skip = staleDeltas.size > 0 ? new Set(staleDeltas) : undefined
-      queue = buffer
-      buffer = events
-      queue.length = 0
-      coalesced.clear()
-      staleDeltas.clear()
-
+      const events = queue.take()
+      if (!events.length) return
       last = Date.now()
       batch(() => {
-        for (const event of events) {
-          if (skip && event.payload.type === "message.part.delta") {
-            const props = event.payload.properties
-            if (skip.has(deltaKey(event.directory, props.messageID, props.partID))) continue
-          }
-          emitter.emit(event.directory, event.payload)
-        }
+        for (const { directory, payload } of events) emitter.emit(directory, payload)
       })
-
-      buffer.length = 0
     }
 
     const schedule = () => {
-      if (timer) return
+      if (timer !== undefined) return
       const elapsed = Date.now() - last
       timer = setTimeout(flush, Math.max(0, FLUSH_FRAME_MS - elapsed))
     }
@@ -106,21 +75,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
     let attempt: AbortController | undefined
     let run: Promise<void> | undefined
     let started = false
-    const HEARTBEAT_TIMEOUT_MS = 15_000
-    let lastEventAt = Date.now()
-    let heartbeat: ReturnType<typeof setTimeout> | undefined
-    const resetHeartbeat = () => {
-      lastEventAt = Date.now()
-      if (heartbeat) clearTimeout(heartbeat)
-      heartbeat = setTimeout(() => {
-        attempt?.abort()
-      }, HEARTBEAT_TIMEOUT_MS)
-    }
-    const clearHeartbeat = () => {
-      if (!heartbeat) return
-      clearTimeout(heartbeat)
-      heartbeat = undefined
-    }
+    const heartbeat = createStreamHeartbeat({ timeoutMs: 15_000, onTimeout: () => attempt?.abort() })
 
     const start = () => {
       if (started) return run
@@ -129,7 +84,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
         // oxlint-disable-next-line no-unmodified-loop-condition -- `started` is set to false by stop() which also aborts; both flags are checked to allow graceful exit
         while (!abort.signal.aborted && started) {
           attempt = new AbortController()
-          lastEventAt = Date.now()
+          heartbeat.received()
           const onAbort = () => {
             attempt?.abort()
           }
@@ -149,9 +104,9 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
               },
             })
             let yielded = Date.now()
-            resetHeartbeat()
+            heartbeat.received()
             for await (const event of events.stream) {
-              resetHeartbeat()
+              heartbeat.received()
               streamErrorLogged = false
               const directory = event.directory ?? "global"
               if (event.payload.type === "sync") {
@@ -160,20 +115,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
 
               const payload = event.payload as Event
 
-              const k = key(directory, payload)
-              if (k) {
-                const i = coalesced.get(k)
-                if (i !== undefined) {
-                  queue[i] = { directory, payload }
-                  if (payload.type === "message.part.updated") {
-                    const part = payload.properties.part
-                    staleDeltas.add(deltaKey(directory, part.messageID, part.id))
-                  }
-                  continue
-                }
-                coalesced.set(k, queue.length)
-              }
-              queue.push({ directory, payload })
+              queue.push(directory, payload)
               schedule()
 
               if (Date.now() - yielded < STREAM_YIELD_MS) continue
@@ -192,7 +134,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
           } finally {
             abort.signal.removeEventListener("abort", onAbort)
             attempt = undefined
-            clearHeartbeat()
+            heartbeat.stop()
           }
 
           if (abort.signal.aborted || !started) return
@@ -208,14 +150,14 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
     const stop = () => {
       started = false
       attempt?.abort()
-      clearHeartbeat()
+      heartbeat.stop()
     }
 
     onMount(() => {
       makeEventListener(document, "visibilitychange", () => {
         if (document.visibilityState !== "visible") return
         if (!started) return
-        if (Date.now() - lastEventAt < HEARTBEAT_TIMEOUT_MS) return
+        if (!heartbeat.expired()) return
         attempt?.abort()
       })
     })

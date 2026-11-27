@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test"
+import { mkdir } from "node:fs/promises"
 import path from "path"
 import { pathToFileURL } from "url"
+import { which } from "@/util/which"
 import { tmpdir, withTestInstance } from "../fixture/fixture"
 import { LSPClient } from "@/lsp/client"
 import * as LSPServer from "@/lsp/server"
@@ -489,5 +491,52 @@ describe("LSPClient interop", () => {
         await client.shutdown()
       },
     })
+  })
+
+  // Bun supports the timeout options at runtime; the bundled test declaration is older.
+  // @ts-expect-error timeout options are available in the Bun test runner.
+  test("integrates with a real rust-analyzer server", { timeout: 120_000 }, async () => {
+    const binary = which("rust-analyzer")
+    if (!binary) return
+
+    const { spawn } = require("child_process")
+    await using tmp = await tmpdir()
+    const file = path.join(tmp.path, "src", "main.rs")
+    await mkdir(path.dirname(file), { recursive: true })
+    await Bun.write(
+      path.join(tmp.path, "Cargo.toml"),
+      '[package]\nname = "novaway_lsp_smoke"\nversion = "0.1.0"\nedition = "2021"\n',
+    )
+    await Bun.write(file, 'fn greet(name: &str) -> String { format!("Hello, {}", name) }\nfn main() { println!("{}", missing); }\n')
+
+    const handle = {
+      process: spawn(binary, [], { cwd: tmp.path, stdio: "pipe" }),
+    } as unknown as LSPServer.Handle
+    const client = await withTestInstance({
+      directory: tmp.path,
+      fn: (ctx) =>
+        LSPClient.create({
+          serverID: "rust",
+          server: handle,
+          root: tmp.path,
+          directory: tmp.path,
+          instance: ctx,
+        }),
+    })
+
+    try {
+      const text = await Bun.file(file).text()
+      const version = await client.notify.open({ path: file, text, changed: true })
+      await client.waitForDiagnostics({ path: file, version, mode: "document" })
+      const diagnostics = client.diagnostics.get(file) ?? []
+      expect(diagnostics.some((item) => /cannot find value `missing`/.test(item.message))).toBe(true)
+
+      const symbols = await client.connection.sendRequest<any[]>("textDocument/documentSymbol", {
+        textDocument: { uri: pathToFileURL(file).href },
+      })
+      expect(symbols.map((item) => item.name)).toEqual(expect.arrayContaining(["greet", "main"]))
+    } finally {
+      await client.shutdown()
+    }
   })
 })

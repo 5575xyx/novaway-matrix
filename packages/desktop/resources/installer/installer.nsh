@@ -247,3 +247,36 @@
     !insertmacro MUI_PAGE_FINISH
   !endif
 !macroend
+
+# ---------------------------------------------------------------------------
+# 3) 删除 Electron 实际使用的 userData 目录
+# ---------------------------------------------------------------------------
+# electron-builder 的 deleteAppDataOnUninstall 只删除产品名/包名目录,而主进程
+# 为了隔离 dev/beta/prod 明确把 userData 设置为 %APPDATA%\\${APP_ID}。
+# 如果这里只依赖默认宏,卸载后 ai.novaway.desktop.* 会残留,重装时可能带回旧
+# 插件、账号和会话数据。只在标准卸载删除数据的分支执行,更新流程不会触发。
+# 在标准卸载 Section 开始时删除实际 userData。使用 customUnInstall 而不是
+# customUnInstallSection,避免额外创建可被用户取消勾选的组件,也确保静默卸载执行。
+!macro customUnInstall
+  StrCpy $R1 "0"
+  ClearErrors
+  ${GetParameters} $R0
+  ${GetOptions} $R0 "--delete-app-data" $R2
+  ${ifNot} ${Errors}
+    StrCpy $R1 "1"
+  ${else}
+    ${ifNot} ${isUpdated}
+      StrCpy $R1 "1"
+    ${endif}
+  ${endif}
+
+  ${if} $R1 == "1"
+    ${if} $installMode == "all"
+      SetShellVarContext current
+    ${endif}
+    RMDir /r "$APPDATA\\${APP_ID}"
+    ${if} $installMode == "all"
+      SetShellVarContext all
+    ${endif}
+  ${endif}
+!macroend

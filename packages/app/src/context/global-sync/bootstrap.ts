@@ -19,7 +19,7 @@ import type { State, VcsCache } from "./types"
 import { cmp, normalizeAgentList, normalizeProviderList } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
-import { loadMcpQuery } from "../global-sync"
+import { loadLspQuery, loadMcpQuery } from "../global-sync"
 
 type GlobalStore = {
   ready: boolean
@@ -34,34 +34,11 @@ type GlobalStore = {
   reload: undefined | "pending" | "complete"
 }
 
-function waitForPaint() {
-  return new Promise<void>((resolve) => {
-    let done = false
-    const finish = () => {
-      if (done) return
-      done = true
-      resolve()
-    }
-    const timer = setTimeout(finish, 50)
-    if (typeof requestAnimationFrame !== "function") return
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        clearTimeout(timer)
-        finish()
-      }, 0)
-    })
-  })
-}
-
 function errors(list: PromiseSettledResult<unknown>[]) {
   return list.filter((item): item is PromiseRejectedResult => item.status === "rejected").map((item) => item.reason)
 }
 
-const providerRev = new Map<string, number>()
-
-export function clearProviderRev(directory: string) {
-  providerRev.delete(directory)
-}
+const requestDeadline = (ms = 15_000) => ({ signal: AbortSignal.timeout(ms) })
 
 function runAll(list: Array<() => Promise<unknown>>) {
   return Promise.allSettled(list.map((item) => item()))
@@ -86,7 +63,7 @@ function showErrors(input: {
 export const loadGlobalConfigQuery = (sdk: NovawayClient) =>
   queryOptions({
     queryKey: ["config"],
-    queryFn: () => retry(() => sdk.global.config.get().then((x) => x.data!)),
+    queryFn: () => retry(() => sdk.global.config.get(requestDeadline()).then((x) => x.data!)),
   })
 
 export const loadProjectsQuery = (sdk: NovawayClient) =>
@@ -94,7 +71,7 @@ export const loadProjectsQuery = (sdk: NovawayClient) =>
     queryKey: ["project"],
     queryFn: () =>
       retry(() =>
-        sdk.project.list().then((x) => {
+        sdk.project.list(undefined, requestDeadline()).then((x) => {
           return (x.data ?? [])
             .filter((p) => !!p?.id)
             .filter((p) => !!p.worktree && !p.worktree.includes("NovaWay-test"))
@@ -106,15 +83,11 @@ export const loadProjectsQuery = (sdk: NovawayClient) =>
 
 export async function bootstrapGlobal(input: {
   globalSDK: NovawayClient
-  requestFailedTitle: string
-  translate: (key: string, vars?: Record<string, string | number>) => string
-  formatMoreCount: (count: number) => string
   setGlobalStore: SetStoreFunction<GlobalStore>
   queryClient: QueryClient
 }) {
-  const slow = [
+  const critical = [
     () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.globalSDK)),
-    () => input.queryClient.fetchQuery(loadProvidersQuery(null, input.globalSDK)),
     () => input.queryClient.fetchQuery(loadPathQuery(null, input.globalSDK)),
     () =>
       input.queryClient
@@ -123,13 +96,7 @@ export async function bootstrapGlobal(input: {
         // （每次设置自动保存都会触发一次 bootstrap，表现为任务列表持续闪烁）。
         .then((data) => input.setGlobalStore("project", reconcile(data, { key: "id" }))),
   ]
-  await runAll(slow)
-  // showErrors({
-  //   errors: errors(),
-  //   title: input.requestFailedTitle,
-  //   translate: input.translate,
-  //   formatMoreCount: input.formatMoreCount,
-  // })
+  return (await runAll(critical)).every((result) => result.status === "fulfilled")
 }
 
 function groupBySession<T extends { id: string; sessionID: string }>(input: T[]) {
@@ -169,15 +136,33 @@ function warmSessions(input: {
   const known = new Set(input.store.session.map((item) => item.id))
   const ids = [...new Set(input.ids)].filter((id) => !!id && !known.has(id))
   if (ids.length === 0) return Promise.resolve()
-  return Promise.all(
-    ids.map((sessionID) =>
-      retry(() => input.sdk.session.get({ sessionID })).then((x) => {
-        const session = x.data
-        if (!session?.id) return
-        mergeSession(input.setStore, session)
-      }),
-    ),
-  ).then(() => undefined)
+  return ids.reduce<Promise<void>>(
+    (previous, sessionID) => previous.then(async () => {
+      const session = (await retry(() => input.sdk.session.get({ sessionID }))).data
+      if (session?.id) mergeSession(input.setStore, session)
+    }),
+    Promise.resolve(),
+  )
+}
+
+export async function loadSessionActivity(input: {
+  sdk: NovawayClient
+  store: Store<State>
+  setStore: SetStoreFunction<State>
+}) {
+  const status = await retry(() => input.sdk.session.status().then((x) => x.data ?? {}))
+  input.setStore("session_status", reconcile(status))
+  const permissions = await retry(() => input.sdk.permission.list().then((x) => x.data ?? []))
+  const grouped = groupBySession(permissions.filter((p): p is PermissionRequest => !!p?.id && !!p.sessionID))
+  batch(() => {
+    for (const id of Object.keys(input.store.permission)) {
+      if (!grouped[id]) input.setStore("permission", id, [])
+    }
+    for (const [id, items] of Object.entries(grouped)) {
+      input.setStore("permission", id, reconcile(items.sort((a, b) => cmp(a.id, b.id)), { key: "id" }))
+    }
+  })
+  await warmSessions({ ...input, ids: Object.keys(grouped) })
 }
 
 export const loadPluginContributionsQuery = (directory: string, sdk: NovawayClient) =>
@@ -189,7 +174,7 @@ export const loadPluginContributionsQuery = (directory: string, sdk: NovawayClie
 export const loadProvidersQuery = (directory: string | null, sdk: NovawayClient) =>
   queryOptions({
     queryKey: [directory, "providers"],
-    queryFn: () => retry(() => sdk.provider.list().then((x) => normalizeProviderList(x.data!))),
+    queryFn: () => retry(() => sdk.provider.list(undefined, requestDeadline(45_000)).then((x) => normalizeProviderList(x.data!))),
   })
 
 /**
@@ -207,13 +192,13 @@ export function projectProviderOverride(config: Config | undefined) {
 export const loadAgentsQuery = (directory: string | null, sdk: NovawayClient) =>
   queryOptions({
     queryKey: [directory, "agents"],
-    queryFn: () => retry(() => sdk.app.agents().then((x) => normalizeAgentList(x.data))),
+    queryFn: () => retry(() => sdk.app.agents(undefined, requestDeadline()).then((x) => normalizeAgentList(x.data))),
   })
 
 export const loadPathQuery = (directory: string | null, sdk: NovawayClient) =>
   queryOptions<Path>({
     queryKey: [directory, "path"],
-    queryFn: () => retry(() => sdk.path.get().then((x) => x.data!)),
+    queryFn: () => retry(() => sdk.path.get(undefined, requestDeadline()).then((x) => x.data!)),
   })
 
 export async function bootstrapDirectory(input: {
@@ -222,31 +207,30 @@ export async function bootstrapDirectory(input: {
   store: Store<State>
   setStore: SetStoreFunction<State>
   vcsCache: VcsCache
-  loadSessions: (directory: string) => Promise<void> | void
+  loadSessions: (directory: string) => Promise<void>
+  loadActivity: (directory: string) => Promise<void>
+  background: (task: () => Promise<unknown>, priority: number) => Promise<unknown>
   translate: (key: string, vars?: Record<string, string | number>) => string
   global: {
     config: Config
-    path: Path
     project: Project[]
-    provider: ProviderListResponse
   }
   queryClient: QueryClient
 }) {
   const loading = input.store.status !== "complete"
   const seededProject = projectID(input.directory, input.global.project)
-  const seededPath = input.global.path.directory === input.directory ? input.global.path : undefined
   if (seededProject) input.setStore("project", seededProject)
-  if (seededPath) input.setStore("path", seededPath)
   if (Object.keys(input.store.config).length === 0 && Object.keys(input.global.config).length > 0) {
     input.setStore("config", reconcile(input.global.config, { merge: false }))
   }
   if (loading) input.setStore("status", "partial")
 
-  const rev = (providerRev.get(input.directory) ?? 0) + 1
-  providerRev.set(input.directory, rev)
-  ;(async () => {
+  return (async () => {
+    // 会话列表是首页首屏数据，必须在任何后台资源之前启动。即使后续的
+    // agents/MCP/LSP/插件请求很慢，左侧会话仍应先进入 child store。
+    const sessionLoad = Promise.resolve().then(() => input.loadSessions(input.directory))
+
     const slow = [
-      () => Promise.resolve(input.loadSessions(input.directory)),
       () =>
         input.queryClient
           .ensureQueryData(loadAgentsQuery(input.directory, input.sdk))
@@ -267,15 +251,14 @@ export async function bootstrapDirectory(input: {
             .fetchQuery(loadProvidersQuery(input.directory, input.sdk))
             .then((data) => input.setStore("provider_project", reconcile(data)))
         }),
-      () => retry(() => input.sdk.session.status().then((x) => input.setStore("session_status", x.data!))),
+      () => input.loadActivity(input.directory),
       !seededProject &&
         (() => retry(() => input.sdk.project.current()).then((x) => input.setStore("project", x.data!.id))),
-      !seededPath &&
-        (() =>
-          input.queryClient.ensureQueryData(loadPathQuery(input.directory, input.sdk)).then((data) => {
-            const next = projectID(data.directory ?? input.directory, input.global.project)
-            if (next) input.setStore("project", next)
-          })),
+      () =>
+        input.queryClient.ensureQueryData(loadPathQuery(input.directory, input.sdk)).then((data) => {
+          const next = projectID(data.directory ?? input.directory, input.global.project)
+          if (next) input.setStore("project", next)
+        }),
       () =>
         retry(() =>
           input.sdk.vcs.get().then((x) => {
@@ -285,33 +268,6 @@ export async function bootstrapDirectory(input: {
           }),
         ),
       () => retry(() => input.sdk.command.list().then((x) => input.setStore("command", x.data ?? []))),
-      () =>
-        retry(() =>
-          input.sdk.permission.list().then((x) => {
-            const ids = (x.data ?? []).map((perm) => perm?.sessionID).filter((id): id is string => !!id)
-            const grouped = groupBySession(
-              (x.data ?? []).filter((perm): perm is PermissionRequest => !!perm?.id && !!perm.sessionID),
-            )
-            return warmSessions({ ids, store: input.store, setStore: input.setStore, sdk: input.sdk }).then(() =>
-              batch(() => {
-                for (const sessionID of Object.keys(input.store.permission)) {
-                  if (grouped[sessionID]) continue
-                  input.setStore("permission", sessionID, [])
-                }
-                for (const [sessionID, permissions] of Object.entries(grouped)) {
-                  input.setStore(
-                    "permission",
-                    sessionID,
-                    reconcile(
-                      permissions.filter((p) => !!p?.id).sort((a, b) => cmp(a.id, b.id)),
-                      { key: "id" },
-                    ),
-                  )
-                }
-              }),
-            )
-          }),
-        ),
       () =>
         retry(() =>
           input.sdk.question.list().then((x) => {
@@ -337,12 +293,18 @@ export async function bootstrapDirectory(input: {
             )
           }),
         ),
-      () => Promise.resolve(input.loadSessions(input.directory)),
       () => input.queryClient.fetchQuery(loadMcpQuery(input.directory, input.sdk)),
+      () => input.queryClient.fetchQuery(loadLspQuery(input.directory, input.sdk)),
     ].filter(Boolean) as (() => Promise<any>)[]
 
-    await waitForPaint()
-    const slowErrs = errors(await runAll(slow))
+    const [slowResults, sessionResult] = await Promise.all([
+      runAll(slow.map((task) => () => input.background(task, 0))),
+      sessionLoad.then<PromiseSettledResult<unknown>, PromiseSettledResult<unknown>>(
+        () => ({ status: "fulfilled", value: undefined }),
+        (reason) => ({ status: "rejected", reason }),
+      ),
+    ])
+    const slowErrs = errors([...slowResults, sessionResult])
     if (slowErrs.length > 0) {
       console.error("Failed to finish bootstrap instance", slowErrs[0])
 
@@ -354,6 +316,7 @@ export async function bootstrapDirectory(input: {
       })
     }
 
-    if (loading && slowErrs.length === 0) input.setStore("status", "complete")
+    if (loading) input.setStore("status", "complete")
+    return input.store.sessionList !== "error" && slowErrs.length === 0
   })()
 }

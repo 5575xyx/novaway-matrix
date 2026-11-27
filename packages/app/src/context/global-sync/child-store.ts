@@ -1,7 +1,7 @@
-import { createRoot, getOwner, onCleanup, runWithOwner, type Owner } from "solid-js"
-import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
+import { batch, createEffect, createRoot, getOwner, onCleanup, runWithOwner, untrack, type Owner } from "solid-js"
+import { createStore, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
-import type { ProviderListResponse, VcsInfo } from "@novaway/sdk/v2/client"
+import type { ProviderListResponse, Session, VcsInfo } from "@novaway/sdk/v2/client"
 import {
   DIR_IDLE_TTL_MS,
   MAX_DIR_STORES,
@@ -18,9 +18,13 @@ import { canDisposeDirectory, pickDirectoriesToEvict } from "./eviction"
 import { useQueries } from "@tanstack/solid-query"
 import { QueryOptionsApi } from "../global-sync"
 import { directoryKey, type DirectoryKey } from "./utils"
+import { hydrateStartupSessionRows } from "./session-load"
+
+type SessionCache = SetStoreFunction<{ value: Session[] }>
 
 export function createChildStoreManager(input: {
   owner: Owner
+  sessionCacheScope?: () => string | undefined
   isBooting: (directory: string) => boolean
   isLoadingSessions: (directory: string) => boolean
   onBootstrap: (directory: string) => void
@@ -36,6 +40,8 @@ export function createChildStoreManager(input: {
   const vcsCache = new Map<string, VcsCache>()
   const metaCache = new Map<string, MetaCache>()
   const iconCache = new Map<string, IconCache>()
+  const sessionCache = new Map<string, SessionCache>()
+  const verifiedSessions = new Set<string>()
   const lifecycle = new Map<string, DirState>()
   const pins = new Map<string, number>()
   const ownerPins = new WeakMap<object, Set<string>>()
@@ -110,6 +116,8 @@ export function createChildStoreManager(input: {
     vcsCache.delete(key)
     metaCache.delete(key)
     iconCache.delete(key)
+    sessionCache.delete(key)
+    verifiedSessions.delete(key)
     lifecycle.delete(key)
     const dispose = disposers.get(key)
     if (dispose) {
@@ -170,21 +178,32 @@ export function createChildStoreManager(input: {
       if (!icon) throw new Error(input.translate("error.childStore.persistedProjectIconCreateFailed"))
       iconCache.set(key, { store: icon[0], setStore: icon[1], ready: icon[3] })
 
+      // Keep a small directory-scoped session summary cache. It contains only
+      // sidebar rows, never messages or tool parts, so a hard refresh can paint
+      // the workspace immediately while the server performs its consistency refresh.
+      const makeSessionCache = (scope: string) => runWithOwner(input.owner, () =>
+        persisted(Persist.workspace(directory, `sessions.v2:${scope}`), createStore({ value: [] as Session[] })),
+      )
+      const scope = untrack(() => input.sessionCacheScope?.())
+      const sessions = scope ? makeSessionCache(scope) : undefined
+      if (sessions) sessionCache.set(key, sessions[1])
+
       const init = () =>
         createRoot((dispose) => {
           const initialMeta = meta[0].value
           const initialIcon = icon[0].value
+          const initialSessions = sessions?.[0].value ?? []
 
           const globalChat = key === "global-chat"
           const [pathQuery, mcpQuery, lspQuery] = useQueries(() => ({
             queries: [
-              input.queryOptions.path(key),
+              { ...input.queryOptions.path(key), enabled: false },
               globalChat
                 ? { queryKey: [key, "mcp"], queryFn: async () => ({}), enabled: false }
-                : input.queryOptions.mcp(key),
+                : { ...input.queryOptions.mcp(key), enabled: false },
               globalChat
                 ? { queryKey: [key, "lsp"], queryFn: async () => [], enabled: false }
-                : input.queryOptions.lsp(key),
+                : { ...input.queryOptions.lsp(key), enabled: false },
             ],
           }))
 
@@ -200,16 +219,16 @@ export function createChildStoreManager(input: {
             },
             config: {},
             get path() {
-              if (pathQuery.isLoading || !pathQuery.data)
-                return { state: "", config: "", worktree: "", directory: "", home: "" }
-              return pathQuery.data
+              return pathQuery.data ?? { state: "", config: "", worktree: "", directory, home: "" }
             },
             status: "loading" as const,
             agent: [],
             command: [],
             plugin_contributions: [],
-            session: [],
-            sessionTotal: 0,
+            sessionList: "idle",
+            sessionListAvailable: initialSessions.length > 0,
+            session: initialSessions,
+            sessionTotal: initialSessions.length,
             session_status: {},
             session_working(id: string) {
               const type = this.session_status[id]?.type
@@ -236,7 +255,6 @@ export function createChildStoreManager(input: {
             message: {},
             backgroundJob: {},
             part: {},
-            part_text_accum_delta: {},
           })
           children[key] = child
           disposers.set(key, dispose)
@@ -246,7 +264,7 @@ export function createChildStoreManager(input: {
             void init.then(() => {
               if (children[key] !== child) return
               run()
-            })
+            }).catch(() => undefined)
           }
 
           onPersistedInit(vcs[2], () => {
@@ -264,6 +282,35 @@ export function createChildStoreManager(input: {
             if (child[0].icon !== initialIcon) return
             child[1]("icon", icon[0].value)
           })
+
+          const hydrateSessions = (cache: NonNullable<typeof sessions>) => {
+            const apply = () => {
+              const rows = hydrateStartupSessionRows(cache[0].value, child[0].session, verifiedSessions.has(key))
+              if (!rows) return
+              batch(() => {
+                child[1]("session", reconcile(rows, { key: "id" }))
+                child[1]("sessionTotal", rows.filter((row) => !row.parentID).length)
+                child[1]("sessionListAvailable", true)
+              })
+            }
+            if (cache[2] instanceof Promise) onPersistedInit(cache[2], apply)
+            else apply()
+          }
+          if (sessions) {
+            if (sessions[2] instanceof Promise) hydrateSessions(sessions)
+          } else {
+            createEffect(() => {
+              const scope = input.sessionCacheScope?.()
+              if (!scope || sessionCache.has(key)) return
+              const cache = makeSessionCache(scope)
+              if (!cache) return
+              sessionCache.set(key, cache[1])
+              untrack(() => {
+                if (verifiedSessions.has(key)) cache[1]("value", [...child[0].session])
+                else hydrateSessions(cache)
+              })
+            })
+          }
         })
 
       runWithOwner(input.owner, init)
@@ -325,6 +372,7 @@ export function createChildStoreManager(input: {
 
   return {
     children,
+    directories: () => Object.keys(children),
     ensureChild,
     child,
     peek,
@@ -339,5 +387,10 @@ export function createChildStoreManager(input: {
     vcsCache,
     metaCache,
     iconCache,
+    setSessions(directory: string, value: Session[]) {
+      const key = directoryKey(directory)
+      verifiedSessions.add(key)
+      sessionCache.get(key)?.("value", value)
+    },
   }
 }

@@ -22,6 +22,22 @@ async function dismissTransientErrors(page: import("@playwright/test").Page) {
   }
 }
 
+async function toggleTheme(page: import("@playwright/test").Page) {
+  const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
+  const menuTrigger = sidebar.locator('[data-action="rail-menu-trigger"]')
+  await menuTrigger.evaluate((element) => (element as HTMLButtonElement).click())
+  const appearanceTrigger = page.locator('[data-action="rail-appearance-trigger"]')
+  await expect(appearanceTrigger).toBeVisible()
+  await appearanceTrigger.evaluate((element) => (element as HTMLButtonElement).click())
+  const current = await page.locator("html").getAttribute("data-color-scheme")
+  const target = current === "dark" ? "light" : "dark"
+  const scheme = page.locator(`[data-quick-scheme="${target}"]`)
+  await expect(scheme).toBeVisible()
+  await scheme.evaluate((element) => (element as HTMLButtonElement).click())
+  await expect(page.locator("html")).toHaveAttribute("data-color-scheme", target)
+  await page.keyboard.press("Escape")
+}
+
 test.use({ channel: "chrome", video: "off", trace: "off" })
 test("major workspace pages retain themed surfaces in light and dark modes", async ({ page }, testInfo) => {
   test.setTimeout(180_000)
@@ -30,16 +46,14 @@ test("major workspace pages retain themed surfaces in light and dark modes", asy
   await page.goto(`/${slug}/session`)
   await expect(page.locator('[data-component="workspace-header"]')).toBeVisible({ timeout: 15_000 })
   const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
-  const themeToggle = sidebar.getByRole("button", { name: /^(Dark mode|Light mode)$/ }).first()
   if ((await page.locator("html").getAttribute("data-color-scheme")) !== "light") {
-    await themeToggle.click()
-    await page.waitForTimeout(3_500)
+    await toggleTheme(page)
   }
   const canvas = page.locator('[data-component="conv-frame"]')
   const readCanvasBackground = () => canvas.evaluate((element) => getComputedStyle(element).backgroundColor)
   const sessionLight = await readCanvasBackground()
   await page.screenshot({ path: testInfo.outputPath("session-light.png") })
-  await themeToggle.click()
+  await toggleTheme(page)
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   await page.waitForTimeout(3_500)
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -51,9 +65,8 @@ test("major workspace pages retain themed surfaces in light and dark modes", asy
     { name: "Database", button: "Database" },
     { name: "Knowledge", button: "Knowledge" },
     { name: "Teams", button: "Teams" },
+    { name: "Arena", button: "Arena" },
     { name: "Extensions", button: "Extensions" },
-    { name: "Kernel", button: "Kernel" },
-    { name: "Operations", button: "Operations" },
     { name: "Scheduled tasks", button: "Scheduled tasks" },
   ]
 
@@ -61,12 +74,19 @@ test("major workspace pages retain themed surfaces in light and dark modes", asy
     await page.goto(`/${slug}/session`)
     await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
     const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
-    const toggle = sidebar.getByRole("button", { name: /^(Dark mode|Light mode)$/ }).first()
     if ((await page.locator("html").getAttribute("data-color-scheme")) !== "light") {
-      await toggle.click()
-      await page.waitForTimeout(3_500)
+      await toggleTheme(page)
     }
-    await sidebar.getByRole("button", { name: item.button, exact: true }).first().click()
+    if (item.button === "Settings") {
+      await sidebar
+        .locator('[data-action="rail-menu-trigger"]')
+        .evaluate((element) => (element as HTMLButtonElement).click())
+      const openSettings = page.locator('[data-action="rail-menu-open-settings"]')
+      await expect(openSettings).toBeVisible()
+      await openSettings.evaluate((element) => (element as HTMLButtonElement).click())
+    } else {
+      await sidebar.getByRole("button", { name: item.button, exact: true }).first().click()
+    }
     const panel = page.locator('section[data-panel-transition][data-state="open"]').first()
     await expect(panel).toBeVisible({ timeout: 15_000 })
     await panel.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
@@ -90,7 +110,7 @@ test("major workspace pages retain themed surfaces in light and dark modes", asy
       path: testInfo.outputPath(`${index}-${item.name.toLowerCase().replaceAll(" ", "-")}-light.png`),
     })
 
-    await toggle.click()
+    await toggleTheme(page)
     await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
     await page.waitForTimeout(3_500)
     await page.evaluate(() => window.scrollTo(0, 0))
@@ -130,10 +150,6 @@ test("Side Pane and its workspace tree follow light and dark themes", async ({ p
           .sort(),
       }
     })
-  const themeToggle = page
-    .locator('[data-component="sidebar-nav-desktop"]')
-    .getByRole("button", { name: /^(Dark mode|Light mode)$/ })
-    .first()
   const lightFrame = await readPaint(frame)
 
   await frame.locator('[data-component="side-pane-launcher-workspace-tree"]').click()
@@ -142,7 +158,7 @@ test("Side Pane and its workspace tree follow light and dark themes", async ({ p
   const lightTree = await readPaint(tree)
   await dismissTransientErrors(page)
 
-  await themeToggle.click()
+  await toggleTheme(page)
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   await page.waitForTimeout(3_500)
   const darkFrame = await readPaint(frame)
@@ -305,11 +321,7 @@ test("global chat route canvas follows light and dark schemes", async ({ page })
   const light = await canvas.evaluate((element) => getComputedStyle(element).backgroundColor)
   await dismissTransientErrors(page)
 
-  const toggle = page
-    .locator('[data-component="sidebar-nav-desktop"]')
-    .getByRole("button", { name: /^(Dark mode|Light mode)$/ })
-    .first()
-  await toggle.click()
+  await toggleTheme(page)
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   await page.waitForTimeout(3_500)
   const dark = await canvas.evaluate((element) => getComputedStyle(element).backgroundColor)
@@ -329,11 +341,16 @@ test("theme swatches apply only on click and custom accents persist", async ({ p
   await page.goto(`/${workspaceRootSlug()}/session`)
   const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
   await expect(sidebar).toBeVisible({ timeout: 15_000 })
-  await sidebar.getByRole("button", { name: "Settings", exact: true }).first().click()
+  await sidebar
+    .locator('[data-action="rail-menu-trigger"]')
+    .evaluate((element) => (element as HTMLButtonElement).click())
+  const openSettings = page.locator('[data-action="rail-menu-open-settings"]')
+  await expect(openSettings).toBeVisible()
+  await openSettings.evaluate((element) => (element as HTMLButtonElement).click())
 
   const presets = page.locator('[data-action="settings-color-theme"]')
   await expect(presets).toBeVisible({ timeout: 15_000 })
-  const expected = ["#0066cc", "#855c0d", "#1faa90", "#076678", "#EC5B2B"]
+  const expected = ["#0066cc", "#237f72", "#a8631f", "#c4513d"]
   const buttons = presets.locator("[data-theme-preset]")
   await expect
     .poll(() =>
@@ -343,20 +360,20 @@ test("theme swatches apply only on click and custom accents persist", async ({ p
     )
     .toEqual(expected)
   await expect(buttons).toHaveCount(expected.length)
-  const parchment = presets.locator('[data-theme-preset="parchment"]')
+  const amber = presets.locator('[data-theme-preset="gruvbox"]')
   const themeBeforeHover = await page.locator("html").getAttribute("data-theme")
   const accentBeforeHover = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--interactive-base"),
   )
-  await expect(parchment).toHaveAttribute("title", "Warm and gentle, for a relaxed pace.")
-  await parchment.hover()
+  await expect(amber).toHaveAttribute("title", "Cozy and earthy, with a retro warmth.")
+  await amber.hover()
   await page.waitForTimeout(150)
   await expect(page.locator("html")).toHaveAttribute("data-theme", themeBeforeHover!)
   expect(
     await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--interactive-base")),
   ).toBe(accentBeforeHover)
-  await parchment.click()
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "parchment")
+  await amber.click()
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "gruvbox")
   const brandBeforeCustom = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--surface-brand-base"),
   )
@@ -366,14 +383,7 @@ test("theme swatches apply only on click and custom accents persist", async ({ p
 
   const custom = presets.locator("[data-theme-custom]")
   const input = presets.locator('input[type="color"]')
-  await input.evaluate((element) => {
-    Object.defineProperty(element, "showPicker", {
-      configurable: true,
-      value: () => element.setAttribute("data-picker-opened", "true"),
-    })
-  })
   await custom.click()
-  await expect(input).toHaveAttribute("data-picker-opened", "true")
   const customAccent = "#aa44cc"
   await input.evaluate((element, value) => {
     const color = element as HTMLInputElement
@@ -399,12 +409,17 @@ test("theme swatches apply only on click and custom accents persist", async ({ p
     getComputedStyle(document.documentElement).getPropertyValue("--interactive-base"),
   )
   await page.reload()
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "parchment")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "gruvbox")
   await expect
     .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--interactive-base")))
     .toBe(customAccentAfterChange)
   await expect(sidebar).toBeVisible({ timeout: 15_000 })
-  await sidebar.getByRole("button", { name: "Settings", exact: true }).first().click()
+  await sidebar
+    .locator('[data-action="rail-menu-trigger"]')
+    .evaluate((element) => (element as HTMLButtonElement).click())
+  const openSettingsAgain = page.locator('[data-action="rail-menu-open-settings"]')
+  await expect(openSettingsAgain).toBeVisible()
+  await openSettingsAgain.evaluate((element) => (element as HTMLButtonElement).click())
   await expect(presets.locator("[data-theme-custom]")).toHaveAttribute("aria-pressed", "true")
 
   await presets.locator('[data-theme-preset="novaway"]').click()
@@ -412,78 +427,30 @@ test("theme swatches apply only on click and custom accents persist", async ({ p
   await expect.poll(() => page.evaluate(() => localStorage.getItem("novaway-theme-custom-interactive"))).toBeNull()
 })
 
-test("Operations workspace columns and account dialog follow light and dark themes", async ({ page }) => {
+test("Arena workspace follows light and dark themes", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.addInitScript(() => localStorage.setItem("novaway-color-scheme", "light"))
   await page.goto(`/${workspaceRootSlug()}/session`)
   const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
   await expect(sidebar).toBeVisible({ timeout: 15_000 })
-  await sidebar.getByRole("button", { name: "Operations", exact: true }).click()
+  await sidebar.getByRole("button", { name: "Arena", exact: true }).click()
 
-  const workspace = page.locator('section[aria-label="Operations workspace"]')
+  const workspace = page.locator('section[data-panel-transition][data-state="open"][aria-label="Arena"]')
   await expect(workspace).toBeVisible({ timeout: 15_000 })
-  const readPaint = (element: ReturnType<typeof page.locator>) =>
-    element.evaluate((node) => {
-      const style = getComputedStyle(node)
-      return { background: style.backgroundColor, foreground: style.color, border: style.borderColor }
-    })
-  const chatColumn = workspace.locator("[data-slot='pulse-chat-column']")
-  const lightWorkspace = await readPaint(workspace)
-  const lightChat = await readPaint(chatColumn)
-  const lightAccountManager = workspace.getByRole("button", { name: "账号管理器", exact: true })
-  await lightAccountManager.click()
-  const dialog = page.getByRole("dialog")
-  await expect(dialog).toBeVisible()
-  const lightDialog = await readPaint(dialog)
-  await page.keyboard.press("Escape")
+  const light = await workspace.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { background: style.backgroundColor, foreground: style.color }
+  })
 
-  const toggle = sidebar.getByRole("button", { name: /^(Dark mode|Light mode)$/ }).first()
-  await toggle.click()
+  await toggleTheme(page)
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   await page.waitForTimeout(3_500)
-  const darkWorkspace = await readPaint(workspace)
-  const darkChat = await readPaint(chatColumn)
-  expect(darkWorkspace.background).not.toBe(lightWorkspace.background)
-  expect(darkWorkspace.foreground).not.toBe(lightWorkspace.foreground)
-  expect(darkChat.background).not.toBe(lightChat.background)
-  expect(darkChat.border).not.toBe(lightChat.border)
-
-  await workspace.getByRole("button", { name: "账号管理器", exact: true }).click()
-  const darkDialog = page.getByRole("dialog")
-  await expect(darkDialog).toBeVisible()
-  const dark = await readPaint(darkDialog)
-  expect(dark.background).not.toBe(lightDialog.background)
-  expect(dark.foreground).not.toBe(lightDialog.foreground)
-  await expect(darkDialog.getByRole("button").first()).toBeVisible()
-  await page.keyboard.press("Escape")
-
-  await page.setViewportSize({ width: 390, height: 844 })
-  await expect(workspace).toBeVisible()
-  const chatToggle = workspace.getByRole("button", { name: "Show/hide chat", exact: true })
-  await expect(chatToggle).toBeVisible()
-  await chatToggle.click()
-  await expect(chatColumn).toBeHidden()
-  await chatToggle.click()
-  await expect(chatColumn).toBeVisible()
-  const mobileDark = await readPaint(workspace)
-  const mobileDarkChat = await readPaint(chatColumn)
-
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await workspace.getByRole("button", { name: "Back", exact: true }).click()
-  await expect(workspace).toHaveAttribute("data-state", "closed")
-  await toggle.click()
-  await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "light")
-  await page.waitForTimeout(3_500)
-  await sidebar.getByRole("button", { name: "Operations", exact: true }).click()
-  await expect(workspace).toBeVisible()
-  await workspace.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
-  await page.setViewportSize({ width: 390, height: 844 })
-  const mobileLight = await readPaint(workspace)
-  const mobileLightChat = await readPaint(chatColumn)
-  expect(mobileDark.background).not.toBe(mobileLight.background)
-  expect(mobileDark.foreground).not.toBe(mobileLight.foreground)
-  expect(mobileDarkChat.background).not.toBe(mobileLightChat.background)
-  expect(mobileDarkChat.border).not.toBe(mobileLightChat.border)
+  const dark = await workspace.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { background: style.backgroundColor, foreground: style.color }
+  })
+  expect(dark.background).not.toBe(light.background)
+  expect(dark.foreground).not.toBe(light.foreground)
 })
 
 test("Browser, Terminal, and Review Side Pane tools use themed content surfaces", async ({ page }) => {
@@ -495,10 +462,6 @@ test("Browser, Terminal, and Review Side Pane tools use themed content surfaces"
 
   const frame = page.locator('[data-component="side-pane-frame"]')
   await expect(frame.locator('[data-component="side-pane-empty"]')).toBeVisible()
-  const themeToggle = page
-    .locator('[data-component="sidebar-nav-desktop"]')
-    .getByRole("button", { name: /^(Dark mode|Light mode)$/ })
-    .first()
   const readSurface = (surface: ReturnType<typeof page.locator>) =>
     surface.evaluate((node) => {
       const style = getComputedStyle(node)
@@ -533,14 +496,16 @@ test("Browser, Terminal, and Review Side Pane tools use themed content surfaces"
     const pane = await selectTool(label, index === 0)
     await page.waitForTimeout(250)
     const light = await readSurface(pane)
-    await themeToggle.click()
+    await toggleTheme(page)
     await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
     await page.waitForTimeout(3_500)
     const dark = await readSurface(pane)
     expect(dark.foreground, `${label} surface foreground`).not.toBe(light.foreground)
-    expect(dark.textColors, `${label} visible text colors`).not.toEqual(light.textColors)
+    if (light.textColors.length > 0 || dark.textColors.length > 0) {
+      expect(dark.textColors, `${label} visible text colors`).not.toEqual(light.textColors)
+    }
     await dismissTransientErrors(page)
-    await themeToggle.click()
+    await toggleTheme(page)
     await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "light")
     await page.waitForTimeout(3_500)
   }

@@ -9,9 +9,23 @@
  */
 
 /** 编辑器交给 Host 的统一生命周期（对齐 Lexora `OfficeEditor`）。 */
+export interface OfficeSelectionReference {
+  /** 当前 Office 编辑器选区的可读文本。 */
+  text: string
+  /** 编辑器生成的来源标签，例如工作表名/单元格范围或幻灯片页码。 */
+  label?: string
+}
+
+export interface OfficeEditorAssistant {
+  /** 读取编辑器当前结构化选区；DOCX/PPTX/XLSX 都由编辑器自己解析。 */
+  reference: () => Promise<OfficeSelectionReference | null>
+}
+
 export interface OfficeEditor {
   /** 取出编辑器当前完整字节（dirty 时的保存内容）。 */
   save: () => Promise<Uint8Array>
+  /** Office 编辑器自己的选区引用接口，避免只依赖浏览器 DOM 文本选区。 */
+  assistant?: OfficeEditorAssistant
   /** 保存成功后由 Host 回调：编辑器据此清掉内部脏状态 / 撤销基线。 */
   markSaved?: (bytes?: Uint8Array) => void | Promise<void>
   /** 卸载编辑器，释放 React root / worker / 事件监听 / 样式与字体资源。 */
@@ -84,6 +98,24 @@ export function officeEditorMountFor(path: string | undefined): OfficeEditorMoun
       const { mountPdfEditor } = await import("./office-editors/pdf-editor-host")
       return mountPdfEditor(context)
     }
+  }
+  return undefined
+}
+
+export function preloadOfficeEditorFor(path: string | undefined): Promise<void> | undefined {
+  if (!path) return undefined
+  const lower = path.toLowerCase()
+  if (isDocxPath(lower)) {
+    return import("./office-editors/docx-editor-host").then((module) => module.preloadDocxEditor())
+  }
+  if (isSheetsPath(lower)) {
+    return import("./office-editors/sheets-editor-host").then((module) => module.preloadSheetsEditor())
+  }
+  if (isSlidesPath(lower)) {
+    return import("./office-editors/slides-editor-host").then((module) => module.preloadSlidesEditor())
+  }
+  if (lower.endsWith(".pdf")) {
+    return import("./office-editors/pdf-editor-host").then((module) => module.preloadPdfEditor())
   }
   return undefined
 }

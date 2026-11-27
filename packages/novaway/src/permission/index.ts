@@ -4,7 +4,7 @@ import { ConfigPermission } from "@/config/permission"
 import { Config } from "@/config/config"
 import { Service as HookService } from "@/hook/service"
 import { InstanceState } from "@/effect/instance-state"
-import { PLAN_WRITE_TOOLS, isPlanWrite, isReadOnlyShell } from "./plan"
+import { PLAN_WRITE_TOOLS, planFile, planVerdict, planWriteDenial } from "./plan"
 import { ProjectID } from "@/project/schema"
 import { MessageID, SessionID } from "@/session/schema"
 import { PermissionTable, PermissionRequestTable, SessionTable } from "@/session/session.sql"
@@ -104,8 +104,14 @@ export class CorrectedError extends Schema.TaggedErrorClass<CorrectedError>()("P
 
 export class DeniedError extends Schema.TaggedErrorClass<DeniedError>()("PermissionDeniedError", {
   ruleset: Schema.Any,
+  /**
+   * 可操作的解释。规则拒绝沿用下面的默认文案；计划模式改用它告诉模型唯一
+   * 可写的那一个文件与下一步动作（否则模型只看到"失败"并开始瞎试）。
+   */
+  reason: Schema.optional(Schema.String),
 }) {
   override get message() {
+    if (this.reason) return this.reason
     return `The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules ${JSON.stringify(this.ruleset)}`
   }
 }
@@ -223,6 +229,29 @@ export const layer = Layer.effect(
       }),
     )
 
+    /**
+     * 本次会话计划文件的绝对路径。
+     *
+     * 只用于拒绝文案：查询失败（旧库、会话尚未落库）就退化成 `undefined`，
+     * 由文案回退到"计划目录里的 *.md"—— 拒绝说明不该因为一次查询失败而消失。
+     */
+    const sessionPlanPath = Effect.fn("Permission.sessionPlanPath")(function* (
+      sessionID: SessionID,
+      ctx: { directory: string; worktree: string },
+    ) {
+      const row = yield* Effect.sync(() =>
+        Database.use((db) =>
+          db
+            .select({ slug: SessionTable.slug, created: SessionTable.time_created })
+            .from(SessionTable)
+            .where(eq(SessionTable.id, sessionID))
+            .get(),
+        ),
+      ).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      if (!row) return undefined
+      return planFile({ slug: row.slug, created: row.created }, ctx)
+    })
+
     const ask = Effect.fn("Permission.ask")(function* (input: AskInput) {
       const { approved, pending, autoDenials } = yield* InstanceState.get(state)
       const ctx = yield* InstanceState.context
@@ -251,13 +280,37 @@ export const layer = Layer.effect(
         const existing = pending.get(request.id)
         if (existing) return yield* Deferred.await(existing.deferred)
       }
-      if (mode === "plan" && writeTool) {
-        // 「只读」保留两条例外：写计划文件、跑只读命令。其余写入硬拒绝。
-        const ctx = yield* InstanceState.context
-        const allowed = PLAN_WRITE_TOOLS.has(request.permission)
-          ? isPlanWrite(request.patterns, ctx)
-          : isReadOnlyShell(request.patterns)
-        if (!allowed) return yield* new DeniedError({ ruleset })
+      if (mode === "plan") {
+        // 计划模式是"只读"的**权威裁决者**，必须在规则集之前做出判断。
+        //
+        // 为什么不能靠规则集：agent 的默认配置文件就是 `"*": "allow"`，只要把判定
+        // 交给规则集，计划模式下 `rm -rf src` 会静默执行 —— 这正是线上事故的形态。
+        //
+        // 判定优先用工具给的绝对路径（`metadata.filepath`）：`patterns` 是相对
+        // 「会话目录」算出来的，会话跑在 worktree / 子目录时基准和计划目录
+        // （相对 worktree）不一致。已落库的会话还要把写入锁定到**本会话自己的**
+        // 计划文件，避免计划模式借机改掉其它会话的计划。
+        const sessionPlan = yield* sessionPlanPath(request.sessionID, ctx)
+        const verdict = planVerdict({
+          permission: request.permission,
+          patterns: request.patterns,
+          metadata: request.metadata,
+          instance: ctx,
+          ...(sessionPlan ? { planPath: sessionPlan } : {}),
+        })
+        if (!verdict.allowed) {
+          // 笼统的「失败」会让模型开始瞎试（edit → office_document_edit → bash）。
+          // 拒绝时必须说清唯一可写的那一个文件，以及写完要调 plan_exit。
+          const reason =
+            verdict.kind === "write"
+              ? planWriteDenial({
+                  planPath: sessionPlan,
+                  directory: ctx.directory,
+                  worktree: ctx.worktree,
+                })
+              : verdict.reason
+          return yield* new DeniedError({ ruleset, reason })
+        }
       }
       let needsAsk = false
 

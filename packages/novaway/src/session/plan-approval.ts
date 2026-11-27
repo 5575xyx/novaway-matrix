@@ -36,7 +36,8 @@ export const Pending = Schema.Struct({
 }).annotate({ identifier: "PlanApprovalPending" })
 export type Pending = Schema.Schema.Type<typeof Pending>
 
-export type Decision = { approved: boolean; feedback?: string }
+export type Execution = "standard" | "goal" | "long_task"
+export type Decision = { approved: boolean; execution?: Execution; feedback?: string }
 
 export const Event = {
   Requested: BusEvent.define("plan_approval.requested", Pending),
@@ -46,6 +47,7 @@ export const Event = {
       id: RequestID,
       sessionID: SessionID,
       approved: Schema.Boolean,
+      execution: Schema.optional(Schema.Literals(["standard", "goal", "long_task"])),
       feedback: Schema.optional(Schema.String),
     }),
   ),
@@ -59,8 +61,15 @@ export interface Interface {
     messageID?: MessageID
     plan: string
     title?: string
+    /** Called after the request is visible to the UI, before waiting for a reply. */
+    onPending?: (pending: Pending) => Effect.Effect<void>
   }) => Effect.Effect<Decision>
-  readonly reply: (input: { id: RequestID; approved: boolean; feedback?: string }) => Effect.Effect<boolean>
+  readonly reply: (input: {
+    id: RequestID
+    approved: boolean
+    execution?: Execution
+    feedback?: string
+  }) => Effect.Effect<boolean>
   readonly list: () => Effect.Effect<Pending[]>
   /** Deny every pending request (used when a session is cancelled). */
   readonly clear: (sessionID?: SessionID) => Effect.Effect<void>
@@ -108,6 +117,7 @@ export const layer = Layer.effect(
       pending.set(id, { info, deferred })
       log.info("requested", { id, sessionID: input.sessionID, parentID: input.parentID })
       yield* bus.publish(Event.Requested, info).pipe(Effect.ignore)
+      if (input.onPending) yield* input.onPending(info)
       return yield* Deferred.await(deferred)
     })
 
@@ -122,11 +132,13 @@ export const layer = Layer.effect(
           id: input.id,
           sessionID: entry.info.sessionID,
           approved: input.approved,
+          ...(input.execution ? { execution: input.execution } : {}),
           ...(input.feedback ? { feedback: input.feedback } : {}),
         })
         .pipe(Effect.ignore)
       yield* Deferred.succeed(entry.deferred, {
         approved: input.approved,
+        ...(input.execution ? { execution: input.execution } : {}),
         ...(input.feedback ? { feedback: input.feedback } : {}),
       })
       return true

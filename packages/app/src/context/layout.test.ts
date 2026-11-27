@@ -474,7 +474,7 @@ describe("plugin workbench mode metadata", () => {
           workbench: { id: "zen", name: "办公模式", shortName: "办公" },
         },
       }),
-    ).toMatchObject({ id: "zen", name: "办公模式", shortName: "办公" })
+    ).toMatchObject({ id: "zen", name: "办公工作台", shortName: "办公" })
   })
 
   test("creates a dynamic mode for another plugin workbench", () => {

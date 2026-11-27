@@ -6,6 +6,7 @@ import type {
   RunMetricsView,
   RunReplayView,
   RunView,
+  TeamEmployeeView,
   TeamProfileView,
 } from "@novaway/sdk/v2"
 import { Button } from "@novaway/ui/button"
@@ -27,12 +28,27 @@ import { guideStates } from "@/components/run-guide.steps"
 import { RunLive } from "@/components/run-live"
 import type { LiveTask, LiveTeam } from "@/components/run-live.logic"
 import { RunPlanReview, type PlanReviewTeam } from "@/components/run-plan-review"
+import { acceptanceForGoal, linesOf } from "@/components/run-task"
+import { TaskContextInput } from "@/components/task-context-input"
+import { TaskDecisionCard } from "@/components/task-decision-card"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 const TERMINAL = new Set(["done", "partial", "failed", "exceeded", "cancelled"])
+
+type RunAssignmentView = {
+  id: string
+  taskID: string
+  employeeID?: string
+  attempt: number | string
+  status: string
+  objective: string
+  leaseUntil?: number | string
+  report?: Record<string, unknown>
+  verification?: Record<string, unknown>
+}
 
 /**
  * 生成的 SDK 把 `Schema.Number` 展开成 `number | "NaN" | "Infinity" | "-Infinity"`。
@@ -73,10 +89,21 @@ export const RunConsole: Component<{
   onComposingChange?: (open: boolean) => void
   /** 刚建好一次运行：外层据此刷新自己的工作线列表并选中它。 */
   onCreated?: (runID: string) => void
+  /** 任务工作区使用专家中心用户层动作 API；普通会话仍走兼容的 run API。 */
+  userTaskActions?: boolean
 }> = (props) => {
   const sdk = useGlobalSDK()
   const language = useLanguage()
   const t = (key: string, vars?: Record<string, unknown>) => language.t(key as never, vars as never)
+  type ExpertTaskActionResponse = { data?: { task?: { id?: string } } }
+  type ExpertTaskActions = {
+    create: (input: unknown) => Promise<ExpertTaskActionResponse>
+    approve: (input: unknown) => Promise<ExpertTaskActionResponse>
+    pause: (input: unknown) => Promise<ExpertTaskActionResponse>
+    resume: (input: unknown) => Promise<ExpertTaskActionResponse>
+    retry: (input: unknown) => Promise<ExpertTaskActionResponse>
+  }
+  const expertTasks = () => (sdk.client.expertCenter as unknown as { tasks2: ExpertTaskActions }).tasks2
 
   const [selected, setSelected] = createSignal<string | undefined>(undefined)
   const [detail, setDetail] = createSignal<RunDetail | undefined>(undefined)
@@ -86,11 +113,16 @@ export const RunConsole: Component<{
   const [busy, setBusy] = createSignal("")
   // 「试跑」：用内置模板直接发起一次运行，不要求用户先去建团队。
   const [profiles, setProfiles] = createSignal<TeamProfileView[]>([])
+  const [employees, setEmployees] = createSignal<TeamEmployeeView[]>([])
   // 用哪份模板发起：模板可以有多份，静默取第一份等于替用户选了编制。
   const [profileID, setProfileID] = createSignal("")
+  // 专家与专家团互斥：选择具体专家时不再把默认团队一起提交。
+  const [employeeID, setEmployeeID] = createSignal("")
   const [composing, setComposing] = createSignal(false)
   const [goal, setGoal] = createSignal("")
   const [criteria, setCriteria] = createSignal("")
+  // 相关文件是任务材料的一部分：用户可以只给目标，也可以在高级选项里补充路径。
+  const [files, setFiles] = createSignal("")
   // 范围与约束（§5.3 brief）：每行一条，写进队长提示词；不填就是不限定。
   const [scope, setScope] = createSignal("")
   const [constraints, setConstraints] = createSignal("")
@@ -107,6 +139,12 @@ export const RunConsole: Component<{
   const [missionDiff, setMissionDiff] = createSignal<MissionDiffView | undefined>(undefined)
   // 展开中的验收项：点一下看证据，再点一下收起。
   const [openLine, setOpenLine] = createSignal<string | undefined>(undefined)
+  // 展开一条员工派工，查看报告声明、证据和独立验证；默认收起，避免运行看板被长文本淹没。
+  const [openAssignment, setOpenAssignment] = createSignal<string | undefined>(undefined)
+  const [artifactPreview, setArtifactPreview] = createSignal<
+    { name: string; path: string; worktree?: string; content: string; type: "text" | "binary" } | undefined
+  >(undefined)
+  const [artifactDraft, setArtifactDraft] = createSignal("")
   // 通过项默认收起：第一屏只放「需要你看的」，全部通过也不占地方。
   const [showPassed, setShowPassed] = createSignal(false)
   // 次要信息（目标、用量、团队、任务、事件、回放）收进一个折叠区。
@@ -288,30 +326,69 @@ export const RunConsole: Component<{
     }
   }
 
+  const loadEmployees = async () => {
+    try {
+      const result = await sdk.client.employee.list({ directory: props.directory })
+      setEmployees((result.data ?? []).filter((employee) => !employee.archived))
+    } catch {
+      // 专家目录是可选偏好；读取失败不阻断自动执行任务。
+      setEmployees([])
+    }
+  }
+
   /**
    * 用内置模板发起运行。
    *
    * 运行只走到 `awaiting_approval`：模板可以替用户编排，不能替用户授权。
-   * 验收必须由用户给 —— 没写验收的运行无论跑成什么样都不该显示「已完成」。
+   * 交付要求可以由用户补充；未填写时会生成一条可见的目标检查，批准前仍可修改。
    */
   const start = async () => {
     const profile = profiles().find((item) => item.id === profileID()) ?? profiles()[0]
     const text = goal().trim()
-    const lines = criteria()
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-    const scopeLines = scope()
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-    const constraintLines = constraints()
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-    if (!profile || !text || lines.length === 0) return
+    const acceptanceLines = acceptanceForGoal(text, criteria(), t("run.new.generatedAcceptance"))
+    const fileLines = linesOf(files())
+    const scopeLines = linesOf(scope())
+    const constraintLines = linesOf(constraints())
+    if ((!props.userTaskActions && !profile) || !text) return
     setBusy("create")
     try {
+      if (props.userTaskActions) {
+        const session = await sdk.client.session.create({ directory: props.directory, title: text })
+        const sessionID = session.data?.id
+        if (!sessionID) throw new Error(t("run.new.sessionFailed"))
+        const selectedTeamID = showNewAdvanced() && !employeeID() ? profileID() : ""
+        const selectedEmployeeID = showNewAdvanced() ? employeeID() : ""
+        const created = await expertTasks().create({
+          directory: props.directory,
+          expertCenterTaskCreatePayload: {
+            goal: text,
+            mode: selectedTeamID || selectedEmployeeID ? "team" : "auto",
+            ...(selectedTeamID ? { teamID: selectedTeamID } : {}),
+            ...(selectedEmployeeID ? { employeeID: selectedEmployeeID } : {}),
+            sessionID,
+            ...(fileLines.length > 0 || scopeLines.length > 0 || constraintLines.length > 0
+              ? {
+                  brief: {
+                    ...(fileLines.length > 0 ? { files: fileLines } : {}),
+                    ...(scopeLines.length > 0 ? { scope: scopeLines } : {}),
+                    ...(constraintLines.length > 0 ? { constraints: constraintLines } : {}),
+                  },
+                }
+              : {}),
+          },
+        })
+        const taskID = created.data?.task?.id
+        if (!taskID) throw new Error(t("run.new.sessionFailed"))
+        setComposingOpen(false)
+        props.onCreated?.(taskID)
+        setGoal("")
+        setCriteria("")
+        setFiles("")
+        setScope("")
+        setConstraints("")
+        setEmployeeID("")
+        return
+      }
       // 目标先建：目标准备失败时不该留下一个跑不了的运行。
       let attached = missionID()
       if (attached === NEW_MISSION) {
@@ -337,8 +414,9 @@ export const RunConsole: Component<{
         missionID: attached || undefined,
         // 范围与约束原样交给服务端：以前这里不传，用户写了也没人看。
         brief:
-          scopeLines.length > 0 || constraintLines.length > 0
+          fileLines.length > 0 || scopeLines.length > 0 || constraintLines.length > 0
             ? {
+                ...(fileLines.length > 0 ? { files: fileLines } : {}),
                 ...(scopeLines.length > 0 ? { scope: scopeLines } : {}),
                 ...(constraintLines.length > 0 ? { constraints: constraintLines } : {}),
               }
@@ -348,12 +426,13 @@ export const RunConsole: Component<{
           ...(wallMinutes() > 0 ? { wallMs: Math.round(wallMinutes() * 60_000) } : {}),
           ...(costCap() > 0 ? { cost: costCap() } : {}),
         },
-        acceptance: lines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
+        acceptance: acceptanceLines.map((line, index) => ({ specID: "review-" + (index + 1), text: line })),
       })
       setComposingOpen(false)
       props.onCreated?.(created.data?.run.id ?? "")
       setGoal("")
       setCriteria("")
+      setFiles("")
       setScope("")
       setConstraints("")
       setMissionID("")
@@ -371,6 +450,12 @@ export const RunConsole: Component<{
     act("execute", async () => {
       const runID = selected()
       if (!runID) return
+      if (props.userTaskActions) {
+        const runState = detail()?.run.state
+        if (runState === "blocked") await expertTasks().retry({ taskID: runID, directory: props.directory })
+        else await expertTasks().resume({ taskID: runID, directory: props.directory })
+        return
+      }
       await sdk.client.run.execute({ runID, directory: props.directory })
     })
 
@@ -537,10 +622,36 @@ export const RunConsole: Component<{
       await sdk.client.run.cancel({ runID, directory: props.directory })
     })
 
+  const pause = () =>
+    act("pause", async () => {
+      const runID = selected()
+      if (!runID) return
+      if (props.userTaskActions) {
+        await expertTasks().pause({ taskID: runID, directory: props.directory })
+        return
+      }
+      await (
+        sdk.client.run as unknown as {
+          pause: (input: { runID: string; directory: string }) => Promise<unknown>
+        }
+      ).pause({ runID, directory: props.directory })
+    })
+
   const approve = () =>
     act("approve", async () => {
       const run = detail()?.run
       if (!run) return
+      if (props.userTaskActions) {
+        await expertTasks().approve({
+          taskID: run.id,
+          directory: props.directory,
+          expertCenterApprovePayload: {
+            planVersion: run.planVersion,
+            budget: run.budget ?? { tokens: 200_000 },
+          },
+        })
+        return
+      }
       await sdk.client.run.approve({
         runID: run.id,
         directory: props.directory,
@@ -578,6 +689,7 @@ export const RunConsole: Component<{
 
   onMount(() => {
     void loadProfiles()
+    void loadEmployees()
     void loadMissions()
     void sdk.client.kernel
       .capabilities({ directory: props.directory })
@@ -610,6 +722,28 @@ export const RunConsole: Component<{
    */
   const stateLabel = (state: string) => t(`run.state.${state}`)
   const summary = createMemo(() => detail()?.summary)
+  const assignments = createMemo<RunAssignmentView[]>(() => {
+    const value = (detail() as unknown as { assignments?: unknown } | undefined)?.assignments
+    return Array.isArray(value) ? (value as RunAssignmentView[]) : []
+  })
+  // Older generated SDKs may not know this additive field yet; the server still returns it.
+  const jsonValue = (value: unknown) => {
+    if (typeof value === "string") return value
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  const assignmentDetails = (assignment: RunAssignmentView) => {
+    const report = assignment.report
+    return {
+      summary: typeof report?.summary === "string" ? report.summary : "",
+      evidence: Array.isArray(report?.evidence) ? report.evidence : [],
+      blockers: Array.isArray(report?.blockers) ? report.blockers : [],
+      verification: assignment.verification ? jsonValue(assignment.verification) : "",
+    }
+  }
   /**
    * 验收台账的显示顺序：先看没过的，再看没验的，最后是通过的。
    *
@@ -643,6 +777,17 @@ export const RunConsole: Component<{
   /** 任务板（§5.5）：按团队摊平，只回答「做什么、到哪一步、谁在做」。 */
   const board = createMemo(() =>
     (detail()?.teams ?? []).flatMap((team) => (team.tasks ?? []).map((task) => ({ teamID: team.id, ...task }))),
+  )
+  /** 用户层的交付产物：先展示名称和版本，内部 worktree 与调度细节留在高级详情。 */
+  const artifacts = createMemo(() =>
+    (detail()?.teams ?? []).flatMap((team) =>
+      (team.artifacts ?? []).map((artifact) => ({
+        ...artifact,
+        teamID: team.id,
+        worktree: team.worktree,
+        teamName: teamName(team),
+      })),
+    ),
   )
   /**
    * 团队在界面上的名字。
@@ -736,6 +881,132 @@ export const RunConsole: Component<{
     if ((detail()?.needsReview?.length ?? 0) > 0) return false
     return !(run.state === "running" && run.phase)
   })
+
+  const canPause = createMemo(() => {
+    const run = detail()?.run
+    if (!run || TERMINAL.has(run.state)) return false
+    if (run.state === "running" && run.phase) return false
+    return ["awaiting_approval", "running", "blocked", "needs_review"].includes(run.state)
+  })
+
+  /**
+   * Retry one failed dispatch without restarting the whole run. The server
+   * creates a new attempt and keeps the parent/dispatch audit chain intact.
+   */
+  const retryAssignment = (assignment: RunAssignmentView) =>
+    act("assignment-retry", async () => {
+      const runID = selected()
+      if (!runID) return
+      await sdk.client.run.assignment.retry({
+        runID,
+        assignmentID: assignment.id,
+        directory: props.directory,
+      })
+      setNotice(t("run.assignments.retryRecorded"))
+    })
+
+  const canRetryAssignment = (assignment: RunAssignmentView) =>
+    ["failed", "expired", "cancelled", "needs_review"].includes(assignment.status)
+
+  const exportArtifactRecord = (artifact: { name: string; version: string; teamName: string; worktree?: string }) => {
+    if (typeof document === "undefined") return
+    const payload = JSON.stringify(
+      {
+        name: artifact.name,
+        version: artifact.version,
+        source: artifact.teamName,
+        ...(artifact.worktree ? { worktree: artifact.worktree } : {}),
+      },
+      null,
+      2,
+    )
+    const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${artifact.name.replace(/[^a-z0-9._-]+/gi, "-")}.artifact.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const previewArtifact = async (artifact: { name: string; path?: string; worktree?: string }) => {
+    if (!artifact.path) return
+    setBusy("artifact-preview")
+    try {
+      const result = await sdk.client.file.read({
+        directory: artifact.worktree ?? props.directory,
+        path: artifact.path,
+      })
+      const content = result.data
+      if (!content) throw new Error(t("run.artifacts.previewUnavailable"))
+      setArtifactPreview({
+        name: artifact.name,
+        path: artifact.path,
+        worktree: artifact.worktree,
+        content: content.content,
+        type: content.type,
+      })
+      setArtifactDraft(content.type === "text" ? content.content : "")
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy("")
+    }
+  }
+
+  const saveArtifact = async () => {
+    const preview = artifactPreview()
+    if (!preview || preview.type !== "text") return
+    setBusy("artifact-save")
+    try {
+      await sdk.client.file.write({
+        directory: preview.worktree ?? props.directory,
+        path: preview.path,
+        content: artifactDraft(),
+      })
+      setArtifactPreview({ ...preview, content: artifactDraft() })
+      setNotice(t("run.artifacts.saved"))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy("")
+    }
+  }
+
+  const downloadArtifact = async (artifact: {
+    name: string
+    version: string
+    teamName: string
+    path?: string
+    worktree?: string
+  }) => {
+    if (artifact.path) {
+      setBusy("artifact-export")
+      try {
+        const result = await sdk.client.file.read({
+          directory: artifact.worktree ?? props.directory,
+          path: artifact.path,
+        })
+        const content = result.data
+        if (!content) throw new Error(t("run.artifacts.previewUnavailable"))
+        const blob =
+          content.type === "binary"
+            ? new Blob([Uint8Array.from(atob(content.content), (char) => char.charCodeAt(0))])
+            : new Blob([content.content], { type: "text/plain;charset=utf-8" })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = (artifact.path ?? artifact.name).split(/[\\/]/).pop() || artifact.name
+        link.click()
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        setError(errorMessage(err))
+      } finally {
+        setBusy("")
+      }
+      return
+    }
+    exportArtifactRecord(artifact)
+  }
 
   /**
    * 运行状态的人话标签。
@@ -856,11 +1127,19 @@ export const RunConsole: Component<{
    * 没有模板时，新建按钮根本不出现 —— 与其让人点一个不存在的入口，
    * 不如把「先建模板」写成第一步并标成当前。
    */
-  const emptySteps = createMemo(() => [
-    { text: t("run.empty.step1"), done: profiles().length > 0 },
-    { text: t("run.empty.step2"), done: false },
-    { text: t("run.empty.step3"), done: false },
-  ])
+  const emptySteps = createMemo(() =>
+    props.userTaskActions
+      ? [
+          { text: t("run.empty.auto.step1"), done: true },
+          { text: t("run.empty.auto.step2"), done: false },
+          { text: t("run.empty.auto.step3"), done: false },
+        ]
+      : [
+          { text: t("run.empty.step1"), done: profiles().length > 0 },
+          { text: t("run.empty.step2"), done: false },
+          { text: t("run.empty.step3"), done: false },
+        ],
+  )
 
   /**
    * 只读提醒：最常见的误解是「跑完了怎么没改我的代码」。
@@ -1054,6 +1333,17 @@ export const RunConsole: Component<{
               {busy() === "cleanup" ? t("run.action.cleaning") : t("run.action.cleanup")}
             </Button>
           </Show>
+          <Show when={canPause()}>
+            <Button
+              variant="ghost"
+              size="small"
+              title={t("run.action.pauseHint")}
+              disabled={busy() !== ""}
+              onClick={() => void pause()}
+            >
+              {busy() === "pause" ? t("run.action.pausing") : t("run.action.pause")}
+            </Button>
+          </Show>
           <Show when={!TERMINAL.has(data().run.state) && !(data().run.state === "running" && !data().run.phase)}>
             <Button variant="ghost" size="small" disabled={busy() !== ""} onClick={() => void cancel()}>
               {t("run.action.cancel")}
@@ -1137,9 +1427,7 @@ export const RunConsole: Component<{
             <div class="flex flex-col gap-3 p-4">
               <div>
                 <div class="text-15-medium text-foreground">{t("run.new.title")}</div>
-                <div class="mt-1 text-ui-xs text-foreground-subtle">
-                  {profiles().find((item) => item.id === profileID())?.description ?? t("run.new.hint")}
-                </div>
+                <div class="mt-1 text-ui-xs text-foreground-subtle">{t("run.new.hint")}</div>
                 {/* 先说清顺序：创建 ≠ 开始跑。不写这一步，用户填完表单会以为活已经派下去了。 */}
                 <ol class="mt-2 flex flex-col gap-1.5 rounded-md border border-border bg-surface px-2.5 py-2 text-ui-xs leading-relaxed text-foreground-subtle">
                   <For each={[t("run.new.step1"), t("run.new.step2"), t("run.new.step3")]}>
@@ -1154,22 +1442,48 @@ export const RunConsole: Component<{
                   </For>
                 </ol>
               </div>
-              <label class="flex flex-col gap-1">
-                <span class="text-ui-xs text-foreground-subtle">{t("run.new.template")}</span>
-                <select
-                  class="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none"
-                  value={profileID()}
-                  onChange={(event) => setProfileID(event.currentTarget.value)}
-                >
-                  <For each={profiles()}>
-                    {(profile) => (
-                      <option value={profile.id}>
-                        {profile.name} · {t("team.profiles.memberCount", { count: profile.memberCount })}
-                      </option>
-                    )}
-                  </For>
-                </select>
-              </label>
+              <Show when={showNewAdvanced()}>
+                <label class="flex flex-col gap-1">
+                  <span class="text-ui-xs text-foreground-subtle">{t("run.new.template")}</span>
+                  <select
+                    class="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none"
+                    value={profileID()}
+                    onChange={(event) => {
+                      setProfileID(event.currentTarget.value)
+                      setEmployeeID("")
+                    }}
+                  >
+                    <For each={profiles()}>
+                      {(profile) => (
+                        <option value={profile.id}>
+                          {profile.name} · {t("team.profiles.memberCount", { count: profile.memberCount })}
+                        </option>
+                      )}
+                    </For>
+                  </select>
+                  <span class="text-ui-xs text-foreground-subtlest">{t("run.new.templateHint")}</span>
+                </label>
+                <Show when={employees().length > 0}>
+                  <label class="flex flex-col gap-1">
+                    <span class="text-ui-xs text-foreground-subtle">{t("run.new.expert")}</span>
+                    <select
+                      class="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base text-foreground outline-none"
+                      value={employeeID()}
+                      onChange={(event) => setEmployeeID(event.currentTarget.value)}
+                    >
+                      <option value="">{t("run.new.expertAuto")}</option>
+                      <For each={employees()}>
+                        {(employee) => (
+                          <option value={employee.id}>
+                            {employee.name} · {employee.job}
+                          </option>
+                        )}
+                      </For>
+                    </select>
+                    <span class="text-ui-xs text-foreground-subtlest">{t("run.new.expertHint")}</span>
+                  </label>
+                </Show>
+              </Show>
               <label class="flex flex-col gap-1">
                 <span class="text-ui-xs text-foreground-subtle">{t("run.new.goal")}</span>
                 <textarea
@@ -1204,6 +1518,7 @@ export const RunConsole: Component<{
                 {showNewAdvanced() ? t("run.new.advancedHide") : t("run.new.advanced")}
               </button>
               <Show when={showNewAdvanced()}>
+                <TaskContextInput value={files()} onInput={setFiles} />
                 <div class="grid gap-3 sm:grid-cols-2">
                   <label class="flex flex-col gap-1">
                     <span class="text-ui-xs text-foreground-subtle">{t("run.new.scope")}</span>
@@ -1292,7 +1607,7 @@ export const RunConsole: Component<{
                 <Button
                   variant="primary"
                   size="small"
-                  disabled={busy() !== "" || !goal().trim() || !criteria().trim()}
+                  disabled={busy() !== "" || !goal().trim()}
                   onClick={() => void start()}
                 >
                   {busy() === "create" ? t("run.new.creating") : t("run.new.start")}
@@ -1311,8 +1626,12 @@ export const RunConsole: Component<{
                 <div class="flex h-full items-center justify-center p-6">
                   <div class="w-full max-w-md rounded-xl border border-border bg-surface p-5 text-center">
                     <div class="text-15-medium text-foreground">{t("run.empty.title")}</div>
-                    <div class="mt-1 text-ui-xs leading-relaxed text-foreground-subtle">{t("run.empty.hint")}</div>
-                    <div class="mt-3 text-left text-ui-xs text-foreground-subtle">{t("run.empty.steps")}</div>
+                    <div class="mt-1 text-ui-xs leading-relaxed text-foreground-subtle">
+                      {t(props.userTaskActions ? "run.empty.auto.hint" : "run.empty.hint")}
+                    </div>
+                    <div class="mt-3 text-left text-ui-xs text-foreground-subtle">
+                      {t(props.userTaskActions ? "run.empty.auto.steps" : "run.empty.steps")}
+                    </div>
                     <ol class="mt-1 flex flex-col gap-1.5 text-left text-ui-xs leading-relaxed text-foreground-subtle">
                       <For each={emptySteps()}>
                         {(step, index) => (
@@ -1322,9 +1641,9 @@ export const RunConsole: Component<{
                               classList={{
                                 "bg-surface-success-weak text-success-base": step.done,
                                 "bg-surface-interactive-weak text-text-interactive-base":
-                                  !step.done && index() === (profiles().length > 0 ? 1 : 0),
+                                  !step.done && index() === (props.userTaskActions ? 1 : profiles().length > 0 ? 1 : 0),
                                 "bg-border text-foreground-subtle":
-                                  !step.done && index() !== (profiles().length > 0 ? 1 : 0),
+                                  !step.done && index() !== (props.userTaskActions ? 1 : profiles().length > 0 ? 1 : 0),
                               }}
                             >
                               <Show when={step.done} fallback={index() + 1}>
@@ -1337,7 +1656,7 @@ export const RunConsole: Component<{
                       </For>
                     </ol>
                     <Show
-                      when={profiles().length > 0}
+                      when={props.userTaskActions || profiles().length > 0}
                       fallback={
                         <div class="mt-3 text-ui-xs leading-relaxed text-foreground-subtlest">
                           {t("run.empty.noProfile")}
@@ -1345,7 +1664,7 @@ export const RunConsole: Component<{
                       }
                     >
                       <Button variant="primary" size="small" class="mt-3" onClick={() => setComposingOpen(true)}>
-                        {t("run.empty.action")}
+                        {t(props.userTaskActions ? "run.empty.auto.action" : "run.empty.action")}
                       </Button>
                     </Show>
                   </div>
@@ -1378,6 +1697,11 @@ export const RunConsole: Component<{
                                     scope: (brief().scope ?? []).join("、") || t("run.brief.none"),
                                     constraints: (brief().constraints ?? []).join("、") || t("run.brief.none"),
                                   })}
+                                  <Show when={(brief().files ?? []).length > 0}>
+                                    <span class="ml-1">
+                                      · {t("run.brief.files", { files: (brief().files ?? []).join("、") })}
+                                    </span>
+                                  </Show>
                                 </div>
                               )}
                             </Show>
@@ -1528,6 +1852,126 @@ export const RunConsole: Component<{
                     </div>
                   </Show>
 
+                  <Show
+                    when={
+                      (data().needsReview?.length ?? 0) > 0 ||
+                      (data().denials?.length ?? 0) > 0 ||
+                      (data().blockers?.length ?? 0) > 0
+                    }
+                  >
+                    <TaskDecisionCard
+                      count={
+                        (data().needsReview?.length ?? 0) +
+                        (data().denials?.length ?? 0) +
+                        (data().blockers?.length ?? 0)
+                      }
+                      onOpenDetails={() => setShowDetails(true)}
+                    />
+                  </Show>
+
+                  <Show when={artifacts().length > 0}>
+                    <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="flex items-center gap-2 text-ui-xs">
+                        <Icon name="file-tree" size="small" class="text-foreground-subtle" />
+                        <span class="text-foreground">{t("run.artifacts.title")}</span>
+                        <span class="text-foreground-subtlest">
+                          {t("run.artifacts.count", { count: String(artifacts().length) })}
+                        </span>
+                      </div>
+                      <div class="flex flex-wrap gap-1.5">
+                        <For each={artifacts()}>
+                          {(artifact) => (
+                            <div class="flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1">
+                              <Tag title={t("run.artifacts.hint", { team: artifact.teamName })}>
+                                {artifact.name}@{artifact.version}
+                              </Tag>
+                              <span class="max-w-[140px] truncate text-ui-xs text-foreground-subtlest">
+                                {t("run.artifacts.source", { team: artifact.teamName })}
+                              </span>
+                              <Show when={artifact.worktree}>
+                                {(worktree) => (
+                                  <span
+                                    class="max-w-[180px] truncate text-ui-xs text-foreground-subtlest"
+                                    title={worktree()}
+                                  >
+                                    {worktree()}
+                                  </span>
+                                )}
+                              </Show>
+                              <Show when={props.onOpenSession}>
+                                <Button
+                                  variant="ghost"
+                                  size="small"
+                                  title={t("run.artifacts.openHint")}
+                                  onClick={() => props.onOpenSession?.(data().run.sessionID)}
+                                >
+                                  {t("run.artifacts.open")}
+                                </Button>
+                              </Show>
+                              <Show when={artifact.path}>
+                                <Button
+                                  variant="ghost"
+                                  size="small"
+                                  disabled={busy() !== ""}
+                                  title={t("run.artifacts.previewHint")}
+                                  onClick={() => void previewArtifact(artifact)}
+                                >
+                                  {busy() === "artifact-preview"
+                                    ? t("run.artifacts.previewing")
+                                    : t("run.artifacts.preview")}
+                                </Button>
+                              </Show>
+                              <Button
+                                variant="ghost"
+                                size="small"
+                                disabled={busy() !== ""}
+                                title={t("run.artifacts.exportHint")}
+                                onClick={() => void downloadArtifact(artifact)}
+                              >
+                                {busy() === "artifact-export"
+                                  ? t("run.artifacts.exporting")
+                                  : t("run.artifacts.export")}
+                              </Button>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                      <Show when={artifactPreview()}>
+                        {(preview) => (
+                          <div class="flex flex-col gap-1 rounded-md border border-border bg-background px-2 py-1.5">
+                            <div class="flex items-center justify-between gap-2 text-ui-xs text-foreground-subtle">
+                              <span class="truncate">{preview().path}</span>
+                              <Button variant="ghost" size="small" onClick={() => setArtifactPreview(undefined)}>
+                                {t("run.artifacts.closePreview")}
+                              </Button>
+                            </div>
+                            <Show
+                              when={preview().type === "text"}
+                              fallback={
+                                <div class="text-ui-xs text-foreground-subtlest">
+                                  {t("run.artifacts.binaryPreview")}
+                                </div>
+                              }
+                            >
+                              <textarea
+                                class="min-h-32 w-full resize-y rounded bg-surface p-2 font-mono text-ui-xs text-foreground-subtle outline-none focus:border-border"
+                                value={artifactDraft()}
+                                onInput={(event) => setArtifactDraft(event.currentTarget.value)}
+                              />
+                              <Button
+                                variant="primary"
+                                size="small"
+                                disabled={busy() !== ""}
+                                onClick={() => void saveArtifact()}
+                              >
+                                {busy() === "artifact-save" ? t("run.artifacts.saving") : t("run.artifacts.save")}
+                              </Button>
+                            </Show>
+                          </div>
+                        )}
+                      </Show>
+                    </div>
+                  </Show>
                   <Show when={(data().needsReview ?? []).length > 0}>
                     <div class="flex flex-col gap-1 rounded-lg border border-warning-base bg-surface px-3 py-2">
                       <div class="text-ui-xs text-warning-base" title={t("run.review.hint")}>
@@ -1560,6 +2004,135 @@ export const RunConsole: Component<{
                             >
                               {t("run.review.missed")}
                             </Button>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                  <Show when={(assignments() ?? []).length > 0}>
+                    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
+                      <div class="flex items-center gap-2 text-ui-xs text-foreground-subtle">
+                        <span>{t("run.assignments.title")}</span>
+                        <span class="min-w-0 flex-1 truncate text-foreground-subtlest">
+                          {t("run.assignments.hint")}
+                        </span>
+                      </div>
+                      <For each={assignments()}>
+                        {(assignment) => (
+                          <div class="flex flex-col gap-1 text-ui-xs text-foreground-subtle">
+                            <button
+                              type="button"
+                              class="flex w-full flex-wrap items-center gap-1.5 rounded-md px-1 py-1 text-left transition-colors hover:bg-hover"
+                              aria-expanded={openAssignment() === assignment.id}
+                              onClick={() =>
+                                setOpenAssignment(openAssignment() === assignment.id ? undefined : assignment.id)
+                              }
+                            >
+                              <Tag
+                                class={
+                                  assignment.status === "needs_review" || assignment.status === "expired"
+                                    ? "text-warning-base"
+                                    : assignment.status === "succeeded"
+                                      ? "text-success-base"
+                                      : undefined
+                                }
+                              >
+                                {assignment.status}
+                              </Tag>
+                              <span class="min-w-0 flex-1 truncate">{assignment.objective}</span>
+                              <span class="shrink-0 text-foreground-subtlest">
+                                {t("run.assignments.attempt", { attempt: String(assignment.attempt) })}
+                              </span>
+                              <Show when={assignment.employeeID}>{(employee) => <Tag>{employee()}</Tag>}</Show>
+                              <Show
+                                when={
+                                  assignment.leaseUntil !== undefined &&
+                                  !["succeeded", "failed", "cancelled", "expired", "needs_review"].includes(
+                                    assignment.status,
+                                  )
+                                }
+                              >
+                                <span class="shrink-0 text-foreground-subtlest">
+                                  {t("run.assignments.lease", {
+                                    time: new Date(numeric(assignment.leaseUntil!)).toLocaleTimeString(),
+                                  })}
+                                </span>
+                              </Show>
+                              <Show when={assignment.status === "needs_review" || assignment.status === "expired"}>
+                                <span class="text-warning-base">{t("run.assignments.needsReview")}</span>
+                              </Show>
+                              <Icon name="chevron-down" size="small" class="shrink-0 text-foreground-subtlest" />
+                            </button>
+                            <Show when={openAssignment() === assignment.id}>
+                              <div class="ml-2 flex flex-col gap-1 rounded-md border border-border bg-background px-2.5 py-2 text-ui-xs">
+                                <Show when={assignmentDetails(assignment).summary}>
+                                  {(summary) => (
+                                    <div>
+                                      <span class="text-foreground-subtlest">{t("run.assignments.report")}: </span>
+                                      <span class="whitespace-pre-wrap text-foreground-subtle">{summary()}</span>
+                                    </div>
+                                  )}
+                                </Show>
+                                <Show when={assignmentDetails(assignment).evidence.length > 0}>
+                                  <div>
+                                    <span class="text-foreground-subtlest">{t("run.assignments.evidence")}: </span>
+                                    <span class="text-foreground-subtle">
+                                      {assignmentDetails(assignment)
+                                        .evidence.map((item) => jsonValue(item))
+                                        .join(" · ")}
+                                    </span>
+                                  </div>
+                                </Show>
+                                <Show when={assignmentDetails(assignment).blockers.length > 0}>
+                                  <div class="text-warning-base">
+                                    <span>{t("run.assignments.blockers")}: </span>
+                                    {assignmentDetails(assignment)
+                                      .blockers.map((item) => jsonValue(item))
+                                      .join(" · ")}
+                                  </div>
+                                </Show>
+                                <Show when={assignmentDetails(assignment).verification}>
+                                  {(verification) => (
+                                    <div>
+                                      <span class="text-foreground-subtlest">
+                                        {t("run.assignments.verification")}:{" "}
+                                      </span>
+                                      <span class="text-foreground-subtle">{verification()}</span>
+                                    </div>
+                                  )}
+                                </Show>
+                                <Show
+                                  when={
+                                    canRetryAssignment(assignment) &&
+                                    !TERMINAL.has(data().run.state) &&
+                                    data().run.state !== "running"
+                                  }
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="small"
+                                    disabled={busy() !== ""}
+                                    title={t("run.assignments.retryHint")}
+                                    onClick={() => void retryAssignment(assignment)}
+                                  >
+                                    {busy() === "assignment-retry"
+                                      ? t("run.assignments.retrying")
+                                      : t("run.assignments.retry")}
+                                  </Button>
+                                </Show>
+                                <Show
+                                  when={
+                                    !assignmentDetails(assignment).summary &&
+                                    assignmentDetails(assignment).evidence.length === 0 &&
+                                    assignmentDetails(assignment).blockers.length === 0 &&
+                                    !assignmentDetails(assignment).verification &&
+                                    !canRetryAssignment(assignment)
+                                  }
+                                >
+                                  <span class="text-foreground-subtlest">{t("run.assignments.noDetails")}</span>
+                                </Show>
+                              </div>
+                            </Show>
                           </div>
                         )}
                       </For>
@@ -1613,7 +2186,7 @@ export const RunConsole: Component<{
                                 title={t("run.action.openSessionHint")}
                                 onClick={() => props.onOpenSession?.(data().run.sessionID)}
                               >
-                                {t("run.action.openSession")}
+                                {t("run.blocked.addInput")}
                               </Button>
                             </Show>
                           </div>

@@ -20,7 +20,8 @@ export const sessionStatusOf = (
   session: Session,
 ): TaskStatus => {
   if (notification.session.unseenHasError(session.id)) return "failed"
-  const [sessionStore] = globalSync.child(session.directory)
+  const sessionStore = globalSync.readDirectory(session.directory)
+  if (!sessionStore) return "idle"
   const waiting = !!sessionPermissionRequest(
     sessionStore.session,
     sessionStore.permission,

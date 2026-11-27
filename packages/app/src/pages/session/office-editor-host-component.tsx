@@ -11,8 +11,10 @@
  * 编辑器本身是 React/Univer 等，Solid 不直接嵌 React 组件 —— 这里只提供
  * 一个挂载点，由编辑器工厂在自己的 root 里挂载，互不污染。
  */
-import { createEffect, createSignal, onCleanup, on } from "solid-js"
+import { createEffect, createSignal, onCleanup, on, onMount, Show } from "solid-js"
+import { Portal } from "solid-js/web"
 import { useDialog } from "@novaway/ui/context/dialog"
+import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { ConfirmDialog } from "@/components/dialog-confirm"
 import { officeEditorMountFor } from "./office-editor-host"
@@ -36,6 +38,8 @@ export function OfficeEditorHost(props: {
   base64: string
   /** dirty 联动：面板据此显示未保存指示。 */
   onDirty?: (dirty: boolean) => void
+  /** 选中正文、单元格或幻灯片元素后，交给当前会话作为引用。 */
+  onQuoteSelection?: (text: string, source?: string, comment?: string) => void
   /** 保存前校验磁盘当前字节是否仍与编辑器基线一致。 */
   beforeSave?: (baselineBytes: Uint8Array) => Promise<string | false>
   /** 宿主注入的写盘通道：编辑器不直接写本地文件。 */
@@ -45,13 +49,81 @@ export function OfficeEditorHost(props: {
 }) {
   const sdk = useSDK()
   const dialog = useDialog()
+  const language = useLanguage()
+  let root: HTMLDivElement | undefined
   let mountPoint: HTMLDivElement | undefined
+  const [quoteSelection, setQuoteSelection] = createSignal<{
+    text: string
+    source?: string
+    x: number
+    y: number
+    bottom: number
+  }>()
+  const [quoteComment, setQuoteComment] = createSignal("")
   const [failed, setFailed] = createSignal<string | undefined>()
   const [loading, setLoading] = createSignal(true)
   let active: KeepAliveEntry | undefined
   let unregisterSave: (() => void) | undefined
 
-  // 把当前面板的闭包绑到缓存实例上：切回来时脏状态/写盘都走最新面板。
+  onMount(() => {
+    const readQuoteSelection = async (event?: PointerEvent | KeyboardEvent) => {
+      const target = event?.target
+      if (!(target instanceof Node) || !mountPoint?.contains(target)) return
+
+      const browserSelection = window.getSelection()
+      const range = browserSelection && browserSelection.rangeCount > 0 ? browserSelection.getRangeAt(0) : undefined
+      const selectedNode = range?.commonAncestorContainer
+      const browserInsideEditor = !!selectedNode && !!mountPoint?.contains(selectedNode)
+      const browserText = browserInsideEditor ? browserSelection?.toString().trim() : ""
+      const rect =
+        browserInsideEditor && range && !browserSelection?.isCollapsed ? range.getBoundingClientRect() : undefined
+
+      let reference: Awaited<ReturnType<NonNullable<KeepAliveEntry["session"]["assistant"]>["reference"]>>
+      try {
+        reference = (await active?.session.assistant?.reference()) ?? null
+      } catch {
+        reference = null
+      }
+      const text = reference?.text?.trim() || browserText
+      if (!text) return
+
+      const x =
+        rect && rect.width > 0 ? rect.left + rect.width / 2 : ((event as PointerEvent | undefined)?.clientX ?? 0)
+      const y = rect && rect.height > 0 ? rect.top : ((event as PointerEvent | undefined)?.clientY ?? 0)
+      const bottom = rect && rect.height > 0 ? rect.bottom : y
+      setQuoteComment("")
+      setQuoteSelection({ text, source: reference?.label, x, y, bottom })
+    }
+
+    const onPointerUp = (event: PointerEvent) => {
+      window.setTimeout(() => void readQuoteSelection(event), 0)
+    }
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setQuoteSelection(undefined)
+        return
+      }
+      if (event.shiftKey || event.key.startsWith("Arrow")) {
+        window.setTimeout(() => void readQuoteSelection(event), 0)
+      }
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest("[data-office-selection-menu]")) return
+      if (!(target instanceof Node) || !root?.contains(target)) setQuoteSelection(undefined)
+    }
+
+    document.addEventListener("pointerup", onPointerUp)
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keyup", onKeyUp)
+    onCleanup(() => {
+      document.removeEventListener("pointerup", onPointerUp)
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keyup", onKeyUp)
+    })
+  })
+
+  // 把当前面板的闭包绑到缓存实例上：切回来时换成当前面板的闭包，避免脏状态写到旧面板。
   const bind = (entry: KeepAliveEntry) => {
     const client = sdk.client
     const write = props.writeBytes
@@ -195,8 +267,17 @@ export function OfficeEditorHost(props: {
     }
   })
 
+  const addQuoteToConversation = () => {
+    const current = quoteSelection()
+    if (!current || !current.text.trim()) return
+    const comment = quoteComment().trim()
+    setQuoteSelection(undefined)
+    setQuoteComment("")
+    props.onQuoteSelection?.(current.text, current.source, comment || undefined)
+  }
+
   return (
-    <div class="relative flex h-full min-h-0 flex-col">
+    <div ref={root} class="relative flex h-full min-h-0 flex-col">
       {loading() && (
         <div class="absolute inset-0 z-10 flex items-center justify-center px-6 text-12-regular text-foreground-subtle">
           正在打开 {props.path.split("/").pop()} …
@@ -217,6 +298,48 @@ export function OfficeEditorHost(props: {
         classList={{ invisible: loading() || !!failed() }}
         data-office-editor-host=""
       />
+      <Show when={quoteSelection()}>
+        {(selection) => (
+          <Portal>
+            <div
+              data-office-selection-menu
+              class="fixed z-50 w-[280px] rounded-lg border border-border bg-popover p-2 text-ui-sm text-foreground shadow-[var(--shadow-md)]"
+              style={{
+                left: `${Math.max(12, Math.min(window.innerWidth - 292, selection().x - 140))}px`,
+                top: `${selection().y - 150 >= 12 ? selection().y - 150 : selection().bottom + 8}px`,
+              }}
+              onMouseDown={(event) => {
+                const target = event.target
+                if (!(target instanceof Element) || !target.closest("textarea, button")) event.preventDefault()
+              }}
+            >
+              <Show when={selection().source}>
+                <div class="mb-1 truncate text-11-regular text-foreground-subtle">{selection().source}</div>
+              </Show>
+              <textarea
+                ref={(element) => {
+                  requestAnimationFrame(() => element.focus())
+                }}
+                value={quoteComment()}
+                rows={3}
+                class="mb-1.5 block w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-12-regular text-foreground outline-none placeholder:text-foreground-subtlest focus:border-interactive-base"
+                placeholder="评论这部分需要怎么修改"
+                aria-label="评论这部分需要怎么修改"
+                onInput={(event) => setQuoteComment(event.currentTarget.value)}
+              />
+              <button
+                type="button"
+                data-action="office-selection-add-to-task"
+                class="w-full rounded-md bg-interactive-base px-3 py-1.5 text-12-medium text-background transition-colors hover:bg-interactive-hover"
+                aria-label={language.t("session.selection.addToTask")}
+                onClick={addQuoteToConversation}
+              >
+                {language.t("session.selection.addToTask")}
+              </button>
+            </div>
+          </Portal>
+        )}
+      </Show>
     </div>
   )
 }

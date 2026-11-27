@@ -5,6 +5,7 @@ import { ThemeProvider } from "@novaway/ui/theme/context"
 import { MarkedProvider } from "@novaway/ui/context/marked"
 import { DialogProvider } from "@novaway/ui/context/dialog"
 import { Markdown } from "@novaway/ui/markdown"
+import { MarkdownStreamPaintDemo } from "./markdown-stream-paint-demo"
 
 type Row = { id: number; kind: "user" | "assistant" | "thinking" | "tool"; text: string }
 
@@ -54,9 +55,11 @@ render(
   () => (
     <ThemeProvider>
       <DialogProvider>
-        <MarkedProvider>
-          <Fixture />
-        </MarkedProvider>
+        {location.search === "?pending-parse" ? (
+          <MarkdownStreamPaintDemo />
+        ) : (
+          <MarkedProvider><Fixture /></MarkedProvider>
+        )}
       </DialogProvider>
     </ThemeProvider>
   ),

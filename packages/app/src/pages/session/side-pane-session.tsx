@@ -1,19 +1,27 @@
-import { createEffect, createMemo, createSignal, Index, on, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Index, on, onCleanup, Show } from "solid-js"
 import { Button } from "@novaway/ui/button"
 import { Icon } from "@novaway/ui/icon"
 import { Spinner } from "@novaway/ui/spinner"
-import { AssistantParts, Message } from "@novaway/ui/message-part"
+import {
+  Message,
+  mergeReasoningParts,
+  Part as MessagePart,
+  partDefaultOpen,
+  renderable,
+} from "@novaway/ui/message-part"
 import { TextShimmer } from "@novaway/ui/text-shimmer"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { SideChatComposer } from "@/pages/session/side-chat-composer"
 import { useSideChat } from "@/pages/session/use-side-chat"
 import { useSync } from "@/context/sync"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
 import { useLayout, type SidePaneSessionTab } from "@/context/layout"
 import { useSettings } from "@/context/settings"
 import { usePermission } from "@/context/permission"
 import { base64Encode } from "@novaway/core/util/encode"
-import type { AssistantMessage, UserMessage } from "@novaway/sdk/v2"
+import type { AssistantMessage, Part, UserMessage } from "@novaway/sdk/v2"
+import { TurnFoldView } from "./turn-fold-view"
 import { workingActivity } from "./working-status"
 import { useWorkingPhrase } from "./use-working-phrase"
 import { sessionPermissionRequest, sessionQuestionRequest } from "./composer/session-request-tree"
@@ -21,17 +29,182 @@ import { sessionPermissionRequest, sessionQuestionRequest } from "./composer/ses
 /** 面板里最多渲染多少条消息（更早的请点"打开完整会话"）。 */
 const MAX_ROWS = 40
 
+type SidePaneTurnData = { user?: UserMessage; assistants: AssistantMessage[]; key: string }
+type SidePaneEntry = { message: AssistantMessage; part: Part }
+type SidePaneBlock = { kind: "process" | "outside"; entries: SidePaneEntry[] }
+
+const isInteractivePart = (part: Part) =>
+  part.type === "tool" && (part.tool === "question" || part.tool === "plan_exit" || part.tool === "review_document")
+
+const partTime = (part: Part, message: AssistantMessage) => {
+  if (part.type === "tool") {
+    if (part.state.status === "pending") return { start: undefined, end: undefined }
+    return { start: part.state.time.start, end: part.state.status === "running" ? undefined : part.state.time.end }
+  }
+  if (part.type === "text" || part.type === "reasoning") {
+    return { start: part.time?.start ?? message.time.created, end: part.time?.end ?? message.time.completed }
+  }
+  return { start: message.time.created, end: message.time.completed }
+}
+
+function formatSidePaneDuration(ms: number | undefined, language: ReturnType<typeof useLanguage>) {
+  if (ms === undefined || ms < 0) return ""
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return language.t("session.turn.fold.durationSec", { seconds })
+  return language.t("session.turn.fold.durationMinSec", {
+    minutes: Math.floor(seconds / 60),
+    seconds: seconds % 60,
+  })
+}
+
+function SidePaneAssistantPart(props: {
+  entry: SidePaneEntry
+  shellToolDefaultOpen: boolean
+  editToolDefaultOpen: boolean
+}) {
+  return (
+    <div data-timeline-row="AssistantPart" class="min-w-0 w-full">
+      <div data-slot="session-turn-message-container" class="w-full">
+        <div class="flex min-w-0 items-start gap-3">
+          <div data-slot="assistant-avatar-spacer" class="mt-0.5 size-8 shrink-0" aria-hidden="true" />
+          <div class="min-w-0 flex-1">
+            <div data-slot="session-turn-assistant-content" class="min-w-0">
+              <MessagePart
+                part={props.entry.part}
+                message={props.entry.message}
+                defaultOpen={partDefaultOpen(props.entry.part, props.shellToolDefaultOpen, props.editToolDefaultOpen)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SidePaneAssistantTurn(props: {
+  turn: SidePaneTurnData
+  partsOf: (messageID: string) => Part[]
+  working: boolean
+  workingLabel: string
+  showReasoningSummaries: boolean
+  shellToolDefaultOpen: boolean
+  editToolDefaultOpen: boolean
+}) {
+  const language = useLanguage()
+  const [touched, setTouched] = createSignal<Record<string, boolean>>({})
+
+  const entries = createMemo<SidePaneEntry[]>(() => {
+    const result: SidePaneEntry[] = []
+    for (const message of props.turn.assistants) {
+      for (const part of props.partsOf(message.id)) {
+        if (!renderable(part, props.showReasoningSummaries)) continue
+        const previous = result.at(-1)
+        if (part.type === "reasoning" && previous?.part.type === "reasoning") {
+          previous.part = mergeReasoningParts([previous.part, part]) ?? previous.part
+          continue
+        }
+        result.push({ message, part })
+      }
+    }
+    return result
+  })
+
+  const blocks = createMemo<SidePaneBlock[]>(() => {
+    const result: SidePaneBlock[] = []
+    for (const entry of entries()) {
+      const process = entry.part.type === "reasoning" || (entry.part.type === "tool" && !isInteractivePart(entry.part))
+      const previous = result.at(-1)
+      if (previous?.kind === (process ? "process" : "outside")) previous.entries.push(entry)
+      else result.push({ kind: process ? "process" : "outside", entries: [entry] })
+    }
+    return result
+  })
+
+  const processIndexes = createMemo(() =>
+    blocks()
+      .map((block, index) => (block.kind === "process" ? index : -1))
+      .filter((index) => index >= 0),
+  )
+
+  const processLabel = (block: SidePaneBlock, index: number) => {
+    const toolCount = block.entries.filter((entry) => entry.part.type === "tool").length
+    const count = toolCount || block.entries.length
+    const active = props.working && index === processIndexes().at(-1)
+    if (active && props.workingLabel) return props.workingLabel
+    const times = block.entries.map((entry) => partTime(entry.part, entry.message))
+    const start = times.reduce<number | undefined>(
+      (value, time) =>
+        time.start === undefined ? value : value === undefined ? time.start : Math.min(value, time.start),
+      undefined,
+    )
+    const end = times.reduce<number | undefined>(
+      (value, time) => (time.end === undefined ? value : value === undefined ? time.end : Math.max(value, time.end)),
+      undefined,
+    )
+    const duration = formatSidePaneDuration(
+      start !== undefined && end !== undefined ? end - start : undefined,
+      language,
+    )
+    const steps = language.t("session.turn.fold.steps", { count })
+    return duration ? `${steps} · ${duration}` : steps
+  }
+
+  const renderEntries = (entries: SidePaneEntry[]) => (
+    <div data-component="turn-fold-rows" data-tool-density="compact">
+      <For each={entries}>
+        {(entry) => (
+          <SidePaneAssistantPart
+            entry={entry}
+            shellToolDefaultOpen={props.shellToolDefaultOpen}
+            editToolDefaultOpen={props.editToolDefaultOpen}
+          />
+        )}
+      </For>
+    </div>
+  )
+
+  return (
+    <div data-component="side-pane-turn" class="min-w-0 w-full">
+      <For each={blocks()}>
+        {(block, index) => {
+          const isProcess = () => block.kind === "process"
+          const key = () => block.entries[0]?.part.id ?? `${props.turn.key}:${index()}`
+          const active = () => props.working && index() === processIndexes().at(-1)
+          const open = () => touched()[key()] ?? active()
+          return (
+            <Show
+              when={isProcess()}
+              fallback={block.entries.map((entry) => (
+                <SidePaneAssistantPart
+                  entry={entry}
+                  shellToolDefaultOpen={props.shellToolDefaultOpen}
+                  editToolDefaultOpen={props.editToolDefaultOpen}
+                />
+              ))}
+            >
+              <TurnFoldView
+                label={processLabel(block, index())}
+                open={open()}
+                working={active()}
+                onToggle={() => setTouched((current) => ({ ...current, [key()]: !open() }))}
+              >
+                {renderEntries(block.entries)}
+              </TurnFoldView>
+            </Show>
+          )
+        }}
+      </For>
+    </div>
+  )
+}
+
 /**
  * Side Pane 里的**会话面板**：子代理钻取与侧边对话共用。
  *
  * 两者都是"在右侧面板里看另一个会话"，而不是整页跳走 —— 整页跳会把主线从眼前挪走。
  *
- * 刻意简化（避免把主时间线那套虚拟滚动/历史窗口搬进 360px 的面板）：
- * - **不虚拟化**，只渲染最近 `MAX_ROWS` 条；
- * - **只读**：不提供 fork / retry / 编辑。要这些能力点顶部的"在主线打开"回到完整会话。
- *
- * 两种标签的区别只在于**关闭时是否删除服务端会话**（调用方负责，见 `closeSessionTab`）：
- * 子代理的会话属于父会话的一部分，关了面板不该消失；侧边对话是关掉即删。
+ * 这里复用主时间线的过程分组、思考和工具卡片渲染，只保留右侧面板需要的历史窗口与只读行为。
  */
 export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
   const language = useLanguage()
@@ -104,9 +277,8 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
    * 用户消息 → 该轮的 assistant 消息（工具调用/思考/正文由 AssistantParts 统一分组）。
    * 之前这里是「一条 Message 一行」，工具调用和思考都不显示，面板看起来像空白的。
    */
-  type Turn = { user?: UserMessage; assistants: AssistantMessage[]; key: string }
-  const turns = createMemo<Turn[]>(() => {
-    const result: Turn[] = []
+  const turns = createMemo<SidePaneTurnData[]>(() => {
+    const result: SidePaneTurnData[] = []
     for (const message of rows()) {
       if (message.role === "user") {
         result.push({ user: message, assistants: [], key: message.id })
@@ -167,15 +339,21 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
 
   /**
    * 兜底轮询：侧栏里的子会话偶尔收不到实时事件（消息已落库但 store 不更新），
-   * 表现为「发了消息但面板还是空的」。面板打开期间每 2 秒强制同步一次，
-   * 关闭即停 —— 这是本地请求，代价远小于让用户手动重开面板。
+   * 表现为「发了消息但面板还是空的」。这是**全量** sync（拉整段消息 + parts），
+   * 所以只在面板真的展开时才跑：侧栏是"常驻 + 宽度归 0"的收起方式，DOM 一直挂着，
+   * 不门控的话关掉侧栏之后还在每 2 秒重拉一遍整段会话。
    */
-  onMount(() => {
-    const timer = setInterval(() => {
-      void sync.session.sync(props.tab.sessionID, { force: true }).catch(() => undefined)
-    }, 2000)
-    onCleanup(() => clearInterval(timer))
-  })
+  const isVisible = () => layout.sidePane.opened() && layout.sidePane.activeSessionTab()?.id === props.tab.id
+  const poll = createAdaptivePoll(
+    () => void sync.session.sync(props.tab.sessionID, { force: true }).catch(() => undefined),
+    {
+      fast: 2000,
+      idle: 12_000,
+      active: () => working(),
+      visible: isVisible,
+    },
+  )
+  onCleanup(() => poll.stop())
 
   /**
    * 是否显示"正在思考"占位。
@@ -200,7 +378,8 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
 
   // 与主聊天区一致:工作中一直显示实时耗时(工作中 · X 秒)。
   const [now, setNow] = createSignal(Date.now())
-  onMount(() => {
+  createEffect(() => {
+    if (!working() || !isVisible()) return
     const timer = setInterval(() => setNow(Date.now()), 1000)
     onCleanup(() => clearInterval(timer))
   })
@@ -355,14 +534,21 @@ export function SidePaneSessionPanel(props: { tab: SidePaneSessionTab }) {
               {(turnAccessor) => {
                 const turn = () => turnAccessor()
                 return (
-                  <div data-component="side-pane-turn" class="flex flex-col gap-2">
+                  <div class="flex flex-col gap-2">
                     <Show when={turn().user}>{(user) => <Message message={user()} parts={partsOf(user().id)} />}</Show>
-                    {/* 与主聊天区同一套 A1 卡片：每个助手块各自贴内容、各自留缝。
-                        用一层 flex 容器把 AssistantParts 分组的顶层节点变成独立卡片项。 */}
-                    <div data-slot="side-pane-assistant" class="flex flex-col items-start gap-2">
-                      <AssistantParts
-                        messages={turn().assistants}
+                    <div
+                      data-slot="side-pane-assistant"
+                      class="flex flex-col items-start gap-2"
+                      data-tool-density="compact"
+                    >
+                      <SidePaneAssistantTurn
+                        turn={turn()}
+                        partsOf={partsOf}
+                        working={working() && turn().key === turns().at(-1)?.key}
+                        workingLabel={thinkingLabel()}
                         showReasoningSummaries={settings.general.showReasoningSummaries()}
+                        shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
+                        editToolDefaultOpen={settings.general.editToolPartsExpanded()}
                       />
                     </div>
                   </div>

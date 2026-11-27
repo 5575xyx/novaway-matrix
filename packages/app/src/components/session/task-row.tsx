@@ -1,7 +1,7 @@
 import { Icon } from "@novaway/ui/icon"
 import { IconButton } from "@novaway/ui/icon-button"
 import { DropdownMenu } from "@novaway/ui/dropdown-menu"
-import { createSignal, For, Show, type Accessor, type JSX } from "solid-js"
+import { createSignal, For, Match, Show, Switch, type Accessor, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useDialog } from "@novaway/ui/context/dialog"
 import { DialogDeleteSession } from "@/pages/layout/dialog-delete-session"
@@ -12,6 +12,8 @@ export type TaskStatus = "running" | "waiting" | "failed" | "idle"
 export type TaskRowProps = {
   title: Accessor<string>
   status: Accessor<TaskStatus>
+  /** 会话完成后产生的未读通知；点击任务行后由调用方清除。 */
+  unread?: Accessor<boolean>
   branch?: Accessor<string | undefined>
   updated?: Accessor<number | undefined>
   additions?: Accessor<number>
@@ -145,10 +147,28 @@ export const TaskRow = (props: TaskRowProps): JSX.Element => {
       <Show when={props.pinned}>
         <Icon name="pin" size="small" class="shrink-0 text-foreground-subtlest" />
       </Show>
-      <span
-        data-task-status={props.status()}
-        class={`size-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASS[props.status()]}`}
-      />
+      <span class="grid size-4 shrink-0 place-items-center">
+        <Switch>
+          <Match when={props.unread?.()}>
+            <span
+              data-task-status="unread"
+              class="size-3.5 rounded-full border-[1.5px] border-warning-selected"
+              aria-label={t("notification.session.responseReady.title")}
+            />
+          </Match>
+          <Match when={props.status() === "running"}>
+            <span data-task-status="running" aria-label={t("sidebar.filter.running")}>
+              <Icon name="lu-loader" size="small" class="animate-spin text-foreground-subtlest" />
+            </span>
+          </Match>
+          <Match when={true}>
+            <span
+              data-task-status={props.status()}
+              class={`size-1.5 rounded-full ${STATUS_DOT_CLASS[props.status()]}`}
+            />
+          </Match>
+        </Switch>
+      </span>
       <Show
         when={editing()}
         fallback={<span class="text-ui-caption text-foreground truncate flex-1 min-w-0">{props.title()}</span>}

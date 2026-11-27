@@ -42,6 +42,30 @@ export const FindSymbolQuery = Schema.Struct({
   query: Schema.String,
 })
 
+export const LspDocumentQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  path: Schema.String,
+})
+
+export const LspPositionQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  path: Schema.String,
+  line: Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+  character: Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+})
+
+export const LspDocumentPayload = Schema.Struct({
+  path: Schema.String,
+  text: Schema.String,
+})
+
+export const LspPositionPayload = Schema.Struct({
+  path: Schema.String,
+  line: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  character: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  text: Schema.String,
+})
+
 export const FileWritePayload = Schema.Struct({
   path: Schema.String,
   content: Schema.String,
@@ -73,6 +97,9 @@ export const FilePaths = {
   findText: "/find",
   findFile: "/find/file",
   findSymbol: "/find/symbol",
+  lspDiagnostics: "/lsp/diagnostics",
+  lspDocumentSymbols: "/lsp/document-symbols",
+  lspDefinition: "/lsp/definition",
   list: "/file",
   content: "/file/content",
   write: "/file/write",
@@ -113,6 +140,33 @@ export const FileApi = HttpApi.make("file")
             description: "Search for workspace symbols like functions, classes, and variables using LSP.",
           }),
         ),
+        HttpApiEndpoint.get("lspDiagnostics", FilePaths.lspDiagnostics, {
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Record(Schema.String, Schema.Unknown), "LSP diagnostics by file"),
+        }),
+        HttpApiEndpoint.post("lspDiagnosticsText", FilePaths.lspDiagnostics, {
+          query: WorkspaceRoutingQuery,
+          payload: LspDocumentPayload,
+          success: described(Schema.Record(Schema.String, Schema.Unknown), "LSP diagnostics by file"),
+        }),
+        HttpApiEndpoint.get("lspDocumentSymbols", FilePaths.lspDocumentSymbols, {
+          query: LspDocumentQuery,
+          success: described(Schema.Array(Schema.Unknown), "Document symbols"),
+        }),
+        HttpApiEndpoint.post("lspDocumentSymbolsText", FilePaths.lspDocumentSymbols, {
+          query: WorkspaceRoutingQuery,
+          payload: LspDocumentPayload,
+          success: described(Schema.Array(Schema.Unknown), "Document symbols"),
+        }),
+        HttpApiEndpoint.get("lspDefinition", FilePaths.lspDefinition, {
+          query: LspPositionQuery,
+          success: described(Schema.Array(Schema.Unknown), "Definitions"),
+        }),
+        HttpApiEndpoint.post("lspDefinitionText", FilePaths.lspDefinition, {
+          query: WorkspaceRoutingQuery,
+          payload: LspPositionPayload,
+          success: described(Schema.Array(Schema.Unknown), "Definitions"),
+        }),
         HttpApiEndpoint.get("list", FilePaths.list, {
           query: FileQuery,
           success: described(Schema.Array(File.Node), "Files and directories"),
@@ -136,6 +190,7 @@ export const FileApi = HttpApi.make("file")
           }),
         ),
         HttpApiEndpoint.post("write", FilePaths.write, {
+          query: WorkspaceRoutingQuery,
           payload: FileWritePayload,
           success: described(Schema.Boolean, "Write succeeded"),
         }).annotateMerge(

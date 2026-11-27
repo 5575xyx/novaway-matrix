@@ -19,7 +19,7 @@ import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js"
  * CSS 侧配对规则见 app/src/index.css 的 `[data-panel-transition]`：
  * `[data-state="open"]` 播入场、`[data-state="closed"]` 播退场。
  */
-export function createMountTransition(open: Accessor<boolean>, durationMs = 1000) {
+export function createMountTransition(open: Accessor<boolean>, durationMs = 320) {
   const [mounted, setMounted] = createSignal(open())
   const [closing, setClosing] = createSignal(!open())
   let timer: ReturnType<typeof setTimeout> | undefined

@@ -1,15 +1,18 @@
 import { expect, test } from "@playwright/test"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
+import { rm, writeFile } from "node:fs/promises"
 
 const backend = () => `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 const projectSlug = (directory: string) =>
   Buffer.from(directory, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 
+test.setTimeout(180_000)
+
 test("D4: builtin Office previewer renders and follows plugin disable and re-enable", async ({ page }) => {
-  const directory = await mkdtemp(join(tmpdir(), "novaway-d4-previewer-"))
-  await writeFile(join(directory, "d4-note.foo"), "d4 previewer body")
+  const directory = resolve(process.cwd(), "..", "novaway")
+  const fileName = `novaway-d4-preview-${Date.now()}.foo`
+  const filePath = join(directory, fileName)
+  await writeFile(filePath, "d4 previewer body")
   try {
     await page.addInitScript(
       ({ directory }) => {
@@ -24,7 +27,9 @@ test("D4: builtin Office previewer renders and follows plugin disable and re-ena
       { directory },
     )
     await page.goto(`/${projectSlug(directory)}/session`)
-    const treeItem = page.locator('[role="treeitem"][aria-label="d4-note.foo"]').first()
+    await page.getByRole("button", { name: "Files", exact: true }).click()
+    await page.getByRole("button", { name: "Open file tree in side panel" }).click()
+    const treeItem = page.locator(`[role="treeitem"][aria-label^="${fileName}"]`).first()
     await expect(treeItem).toBeVisible({ timeout: 20_000 })
     await treeItem.evaluate((element) => (element as HTMLElement).click())
 
@@ -49,6 +54,6 @@ test("D4: builtin Office previewer renders and follows plugin disable and re-ena
       timeout: 20_000,
     })
   } finally {
-    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {})
+    await rm(filePath, { force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {})
   }
 })

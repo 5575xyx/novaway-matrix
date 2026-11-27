@@ -27,6 +27,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { type DeepMutable } from "@novaway/core/schema"
+import { agencyDescription, localizeAgencyAgent } from "./agency-localization"
 
 export const DEFAULT_AGENT = "creova"
 
@@ -111,7 +112,6 @@ type State = Omit<Interface, "generate" | "reload">
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/Agent") {}
 
-
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -189,9 +189,7 @@ export const layer = Layer.effect(
             description: `General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.`,
             permission: Permission.merge(
               defaults,
-              Permission.fromConfig({
-                todowrite: "deny",
-              }),
+              Permission.fromConfig({ todowrite: "deny" }),
               user,
             ),
             options: {
@@ -525,7 +523,8 @@ export const layer = Layer.effect(
           item.outputStyle = value.outputStyle ?? item.outputStyle
         }
 
-        const legacyDefault = cfg.default_agent === "build" || cfg.default_agent === "plan" ? cfg.default_agent : undefined
+        const legacyDefault =
+          cfg.default_agent === "build" || cfg.default_agent === "plan" ? cfg.default_agent : undefined
         if (legacyDefault && !agents[legacyDefault]) {
           agents[legacyDefault] = {
             ...agents[DEFAULT_AGENT],
@@ -568,10 +567,7 @@ export const layer = Layer.effect(
           return pipe(
             agents,
             values(),
-            filter(
-              (item) =>
-                (item.name !== "build" && item.name !== "plan") || item.name === defaultAgent,
-            ),
+            filter((item) => (item.name !== "build" && item.name !== "plan") || item.name === defaultAgent),
             sortBy(
               [(x) => (defaultAgent ? x.name === defaultAgent : x.name === DEFAULT_AGENT), "desc"],
               [(x) => x.name, "asc"],
@@ -586,7 +582,9 @@ export const layer = Layer.effect(
           if (configuredName) {
             const agent =
               agents[configuredName] ??
-              (yield* Effect.map(pluginAgents, (items) => items.find((item) => agentNameMatches(item.name, configuredName))))
+              (yield* Effect.map(pluginAgents, (items) =>
+                items.find((item) => agentNameMatches(item.name, configuredName)),
+              ))
             if (!agent) throw new Error(`default agent "${configuredName}" not found`)
             if (agent.mode === "subagent") throw new Error(`default agent "${configuredName}" is a subagent`)
             if (agent.hidden === true) throw new Error(`default agent "${configuredName}" is hidden`)
@@ -626,14 +624,15 @@ export const layer = Layer.effect(
       const host = yield* serviceOption.value.get
       return host.registries.agents.list().map((entry) => {
         const contribution = entry.item
+        const options = localizeAgencyAgent(entry.name, contribution.options ?? {})
         return {
           name: entry.name,
-          description: contribution.description,
+          description: agencyDescription(entry.name, options) ?? contribution.description,
           mode: contribution.mode,
           hidden: false,
           prompt: typeof contribution.prompt === "string" ? contribution.prompt : "",
           permission: Permission.fromConfig(contribution.permission ?? {}),
-          options: contribution.options ?? {},
+          options: options ?? {},
           ...(contribution.model === undefined
             ? {}
             : {
@@ -673,11 +672,16 @@ export const layer = Layer.effect(
         for (const item of base) combined.set(item.name, item)
         const permissioned = yield* Effect.forEach([...combined.values()], withCurrentSkillPermissions)
         return sortBy(
-          permissioned.filter((item) =>
-            item.name !== "build" && item.name !== "plan" ||
-            item.name === configValue.default_agent,
+          permissioned.filter(
+            (item) => (item.name !== "build" && item.name !== "plan") || item.name === configValue.default_agent,
           ),
-          [(x) => (configValue.default_agent ? agentNameMatches(x.name, configValue.default_agent) : x.name === DEFAULT_AGENT), "desc"],
+          [
+            (x) =>
+              configValue.default_agent
+                ? agentNameMatches(x.name, configValue.default_agent)
+                : x.name === DEFAULT_AGENT,
+            "desc",
+          ],
           [(x) => x.name, "asc"],
         )
       })
@@ -713,7 +717,9 @@ export const layer = Layer.effect(
           const resolved = legacyAlias ? { ...fromBase, name: requested } : fromBase
           return yield* withCurrentSkillPermissions(resolved)
         }
-        const pluginAgent = yield* Effect.map(pluginAgents, (items) => items.find((item) => agentNameMatches(item.name, agent)))
+        const pluginAgent = yield* Effect.map(pluginAgents, (items) =>
+          items.find((item) => agentNameMatches(item.name, agent)),
+        )
         if (!pluginAgent) return undefined
         return yield* withCurrentSkillPermissions(pluginAgent)
       }),

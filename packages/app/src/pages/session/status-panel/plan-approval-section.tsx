@@ -5,6 +5,8 @@ import { Icon } from "@novaway/ui/icon"
 import { showToast } from "@novaway/ui/toast"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
+import { useSync } from "@/context/sync"
+import { createAdaptivePoll } from "@/utils/adaptive-poll"
 import type { StatusPanelSection } from "./status-panel"
 
 type Pending = {
@@ -30,6 +32,7 @@ const text = (error: unknown) => (error instanceof Error ? error.message : Strin
 export function usePlanApprovalSection(sessionID: () => string): () => StatusPanelSection | null {
   const sdk = useSDK()
   const language = useLanguage()
+  const sync = useSync()
   const [store, setStore] = createStore({
     items: [] as Pending[],
     pending: "",
@@ -45,7 +48,9 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
     void sdk.client.session.planApproval
       .list({ directory: sdk.directory, sessionID: id })
       .then((result) => {
-        const items = (result.data ?? []) as Pending[]
+        // 主会话的审批在聊天区由计划文档卡展示；状态面板只承载子代理审批，
+        // 否则同一个 request 会同时出现两张可点击卡片。
+        const items = (result.data ?? []).filter((item) => Boolean((item as Pending).parentID)) as Pending[]
         if (JSON.stringify(items) === JSON.stringify(store.items)) return
         setStore({ items, error: "" })
       })
@@ -61,10 +66,18 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
       if (id) load()
     }),
   )
-  const timer = setInterval(load, 2000)
-  onCleanup(() => clearInterval(timer))
+  // 计划审批只在意"有没有待批的计划"：会话在跑、或手上已有待批项时才值得 2 秒一问，
+  // 其余时间退到 20 秒；窗口不可见时完全不跑（回到前台再补）。
+  const poll = createAdaptivePoll(load, {
+    fast: 2000,
+    idle: 20_000,
+    active: () => store.items.length > 0 || sync.data.session_working(sessionID()),
+    immediate: false,
+  })
+  onCleanup(() => poll.stop())
 
-  const reply = (item: Pending, approved: boolean) => {
+  const reply = (item: Pending, execution?: "standard" | "goal" | "long_task" | false) => {
+    const approved = execution !== undefined && execution !== false
     const note = feedback()?.id === item.id ? feedback()!.text.trim() : ""
     setStore("pending", item.id)
     void sdk.client.session.planApproval
@@ -73,6 +86,7 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
         sessionID: sessionID(),
         requestID: item.id,
         approved,
+        ...(execution ? { execution } : {}),
         ...(note ? { feedback: note } : {}),
       })
       .then((result) => {
@@ -83,7 +97,7 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
         showToast({
           title: approved
             ? language.t("statusPanel.planApproval.approved")
-            : language.t("statusPanel.planApproval.rejected"),
+            : language.t("statusPanel.planApproval.continued"),
         })
         setFeedback(undefined)
         load()
@@ -123,9 +137,25 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
                     variant="secondary"
                     size="small"
                     disabled={store.pending === item.id}
-                    onClick={() => reply(item, true)}
+                    onClick={() => reply(item, "standard")}
                   >
-                    {language.t("statusPanel.planApproval.approve")}
+                    {language.t("statusPanel.planApproval.startExecution")}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    disabled={store.pending === item.id}
+                    onClick={() => reply(item, "goal")}
+                  >
+                    {language.t("statusPanel.planApproval.goalExecution")}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    disabled={store.pending === item.id}
+                    onClick={() => reply(item, "long_task")}
+                  >
+                    {language.t("statusPanel.planApproval.longTaskExecution")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -135,16 +165,16 @@ export function usePlanApprovalSection(sessionID: () => string): () => StatusPan
                       setFeedback((prev) => (prev?.id === item.id ? undefined : { id: item.id, text: "" }))
                     }
                   >
-                    {language.t("statusPanel.planApproval.reject")}
+                    {language.t("statusPanel.planApproval.continuePlanning")}
                   </Button>
                   <Show when={feedback()?.id === item.id}>
                     <Button
                       variant="ghost"
                       size="small"
-                      disabled={store.pending === item.id}
+                      disabled={store.pending === item.id || !feedback()?.text.trim()}
                       onClick={() => reply(item, false)}
                     >
-                      {language.t("statusPanel.planApproval.sendReject")}
+                      {language.t("statusPanel.planApproval.submitFeedback")}
                     </Button>
                   </Show>
                 </div>

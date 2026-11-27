@@ -79,14 +79,18 @@ export const SettingsRailMenu: Component<{ onOpenSettings: () => void; settingsO
       // 子面板是独立浮层：在它里面点/聚焦不该把外层菜单关掉。
       outsideIgnore={() => [appearanceEl]}
       triggerAs="button"
-      triggerProps={{
-        type: "button",
-        "aria-label": language.t("sidebar.settings"),
-        "aria-current": props.settingsOpen ? "page" : undefined,
-        class:
-          "group relative flex size-10 shrink-0 items-center justify-center rounded-[10px] text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground",
-        classList: { "text-foreground": !!props.settingsOpen },
-      }}
+      triggerProps={
+        {
+          type: "button",
+          "aria-label": language.t("sidebar.settings"),
+          "data-component": "sidebar-rail-item",
+          "data-action": "rail-menu-trigger",
+          "aria-current": props.settingsOpen ? "page" : undefined,
+          class:
+            "group relative flex size-10 shrink-0 items-center justify-center rounded-[10px] text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground",
+          classList: { "text-foreground": !!props.settingsOpen },
+        } as Record<string, unknown>
+      }
       trigger={
         <>
           <Icon name="settings-gear" size="normal" class="transition-transform duration-150 group-hover:scale-105" />
@@ -118,18 +122,21 @@ export const SettingsRailMenu: Component<{ onOpenSettings: () => void; settingsO
           onOpenChange={(open) => setState("appearance", open)}
           onOpenAutoFocus={(event) => event.preventDefault()}
           triggerAs="button"
-          triggerProps={{
-            type: "button",
-            "aria-expanded": state.appearance,
-            class:
-              "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-12-regular text-foreground transition-colors hover:bg-hover",
-            classList: { "bg-hover": state.appearance },
-            onMouseEnter: openAppearance,
-            onFocus: openAppearance,
-            onMouseLeave: scheduleCloseAppearance,
-            // 悬停已展开时再点一下不该把面板收起来，点击只负责打开。
-            onClick: openAppearance,
-          }}
+          triggerProps={
+            {
+              type: "button",
+              "data-action": "rail-appearance-trigger",
+              "aria-expanded": state.appearance,
+              class:
+                "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-12-regular text-foreground transition-colors hover:bg-hover",
+              classList: { "bg-hover": state.appearance },
+              onMouseEnter: openAppearance,
+              onFocus: openAppearance,
+              onMouseLeave: scheduleCloseAppearance,
+              // 悬停已展开时再点一下不该把面板收起来，点击只负责打开。
+              onClick: openAppearance,
+            } as Record<string, unknown>
+          }
           trigger={
             <>
               <span class="flex items-center gap-2">

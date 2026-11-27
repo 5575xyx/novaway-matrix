@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
+import { rm } from "node:fs/promises"
 import { copyLocalFileToClipboard, downloadUrlToTempFile } from "./clipboard-file"
 
 const execFileMock = mock((_cmd: string, _args: string[], callback: (err: Error | null) => void) => {
@@ -19,6 +20,11 @@ const spawnMock = mock((_cmd: string, _args: string[]) => {
       },
     },
   }
+})
+
+const downloadedFiles: string[] = []
+afterEach(async () => {
+  while (downloadedFiles.length) await rm(downloadedFiles.pop()!, { recursive: true, force: true })
 })
 
 mock.module("node:child_process", () => ({
@@ -134,13 +140,6 @@ describe("copyLocalFileToClipboard", () => {
 })
 
 describe("downloadUrlToTempFile", () => {
-  beforeEach(() => {
-    mock.module("node:fs/promises", () => ({
-      mkdtemp: mock((prefix: string) => Promise.resolve(`${prefix}abc123`)),
-      writeFile: mock((_path: string, _data: Buffer) => Promise.resolve()),
-    }))
-  })
-
   test("downloads url to temp file", async () => {
     const responseBuffer = Buffer.from("video-bytes")
     globalThis.fetch = mock(() =>
@@ -161,6 +160,7 @@ describe("downloadUrlToTempFile", () => {
     expect(result).toBeString()
     expect(result).toInclude("NovaWay-clipboard-")
     expect(result).toEndWith(".mp4")
+    if (result) downloadedFiles.push(result)
   })
 
   test("returns null when fetch fails", async () => {

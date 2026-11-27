@@ -40,7 +40,7 @@ import { useLanguage } from "@/context/language"
 import { useModels } from "@/context/models"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
-import { agentColor, agentDisplayName, skillDisplayName } from "@/utils/agent"
+import { agentColor, agentDescription, agentDisplayName, skillDisplayName } from "@/utils/agent"
 import { agentAvatar, agentAvatarSeeds, agentAvatarSrc } from "@/utils/agent-avatar"
 import { pathKey } from "@/utils/path-key"
 import { AiFixButton } from "./ai-fix-button"
@@ -195,6 +195,35 @@ function humanSummary(value: unknown) {
   return text.replace(/\s+/g, " ")
 }
 
+const agentCategoryLabels: Record<string, string> = {
+  academic: "学术研究",
+  design: "设计创意",
+  engineering: "工程开发",
+  finance: "财务金融",
+  marketing: "营销增长",
+  product: "产品管理",
+  testing: "测试质量",
+  support: "支持运营",
+  specialized: "专项能力",
+  "project-management": "项目管理",
+  "game-development": "游戏开发",
+}
+
+const agentCategoryVisuals: Record<string, { color: string; icon: IconProps["name"] }> = {
+  academic: { color: "#8b5cf6", icon: "book" },
+  design: { color: "#ec4899", icon: "dot-grid" },
+  engineering: { color: "#3b82f6", icon: "code-lines" },
+  finance: { color: "#10b981", icon: "chart" },
+  marketing: { color: "#f97316", icon: "paper-plane" },
+  product: { color: "#06b6d4", icon: "target" },
+  testing: { color: "#eab308", icon: "checklist" },
+  support: { color: "#14b8a6", icon: "bubble-5" },
+  specialized: { color: "#a855f7", icon: "brain" },
+  "project-management": { color: "#6366f1", icon: "checklist" },
+  "game-development": { color: "#ef4444", icon: "play" },
+  "built-in": { color: "#64748b", icon: "brain" },
+}
+
 function categoryTag(value: unknown) {
   return typeof value === "string" && value ? value : undefined
 }
@@ -206,18 +235,26 @@ function agentCategory(agent: Agent) {
   if (agencyCategory) {
     return {
       value: agencyCategory,
-      label: category ?? agencyCategory,
+      label: agentCategoryLabels[agencyCategory] ?? category ?? agencyCategory,
     }
   }
   if (category) {
     return {
       value: category,
-      label: category,
+      label: agentCategoryLabels[category] ?? category,
     }
   }
   return {
     value: "built-in",
     label: "内置",
+  }
+}
+
+function agentCategoryVisual(agent: Agent) {
+  const category = agentCategory(agent)
+  return {
+    ...category,
+    ...(agentCategoryVisuals[category.value] ?? agentCategoryVisuals["built-in"]),
   }
 }
 
@@ -316,6 +353,32 @@ const LoadingState: Component = () => (
   <div class="flex items-center gap-2 py-4 text-14-regular text-foreground-subtle">
     <span class="size-4 rounded-full border border-border-hover border-t-transparent animate-spin" />
     <span>加载中...</span>
+  </div>
+)
+
+const AgentDirectoryLoading: Component = () => (
+  <div class="col-span-full flex flex-col gap-3">
+    <div class="flex items-center gap-2 py-1 text-12-regular text-foreground-subtle">
+      <span class="size-3.5 rounded-full border border-border-hover border-t-transparent animate-spin" />
+      <span>正在准备 AI 员工目录…</span>
+    </div>
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <For each={[1, 2, 3, 4, 5, 6]}>
+        {() => (
+          <div class="flex min-h-36 flex-col gap-3 rounded-2xl border border-border bg-background p-4">
+            <div class="flex items-center gap-3">
+              <div class="size-14 animate-pulse rounded-2xl bg-surface" />
+              <div class="flex min-w-0 flex-1 flex-col gap-2">
+                <div class="h-4 w-2/3 animate-pulse rounded bg-surface" />
+                <div class="h-3 w-1/2 animate-pulse rounded bg-surface" />
+              </div>
+            </div>
+            <div class="h-3 w-full animate-pulse rounded bg-surface" />
+            <div class="h-3 w-4/5 animate-pulse rounded bg-surface" />
+          </div>
+        )}
+      </For>
+    </div>
   </div>
 )
 
@@ -917,6 +980,11 @@ const AgentDetailDialog: Component<{
   const dialog = useDialog()
   const language = useLanguage()
   const prompt = () => props.agent.prompt || language.t("settings.agents.detail.prompt.inherited")
+  const modeLabel = () => {
+    if (props.agent.mode === "primary") return language.t("settings.management.tag.primary")
+    if (props.agent.mode === "subagent") return language.t("settings.management.tag.subagent")
+    return language.t("settings.management.tag.all")
+  }
 
   return (
     <Dialog
@@ -940,28 +1008,32 @@ const AgentDetailDialog: Component<{
             class="size-10 rounded-xl object-cover"
             style={{ "box-shadow": `0 0 0 1px ${rowAccentTint(agentColor(props.agent.name), 45)}` }}
           />
-          <span class="min-w-0 truncate text-15-medium text-foreground">
-            {agentDisplayName(props.agent.name, props.agent.options)}
-          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-1">
+            <span class="min-w-0 truncate text-15-medium text-foreground">
+              {agentDisplayName(props.agent.name, props.agent.options)}
+            </span>
+            <div
+              class="flex items-center gap-1.5 text-12-regular"
+              style={{ color: agentCategoryVisual(props.agent).color }}
+            >
+              <Icon name={agentCategoryVisual(props.agent).icon} size="small" class="size-3.5" />
+              <span>{agentCategoryVisual(props.agent).label}</span>
+            </div>
+          </div>
         </div>
         <TextField
-          label={language.t("settings.management.field.name")}
+          label={language.t("settings.agents.detail.technicalId")}
           value={props.agent.name}
           onChange={() => {}}
           readOnly
         />
         <TextField
           label={language.t("settings.skills.field.description")}
-          value={props.agent.description ?? ""}
+          value={agentDescription(props.agent.name, props.agent.description, props.agent.options)}
           onChange={() => {}}
           readOnly
         />
-        <TextField
-          label={language.t("settings.agents.field.mode")}
-          value={props.agent.mode}
-          onChange={() => {}}
-          readOnly
-        />
+        <TextField label={language.t("settings.agents.field.mode")} value={modeLabel()} onChange={() => {}} readOnly />
         <TextField
           label={language.t("settings.agents.field.prompt")}
           multiline
@@ -1108,7 +1180,7 @@ const AvatarPicker: Component<{
   onChange: (seed: string | undefined) => void
 }> = (props) => {
   const language = useLanguage()
-  const cell = "size-9 shrink-0 overflow-hidden rounded-lg border-2 transition-colors"
+  const cell = "size-10 shrink-0 overflow-hidden rounded-full border-2 transition-all hover:scale-105"
   return (
     <div class="flex flex-col gap-1.5">
       <span class="text-12-medium text-foreground-subtle">{language.t("settings.agents.field.avatar")}</span>
@@ -2250,6 +2322,26 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
   const [sourceFilter, setSourceFilter] = createSignal<SourceFilter>("all")
   const [modeFilter, setModeFilter] = createSignal<ModeFilter>("all")
   const [agentSearch, setAgentSearch] = createSignal("")
+  const [agentLayout, setAgentLayout] = createSignal<"grid" | "list">("grid")
+  const [agentDisplayLimit, setAgentDisplayLimit] = createSignal(60)
+
+  const changeAgentLayout = (layout: "grid" | "list") => {
+    setAgentLayout(layout)
+    try {
+      globalThis.localStorage?.setItem("novaway.settings.agents.layout", layout)
+    } catch {
+      // 某些受限 WebView 禁止访问 localStorage，布局切换仍然正常工作。
+    }
+  }
+
+  onMount(() => {
+    try {
+      const saved = globalThis.localStorage?.getItem("novaway.settings.agents.layout")
+      if (saved === "grid" || saved === "list") setAgentLayout(saved)
+    } catch {
+      // 使用默认网格布局。
+    }
+  })
 
   const agents = useQuery(() => ({
     queryKey: ["settings", "agents"],
@@ -2285,11 +2377,23 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
       .filter((agent) => matchesModeFilter(agent, modeFilter()))
       .filter((agent) => {
         if (!query) return true
-        return [agent.name, agent.description ?? "", agent.options?.category ?? ""]
+        return [
+          agent.name,
+          agentDisplayName(agent.name, agent.options),
+          agent.description ?? "",
+          agent.options?.category ?? "",
+        ]
           .join(" ")
           .toLowerCase()
           .includes(query)
       })
+  })
+  const renderedAgents = createMemo(() => visibleAgents().slice(0, agentDisplayLimit()))
+  const hasMoreAgents = createMemo(() => renderedAgents().length < visibleAgents().length)
+
+  createEffect(() => {
+    visibleAgents()
+    setAgentDisplayLimit(60)
   })
   const agentByName = createMemo(() => new Map(list().map((item) => [item.name, item])))
   const fileByName = createMemo(
@@ -2550,7 +2654,7 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
   }
   const agentTags = (agent: Agent) =>
     [
-      categoryTag(agent.options?.category),
+      agentCategory(agent).label,
       modeLabel(agent.mode),
       agent.native ? language.t("settings.management.tag.builtIn") : language.t("settings.management.tag.custom"),
     ].filter((tag): tag is string => !!tag)
@@ -2717,20 +2821,48 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
               count: modeCounts()[filter.value],
             }))}
           />
+          <div class="ml-auto flex items-center rounded-lg border border-border bg-surface p-0.5">
+            <IconButton
+              icon="dot-grid"
+              size="small"
+              variant={agentLayout() === "grid" ? "secondary" : "ghost"}
+              aria-label="网格视图"
+              aria-pressed={agentLayout() === "grid"}
+              title="网格视图"
+              onClick={() => changeAgentLayout("grid")}
+            />
+            <IconButton
+              icon="lu-list-checks"
+              size="small"
+              variant={agentLayout() === "list" ? "secondary" : "ghost"}
+              aria-label="列表视图"
+              aria-pressed={agentLayout() === "list"}
+              title="列表视图"
+              onClick={() => changeAgentLayout("list")}
+            />
+          </div>
         </div>
-        <SettingsGroup>
-          <Show when={!loading()} fallback={<LoadingState />}>
+        <div
+          class={
+            agentLayout() === "grid"
+              ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+              : "flex flex-col overflow-hidden rounded-2xl border border-border bg-background"
+          }
+        >
+          <Show when={!loading()} fallback={<AgentDirectoryLoading />}>
             <Show
               when={safeArray(visibleAgents()).length > 0}
               fallback={<EmptyState icon="brain" message={language.t("settings.agents.empty")} />}
             >
-              <For each={safeArray(visibleAgents())}>
+              <For each={renderedAgents()}>
                 {(agent: Agent) => (
                   <RuntimeRow
                     icon="brain"
+                    variant={agentLayout() === "grid" ? "card" : "row"}
+                    category={agentCategoryVisual(agent)}
                     avatar={agentAvatar(agent.name, agent.options)}
                     title={agentDisplayName(agent.name, agent.options)}
-                    description={agent.description}
+                    description={agentDescription(agent.name, agent.description, agent.options)}
                     tags={agentTags(agent)}
                     footer={
                       <AgentSkillList
@@ -2781,9 +2913,21 @@ export const SettingsAgents: Component<{ directory?: string }> = (props) => {
                   />
                 )}
               </For>
+              <Show when={hasMoreAgents()}>
+                <Button
+                  variant="secondary"
+                  class="col-span-full mx-auto mt-1"
+                  onClick={() => setAgentDisplayLimit((limit) => limit + 60)}
+                >
+                  {language.t("settings.agents.loadMore", {
+                    shown: renderedAgents().length,
+                    total: visibleAgents().length,
+                  })}
+                </Button>
+              </Show>
             </Show>
           </Show>
-        </SettingsGroup>
+        </div>
       </div>
     </SettingsPage>
   )
@@ -4292,6 +4436,10 @@ const RuntimeRow: Component<{
   tags?: string[]
   footer?: JSX.Element
   actions?: JSX.Element
+  /** 卡片模式用于 AI 员工目录，普通资源继续使用紧凑行模式。 */
+  variant?: "row" | "card"
+  /** 员工分类的主题色和图标，用于建立稳定的视觉识别。 */
+  category?: { label: string; color: string; icon: IconProps["name"] }
   /** 有头像时优先显示图片（AI 员工的确定性机器人头像）。 */
   avatar?: string
 }> = (props) => {
@@ -4301,21 +4449,42 @@ const RuntimeRow: Component<{
   return (
     // 资源行（插件 / MCP / 技能 / 规则都是同一种）：左侧图标块，
     // 中间标题 + 标签 + 描述，右侧操作。行与行之间由外层 SettingsGroup 的分隔线切分。
-    <div class="flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover">
+    <div
+      class={
+        props.variant === "card"
+          ? "relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-background p-4 transition-all hover:-translate-y-0.5 hover:border-border-hover hover:shadow-lg"
+          : "flex min-w-0 items-center gap-3 border-t border-border px-4 py-3 transition-colors first:border-t-0 hover:bg-hover"
+      }
+    >
+      <Show when={props.variant === "card" && props.category}>
+        <div class="absolute inset-x-0 top-0 h-1" style={{ background: props.category?.color ?? accent() }} />
+      </Show>
       <Show when={props.avatar} fallback={<AppIcon seed={props.title} glyph={props.icon} fallback="dot-grid" />}>
         {(src) => (
           <img
             src={src()}
             alt=""
             draggable={false}
-            class="size-9 shrink-0 rounded-xl object-cover"
+            class={
+              props.variant === "card"
+                ? "size-14 shrink-0 rounded-2xl object-cover"
+                : "size-9 shrink-0 rounded-xl object-cover"
+            }
             style={{ "box-shadow": `0 0 0 1px ${rowAccentTint(accent(), 45)}` }}
           />
         )}
       </Show>
-      <div class="flex min-w-0 flex-1 flex-col">
+      <div class={props.variant === "card" ? "flex min-w-0 w-full flex-col" : "flex min-w-0 flex-1 flex-col"}>
         <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <span class="size-1.5 shrink-0 rounded-full" style={{ background: accent() }} />
+          <span class="size-1.5 shrink-0 rounded-full" style={{ background: props.category?.color ?? accent() }} />
+          <Show when={props.category}>
+            <Icon
+              name={props.category!.icon}
+              size="small"
+              class="size-3.5 shrink-0"
+              style={{ color: props.category!.color }}
+            />
+          </Show>
           <span class="truncate text-13-medium text-foreground">{props.title}</span>
           <For each={props.tags ?? []}>{(tag) => <Tag>{tag}</Tag>}</For>
         </div>
@@ -4325,7 +4494,15 @@ const RuntimeRow: Component<{
         <Show when={props.footer}>{props.footer}</Show>
       </div>
       <Show when={props.actions}>
-        <div class="flex shrink-0 items-center gap-1">{props.actions}</div>
+        <div
+          class={
+            props.variant === "card"
+              ? "absolute right-3 top-3 flex items-center gap-1"
+              : "flex shrink-0 items-center gap-1"
+          }
+        >
+          {props.actions}
+        </div>
       </Show>
     </div>
   )

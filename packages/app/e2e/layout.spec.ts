@@ -5,13 +5,33 @@ import { resolve } from "node:path"
 // 选择器按 en 字典文案为主，必要时保留 zh 兼容（见注释）。
 
 function workspaceRootSlug() {
-  // 与 office.spec 保持一致：Node 端 process.cwd() 为 packages/app，向上两级为仓库根
   const workspaceRoot = resolve(process.cwd(), "..", "..")
   return Buffer.from(workspaceRoot, "utf8")
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "")
+}
+
+async function openSettings(page: import("@playwright/test").Page) {
+  const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
+  await sidebar.locator('[data-action="rail-menu-trigger"]').click({ force: true })
+  const trigger = page.locator('[data-action="rail-menu-open-settings"]')
+  await expect(trigger).toBeVisible()
+  await trigger.click({ force: true })
+}
+
+async function toggleTheme(page: import("@playwright/test").Page) {
+  const sidebar = page.locator('[data-component="sidebar-nav-desktop"]')
+  await sidebar.locator('[data-action="rail-menu-trigger"]').click({ force: true })
+  const appearance = page.locator('[data-action="rail-appearance-trigger"]')
+  await expect(appearance).toBeVisible()
+  await appearance.click({ force: true })
+  const current = await page.locator("html").getAttribute("data-color-scheme")
+  const target = current === "dark" ? "light" : "dark"
+  await page.locator(`[data-quick-scheme="${target}"]`).click({ force: true })
+  await expect(page.locator("html")).toHaveAttribute("data-color-scheme", target)
+  await page.keyboard.press("Escape")
 }
 
 test("侧栏规格：48px 图标条 + 264px 面板 + 整宽入口 + 文件树 slide-over", async ({ page }) => {
@@ -79,10 +99,8 @@ test("侧栏分组结构与项目菜单可达", async ({ page }) => {
   await expect(sidebar.getByRole("button", { name: /Open project|打开项目/ }).first()).toBeVisible()
 
   // footer：模式与主题入口沉底（原来挤在顶部那圈竖排菜单里）
-  await expect(sidebar.getByRole("button", { name: /Switch work mode|切换模式/ }).first()).toBeVisible()
-  await expect(
-    sidebar.getByRole("button", { name: /^(Dark mode|Light mode|深色模式|浅色模式)$/ }).first(),
-  ).toBeVisible()
+  await expect(page.getByRole("combobox", { name: /Switch work mode|切换工作台|切换模式/ }).first()).toBeVisible()
+  await expect(page.locator('[data-action="rail-menu-trigger"]')).toBeVisible()
 })
 
 test("WorkspaceHeader 与 Side Pane 开关", async ({ page }) => {
@@ -116,10 +134,7 @@ test("侧栏渐变随浅／深主题语义表面色切换", async ({ page }) => 
   const light = await readGradient()
   expect(light).not.toBe("none")
 
-  await page
-    .getByRole("button", { name: /^(Dark mode|深色模式)$/ })
-    .first()
-    .click()
+  await toggleTheme(page)
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   const dark = await readGradient()
   expect(dark).not.toBe("none")
@@ -392,7 +407,7 @@ test("顶栏移除后的入口归属（A1）", async ({ page }) => {
   // 原标题栏承载的入口现在各自可达：首页 / 模式 / 主题 / 设置 / Side Pane 开关 / 移动端菜单
   await expect(page.getByLabel(/Open home|打开首页/).first()).toBeVisible()
   await expect(page.getByLabel(/Switch work mode|切换模式/).first()).toBeVisible()
-  await expect(page.getByLabel(/^(Dark mode|Light mode|深色模式|浅色模式)$/).first()).toBeVisible()
+  await expect(page.locator('[data-action="rail-menu-trigger"]')).toBeVisible()
   await expect(header.getByRole("button", { name: /Toggle side pane|切换 Side Pane/ }).first()).toBeVisible()
 })
 
@@ -403,10 +418,7 @@ test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮�
   await expect(page.locator('[data-component="workspace-header"]')).toBeVisible({ timeout: 15_000 })
 
   // —— 设置 ——
-  await page
-    .getByRole("button", { name: /^(Settings|设置)$/ })
-    .first()
-    .click()
+  await openSettings(page)
   const settings = page
     .locator("section[aria-label]")
     .filter({ hasText: /General|通用/ })
@@ -433,8 +445,8 @@ test("设置/数据库面板：主帧内覆盖 + 进出场过渡 + 返回按钮�
     convBox.x + convBox.width,
   )
   const rightGutter = viewport.width - (panelBox.x + panelBox.width)
-  expect(rightGutter, "右侧要留窗口根色外留白").toBeGreaterThan(2)
-  expect(rightGutter, "外留白不能比帧间距大太多").toBeLessThan(20)
+  // 侧栏与 Side Pane 是独立工作区：覆盖页不能盖住右侧工具面板，保留与会话帧一致的可视间隔。
+  expect(rightGutter, "右侧要为 Side Pane 保留空间").toBeGreaterThan(20)
   const bottomGutter = viewport.height - (panelBox.y + panelBox.height)
   expect(bottomGutter, "底部要留窗口根色外留白").toBeGreaterThan(2)
   expect(bottomGutter, "底部外留白不能比帧间距大太多").toBeLessThan(20)
@@ -606,19 +618,8 @@ test("侧栏项目分组可以收起再展开（状态可持久化）", async ({
 test("辅助对话：从空态入口创建并落在 Side Pane 标签里", async ({ page }) => {
   const slug = workspaceRootSlug()
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto(`/${slug}/session`)
+  await page.goto(`/${slug}/session`, { waitUntil: "domcontentloaded" })
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
-
-  // 创建侧边对话调用真实 session.create API；不具备本地服务时明确标记为环境跳过。
-  const serverHost = process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"
-  const serverPort = process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"
-  let serverReachable = true
-  try {
-    await page.request.get(`http://${serverHost}:${serverPort}`, { timeout: 1_000 })
-  } catch {
-    serverReachable = false
-  }
-  test.skip(!serverReachable, "side-chat E2E requires the local session API server")
 
   const frame = page.locator('[data-component="side-pane-frame"]')
   await expect(frame).toBeVisible()
@@ -632,7 +633,7 @@ test("辅助对话：从空态入口创建并落在 Side Pane 标签里", async 
 
   // 标签出现且处于激活态。
   const trigger = frame
-    .locator("[data-slot='tabs-trigger'], button")
+    .locator('[data-component="side-pane-tab"] button')
     .filter({ hasText: /Side (chat|conversation)|侧边对话|辅助对话/ })
     .first()
   await expect(trigger).toBeVisible({ timeout: 10_000 })
@@ -656,10 +657,7 @@ test("运行中的提交行为可以切成「排队」（设置持久化）", as
   await page.goto(`/${slug}/session`)
   await expect(page.locator('[data-component="sidebar-nav-desktop"]')).toBeVisible({ timeout: 15_000 })
 
-  await page
-    .getByRole("button", { name: /^(Open settings|Settings|设置)$/ })
-    .first()
-    .click()
+  await openSettings(page)
   await page.getByRole("tab", { name: /^(General|通用)$/ }).click()
 
   // 当前默认值由用户设置决定；切换到另一模式，再重开设置确认偏好持久化。
@@ -679,10 +677,7 @@ test("运行中的提交行为可以切成「排队」（设置持久化）", as
     .getByRole("button", { name: /^(Back|Navigate back|返回)$/ })
     .first()
     .click()
-  await page
-    .getByRole("button", { name: /^(Open settings|Settings|设置)$/ })
-    .first()
-    .click()
+  await openSettings(page)
   await page.getByRole("tab", { name: /^(General|通用)$/ }).click()
   await expect(page.locator('[data-action="settings-followup"]')).toContainText(expected)
 })
