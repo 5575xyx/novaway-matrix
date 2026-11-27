@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { Effect, Fiber } from "effect"
+import { Deferred, Effect, Fiber } from "effect"
 import { Service, defaultLayer } from "@/tool/lock"
 import { testEffect } from "../lib/effect"
 
@@ -41,28 +41,37 @@ describe("tool lock", () => {
     Effect.gen(function* () {
       const lock = yield* Service
       const order: string[] = []
+      const firstHasLock = yield* Deferred.make<void>()
+      const allowFirstFinish = yield* Deferred.make<void>()
+      const secondHasLock = yield* Deferred.make<void>()
 
       const first = yield* Effect.forkScoped(
         Effect.gen(function* () {
           const release = yield* lock.acquire("run:1:task:rt_1", "write")
           order.push("team1-start")
-          yield* Effect.sleep("40 millis")
+          yield* Deferred.succeed(firstHasLock, undefined)
+          yield* Deferred.await(allowFirstFinish)
           order.push("team1-end")
           yield* release
         }),
       )
-      yield* Effect.sleep("10 millis")
+      yield* Deferred.await(firstHasLock).pipe(Effect.timeout("2 seconds"))
+
       const second = yield* Effect.forkScoped(
         Effect.gen(function* () {
           const release = yield* lock.acquire("run:1:task:rt_2", "write")
           order.push("team2-start")
           yield* release
+          yield* Deferred.succeed(secondHasLock, undefined)
         }),
       )
+      yield* Deferred.await(secondHasLock).pipe(Effect.timeout("2 seconds"))
+
+      // The second writer acquired a distinct key while the first key was held.
+      expect(order).toEqual(["team1-start", "team2-start"])
+      yield* Deferred.succeed(allowFirstFinish, undefined)
       yield* Fiber.join(first)
       yield* Fiber.join(second)
-
-      // 两个团队各有一份 worktree：没有理由排队。
       expect(order).toEqual(["team1-start", "team2-start", "team1-end"])
     }),
   )

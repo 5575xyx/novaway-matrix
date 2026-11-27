@@ -35,10 +35,22 @@ describe("team.catalog", () => {
     expect(text).toContain("team_run")
   })
 
-  test("render spells out the cost of Auto mode", () => {
-    // Auto 的代价必须写清楚：不写模型会以为调一次就开跑。
-    expect(TeamCatalog.render("auto", entries)).toContain("等待批准")
-    expect(TeamCatalog.render("selected", entries)).not.toContain("等待批准")
+  test("render spells out the safety boundary of Auto mode", () => {
+    // Auto 不等于放开写权限：只读可自动继续，写入或外部副作用仍需批准。
+    expect(TeamCatalog.render("auto", entries)).toContain("只读派发会自动批准")
+    expect(TeamCatalog.render("auto", entries)).toContain("外部副作用")
+    expect(TeamCatalog.render("selected", entries)).not.toContain("只读派发自动批准")
+  })
+
+  test("render includes directly dispatchable experts", () => {
+    const text = TeamCatalog.render(
+      "auto",
+      [],
+      [{ id: "emp_research", name: "Research expert", job: "research", skills: ["competitive analysis"] }],
+    )
+    expect(text).toContain("Research expert")
+    expect(text).toContain("expert 参数")
+    expect(text).toContain("competitive analysis")
   })
 
   test("render returns nothing when no team is available", () => {

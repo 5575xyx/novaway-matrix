@@ -16,6 +16,7 @@ import { Permission } from "@/permission"
 import { PermissionID } from "@/permission/schema"
 import { SessionShare } from "@/share/session"
 import { Session } from "@/session/session"
+import { Service as TeamProfileService } from "@/team/profile"
 import { SessionCompaction } from "@/session/compaction"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
@@ -38,6 +39,7 @@ import { InstanceHttpApi } from "../api"
 import { notFound } from "../errors"
 import {
   CommandPayload,
+  CreatePayload,
   DiffQuery,
   ForkPayload,
   InitPayload,
@@ -179,8 +181,25 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       )
     })
 
-    const create = Effect.fn("SessionHttpApi.create")(function* (ctx: { payload?: Session.CreateParams }) {
-      return yield* shareSvc.create(ctx.payload)
+    const create = Effect.fn("SessionHttpApi.create")(function* (ctx: { payload?: typeof CreatePayload.Type }) {
+      const { expertID, ...input } = ctx.payload ?? {}
+      if (expertID === undefined) return yield* shareSvc.create(ctx.payload)
+
+      const instance = yield* InstanceState.context
+      if (
+        instance.scope !== "project" ||
+        input.parentID ||
+        (input.teamMode !== undefined && input.teamMode !== "selected") ||
+        input.teamIDs?.length
+      ) {
+        return yield* new HttpApiError.BadRequest({})
+      }
+      const profiles = yield* TeamProfileService
+      const employees = yield* profiles.employees()
+      if (!employees.some((employee) => employee.id === expertID && !employee.archived)) {
+        return yield* new HttpApiError.BadRequest({})
+      }
+      return yield* shareSvc.create({ ...input, teamMode: "selected", teamIDs: [], employeeID: expertID })
     })
 
     const createGlobal = Effect.fn("SessionHttpApi.createGlobal")(function* (ctx: { payload?: Session.CreateParams }) {
@@ -216,7 +235,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       if (body.trim().length === 0) return yield* create({})
 
       const json = yield* tryParseJson(body)
-      const payload = yield* Schema.decodeUnknownEffect(Session.CreateInput)(json).pipe(
+      const payload = yield* Schema.decodeUnknownEffect(CreatePayload)(json).pipe(
         Effect.mapError(() => new HttpApiError.BadRequest({})),
       )
       return yield* create({ payload })
@@ -283,10 +302,13 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         )
         if (!moved) yield* Effect.fail(new HttpApiError.BadRequest({}))
       }
+      if (ctx.payload.employeeID !== undefined) {
+        yield* session.setEmployeeID({ sessionID: ctx.params.sessionID, employeeID: ctx.payload.employeeID })
+      }
       if (ctx.payload.teamMode !== undefined) {
         // `selected` 没给 ID 等于「选了空集」，会让目录注入变成空列表 —— 直接拒绝，
         // 而不是让用户的点击悄无声息地失效。
-        if (ctx.payload.teamMode === "selected" && !ctx.payload.teamIDs?.length) {
+        if (ctx.payload.teamMode === "selected" && !ctx.payload.teamIDs?.length && !ctx.payload.employeeID) {
           yield* Effect.fail(new HttpApiError.BadRequest({}))
         }
         yield* session.setTeamMode({

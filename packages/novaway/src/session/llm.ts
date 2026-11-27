@@ -22,6 +22,7 @@ import { InstallationVersion } from "@novaway/core/installation/version"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { StreamWatchdog } from "./stream-watchdog"
+import * as TeamSwitch from "@/team/switch"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
@@ -53,6 +54,8 @@ export type StreamInput = {
   user: MessageV2.User
   sessionID: string
   scope?: "project" | "global"
+  /** 当前会话的团队模式；未设置或 off 时不应向主助手注入自动协作建议。 */
+  teamMode?: "off" | "auto" | "selected"
   parentSessionID?: string
   model: Provider.Model
   agent: Agent.Info
@@ -153,20 +156,18 @@ const live: Layer.Layer<
         "</language>",
       ].join("\n")
 
-      // 并行编排策略:常量文本，放在代理提示词之后，主代理据此判断是否拆分任务。
+      // 并行编排策略：常量文本，放在代理提示词之后，主代理据此判断是否值得协作。
       // 仅主代理生效（subagent / small 调用不注入），减少 token 与误触发。
       const AUTO_DELEGATE_DIRECTIVE = [
         "<delegation>",
-        "当请求可以拆成两个以上相互独立、各自有实质工作量的子任务时，先判断是否值得并行：",
-        "- 适合并行：同时调研多个模块/主题、并行审查多个文件集、同时产出多份互不依赖的物料。",
-        "- 不适合并行：简单请求、强顺序步骤、子任务需要频繁共享中间结果、或都要修改同一批文件。",
-        "需要并行时：",
-        "1. 每个会话只调用一次 team_create（重复调用会复用现有团队）。",
-        "2. 根据可用 agent 列表为每个子任务选择最合适的 AI 员工，不要所有子任务都用同一个 general。",
-        "3. 用 orchestrator 创建带 dependencies 的计划并执行（同一波内自动并行）；或并行发起多个 task 调用（可加 background=true）。",
-        '4. 会改同一批文件的子任务放进 dependencies 串行，或用 isolation="worktree" 隔离。',
-        "注意：task_create / task_claim / task_wait 只是团队任务看板，本身不会执行任何东西。只建任务不派子代理，等于什么都没运行；用户询问进度时不要把看板任务说成正在并行执行。",
-        "普通单步任务不要建团队、不要委派，直接完成。",
+        "默认先由主助手直接完成；只有协作能明显提高可靠性、速度或覆盖面时才派发。不要为了展示团队而创建团队。",
+        "- 简单任务、强顺序步骤、需要频繁共享中间结果、或修改同一批文件的任务，直接完成或串行处理。",
+        "- 单一专业领域优先调用一个匹配的 expert；跨领域、可独立并行、多步骤任务才调用 team。",
+        "- 如果 team_run 可用，优先使用 team_run 的 expert 或 team 参数一次性发起运行；不要先调用 team_create 再把同一任务拆成只存在于看板里的任务。",
+        "- team_create / team_delete 只用于用户明确要求创建、修改或管理可复用的专家团，不是一次性任务的默认入口。",
+        "- task_create / task_claim / task_wait 只是团队任务看板，本身不会执行任何东西；不要把建看板任务说成已经在运行。",
+        "- 写入、高风险操作、预算变化或外部副作用必须遵守现有审批和确认边界，不得因为自动派发绕过授权。",
+        "- 如果没有合适的可自动派发专家或团队，继续由主助手完成，不要强行创建临时团队。",
         "</delegation>",
       ].join("\n")
 
@@ -219,12 +220,14 @@ const live: Layer.Layer<
           : input.agent.prompt
             ? [input.agent.prompt]
             : SystemPrompt.provider(input.model)),
-        // 自动并行编排策略：默认关闭。只有显式 experimental.auto_delegate = true
-        // 时才注入；否则简单任务也会先建团队/看板，浪费回合并让父代理丢失细节。
+        // 自动并行编排策略：默认开启；显式 experimental.auto_delegate = false
+        // 时关闭。主助手仍拥有最终决定权：简单任务不派发，只有协作有价值时才调用专家。
         ...(input.scope !== "global" &&
         input.agent.mode !== "subagent" &&
         !input.small &&
-        cfg.experimental?.auto_delegate === true
+        (input.teamMode === "auto" || input.teamMode === "selected") &&
+        TeamSwitch.enabled(cfg.experimental) &&
+        cfg.experimental?.auto_delegate !== false
           ? [AUTO_DELEGATE_DIRECTIVE]
           : []),
         // 完成前验收契约：默认开启，可用 experimental.verification_agent=false 关闭。

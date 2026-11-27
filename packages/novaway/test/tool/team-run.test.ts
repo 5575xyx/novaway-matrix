@@ -5,7 +5,9 @@ import { Service as TeamService, defaultLayer as TeamLayer } from "@/team/team"
 import { Service as TeamRunService, defaultLayer as RunLayer } from "@/team/run"
 import { Service as VerificationService, defaultLayer as VerificationLayer } from "@/team/verification"
 import { Service as MissionService, defaultLayer as MissionLayer } from "@/team/mission"
+import { Service as ProfileService, defaultLayer as ProfileLayer } from "@/team/profile"
 import { Session } from "@/session/session"
+import { SessionUsage } from "@/session/usage"
 import { SessionID, MessageID } from "@/session/schema"
 import { Truncate } from "@/tool/truncate"
 import { Agent } from "@/agent/agent"
@@ -29,6 +31,7 @@ const itOff = testEffect(
     Agent.defaultLayer,
     PlanApprovalLayer,
     Session.defaultLayer,
+    SessionUsage.defaultLayer,
     CrossSpawnSpawner.defaultLayer,
     switchOff,
   ),
@@ -40,10 +43,12 @@ const it = testEffect(
     RunLayer,
     VerificationLayer,
     MissionLayer,
+    ProfileLayer,
     Truncate.defaultLayer,
     Agent.defaultLayer,
     PlanApprovalLayer,
     Session.defaultLayer,
+    SessionUsage.defaultLayer,
     CrossSpawnSpawner.defaultLayer,
   ),
 )
@@ -167,6 +172,131 @@ describe("team_run tool", () => {
         const events = yield* runs.events({ runID })
         expect(events.find((event) => event.kind === "worktree.skipped")?.payload?.reason).toContain("git 仓库")
         expect(result.output).toContain("worktree: not created")
+      }),
+    { timeout: 30_000 },
+  )
+
+  it.instance(
+    "auto mode automatically approves a read-only dispatch",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const teams = yield* TeamService
+        const runs = yield* TeamRunService
+        const dir = yield* tmpdirScoped({ git: true })
+
+        const session = yield* sessions.create({ title: "auto lead", teamMode: "auto", directory: dir })
+        const team = yield* teams.create({ name: "自动审查", rootSessionID: session.id })
+        yield* teams.update({ teamID: team.id, autoEligible: true })
+        yield* teams.addMember({
+          teamID: team.id,
+          sessionID: SessionID.make("ses_auto_member"),
+          name: "审查专家",
+          agent: "plan",
+          role: "lead",
+        })
+
+        const tool = yield* TeamRunTool
+        const def = yield* tool.init()
+        const result = yield* def.execute(
+          { team: "自动审查", goal: "检查当前实现", acceptance: [{ text: "输出审查结论" }] },
+          ctx(session.id, dir),
+        )
+        const run = yield* runs.get(runIDOf(result.metadata))
+
+        expect(run?.state).toBe("running")
+        expect(run?.approval?.approvedBy).toBe("main")
+        expect(result.metadata.state).toBe("running")
+        expect(result.output).toContain("automatically because this run is read-only")
+        expect(result.output).not.toContain("review and approve")
+      }),
+    { timeout: 30_000 },
+  )
+
+  it.instance(
+    "dispatches a selected single expert with a one-person snapshot",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const profiles = yield* ProfileService
+        const runs = yield* TeamRunService
+        const dir = yield* tmpdirScoped({ git: true })
+        const session = yield* sessions.create({ title: "expert lead", teamMode: "selected", directory: dir })
+        const employee = yield* profiles.createEmployee({
+          name: "研究专家",
+          job: "research",
+          skills: ["竞品分析"],
+          prompt: "仅依据可信来源比较产品差异。",
+        })
+        yield* profiles.create({
+          name: "研究模板",
+          captain: employee.id,
+          members: [{ employeeID: employee.id, role: "captain", canAutoDispatch: false }],
+        })
+        yield* sessions.setEmployeeID({ sessionID: session.id, employeeID: employee.id })
+
+        const tool = yield* TeamRunTool
+        const def = yield* tool.init()
+        const result = yield* def.execute(
+          { expert: employee.id, goal: "整理竞品差异", acceptance: [{ text: "输出差异结论" }] },
+          ctx(session.id, dir),
+        )
+        const runID = runIDOf(result.metadata)
+        const roster = (yield* runs.teams(runID))[0].rosterSnapshot as
+          | {
+              captain?: string
+              roster?: Array<{
+                employee?: { name?: string; prompt?: string }
+                canAutoDispatch?: boolean
+                effective?: { promptHash?: string }
+              }>
+            }
+          | undefined
+
+        expect(roster?.captain).toBe(employee.id)
+        expect(roster?.roster ?? []).toHaveLength(1)
+        expect(roster?.roster?.[0]?.employee?.name).toBe("研究专家")
+        expect(roster?.roster?.[0]?.employee?.prompt).toBe("仅依据可信来源比较产品差异。")
+        expect(roster?.roster?.[0]?.canAutoDispatch).toBe(false)
+        expect(roster?.roster?.[0]?.effective?.promptHash).toMatch(/^sha256:/)
+        expect(result.output).toContain("team: 研究专家")
+      }),
+    { timeout: 30_000 },
+  )
+
+  it.instance(
+    "dispatches an auto-eligible profile as a reusable expert team",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const profiles = yield* ProfileService
+        const runs = yield* TeamRunService
+        const dir = yield* tmpdirScoped({ git: true })
+        const session = yield* sessions.create({ title: "profile auto lead", teamMode: "auto", directory: dir })
+        const employee = yield* profiles.createEmployee({ name: "代码审查队长", job: "build", skills: ["代码审查"] })
+        const profile = yield* profiles.create({
+          name: "自动代码审查团",
+          captain: employee.id,
+          members: [{ employeeID: employee.id, role: "captain", canAutoDispatch: true }],
+        })
+        yield* profiles.update({ profileID: profile.id, autoEligible: true })
+
+        const tool = yield* TeamRunTool
+        const def = yield* tool.init()
+        const result = yield* def.execute(
+          { team: profile.name, goal: "检查当前改动", acceptance: [{ text: "输出审查结论" }] },
+          ctx(session.id, dir),
+        )
+        const runID = runIDOf(result.metadata)
+        const run = yield* runs.get(runID)
+        const roster = (yield* runs.teams(runID))[0].rosterSnapshot as
+          | { profileID?: string; roster?: Array<{ employee?: { name?: string } }> }
+          | undefined
+
+        expect(run?.state).toBe("running")
+        expect(roster?.profileID).toBe(profile.id)
+        expect(roster?.roster?.[0]?.employee?.name).toBe("代码审查队长")
+        expect(result.output).toContain("team: 自动代码审查团")
       }),
     { timeout: 30_000 },
   )

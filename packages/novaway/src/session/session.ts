@@ -306,20 +306,20 @@ export const GlobalInfo = Schema.Struct({
 }).annotate({ identifier: "GlobalSession" })
 export type GlobalInfo = Types.DeepMutable<Schema.Schema.Type<typeof GlobalInfo>>
 
-export const CreateInput = Schema.optional(
-  Schema.Struct({
-    parentID: Schema.optional(SessionID),
-    title: Schema.optional(Schema.String),
-    agent: Schema.optional(Schema.String),
-    model: Schema.optional(Model),
-    permission: Schema.optional(Permission.Ruleset),
-    permissionMode: Schema.optional(Permission.Mode),
-    /** 建会话时就带上团队选择：新会话的首条消息也能直接派发。 */
-    teamMode: Schema.optional(Schema.Literals(["off", "auto", "selected"])),
-    teamIDs: Schema.optional(Schema.Array(Schema.String)),
-    workspaceID: Schema.optional(WorkspaceID),
-  }),
-)
+export const CreateFields = {
+  parentID: Schema.optional(SessionID),
+  title: Schema.optional(Schema.String),
+  agent: Schema.optional(Schema.String),
+  model: Schema.optional(Model),
+  permission: Schema.optional(Permission.Ruleset),
+  permissionMode: Schema.optional(Permission.Mode),
+  /** 建会话时就带上团队选择：新会话的首条消息也能直接派发。 */
+  teamMode: Schema.optional(Schema.Literals(["off", "auto", "selected"])),
+  teamIDs: Schema.optional(Schema.Array(Schema.String)),
+  employeeID: Schema.optional(Schema.String),
+  workspaceID: Schema.optional(WorkspaceID),
+}
+export const CreateInput = Schema.optional(Schema.Struct(CreateFields))
 export type CreateInput = Types.DeepMutable<Schema.Schema.Type<typeof CreateInput>>
 /**
  * 建会话入参的只读形态：HTTP 层解码出来的就是它，可以直接往下传，
@@ -410,6 +410,9 @@ const UpdatedInfo = Schema.Struct({
   time: Schema.optional(UpdatedTime),
   permission: Schema.optional(Schema.NullOr(Permission.Ruleset)),
   permissionMode: Schema.optional(Schema.NullOr(Permission.Mode)),
+  teamMode: Schema.optional(Schema.NullOr(Schema.Literals(["off", "auto", "selected"]))),
+  teamIDs: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+  employeeID: Schema.optional(Schema.NullOr(Schema.String)),
   revert: Schema.optional(Schema.NullOr(Revert)),
 })
 
@@ -558,6 +561,7 @@ export interface Interface {
       workspaceID?: WorkspaceID
       directory?: string
       scope?: Info["scope"]
+      employeeID?: string
     },
     /** 内部派发路径专用的归属；HTTP 建会话接口没有这个参数。 */
     attribution?: Attribution,
@@ -609,6 +613,8 @@ export interface Interface {
     mode: Info["teamMode"]
     teamIDs?: readonly string[]
   }) => Effect.Effect<void>
+  /** Assign a user-selected expert to the session before its first task. */
+  readonly setEmployeeID: (input: { sessionID: SessionID; employeeID?: string }) => Effect.Effect<void>
   /**
    * Change the working directory of a live session.
    *
@@ -925,6 +931,7 @@ const rawLayer: Layer.Layer<
         workspaceID?: WorkspaceID
         directory?: string
         scope?: Info["scope"]
+        employeeID?: string
       },
       attribution?: Attribution,
     ) {
@@ -943,6 +950,7 @@ const rawLayer: Layer.Layer<
         teamIDs: input?.teamIDs,
         workspaceID: input?.workspaceID ?? workspace,
         scope: ctx.scope,
+        ...(input?.employeeID ? { employeeID: input.employeeID } : {}),
         ...(attribution?.employeeID ? { employeeID: attribution.employeeID } : {}),
         ...(attribution?.runID ? { runID: attribution.runID } : {}),
       })
@@ -1088,11 +1096,25 @@ const rawLayer: Layer.Layer<
       teamIDs?: readonly string[]
     }) {
       yield* patch(input.sessionID, {
-        // `off` 时同时清空 ID：否则重新打开 selected 会带回已删掉的团队。
+        // `off` / `auto` 时也清空专家选择，避免旧的 employeeID 变成隐式授权。
         teamMode: input.mode ?? null,
         teamIDs: input.mode === "selected" ? [...(input.teamIDs ?? [])] : null,
+        ...(input.mode === "selected" && (input.teamIDs?.length ?? 0) === 0 ? {} : { employeeID: null }),
         time: { updated: Date.now() },
       } as Patch)
+    })
+
+    const setEmployeeID = Effect.fn("Session.setEmployeeID")(function* (input: {
+      sessionID: SessionID
+      employeeID?: string
+    }) {
+      yield* db((database) =>
+        database
+          .update(SessionTable)
+          .set({ employee_id: input.employeeID ?? null, time_updated: Date.now() })
+          .where(eq(SessionTable.id, input.sessionID))
+          .run(),
+      )
     })
 
     const setDirectory = Effect.fn("Session.setDirectory")(function* (input: {
@@ -1246,6 +1268,7 @@ const rawLayer: Layer.Layer<
       setPermissionMode,
       permissionModeOf,
       setTeamMode,
+      setEmployeeID,
       setDirectory,
       setRevert,
       clearRevert,

@@ -13,7 +13,7 @@ import { createHash } from "node:crypto"
  * - 同一个输入永远得到同一个版本，方便回放与对账。
  */
 
-export type Artifact = { name: string; version: string; hash: string }
+export type Artifact = { name: string; version: string; hash: string; path?: string }
 
 export type Dep = { teamID: number; name: string; version: string }
 
@@ -44,9 +44,22 @@ export function normalize(value: unknown): Artifact[] {
     if (!name || seen.has(name)) continue
     seen.add(name)
     const hash = digest(item)
-    out.push({ name, version: hash.slice(0, 8), hash })
+    const path = pathOf(item)
+    out.push({ name, version: hash.slice(0, 8), hash, ...(path ? { path } : {}) })
   }
   return out
+}
+
+function pathOf(item: unknown): string | undefined {
+  if (item === null || typeof item !== "object") return undefined
+  const value: unknown = Reflect.get(item, "path")
+  if (typeof value !== "string") return undefined
+  const path = value.trim().replaceAll("\\", "/")
+  // Artifact paths are only workspace-relative. Absolute paths and traversal
+  // are rejected here before they can become a file-read target.
+  if (!path || path.startsWith("/") || /^[A-Za-z]:\//.test(path)) return undefined
+  if (path.split("/").some((part) => part === "..")) return undefined
+  return path
 }
 
 function nameOf(item: unknown): string | undefined {

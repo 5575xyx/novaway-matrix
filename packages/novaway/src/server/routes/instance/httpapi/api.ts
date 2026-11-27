@@ -46,6 +46,7 @@ import { ArenaApi } from "./groups/arena"
 import { OrchestratorApi } from "./groups/orchestrator"
 import { SuperAgentApi } from "./groups/super-agent"
 import { TeamApi } from "./groups/team"
+import { ExpertCenterApi } from "./groups/expert-center"
 import { MissionApi } from "./groups/mission"
 import { ProfileApi } from "./groups/profile"
 import { RunApi } from "./groups/run"
@@ -107,6 +108,7 @@ export const InstanceHttpApi = InstanceGroups.addHttpApi(TuiApi)
   .add(SuperAgentApi)
   .add(ArenaApi)
   .addHttpApi(TeamApi)
+  .addHttpApi(ExpertCenterApi)
   .add(ProfileApi)
   .add(MissionApi)
   .add(RunApi)

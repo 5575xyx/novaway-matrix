@@ -769,7 +769,9 @@ export const layer = Layer.effect(
     const teamRuns = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
     // 团队目录：能派发谁由会话字段决定，注入内容按签名去重（见 insertReminders）。
     const teamService = Option.getOrUndefined(yield* Effect.serviceOption(TeamService))
+    const teamProfiles = Option.getOrUndefined(yield* Effect.serviceOption(TeamCatalog.TeamProfileService))
     const teamCatalogSignatures = new Map<string, string>()
+    const teamGuidanceSignatures = new Map<string, string>()
     // 运行内的任务板（§5.5）：只有登记过编排坐标的会话才注入，普通会话完全不受影响。
     const teamTasks = Option.getOrUndefined(yield* Effect.serviceOption(AgentTaskListService))
     const taskBoardSignatures = new Map<string, string>()
@@ -1255,39 +1257,75 @@ export const layer = Layer.effect(
       if (teamService && TeamSwitch.enabled((yield* config.get()).experimental)) {
         const mode = input.session.teamMode
         if (mode && mode !== "off") {
-          const wanted = new Set(mode === "selected" ? (input.session.teamIDs ?? []) : [])
-          const entries: TeamCatalog.CatalogEntry[] = []
-          for (const team of yield* teamService.list()) {
-            if (mode === "selected" && !wanted.has(team.id)) continue
-            if (mode === "auto" && !team.autoEligible) continue
-            const root = yield* sessions.get(team.rootSessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
-            if (root && root.directory !== input.session.directory) continue
-            const members = yield* teamService.members(team.id)
-            entries.push({
-              id: team.id,
-              name: team.name,
-              description: team.description,
-              members: members.map((member) => ({ name: member.name, agent: member.agent, role: member.role })),
+          const dispatchCatalog = yield* TeamCatalog.resolveDispatchDirectory({
+            teams: teamService,
+            ...(teamProfiles ? { profiles: teamProfiles } : {}),
+            sessions,
+            session: input.session,
+            directory: input.session.directory,
+            mode,
+          })
+          const entries: TeamCatalog.CatalogEntry[] = dispatchCatalog.teams.map((team) => ({
+            id: team.id,
+            name: team.name,
+            ...(team.description ? { description: team.description } : {}),
+            members: team.members,
+          }))
+          const directExperts: TeamCatalog.CatalogExpert[] = dispatchCatalog.experts.map((expert) => ({
+            id: expert.id,
+            name: expert.name,
+            job: expert.job,
+            ...(expert.skills?.length ? { skills: expert.skills } : {}),
+          }))
+          const candidates: TeamCatalog.TeamRouter.Candidate[] = [
+            ...entries.map((entry) => ({
+              kind: "team" as const,
+              id: entry.id,
+              name: entry.name,
+              text: [
+                entry.name,
+                entry.description ?? "",
+                ...entry.members.map((member) => `${member.name} ${member.agent}`),
+              ].join(" "),
+            })),
+            ...directExperts.map((expert) => ({
+              kind: "expert" as const,
+              id: expert.id,
+              name: expert.name,
+              text: [expert.name, expert.job, ...(expert.skills ?? [])].join(" "),
+            })),
+          ]
+          const goal = userMessage.parts
+            .filter((part) => part.type === "text")
+            .map((part) => part.text)
+            .join("\n")
+            .trim()
+          const catalogSignature = TeamCatalog.signature(mode, entries, directExperts)
+          const catalogChanged = teamCatalogSignatures.get(input.session.id) !== catalogSignature
+          const guidanceSignature = `${catalogSignature}|goal:${goal}`
+          const guidanceChanged = teamGuidanceSignatures.get(input.session.id) !== guidanceSignature
+          if (catalogChanged) teamCatalogSignatures.set(input.session.id, catalogSignature)
+          if (guidanceChanged) teamGuidanceSignatures.set(input.session.id, guidanceSignature)
+          const text = [
+            catalogChanged ? TeamCatalog.render(mode, entries, directExperts) : undefined,
+            goal && guidanceChanged ? TeamCatalog.TeamRouter.guidance(goal, candidates) : undefined,
+          ]
+            .filter((value): value is string => Boolean(value))
+            .join("\n")
+          if (text) {
+            const part = yield* sessions.updatePart({
+              id: PartID.ascending(),
+              messageID: userMessage.info.id,
+              sessionID: userMessage.info.sessionID,
+              type: "text",
+              synthetic: true,
+              text,
             })
-          }
-          const signature = TeamCatalog.signature(mode, entries)
-          if (teamCatalogSignatures.get(input.session.id) !== signature) {
-            teamCatalogSignatures.set(input.session.id, signature)
-            const text = TeamCatalog.render(mode, entries)
-            if (text) {
-              const part = yield* sessions.updatePart({
-                id: PartID.ascending(),
-                messageID: userMessage.info.id,
-                sessionID: userMessage.info.sessionID,
-                type: "text",
-                synthetic: true,
-                text,
-              })
-              userMessage.parts.push(part)
-            }
+            userMessage.parts.push(part)
           }
         } else {
           teamCatalogSignatures.delete(input.session.id)
+          teamGuidanceSignatures.delete(input.session.id)
         }
       }
 
@@ -4775,6 +4813,7 @@ ${text}
             permission: session.permission,
             sessionID,
             scope: session.scope,
+            teamMode: session.teamMode,
             parentSessionID: session.parentID,
             system,
             messages: [...requestMessages, ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS }] : [])],

@@ -244,7 +244,7 @@ function assemble(input: Input, cap: Limits, reason: string): Assembled {
   sections.push(
     "",
     "不要修改验收标准。完成后只输出一个 JSON 对象：",
-    '{"summary":"一句话交付说明","claims":[{"acceptanceID":"...","text":"...","evidence":"可复核的证据（命令/路径/输出片段）"}],"artifacts":[{"name":"...","version":1}],"done":true}',
+    '{"summary":"一句话交付说明","claims":[{"acceptanceID":"...","text":"...","evidence":"可复核的证据（命令/路径/输出片段）"}],"artifacts":[{"name":"...","path":"相对工作区的文件路径"}],"done":true}',
   )
 
   return {

@@ -20,6 +20,7 @@ import { nextTaskGraph, replayTaskMutations, validateTaskGraph } from "./graph"
 import { addBudget, assertWithinBudget } from "./budget"
 import { verificationOutcomeAt } from "./validity"
 import { SuperAgentRuntime } from "./runtime"
+import { projectTaskGraph } from "./task-projection"
 import {
   SUPER_AGENT_EVENT_VERSION,
   type ApprovalRequest,
@@ -175,6 +176,9 @@ export interface Interface {
     graph: SuperAgentRun["graph"],
     expectedVersion: number,
   ) => Effect.Effect<StoredSuperAgentRun | undefined>
+  /** Rebuild the task-board projection from the durable graph. */
+  readonly rebuildTaskProjection: (runID: string) => Effect.Effect<boolean>
+  readonly rebuildTaskProjections: (directory?: string) => Effect.Effect<number>
   readonly taskMutations: (runID: string, taskID?: string, limit?: number) => Effect.Effect<SuperAgentTaskMutation[]>
 }
 
@@ -527,7 +531,7 @@ export const defaultLayer = Layer.effect(
         }).runtime.snapshot()
         const run: StoredSuperAgentRun = { ...created, directory: input.directory }
         yield* Effect.sync(() =>
-          Database.use((db) =>
+          Database.transaction((db) => {
             db
               .insert(SuperAgentRunTable)
               .values({
@@ -542,8 +546,9 @@ export const defaultLayer = Layer.effect(
                 time_created: run.createdAt,
                 time_updated: run.updatedAt,
               })
-              .run(),
-          ),
+              .run()
+            projectTaskGraph(db, run.id, run.graph, run.updatedAt)
+          }),
         )
         return run
       }),
@@ -613,6 +618,7 @@ export const defaultLayer = Layer.effect(
                   time_updated: candidate.updatedAt,
                 })
                 .run();
+              projectTaskGraph(db, candidate.id, candidate.graph, candidate.updatedAt)
               db
                 .update(GoalTable)
                 .set({
@@ -709,6 +715,7 @@ export const defaultLayer = Layer.effect(
                   time_updated: candidate.updatedAt,
                 })
                 .run();
+              projectTaskGraph(db, candidate.id, candidate.graph, candidate.updatedAt)
               return candidate
             },
             { behavior: "immediate" },
@@ -1707,6 +1714,7 @@ export const defaultLayer = Layer.effect(
                 })
                 .run();
             }
+            projectTaskGraph(db, runID, nextGraph, updatedAt)
             return true
           }),
         )
@@ -1723,6 +1731,33 @@ export const defaultLayer = Layer.effect(
         )
         if (persistedVersion !== nextGraph.version) throw new Error(`task graph version conflict for run ${runID}`)
         return { ...current, graph: nextGraph, updatedAt }
+      }),
+      rebuildTaskProjection: Effect.fn("SuperAgentStore.rebuildTaskProjection")(function* (runID) {
+        const current = yield* get(runID)
+        if (!current) return false
+        yield* Effect.sync(() =>
+          Database.transaction((db) => {
+            projectTaskGraph(db, runID, current.graph, current.updatedAt)
+          }),
+        )
+        return true
+      }),
+      rebuildTaskProjections: Effect.fn("SuperAgentStore.rebuildTaskProjections")(function* (directory) {
+        const rows = yield* Effect.sync(() =>
+          Database.use((db) =>
+            db
+              .select()
+              .from(SuperAgentRunTable)
+              .where(directory ? eq(SuperAgentRunTable.directory, directory) : undefined)
+              .all(),
+          ),
+        )
+        yield* Effect.sync(() =>
+          Database.transaction((db) => {
+            for (const row of rows) projectTaskGraph(db, row.id, row.graph_json as SuperAgentRun["graph"], row.time_updated)
+          }),
+        )
+        return rows.length
       }),
       taskMutations: Effect.fn("SuperAgentStore.taskMutations")(function* (runID, taskID, limit = 100) {
         const rows = yield* Effect.sync(() =>

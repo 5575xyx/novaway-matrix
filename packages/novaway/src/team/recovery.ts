@@ -1,9 +1,10 @@
 import { and, eq, lt } from "drizzle-orm"
-import { Effect } from "effect"
+import { Effect, Option } from "effect"
 import { Database } from "@/storage/db"
 import { TeamRunTable } from "./run.sql"
 import { Service as RunService } from "./run"
 import { Service as OpLogService } from "./op-log"
+import { Service as AssignmentService } from "./assignment"
 
 /**
  * 重启恢复（§8.1 `paused` / §8.5 / G3）。
@@ -46,6 +47,7 @@ export const recover = (input: { since?: number; directory?: string }) =>
   Effect.gen(function* () {
     const runs = yield* RunService
     const ops = yield* OpLogService
+    const assignments = Option.getOrUndefined(yield* Effect.serviceOption(AssignmentService))
     const since = input.since ?? PROCESS_START
 
     const stale = yield* Effect.sync(() =>
@@ -71,22 +73,40 @@ export const recover = (input: { since?: number; directory?: string }) =>
     for (const row of stale) {
       // 在途操作先定性：标 unknown 之后 `needsReview` 才看得到它们。
       const unknownOps = yield* ops.markUnknown({ runID: row.id, olderThanMs: 0 })
+      // 运行被进程中断时，任何仍在途的员工派工都失去了可证明的执行者。
+      // 即使没有工具操作记录，也不能把旧 worker 当作可以自动续跑的活跃 worker；
+      // 先进入 needs_review，后续由用户/协调者决定是复核还是创建新 attempt。
+      const interruptedAssignments = assignments ? yield* assignments.list({ runID: row.id }) : []
+      let needsAssignmentReview = 0
+      if (assignments)
+        for (const assignment of interruptedAssignments) {
+        if (!["created", "delivered", "accepted", "running", "waiting", "blocked"].includes(assignment.status)) continue
+        const expired = yield* assignments.expire({
+          assignmentID: assignment.id,
+          status: "needs_review",
+          reason: "process-restarted",
+        })
+        if (expired?.status === "needs_review") needsAssignmentReview++
+      }
       for (const team of yield* runs.teams(row.id)) {
         if (SETTLED_PHASES.has(team.phase)) continue
         yield* runs.updateTeam({ id: team.id, phase: "queued" })
       }
-      const state = unknownOps > 0 ? "needs_review" : "paused"
+      const state = unknownOps > 0 || needsAssignmentReview > 0 ? "needs_review" : "paused"
       yield* runs.update({
         runID: row.id,
         state,
         phase: null,
-        terminalReason: unknownOps > 0 ? "restarted-needs-review" : "restarted",
-        error: unknownOps > 0 ? "进程重启：有 " + unknownOps + " 项工具操作结果不明，请先核对副作用" : null,
+        terminalReason: unknownOps > 0 || needsAssignmentReview > 0 ? "restarted-needs-review" : "restarted",
+        error:
+          unknownOps > 0 || needsAssignmentReview > 0
+            ? `进程重启：${unknownOps} 项工具操作、${needsAssignmentReview} 项员工派工结果不明，请先核对副作用`
+            : null,
       })
       yield* runs.appendEvent({
         runID: row.id,
         kind: "run.recovered",
-        payload: { state, unknownOps, from: row.state, phase: row.phase ?? undefined },
+        payload: { state, unknownOps, interruptedAssignments: needsAssignmentReview, from: row.state, phase: row.phase ?? undefined },
       })
       const entry = { runID: row.id, unknownOps }
       if (state === "needs_review") recovery.needsReview.push(entry)

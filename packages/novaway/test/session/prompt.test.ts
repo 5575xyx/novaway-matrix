@@ -62,6 +62,7 @@ import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { defaultLayer as TeamOpLogLayer, Service as TeamOpLogService } from "@/team/op-log"
 import { defaultLayer as TeamLayer, Service as TeamService } from "@/team/team"
+import { defaultLayer as TeamProfileLayer, Service as TeamProfileService } from "@/team/profile"
 import { defaultLayer as AgentTaskListLayer, Service as AgentTaskListService } from "@/team/task-list"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Auth } from "@/auth"
@@ -203,6 +204,7 @@ function makeHttp(input?: { processor?: "blocking" }) {
     ReadState.defaultLayer,
     TeamOpLogLayer,
     TeamLayer,
+    TeamProfileLayer,
     AgentTaskListLayer,
     ClientCapabilities.layer({ client: "test", capabilities: ["question", "plan"] }),
   ).pipe(Layer.provideMerge(infra))
@@ -3461,6 +3463,13 @@ it.instance(
         permission: [{ permission: "*", pattern: "*", action: "allow" }],
       })
       const team = yield* teams.create({ name: "资料组", rootSessionID: chat.id })
+      yield* teams.addMember({
+        teamID: team.id,
+        sessionID: SessionID.make("ses_selected_prompt_member"),
+        name: "资料审查员",
+        agent: "plan",
+        role: "lead",
+      })
       yield* sessions.setTeamMode({ sessionID: chat.id, mode: "selected", teamIDs: [team.id] })
 
       yield* prompt.prompt({
@@ -3494,6 +3503,73 @@ it.instance(
         .filter((part): part is MessageV2.TextPart => part.type === "text" && part.synthetic === true)
         .filter((part) => part.text.includes("本次会话可派发的团队"))
       expect(again).toHaveLength(1)
+    }),
+  { git: true },
+  60_000,
+)
+
+it.instance(
+  "uses the canonical dispatch directory when prompting Auto team choices",
+  () =>
+    Effect.gen(function* () {
+      const { llm } = yield* useServerConfig(providerCfg)
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const teams = yield* TeamService
+      const profiles = yield* TeamProfileService
+      const chat = yield* sessions.create({ title: "Auto dispatch catalog", teamMode: "auto" })
+
+      const runtimeTeam = yield* teams.create({ name: "Auto runtime team", rootSessionID: chat.id })
+      yield* teams.update({ teamID: runtimeTeam.id, autoEligible: true })
+      yield* teams.addMember({
+        teamID: runtimeTeam.id,
+        sessionID: SessionID.make("ses_auto_prompt_team_member"),
+        name: "Runtime reviewer",
+        agent: "plan",
+        role: "lead",
+      })
+
+      const captain = yield* profiles.createEmployee({ name: "Auto captain", job: "build" })
+      const eligibleWorker = yield* profiles.createEmployee({ name: "Auto worker", job: "plan" })
+      const profile = yield* profiles.create({
+        name: "Auto complete team",
+        captain: captain.id,
+        members: [
+          { employeeID: captain.id, role: "captain", canAutoDispatch: true },
+          { employeeID: eligibleWorker.id, canAutoDispatch: true },
+        ],
+      })
+      yield* profiles.update({ profileID: profile.id, autoEligible: true })
+
+      const restricted = yield* profiles.createEmployee({ name: "Restricted worker", job: "general" })
+      const restrictedProfile = yield* profiles.create({
+        name: "Partially restricted team",
+        captain: captain.id,
+        members: [
+          { employeeID: captain.id, role: "captain", canAutoDispatch: true },
+          { employeeID: restricted.id, canAutoDispatch: false },
+        ],
+      })
+      yield* profiles.update({ profileID: restrictedProfile.id, autoEligible: true })
+
+      yield* prompt.prompt({
+        sessionID: chat.id,
+        agent: "build",
+        parts: [{ type: "text", text: "Review these implementation changes" }],
+      })
+      yield* llm.text("ok")
+      yield* prompt.loop({ sessionID: chat.id })
+
+      const catalog = (yield* MessageV2.filterCompactedEffect(chat.id))
+        .flatMap((message) => message.parts)
+        .filter((part): part is MessageV2.TextPart => part.type === "text" && part.synthetic === true)
+        .map((part) => part.text)
+        .find((text) => text.includes("本次会话可派发的团队"))
+      expect(catalog).toBeTruthy()
+      expect(catalog).toContain(`${runtimeTeam.id}`)
+      expect(catalog).toContain(`${profile.id}`)
+      expect(catalog).not.toContain(`${restrictedProfile.id}`)
+      expect(catalog).not.toContain(`${restricted.id}`)
     }),
   { git: true },
   60_000,

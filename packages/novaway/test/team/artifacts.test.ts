@@ -23,6 +23,12 @@ describe("team artifacts", () => {
     expect(normalize("not an array")).toEqual([])
   })
 
+  test("keeps a safe workspace-relative source path for preview and export", () => {
+    expect(normalize([{ name: "report", path: "docs/report.md", content: "ok" }])[0]?.path).toBe("docs/report.md")
+    expect(normalize([{ name: "report", path: "../secrets.txt" }])[0]?.path).toBeUndefined()
+    expect(normalize([{ name: "report", path: "C:/secrets.txt" }])[0]?.path).toBeUndefined()
+  })
+
   test("downstream results stay valid while upstream versions match", () => {
     const upstream = versions([
       { index: 0, artifacts: [{ name: "api", schema: { a: 1 } }] },

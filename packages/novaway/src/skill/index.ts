@@ -102,8 +102,14 @@ export function fitListingBudget(text: string, budget: number) {
 export const Info = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
+  /** Explicit skill version; content hashing remains the fallback for legacy skills. */
+  version: Schema.optional(Schema.String),
   location: Schema.String,
   content: Schema.String,
+  requiredTools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  permissionRequirements: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  outputContract: Schema.optional(Schema.Unknown),
+  compatibility: Schema.optional(Schema.String),
   builtIn: Schema.optional(Schema.Boolean),
   // Claude Code compatible frontmatter.
   context: Schema.optional(Schema.Literals(["inline", "fork"])),
@@ -225,6 +231,8 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.I
 
   state.dirs.add(path.dirname(match))
   const data = md.data as Record<string, unknown>
+  const builtinRoot = path.resolve(ExtensionLoader.builtinRoot())
+  const isBuiltin = path.resolve(match).startsWith(`${builtinRoot}${path.sep}`)
   const list = (value: unknown) =>
     Array.isArray(value)
       ? value.filter((item): item is string => typeof item === "string")
@@ -234,8 +242,20 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.I
   state.skills[md.data.name] = {
     name: md.data.name,
     description: md.data.description,
+    ...(typeof data.version === "string" ? { version: data.version } : {}),
     location: match,
+    ...(isBuiltin ? { builtIn: true } : {}),
     content: md.content,
+    ...(list(data.requiredTools ?? data["required-tools"])
+      ? { requiredTools: list(data.requiredTools ?? data["required-tools"]) }
+      : {}),
+    ...(list(data.permissionRequirements ?? data["permission-requirements"])
+      ? { permissionRequirements: list(data.permissionRequirements ?? data["permission-requirements"]) }
+      : {}),
+    ...(data.outputContract !== undefined || data["output-contract"] !== undefined
+      ? { outputContract: data.outputContract ?? data["output-contract"] }
+      : {}),
+    ...(typeof data.compatibility === "string" ? { compatibility: data.compatibility } : {}),
     ...(data.context === "fork" ? { context: "fork" as const } : {}),
     ...(typeof data.agent === "string" ? { agent: data.agent } : {}),
     ...(typeof data.model === "string" ? { model: data.model } : {}),
@@ -258,7 +278,7 @@ const scan = Effect.fnUntraced(function* (
   state: ScanState,
   root: string,
   pattern: string,
-  opts?: { dot?: boolean; scope?: string },
+  opts?: { dot?: boolean; scope?: string; includeDir?: boolean },
 ) {
   const matches = yield* Effect.tryPromise({
     try: () =>
@@ -280,7 +300,7 @@ const scan = Effect.fnUntraced(function* (
 
   for (const match of matches) {
     state.matches.add(match)
-    state.dirs.add(path.dirname(match))
+    if (opts?.includeDir !== false) state.dirs.add(path.dirname(match))
   }
 })
 
@@ -344,7 +364,7 @@ const discoverSkills = Effect.fnUntraced(function* (
       if (contribution.kind !== "skill") continue
       const target = path.resolve(item.root, contribution.path)
       if (!(yield* fsys.isDir(target))) continue
-      yield* scan(state, target, SKILL_PATTERN, { dot: true })
+      yield* scan(state, target, SKILL_PATTERN, { dot: true, includeDir: item.source !== "builtin" })
     }
     if (!contributed) {
       const conventional = path.join(item.root, "skills")

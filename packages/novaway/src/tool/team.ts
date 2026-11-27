@@ -1,6 +1,9 @@
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import * as Tool from "./tool"
 import { Service as TeamService } from "@/team/team"
+import { Service as TeamProfileService } from "@/team/profile"
+import { Service as SessionService } from "@/session/session"
+import * as TeamDispatchDirectory from "@/team/dispatch-directory"
 
 export const TeamCreateParameters = Schema.Struct({
   name: Schema.String.annotate({ description: "Team name" }),
@@ -68,25 +71,78 @@ export const TeamListTool = Tool.define<typeof TeamListParameters, { count?: num
   Effect.gen(function* () {
     const teams = yield* TeamService
     return {
-      description: "List teams the current session belongs to, or all teams in this project.",
+      description:
+        "List the current session's executable team/expert catalog (exactly the choices accepted by team_run), plus any live execution roster and member status.",
       parameters: TeamListParameters,
       capabilities: { readOnly: true, concurrencySafe: true },
       execute: (_params: {}, ctx: Tool.Context) =>
         Effect.gen(function* () {
-          const current = yield* teams.ofSession(ctx.sessionID)
-          const list = current ? [current] : yield* teams.list()
-          if (list.length === 0) return { title: "Teams", output: "No teams yet.", metadata: {} }
+          const sessions = Option.getOrUndefined(yield* Effect.serviceOption(SessionService))
+          const profiles = Option.getOrUndefined(yield* Effect.serviceOption(TeamProfileService))
+          const session = sessions
+            ? yield* sessions.get(ctx.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            : undefined
+          const mode = session?.teamMode
+          const directory = ctx.directory ?? session?.directory ?? process.cwd()
           const lines: string[] = []
-          for (const team of list) {
-            const members = yield* teams.members(team.id)
-            lines.push(`${team.id} ${team.name} (${members.length} members)`)
-            for (const member of members) {
-              lines.push(
-                `  - ${member.name} [${member.agent}] ${member.status}${member.currentTaskID ? ` → ${member.currentTaskID}` : ""}`,
-              )
+          let count = 0
+
+          if (session && (mode === "auto" || mode === "selected")) {
+            const catalog = yield* TeamDispatchDirectory.resolve({
+              teams,
+              ...(profiles ? { profiles } : {}),
+              sessions: sessions!,
+              session,
+              directory,
+              mode,
+            })
+            lines.push("Executable catalog (team_run accepts these exact IDs and names):")
+            if (catalog.teams.length === 0) lines.push("  No teams are available in this session.")
+            for (const team of catalog.teams) {
+              lines.push(`  - ${team.id} ${team.name} [${team.source}]`)
+              count++
+            }
+            if (catalog.experts.length) {
+              lines.push("Executable experts (pass the listed ID or name as team_run.expert):")
+              for (const expert of catalog.experts) {
+                lines.push(`  - ${expert.id} ${expert.name} [${expert.job}]`)
+                count++
+              }
+            }
+          } else {
+            lines.push(
+              mode === "off"
+                ? "Executable catalog: none (team orchestration is off for this session)."
+                : "Executable catalog: unavailable until this session has a selected or auto collaboration mode.",
+            )
+          }
+
+          const current = yield* teams.ofSession(ctx.sessionID)
+          const liveTeams = current ? [current] : yield* teams.list()
+          const visibleLiveTeams: typeof liveTeams = []
+          for (const team of liveTeams) {
+            const root = sessions
+              ? yield* sessions.get(team.rootSessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+              : undefined
+            if (sessions && (!root || root.directory !== directory)) continue
+            visibleLiveTeams.push(team)
+          }
+          if (visibleLiveTeams.length) {
+            lines.push(
+              "Live execution rosters (status only; use the executable catalog above for new team_run dispatches):",
+            )
+            for (const team of visibleLiveTeams) {
+              const members = yield* teams.members(team.id)
+              lines.push(`${team.id} ${team.name} (${members.length} members)`)
+              for (const member of members) {
+                lines.push(
+                  `  - ${member.name} [${member.agent}] ${member.status}${member.currentTaskID ? ` → ${member.currentTaskID}` : ""}`,
+                )
+              }
             }
           }
-          return { title: "Teams", output: lines.join("\n"), metadata: { count: list.length } }
+          if (lines.length === 0) return { title: "Teams", output: "No teams yet.", metadata: { count: 0 } }
+          return { title: "Teams and dispatch catalog", output: lines.join("\n"), metadata: { count } }
         }).pipe(Effect.orDie),
     }
   }),

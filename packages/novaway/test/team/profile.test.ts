@@ -4,6 +4,7 @@ import {
   Service as ProfileService,
   defaultLayer as ProfileLayer,
   BUILTIN_PROFILE_ID,
+  BUILTIN_PROFILE_IDS,
   brief,
   snapshotFrom,
 } from "@/team/profile"
@@ -30,6 +31,21 @@ describe("team profile", () => {
       expect(roster.filter((entry) => entry.role === "captain")).toHaveLength(1)
       expect(roster[0].employee.id).toBe(builtin.captainMember)
       expect(new Set(roster.map((entry) => entry.employee.job)).size).toBeGreaterThan(2)
+    }),
+  )
+
+  it.effect("seeds operations, office, development and content presets", () =>
+    Effect.gen(function* () {
+      const profiles = yield* ProfileService
+      yield* profiles.seed()
+      const list = yield* profiles.list()
+      expect(BUILTIN_PROFILE_IDS).toHaveLength(8)
+      expect(list.filter((profile) => new Set<string>(BUILTIN_PROFILE_IDS).has(profile.id))).toHaveLength(8)
+      for (const id of BUILTIN_PROFILE_IDS) {
+        expect((yield* profiles.roster(id)).length).toBeGreaterThanOrEqual(4)
+      }
+      expect(list.find((profile) => profile.id === "prof_builtin_operations")?.autoEligible).toBe(true)
+      expect(list.find((profile) => profile.id === BUILTIN_PROFILE_ID)?.autoEligible).toBe(false)
     }),
   )
 

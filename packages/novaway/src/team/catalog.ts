@@ -1,3 +1,13 @@
+import { Service as TeamProfileService } from "./profile"
+
+/**
+ * `session/prompt.ts` is a kernel entry point. Keep its team capability imports behind
+ * this capability facade so the kernel boundary has one stable dependency for the
+ * collaboration catalog, while the pure rendering functions below remain testable.
+ */
+export { TeamProfileService }
+export * as TeamRouter from "./router"
+
 /**
  * 团队目录（§4.2）的渲染与去重签名。
  *
@@ -8,11 +18,19 @@
 
 export type CatalogMember = { name: string; agent: string; role: string }
 
+export type CatalogExpert = {
+  id: string
+  name: string
+  job: string
+  skills?: readonly string[]
+}
+
 export type CatalogEntry = {
   id: string
   name: string
   description?: string
   members: readonly CatalogMember[]
+  experts?: readonly CatalogExpert[]
 }
 
 export type CatalogMode = "auto" | "selected"
@@ -23,7 +41,7 @@ export type CatalogMode = "auto" | "selected"
  * 用它解决「每轮都重发一遍目录」的浪费：内容没变就只注入一次。团队成员变化
  * 也算变化 —— 否则新加的成员永远不会出现在模型眼里。
  */
-export function signature(mode: CatalogMode, entries: readonly CatalogEntry[]) {
+export function signature(mode: CatalogMode, entries: readonly CatalogEntry[], experts: readonly CatalogExpert[] = []) {
   return [
     mode,
     ...entries.map(
@@ -32,8 +50,11 @@ export function signature(mode: CatalogMode, entries: readonly CatalogEntry[]) {
         ":" +
         entry.name +
         ":" +
-        entry.members.map((member) => `${member.name}@${member.agent}/${member.role}`).join(","),
+        entry.members.map((member) => `${member.name}@${member.agent}/${member.role}`).join(",") +
+        ":" +
+        (entry.experts ?? []).map((expert) => `${expert.id}@${expert.name}/${expert.job}`).join(","),
     ),
+    "experts:" + experts.map((expert) => `${expert.id}@${expert.name}/${expert.job}`).join(","),
   ].join("|")
 }
 
@@ -42,12 +63,16 @@ export function signature(mode: CatalogMode, entries: readonly CatalogEntry[]) {
  *
  * 两条信息缺一不可：
  * 1. **能派发谁** —— 名字、成员、职责，模型据此选团队；
- * 2. **派发要付什么代价** —— Auto 模式必须等用户批准，否则模型会以为
- *    「调一次工具就开跑了」，实际停在 `awaiting_approval`。
+ * 2. **派发要付什么代价** —— 写入或外部副作用必须等用户批准；只读 Auto 派发
+ *    可以自动批准，不能把「自动选人」误解成「自动获得写权限」。
  */
-export function render(mode: CatalogMode, entries: readonly CatalogEntry[]) {
-  if (entries.length === 0) return undefined
-  const lines = ["<system-reminder>", "本次会话可派发的团队（用户已选择，列表之外的一律不可用）："]
+export function render(
+  mode: CatalogMode,
+  entries: readonly CatalogEntry[],
+  directExperts: readonly CatalogExpert[] = [],
+) {
+  if (entries.length === 0 && directExperts.length === 0) return undefined
+  const lines = ["<system-reminder>", "本次会话可派发的团队与专家（用户已选择，列表之外的一律不可用）："]
   for (const entry of entries) {
     const roster = entry.members.map(
       (member) => `${member.name}[${member.agent}]${member.role === "lead" ? "(lead)" : ""}`,
@@ -55,17 +80,35 @@ export function render(mode: CatalogMode, entries: readonly CatalogEntry[]) {
     lines.push(`- ${entry.name}（id: ${entry.id}）${entry.description ? "— " + entry.description : ""}`)
     if (roster.length) lines.push(`  成员：${roster.join("、")}`)
   }
+  const experts = [
+    ...new Map([
+      ...directExperts.map((expert) => [expert.id, expert] as const),
+      ...entries.flatMap((entry) => (entry.experts ?? []).map((expert) => [expert.id, expert] as const)),
+    ]).values(),
+  ]
+  if (experts.length) {
+    lines.push("可直接派发的单个专家（用 `team_run` 的 expert 参数）：")
+    for (const expert of experts) {
+      lines.push(
+        `- ${expert.name}（id: ${expert.id}，岗位：${expert.job}）${expert.skills?.length ? "— " + expert.skills.join("、") : ""}`,
+      )
+    }
+  }
   lines.push("")
-  lines.push("用 `team_run`（team 填名字或 id）派发；验收标准要写成能被复核的一句话，没有验收的派发只能得到 partial。")
+  lines.push(
+    "用 `team_run` 的 `team` 或 `expert` 参数派发；验收标准要写成能被复核的一句话，没有验收的派发只能得到 partial。",
+  )
   if (mode === "auto") {
     lines.push(
-      "当前是 Auto 模式：`team_run` 只会创建运行并停在等待批准，必须由用户在运行页确认后才会执行。不要声称已经开始。",
+      "当前是 Auto 模式：主助手按任务需要选择团队；只读派发会自动批准，涉及写入或外部副作用时必须由用户在运行页批准。",
     )
   } else {
-    lines.push("当前是指定团队模式：`team_run` 会直接批准计划，执行仍由用户在运行页启动。")
+    lines.push("当前是指定执行者模式：`team_run` 会直接批准只读计划；写入或外部副作用仍需用户批准。")
   }
   lines.push("</system-reminder>")
   return lines.join("\n")
 }
+
+export { resolve as resolveDispatchDirectory } from "./dispatch-directory"
 
 export * as TeamCatalog from "./catalog"

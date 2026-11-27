@@ -20,6 +20,16 @@ export type Scope = {
   runID: string
   taskID?: string
   attempt?: number
+  /** Stable execution identity for one employee dispatch attempt. */
+  assignmentID?: string
+  /** Correlates the dispatch command with all child work it starts. */
+  dispatchID?: string
+  /** Frozen employee and prompt snapshot used for this assignment. */
+  employeeID?: string
+  promptHash?: string
+  skillManifestHash?: string
+  permissionHash?: string
+  worktree?: string
   /**
    * 本次运行的策略（只读 / 可写），随坐标一起登记。
    *
@@ -39,12 +49,19 @@ export type Scope = {
 }
 
 /**
- * 幂等键：`run_id + task_id + attempt + tool + 参数哈希`（设计文档 §8.5）。
+ * 幂等键：`run_id + task_id + attempt + assignment_id + tool + 参数哈希`（设计文档 §8.5）。
  *
  * 参数先做稳定序列化（键排序）再哈希：同一份参数即使键顺序不同，也必须落在
  * 同一个键上，否则「重放」会退化成「重跑」。
  */
 export function idempotencyKey(input: { scope: Scope; tool: string; args: unknown }) {
+  const digest = createHash("sha256").update(stable(input.args)).digest("hex").slice(0, 16)
+  const base = [input.scope.runID, input.scope.taskID ?? "-", input.scope.attempt ?? 0, input.tool, digest]
+  return input.scope.assignmentID ? [...base.slice(0, 3), input.scope.assignmentID, ...base.slice(3)].join(":") : base.join(":")
+}
+
+/** 旧版本没有 assignment 坐标；恢复旧运行时先用这个键兼容已有在途操作。 */
+export function legacyIdempotencyKey(input: { scope: Scope; tool: string; args: unknown }) {
   const digest = createHash("sha256").update(stable(input.args)).digest("hex").slice(0, 16)
   return [input.scope.runID, input.scope.taskID ?? "-", input.scope.attempt ?? 0, input.tool, digest].join(":")
 }
@@ -114,6 +131,7 @@ export interface Interface {
     sessionID?: SessionID
     tool: string
     idempotencyKey: string
+    legacyIdempotencyKey?: string
     effect?: Record<string, unknown>
     leaseEpoch?: number
   }) => Effect.Effect<BeginResult>
@@ -185,6 +203,13 @@ export const layer = Layer.effect(
         runID: input.runID,
         ...(input.taskID ? { taskID: input.taskID } : {}),
         ...(input.attempt !== undefined ? { attempt: input.attempt } : {}),
+        ...(input.assignmentID ? { assignmentID: input.assignmentID } : {}),
+        ...(input.dispatchID ? { dispatchID: input.dispatchID } : {}),
+        ...(input.employeeID ? { employeeID: input.employeeID } : {}),
+        ...(input.promptHash ? { promptHash: input.promptHash } : {}),
+        ...(input.skillManifestHash ? { skillManifestHash: input.skillManifestHash } : {}),
+        ...(input.permissionHash ? { permissionHash: input.permissionHash } : {}),
+        ...(input.worktree ? { worktree: input.worktree } : {}),
         ...(input.readOnly !== undefined ? { readOnly: input.readOnly } : {}),
         ...(input.paths?.length ? { paths: [...input.paths] } : {}),
         ...(input.root ? { root: input.root } : {}),
@@ -234,13 +259,26 @@ export const layer = Layer.effect(
       const result = yield* Effect.sync(() =>
         Database.transaction(
           (tx): BeginResult => {
-            const existing = tx
-              .select()
-              .from(TeamRunOpTable)
-              .where(
-                and(eq(TeamRunOpTable.run_id, input.runID), eq(TeamRunOpTable.idempotency_key, input.idempotencyKey)),
-              )
-              .all()[0]
+            const existing =
+              tx
+                .select()
+                .from(TeamRunOpTable)
+                .where(
+                  and(eq(TeamRunOpTable.run_id, input.runID), eq(TeamRunOpTable.idempotency_key, input.idempotencyKey)),
+                )
+                .all()[0] ??
+              (input.legacyIdempotencyKey
+                ? tx
+                    .select()
+                    .from(TeamRunOpTable)
+                    .where(
+                      and(
+                        eq(TeamRunOpTable.run_id, input.runID),
+                        eq(TeamRunOpTable.idempotency_key, input.legacyIdempotencyKey),
+                      ),
+                    )
+                    .all()[0]
+                : undefined)
             if (existing) {
               if (existing.outcome === "abandoned") {
                 // 复核确认上一次没有落地：同一个键可以重新执行。

@@ -108,6 +108,53 @@ describe("team run state machine", () => {
     }),
   )
 
+  it.effect("serializes concurrent state transitions against the current database state", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_state_race"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "目标",
+      })
+      const exits = yield* Effect.all(
+        [
+          runs.update({ runID: run.id, state: "cancelled", terminalReason: "first" }),
+          runs.update({ runID: run.id, state: "failed", terminalReason: "second" }),
+        ].map((operation) => Effect.exit(operation)),
+        { concurrency: 2 },
+      )
+      expect(exits.filter((exit) => exit._tag === "Success")).toHaveLength(1)
+      expect(exits.filter((exit) => exit._tag === "Failure")).toHaveLength(1)
+      const after = yield* runs.get(run.id)
+      expect(after?.state === "cancelled" || after?.state === "failed").toBe(true)
+      const stateEvents = (yield* runs.events({ runID: run.id })).filter((event) => event.kind === "run.state")
+      expect(stateEvents).toHaveLength(1)
+      expect(stateEvents[0]?.payload?.from).toBe("planning")
+    }),
+  )
+  it.effect("does not mutate an executing run through a second approval", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const run = yield* runs.create({
+        sessionID: SessionID.make("ses_state_approval_race"),
+        directory: "/tmp/run",
+        mode: "team",
+        goal: "目标",
+      })
+      yield* runs.update({ runID: run.id, plan: { teams: [{ name: "a" }] }, planVersion: 1 })
+      yield* runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 100 }, by: "user" })
+      yield* runs.update({ runID: run.id, phase: "executing" })
+      const exit = yield* Effect.exit(
+        runs.approve({ runID: run.id, planVersion: 1, budget: { tokens: 1 }, by: "user" }),
+      )
+      expect(exit._tag).toBe("Failure")
+      const after = yield* runs.get(run.id)
+      expect(after?.budget?.tokens).toBe(100)
+      expect(after?.phase).toBe("executing")
+    }),
+  )
+
   it.effect("a state change and its cause are written in the same transaction", () =>
     Effect.gen(function* () {
       const runs = yield* RunService

@@ -512,6 +512,7 @@ export const layer: Layer.Layer<
   Service,
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const sessions = yield* Session.Service
     const plugin = yield* Plugin.Service
     const agents = yield* Agent.Service
     const skill = yield* Skill.Service
@@ -1214,6 +1215,29 @@ export const layer: Layer.Layer<
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
       const allTools = yield* all()
       const cfg = yield* config.get()
+      const teamOrchestrationEnabled = TeamSwitch.enabled(cfg.experimental)
+      const session = input.sessionID
+        ? yield* sessions.get(input.sessionID).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        : undefined
+      const collaborationToolsEnabled =
+        teamOrchestrationEnabled &&
+        (input.sessionID === undefined || session?.teamMode === "auto" || session?.teamMode === "selected")
+      const collaborationToolIDs = new Set([
+        "team_run",
+        "team_run_status",
+        "team_create",
+        "team_delete",
+        "team_list",
+        "agent_list",
+        "agent_message",
+        "task_create",
+        "task_list",
+        "task_get",
+        "task_update",
+        "task_claim",
+        "task_wait",
+        "task_stop",
+      ])
       const hasImageOutput = (pcfg: ConfigProvider.Info) =>
         Object.values(pcfg.models ?? {}).some((m) => m.modalities?.output?.includes("image"))
 
@@ -1245,6 +1269,9 @@ export const layer: Layer.Layer<
       const filtered = allTools.filter((tool) => {
         if (allow && !allow.has("*") && !allow.has(tool.id)) return false
         if (deny.has(tool.id)) return false
+        // 协作工具按会话模式过滤：显式仅主助手不能看到 team_create / task_*，
+        // 否则模型仍可能绕过 team_run 自行创建临时团队或只建看板。
+        if (collaborationToolIDs.has(tool.id) && !collaborationToolsEnabled) return false
         if (toolOverrides[tool.id] === false) return false
         if (!browserEnabled && (tool.id.startsWith("browser_") || tool.id === PdfCreateTool.id)) return false
         // 文档评审是主会话向用户本人要拍板的通道；子代理走 plan_approval，

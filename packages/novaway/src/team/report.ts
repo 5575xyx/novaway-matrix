@@ -52,6 +52,7 @@ export function parse(text: string): Result {
           name: typeof artifact.name === "string" ? artifact.name : "artifact-" + index,
           version: typeof artifact.version === "number" ? artifact.version : 1,
           hash: typeof artifact.hash === "string" ? artifact.hash : undefined,
+          ...(typeof artifact.path === "string" ? { path: artifact.path } : {}),
         }))
     : []
 

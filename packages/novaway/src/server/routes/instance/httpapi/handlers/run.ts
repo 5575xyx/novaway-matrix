@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs"
 import * as nodePath from "node:path"
-import { Effect, Ref, Scope } from "effect"
+import { Effect, Exit, Ref, Scope, Fiber } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { Service as RunService, canStart, isTerminal, type RunTeam, type TeamRun } from "@/team/run"
+import { Service as RunService, canStart, canTransition, isTerminal, type RunTeam, type TeamRun } from "@/team/run"
 import { Service as VerificationService, type Acceptance } from "@/team/verification"
 import {
   Service as OrchestratorService,
@@ -44,6 +44,8 @@ import { Service as MissionService } from "@/team/mission"
 import { normalize as normalizeArtifacts } from "@/team/artifacts"
 import { makeRunAgent, type RunAgentPromptOps } from "@/session/agent-step"
 import * as TeamEffective from "@/team/effective"
+import * as EmployeePromptAssembler from "@/team/employee-prompt"
+import * as AssignmentReport from "@/team/assignment-report"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
@@ -52,6 +54,12 @@ import { SessionID } from "@/session/schema"
 import { SessionUsage } from "@/session/usage"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamOpLogService } from "@/team/op-log"
+import {
+  Service as TeamAssignmentService,
+  type Assignment,
+  canTransition as canTransitionAssignment,
+} from "@/team/assignment"
+import { Service as TeamAssignmentWatchdogService } from "@/team/assignment-watchdog"
 import { Service as AgentTaskListService } from "@/team/task-list"
 import { Service as TeamLedgerService } from "@/team/ledger"
 import * as TeamDenials from "@/team/denials"
@@ -59,7 +67,9 @@ import * as TeamCommandVerifier from "@/team/command-verifier"
 import * as TeamEconomy from "@/team/economy"
 import * as TeamStructure from "@/team/structure"
 import * as TeamRecovery from "@/team/recovery"
+import * as TeamAutoStart from "@/team/auto-start"
 import { Snapshot } from "@/snapshot"
+import * as Skill from "@/skill"
 
 const number = (value: unknown, fallback = 0) => (typeof value === "number" ? value : fallback)
 
@@ -157,7 +167,11 @@ const toContext = (value: Record<string, unknown> | undefined) => {
 
 /** 只回传名字与版本：产物的完整内容留在库里，界面不需要也不该展示它。 */
 const artifactsOf = (value: unknown) => {
-  const list = normalizeArtifacts(value).map((artifact) => ({ name: artifact.name, version: artifact.version }))
+  const list = normalizeArtifacts(value).map((artifact) => ({
+    name: artifact.name,
+    version: artifact.version,
+    ...(artifact.path ? { path: artifact.path } : {}),
+  }))
   return list.length > 0 ? list : undefined
 }
 
@@ -194,6 +208,39 @@ const toRun = (run: TeamRun) => {
   }
 }
 
+const toAssignmentView = (assignment: Assignment) => ({
+  id: assignment.id,
+  runID: assignment.runID,
+  taskID: assignment.taskID,
+  ...(assignment.employeeID ? { employeeID: assignment.employeeID } : {}),
+  ...(assignment.sessionID ? { sessionID: assignment.sessionID } : {}),
+  ...(assignment.parentAssignmentID ? { parentAssignmentID: assignment.parentAssignmentID } : {}),
+  dispatchID: assignment.dispatchID,
+  attempt: assignment.attempt,
+  status: assignment.status,
+  objective: assignment.objective,
+  acceptanceIDs: assignment.acceptanceIDs,
+  ...(assignment.worktree ? { worktree: assignment.worktree } : {}),
+  ...(assignment.promptHash ? { promptHash: assignment.promptHash } : {}),
+  ...(assignment.skillManifestHash ? { skillManifestHash: assignment.skillManifestHash } : {}),
+  ...(assignment.permissionHash ? { permissionHash: assignment.permissionHash } : {}),
+  ...(assignment.leaseUntil !== undefined ? { leaseUntil: assignment.leaseUntil } : {}),
+  ...(assignment.lastHeartbeatAt !== undefined ? { lastHeartbeatAt: assignment.lastHeartbeatAt } : {}),
+  heartbeatMisses: assignment.heartbeatMisses,
+  ...(assignment.report ? { report: assignment.report } : {}),
+  ...(assignment.verification ? { verification: assignment.verification } : {}),
+  ...(assignment.error ? { error: assignment.error } : {}),
+  ...(assignment.deliveredAt !== undefined ? { deliveredAt: assignment.deliveredAt } : {}),
+  ...(assignment.acceptedAt !== undefined ? { acceptedAt: assignment.acceptedAt } : {}),
+  ...(assignment.startedAt !== undefined ? { startedAt: assignment.startedAt } : {}),
+  ...(assignment.reportedAt !== undefined ? { reportedAt: assignment.reportedAt } : {}),
+  ...(assignment.verifiedAt !== undefined ? { verifiedAt: assignment.verifiedAt } : {}),
+  ...(assignment.cancelledAt !== undefined ? { cancelledAt: assignment.cancelledAt } : {}),
+  ...(assignment.expiredAt !== undefined ? { expiredAt: assignment.expiredAt } : {}),
+  createdAt: assignment.createdAt,
+  updatedAt: assignment.updatedAt,
+})
+
 /** 从模型输出里取出第一个 JSON 对象；取不到就当作「未验证」，绝不默认通过。 */
 
 export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handlers) =>
@@ -211,7 +258,10 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
     const teams = yield* TeamService
     const config = yield* ConfigService.Service
     const opLog = yield* TeamOpLogService
+    const assignmentService = yield* TeamAssignmentService
+    const assignmentWatchdog = yield* TeamAssignmentWatchdogService
     const taskList = yield* AgentTaskListService
+    const skills = yield* Skill.Service
 
     /**
      * 重启恢复（§8.5）：每个工作区只做一次。
@@ -231,6 +281,8 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
      * 不该由这份内存表假装能停 —— 没有控制器时 `cancel` 退回「直接置终态」的老路。
      */
     const executions = new Map<string, { controller: AbortController; sessions: Set<SessionID> }>()
+    /** 合并是有外部 git 副作用的临界区；同一运行不能并发合两次。 */
+    const mergeLocks = new Set<string>()
     const recoverStale = (directory: string | undefined) =>
       Effect.gen(function* () {
         const key = directory ?? "*"
@@ -239,6 +291,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
         yield* TeamRecovery.recover({ directory }).pipe(
           Effect.catchCause((cause) => Effect.logWarning("team recovery failed", { cause })),
         )
+        // Lease watchdog：请求到达时主动补扫一次。常驻 watchdog 负责空闲期间的扫描，
+        // 这里保留同步补扫，确保刚恢复的运行在当前请求内也能得到确定状态。
+        yield* assignmentWatchdog.tick({ directory }).pipe(Effect.ignore)
       })
     const snapshot = yield* Snapshot.Service
     const scope = yield* Scope.Scope
@@ -247,12 +302,13 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
       Effect.gen(function* () {
         const run = yield* runs.get(runID)
         if (!run) return undefined
-        const [teams, acceptances, verifications, events, unknownOps] = yield* Effect.all([
+        const [teams, acceptances, verifications, events, unknownOps, runAssignments] = yield* Effect.all([
           runs.teams(runID),
           verification.list(runID),
           verification.verifications(runID),
           runs.events({ runID }),
           opLog.needsReview(runID),
+          assignmentService.list({ runID }),
         ])
         // 任务板（§5.5）：运行内创建的任务挂在这个运行团队上，看板才有「做到哪一步」可看。
         const boards = yield* Effect.forEach(teams, (team) => taskList.list(team.id), { concurrency: 1 })
@@ -296,6 +352,7 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             ...blocker,
             swappable: TeamBlockers.swappable(blocker.kind),
           })),
+          assignments: runAssignments.map(toAssignmentView),
           teams: teams.map((team) => ({
             id: team.id,
             profileID: team.profileID,
@@ -429,6 +486,801 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
         if (directory && run.directory !== directory) return yield* Effect.fail(new HttpApiError.NotFound({}))
         return run
       })
+
+    /**
+     * 执行入口同时服务于 HTTP 的「执行」按钮和 Auto 模式的后台派发。
+     *
+     * 过去只有 HTTP handler 能走到这里，所以 `team_run` 即使已经批准了安全的
+     * 只读运行，仍然只能停在 Runs 页面等用户再点一次。把启动逻辑抽出来后，
+     * Auto 可以复用同一套授权、幂等、watchdog 和编排器路径，不会出现聊天路径
+     * 自己实现一套不完整的执行逻辑。
+     */
+    const executeRun = (input: {
+      runID: string
+      directory?: string
+      options?: {
+        captain?: string
+        verifier?: string
+        maxRounds?: number
+        maxBusinessAttempts?: number
+        reserveTokens?: number
+        concurrency?: number
+        callTimeoutMs?: number
+      }
+    }) =>
+      Effect.gen(function* () {
+        const options = input.options ?? {}
+        // 直接点「执行」而不经列表时，也要先把上次遗留的运行定性 —— 否则它会以
+        // `running + 过期 phase` 被 `canStart` 拒绝，永远续不上。
+        yield* recoverStale(input.directory)
+        const run = yield* requireRun(input.runID, input.directory)
+        // 未批准不能跑；已经在跑也不能再起一份。
+        if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+        // 还有结果不明的工具操作时不能续跑（§8.5）：先复核副作用，再决定要不要重试。
+        // 带着未知项开跑，等于用猜测覆盖已经发生的事 —— 重复扣款、重复推送都从这里来。
+        if ((yield* opLog.needsReview(run.id)).length > 0) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+        /**
+         * 批准必须匹配**当前**这一版计划（§13.1）。
+         *
+         * 批准在库里是 `approval.planVersion`；计划一改版本号就变，旧批准不再代表它。
+         * 少了这一条，「先批准 → 再改计划 → 执行」就会拿着一份旧批准的预算跑一份
+         * 没人批准过的计划，而界面上看不出来。
+         */
+        if (!run.approval || run.approval.planVersion !== run.planVersion)
+          return yield* Effect.fail(new HttpApiError.BadRequest({}))
+        // 总控开关关闭时不可被调用（§13.1）：浏览、改计划、取消都可以，唯独不能开始新的执行。
+        const cfg = yield* config.get()
+        if (!TeamSwitch.enabled(cfg.experimental)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+
+        // 默认模型与会话里的 assistant 一致，避免团队用另一个模型产出无法解释的结果。
+        const msgs = yield* sessions
+          .messages({ sessionID: run.sessionID })
+          .pipe(Effect.catchCause(() => Effect.succeed([])))
+        const lastAssistant = [...msgs].reverse().find((item) => item.info.role === "assistant")
+        const defaultModel =
+          lastAssistant && lastAssistant.info.role === "assistant"
+            ? { providerID: lastAssistant.info.providerID, modelID: lastAssistant.info.modelID }
+            : yield* provider.defaultModel()
+        const defaultAgent = yield* agents.defaultAgent()
+        const sessionUsage = yield* SessionUsage.Service
+
+        const ops: RunAgentPromptOps = {
+          resolvePromptParts: (template) => promptSvc.resolvePromptParts(template),
+          prompt: (input) => promptSvc.prompt(input).pipe(Effect.orDie),
+        }
+        /**
+         * 这次运行派生过的会话（队长、验证器、成员）。
+         *
+         * 取消要能打断在途的模型调用，就必须知道它们在哪个会话里跑：
+         * 只发 AbortSignal 的话，编排器得等调用自己结束才能走到检查点。
+         */
+        const liveSessions = new Set<SessionID>()
+        const assignmentHeartbeats = new Map<SessionID, Fiber.Fiber<void, never>>()
+        const runAgent = makeRunAgent({
+          ops,
+          sessions,
+          agents,
+          parentSessionID: run.sessionID,
+          defaultModel,
+          defaultAgent,
+          teams,
+          /**
+           * 用量按**整棵子树**读：队长自己是一层，成员是队长用 `task` 派生的子会话，
+           * 再往下还有成员自己的子代理。只读队长那一行，会把成员的开销整个漏掉 ——
+           * 账本记的就不是「这次运行花了多少」，而是「队长自己花了多少」。
+           */
+          readUsage: (sessionID) =>
+            sessionUsage.tree(sessionID).pipe(
+              Effect.map((tree) => ({ cost: tree.total.cost, tokens: tree.total.tokens.total })),
+              Effect.catchCause(() => Effect.succeed({ cost: 0, tokens: 0 })),
+            ),
+          // 子会话一创建就登记编排坐标；之后它跑的任何有副作用工具都会带幂等键。
+          // 同时记进本次运行的活动会话表，取消时用得上。
+          onSession: ({ sessionID, scope: assignmentScope }) =>
+            Effect.gen(function* () {
+              liveSessions.add(sessionID)
+              if (assignmentScope) {
+                yield* opLog.scope({ sessionID, ...assignmentScope })
+                if (assignmentScope.assignmentID && assignmentScope.dispatchID && assignmentScope.taskID) {
+                  const heartbeat = yield* Effect.gen(function* () {
+                    while (true) {
+                      yield* Effect.sleep("15 seconds")
+                      const current = yield* assignmentService.get(assignmentScope.assignmentID!)
+                      if (
+                        !current ||
+                        !["created", "delivered", "accepted", "running", "waiting", "blocked"].includes(current.status)
+                      )
+                        return
+                      yield* assignmentService
+                        .heartbeat({
+                          assignmentID: assignmentScope.assignmentID!,
+                          dispatchID: assignmentScope.dispatchID!,
+                          attempt: assignmentScope.attempt ?? 0,
+                          sessionID,
+                          leaseMs: 60_000,
+                        })
+                        .pipe(Effect.ignore)
+                    }
+                  }).pipe(Effect.forkIn(scope, { startImmediately: true }))
+                  assignmentHeartbeats.set(sessionID, heartbeat)
+                }
+              }
+            }),
+          onFinish: ({ sessionID }) =>
+            Effect.gen(function* () {
+              const heartbeat = assignmentHeartbeats.get(sessionID)
+              if (heartbeat) {
+                assignmentHeartbeats.delete(sessionID)
+                yield* Fiber.interrupt(heartbeat)
+              }
+            }),
+        })
+
+        // 模板发起时，队长默认用编制里的队长岗位 —— 模板写了谁负责就谁负责。
+        //
+        // 名册按**团队**读，不按运行读（§8.3.1）：A 团队的队长与 B 团队无关，
+        // 拿第一队的名册去派所有队，等于替别的团队改派了人。
+        const teamRows = yield* runs.teams(run.id)
+        const rosterOf = (team: (typeof teamRows)[number] | undefined) => snapshotFrom(team?.rosterSnapshot)
+        const captainOf = (team: (typeof teamRows)[number] | undefined) => {
+          const roster = rosterOf(team)
+          const member = roster?.roster.find((entry) => entry.employee.id === roster.captain)
+          return {
+            roster,
+            entry: member,
+            job: member?.employee.job,
+            members: roster ? rosterBrief(roster) : [],
+            // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下：
+            // 请求换了一个同岗位的人来当队长，账不能挂回原来那个人（§10.3）。
+            employeeID: member?.employee.id,
+          }
+        }
+        /**
+         * 策略按团队算（§11.1）：只读是运行级的，路径范围是团队级的。
+         * 基准目录与派发目录一致 —— 范围里写的是相对仓库根的路径，
+         * 换个基准就等于换了一条规则。
+         */
+        const policyFor = (team: { scope?: readonly string[] } | undefined, directory?: string) =>
+          TeamPolicy.fromPlan(run.plan, team, directory ?? run.directory)
+        // 团队 worktree 存在时，成员在那里工作，证据也绑定在那里创建时的提交上。
+        // 没有 worktree（非 git 仓库、空仓库）则退回实例目录的快照。
+        /**
+         * 每个团队 worktree 的起点提交（§19.1）。
+         *
+         * 建 worktree 时事件里记了 `baseSHA`；目标复用的工作区没有本次事件，
+         * 退回目标自己的固定起点。两者都拿不到时按「没有事实」处理 ——
+         * 不能拿 0 个文件当「没改过」。
+         */
+        const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
+        const worktreeBases = new Map<string, string>()
+        for (const event of yield* runs.events({ runID: run.id })) {
+          if (event.kind !== "worktree.created") continue
+          const directory = Reflect.get(event.payload ?? {}, "directory")
+          const baseSHA = Reflect.get(event.payload ?? {}, "baseSHA")
+          if (typeof directory === "string" && typeof baseSHA === "string") worktreeBases.set(directory, baseSHA)
+        }
+        const baseOf = (team: { worktree?: string }) => {
+          if (!team.worktree) return undefined
+          const recorded = worktreeBases.get(team.worktree)
+          if (recorded) return recorded
+          return mission?.worktree === team.worktree ? mission.baseSHA : undefined
+        }
+        /**
+         * 同一轮里改动清单是固定的：多条验收共享一次 `git diff`，不逐条重复读。
+         * 键里带 `round`，下一轮成员再写文件时不会拿到上一轮的旧清单。
+         */
+        const changeCache = new Map<string, Promise<string[] | undefined>>()
+        const changesOf = (team: RunTeam, round: number) => {
+          const base = baseOf(team)
+          const directory = team.worktree
+          if (!base || !directory) return undefined
+          const key = directory + "|" + base + "|" + round
+          const cached = changeCache.get(key)
+          if (cached) return cached
+          const pending = changedFiles({ directory, baseSHA: base })
+          changeCache.set(key, pending)
+          return pending
+        }
+        /**
+         * 验证档位（§19.1）：由调度器按事实判定，成员怎么描述自己都不影响。
+         *
+         * 事实全部来自仓库：改了几个文件、跨不跨模块、有没有动锁文件 / 迁移、
+         * 能不能按约定找到受影响测试、这条验收有没有可执行命令。
+         * 读不到改动清单时退回团队声明的范围；仍为空就说明「没有事实」，
+         * 规则会按保守路径走，而不是把它当成「只改了一个文件」。
+         */
+        const tierOf = (acceptance: Acceptance, team: RunTeam, round: number) =>
+          Effect.gen(function* () {
+            const directory = team.worktree
+            const pending = changesOf(team, round)
+            const changed = pending ? yield* Effect.promise(() => pending) : undefined
+            const paths = changed ?? team.scope ?? []
+            const affected =
+              changed && changed.length > 0 && directory
+                ? yield* Effect.promise(() => affectedTests({ directory, paths: changed }))
+                : []
+            const facts: TeamEconomy.Facts = {
+              kind: acceptance.kind,
+              paths: paths.length,
+              crossModule: TeamEconomy.crossModule(paths),
+              irreversible: TeamEconomy.irreversibleChange(paths),
+              hasAffectedTests: affected.length > 0,
+              hasCommand: TeamCommandVerifier.normalize(acceptance.verifier) !== undefined,
+            }
+            return { decision: TeamEconomy.classify(facts), changed: changed ?? [] }
+          })
+        const teamDirectory = teamRows.find((team) => team.worktree)?.worktree
+        const instanceSnapshot = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
+        /**
+         * 当前「证据应该绑定在哪」：集成前是团队 worktree 的 HEAD，
+         * 集成成功后切到集成 worktree 的 HEAD —— 合并后的结论必须落在合并后的代码上。
+         */
+        const integrated = yield* Ref.make<string | undefined>(undefined)
+        const snapshotOf = (directory?: string) =>
+          Effect.gen(function* () {
+            const after = yield* Ref.get(integrated)
+            if (after) return yield* Effect.promise(() => worktreeHead(after))
+            if (directory) {
+              const sha = yield* Effect.promise(() => worktreeHead(directory))
+              if (sha) return sha
+            }
+            return yield* instanceSnapshot
+          })
+
+        /**
+         * 把团队 worktree 里的改动落成提交（§10.1）。
+         *
+         * 写操作发生在磁盘上，而快照与集成只认提交：不提交的话，验证对着旧 `HEAD`，
+         * 集成也合不到任何改动。所以「交付」在代码里的定义是「改动已经在一个提交里」。
+         * 任一团队提交失败就整体失败：无法复验的交付不能算通过。
+         */
+        const commitTeams = () =>
+          Effect.gen(function* () {
+            const rows = yield* runs.teams(run.id)
+            for (const team of rows) {
+              const directory = team.worktree
+              if (!directory) continue
+              const result = yield* Effect.promise(() =>
+                commitWorktree({
+                  directory,
+                  message: "team " + (team.profileID ?? team.id) + " (run " + run.id + ")",
+                }),
+              )
+              if (result.kind === "committed") {
+                yield* runs.appendEvent({
+                  runID: run.id,
+                  kind: "worktree.committed",
+                  payload: { teamID: team.id, sha: result.sha, files: result.files },
+                })
+                continue
+              }
+              if (result.kind === "failed") return yield* Effect.fail(new Error(team.id + "：" + result.message))
+            }
+          })
+
+        /**
+         * 串行集成（§10.2）：把各团队的 worktree 分支按顺序合到一个独立分支。
+         * 合进用户的分支是用户的动作，运行只负责「合到一起还成立吗」。
+         */
+        const integrate = () =>
+          Effect.gen(function* () {
+            const rows = yield* runs.teams(run.id)
+            const worktrees = rows.flatMap((team) => (team.worktree ? [team.worktree] : []))
+            if (worktrees.length === 0) return { kind: "skipped" as const, reason: "本次运行没有团队 worktree" }
+            const branches = yield* Effect.forEach(
+              worktrees,
+              (directory) => Effect.promise(() => worktreeBranch(directory)),
+              { concurrency: 1 },
+            )
+            const named = rows.flatMap((team, index) => {
+              const branch = branches[index]
+              return team.worktree && branch ? [{ name: team.profileID ?? team.id, branch }] : []
+            })
+            if (named.length === 0) return { kind: "skipped" as const, reason: "团队 worktree 不在任何分支上" }
+            // 归属持久目标：合并进目标工作区，下一次运行从这里继续；
+            // 一次性任务：另建集成分支，运行结束后由用户决定合并或清理。
+            const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
+            if (mission?.worktree) {
+              const readiness = yield* missions.prepare(mission.id)
+              if (readiness.kind === "skipped") return { kind: "skipped" as const, reason: readiness.reason }
+              const directory = readiness.mission.worktree
+              if (!directory) return { kind: "skipped" as const, reason: "目标工作区不可用" }
+              const outcome = yield* Effect.promise(() => integrateInto({ directory, teams: named }))
+              if (outcome.kind === "merged") yield* Ref.set(integrated, outcome.directory)
+              return outcome
+            }
+            const baseSHA = yield* Effect.promise(() =>
+              forkPoint(
+                run.directory,
+                named.map((team) => team.branch),
+              ),
+            )
+            if (!baseSHA) return { kind: "skipped" as const, reason: "找不到团队分支与仓库的分岔点" }
+            const outcome = yield* Effect.promise(() =>
+              integrateWorktrees({ base: run.directory, baseSHA, runID: run.id, teams: named }),
+            )
+            if (outcome.kind === "merged") yield* Ref.set(integrated, outcome.directory)
+            return outcome
+          })
+
+        // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
+        const dispatch = (input: DispatchInput) =>
+          Effect.gen(function* () {
+            const {
+              roster,
+              entry: captainEntry,
+              job: captainJob,
+              members,
+              employeeID: captainEmployeeID,
+            } = captainOf(input.team)
+            // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下（§10.3）。
+            const captain = options.captain ?? captainJob ?? defaultAgent
+            const attributed = captain === captainJob ? captainEmployeeID : undefined
+            // 提示词与清单同源（§6.4）：模型看到的字，就是事后审计的字。
+            // `run.brief` 是用户声明的范围与约束（§5.3）：不喂进去，用户写了等于没写。
+            const declared = TeamContext.normalizeBrief(run.brief)
+            const context = TeamContext.build({
+              goal: run.goal,
+              ...(declared ? { brief: declared } : {}),
+              acceptance: input.acceptance.map((acceptance) => ({
+                id: acceptance.id,
+                version: acceptance.version,
+                text: acceptance.text,
+                expected: acceptance.expected,
+              })),
+              members,
+              feedback: input.feedback ?? [],
+              ...(roster ? { rosterVersion: String(roster.version) } : {}),
+            })
+            // 最近一份清单落库给界面看；逐轮历史进事件，只留摘要不复制整段提示词。
+            yield* runs.updateTeam({
+              id: input.team.id,
+              contextManifest: context.manifest as unknown as Record<string, unknown>,
+            })
+            yield* runs.appendEvent({
+              runID: run.id,
+              kind: "context.manifest",
+              payload: {
+                teamID: input.team.id,
+                round: input.round,
+                acceptance: context.manifest.acceptance.length,
+                feedback: context.manifest.feedback.length,
+                ...(context.manifest.rosterVersion ? { rosterVersion: context.manifest.rosterVersion } : {}),
+                omitted: context.manifest.omitted,
+                truncated: context.manifest.truncated,
+              },
+            })
+            // 每个团队在自己的 worktree 里干活（§10.1）：拿第一队的目录派所有队，
+            // 等于让两个团队在同一份文件上互相踩。没有 worktree（非 git 仓库）就退回
+            // 会话默认目录，绝不借用别的团队的。
+            const dispatchDirectory = input.team.worktree
+            /**
+             * 名册里写的岗位说明与模型要真的用上（§5.4 / §11.1）。
+             *
+             * 只有「实际派发的队长就是名册里的队长」时才套用：用户点名换了人，
+             * 拿原来那个人的岗位说明和模型去跑，等于把活派给了另一个人还挂着旧名字。
+             */
+            const person = attributed ? captainEntry : undefined
+            const captainModel = TeamEffective.parseModel(person?.employee.model)
+            const skillManifest = yield* Effect.forEach(person?.employee.skills ?? [], (name) =>
+              Effect.gen(function* () {
+                const skillInfo = yield* skills.get(name)
+                const contentHash = EmployeePromptAssembler.contentHash(skillInfo?.content ?? "missing:" + name)
+                return {
+                  name,
+                  version: skillInfo?.version ?? (skillInfo ? "content:" + contentHash.slice(-12) : "missing"),
+                  contentHash,
+                  ...(skillInfo?.requiredTools ? { requiredTools: [...skillInfo.requiredTools] } : {}),
+                  ...(skillInfo?.permissionRequirements
+                    ? { permissionRequirements: [...skillInfo.permissionRequirements] }
+                    : {}),
+                  ...(skillInfo?.outputContract !== undefined ? { outputContract: skillInfo.outputContract } : {}),
+                  ...(skillInfo?.compatibility ? { compatibility: skillInfo.compatibility } : {}),
+                }
+              }),
+            )
+            const assignmentID = EmployeePromptAssembler.assignmentID({
+              runID: run.id,
+              taskID: input.team.id,
+              attempt: input.round,
+              discriminator: "captain",
+            })
+            const dispatchID = EmployeePromptAssembler.dispatchID(assignmentID)
+            const readOnly = policyFor(input.team, dispatchDirectory).readOnly
+            const assembledPrompt = EmployeePromptAssembler.build({
+              entry: person,
+              prompt: context.prompt,
+              assignment: {
+                assignmentID,
+                dispatchID,
+                runID: run.id,
+                taskID: input.team.id,
+                attempt: input.round,
+                ...(attributed ? { employeeID: attributed } : {}),
+              },
+              worktree: dispatchDirectory,
+              readOnly,
+              permissionSnapshot: [{ permission: "task", pattern: "*", action: "allow" }],
+              skillManifest,
+            })
+            const assignment = yield* assignmentService.create({
+              id: assignmentID,
+              runID: run.id,
+              taskID: input.team.id,
+              ...(attributed ? { employeeID: attributed } : {}),
+              dispatchID,
+              attempt: input.round,
+              objective: context.prompt.slice(0, 4000),
+              scope: {
+                readOnly,
+                ...(input.team.scope?.length ? { paths: input.team.scope } : {}),
+              },
+              acceptanceIDs: input.acceptance.map((item) => item.id),
+              ...(dispatchDirectory ? { worktree: dispatchDirectory } : {}),
+              promptHash: assembledPrompt.manifest.promptHash,
+              skillManifestHash: assembledPrompt.manifest.skillManifestHash,
+              permissionHash: assembledPrompt.manifest.permissionHash,
+              idempotencyKey: assignmentID,
+            })
+            if (assignment.status === "created") {
+              yield* assignmentService.deliver(assignmentID)
+              yield* assignmentService.accept(assignmentID)
+              yield* assignmentService.start(assignmentID)
+            }
+            const captainRun = yield* runAgent({
+              agent: captain,
+              ...(dispatchDirectory ? { directory: dispatchDirectory } : {}),
+              title: "队长 · 第 " + input.round + " 轮",
+              scope: {
+                runID: run.id,
+                taskID: input.team.id,
+                attempt: input.round,
+                assignmentID,
+                dispatchID,
+                ...(attributed ? { employeeID: attributed } : {}),
+                promptHash: assembledPrompt.manifest.promptHash,
+                skillManifestHash: assembledPrompt.manifest.skillManifestHash,
+                permissionHash: assembledPrompt.manifest.permissionHash,
+                ...(dispatchDirectory ? { worktree: dispatchDirectory } : {}),
+                readOnly,
+                ...(input.team.scope?.length
+                  ? { paths: input.team.scope, root: dispatchDirectory ?? run.directory }
+                  : {}),
+              },
+              ...(attributed ? { employeeID: attributed } : {}),
+              ...(captainModel ? { model: captainModel } : {}),
+              // 队长可以派活：子代理默认禁 `task`，而派给名册里的人正是队长的职责。
+              // 成员拿不到这条 —— 派生权限只继承 deny，不会把队长的放行传下去。
+              permission: [{ permission: "task", pattern: "*", action: "allow" }],
+              prompt: assembledPrompt.prompt,
+            })
+            const text = captainRun.text
+            const usage = { tokens: captainRun.usage.tokens, cost: captainRun.usage.cost }
+            const read = TeamReport.parse(text)
+            const employeeReport = AssignmentReport.parse(text, {
+              assignmentID,
+              dispatchID,
+              attempt: input.round,
+            })
+            yield* assignmentService.report({
+              assignmentID,
+              dispatchID,
+              attempt: input.round,
+              sessionID: captainRun.sessionID,
+              status: employeeReport.status,
+              summary: employeeReport.summary,
+              claims: employeeReport.claims,
+              evidence: employeeReport.evidence,
+              artifacts: employeeReport.artifacts,
+              blockers: employeeReport.blockers,
+            })
+            if (read.ok === false)
+              return {
+                teamID: input.team.id,
+                // 用量按这次派发的实际消耗结算：不填的话账本只能记成「用量不明」（§7.1）。
+                usage,
+                // 读不出来时字段留空：调度器看到 `malformed` 会重问，不会拿这份空报告去验证。
+                summary: "",
+                claims: [],
+                malformed: read.reason,
+              } satisfies Report
+            return {
+              teamID: input.team.id,
+              usage,
+              ...read.report,
+            } satisfies Report
+          })
+
+        /**
+         * 命令类验收（§6.2 / §19.1）：退出码就是结论，不经过模型。
+         *
+         * 三条口径：
+         * - 命令只从验收项自己的 `verifier` 读（受控配置），成员报告里写的命令一概不认；
+         * - 在团队 worktree / 集成目录里跑，副作用落在可以整体丢弃的副本上；
+         * - 同一快照上已有确定性结论时直接复用，并标 `reused`，不伪装成新验证。
+         */
+        const commandVerify = (input: { acceptance: Acceptance; directory: string | undefined; snapshotID: string }) =>
+          Effect.gen(function* () {
+            const spec = TeamCommandVerifier.normalize(input.acceptance.verifier)
+            if (!spec) return undefined
+            const version = TeamCommandVerifier.VERSION
+            const cached = yield* verification.reusable({
+              acceptanceID: input.acceptance.id,
+              snapshotID: input.snapshotID,
+              verifierVersion: version,
+            })
+            const base = {
+              snapshotID: input.snapshotID,
+              verifierVersion: version,
+              // 命令验收没有模型调用：不产生 token 与成本。
+              usage: {},
+            }
+            if (cached)
+              return {
+                ...base,
+                outcome: cached.outcome,
+                ...(cached.measured ? { measured: cached.measured } : {}),
+                ...(cached.evidenceRef ? { evidenceRef: cached.evidenceRef } : {}),
+                reused: true,
+              } satisfies VerificationResult
+            if (!input.directory)
+              return {
+                ...base,
+                outcome: "unverified" as const,
+                measured: "没有可执行验收的工作区",
+              } satisfies VerificationResult
+            const result = yield* Effect.promise(() =>
+              TeamCommandVerifier.execute({
+                directory: input.directory!,
+                spec,
+                sandbox: ConfigSandbox.resolve(cfg.sandbox),
+              }),
+            )
+            return { ...base, ...TeamCommandVerifier.interpret(result) } satisfies VerificationResult
+          })
+
+        /**
+         * 验证器：缺省用队长的岗位，但必须是一个**独立判断**。
+         *
+         * 按团队取（§8.3.1）：两队各有各的队长岗位，用一个运行级的默认值会让
+         * 后一队被前一队的岗位验，证据就解释不通了。
+         */
+        const verifierFor = (team?: (typeof teamRows)[number]) =>
+          options.verifier ?? options.captain ?? captainOf(team).job ?? defaultAgent
+
+        // 验证：必须是**另一个会话**的独立判断，且允许回答「未验证」。
+        const verify = (input: VerifyInput) =>
+          Effect.gen(function* () {
+            // 证据绑定这个团队自己的目录（§10.1）：验别人的快照等于验了个不相干的东西。
+            // 没有 worktree 时不借用别的团队的目录，退回这次运行的默认快照。
+            const teamWorktree = input.team.worktree
+            const snapshotID = (yield* snapshotOf(teamWorktree)) ?? "unknown"
+            // 档位先于验证方式：轻档可以做结构校验，中 / 重档照常走命令或模型。
+            const tier = yield* tierOf(input.acceptance, input.team, input.round)
+            const spec = TeamCommandVerifier.normalize(input.acceptance.verifier)
+            /**
+             * 轻档结构校验（§19.1）。
+             *
+             * 只对 `file` / `diff` 生效：这两类验收的证据本身就是「某个位置」，
+             * 存在性与改动归属可以机械判断。`rubric` / `human` / `test` 已被
+             * `economy.classify` 抬到中档，不会走到这里 —— 拿格式合规冒充语义成立
+             * 正是这条规则要防的事。
+             */
+            if (
+              !spec &&
+              tier.decision.tier === "light" &&
+              (input.acceptance.kind === "file" || input.acceptance.kind === "diff")
+            ) {
+              const directory = teamWorktree ?? run.directory
+              return {
+                ...TeamStructure.interpret({
+                  acceptance: input.acceptance,
+                  report: input.report,
+                  changed: tier.changed,
+                  exists: (relative) => existsSync(nodePath.join(directory, relative)),
+                }),
+                snapshotID,
+                usage: {},
+                tier: tier.decision.tier,
+                tierReason: tier.decision.reason,
+              } satisfies VerificationResult
+            }
+            // 有命令就用命令验：同样的代码、同样的命令，答案不该由一次模型判断决定。
+            const command = yield* commandVerify({
+              acceptance: input.acceptance,
+              directory: teamWorktree,
+              snapshotID,
+            })
+            if (command)
+              return {
+                ...command,
+                tier: tier.decision.tier,
+                tierReason: tier.decision.reason,
+              } satisfies VerificationResult
+            const verified = yield* runAgent({
+              agent: verifierFor(input.team),
+              ...(teamWorktree ? { directory: teamWorktree } : {}),
+              title: "验证 · " + input.acceptance.id,
+              scope: {
+                runID: run.id,
+                taskID: input.acceptance.id,
+                attempt: input.round,
+                readOnly: policyFor(input.team, teamWorktree ?? run.directory).readOnly,
+              },
+              prompt: TeamVerifier.prompt(input.acceptance, input.report),
+            })
+            const text = verified.text
+            // 没有证据的 pass 在这里被降级为 unverified（见 TeamVerifier.interpret）。
+            return {
+              ...TeamVerifier.interpret(text),
+              snapshotID,
+              // 验证也要花钱：不计进来的话，预算上限只约束派发，约束不到真相。
+              usage: { tokens: verified.usage.tokens, cost: verified.usage.cost },
+              tier: tier.decision.tier,
+              tierReason: tier.decision.reason,
+            } satisfies VerificationResult
+          })
+
+        // 全局验收（不归属任何团队）：必须在**合并后**的代码上验证，
+        // 否则「每个团队各自通过」会被当成「合起来也通过」。
+        const verifyMerged = (input: { acceptance: Acceptance; snapshotID: string }) =>
+          Effect.gen(function* () {
+            const directory = (yield* Ref.get(integrated)) ?? teamDirectory
+            // 合并后的全局验收永远是重档（§19.1）：合并会引入任何一支团队都没验过的组合。
+            const tier = TeamEconomy.classify({
+              kind: input.acceptance.kind,
+              paths: 0,
+              merged: true,
+              hasCommand: TeamCommandVerifier.normalize(input.acceptance.verifier) !== undefined,
+            })
+            // 合并后的命令验收跑在集成目录上：团队各自通过不代表合起来还通过。
+            const command = yield* commandVerify({
+              acceptance: input.acceptance,
+              directory,
+              snapshotID: input.snapshotID,
+            })
+            if (command) return { ...command, tier: tier.tier, tierReason: tier.reason } satisfies VerificationResult
+            const mergedRun = yield* runAgent({
+              agent: verifierFor(undefined),
+              ...(directory ? { directory } : {}),
+              title: "合并验收 · " + input.acceptance.id,
+              scope: {
+                runID: run.id,
+                taskID: input.acceptance.id,
+                attempt: 1,
+                readOnly: policyFor(undefined, directory ?? run.directory).readOnly,
+              },
+              prompt: TeamVerifier.prompt(input.acceptance, {
+                claims: [{ text: "合并后的代码（" + input.snapshotID + "）" }],
+              }),
+            })
+            return {
+              ...TeamVerifier.interpret(mergedRun.text),
+              snapshotID: input.snapshotID,
+              usage: { tokens: mergedRun.usage.tokens, cost: mergedRun.usage.cost },
+              tier: tier.tier,
+              tierReason: tier.reason,
+            } satisfies VerificationResult
+          })
+
+        /**
+         * 寻址校验（§9）：这个团队名册里的人，现在还能不能接活。
+         *
+         * 名册宣称有来源（快照或模板）却读不回来，同样算失败：那说明这份运行已经没有
+         * 可信的「该派给谁」，退回默认 agent 就是静默改派给别人。
+         * 什么都没有的团队（只有名字、没有编制的计划团队）不参与对账 —— 它们本来
+         * 就没有名册可对。
+         */
+        const addressing = (team: (typeof teamRows)[number]) =>
+          Effect.gen(function* () {
+            const roster = rosterOf(team)
+            if (!roster) return team.rosterSnapshot || team.profileID ? [{ reason: "unreadable" as const }] : []
+            return TeamRoster.problems(roster, yield* profiles.employees())
+          })
+
+        /**
+         * 取消要能真的停住编排器（§8.5 / §9）。
+         *
+         * 此前 `cancel` 只把库里的状态改成 `cancelled`：在跑的编排器并不知道，
+         * 它会继续派发、继续花钱，最后用自己的结算把 `cancelled` 覆盖掉 ——
+         * 用户点了「停止」，看板上却照样跑完。这里把信号接上：
+         * `cancel` 只发停止请求，收尾（三段式）由编排器做，因为只有它知道
+         * 已经发生了哪些影响。
+         */
+        // `canStart` 看的是库里的 `phase`，而写 `phase` 发生在执行开始之后 —— 两个并发请求
+        // 可以同时通过它。本进程里已经有执行时就拒绝：两个编排器驱动同一次运行会双倍派发、
+        // 双倍记账，还会互相覆盖状态。登记放在这里（紧接着 fork），中间没有可以让出的点。
+        if (executions.has(run.id)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+        const controller = new AbortController()
+        const execution = { controller, sessions: liveSessions }
+        executions.set(run.id, execution)
+        yield* orchestrator
+          .execute({
+            runID: run.id,
+            dispatch,
+            verify,
+            addressing,
+            commit: commitTeams,
+            verifyMerged,
+            integrate,
+            signal: controller.signal,
+            // 快照按团队取：两队并行时共用一个快照，会把这个团队的「通过」判成过期。
+            snapshot: (directory?: string) =>
+              snapshotOf(directory ?? teamDirectory).pipe(Effect.map((id) => id ?? "unknown")),
+            maxRounds: options.maxRounds,
+            maxBusinessAttempts: options.maxBusinessAttempts,
+            reserveTokens: options.reserveTokens,
+            // 请求没指定并发时用项目级上限；两者都没有就是调度器的默认值（3）。
+            concurrency: options.concurrency ?? cfg.experimental?.team_concurrency,
+            // 零进展上限：请求 > 项目配置 > 调度器默认。验证比队长短，但同一个值足够 ——
+            // 它挡的是「挂住」，不是「慢」。
+            ...((options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms)
+              ? {
+                  dispatchTimeoutMs: options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
+                  verifyTimeoutMs: options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
+                }
+              : {}),
+          })
+          .pipe(
+            Effect.catchCause((cause) =>
+              Effect.gen(function* () {
+                // 不把底层模型 / 命令原文写进用户可见错误；完整 cause 仍进入服务日志。
+                yield* Effect.logError("team run failed").pipe(Effect.annotateLogs({ runID: run.id, cause }))
+                const current = yield* runs.get(run.id)
+                if (current && !isTerminal(current.state))
+                  yield* runs.update({
+                    runID: run.id,
+                    state: "failed",
+                    phase: null,
+                    endedAt: Date.now(),
+                    error: "编排器异常退出，请检查事件日志并复核未完成的派工。",
+                    terminalReason: "orchestrator-error",
+                    event: { kind: "run.failed", payload: { reason: "orchestrator-error" } },
+                  })
+              }).pipe(Effect.catchCause(() => Effect.void)),
+            ),
+            // `reported` 只是员工自述。编排器结束后，才把运行级独立验证结果写回
+            // Assignment；中途崩溃/取消保持 reported，由恢复流程继续处理，绝不偷算成功。
+            Effect.ensuring(
+              Effect.gen(function* () {
+                const finalRun = yield* runs.get(run.id)
+                const outcome =
+                  finalRun?.state === "done"
+                    ? ("succeeded" as const)
+                    : finalRun && ["partial", "failed", "exceeded", "cancelled"].includes(finalRun.state)
+                      ? ("failed" as const)
+                      : ("needs_review" as const)
+                for (const assignment of yield* assignmentService.list({ runID: run.id })) {
+                  if (assignment.status !== "reported") continue
+                  yield* assignmentService.verify({
+                    assignmentID: assignment.id,
+                    outcome,
+                    verification: {
+                      source: "team-run",
+                      runState: finalRun?.state ?? "unknown",
+                      at: Date.now(),
+                    },
+                  })
+                }
+              }).pipe(Effect.ignore),
+            ),
+            // 跑完就摘掉：留下的控制器会让下一次「取消」发到一个已经结束的运行上。
+            Effect.ensuring(
+              Effect.sync(() => {
+                if (executions.get(run.id) === execution) executions.delete(run.id)
+              }),
+            ),
+            Effect.forkIn(scope, { startImmediately: true }),
+          )
+
+        const current = yield* runs.get(run.id)
+        return toRun(current ?? run)
+      })
+
+    const unregisterAutoStart = TeamAutoStart.register(
+      (input) => executeRun(input).pipe(Effect.asVoid) as Effect.Effect<void, unknown, never>,
+    )
+    yield* Effect.addFinalizer(() => Effect.sync(unregisterAutoStart))
 
     return (
       handlers
@@ -615,6 +1467,133 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             return found
           }),
         )
+        .handle("listRunAssignments", (ctx) =>
+          Effect.gen(function* () {
+            yield* requireRun(ctx.params.runID, ctx.query.directory)
+            return (yield* assignmentService.list({ runID: ctx.params.runID })).map(toAssignmentView)
+          }),
+        )
+        .handle("getRunAssignment", (ctx) =>
+          Effect.gen(function* () {
+            yield* requireRun(ctx.params.runID, ctx.query.directory)
+            const assignment = yield* assignmentService.get(ctx.params.assignmentID)
+            if (!assignment || assignment.runID !== ctx.params.runID)
+              return yield* Effect.fail(new HttpApiError.NotFound({}))
+            return toAssignmentView(assignment)
+          }),
+        )
+        .handle("heartbeatRunAssignment", (ctx) =>
+          Effect.gen(function* () {
+            yield* requireRun(ctx.params.runID, ctx.query.directory)
+            const current = yield* assignmentService.get(ctx.params.assignmentID)
+            if (!current || current.runID !== ctx.params.runID) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            const result = yield* assignmentService.heartbeat({
+              assignmentID: ctx.params.assignmentID,
+              dispatchID: ctx.payload.dispatchID,
+              attempt: ctx.payload.attempt,
+              sessionID: SessionID.make(ctx.payload.sessionID),
+              leaseMs: ctx.payload.leaseMs,
+            })
+            if (result === "stale") return yield* Effect.fail(new HttpApiError.Conflict({}))
+            if (!result) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            return toAssignmentView(result)
+          }),
+        )
+        .handle("reportRunAssignment", (ctx) =>
+          Effect.gen(function* () {
+            yield* requireRun(ctx.params.runID, ctx.query.directory)
+            const current = yield* assignmentService.get(ctx.params.assignmentID)
+            if (!current || current.runID !== ctx.params.runID) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            const result = yield* assignmentService.report({
+              assignmentID: ctx.params.assignmentID,
+              dispatchID: ctx.payload.dispatchID,
+              attempt: ctx.payload.attempt,
+              sessionID: SessionID.make(ctx.payload.sessionID),
+              status: ctx.payload.status,
+              summary: ctx.payload.summary,
+              claims: ctx.payload.claims ? [...ctx.payload.claims] : undefined,
+              evidence: ctx.payload.evidence ? [...ctx.payload.evidence] : undefined,
+              artifacts: ctx.payload.artifacts ? [...ctx.payload.artifacts] : undefined,
+              blockers: ctx.payload.blockers ? [...ctx.payload.blockers] : undefined,
+            })
+            if (result === "not-found") return yield* Effect.fail(new HttpApiError.NotFound({}))
+            if (result === "stale") return yield* Effect.fail(new HttpApiError.Conflict({}))
+            if (result === "duplicate")
+              return toAssignmentView((yield* assignmentService.get(ctx.params.assignmentID))!)
+            return toAssignmentView(result)
+          }),
+        )
+        .handle("verifyRunAssignment", (ctx) =>
+          Effect.gen(function* () {
+            yield* requireRun(ctx.params.runID, ctx.query.directory)
+            const current = yield* assignmentService.get(ctx.params.assignmentID)
+            if (!current || current.runID !== ctx.params.runID) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            const result = yield* assignmentService.verify({
+              assignmentID: ctx.params.assignmentID,
+              outcome: ctx.payload.outcome,
+              verification: ctx.payload.verification,
+              error: ctx.payload.error,
+            })
+            if (!result) return yield* Effect.fail(new HttpApiError.Conflict({}))
+            return toAssignmentView(result)
+          }),
+        )
+        .handle("cancelRunAssignment", (ctx) =>
+          Effect.gen(function* () {
+            yield* requireRun(ctx.params.runID, ctx.query.directory)
+            const current = yield* assignmentService.get(ctx.params.assignmentID)
+            if (!current || current.runID !== ctx.params.runID) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            if (!canTransitionAssignment(current.status, "cancelled"))
+              return yield* Effect.fail(new HttpApiError.Conflict({}))
+            const result = yield* assignmentService.cancel({
+              assignmentID: ctx.params.assignmentID,
+              reason: ctx.payload.reason,
+            })
+            if (!result) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            return toAssignmentView(result)
+          }),
+        )
+        .handle("retryRunAssignment", (ctx) =>
+          Effect.gen(function* () {
+            const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
+            const previous = yield* assignmentService.get(ctx.params.assignmentID)
+            if (!previous || previous.runID !== run.id) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            if (!["failed", "expired", "cancelled", "needs_review"].includes(previous.status))
+              return yield* Effect.fail(new HttpApiError.Conflict({}))
+            const assignmentID = `${previous.id}:attempt:${previous.attempt + 1}`
+            const dispatchID = `${assignmentID}:dispatch`
+            const next = yield* assignmentService.create({
+              id: assignmentID,
+              runID: previous.runID,
+              taskID: previous.taskID,
+              ...(previous.employeeID ? { employeeID: previous.employeeID } : {}),
+              parentAssignmentID: previous.id,
+              dispatchID,
+              attempt: previous.attempt + 1,
+              objective: ctx.payload.objective ?? previous.objective,
+              scope: previous.scope,
+              acceptanceIDs: previous.acceptanceIDs,
+              worktree: previous.worktree,
+              promptHash: previous.promptHash,
+              skillManifestHash: previous.skillManifestHash,
+              permissionHash: previous.permissionHash,
+              idempotencyKey: assignmentID,
+              leaseMs: ctx.payload.leaseMs,
+            })
+            if (next.status === "created") {
+              yield* assignmentService.deliver(next.id)
+              yield* assignmentService.accept(next.id)
+              yield* assignmentService.start(next.id)
+            }
+            const started = (yield* assignmentService.get(next.id))!
+            yield* runs.appendEvent({
+              runID: run.id,
+              kind: "employee.assignment.retry_created",
+              payload: { previousAssignmentID: previous.id, assignmentID: started.id, attempt: started.attempt },
+            })
+            return { assignment: toAssignmentView(started), previousAssignmentID: previous.id }
+          }),
+        )
         .handle("setRunPlan", (ctx) =>
           Effect.gen(function* () {
             const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
@@ -705,7 +1684,9 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
         )
         .handle("approveRun", (ctx) =>
           Effect.gen(function* () {
-            yield* requireRun(ctx.params.runID, ctx.query.directory)
+            const current = yield* requireRun(ctx.params.runID, ctx.query.directory)
+            // 执行阶段的批准不能修改预算或批准快照；这会让在途调用失去授权边界。
+            if (current.state === "running" && current.phase) return yield* Effect.fail(new HttpApiError.Conflict({}))
             const approved = yield* runs.approve({
               runID: ctx.params.runID,
               planVersion: ctx.payload.planVersion,
@@ -749,622 +1730,10 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
           }),
         )
         .handle("executeRun", (ctx) =>
-          Effect.gen(function* () {
-            /**
-             * 请求体可以不带：界面上的「执行」就是一个空 POST（payload 声明成
-             * `[Null, 选项结构]`，空请求体解成 `null`）。那几个旋钮全是可选的，
-             * 不该挡住那一次点击。
-             */
-            const options = ctx.payload ?? {}
-            // 直接点「执行」而不经列表时，也要先把上次遗留的运行定性 —— 否则它会以
-            // `running + 过期 phase` 被 `canStart` 拒绝，永远续不上。
-            yield* recoverStale(ctx.query.directory)
-            const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
-            // 未批准不能跑；已经在跑也不能再起一份。
-            if (!canStart(run.state, run.phase)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            // 还有结果不明的工具操作时不能续跑（§8.5）：先复核副作用，再决定要不要重试。
-            // 带着未知项开跑，等于用猜测覆盖已经发生的事 —— 重复扣款、重复推送都从这里来。
-            if ((yield* opLog.needsReview(run.id)).length > 0)
-              return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            /**
-             * 批准必须匹配**当前**这一版计划（§13.1）。
-             *
-             * 批准在库里是 `approval.planVersion`；计划一改版本号就变，旧批准不再代表它。
-             * 少了这一条，「先批准 → 再改计划 → 执行」就会拿着一份旧批准的预算跑一份
-             * 没人批准过的计划，而界面上看不出来。
-             */
-            if (!run.approval || run.approval.planVersion !== run.planVersion)
-              return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            // 总控开关关闭时不可被调用（§13.1）：浏览、改计划、取消都可以，唯独不能开始新的执行。
-            const cfg = yield* config.get()
-            if (!TeamSwitch.enabled(cfg.experimental)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
-
-            // 默认模型与会话里的 assistant 一致，避免团队用另一个模型产出无法解释的结果。
-            const msgs = yield* sessions
-              .messages({ sessionID: run.sessionID })
-              .pipe(Effect.catchCause(() => Effect.succeed([])))
-            const lastAssistant = [...msgs].reverse().find((item) => item.info.role === "assistant")
-            const defaultModel =
-              lastAssistant && lastAssistant.info.role === "assistant"
-                ? { providerID: lastAssistant.info.providerID, modelID: lastAssistant.info.modelID }
-                : yield* provider.defaultModel()
-            const defaultAgent = yield* agents.defaultAgent()
-            const sessionUsage = yield* SessionUsage.Service
-
-            const ops: RunAgentPromptOps = {
-              resolvePromptParts: (template) => promptSvc.resolvePromptParts(template),
-              prompt: (input) => promptSvc.prompt(input).pipe(Effect.orDie),
-            }
-            /**
-             * 这次运行派生过的会话（队长、验证器、成员）。
-             *
-             * 取消要能打断在途的模型调用，就必须知道它们在哪个会话里跑：
-             * 只发 AbortSignal 的话，编排器得等调用自己结束才能走到检查点。
-             */
-            const liveSessions = new Set<SessionID>()
-            const runAgent = makeRunAgent({
-              ops,
-              sessions,
-              agents,
-              parentSessionID: run.sessionID,
-              defaultModel,
-              defaultAgent,
-              teams,
-              /**
-               * 用量按**整棵子树**读：队长自己是一层，成员是队长用 `task` 派生的子会话，
-               * 再往下还有成员自己的子代理。只读队长那一行，会把成员的开销整个漏掉 ——
-               * 账本记的就不是「这次运行花了多少」，而是「队长自己花了多少」。
-               */
-              readUsage: (sessionID) =>
-                sessionUsage.tree(sessionID).pipe(
-                  Effect.map((tree) => ({ cost: tree.total.cost, tokens: tree.total.tokens.total })),
-                  Effect.catchCause(() => Effect.succeed({ cost: 0, tokens: 0 })),
-                ),
-              // 子会话一创建就登记编排坐标；之后它跑的任何有副作用工具都会带幂等键。
-              // 同时记进本次运行的活动会话表，取消时用得上。
-              onSession: ({ sessionID, scope }) =>
-                Effect.gen(function* () {
-                  liveSessions.add(sessionID)
-                  if (scope) yield* opLog.scope({ sessionID, ...scope })
-                }),
-            })
-
-            // 模板发起时，队长默认用编制里的队长岗位 —— 模板写了谁负责就谁负责。
-            //
-            // 名册按**团队**读，不按运行读（§8.3.1）：A 团队的队长与 B 团队无关，
-            // 拿第一队的名册去派所有队，等于替别的团队改派了人。
-            const teamRows = yield* runs.teams(run.id)
-            const rosterOf = (team: (typeof teamRows)[number] | undefined) => snapshotFrom(team?.rosterSnapshot)
-            const captainOf = (team: (typeof teamRows)[number] | undefined) => {
-              const roster = rosterOf(team)
-              const member = roster?.roster.find((entry) => entry.employee.id === roster.captain)
-              return {
-                roster,
-                entry: member,
-                job: member?.employee.job,
-                members: roster ? rosterBrief(roster) : [],
-                // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下：
-                // 请求换了一个同岗位的人来当队长，账不能挂回原来那个人（§10.3）。
-                employeeID: member?.employee.id,
-              }
-            }
-            /**
-             * 策略按团队算（§11.1）：只读是运行级的，路径范围是团队级的。
-             * 基准目录与派发目录一致 —— 范围里写的是相对仓库根的路径，
-             * 换个基准就等于换了一条规则。
-             */
-            const policyFor = (team: { scope?: readonly string[] } | undefined, directory?: string) =>
-              TeamPolicy.fromPlan(run.plan, team, directory ?? run.directory)
-            // 团队 worktree 存在时，成员在那里工作，证据也绑定在那里创建时的提交上。
-            // 没有 worktree（非 git 仓库、空仓库）则退回实例目录的快照。
-            /**
-             * 每个团队 worktree 的起点提交（§19.1）。
-             *
-             * 建 worktree 时事件里记了 `baseSHA`；目标复用的工作区没有本次事件，
-             * 退回目标自己的固定起点。两者都拿不到时按「没有事实」处理 ——
-             * 不能拿 0 个文件当「没改过」。
-             */
-            const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
-            const worktreeBases = new Map<string, string>()
-            for (const event of yield* runs.events({ runID: run.id })) {
-              if (event.kind !== "worktree.created") continue
-              const directory = Reflect.get(event.payload ?? {}, "directory")
-              const baseSHA = Reflect.get(event.payload ?? {}, "baseSHA")
-              if (typeof directory === "string" && typeof baseSHA === "string") worktreeBases.set(directory, baseSHA)
-            }
-            const baseOf = (team: { worktree?: string }) => {
-              if (!team.worktree) return undefined
-              const recorded = worktreeBases.get(team.worktree)
-              if (recorded) return recorded
-              return mission?.worktree === team.worktree ? mission.baseSHA : undefined
-            }
-            /**
-             * 同一轮里改动清单是固定的：多条验收共享一次 `git diff`，不逐条重复读。
-             * 键里带 `round`，下一轮成员再写文件时不会拿到上一轮的旧清单。
-             */
-            const changeCache = new Map<string, Promise<string[] | undefined>>()
-            const changesOf = (team: RunTeam, round: number) => {
-              const base = baseOf(team)
-              const directory = team.worktree
-              if (!base || !directory) return undefined
-              const key = directory + "|" + base + "|" + round
-              const cached = changeCache.get(key)
-              if (cached) return cached
-              const pending = changedFiles({ directory, baseSHA: base })
-              changeCache.set(key, pending)
-              return pending
-            }
-            /**
-             * 验证档位（§19.1）：由调度器按事实判定，成员怎么描述自己都不影响。
-             *
-             * 事实全部来自仓库：改了几个文件、跨不跨模块、有没有动锁文件 / 迁移、
-             * 能不能按约定找到受影响测试、这条验收有没有可执行命令。
-             * 读不到改动清单时退回团队声明的范围；仍为空就说明「没有事实」，
-             * 规则会按保守路径走，而不是把它当成「只改了一个文件」。
-             */
-            const tierOf = (acceptance: Acceptance, team: RunTeam, round: number) =>
-              Effect.gen(function* () {
-                const directory = team.worktree
-                const pending = changesOf(team, round)
-                const changed = pending ? yield* Effect.promise(() => pending) : undefined
-                const paths = changed ?? team.scope ?? []
-                const affected =
-                  changed && changed.length > 0 && directory
-                    ? yield* Effect.promise(() => affectedTests({ directory, paths: changed }))
-                    : []
-                const facts: TeamEconomy.Facts = {
-                  kind: acceptance.kind,
-                  paths: paths.length,
-                  crossModule: TeamEconomy.crossModule(paths),
-                  irreversible: TeamEconomy.irreversibleChange(paths),
-                  hasAffectedTests: affected.length > 0,
-                  hasCommand: TeamCommandVerifier.normalize(acceptance.verifier) !== undefined,
-                }
-                return { decision: TeamEconomy.classify(facts), changed: changed ?? [] }
-              })
-            const teamDirectory = teamRows.find((team) => team.worktree)?.worktree
-            const instanceSnapshot = snapshot.track().pipe(Effect.catch(() => Effect.succeed(undefined)))
-            /**
-             * 当前「证据应该绑定在哪」：集成前是团队 worktree 的 HEAD，
-             * 集成成功后切到集成 worktree 的 HEAD —— 合并后的结论必须落在合并后的代码上。
-             */
-            const integrated = yield* Ref.make<string | undefined>(undefined)
-            const snapshotOf = (directory?: string) =>
-              Effect.gen(function* () {
-                const after = yield* Ref.get(integrated)
-                if (after) return yield* Effect.promise(() => worktreeHead(after))
-                if (directory) {
-                  const sha = yield* Effect.promise(() => worktreeHead(directory))
-                  if (sha) return sha
-                }
-                return yield* instanceSnapshot
-              })
-
-            /**
-             * 把团队 worktree 里的改动落成提交（§10.1）。
-             *
-             * 写操作发生在磁盘上，而快照与集成只认提交：不提交的话，验证对着旧 `HEAD`，
-             * 集成也合不到任何改动。所以「交付」在代码里的定义是「改动已经在一个提交里」。
-             * 任一团队提交失败就整体失败：无法复验的交付不能算通过。
-             */
-            const commitTeams = () =>
-              Effect.gen(function* () {
-                const rows = yield* runs.teams(run.id)
-                for (const team of rows) {
-                  const directory = team.worktree
-                  if (!directory) continue
-                  const result = yield* Effect.promise(() =>
-                    commitWorktree({
-                      directory,
-                      message: "team " + (team.profileID ?? team.id) + " (run " + run.id + ")",
-                    }),
-                  )
-                  if (result.kind === "committed") {
-                    yield* runs.appendEvent({
-                      runID: run.id,
-                      kind: "worktree.committed",
-                      payload: { teamID: team.id, sha: result.sha, files: result.files },
-                    })
-                    continue
-                  }
-                  if (result.kind === "failed") return yield* Effect.fail(new Error(team.id + "：" + result.message))
-                }
-              })
-
-            /**
-             * 串行集成（§10.2）：把各团队的 worktree 分支按顺序合到一个独立分支。
-             * 合进用户的分支是用户的动作，运行只负责「合到一起还成立吗」。
-             */
-            const integrate = () =>
-              Effect.gen(function* () {
-                const rows = yield* runs.teams(run.id)
-                const worktrees = rows.flatMap((team) => (team.worktree ? [team.worktree] : []))
-                if (worktrees.length === 0) return { kind: "skipped" as const, reason: "本次运行没有团队 worktree" }
-                const branches = yield* Effect.forEach(
-                  worktrees,
-                  (directory) => Effect.promise(() => worktreeBranch(directory)),
-                  { concurrency: 1 },
-                )
-                const named = rows.flatMap((team, index) => {
-                  const branch = branches[index]
-                  return team.worktree && branch ? [{ name: team.profileID ?? team.id, branch }] : []
-                })
-                if (named.length === 0) return { kind: "skipped" as const, reason: "团队 worktree 不在任何分支上" }
-                // 归属持久目标：合并进目标工作区，下一次运行从这里继续；
-                // 一次性任务：另建集成分支，运行结束后由用户决定合并或清理。
-                const mission = run.missionID ? yield* missions.get(run.missionID) : undefined
-                if (mission?.worktree) {
-                  const readiness = yield* missions.prepare(mission.id)
-                  if (readiness.kind === "skipped") return { kind: "skipped" as const, reason: readiness.reason }
-                  const directory = readiness.mission.worktree
-                  if (!directory) return { kind: "skipped" as const, reason: "目标工作区不可用" }
-                  const outcome = yield* Effect.promise(() => integrateInto({ directory, teams: named }))
-                  if (outcome.kind === "merged") yield* Ref.set(integrated, outcome.directory)
-                  return outcome
-                }
-                const baseSHA = yield* Effect.promise(() =>
-                  forkPoint(
-                    run.directory,
-                    named.map((team) => team.branch),
-                  ),
-                )
-                if (!baseSHA) return { kind: "skipped" as const, reason: "找不到团队分支与仓库的分岔点" }
-                const outcome = yield* Effect.promise(() =>
-                  integrateWorktrees({ base: run.directory, baseSHA, runID: run.id, teams: named }),
-                )
-                if (outcome.kind === "merged") yield* Ref.set(integrated, outcome.directory)
-                return outcome
-              })
-
-            // 队长派发：任务 + 验收 + 上一轮打回意见，要求结构化回报。
-            const dispatch = (input: DispatchInput) =>
-              Effect.gen(function* () {
-                const {
-                  roster,
-                  entry: captainEntry,
-                  job: captainJob,
-                  members,
-                  employeeID: captainEmployeeID,
-                } = captainOf(input.team)
-                // 只有「实际派发的队长就是名册里的队长」时才敢把工时记在那个人名下（§10.3）。
-                const captain = options.captain ?? captainJob ?? defaultAgent
-                const attributed = captain === captainJob ? captainEmployeeID : undefined
-                // 提示词与清单同源（§6.4）：模型看到的字，就是事后审计的字。
-                // `run.brief` 是用户声明的范围与约束（§5.3）：不喂进去，用户写了等于没写。
-                const declared = TeamContext.normalizeBrief(run.brief)
-                const context = TeamContext.build({
-                  goal: run.goal,
-                  ...(declared ? { brief: declared } : {}),
-                  acceptance: input.acceptance.map((acceptance) => ({
-                    id: acceptance.id,
-                    version: acceptance.version,
-                    text: acceptance.text,
-                    expected: acceptance.expected,
-                  })),
-                  members,
-                  feedback: input.feedback ?? [],
-                  ...(roster ? { rosterVersion: String(roster.version) } : {}),
-                })
-                // 最近一份清单落库给界面看；逐轮历史进事件，只留摘要不复制整段提示词。
-                yield* runs.updateTeam({
-                  id: input.team.id,
-                  contextManifest: context.manifest as unknown as Record<string, unknown>,
-                })
-                yield* runs.appendEvent({
-                  runID: run.id,
-                  kind: "context.manifest",
-                  payload: {
-                    teamID: input.team.id,
-                    round: input.round,
-                    acceptance: context.manifest.acceptance.length,
-                    feedback: context.manifest.feedback.length,
-                    ...(context.manifest.rosterVersion ? { rosterVersion: context.manifest.rosterVersion } : {}),
-                    omitted: context.manifest.omitted,
-                    truncated: context.manifest.truncated,
-                  },
-                })
-                // 每个团队在自己的 worktree 里干活（§10.1）：拿第一队的目录派所有队，
-                // 等于让两个团队在同一份文件上互相踩。没有 worktree（非 git 仓库）就退回
-                // 会话默认目录，绝不借用别的团队的。
-                const dispatchDirectory = input.team.worktree
-                /**
-                 * 名册里写的岗位说明与模型要真的用上（§5.4 / §11.1）。
-                 *
-                 * 只有「实际派发的队长就是名册里的队长」时才套用：用户点名换了人，
-                 * 拿原来那个人的岗位说明和模型去跑，等于把活派给了另一个人还挂着旧名字。
-                 */
-                const person = attributed ? captainEntry : undefined
-                const captainModel = TeamEffective.parseModel(person?.employee.model)
-                const captainRun = yield* runAgent({
-                  agent: captain,
-                  ...(dispatchDirectory ? { directory: dispatchDirectory } : {}),
-                  title: "队长 · 第 " + input.round + " 轮",
-                  scope: {
-                    runID: run.id,
-                    taskID: input.team.id,
-                    attempt: input.round,
-                    readOnly: policyFor(input.team, dispatchDirectory).readOnly,
-                    ...(input.team.scope?.length
-                      ? { paths: input.team.scope, root: dispatchDirectory ?? run.directory }
-                      : {}),
-                  },
-                  ...(attributed ? { employeeID: attributed } : {}),
-                  ...(captainModel ? { model: captainModel } : {}),
-                  // 队长可以派活：子代理默认禁 `task`，而派给名册里的人正是队长的职责。
-                  // 成员拿不到这条 —— 派生权限只继承 deny，不会把队长的放行传下去。
-                  permission: [{ permission: "task", pattern: "*", action: "allow" }],
-                  prompt: TeamEffective.compose(person, context.prompt),
-                })
-                const text = captainRun.text
-                const usage = { tokens: captainRun.usage.tokens, cost: captainRun.usage.cost }
-                const read = TeamReport.parse(text)
-                if (!read.ok)
-                  return {
-                    teamID: input.team.id,
-                    // 用量按这次派发的实际消耗结算：不填的话账本只能记成「用量不明」（§7.1）。
-                    usage,
-                    // 读不出来时字段留空：调度器看到 `malformed` 会重问，不会拿这份空报告去验证。
-                    summary: "",
-                    claims: [],
-                    malformed: read.reason,
-                  } satisfies Report
-                return {
-                  teamID: input.team.id,
-                  usage,
-                  ...read.report,
-                } satisfies Report
-              })
-
-            /**
-             * 命令类验收（§6.2 / §19.1）：退出码就是结论，不经过模型。
-             *
-             * 三条口径：
-             * - 命令只从验收项自己的 `verifier` 读（受控配置），成员报告里写的命令一概不认；
-             * - 在团队 worktree / 集成目录里跑，副作用落在可以整体丢弃的副本上；
-             * - 同一快照上已有确定性结论时直接复用，并标 `reused`，不伪装成新验证。
-             */
-            const commandVerify = (input: {
-              acceptance: Acceptance
-              directory: string | undefined
-              snapshotID: string
-            }) =>
-              Effect.gen(function* () {
-                const spec = TeamCommandVerifier.normalize(input.acceptance.verifier)
-                if (!spec) return undefined
-                const version = TeamCommandVerifier.VERSION
-                const cached = yield* verification.reusable({
-                  acceptanceID: input.acceptance.id,
-                  snapshotID: input.snapshotID,
-                  verifierVersion: version,
-                })
-                const base = {
-                  snapshotID: input.snapshotID,
-                  verifierVersion: version,
-                  // 命令验收没有模型调用：不产生 token 与成本。
-                  usage: {},
-                }
-                if (cached)
-                  return {
-                    ...base,
-                    outcome: cached.outcome,
-                    ...(cached.measured ? { measured: cached.measured } : {}),
-                    ...(cached.evidenceRef ? { evidenceRef: cached.evidenceRef } : {}),
-                    reused: true,
-                  } satisfies VerificationResult
-                if (!input.directory)
-                  return {
-                    ...base,
-                    outcome: "unverified" as const,
-                    measured: "没有可执行验收的工作区",
-                  } satisfies VerificationResult
-                const result = yield* Effect.promise(() =>
-                  TeamCommandVerifier.execute({
-                    directory: input.directory!,
-                    spec,
-                    sandbox: ConfigSandbox.resolve(cfg.sandbox),
-                  }),
-                )
-                return { ...base, ...TeamCommandVerifier.interpret(result) } satisfies VerificationResult
-              })
-
-            /**
-             * 验证器：缺省用队长的岗位，但必须是一个**独立判断**。
-             *
-             * 按团队取（§8.3.1）：两队各有各的队长岗位，用一个运行级的默认值会让
-             * 后一队被前一队的岗位验，证据就解释不通了。
-             */
-            const verifierFor = (team?: (typeof teamRows)[number]) =>
-              options.verifier ?? options.captain ?? captainOf(team).job ?? defaultAgent
-
-            // 验证：必须是**另一个会话**的独立判断，且允许回答「未验证」。
-            const verify = (input: VerifyInput) =>
-              Effect.gen(function* () {
-                // 证据绑定这个团队自己的目录（§10.1）：验别人的快照等于验了个不相干的东西。
-                // 没有 worktree 时不借用别的团队的目录，退回这次运行的默认快照。
-                const teamWorktree = input.team.worktree
-                const snapshotID = (yield* snapshotOf(teamWorktree)) ?? "unknown"
-                // 档位先于验证方式：轻档可以做结构校验，中 / 重档照常走命令或模型。
-                const tier = yield* tierOf(input.acceptance, input.team, input.round)
-                const spec = TeamCommandVerifier.normalize(input.acceptance.verifier)
-                /**
-                 * 轻档结构校验（§19.1）。
-                 *
-                 * 只对 `file` / `diff` 生效：这两类验收的证据本身就是「某个位置」，
-                 * 存在性与改动归属可以机械判断。`rubric` / `human` / `test` 已被
-                 * `economy.classify` 抬到中档，不会走到这里 —— 拿格式合规冒充语义成立
-                 * 正是这条规则要防的事。
-                 */
-                if (
-                  !spec &&
-                  tier.decision.tier === "light" &&
-                  (input.acceptance.kind === "file" || input.acceptance.kind === "diff")
-                ) {
-                  const directory = teamWorktree ?? run.directory
-                  return {
-                    ...TeamStructure.interpret({
-                      acceptance: input.acceptance,
-                      report: input.report,
-                      changed: tier.changed,
-                      exists: (relative) => existsSync(nodePath.join(directory, relative)),
-                    }),
-                    snapshotID,
-                    usage: {},
-                    tier: tier.decision.tier,
-                    tierReason: tier.decision.reason,
-                  } satisfies VerificationResult
-                }
-                // 有命令就用命令验：同样的代码、同样的命令，答案不该由一次模型判断决定。
-                const command = yield* commandVerify({
-                  acceptance: input.acceptance,
-                  directory: teamWorktree,
-                  snapshotID,
-                })
-                if (command)
-                  return {
-                    ...command,
-                    tier: tier.decision.tier,
-                    tierReason: tier.decision.reason,
-                  } satisfies VerificationResult
-                const verified = yield* runAgent({
-                  agent: verifierFor(input.team),
-                  ...(teamWorktree ? { directory: teamWorktree } : {}),
-                  title: "验证 · " + input.acceptance.id,
-                  scope: {
-                    runID: run.id,
-                    taskID: input.acceptance.id,
-                    attempt: input.round,
-                    readOnly: policyFor(input.team, teamWorktree ?? run.directory).readOnly,
-                  },
-                  prompt: TeamVerifier.prompt(input.acceptance, input.report),
-                })
-                const text = verified.text
-                // 没有证据的 pass 在这里被降级为 unverified（见 TeamVerifier.interpret）。
-                return {
-                  ...TeamVerifier.interpret(text),
-                  snapshotID,
-                  // 验证也要花钱：不计进来的话，预算上限只约束派发，约束不到真相。
-                  usage: { tokens: verified.usage.tokens, cost: verified.usage.cost },
-                  tier: tier.decision.tier,
-                  tierReason: tier.decision.reason,
-                } satisfies VerificationResult
-              })
-
-            // 全局验收（不归属任何团队）：必须在**合并后**的代码上验证，
-            // 否则「每个团队各自通过」会被当成「合起来也通过」。
-            const verifyMerged = (input: { acceptance: Acceptance; snapshotID: string }) =>
-              Effect.gen(function* () {
-                const directory = (yield* Ref.get(integrated)) ?? teamDirectory
-                // 合并后的全局验收永远是重档（§19.1）：合并会引入任何一支团队都没验过的组合。
-                const tier = TeamEconomy.classify({
-                  kind: input.acceptance.kind,
-                  paths: 0,
-                  merged: true,
-                  hasCommand: TeamCommandVerifier.normalize(input.acceptance.verifier) !== undefined,
-                })
-                // 合并后的命令验收跑在集成目录上：团队各自通过不代表合起来还通过。
-                const command = yield* commandVerify({
-                  acceptance: input.acceptance,
-                  directory,
-                  snapshotID: input.snapshotID,
-                })
-                if (command)
-                  return { ...command, tier: tier.tier, tierReason: tier.reason } satisfies VerificationResult
-                const mergedRun = yield* runAgent({
-                  agent: verifierFor(undefined),
-                  ...(directory ? { directory } : {}),
-                  title: "合并验收 · " + input.acceptance.id,
-                  scope: {
-                    runID: run.id,
-                    taskID: input.acceptance.id,
-                    attempt: 1,
-                    readOnly: policyFor(undefined, directory ?? run.directory).readOnly,
-                  },
-                  prompt: TeamVerifier.prompt(input.acceptance, {
-                    claims: [{ text: "合并后的代码（" + input.snapshotID + "）" }],
-                  }),
-                })
-                return {
-                  ...TeamVerifier.interpret(mergedRun.text),
-                  snapshotID: input.snapshotID,
-                  usage: { tokens: mergedRun.usage.tokens, cost: mergedRun.usage.cost },
-                  tier: tier.tier,
-                  tierReason: tier.reason,
-                } satisfies VerificationResult
-              })
-
-            /**
-             * 寻址校验（§9）：这个团队名册里的人，现在还能不能接活。
-             *
-             * 名册宣称有来源（快照或模板）却读不回来，同样算失败：那说明这份运行已经没有
-             * 可信的「该派给谁」，退回默认 agent 就是静默改派给别人。
-             * 什么都没有的团队（只有名字、没有编制的计划团队）不参与对账 —— 它们本来
-             * 就没有名册可对。
-             */
-            const addressing = (team: (typeof teamRows)[number]) =>
-              Effect.gen(function* () {
-                const roster = rosterOf(team)
-                if (!roster) return team.rosterSnapshot || team.profileID ? [{ reason: "unreadable" as const }] : []
-                return TeamRoster.problems(roster, yield* profiles.employees())
-              })
-
-            /**
-             * 取消要能真的停住编排器（§8.5 / §9）。
-             *
-             * 此前 `cancel` 只把库里的状态改成 `cancelled`：在跑的编排器并不知道，
-             * 它会继续派发、继续花钱，最后用自己的结算把 `cancelled` 覆盖掉 ——
-             * 用户点了「停止」，看板上却照样跑完。这里把信号接上：
-             * `cancel` 只发停止请求，收尾（三段式）由编排器做，因为只有它知道
-             * 已经发生了哪些影响。
-             */
-            // `canStart` 看的是库里的 `phase`，而写 `phase` 发生在执行开始之后 —— 两个并发请求
-            // 可以同时通过它。本进程里已经有执行时就拒绝：两个编排器驱动同一次运行会双倍派发、
-            // 双倍记账，还会互相覆盖状态。登记放在这里（紧接着 fork），中间没有可以让出的点。
-            if (executions.has(run.id)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
-            const controller = new AbortController()
-            const execution = { controller, sessions: liveSessions }
-            executions.set(run.id, execution)
-            yield* orchestrator
-              .execute({
-                runID: run.id,
-                dispatch,
-                verify,
-                addressing,
-                commit: commitTeams,
-                verifyMerged,
-                integrate,
-                signal: controller.signal,
-                // 快照按团队取：两队并行时共用一个快照，会把这个团队的「通过」判成过期。
-                snapshot: (directory?: string) =>
-                  snapshotOf(directory ?? teamDirectory).pipe(Effect.map((id) => id ?? "unknown")),
-                maxRounds: options.maxRounds,
-                maxBusinessAttempts: options.maxBusinessAttempts,
-                reserveTokens: options.reserveTokens,
-                // 请求没指定并发时用项目级上限；两者都没有就是调度器的默认值（3）。
-                concurrency: options.concurrency ?? cfg.experimental?.team_concurrency,
-                // 零进展上限：请求 > 项目配置 > 调度器默认。验证比队长短，但同一个值足够 ——
-                // 它挡的是「挂住」，不是「慢」。
-                ...((options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms)
-                  ? {
-                      dispatchTimeoutMs: options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
-                      verifyTimeoutMs: options.callTimeoutMs ?? cfg.experimental?.team_call_timeout_ms,
-                    }
-                  : {}),
-              })
-              .pipe(
-                Effect.catchCause((cause) =>
-                  Effect.logError("team run failed").pipe(Effect.annotateLogs({ runID: run.id, cause })),
-                ),
-                // 跑完就摘掉：留下的控制器会让下一次「取消」发到一个已经结束的运行上。
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    if (executions.get(run.id) === execution) executions.delete(run.id)
-                  }),
-                ),
-                Effect.forkIn(scope, { startImmediately: true }),
-              )
-
-            const current = yield* runs.get(run.id)
-            return toRun(current ?? run)
+          executeRun({
+            runID: ctx.params.runID,
+            directory: ctx.query.directory,
+            options: ctx.payload ?? undefined,
           }),
         )
         .handle("removeRunWorktrees", (ctx) =>
@@ -1469,25 +1838,43 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
               return { merged: false, message }
             }
 
-            const outcome = yield* Effect.promise(() => mergeInto({ base: run.directory, branch }))
+            if (mergeLocks.has(run.id)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+            // 这段检查与登记之间没有 yield，单进程内的两个请求不会同时穿过门闩。
+            mergeLocks.add(run.id)
+            const outcomeExit = yield* Effect.exit(Effect.promise(() => mergeInto({ base: run.directory, branch })))
+            if (Exit.isFailure(outcomeExit)) {
+              mergeLocks.delete(run.id)
+              return yield* Effect.failCause(outcomeExit.cause)
+            }
+            const outcome = outcomeExit.value
+            // 锁要一直持有到 merge_state 和 merge 事件落库，不能只保护 git 命令本身。
+            const releaseMerge = () => Effect.sync(() => mergeLocks.delete(run.id))
             if (outcome.kind === "conflict") {
               // 失败的结论也要落库：否则刷新后看板只会显示「未合并」，
               // 用户看不出「上次试过、冲突退回了」。
-              yield* runs.update({ runID: run.id, mergeState: "merge_failed" })
-              yield* runs.appendEvent({
-                runID: run.id,
-                kind: "merge.refused",
-                payload: { reason: "conflict", branch, files: outcome.files },
-              })
+              yield* runs
+                .update({
+                  runID: run.id,
+                  mergeState: "merge_failed",
+                  event: { kind: "merge.refused", payload: { reason: "conflict", branch, files: outcome.files } },
+                })
+                .pipe(Effect.ensuring(releaseMerge()))
               return { merged: false, files: outcome.files, message: outcome.message || "合并冲突，已回退。" }
             }
             if (outcome.kind !== "merged") {
-              yield* runs.update({ runID: run.id, mergeState: "merge_failed" })
-              yield* runs.appendEvent({
-                runID: run.id,
-                kind: "merge.refused",
-                payload: { reason: outcome.kind, files: outcome.kind === "dirty" ? outcome.files : undefined },
-              })
+              yield* runs
+                .update({
+                  runID: run.id,
+                  mergeState: "merge_failed",
+                  event: {
+                    kind: "merge.refused",
+                    payload: {
+                      reason: outcome.kind,
+                      files: outcome.kind === "dirty" ? outcome.files : undefined,
+                    },
+                  },
+                })
+                .pipe(Effect.ensuring(releaseMerge()))
               return {
                 merged: false,
                 files: outcome.kind === "dirty" ? outcome.files : undefined,
@@ -1500,12 +1887,17 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
 
             // 合并成功就是这次运行与用户分支之间的连接点：把提交记下来，
             // 之后问「这次运行到底合了什么」有唯一答案。
-            yield* runs.update({ runID: run.id, mergeState: "merged", mergedAt: Date.now() })
-            yield* runs.appendEvent({
-              runID: run.id,
-              kind: "merge.settled",
-              payload: { branch: outcome.branch, integration: branch, sha: outcome.sha },
-            })
+            yield* runs
+              .update({
+                runID: run.id,
+                mergeState: "merged",
+                mergedAt: Date.now(),
+                event: {
+                  kind: "merge.settled",
+                  payload: { branch: outcome.branch, integration: branch, sha: outcome.sha },
+                },
+              })
+              .pipe(Effect.ensuring(releaseMerge()))
             return { merged: true, branch: outcome.branch, sha: outcome.sha }
           }),
         )
@@ -1514,6 +1906,28 @@ export const runHandlers = HttpApiBuilder.group(InstanceHttpApi, "run", (handler
             const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
             // 用户的显式放行：之后同一个动作会重新询问，而不是一辈子被拒。
             return { cleared: TeamDenials.clear(run.id) }
+          }),
+        )
+        .handle("pauseRun", (ctx) =>
+          Effect.gen(function* () {
+            const run = yield* requireRun(ctx.params.runID, ctx.query.directory)
+            // A live orchestrator owns the in-flight side effects. Do not relabel it
+            // as paused: use cancel, which performs the three-phase settlement.
+            if (run.state === "running" && run.phase) return yield* Effect.fail(new HttpApiError.Conflict({}))
+            if (isTerminal(run.state) || !canTransition(run.state, "paused"))
+              return yield* Effect.fail(new HttpApiError.Conflict({}))
+            const paused = yield* runs.update({
+              runID: run.id,
+              state: "paused",
+              phase: null,
+              terminalReason: "user-paused",
+              event: {
+                kind: "run.paused",
+                payload: { from: run.state, reason: "user-paused" },
+              },
+            })
+            if (!paused) return yield* Effect.fail(new HttpApiError.NotFound({}))
+            return (yield* detail(run.id))!
           }),
         )
         .handle("cancelRun", (ctx) =>

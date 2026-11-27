@@ -7,6 +7,11 @@ on:
       - "bun.lock"
       - "packages/novaway/**"
       - ".github/workflows/production-readiness.yml"
+  pull_request:
+    paths:
+      - "bun.lock"
+      - "packages/novaway/**"
+      - ".github/workflows/production-readiness.yml"
 
 concurrency:
   group: production-readiness-${{ github.ref }}
@@ -43,6 +48,11 @@ jobs:
           exit 1
       - name: Typecheck backend
         run: bun run typecheck
+      - name: Run team dispatch regression suite
+        run: >-
+          bun test test/session/prompt.test.ts test/team
+          test/tool/team-create.test.ts test/tool/team-directory.test.ts
+          test/tool/team-run.test.ts --timeout 120000
       - name: Build current platform production binary
         run: bun run build -- --single --skip-install
       - name: Record artifact attestation

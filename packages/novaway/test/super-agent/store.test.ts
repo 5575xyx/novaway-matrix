@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
+import { AgentTaskTable } from "@/team/team.sql"
+import { Database } from "@/storage/db"
+import { eq } from "drizzle-orm"
 import {
   SuperAgentStore,
   SuperAgentStoreLayer,
@@ -93,6 +96,46 @@ describe("SuperAgentStore", () => {
     expect(verifications[0]?.outcome).toBe("pass")
   })
 
+  test("projects the durable TaskNode graph into the task board", async () => {
+    const created = await run(
+      SuperAgentStore.use((store) =>
+        store.create({ id: `sa_projection_${Date.now()}`, directory: "/tmp/super-agent", goal }),
+      ),
+    )
+    const projected = Database.use((db) =>
+      db.select().from(AgentTaskTable).where(eq(AgentTaskTable.team_id, `super-agent:${created.id}`)).all(),
+    )
+    expect(projected).toHaveLength(created.graph.nodes.length)
+    expect(projected[0]?.metadata).toMatchObject({
+      projection: "super-agent-task-node",
+      sourceRunID: created.id,
+      graphVersion: created.graph.version,
+    })
+
+    const node = created.graph.nodes[0]!
+    const nextGraph = {
+      ...created.graph,
+      version: created.graph.version + 1,
+      nodes: created.graph.nodes.map((candidate) =>
+        candidate.id === node.id ? { ...candidate, status: "running" as const, updatedAt: Date.now() } : candidate,
+      ),
+    }
+    await run(SuperAgentStore.use((store) => store.updateGraph(created.id, nextGraph, created.graph.version)))
+    const updated = Database.use((db) =>
+      db.select().from(AgentTaskTable).where(eq(AgentTaskTable.id, `sa:${created.id}:${node.id}`)).get(),
+    )
+    expect(updated?.status).toBe("in_progress")
+    expect((updated?.metadata as Record<string, unknown>).sourceStatus).toBe("running")
+
+    Database.use((db) => db.delete(AgentTaskTable).where(eq(AgentTaskTable.team_id, `super-agent:${created.id}`)).run())
+    expect(
+      await run(SuperAgentStore.use((store) => store.rebuildTaskProjections("/tmp/super-agent"))),
+    ).toBeGreaterThanOrEqual(1)
+    const repaired = Database.use((db) =>
+      db.select().from(AgentTaskTable).where(eq(AgentTaskTable.id, `sa:${created.id}:${node.id}`)).get(),
+    )
+    expect(repaired?.status).toBe("in_progress")
+  })
   test("deduplicates idempotent events and persists resumable checkpoints", async () => {
     const created = await run(
       SuperAgentStore.use((store) =>

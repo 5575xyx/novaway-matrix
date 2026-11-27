@@ -13,15 +13,19 @@ import type { SessionPrompt } from "../session/prompt"
 import { SessionStatus } from "@/session/status"
 import { Config } from "@/config/config"
 import { TuiEvent } from "@/server/tui-event"
-import { Cause, Effect, Exit, Option, Schema, Scope } from "effect"
+import { Cause, Effect, Exit, Fiber, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Service as TeamService } from "@/team/team"
 import { Service as TeamRunService } from "@/team/run"
 import { Service as TeamOpLogService } from "@/team/op-log"
+import { Service as TeamAssignmentService } from "@/team/assignment"
 import * as teamIdentity from "@/team/identity"
 import * as TeamEffective from "@/team/effective"
 import { snapshotFrom } from "@/team/profile"
+import * as EmployeePromptAssembler from "@/team/employee-prompt"
+import * as AssignmentReport from "@/team/assignment-report"
+import * as Skill from "@/skill"
 import { Service as HookService, defaultLayer as HookLayer } from "@/hook/service"
 import { create as createWorktree } from "./worktree-helper"
 import { GlobalBus } from "@/bus/global"
@@ -108,9 +112,11 @@ function forkDirective(prompt: string) {
   ].join(String.fromCharCode(10))
 }
 
-function output(sessionID: SessionID, text: string) {
+function output(sessionID: SessionID, text: string, identity?: { assignmentID?: string; dispatchID?: string }) {
   return [
     `task_id: ${sessionID} (for resuming to continue this task if needed)`,
+    ...(identity?.assignmentID ? [`assignment_id: ${identity.assignmentID}`] : []),
+    ...(identity?.dispatchID ? [`dispatch_id: ${identity.dispatchID}`] : []),
     "",
     "<task_result>",
     text,
@@ -118,9 +124,11 @@ function output(sessionID: SessionID, text: string) {
   ].join("\n")
 }
 
-function backgroundOutput(sessionID: SessionID) {
+function backgroundOutput(sessionID: SessionID, identity?: { assignmentID?: string; dispatchID?: string }) {
   return [
     `task_id: ${sessionID} (for polling this task with task_status)`,
+    ...(identity?.assignmentID ? [`assignment_id: ${identity.assignmentID}`] : []),
+    ...(identity?.dispatchID ? [`dispatch_id: ${identity.dispatchID}`] : []),
     "state: running",
     "",
     "<task_result>",
@@ -164,6 +172,8 @@ function backgroundMessage(input: {
   tokens?: number
   durationMs?: number
   worktree?: string
+  assignmentID?: string
+  dispatchID?: string
 }) {
   const title =
     input.state === "completed"
@@ -172,6 +182,8 @@ function backgroundMessage(input: {
   return [
     "<task-notification>",
     `<task-id>${input.sessionID}</task-id>`,
+    ...(input.assignmentID ? [`<assignment-id>${input.assignmentID}</assignment-id>`] : []),
+    ...(input.dispatchID ? [`<dispatch-id>${input.dispatchID}</dispatch-id>`] : []),
     ...(input.name ? [`<name>${input.name}</name>`] : []),
     `<status>${input.state === "completed" ? "completed" : "failed"}</status>`,
     `<summary>${title}</summary>`,
@@ -207,6 +219,7 @@ export const TaskTool = Tool.define(
     const scope = yield* Scope.Scope
     const status = yield* SessionStatus.Service
     const flags = yield* RuntimeFlags.Service
+    const skills = Option.getOrUndefined(yield* Effect.serviceOption(Skill.Service))
     const teams = yield* TeamService
     const hooks = yield* HookService
 
@@ -307,7 +320,9 @@ export const TaskTool = Tool.define(
       // 编排坐标与归属都在建会话之前算好：归属是会话行上的字段，事后补写只会多一次写。
       const teamOps = Option.getOrUndefined(yield* Effect.serviceOption(TeamOpLogService))
       const teamRuns = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
+      const assignments = Option.getOrUndefined(yield* Effect.serviceOption(TeamAssignmentService))
       const teamScope = teamOps ? yield* teamOps.scopeOf(ctx.sessionID) : undefined
+      const resumedScope = session && teamOps ? yield* teamOps.scopeOf(session.id) : undefined
       const run = teamRuns && teamScope ? yield* teamRuns.get(teamScope.runID) : undefined
       const dispatchedTeam =
         run && teamRuns && teamScope?.taskID
@@ -330,6 +345,17 @@ export const TaskTool = Tool.define(
        */
       const person = captain ? teamIdentity.resolve({ roster, name: params.name }) : undefined
       const runID = teamScope?.runID ?? parent.runID
+      const workerAssignment =
+        resumedScope?.assignmentID ??
+        (teamScope?.runID && teamScope.taskID
+          ? EmployeePromptAssembler.assignmentID({
+              runID: teamScope.runID,
+              taskID: teamScope.taskID,
+              attempt: teamScope.attempt ?? 0,
+              discriminator: ctx.callID ?? `${params.description}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+            })
+          : undefined)
+      const workerDispatch = resumedScope?.dispatchID ?? (workerAssignment ? EmployeePromptAssembler.dispatchID(workerAssignment) : undefined)
 
       const nextSession =
         session ??
@@ -342,10 +368,15 @@ export const TaskTool = Tool.define(
             ...((isolated?.directory ?? parent?.directory ?? ctx.directory)
               ? { directory: isolated?.directory ?? parent?.directory ?? ctx.directory }
               : {}),
-            // Agent declaration wins; otherwise inherit the parent's mode so a
-            // plan-mode session cannot silently spawn an editing subagent.
+            // A planning parent is authoritative: an agent declaration must not
+            // be able to opt the child back into an editing mode and bypass the
+            // plan-mode permission boundary. Other parent modes retain the
+            // declaration override for backwards compatibility.
             ...(next.permissionMode || parentPermissionMode
-              ? { permissionMode: next.permissionMode ?? parentPermissionMode }
+              ? {
+                  permissionMode:
+                    parentPermissionMode === "plan" ? "plan" : (next.permissionMode ?? parentPermissionMode),
+                }
               : {}),
             title: params.description + ` (@${next.name} subagent)`,
             permission: [
@@ -399,9 +430,117 @@ export const TaskTool = Tool.define(
         }
       }
 
-      // 编排策略随人走：子代理没有自己的坐标，但它是「替谁干活」才有的调用，
-      // 必须继承父会话的运行坐标与策略，否则 readOnly 运行里的 task 会成为后门。
-      if (teamOps && teamScope) yield* teamOps.scope({ sessionID: nextSession.id, ...teamScope })
+      const hasEmployeeContract = Boolean(person?.employee.prompt?.trim() || person?.employee.skills?.length)
+      const skillManifest = skills
+        ? yield* Effect.forEach(person?.employee.skills ?? [], (name) =>
+            Effect.gen(function* () {
+              const skillInfo = yield* skills.get(name)
+              const contentHash = EmployeePromptAssembler.contentHash(skillInfo?.content ?? "missing:" + name)
+              return {
+                name,
+                version: skillInfo?.version ?? (skillInfo ? "content:" + contentHash.slice(-12) : "missing"),
+                contentHash,
+                ...(skillInfo?.requiredTools ? { requiredTools: [...skillInfo.requiredTools] } : {}),
+                ...(skillInfo?.permissionRequirements
+                  ? { permissionRequirements: [...skillInfo.permissionRequirements] }
+                  : {}),
+                ...(skillInfo?.outputContract !== undefined ? { outputContract: skillInfo.outputContract } : {}),
+                ...(skillInfo?.compatibility ? { compatibility: skillInfo.compatibility } : {}),
+              }
+            }),
+          )
+        : undefined
+      const assembledPrompt =
+        !forkMode && workerAssignment && teamScope && hasEmployeeContract
+          ? EmployeePromptAssembler.build({
+              entry: person,
+              prompt: params.prompt,
+              assignment: {
+                assignmentID: workerAssignment,
+                dispatchID: workerDispatch!,
+                runID: teamScope!.runID,
+                taskID: teamScope!.taskID!,
+                attempt: teamScope!.attempt ?? 0,
+                ...(employeeID ? { employeeID } : {}),
+              },
+              worktree: isolated?.directory ?? parent.directory,
+              readOnly: teamScope?.readOnly,
+              permissionSnapshot: next.permission,
+              ...(skillManifest ? { skillManifest } : {}),
+            })
+          : undefined
+
+      // Durable Assignment 必须在模型调用前落库；否则进程在 provider 请求期间退出时，
+      // 恢复层只能看到一个 session，无法判断这次员工派工是否仍然有效。
+      if (assignments && workerAssignment && workerDispatch && teamScope && !forkMode && !resumedScope?.assignmentID) {
+        yield* assignments.create({
+          id: workerAssignment,
+          runID: teamScope.runID,
+          taskID: teamScope.taskID!,
+          ...(employeeID ? { employeeID } : {}),
+          dispatchID: workerDispatch,
+          attempt: teamScope.attempt ?? 0,
+          objective: params.description,
+          scope: {
+            readOnly: teamScope.readOnly ?? true,
+            ...(isolated?.directory ? { worktree: isolated.directory } : {}),
+          },
+          ...(isolated?.directory ? { worktree: isolated.directory } : {}),
+          ...(assembledPrompt ? { promptHash: assembledPrompt.manifest.promptHash } : {}),
+          ...(assembledPrompt ? { skillManifestHash: assembledPrompt.manifest.skillManifestHash } : {}),
+          ...(assembledPrompt ? { permissionHash: assembledPrompt.manifest.permissionHash } : {}),
+          idempotencyKey: workerAssignment,
+        })
+        yield* assignments.deliver(workerAssignment)
+        yield* assignments.accept(workerAssignment)
+        yield* assignments.start(workerAssignment)
+      }
+
+      // 编排坐标与提示词快照一起写入子会话范围。旧的父坐标不能覆盖新的派工身份，
+      // 否则两个 worker 的工具幂等键会碰撞，迟到的结果也无法和本次派工区分。
+      if (teamOps && teamScope)
+        yield* teamOps.scope({
+          sessionID: nextSession.id,
+          ...teamScope,
+          ...(workerAssignment ? { assignmentID: workerAssignment } : {}),
+          ...(workerDispatch ? { dispatchID: workerDispatch } : {}),
+          ...(employeeID ? { employeeID } : {}),
+          ...(resumedScope?.promptHash
+            ? { promptHash: resumedScope.promptHash }
+            : assembledPrompt
+              ? { promptHash: assembledPrompt.manifest.promptHash }
+              : {}),
+          ...(resumedScope?.skillManifestHash
+            ? { skillManifestHash: resumedScope.skillManifestHash }
+            : assembledPrompt
+              ? { skillManifestHash: assembledPrompt.manifest.skillManifestHash }
+              : {}),
+          ...(resumedScope?.permissionHash
+            ? { permissionHash: resumedScope.permissionHash }
+            : assembledPrompt
+              ? { permissionHash: assembledPrompt.manifest.permissionHash }
+              : {}),
+          ...(isolated?.directory ? { worktree: isolated.directory } : {}),
+        })
+      if (!assignments && teamRuns && workerAssignment && !resumedScope?.assignmentID)
+        yield* teamRuns
+          .appendEvent({
+            runID: teamScope!.runID,
+            kind: "employee.assignment.created",
+            payload: {
+              assignmentID: workerAssignment,
+              dispatchID: workerDispatch,
+              taskID: teamScope!.taskID,
+              attempt: teamScope!.attempt ?? 0,
+              sessionID: nextSession.id,
+              ...(employeeID ? { employeeID } : {}),
+              ...(assembledPrompt ? { promptHash: assembledPrompt.manifest.promptHash } : {}),
+              ...(assembledPrompt ? { skillManifestHash: assembledPrompt.manifest.skillManifestHash } : {}),
+              ...(assembledPrompt ? { skillManifest: assembledPrompt.manifest.skillManifest } : {}),
+              ...(isolated?.directory ? { worktree: isolated.directory } : {}),
+            },
+          })
+          .pipe(Effect.ignore)
 
       const resolvedTeam =
         (params.team ? yield* teams.resolve(params.team, ctx.sessionID) : undefined) ??
@@ -433,8 +572,49 @@ export const TaskTool = Tool.define(
           ? teams.updateMember({ teamID: team.id, sessionID: nextSession.id, status }).pipe(Effect.ignore)
           : Effect.void
 
-      yield* hooks
-        .trigger({
+      const recordAssignment = (state: "reported" | "failed", text: string) => {
+        const parsed = AssignmentReport.parse(
+          text,
+          workerAssignment && workerDispatch && teamScope
+            ? { assignmentID: workerAssignment, dispatchID: workerDispatch, attempt: teamScope.attempt ?? 0 }
+            : undefined,
+        )
+        const reportStatus = state === "failed" ? "failed" : parsed.status
+        return assignments && workerAssignment && workerDispatch && teamScope
+          ? assignments
+              .report({
+                assignmentID: workerAssignment,
+                dispatchID: workerDispatch,
+                attempt: teamScope.attempt ?? 0,
+                sessionID: nextSession.id,
+                status: reportStatus,
+                summary: parsed.summary,
+                claims: parsed.claims,
+                evidence: parsed.evidence,
+                artifacts: parsed.artifacts,
+                blockers: parsed.blockers,
+              })
+              .pipe(Effect.ignore)
+          : !assignments && teamRuns && workerAssignment && teamScope
+            ? teamRuns
+                .appendEvent({
+                  runID: teamScope!.runID,
+                  kind: state === "reported" ? "employee.assignment.reported" : "employee.assignment.failed",
+                  payload: {
+                    assignmentID: workerAssignment,
+                    dispatchID: workerDispatch,
+                    taskID: teamScope!.taskID,
+                    attempt: teamScope!.attempt ?? 0,
+                    sessionID: nextSession.id,
+                    ...(employeeID ? { employeeID } : {}),
+                    chars: text.length,
+                  },
+                })
+                .pipe(Effect.ignore)
+            : Effect.void
+      }
+
+      yield* hooks.trigger({
           event: "SubagentStart",
           sessionID: nextSession.id,
           cwd: nextSession.directory,
@@ -488,7 +668,9 @@ export const TaskTool = Tool.define(
       const runTask = Effect.fn("TaskTool.runTask")(function* () {
         // fork 不追加岗位说明：fork 的意义是「和父会话同一段前缀」，改了就白 fork。
         const parts = yield* ops.resolvePromptParts(
-          forkMode ? forkDirective(params.prompt) : TeamEffective.compose(person, params.prompt),
+          forkMode
+            ? forkDirective(params.prompt)
+            : assembledPrompt?.prompt ?? TeamEffective.compose(person, params.prompt),
         )
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
@@ -513,6 +695,27 @@ export const TaskTool = Tool.define(
         })
         return result.parts.findLast((item) => item.type === "text")?.text ?? ""
       })
+
+      const runWithHeartbeat = <A>(effect: Effect.Effect<A>) =>
+        assignments && workerAssignment && workerDispatch && teamScope && !forkMode
+          ? Effect.gen(function* () {
+              const heartbeat = yield* Effect.gen(function* () {
+                while (true) {
+                  yield* Effect.sleep("15 seconds")
+                  yield* assignments
+                    .heartbeat({
+                      assignmentID: workerAssignment,
+                      dispatchID: workerDispatch,
+                      attempt: teamScope.attempt ?? 0,
+                      sessionID: nextSession.id,
+                      leaseMs: 60_000,
+                    })
+                    .pipe(Effect.ignore)
+                }
+              }).pipe(Effect.forkIn(scope, { startImmediately: true }))
+              return yield* effect.pipe(Effect.ensuring(Fiber.interrupt(heartbeat)))
+            })
+          : effect
 
       const resumeWhenIdle: (input: { userID: MessageID; state: "completed" | "error" }) => Effect.Effect<void> =
         Effect.fn("TaskTool.resumeWhenIdle")(function* (input: { userID: MessageID; state: "completed" | "error" }) {
@@ -550,6 +753,7 @@ export const TaskTool = Tool.define(
         state: "completed" | "error",
         text: string,
       ) {
+        yield* recordAssignment(state === "completed" ? "reported" : "failed", text)
         const currentParent = yield* sessions.get(ctx.sessionID)
         const message = yield* ops.prompt({
           sessionID: ctx.sessionID,
@@ -566,6 +770,8 @@ export const TaskTool = Tool.define(
                 state,
                 text,
                 worktree: isolated?.directory,
+                assignmentID: workerAssignment,
+                dispatchID: workerDispatch,
               }),
             },
           ],
@@ -612,7 +818,7 @@ export const TaskTool = Tool.define(
           // 子会话自己还会继续跑、继续往会话里写消息。
           cancel: ops.cancel(nextSession.id),
           run: markMember("active").pipe(
-            Effect.andThen(runTask()),
+            Effect.andThen(runWithHeartbeat(runTask())),
             Effect.tap((text) => inject("completed", text).pipe(Effect.ignore)),
             Effect.catchCause((cause) =>
               (Cause.hasInterruptsOnly(cause)
@@ -630,7 +836,7 @@ export const TaskTool = Tool.define(
             ...metadata,
             jobId: info.id,
           },
-          output: backgroundOutput(nextSession.id),
+          output: backgroundOutput(nextSession.id, { assignmentID: workerAssignment, dispatchID: workerDispatch }),
         }
       }
 
@@ -647,13 +853,14 @@ export const TaskTool = Tool.define(
         () =>
           Effect.gen(function* () {
             const text = yield* markMember("active").pipe(
-              Effect.andThen(runTask()),
+              Effect.andThen(runWithHeartbeat(runTask())),
               Effect.ensuring(markMember("idle")),
             )
+            yield* recordAssignment("reported", text)
             return {
               title: params.description,
               metadata,
-              output: output(nextSession.id, text),
+              output: output(nextSession.id, text, { assignmentID: workerAssignment, dispatchID: workerDispatch }),
             }
           }),
         (_, exit) =>

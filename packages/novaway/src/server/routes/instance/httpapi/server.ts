@@ -127,6 +127,7 @@ import { orchestratorHandlers } from "./handlers/orchestrator"
 import { superAgentHandlers } from "./handlers/super-agent"
 import { runHandlers } from "./handlers/run"
 import { teamHandlers } from "./handlers/team"
+import { expertCenterHandlers } from "./handlers/expert-center"
 import { ExtensionLayer } from "@/extension"
 import { defaultLayer as PlanApprovalLayer } from "@/session/plan-approval"
 import { defaultLayer as DocumentReviewLayer } from "@/session/document-review"
@@ -134,6 +135,8 @@ import { defaultLayer as HookServiceLayer } from "@/hook/service"
 import { defaultLayer as TeamLayer } from "@/team/team"
 import { defaultLayer as TeamMissionLayer } from "@/team/mission"
 import { defaultLayer as TeamRunLayer } from "@/team/run"
+import { defaultLayer as TeamAssignmentLayer } from "@/team/assignment"
+import { defaultLayer as TeamAssignmentWatchdogLayer } from "@/team/assignment-watchdog"
 import { defaultLayer as TeamVerificationLayer } from "@/team/verification"
 import { defaultLayer as TeamOrchestratorLayer } from "@/team/orchestrator"
 import { defaultLayer as TeamLedgerLayer } from "@/team/ledger"
@@ -172,6 +175,10 @@ const cors = (corsOptions?: CorsOptions) =>
 // - eventApiRoutes/rawInstanceRoutes: raw instance routes; auth and workspace routing happen as router middleware.
 // - instanceApiRoutes: schema routes; auth is declared on each group and workspace context is provided below.
 // - uiRoute: raw catch-all fallback; auth is router middleware so public static assets can bypass it.
+const TeamAssignmentWatchdogProvidedLayer = TeamAssignmentWatchdogLayer.pipe(
+  Layer.provide(Layer.mergeAll(TeamRunLayer, TeamAssignmentLayer)),
+)
+
 const authOnlyRouterLayer = authorizationRouterMiddleware.layer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const httpApiAuthLayer = authorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const rootApiRoutes = HttpApiBuilder.layer(RootHttpApi).pipe(
@@ -238,6 +245,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     arenaHandlers,
     runHandlers,
     teamHandlers,
+    expertCenterHandlers,
   ]),
 )
 
@@ -431,6 +439,8 @@ export function createRoutes(
       OrchestratorDefaultLayer,
       SuperAgentStoreLayer,
       TeamRunLayer,
+      TeamAssignmentLayer,
+      TeamAssignmentWatchdogProvidedLayer,
       TeamMissionLayer,
       TeamVerificationLayer,
       TeamLedgerLayer,

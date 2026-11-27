@@ -166,7 +166,7 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@novaway/TeamProfile") {}
 
-/** 内置「代码审查团队」：1 名队长 + 4 名不同岗位成员（§4.5）。 */
+/** 内置模板：代码审查团队保留原有固定 ID，其他场景模板使用独立固定 ID。 */
 export const BUILTIN_PROFILE_ID = "prof_builtin_code_review"
 
 const builtin = {
@@ -211,6 +211,147 @@ const builtin = {
   } as Record<string, string>,
   description: "只读审查一次代码变更：五个角度并行，输出带证据的问题清单。",
 }
+const builtinPresets = [
+  {
+    id: BUILTIN_PROFILE_ID,
+    name: "代码审查团队",
+    autoEligible: false,
+    ...builtin,
+    description: builtin.description,
+  },
+  {
+    id: "prof_builtin_operations",
+    name: "运营增长团队",
+    description: "从用户洞察、内容运营到数据复盘，协同推进增长目标。",
+    autoEligible: true,
+    captain: "emp_builtin_ops_lead",
+    employees: [
+      { id: "emp_builtin_ops_lead", name: "运营策略师", job: "plan", prompt: "明确运营目标、拆解增长路径，协调成员形成可执行方案。" },
+      { id: "emp_builtin_ops_content", name: "内容运营", job: "general", prompt: "规划内容主题、渠道和发布节奏，产出可直接执行的内容方案。" },
+      { id: "emp_builtin_ops_growth", name: "增长分析师", job: "general", prompt: "分析转化漏斗、用户行为和增长机会，提出可验证的实验。" },
+      { id: "emp_builtin_ops_research", name: "用户研究员", job: "general", prompt: "整理用户反馈和竞品信息，提炼真实需求与优先级。" },
+    ],
+    duties: {
+      emp_builtin_ops_content: "内容规划 / 渠道 / 发布",
+      emp_builtin_ops_growth: "漏斗 / 指标 / 实验",
+      emp_builtin_ops_research: "用户 / 竞品 / 需求",
+    } as Record<string, string>,
+  },
+  {
+    id: "prof_builtin_office",
+    name: "办公效率团队",
+    description: "处理文档、表格、会议和资料整理，把繁琐工作变成清晰交付。",
+    autoEligible: true,
+    captain: "emp_builtin_office_lead",
+    employees: [
+      { id: "emp_builtin_office_lead", name: "办公协调员", job: "general", prompt: "理解办公目标，安排文档、数据和会议任务，汇总成最终交付。" },
+      { id: "emp_builtin_office_docs", name: "文档助手", job: "general", prompt: "撰写、整理和校对文档，保持结构清晰、信息完整、格式统一。" },
+      { id: "emp_builtin_office_data", name: "表格分析师", job: "general", prompt: "清洗表格、提取关键指标，制作可解释的分析结果和图表。" },
+      { id: "emp_builtin_office_meeting", name: "会议秘书", job: "general", prompt: "整理会议材料、纪要、决策和待办，明确负责人和截止时间。" },
+    ],
+    duties: {
+      emp_builtin_office_docs: "文档 / 报告 / 校对",
+      emp_builtin_office_data: "表格 / 指标 / 图表",
+      emp_builtin_office_meeting: "会议 / 纪要 / 待办",
+    } as Record<string, string>,
+  },
+  {
+    id: "prof_builtin_development",
+    name: "软件研发团队",
+    description: "覆盖需求拆解、前后端实现、测试和安全检查的完整研发协作。",
+    autoEligible: true,
+    captain: "emp_builtin_dev_lead",
+    employees: [
+      { id: "emp_builtin_dev_lead", name: "研发队长", job: "build", prompt: "拆解开发目标，安排实现、测试和审查工作，汇总可交付结果。" },
+      { id: "emp_builtin_dev_frontend", name: "前端工程师", job: "build", prompt: "负责界面、交互和前端状态逻辑，保证响应式体验与可维护性。" },
+      { id: "emp_builtin_dev_backend", name: "后端工程师", job: "build", prompt: "负责 API、数据模型和服务逻辑，关注边界、错误处理与兼容性。" },
+      { id: "emp_builtin_dev_test", name: "测试工程师", job: "general", prompt: "补充关键测试和回归验证，用证据确认功能真正可用。" },
+      { id: "emp_builtin_dev_security", name: "安全工程师", job: "general", prompt: "检查权限、输入、敏感数据和外部副作用，给出可复现的风险。" },
+    ],
+    duties: {
+      emp_builtin_dev_frontend: "界面 / 交互 / 状态",
+      emp_builtin_dev_backend: "API / 数据 / 服务",
+      emp_builtin_dev_test: "测试 / 回归 / 验证",
+      emp_builtin_dev_security: "权限 / 输入 / 风险",
+    } as Record<string, string>,
+  },
+  {
+    id: "prof_builtin_product",
+    name: "产品设计团队",
+    description: "从用户需求、竞品研究到体验方案，协同产出清晰的产品设计。",
+    autoEligible: true,
+    captain: "emp_builtin_product_lead",
+    employees: [
+      { id: "emp_builtin_product_lead", name: "产品负责人", job: "plan", prompt: "澄清用户问题和产品目标，拆解需求并协调研究、设计和验证。" },
+      { id: "emp_builtin_product_ux", name: "体验设计师", job: "general", prompt: "设计用户流程、交互方案和体验细节，指出可用性问题。" },
+      { id: "emp_builtin_product_research", name: "竞品研究员", job: "general", prompt: "对比竞品能力、定位和体验，提炼可验证的产品机会。" },
+      { id: "emp_builtin_product_spec", name: "产品文档师", job: "general", prompt: "把方案整理成清晰的需求、验收标准和交付说明。" },
+    ],
+    duties: {
+      emp_builtin_product_lead: "目标 / 需求 / 优先级",
+      emp_builtin_product_ux: "流程 / 交互 / 体验",
+      emp_builtin_product_research: "竞品 / 用户 / 机会",
+      emp_builtin_product_spec: "需求 / 验收 / 文档",
+    } as Record<string, string>,
+  },
+  {
+    id: "prof_builtin_data",
+    name: "数据分析团队",
+    description: "从数据整理、指标定义到洞察报告，帮助团队用证据做决策。",
+    autoEligible: true,
+    captain: "emp_builtin_data_lead",
+    employees: [
+      { id: "emp_builtin_data_lead", name: "数据负责人", job: "plan", prompt: "明确分析问题、口径和交付形式，安排数据整理与洞察验证。" },
+      { id: "emp_builtin_data_clean", name: "数据整理师", job: "general", prompt: "清洗数据、处理缺失和异常，记录数据来源与处理过程。" },
+      { id: "emp_builtin_data_insight", name: "指标洞察师", job: "general", prompt: "定义关键指标，分析趋势、差异和可能原因，避免过度推断。" },
+      { id: "emp_builtin_data_report", name: "报告可视化师", job: "general", prompt: "把分析结果整理成清晰的图表、结论和行动建议。" },
+    ],
+    duties: {
+      emp_builtin_data_clean: "清洗 / 异常 / 口径",
+      emp_builtin_data_insight: "指标 / 趋势 / 原因",
+      emp_builtin_data_report: "图表 / 结论 / 建议",
+    } as Record<string, string>,
+  },
+  {
+    id: "prof_builtin_marketing",
+    name: "市场营销团队",
+    description: "协同完成市场定位、活动策划、内容创意和渠道复盘。",
+    autoEligible: true,
+    captain: "emp_builtin_marketing_lead",
+    employees: [
+      { id: "emp_builtin_marketing_lead", name: "市场策略师", job: "plan", prompt: "明确目标人群、市场定位和活动目标，形成可执行的营销计划。" },
+      { id: "emp_builtin_marketing_campaign", name: "活动运营", job: "general", prompt: "策划活动流程、传播节奏和执行清单，关注转化与复盘。" },
+      { id: "emp_builtin_marketing_copy", name: "营销文案师", job: "general", prompt: "根据受众和渠道撰写有说服力的标题、文案和传播素材。" },
+      { id: "emp_builtin_marketing_channel", name: "渠道分析师", job: "general", prompt: "比较渠道表现、成本和转化，提出下一轮投放优化建议。" },
+    ],
+    duties: {
+      emp_builtin_marketing_campaign: "活动 / 节奏 / 执行",
+      emp_builtin_marketing_copy: "标题 / 文案 / 素材",
+      emp_builtin_marketing_channel: "渠道 / 成本 / 转化",
+    } as Record<string, string>,
+  },
+  {
+    id: "prof_builtin_content",
+    name: "内容创作团队",
+    description: "从选题研究、内容写作到编辑校对，快速产出高质量内容。",
+    autoEligible: true,
+    captain: "emp_builtin_content_lead",
+    employees: [
+      { id: "emp_builtin_content_lead", name: "内容主编", job: "general", prompt: "明确受众和内容目标，安排研究、写作和校对，保持整体调性。" },
+      { id: "emp_builtin_content_research", name: "选题研究员", job: "general", prompt: "搜集可信资料和案例，整理背景、事实与可引用证据。" },
+      { id: "emp_builtin_content_writer", name: "内容写作者", job: "general", prompt: "根据目标受众完成文章、脚本或营销文案，保证表达自然有说服力。" },
+      { id: "emp_builtin_content_editor", name: "编辑校对", job: "general", prompt: "检查结构、事实、语气和错漏，给出可直接发布的修订稿。" },
+    ],
+    duties: {
+      emp_builtin_content_research: "资料 / 案例 / 事实",
+      emp_builtin_content_writer: "文章 / 脚本 / 文案",
+      emp_builtin_content_editor: "结构 / 语气 / 校对",
+    } as Record<string, string>,
+  },
+] as const
+
+/** 预置模板 ID：仅用于展示和测试；用户编辑过的模板不会被 seed 覆盖。 */
+export const BUILTIN_PROFILE_IDS = builtinPresets.map((preset) => preset.id)
 
 /**
  * 快照里的 `effective` 同样是不可信输入：缺字段、旧版本没有、手改过都要能读。
@@ -351,51 +492,53 @@ export const layer = Layer.effect(
     const seed: Interface["seed"] = Effect.fn("TeamProfile.seed")(function* () {
       yield* Effect.sync(() =>
         Database.transaction((tx) => {
-          const existing = tx.select().from(TeamProfileTable).where(eq(TeamProfileTable.id, BUILTIN_PROFILE_ID)).all()
-          // 已存在就什么都不做：用户的编辑不能被下一次启动覆盖。
-          if (existing.length > 0) return
           const now = Date.now()
-          for (const employee of builtin.employees) {
-            tx.insert(EmployeeTable)
+          for (const preset of builtinPresets) {
+            const existing = tx.select().from(TeamProfileTable).where(eq(TeamProfileTable.id, preset.id)).all()
+            // 每个模板独立幂等：新增版本的预置模板可以补进已有数据库，但绝不覆盖用户已经编辑过的模板。
+            if (existing.length > 0) continue
+            for (const employee of preset.employees) {
+              tx.insert(EmployeeTable)
+                .values({
+                  id: employee.id,
+                  name: employee.name,
+                  job: employee.job,
+                  prompt: employee.prompt,
+                  time_created: now,
+                  time_updated: now,
+                })
+                .onConflictDoNothing()
+                .run()
+            }
+            tx.insert(TeamProfileTable)
               .values({
-                id: employee.id,
-                name: employee.name,
-                job: employee.job,
-                prompt: employee.prompt,
+                id: preset.id,
+                name: preset.name,
+                description: preset.description,
+                captain_member: preset.captain,
+                version: 1,
+                auto_eligible: preset.autoEligible ? 1 : 0,
                 time_created: now,
                 time_updated: now,
               })
-              .onConflictDoNothing()
               .run()
-          }
-          tx.insert(TeamProfileTable)
-            .values({
-              id: BUILTIN_PROFILE_ID,
-              name: "代码审查团队",
-              description: builtin.description,
-              captain_member: builtin.captain,
-              version: 1,
-              auto_eligible: 0,
-              time_created: now,
-              time_updated: now,
+            preset.employees.forEach((employee, index) => {
+              const captain = employee.id === preset.captain
+              tx.insert(TeamProfileMemberTable)
+                .values({
+                  id: "profmem_" + employee.id,
+                  profile_id: preset.id,
+                  employee_id: employee.id,
+                  role: captain ? "captain" : "worker",
+                  duty: captain ? "拆解 / 汇总 / 推进交付" : (preset.duties[employee.id] ?? null),
+                  can_auto_dispatch: 1,
+                  order: index,
+                  time_created: now,
+                  time_updated: now,
+                })
+                .run()
             })
-            .run()
-          builtin.employees.forEach((employee, index) => {
-            const captain = employee.id === builtin.captain
-            tx.insert(TeamProfileMemberTable)
-              .values({
-                id: "profmem_" + employee.id,
-                profile_id: BUILTIN_PROFILE_ID,
-                employee_id: employee.id,
-                role: captain ? "captain" : "worker",
-                duty: captain ? "拆解 / 汇总 / 判定返工" : (builtin.duties[employee.id] ?? null),
-                can_auto_dispatch: 1,
-                order: index,
-                time_created: now,
-                time_updated: now,
-              })
-              .run()
-          })
+          }
         }),
       )
     })

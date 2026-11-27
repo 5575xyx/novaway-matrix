@@ -2,11 +2,14 @@ import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
 import { Service as RunService, defaultLayer as RunLayer, canStart, type Interface as RunInterface } from "@/team/run"
 import { Service as OpLogService, defaultLayer as OpLogLayer } from "@/team/op-log"
+import { Service as AssignmentService, defaultLayer as AssignmentLayer } from "@/team/assignment"
+import { Service as AssignmentWatchdogService, layer as AssignmentWatchdogLayer } from "@/team/assignment-watchdog"
 import { recover } from "@/team/recovery"
 import { SessionID } from "@/session/schema"
 import { testEffect } from "../lib/effect"
 
 const it = testEffect(Layer.mergeAll(RunLayer, OpLogLayer))
+const watchdogIt = testEffect(Layer.provideMerge(AssignmentWatchdogLayer, Layer.mergeAll(RunLayer, AssignmentLayer)))
 
 const sessionID = () => SessionID.make("ses_" + Math.random().toString(36).slice(2, 9))
 
@@ -98,6 +101,46 @@ describe("team recovery", () => {
       const result = yield* recover({ since: Date.now() + 1_000, directory: "/tmp/project-a" })
       expect(result.paused.map((item) => item.runID)).toEqual([mine.run.id])
       expect((yield* runs.get(other.run.id))?.state).toBe("running")
+    }),
+  )
+
+  watchdogIt.effect("moves an expired worker lease to needs_review while the workspace is idle", () =>
+    Effect.gen(function* () {
+      const runs = yield* RunService
+      const assignments = yield* AssignmentService
+      const watchdog = yield* AssignmentWatchdogService
+      const directory = `/tmp/watchdog-${Math.random().toString(36).slice(2)}`
+      const run = yield* runs.create({
+        sessionID: sessionID(),
+        directory,
+        mode: "team",
+        goal: "检测失联员工",
+      })
+      yield* runs.update({ runID: run.id, state: "running", phase: "executing" })
+      const assignment = yield* assignments.create({
+        id: `assignment_watchdog_${Date.now()}_${Math.random()}`,
+        runID: run.id,
+        taskID: "task-watchdog",
+        dispatchID: `dispatch_watchdog_${Date.now()}_${Math.random()}`,
+        attempt: 1,
+        objective: "等待租约过期",
+        idempotencyKey: `watchdog-${Date.now()}-${Math.random()}`,
+        leaseMs: 1,
+      })
+      yield* assignments.deliver(assignment.id)
+      yield* assignments.accept(assignment.id)
+      yield* assignments.start(assignment.id)
+
+      const first = yield* watchdog.tick({ directory, now: (assignment.leaseUntil ?? 0) + 1 })
+      expect(first).toHaveLength(1)
+      expect(first[0]?.assignments.map((item) => item.id)).toEqual([assignment.id])
+      expect((yield* runs.get(run.id))?.state).toBe("needs_review")
+      expect((yield* assignments.get(assignment.id))?.status).toBe("needs_review")
+
+      // A second sweep is idempotent: it cannot append another review event.
+      expect(yield* watchdog.tick({ directory, now: Date.now() + 10_000 })).toEqual([])
+      const events = yield* runs.events({ runID: run.id })
+      expect(events.filter((event) => event.kind === "employee.assignment.lease_review_required")).toHaveLength(1)
     }),
   )
 

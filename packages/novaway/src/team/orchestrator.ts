@@ -34,7 +34,7 @@ export type Claim = {
   evidence?: string
 }
 
-export type Artifact = { name: string; version: number; hash?: string }
+export type Artifact = { name: string; version: number; hash?: string; path?: string }
 
 export type Report = {
   teamID: string

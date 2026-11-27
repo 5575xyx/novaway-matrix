@@ -4,25 +4,28 @@ import { Service as TeamService } from "@/team/team"
 import { Service as TeamRunService } from "@/team/run"
 import { Service as TeamVerificationService } from "@/team/verification"
 import { Service as TeamMissionService } from "@/team/mission"
+import { Service as TeamProfileService, type Snapshot } from "@/team/profile"
+import { of as effectiveOf } from "@/team/effective"
 import { Service as SessionService } from "@/session/session"
 import { Service as TeamOpLogService } from "@/team/op-log"
-import { fromLive } from "@/team/roster"
+import * as TeamDispatchDirectory from "@/team/dispatch-directory"
+import { describe as describeRosterProblems, fromLive, problems as rosterProblems } from "@/team/roster"
 import { attachMission, prepareWorktree } from "@/team/setup"
 import * as TeamSwitch from "@/team/switch"
+import * as TeamAutoStart from "@/team/auto-start"
 import { Config } from "@/config/config"
 
 /**
- * `team_run`：把一次团队派发登记成运行，然后**停在这里等人批准**。
+ * `team_run`：把一次团队派发登记成运行，并根据风险边界决定是否需要人工确认。
  *
- * 为什么不在工具里直接执行：运行阶段要多次调用模型（队长拆解、验证器裁决），
- * 它属于后台任务，不该占用工具调用这一个回合；更重要的是，§4.2 要求
- * 「Auto 模式必须显式批准后才能派发」。工具只负责「建运行 + 定计划」，
- * 批准与执行由用户在运行页完成 —— 这一步不能由主智能体代劳。
+ * 运行阶段要多次调用模型（队长拆解、验证器裁决），它属于后台任务，不应占用
+ * 主助手当前这一回合。这里仍只负责「建运行 + 定计划」；安全的只读运行可以
+ * 自动批准，涉及写入或外部副作用的运行必须保留人工批准。
  *
- * 会话的 `teamMode` 决定可用团队（§4.2）：
- * - `off`：不派发，直接告诉模型去请用户选择；
- * - `selected`：只接受 `teamIDs` 里的团队，且计划可以直接批准（不阻塞用户）；
- * - `auto`：只接受 `autoEligible` 团队，计划必须等用户批准。
+ * 会话的 `teamMode` 决定可用团队：
+ * - `off`：用户明确要求主助手直接处理，不派发；
+ * - `selected`：只接受 `teamIDs` 里的团队或专家团模板，单专家由会话的 `employeeID` 点名；
+ * - `auto`：只接受 `autoEligible` 团队或专家团模板，由主助手按任务需要选择。
  */
 
 const AcceptanceInput = Schema.Struct({
@@ -43,7 +46,12 @@ export const BriefInput = Schema.Struct({
 })
 
 export const TeamRunParameters = Schema.Struct({
-  team: Schema.String.annotate({ description: "团队 ID 或名字；必须出现在本次会话的团队目录里" }),
+  team: Schema.optional(Schema.String).annotate({
+    description: "团队或专家团模板 ID/名字；必须出现在本次会话的团队目录里",
+  }),
+  expert: Schema.optional(Schema.String).annotate({
+    description: "单个专家 ID 或名字；必须出现在本次会话的专家目录里。与 team 二选一",
+  }),
   goal: Schema.String.annotate({ description: "这一轮要交付什么（面向结果，不写过程）" }),
   brief: Schema.optional(BriefInput).annotate({
     description: "用户给的范围与约束；不填就只按目标派发。写了就原样进队长提示词，不能悄悄丢掉。",
@@ -64,11 +72,11 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
   "team_run",
   Effect.succeed({
     description: [
-      "Dispatch a team from this session's team catalog.",
-      "Creates a run with a plan and acceptance criteria, then stops: the user starts it, and approves it first unless it is a read-only run of a team they picked.",
+      "Dispatch a team or a single expert from this session's catalog when the task benefits from expert collaboration.",
+      "Pass exactly one of team or expert. Creates a run with a plan and acceptance criteria. Safe read-only runs are approved and started automatically; writes and external side effects always wait for the user's approval.",
       "Runs are read-only unless the user asked for changes; asking for writes (allowWrites) always waits for the user's approval.",
       "If the user stated a scope, file list or hard constraints, pass them in brief: they go into the captain's prompt verbatim.",
-      "Works only when the user picked a team (or Auto) for this session; otherwise tell the user to choose one.",
+      "In Auto mode, do not ask the user to choose first: decide whether the main assistant, one expert, or a team is the best fit and dispatch only when collaboration adds value.",
     ].join(" "),
     parameters: TeamRunParameters,
     capabilities: { concurrencySafe: false },
@@ -79,6 +87,7 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
         const runs = Option.getOrUndefined(yield* Effect.serviceOption(TeamRunService))
         const verification = Option.getOrUndefined(yield* Effect.serviceOption(TeamVerificationService))
         const missions = Option.getOrUndefined(yield* Effect.serviceOption(TeamMissionService))
+        const profiles = Option.getOrUndefined(yield* Effect.serviceOption(TeamProfileService))
         if (!sessions || !teams || !runs || !verification) {
           return {
             title: "Team runs unavailable",
@@ -104,34 +113,111 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
           return {
             title: "No team selected",
             output:
-              "This session has no team catalog: the user has not selected a team. " +
-              "Ask the user to pick a team (or Auto) at the composer before dispatching.",
+              "This session is explicitly set to main-assistant-only mode. Complete the task directly without expert collaboration.",
             metadata: {},
           }
         }
 
-        // 目录过滤：Auto 只看 autoEligible，selected 只看用户点过的那几个。
-        // 目录是本工具的唯一授权来源 —— 名字对不上就是整次派发失败，不静默改派。
-        const wanted = new Set(mode === "selected" ? (session?.teamIDs ?? []) : [])
-        const candidates: Array<{ id: string; name: string }> = []
-        for (const team of yield* teams.list()) {
-          if (mode === "selected" && !wanted.has(team.id)) continue
-          if (mode === "auto" && !team.autoEligible) continue
-          const root = yield* sessions.get(team.rootSessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
-          // 团队属于它的根会话目录；跨项目的同名团队不能被「猜」到。
-          if (root && root.directory !== directory) continue
-          candidates.push({ id: team.id, name: team.name })
-        }
+        // This is the same resolver shown by team_list. An ID returned there is
+        // therefore accepted here under the same session and workspace policy.
+        const catalog = yield* TeamDispatchDirectory.resolve({
+          teams,
+          ...(profiles ? { profiles } : {}),
+          sessions,
+          session: session!,
+          directory,
+          mode,
+        })
+        const candidates = catalog.teams
 
-        const target = candidates.find((team) => team.id === params.team || team.name === params.team)
-        if (!target) {
-          return yield* Effect.fail(
-            new Error(
-              candidates.length === 0
-                ? `No team is available for this session (mode: ${mode}).`
-                : `Unknown team "${params.team}". Available: ${candidates.map((team) => team.name).join(", ")}.`,
-            ),
-          )
+        const requestedTeam = params.team?.trim()
+        const requestedExpert = params.expert?.trim()
+        if ((requestedTeam && requestedExpert) || (!requestedTeam && !requestedExpert))
+          return yield* Effect.fail(new Error("Pass exactly one of team or expert."))
+
+        let target: { id: string; name: string }
+        let live: Snapshot | undefined
+        if (requestedExpert) {
+          if (!profiles) return yield* Effect.fail(new Error("Expert directory is not enabled in this runtime."))
+          const expertByID = catalog.experts.find((item) => item.id === requestedExpert)
+          const expertMatches = expertByID
+            ? [expertByID]
+            : catalog.experts.filter((item) => item.name === requestedExpert)
+          if (expertMatches.length > 1)
+            return yield* Effect.fail(
+              new Error(
+                `Expert name "${requestedExpert}" is ambiguous. Pass an ID: ${expertMatches.map((item) => item.id).join(", ")}.`,
+              ),
+            )
+          const employee = expertMatches[0]
+          if (!employee) {
+            const available = catalog.experts.map((item) => `${item.id} (${item.name} [${item.job}])`).join(", ")
+            return yield* Effect.fail(
+              new Error(
+                `Unknown or unavailable expert "${requestedExpert}".${available ? ` Available: ${available}.` : " No expert is available in this session."}`,
+              ),
+            )
+          }
+
+          target = { id: `expert:${employee.id}`, name: employee.name }
+          live = {
+            profileID: target.id,
+            name: employee.name,
+            version: 1,
+            captain: employee.id,
+            roster: [
+              {
+                employee,
+                role: "captain",
+                order: 0,
+                canAutoDispatch: employee.canAutoDispatch,
+                effective: effectiveOf({
+                  employee,
+                  role: "captain",
+                  order: 0,
+                  canAutoDispatch: employee.canAutoDispatch,
+                }),
+              },
+            ],
+          }
+        } else {
+          const teamByID = candidates.find((item) => item.id === requestedTeam)
+          const teamMatches = teamByID ? [teamByID] : candidates.filter((item) => item.name === requestedTeam)
+          if (teamMatches.length > 1)
+            return yield* Effect.fail(
+              new Error(
+                `Team name "${requestedTeam}" is ambiguous. Pass an ID: ${teamMatches.map((item) => item.id).join(", ")}.`,
+              ),
+            )
+          const selected = teamMatches[0]
+          if (!selected) {
+            return yield* Effect.fail(
+              new Error(
+                candidates.length === 0
+                  ? `No team is available for this session (mode: ${mode}).`
+                  : `Unknown team "${requestedTeam}". Available: ${candidates.map((item) => `${item.id} (${item.name})`).join(", ")}.`,
+              ),
+            )
+          }
+          target = selected
+          if (selected.source === "profile") {
+            if (!profiles) return yield* Effect.fail(new Error("Expert team profiles are not enabled in this runtime."))
+            live = yield* profiles.snapshot(selected.id)
+            if (!live) return yield* Effect.fail(new Error(`Team profile "${selected.name}" has no usable roster.`))
+            const profileMembers = yield* profiles.members(selected.id)
+            const rosterIssues = rosterProblems(
+              live,
+              yield* profiles.employees(),
+              profileMembers.map((member) => member.employeeID),
+            )
+            if (rosterIssues.length > 0) return yield* Effect.fail(new Error(describeRosterProblems(rosterIssues)))
+          } else {
+            live = fromLive({ teamID: target.id, name: target.name, members: yield* teams.members(target.id) })
+            if (!live)
+              return yield* Effect.fail(
+                new Error(`Team "${target.name}" has no active members and cannot be dispatched.`),
+              )
+          }
         }
 
         // 持久目标（§3.2）：先把目标准备好，再建运行 —— 目标准备失败就不该留下
@@ -165,9 +251,8 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             payload: { missionID: params.missionID, worktree: missionWorktree },
           })
 
-        // 名册快照（§5.2）：把**当前**的团队复制进运行。之后成员变动不影响这次运行，
-        // 队长与成员职责也都从这份快照读 —— 否则派发时只剩一个默认 agent。
-        const live = fromLive({ teamID: target.id, name: target.name, members: yield* teams.members(target.id) })
+        // 名册快照已经在目标解析阶段冻结：团队复制当前名册，单专家生成一人名册。
+        // 运行之后不再读取员工目录，保证改名、归档或岗位变更不影响历史解释。
 
         // 团队 worktree（§10.1）：成员在独立副本里写，证据绑定提交而不是「用户当时恰好存盘的样子」。
         // 归属目标时从目标工作区切，接着上次做到的地方往下做。
@@ -215,7 +300,8 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
             policy: { readOnly },
           },
           planVersion: 1,
-          // 有计划就应当等批准：停在没有按钮可点的 `planning` 等于把运行卡死。
+          // 计划先以待批准状态落库，下面对安全的只读计划立即批准；这样计划版本、
+          // 预算和审批事件仍然走同一条状态机，不会因为自动模式而绕过审计。
           state: "awaiting_approval",
         })
         yield* runs.appendEvent({
@@ -232,13 +318,20 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
           },
         })
 
-        // `selected` 是用户点过名的一次性授权，只读运行直接批准，不阻塞对话；
-        // `auto` 必须由用户在运行页确认（§4.2 的批准语义）。
-        // 申请写权限也一律要批准：点名团队不等于把人家的仓库交出去。
-        const needsApproval = mode === "auto" || !readOnly
+        // `selected` 和 `auto` 的只读派发都属于低风险的执行授权：前者是用户点名，
+        // 后者是用户开启了按需协作。两者都可以自动批准；写入或外部副作用仍必须
+        // 回到运行页由用户确认，不能因为「自动选人」而扩大权限。
+        const needsApproval = !readOnly
         const approval = needsApproval ? "awaiting user approval" : "approved"
+        let autoStarted = false
         if (!needsApproval) {
           yield* runs.approve({ runID: run.id, planVersion: 1, budget, by: "main" })
+          if (mode === "auto") {
+            // 复用 HTTP 执行入口：这里不会复制编排器逻辑，也不会绕过执行前的
+            // 审计、结果不明检查、并发锁和 watchdog。没有 HTTP runtime 时由桥接层
+            // 保持 no-op，测试仍可验证授权状态。
+            autoStarted = yield* TeamAutoStart.start({ runID: run.id, directory })
+          }
         }
 
         return {
@@ -260,12 +353,14 @@ export const TeamRunTool = Tool.define<typeof TeamRunParameters, { runID?: strin
               ? "policy: read-only — this run cannot modify the workspace"
               : "policy: writable — the user must approve it before it can touch the workspace",
             needsApproval
-              ? "Ask the user to review and approve it in the Runs page; it will not start on its own."
-              : "The user can start it from the Runs page.",
+              ? "Review and approve it in the Runs page before it can execute."
+              : autoStarted
+                ? "Approved and started automatically because this run is read-only."
+                : "Approved automatically because this run is read-only; it is ready to execute.",
             // 运行是分叉出去的：告诉模型怎么查，而不是让它下次凭记忆下结论。
             "Check progress with team_run_status instead of assuming it finished.",
           ].join("\n"),
-          metadata: { runID: run.id, state: needsApproval ? "awaiting_approval" : "planned" },
+          metadata: { runID: run.id, state: needsApproval ? "awaiting_approval" : "running" },
         }
       }).pipe(Effect.orDie),
   }),

@@ -78,8 +78,13 @@ export function describe(problems: readonly Problem[]): string {
   return "寻址失败：" + parts.join("；")
 }
 
-export function problems(snapshot: Snapshot, employees: readonly Employee[]): Problem[] {
+export function problems(
+  snapshot: Snapshot,
+  employees: readonly Employee[],
+  expectedMemberIDs?: readonly string[],
+): Problem[] {
   const library = new Map(employees.map((employee) => [employee.id, employee]))
+  const rosterIDs = new Set(snapshot.roster.map((entry) => entry.employee.id))
   const out: Problem[] = []
   for (const entry of snapshot.roster) {
     const live = library.get(entry.employee.id)
@@ -92,7 +97,10 @@ export function problems(snapshot: Snapshot, employees: readonly Employee[]): Pr
       reason: "archived",
     })
   }
-  if (!snapshot.roster.some((entry) => entry.employee.id === snapshot.captain))
+  for (const employeeID of expectedMemberIDs ?? []) {
+    if (!rosterIDs.has(employeeID)) out.push({ employeeID, reason: "missing" })
+  }
+  if (!rosterIDs.has(snapshot.captain) && !out.some((problem) => problem.employeeID === snapshot.captain))
     out.push({ employeeID: snapshot.captain, reason: "missing" })
   return out
 }

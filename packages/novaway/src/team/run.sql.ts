@@ -168,6 +168,57 @@ export const TeamRunTeamTable = sqliteTable(
   (table) => [index("team_run_team_run_idx").on(table.run_id)],
 )
 
+/**
+ * 员工派工事实：一次具体员工执行尝试的 Durable 生命周期。
+ *
+ * `TeamRunTeam` 是团队聚合，`AgentTask` 是协作任务板投影；这里才记录「哪个员工、哪一次
+ * attempt、哪一个 dispatch 当前是否仍有权报告」。所有状态变化都由 Assignment Service
+ * 和同一事务里的 `TeamRunEvent` 记录，不能只靠模型返回文本推断。
+ */
+export const TeamAssignmentTable = sqliteTable(
+  "team_run_assignment",
+  {
+    id: text().primaryKey(),
+    run_id: text().notNull(),
+    task_id: text().notNull(),
+    employee_id: text(),
+    session_id: text().$type<SessionID>(),
+    parent_assignment_id: text(),
+    dispatch_id: text().notNull(),
+    attempt: integer().notNull().default(1),
+    status: text().notNull().default("created"),
+    objective: text().notNull(),
+    scope: text({ mode: "json" }).$type<Record<string, unknown>>(),
+    acceptance_ids: text({ mode: "json" }).$type<string[]>(),
+    worktree: text(),
+    prompt_hash: text(),
+    skill_manifest_hash: text(),
+    permission_hash: text(),
+    idempotency_key: text().notNull(),
+    lease_until: integer(),
+    last_heartbeat_at: integer(),
+    heartbeat_misses: integer().notNull().default(0),
+    report: text({ mode: "json" }).$type<Record<string, unknown>>(),
+    verification: text({ mode: "json" }).$type<Record<string, unknown>>(),
+    error: text(),
+    delivered_at: integer(),
+    accepted_at: integer(),
+    started_at: integer(),
+    reported_at: integer(),
+    verified_at: integer(),
+    cancelled_at: integer(),
+    expired_at: integer(),
+    ...Timestamps,
+  },
+  (table) => [
+    uniqueIndex("team_run_assignment_dispatch_idx").on(table.dispatch_id),
+    uniqueIndex("team_run_assignment_idempotency_idx").on(table.idempotency_key),
+    index("team_run_assignment_run_idx").on(table.run_id, table.time_created),
+    index("team_run_assignment_task_idx").on(table.task_id, table.attempt),
+    index("team_run_assignment_lease_idx").on(table.status, table.lease_until),
+  ],
+)
+
 /** 不可变事件日志（回放与审计的唯一真相源）。 */
 export const TeamRunEventTable = sqliteTable(
   "team_run_event",

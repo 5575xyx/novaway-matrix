@@ -275,7 +275,9 @@ export const RunTeamView = Schema.Struct({
    * 产物与版本（§8.6）：版本由产物内容决定。下游记录的是具体版本，
    * 上游一变，下游的旧结论就失效 —— 界面能看出「它交付的是哪一版」。
    */
-  artifacts: Schema.optional(Schema.Array(Schema.Struct({ name: Schema.String, version: Schema.String }))),
+  artifacts: Schema.optional(
+    Schema.Array(Schema.Struct({ name: Schema.String, version: Schema.String, path: Schema.optional(Schema.String) })),
+  ),
   /** 这支队任务板上的条目（§5.5）：看板据此显示「做到哪一步」。 */
   tasks: Schema.optional(Schema.Array(RunTaskView)),
   /** 这次运行实际用到的名册（§5.2 的快照）：参与人与队长，不随模板改名而变。 */
@@ -426,6 +428,78 @@ export const RunUnknownOpView = Schema.Struct({
   startedAt: Schema.Number,
 }).annotate({ identifier: "RunUnknownOpView" })
 
+export const RunAssignmentView = Schema.Struct({
+  id: Schema.String,
+  runID: Schema.String,
+  taskID: Schema.String,
+  employeeID: Schema.optional(Schema.String),
+  sessionID: Schema.optional(Schema.String),
+  parentAssignmentID: Schema.optional(Schema.String),
+  dispatchID: Schema.String,
+  attempt: Schema.Number,
+  status: Schema.String,
+  objective: Schema.String,
+  acceptanceIDs: Schema.Array(Schema.String),
+  worktree: Schema.optional(Schema.String),
+  promptHash: Schema.optional(Schema.String),
+  skillManifestHash: Schema.optional(Schema.String),
+  permissionHash: Schema.optional(Schema.String),
+  leaseUntil: Schema.optional(Schema.Number),
+  lastHeartbeatAt: Schema.optional(Schema.Number),
+  heartbeatMisses: Schema.Number,
+  report: Schema.optional(Schema.Any),
+  verification: Schema.optional(Schema.Any),
+  error: Schema.optional(Schema.String),
+  deliveredAt: Schema.optional(Schema.Number),
+  acceptedAt: Schema.optional(Schema.Number),
+  startedAt: Schema.optional(Schema.Number),
+  reportedAt: Schema.optional(Schema.Number),
+  verifiedAt: Schema.optional(Schema.Number),
+  cancelledAt: Schema.optional(Schema.Number),
+  expiredAt: Schema.optional(Schema.Number),
+  createdAt: Schema.Number,
+  updatedAt: Schema.Number,
+}).annotate({ identifier: "RunAssignmentView" })
+
+export const RunAssignmentHeartbeatPayload = Schema.Struct({
+  dispatchID: Schema.String,
+  attempt: Schema.Number,
+  sessionID: Schema.String,
+  leaseMs: Schema.optional(Schema.Number),
+}).annotate({ identifier: "RunAssignmentHeartbeatPayload" })
+
+export const RunAssignmentReportPayload = Schema.Struct({
+  dispatchID: Schema.String,
+  attempt: Schema.Number,
+  sessionID: Schema.String,
+  status: Schema.Literals(["succeeded", "failed", "blocked", "needs_review"]),
+  summary: Schema.optional(Schema.String),
+  claims: Schema.optional(Schema.Array(Schema.Any)),
+  evidence: Schema.optional(Schema.Array(Schema.Any)),
+  artifacts: Schema.optional(Schema.Array(Schema.Any)),
+  blockers: Schema.optional(Schema.Array(Schema.Any)),
+}).annotate({ identifier: "RunAssignmentReportPayload" })
+
+export const RunAssignmentVerifyPayload = Schema.Struct({
+  outcome: Schema.Literals(["succeeded", "failed", "needs_review"]),
+  verification: Schema.Record(Schema.String, Schema.Any),
+  error: Schema.optional(Schema.String),
+}).annotate({ identifier: "RunAssignmentVerifyPayload" })
+
+export const RunAssignmentCancelPayload = Schema.Struct({
+  reason: Schema.optional(Schema.String),
+}).annotate({ identifier: "RunAssignmentCancelPayload" })
+
+export const RunAssignmentRetryPayload = Schema.Struct({
+  objective: Schema.optional(Schema.String),
+  leaseMs: Schema.optional(Schema.Number),
+}).annotate({ identifier: "RunAssignmentRetryPayload" })
+
+export const RunAssignmentRetryResult = Schema.Struct({
+  assignment: RunAssignmentView,
+  previousAssignmentID: Schema.String,
+}).annotate({ identifier: "RunAssignmentRetryResult" })
+
 export const RunDetail = Schema.Struct({
   run: RunView,
   teams: Schema.Array(RunTeamView),
@@ -433,6 +507,7 @@ export const RunDetail = Schema.Struct({
   verifications: Schema.Array(RunVerificationView),
   summary: RunSummaryView,
   blockers: Schema.Array(RunBlockerView),
+  assignments: Schema.Array(RunAssignmentView),
   /** 拒绝在本次运行内保持有效：这些动作不会再次弹窗，直到用户显式放行。 */
   denials: Schema.Array(RunDenialView),
   /** 结果不明的工具操作：未清空之前，这次运行不能自动续跑。 */
@@ -616,6 +691,95 @@ export const RunApi = HttpApiGroup.make("run")
         description: "Run, teams, acceptance lines, verifications and the folded summary.",
       }),
     ),
+    HttpApiEndpoint.get("listRunAssignments", `${root}/:runID/assignments`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(Schema.Array(RunAssignmentView), "Run assignments"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.assignments.list",
+        summary: "List employee assignments",
+        description: "List durable employee dispatch attempts for a run.",
+      }),
+    ),
+    HttpApiEndpoint.get("getRunAssignment", `${root}/:runID/assignments/:assignmentID`, {
+      params: { runID: Schema.String, assignmentID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(RunAssignmentView, "Run assignment"),
+      error: [HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.assignment.get",
+        summary: "Get an employee assignment",
+        description: "Read one durable employee dispatch attempt.",
+      }),
+    ),
+    HttpApiEndpoint.post("heartbeatRunAssignment", `${root}/:runID/assignments/:assignmentID/heartbeat`, {
+      params: { runID: Schema.String, assignmentID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: RunAssignmentHeartbeatPayload,
+      success: described(RunAssignmentView, "Assignment heartbeat"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound, HttpApiError.Conflict],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.assignment.heartbeat",
+        summary: "Renew an employee assignment lease",
+        description: "Renew a live assignment lease using its central dispatch identity.",
+      }),
+    ),
+    HttpApiEndpoint.post("reportRunAssignment", `${root}/:runID/assignments/:assignmentID/report`, {
+      params: { runID: Schema.String, assignmentID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: RunAssignmentReportPayload,
+      success: described(RunAssignmentView, "Assignment report"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound, HttpApiError.Conflict],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.assignment.report",
+        summary: "Submit an employee assignment report",
+        description: "Record a worker report; verification is a separate operation and is never implied by this call.",
+      }),
+    ),
+    HttpApiEndpoint.post("verifyRunAssignment", `${root}/:runID/assignments/:assignmentID/verify`, {
+      params: { runID: Schema.String, assignmentID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: RunAssignmentVerifyPayload,
+      success: described(RunAssignmentView, "Assignment verification"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound, HttpApiError.Conflict],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.assignment.verify",
+        summary: "Verify an employee assignment",
+        description: "Apply an independent verification outcome to a reported assignment.",
+      }),
+    ),
+    HttpApiEndpoint.post("cancelRunAssignment", `${root}/:runID/assignments/:assignmentID/cancel`, {
+      params: { runID: Schema.String, assignmentID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: RunAssignmentCancelPayload,
+      success: described(RunAssignmentView, "Cancelled assignment"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound, HttpApiError.Conflict],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.assignment.cancel",
+        summary: "Cancel an employee assignment",
+        description: "Cancel a live assignment without pretending that its external side effects are known.",
+      }),
+    ),
+    HttpApiEndpoint.post("retryRunAssignment", `${root}/:runID/assignments/:assignmentID/retry`, {
+      params: { runID: Schema.String, assignmentID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      payload: RunAssignmentRetryPayload,
+      success: described(RunAssignmentRetryResult, "Retried assignment"),
+      error: [HttpApiError.BadRequest, HttpApiError.NotFound, HttpApiError.Conflict],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.assignment.retry",
+        summary: "Create a new assignment attempt",
+        description: "Create an explicit new attempt after a human-reviewed or terminal assignment result.",
+      }),
+    ),
     HttpApiEndpoint.post("setRunPlan", `${root}/:runID/plan`, {
       params: { runID: Schema.String },
       query: WorkspaceRoutingQuery,
@@ -734,6 +898,19 @@ export const RunApi = HttpApiGroup.make("run")
         summary: "Allow denied actions again",
         description:
           "Clears this run's permission denials. Denials are kept for the rest of the run so the same action is never asked twice; clearing them is the explicit human override.",
+      }),
+    ),
+    HttpApiEndpoint.post("pauseRun", `${root}/:runID/pause`, {
+      params: { runID: Schema.String },
+      query: WorkspaceRoutingQuery,
+      success: described(RunDetail, "Paused run"),
+      error: [HttpApiError.BadRequest, HttpApiError.Conflict, HttpApiError.NotFound],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "run.pause",
+        summary: "Pause a run",
+        description:
+          "Pause a run at a safe boundary. A run that is already dispatching must be cancelled instead; it is never silently relabeled as paused while work is in flight.",
       }),
     ),
     HttpApiEndpoint.post("cancelRun", `${root}/:runID/cancel`, {

@@ -52,6 +52,13 @@ export const MessagesQuery = Schema.Struct({
   limit: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
   before: Schema.optional(Schema.String),
 })
+export const CreatePayload = Schema.optional(
+  Schema.Struct({
+    ...Session.CreateFields,
+    // A validated executor choice for a new root conversation, not a run attribution.
+    expertID: Schema.optional(Schema.String),
+  }),
+)
 export const StatusMap = Schema.Record(Schema.String, SessionStatus.Info)
 export const TempFileInfo = Schema.Struct({
   path: Schema.String,
@@ -83,6 +90,8 @@ export const UpdatePayload = Schema.Struct({
    */
   teamMode: Schema.optional(Schema.Literals(["off", "auto", "selected"])),
   teamIDs: Schema.optional(Schema.Array(Schema.String)),
+  /** User-selected expert for a conversation; this is intent, not internal attribution. */
+  employeeID: Schema.optional(Schema.String),
   /**
    * Move the session's working directory (fires the CwdChanged hook).
    * Named `cwd`, not `directory`: the query parameter already owns that name,
@@ -320,7 +329,7 @@ export const SessionApi = HttpApi.make("session")
         ),
         HttpApiEndpoint.post("create", SessionPaths.create, {
           query: WorkspaceRoutingQuery,
-          payload: [HttpApiSchema.NoContent, Session.CreateInput],
+          payload: [HttpApiSchema.NoContent, CreatePayload],
           success: described(Session.Info, "Successfully created session"),
           error: HttpApiError.BadRequest,
         }).annotateMerge(

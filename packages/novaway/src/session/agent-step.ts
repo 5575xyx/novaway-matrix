@@ -8,6 +8,7 @@ import { ModelID, ProviderID } from "../provider/schema"
 import type { Interface as TeamInterface } from "../team/team"
 import type { SessionPrompt } from "./prompt"
 import type { MessageV2 } from "./message-v2"
+import * as EmployeePromptAssembler from "@/team/employee-prompt"
 
 // 共享执行原语:程序化跑一轮 agent(派生子会话)。
 // 供组合工作流执行引擎 (workflow/executor) 与子代理编排 (orchestrator) 复用,
@@ -34,7 +35,21 @@ export interface RunAgentInput {
    * 编排坐标：登记后这个子会话里的有副作用工具调用会带幂等键。
    * 不传则不登记（普通子代理、工作流步骤都没有）。
    */
-  readonly scope?: { runID: string; taskID?: string; attempt?: number; readOnly?: boolean }
+  readonly scope?: {
+    runID: string
+    taskID?: string
+    attempt?: number
+    assignmentID?: string
+    dispatchID?: string
+    employeeID?: string
+    promptHash?: string
+    skillManifestHash?: string
+    permissionHash?: string
+    worktree?: string
+    readOnly?: boolean
+    paths?: readonly string[]
+    root?: string
+  }
   /**
    * 子会话的工作目录。团队运行时指向团队 worktree ——
    * 成员看到的是 `HEAD` 的独立副本，而不是用户还没提交的工作区。
@@ -104,6 +119,8 @@ export interface MakeRunAgentConfig {
    * 放在这里而不是 runAgent 调用点，是因为会话 ID 只有创建后才知道。
    */
   readonly onSession?: (input: { sessionID: SessionID; scope: RunAgentInput["scope"] }) => Effect.Effect<void>
+  /** 子会话的 provider 调用结束（成功、失败或中断）后调用，用于停止派工 heartbeat。 */
+  readonly onFinish?: (input: { sessionID: SessionID; scope: RunAgentInput["scope"] }) => Effect.Effect<void>
   /**
    * 读取某个会话（含其子孙）的累计用量。缺省只读会话自己的行；
    * 编排方可以注入「整棵子树」的读法，把队长派生出的成员开销一起算进来。
@@ -116,7 +133,7 @@ export interface MakeRunAgentConfig {
  * Session/Agent 服务已在 config 中注入,故返回的闭包自身无未决依赖(R = never)。
  */
 export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
-  const { ops, sessions, agents, parentSessionID, defaultModel, defaultAgent, teams, onSession } = config
+  const { ops, sessions, agents, parentSessionID, defaultModel, defaultAgent, teams, onSession, onFinish } = config
   // 缺省读法：会话行自己记的总量。子会话是新建的，读到的就是这一轮的消耗。
   const readUsage: (sessionID: SessionID) => Effect.Effect<RunAgentUsage> =
     config.readUsage ??
@@ -165,6 +182,51 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
       // 归属：显式的员工身份优先；否则沿用父会话 —— 队长自己的助手不是名册里的
       // 成员，工时算回队长，而不是凭空多出一个「无人」。
       const employeeID = input.employeeID ?? parent?.employeeID
+      const baseScope: RunAgentInput["scope"] = (() => {
+        const scope = input.scope
+        if (!scope?.runID || !scope.taskID) return scope
+        const generatedAssignment = EmployeePromptAssembler.assignmentID({
+          runID: scope.runID,
+          taskID: scope.taskID,
+          attempt: scope.attempt ?? 0,
+          discriminator: resolvedName,
+        })
+        return {
+          ...scope,
+          runID: scope.runID,
+          taskID: scope.taskID,
+          assignmentID: scope.assignmentID ?? generatedAssignment,
+          dispatchID: scope.dispatchID ?? EmployeePromptAssembler.dispatchID(scope.assignmentID ?? generatedAssignment),
+        }
+      })()
+      const assembled =
+        baseScope?.assignmentID && !input.prompt.includes("## DISPATCH CONTRACT")
+          ? EmployeePromptAssembler.build({
+              prompt: input.prompt,
+              assignment: {
+                assignmentID: baseScope.assignmentID,
+                dispatchID: baseScope.dispatchID!,
+                runID: baseScope.runID,
+                taskID: baseScope.taskID!,
+                attempt: baseScope.attempt ?? 0,
+                ...(employeeID ? { employeeID } : {}),
+              },
+              worktree: input.directory ?? parent?.directory,
+              readOnly: baseScope.readOnly,
+              permissionSnapshot: input.permission ?? next?.permission,
+            })
+          : undefined
+      const effectiveScope: RunAgentInput["scope"] = assembled
+        ? {
+            ...baseScope,
+            runID: baseScope!.runID!,
+            promptHash: assembled.manifest.promptHash,
+            skillManifestHash: assembled.manifest.skillManifestHash,
+            permissionHash: assembled.manifest.permissionHash,
+            ...(employeeID ? { employeeID } : {}),
+            ...(input.directory ?? parent?.directory ? { worktree: input.directory ?? parent?.directory } : {}),
+          }
+        : baseScope
       const child = yield* sessions.create(
         {
           parentID: parentSessionID,
@@ -186,12 +248,12 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
         },
         {
           ...(employeeID ? { employeeID } : {}),
-          ...(input.scope?.runID ? { runID: input.scope.runID } : {}),
+          ...(effectiveScope?.runID ? { runID: effectiveScope.runID } : {}),
         },
       )
 
-      if (onSession && input.scope) {
-        yield* onSession({ sessionID: child.id, scope: input.scope }).pipe(Effect.ignore)
+      if (onSession && effectiveScope) {
+        yield* onSession({ sessionID: child.id, scope: effectiveScope }).pipe(Effect.ignore)
       }
 
       if (teams && team) {
@@ -219,7 +281,7 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
       yield* mark("active")
 
       const model = input.model ?? next?.model ?? defaultModel
-      const parts = yield* ops.resolvePromptParts(input.prompt)
+      const parts = yield* ops.resolvePromptParts(assembled?.prompt ?? input.prompt)
       const result = yield* ops
         .prompt({
           messageID: MessageID.ascending(),
@@ -228,7 +290,10 @@ export function makeRunAgent(config: MakeRunAgentConfig): RunAgent {
           agent: resolvedName,
           parts,
         })
-        .pipe(Effect.ensuring(mark("idle")))
+        .pipe(
+          Effect.ensuring(mark("idle")),
+          Effect.ensuring(onFinish && effectiveScope ? onFinish({ sessionID: child.id, scope: effectiveScope }) : Effect.void),
+        )
       // 用量必须在这一轮结束后立刻读：再晚一点，同一会话里后续的消耗会混进来。
       const usage = yield* readUsage(child.id)
       return {

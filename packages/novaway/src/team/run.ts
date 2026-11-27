@@ -185,6 +185,12 @@ export class InvalidTransition extends Error {
   }
 }
 
+export class ApprovalConflict extends Error {
+  constructor(readonly state: RunState, readonly phase?: RunPhase) {
+    super(`cannot approve an executing run: ${state}${phase ? ` (${phase})` : ""}`)
+  }
+}
+
 export function canTransition(from: RunState, to: RunState): boolean {
   return TRANSITIONS[from].includes(to)
 }
@@ -458,18 +464,25 @@ export const layer = Layer.effect(
     })
 
     const update: Interface["update"] = Effect.fn("TeamRun.update")(function* (input) {
-      const existing = yield* get(input.runID)
-      if (!existing) return undefined
-      if (input.state && input.state !== existing.state) {
-        if (!canTransition(existing.state, input.state)) {
-          return yield* Effect.die(new InvalidTransition(existing.state, input.state))
-        }
-      }
-      const nextState = input.state ?? existing.state
-      const now = Date.now()
-      yield* Effect.sync(() =>
+      /**
+       * 读取当前状态必须发生在同一个 immediate transaction 里。
+       *
+       * 先在事务外 `get()` 再更新会产生一个很隐蔽的竞态：两个请求都读到
+       * `planning`，随后一个把运行置为 `cancelled`，另一个仍按旧快照写入
+       * `failed`，并且事件会记录错误的 `from`。状态机的校验和状态写入必须
+       * 针对同一份数据库快照完成。
+       */
+      return yield* Effect.sync(() =>
         Database.transaction(
           (tx) => {
+            const row = tx.select().from(TeamRunTable).where(eq(TeamRunTable.id, input.runID)).get()
+            if (!row) return undefined
+            const existing = toRun(row)
+            if (input.state && input.state !== existing.state && !canTransition(existing.state, input.state)) {
+              throw new InvalidTransition(existing.state, input.state)
+            }
+            const nextState = input.state ?? existing.state
+            const now = Date.now()
             tx.update(TeamRunTable)
               .set({
                 ...(input.state ? { state: input.state } : {}),
@@ -506,31 +519,58 @@ export const layer = Layer.effect(
             }
             // 调用方自己的事件也放进同一个事务：顺序是「状态 → 事件」，与旧行为一致。
             if (input.event) appendEventTx(tx, { runID: input.runID, ...input.event })
-            return undefined
+            const updated = tx.select().from(TeamRunTable).where(eq(TeamRunTable.id, input.runID)).get()
+            return updated ? toRun(updated) : undefined
           },
           { behavior: "immediate" },
         ),
       )
-      return yield* get(input.runID)
     })
 
     const approve: Interface["approve"] = Effect.fn("TeamRun.approve")(function* (input) {
-      const run = yield* get(input.runID)
-      if (!run) return undefined
-      // 计划改过版本，之前的批准不再代表当前计划。
-      if (run.planVersion !== input.planVersion) return "stale-plan" as const
-      return yield* update({
-        runID: input.runID,
-        state: "running",
-        approval: {
-          planVersion: input.planVersion,
-          approvedAt: Date.now(),
-          approvedBudget: input.budget,
-          approvedBy: input.by,
-        },
-        budget: input.budget,
-        startedAt: run.startedAt ?? Date.now(),
-      })
+      /**
+       * 计划版本检查也必须和批准写入处于同一个事务。否则「检查第 N 版」与
+       * 「写入批准」之间如果有人提交了第 N+1 版，旧批准仍可能被写回数据库。
+       */
+      return yield* Effect.sync(() =>
+        Database.transaction(
+          (tx) => {
+            const row = tx.select().from(TeamRunTable).where(eq(TeamRunTable.id, input.runID)).get()
+            if (!row) return undefined
+            if (row.plan_version !== input.planVersion) return "stale-plan" as const
+            const existing = toRun(row)
+            if (existing.state === "running" && existing.phase) throw new ApprovalConflict(existing.state, existing.phase)
+            if (!canTransition(existing.state, "running") && existing.state !== "running") {
+              throw new InvalidTransition(existing.state, "running")
+            }
+            const now = Date.now()
+            tx.update(TeamRunTable)
+              .set({
+                state: "running",
+                approval: {
+                  planVersion: input.planVersion,
+                  approvedAt: now,
+                  approvedBudget: input.budget,
+                  approvedBy: input.by,
+                },
+                budget: input.budget,
+                started_at: row.started_at ?? now,
+                time_updated: now,
+              })
+              .where(eq(TeamRunTable.id, input.runID))
+              .run()
+            if (existing.state !== "running")
+              appendEventTx(tx, {
+                runID: input.runID,
+                kind: "run.state",
+                payload: { from: existing.state, to: "running" },
+              })
+            const updated = tx.select().from(TeamRunTable).where(eq(TeamRunTable.id, input.runID)).get()
+            return updated ? toRun(updated) : undefined
+          },
+          { behavior: "immediate" },
+        ),
+      )
     })
 
     const events: Interface["events"] = Effect.fn("TeamRun.events")(function* (input) {
